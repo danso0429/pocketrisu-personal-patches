@@ -14,6 +14,8 @@ test('profiles share one catalog but have different ownership boundaries', () =>
     assert.deepEqual(catalog.map((pack) => pack.id), [
         'bg-preserve',
         'startup-cache',
+        'lazy-chat-sync',
+        'lazy-chat-bg-adapter',
         'persona-organizer',
     ])
     assert.throws(
@@ -23,12 +25,16 @@ test('profiles share one catalog but have different ownership boundaries', () =>
     assert.doesNotThrow(
         () => validateProfileSelection(resolveProfile('all'), [
             'bg-preserve',
-            'startup-cache',
+            'lazy-chat-sync',
+            'lazy-chat-bg-adapter',
         ]),
     )
     assert.throws(
-        () => validateProfileSelection(resolveProfile('all'), ['startup-cache']),
-        /requires pack bg-preserve/,
+        () => validateProfileSelection(resolveProfile('all'), [
+            'bg-preserve',
+            'lazy-chat-sync',
+        ]),
+        /requires pack lazy-chat-bg-adapter/,
     )
 })
 

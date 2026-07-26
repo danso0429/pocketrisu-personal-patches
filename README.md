@@ -5,22 +5,32 @@ manifests target PocketRisu `v1.8.1`.
 
 ## Profiles
 
-- `pocketrisu-features.cjs` manages `startup-cache` and `persona-organizer`.
+- `pocketrisu-features.cjs` manages `lazy-chat-sync` (including startup cache)
+  and `persona-organizer`.
   An existing bg-preserve installation remains an external layer.
-- `pocketrisu-all.cjs` manages bg-preserve `v1.0.0` plus both feature packs as
-  one composition.
+- `pocketrisu-all.cjs` adds bg-preserve `v1.0.0` and the
+  `lazy-chat-bg-adapter` durable-save barrier as one composition.
 
 Both artifacts are generated from the same engine and manifests. They are not
 separate implementations.
 
 ## Feature packs
 
-### Startup cache
+### Lazy chat synchronization and startup cache
 
 This caches PocketRisu's startup database, not an LLM response or Gemini
-context. It is adapted from
+context. The storage protocol is adapted from
 [PocketRisu PR #49](https://github.com/PocketRisu/PocketRisu/pull/49):
 
+- chat bodies remain outside the startup database payload and hydrate only
+  when selected or requested by a plugin;
+- chat writes use exact transport revisions, CAS preconditions, bounded JSON
+  Patch deltas, and response-loss confirmation instead of unconditional full
+  overwrites;
+- a server write-ahead journal preserves acknowledged chat writes until their
+  database metadata is durable;
+- database conflicts use three-way reconciliation with explicit
+  deletion-versus-edit handling;
 - the authenticated `/api/read` response is revalidated with its database
   ETag before a browser cache is trusted;
 - unchanged startup data can use a decoded IndexedDB baseline, avoiding the
@@ -32,17 +42,25 @@ context. It is adapted from
   so a warm `304` does not decode and re-encode the database.
 - each startup records `decoded-hit`, `raw-hit`, network miss, or recovery
   fallback with probe/request/hydration timings in PocketRisu's System Logs.
+- IndexedDB and CacheStorage metadata probes race independently, so one stalled
+  iOS storage backend cannot delay a valid result from the other for the full
+  1500 ms timeout.
 
 An isolated production measurement with writes and writer-session changes
 blocked confirmed a database `200` on the first load and `304` on the warm
 reload. Two unprofiled runs reduced the loading screen from roughly
 2.8–3.0 seconds to 1.7 seconds. The remaining time was outside the database
 transfer/decode cache, mainly application initialization and state setup.
-PR #49 combines this cache with a broader lazy-chat synchronization protocol,
-so its demo is not a cache-only comparison.
-
-The cache is optional. Applying or reverting this pack does not delete the
+Applying or reverting this pack does not delete the
 PocketRisu database, chats, assets, or backups.
+
+The all profile keeps two revision domains deliberately separate:
+
+- lazy-chat transport revisions hash the exact encoded chat for storage CAS;
+- bg-preserve revisions detect semantic user edits for result merging.
+
+BG result delivery waits for both the chat journal ACK and `/api/db/flush`
+before acknowledging and deleting a parked orchestration result.
 
 ### Persona organizer
 
@@ -145,6 +163,6 @@ apply/revert round trip.
 
 ## Attribution
 
-PocketRisu and the startup-cache code adapted from PR #49 are GPL-3.0
+PocketRisu and the storage synchronization code adapted from PR #49 are GPL-3.0
 licensed. See [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md) and
 [LICENSE](LICENSE).

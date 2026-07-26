@@ -5,14 +5,13 @@ modified PocketRisu source code.
 
 - PocketRisu: https://github.com/PocketRisu/PocketRisu
 - License: GNU General Public License v3.0
-- Startup cache inspiration and adapted implementation:
+- Lazy chat synchronization and startup cache adapted implementation:
   https://github.com/PocketRisu/PocketRisu/pull/49
 - PR #49 author at the time of adaptation: `universebaby1020`
-- Adapted source files:
-  `src/ts/storage/startupDatabaseCache.ts` and its tests, plus a smaller
-  integration into NodeStorage, AutoStorage, bootstrap, and the Node server.
+- Adapted source includes the PR's startup cache, chat delta/CAS, write
+  journal, hydration boundary, plugin access boundary, and database conflict
+  reconciliation files and tests.
 
-The adapted version is scoped to startup caching. PR #49's separate lazy-chat,
-conflict-rebase, and write-journal protocol is not imported because this
-PocketRisu installation already has an independently maintained bg-preserve
-hydration and conflict protocol.
+Local changes add iOS-independent cache probing, startup observability, and a
+bg-preserve durable-save adapter. BG semantic merge revisions remain separate
+from the PR's exact transport revisions.
