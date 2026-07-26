@@ -9,6 +9,7 @@
         FolderPlusIcon,
         ImageIcon,
         PencilIcon,
+        PlusIcon,
         Trash2Icon,
     } from "@lucide/svelte"
     import { onDestroy } from "svelte"
@@ -31,8 +32,13 @@
         exportUserPersona,
         importUserPersona,
         saveUserPersona,
-        selectUserImg,
     } from "src/ts/persona"
+    import {
+        addPersonaImages as addPersonaImagePaths,
+        getPersonaImageGallery,
+        removePersonaImage as removePersonaImagePath,
+        selectPersonaImage,
+    } from "src/ts/personaImages"
     import {
         applyPersonaDeletion,
         buildPersonaDeletionPlan,
@@ -48,7 +54,7 @@
     } from "src/ts/storage/database.svelte"
     import { saveImage } from "src/ts/storage/database.svelte"
     import { DBState } from "src/ts/stores.svelte"
-    import { selectSingleFile } from "src/ts/util"
+    import { selectMultipleFile, selectSingleFile } from "src/ts/util"
     import { v4 } from "uuid"
 
     type ViewItem = {
@@ -75,6 +81,10 @@
     let deletePersonaIds = $state<string[]>([])
     let deleteFolderIds = $state<string[]>([])
     let deleteConfirmOpen = $state(false)
+    let addingPersonaImages = $state(false)
+    let exportPersonaDialogOpen = $state(false)
+    let exportPersonaImage = $state<string | null>(null)
+    let exportingPersona = $state(false)
 
     const groups = $derived.by((): PersonaGroup[] => {
         DBState.db.personaFolders ??= []
@@ -145,6 +155,12 @@
     )
     const deletionAllowed = $derived(
         deletionSelectionCount > 0 && deletionPlan.remainingCount >= 1
+    )
+    const editorPersona = $derived(
+        DBState.db.personas[DBState.db.selectedPersona] ?? null
+    )
+    const editorPersonaImages = $derived.by(() =>
+        editorPersona ? getPersonaImageGallery(editorPersona) : []
     )
 
     function selectedPersonaId(): string | null {
@@ -377,12 +393,77 @@
         changeUserPersona(index)
     }
 
+    function commitPersonaImages(persona: RisuPersona): void {
+        if (DBState.db.personas[DBState.db.selectedPersona] === persona) {
+            DBState.db.userIcon = persona.icon
+        }
+        DBState.db.personas = [...DBState.db.personas]
+        void requestImmediateSave()
+    }
+
+    async function addPersonaImages(): Promise<void> {
+        const persona = DBState.db.personas[DBState.db.selectedPersona]
+        if (!persona || addingPersonaImages) return
+        const selected = await selectMultipleFile(["png", "webp", "gif", "jpg", "jpeg"])
+        if (!selected?.length) return
+
+        addingPersonaImages = true
+        try {
+            const paths: string[] = []
+            for (const file of selected) {
+                paths.push(await saveImage(file.data, "", file.name))
+            }
+            saveUserPersona()
+            addPersonaImagePaths(persona, paths)
+            commitPersonaImages(persona)
+        } finally {
+            addingPersonaImages = false
+        }
+    }
+
+    function usePersonaImage(path: string): void {
+        const persona = DBState.db.personas[DBState.db.selectedPersona]
+        if (!persona || persona.icon === path) return
+        saveUserPersona()
+        if (!selectPersonaImage(persona, path)) return
+        commitPersonaImages(persona)
+    }
+
+    function removePersonaImage(path: string): void {
+        const persona = DBState.db.personas[DBState.db.selectedPersona]
+        if (!persona) return
+        saveUserPersona()
+        removePersonaImagePath(persona, path)
+        commitPersonaImages(persona)
+    }
+
+    function openPersonaExportDialog(): void {
+        const persona = DBState.db.personas[DBState.db.selectedPersona]
+        if (!persona) return
+        saveUserPersona()
+        const images = getPersonaImageGallery(persona)
+        exportPersonaImage = persona.icon || images[0] || null
+        exportPersonaDialogOpen = true
+    }
+
+    async function exportSelectedPersona(): Promise<void> {
+        if (exportingPersona) return
+        exportingPersona = true
+        try {
+            await exportUserPersona(exportPersonaImage ?? "")
+            exportPersonaDialogOpen = false
+        } finally {
+            exportingPersona = false
+        }
+    }
+
     function createPersona(): void {
         addPersonaDialogOpen = false
         DBState.db.personas.push({
             id: v4(),
             name: "New Persona",
             icon: "",
+            imageGallery: [],
             personaPrompt: "",
             note: "",
         })
@@ -724,21 +805,63 @@
         </div>
     </div>
 
-    <div class="flex w-full items-starts rounded-md border-darkborderc border p-4 max-w-full flex-wrap">
-        <div class="flex flex-col mt-4 mr-4">
-            <button onclick={() => {selectUserImg()}}>
-                {#if DBState.db.userIcon === ""}
-                    <div class="rounded-md h-28 w-28 shadow-lg bg-textcolor2 cursor-pointer hover:text-primary"></div>
-                {:else}
-                    {#await getCharImage(DBState.db.userIcon, DBState.db.personas[DBState.db.selectedPersona].largePortrait ? "lgcss" : "css")}
-                        <div class="rounded-md h-28 w-28 shadow-lg bg-textcolor2 cursor-pointer hover:text-primary"></div>
-                    {:then imageStyle}
-                        <div class="rounded-md h-28 w-28 shadow-lg bg-textcolor2 cursor-pointer hover:text-primary" style={imageStyle}></div>
-                    {/await}
-                {/if}
-            </button>
+    <div class="persona-editor-panel">
+        <div class="persona-image-gallery">
+            <div class="persona-image-gallery-header">
+                <div>
+                    <h3>Persona images</h3>
+                    <p>Select the image used for user messages. Added images stay available here.</p>
+                </div>
+                <button
+                    class="persona-image-add"
+                    disabled={addingPersonaImages}
+                    onclick={addPersonaImages}
+                >
+                    <PlusIcon size={17} />
+                    <span>{addingPersonaImages ? "Adding..." : "Add images"}</span>
+                </button>
+            </div>
+            {#if editorPersonaImages.length === 0}
+                <button class="persona-image-empty" onclick={addPersonaImages}>
+                    <ImageIcon size={22} />
+                    <span>Add the first persona image</span>
+                </button>
+            {:else}
+                <div class="persona-image-grid">
+                    {#each editorPersonaImages as image, imageIndex (image)}
+                        <div
+                            class="persona-gallery-card"
+                            class:persona-gallery-active={editorPersona?.icon === image}
+                        >
+                            <button
+                                class="persona-gallery-select"
+                                aria-label={`Use persona image ${imageIndex + 1}`}
+                                aria-pressed={editorPersona?.icon === image}
+                                onclick={() => usePersonaImage(image)}
+                            >
+                                {#await getCharImage(image, "css")}
+                                    <span class="persona-gallery-image bg-textcolor2"></span>
+                                {:then imageStyle}
+                                    <span class="persona-gallery-image bg-textcolor2" style={imageStyle}></span>
+                                {/await}
+                                {#if editorPersona?.icon === image}
+                                    <span class="persona-gallery-active-label">Active</span>
+                                {/if}
+                            </button>
+                            <button
+                                class="persona-gallery-remove"
+                                aria-label={`Remove persona image ${imageIndex + 1}`}
+                                title="Remove from this persona"
+                                onclick={() => removePersonaImage(image)}
+                            >
+                                <Trash2Icon size={15} />
+                            </button>
+                        </div>
+                    {/each}
+                </div>
+            {/if}
         </div>
-        <div class="flex grow flex-col p-2 max-w-full">
+        <div class="persona-editor-fields">
             <span class="text-sm text-textcolor2">{language.name} <Help key="personaName" /></span>
             <TextInput className="mt-2" marginBottom placeholder="User" bind:value={DBState.db.username}/>
             <span class="text-sm text-textcolor2">{language.note} <Help key="personaNote" /></span>
@@ -748,7 +871,7 @@
             <span class="text-sm text-textcolor2">{language.description} <Help key="personaDescription" /></span>
             <TextAreaInput className="mt-2 mb-4" autocomplete="off" bind:value={DBState.db.personaPrompt} placeholder={`Put the description of this persona here.\nExample: [<user> is a 20 year old girl.]`} />
             <div class="flex gap-2 mt-4 max-w-full flex-wrap">
-                <Button onclick={exportUserPersona}>{language.export}</Button>
+                <Button onclick={openPersonaExportDialog}>{language.export}</Button>
                 <Button onclick={importUserPersona}>{language.import}</Button>
 
                 <Button styled="danger" onclick={async () => {
@@ -771,6 +894,69 @@
         </div>
     </div>
 </SettingPage>
+
+<ShDialog
+    bind:open={exportPersonaDialogOpen}
+    size="sm"
+    tier="alert"
+    closable={!exportingPersona}
+    closeOnEscape={!exportingPersona}
+    closeOnOutsideClick={!exportingPersona}
+>
+    {#snippet title()}Select export image{/snippet}
+    {#snippet description()}
+        Choose the image embedded in this Persona PNG. This does not change the active image.
+    {/snippet}
+    {#snippet children()}
+        {#if editorPersonaImages.length === 0}
+            <div class="persona-export-default">
+                <ImageIcon size={24} />
+                <span>This persona has no image. A default image will be exported.</span>
+            </div>
+        {:else}
+            <div class="persona-image-grid">
+                {#each editorPersonaImages as image, imageIndex (image)}
+                    <button
+                        class="persona-gallery-card persona-gallery-select"
+                        class:persona-gallery-active={exportPersonaImage === image}
+                        aria-label={`Export with persona image ${imageIndex + 1}`}
+                        aria-pressed={exportPersonaImage === image}
+                        onclick={() => exportPersonaImage = image}
+                    >
+                        {#await getCharImage(image, "css")}
+                            <span class="persona-gallery-image bg-textcolor2"></span>
+                        {:then imageStyle}
+                            <span class="persona-gallery-image bg-textcolor2" style={imageStyle}></span>
+                        {/await}
+                        {#if exportPersonaImage === image}
+                            <span class="persona-gallery-active-label">Selected</span>
+                        {/if}
+                    </button>
+                {/each}
+            </div>
+        {/if}
+    {/snippet}
+    {#snippet footer()}
+        <ShButton
+            variant="outline"
+            disabled={exportingPersona}
+            onclick={() => exportPersonaDialogOpen = false}
+        >
+            Cancel
+        </ShButton>
+        <ShButton
+            variant="primary"
+            disabled={exportingPersona}
+            onclick={exportSelectedPersona}
+        >
+            {exportingPersona
+                ? "Exporting..."
+                : editorPersonaImages.length === 0
+                    ? "Export with default image"
+                    : "Export selected image"}
+        </ShButton>
+    {/snippet}
+</ShDialog>
 
 <ShDialog
     bind:open={addPersonaDialogOpen}
@@ -1318,10 +1504,158 @@
         min-width: 0;
         flex-direction: column;
     }
+    .persona-editor-panel {
+        display: grid;
+        width: 100%;
+        max-width: 100%;
+        grid-template-columns: minmax(13rem, 18rem) minmax(0, 1fr);
+        align-items: start;
+        gap: 1rem;
+        border: 1px solid var(--color-darkborderc);
+        border-radius: 0.375rem;
+        padding: 1rem;
+    }
+    .persona-editor-fields {
+        display: flex;
+        min-width: 0;
+        max-width: 100%;
+        flex-direction: column;
+    }
+    .persona-image-gallery {
+        display: flex;
+        width: 100%;
+        min-width: 0;
+        flex-direction: column;
+        gap: 0.7rem;
+    }
+    .persona-image-gallery-header {
+        display: flex;
+        align-items: stretch;
+        flex-direction: column;
+        gap: 0.75rem;
+    }
+    .persona-image-gallery-header h3 {
+        margin: 0;
+        color: var(--color-textcolor);
+        font-size: 0.95rem;
+        font-weight: 700;
+    }
+    .persona-image-gallery-header p {
+        margin: 0.15rem 0 0;
+        color: var(--color-textcolor2);
+        font-size: 0.75rem;
+        line-height: 1.1rem;
+    }
+    .persona-image-add,
+    .persona-image-empty {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        gap: 0.35rem;
+        border: 1px solid color-mix(in srgb, var(--color-primary) 55%, var(--color-darkborderc));
+        border-radius: 0.5rem;
+        color: var(--color-primary);
+        background: color-mix(in srgb, var(--color-primary) 9%, transparent);
+    }
+    .persona-image-add {
+        min-height: 2.35rem;
+        flex: 0 0 auto;
+        align-self: flex-start;
+        padding: 0.4rem 0.65rem;
+        font-size: 0.8rem;
+        font-weight: 650;
+    }
+    .persona-image-add:disabled {
+        cursor: wait;
+        opacity: 0.55;
+    }
+    .persona-image-empty {
+        width: 100%;
+        min-height: 5.4rem;
+        flex-direction: column;
+        border-style: dashed;
+        color: var(--color-textcolor2);
+        font-size: 0.8rem;
+    }
+    .persona-export-default {
+        display: flex;
+        min-height: 5.4rem;
+        align-items: center;
+        justify-content: center;
+        gap: 0.55rem;
+        border: 1px dashed var(--color-darkborderc);
+        border-radius: 0.5rem;
+        padding: 0.8rem;
+        color: var(--color-textcolor2);
+        font-size: 0.8rem;
+        text-align: center;
+    }
+    .persona-image-grid {
+        display: grid;
+        grid-template-columns: repeat(auto-fill, minmax(4.4rem, 1fr));
+        gap: 0.55rem;
+    }
+    .persona-gallery-card {
+        position: relative;
+        min-width: 0;
+        aspect-ratio: 1 / 1;
+        border: 2px solid transparent;
+        border-radius: 0.6rem;
+        overflow: hidden;
+        background: var(--color-darkborderc);
+    }
+    .persona-gallery-active {
+        border-color: var(--color-primary);
+        box-shadow: 0 0 0 1px color-mix(in srgb, var(--color-primary) 35%, transparent);
+    }
+    .persona-gallery-select,
+    .persona-gallery-image {
+        display: block;
+        width: 100%;
+        height: 100%;
+    }
+    .persona-gallery-image {
+        background-position: center !important;
+        background-repeat: no-repeat !important;
+        background-size: cover !important;
+    }
+    .persona-gallery-active-label {
+        position: absolute;
+        left: 0.3rem;
+        bottom: 0.3rem;
+        border-radius: 999px;
+        padding: 0.12rem 0.4rem;
+        color: white;
+        background: color-mix(in srgb, var(--color-primary) 88%, black);
+        font-size: 0.65rem;
+        font-weight: 700;
+    }
+    .persona-gallery-remove {
+        position: absolute;
+        z-index: 2;
+        top: 0.25rem;
+        right: 0.25rem;
+        display: flex;
+        width: 1.75rem;
+        height: 1.75rem;
+        align-items: center;
+        justify-content: center;
+        border-radius: 999px;
+        color: white;
+        background: rgb(0 0 0 / 0.7);
+    }
+    .persona-gallery-remove:hover {
+        background: var(--color-draculared, #ef4444);
+    }
     @media (prefers-reduced-motion: reduce) {
         .page-track,
         .page-dot {
             transition-duration: 1ms;
+        }
+    }
+    @media (max-width: 720px) {
+        .persona-editor-panel {
+            grid-template-columns: minmax(0, 1fr);
         }
     }
     @media (max-width: 374px) {

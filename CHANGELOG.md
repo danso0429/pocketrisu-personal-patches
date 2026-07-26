@@ -1,5 +1,23 @@
 # Changelog
 
+## 0.1.5
+
+- Add a multi-image gallery to each persona while retaining `icon` as the
+  selected compatibility image used by chats, plugins, and persona PNG export.
+- Replace the duplicate large active-image preview with the gallery in the
+  editor image area, with multi-file import, thumbnail activation, and
+  non-destructive gallery removal.
+- Let Persona PNG export choose one gallery image without changing the active
+  persona image, while preserving the existing default-image fallback.
+- Adopt every legacy single image into its persona gallery without moving or
+  deleting asset data.
+- Preserve persona gallery and persona-folder images across asset cleanup,
+  resource replacement, and partial backup.
+- Pass 8/8 patcher tests, the clean PocketRisu v1.8.1 suite with 1,206 tests
+  passed and 3 intentionally skipped parser specifications, Svelte diagnostics,
+  production build, exact installer regeneration, production health checks, and
+  iPhone gallery/export L3.
+
 ## 0.1.4
 
 - Fix new-chat saves when PocketRisu inserts the new chat at index zero before

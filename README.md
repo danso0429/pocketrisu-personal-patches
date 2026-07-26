@@ -1,7 +1,7 @@
 # PocketRisu Personal Patches
 
 Private, composable patch delivery for PocketRisu NodeOnly. The current
-stable release is `v0.1.4`, and its manifests target PocketRisu `v1.8.1`.
+stable release is `v0.1.5`, and its manifests target PocketRisu `v1.8.1`.
 
 ## Profiles
 
@@ -23,22 +23,23 @@ separate implementations.
 | `v0.1.2` | Added closable create/import UI and root/folder-scoped bulk persona deletion with reversible selection, grouped previews, a final confirmation gate, and protection for the last remaining persona. |
 | `v0.1.3` | Added content-addressed custom folder images with replace/reset and deletion-preview support, then made the full CI gate compatible with its Node.js 22 runner. |
 | `v0.1.4` | Fixed new-chat save failures by making stable chat IDs authoritative and classifying create versus update from the last server-confirmed database without weakening remote-deletion or concurrent-create safety. |
+| `v0.1.5` | Added a reusable multi-image gallery to every persona, active-image selection, non-destructive reference removal, and an export-time image picker while preserving legacy `icon` compatibility and all gallery/folder assets through cleanup and backup. |
 
-The current `v0.1.4` release has been validated against PocketRisu `v1.8.1`
+The current `v0.1.5` release has been validated against PocketRisu `v1.8.1`
 with:
 
 - 8/8 patcher tests and reproducible installer generation;
 - a clean unified apply, embedded PocketRisu checks, production build, and
   exact byte-plus-mode revert in GitHub Actions;
-- 1,197 PocketRisu tests passed, with three pre-existing parser specifications
+- 1,206 PocketRisu tests passed, with three pre-existing parser specifications
   intentionally skipped;
 - Svelte diagnostics at 0 errors and 0 warnings;
 - BG orchestration bundle build/load and production health checks;
-- iPhone validation of new and existing chat saves, reload persistence, and
-  background-return behavior.
+- iPhone validation of multi-image add/select/remove, export-time selection,
+  the compact gallery layout, and existing persona editing behavior.
 
 See [CHANGELOG.md](CHANGELOG.md) for experimental checkpoints and the complete
-per-release change list. The `v0.1.4` incident analysis and safety boundaries
+per-release change list. The preceding `v0.1.4` incident analysis and safety boundaries
 are in
 [docs/NEW-CHAT-SAVE-REGRESSION-2026-07-26.md](docs/NEW-CHAT-SAVE-REGRESSION-2026-07-26.md).
 
@@ -106,6 +107,8 @@ The thumbnail strip at the top of Settings → Persona gains:
 
 - an explicit `New folder` action and single-level folder cards;
 - persona thumbnails and folder images with the same 80×80 dimensions;
+- a per-persona image gallery with multi-file add, explicit active-image
+  selection, and non-destructive removal;
 - click-to-open folder contents;
 - an `Arrange` action that gives personas and folders explicit left/right
   one-slot movement controls;
@@ -128,6 +131,15 @@ index-based callers keep working. Selection is restored by stable persona ID
 after a reorder. The chat persona-selection popup is left as PocketRisu's
 original UI, and the existing name, note, description, image, import/export,
 and `+` create/import controls on the settings page remain available.
+
+The existing `persona.icon` field remains the active image consumed by chat
+rendering and external integrations. `imageGallery` stores the reusable set,
+including that active image. Legacy single-image personas are adopted on load.
+The gallery occupies the image area in the editor, and its `Active` badge is the
+single active-image indicator. Standard persona PNG export opens a gallery
+picker and embeds the selected image without changing the active image; the
+full database and partial backup retain every gallery image. Removing an entry
+from a persona or resetting a folder image never deletes the shared asset.
 
 ### Prompt preset integrity
 
