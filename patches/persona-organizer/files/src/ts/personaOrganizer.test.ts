@@ -3,6 +3,7 @@ import type { RisuPersona, RisuPersonaFolder } from "./storage/database.svelte"
 import {
     buildPersonaGroups,
     flattenPersonaGroups,
+    movePersonaWithinGroup,
     reorderPersonaList,
     unfilePersonaFolder,
 } from "./personaOrganizer"
@@ -47,5 +48,25 @@ describe("persona organizer", () => {
         expect(unfilePersonaFolder(input, "f1")).toBe(input)
         expect(input.map((item) => item.id)).toEqual(["a", "b", "c"])
         expect(input.every((item) => item.folderId === undefined)).toBe(true)
+    })
+
+    it("moves one persona left or right only inside its current group", () => {
+        const input = [
+            persona("a"),
+            persona("b"),
+            persona("c"),
+            persona("x", "f1"),
+            persona("y", "f1"),
+        ]
+        const movedRoot = movePersonaWithinGroup(input, folders, "b", null, -1)
+        expect(movedRoot.map((item) => item.id)).toEqual(["b", "a", "c", "x", "y"])
+        const movedFolder = movePersonaWithinGroup(movedRoot, folders, "x", "f1", 1)
+        expect(movedFolder.map((item) => item.id)).toEqual(["b", "a", "c", "y", "x"])
+    })
+
+    it("does nothing at a group boundary", () => {
+        const input = [persona("a"), persona("b"), persona("x", "f1")]
+        expect(movePersonaWithinGroup(input, folders, "a", null, -1)).toBe(input)
+        expect(movePersonaWithinGroup(input, folders, "x", "f1", 1)).toBe(input)
     })
 })

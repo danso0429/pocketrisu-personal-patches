@@ -5,13 +5,13 @@ const path = require('node:path')
 
 const replacementPath = path.join(
     __dirname,
-    'files/src/lib/Setting/listedPersona.svelte',
+    'files/src/lib/Setting/Pages/PersonaSettings.svelte',
 )
-const originalPath = path.join(__dirname, 'anchors/listedPersona.svelte')
+const originalPath = path.join(__dirname, 'anchors/PersonaSettings.svelte')
 
 module.exports = {
     id: 'persona-organizer',
-    version: '0.2.1',
+    version: '0.6.0',
     units: [
         {
             id: 'persona-organizer:logic',
@@ -90,8 +90,8 @@ module.exports = {
             content: '    personaFolders:RisuPersonaFolder[]\n',
         },
         {
-            id: 'persona-organizer:popup',
-            file: 'src/lib/Setting/listedPersona.svelte',
+            id: 'persona-organizer:settings-page',
+            file: 'src/lib/Setting/Pages/PersonaSettings.svelte',
             type: 'replace',
             anchor: fs.readFileSync(originalPath, 'utf8'),
             managed: fs.readFileSync(replacementPath, 'utf8'),

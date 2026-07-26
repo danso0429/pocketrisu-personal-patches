@@ -1,5 +1,52 @@
 # Changelog
 
+## 0.1.1
+
+- Move the persona organizer to the actual Settings → Persona editor while
+  leaving the chat persona-selection popup unchanged.
+- Replace persona drag-and-drop with paginated 4×4 cards, explicit folder
+  creation and membership selection, and one-slot `Arrange` controls.
+- Add the independent prompt preset integrity pack and keep startup, lazy-chat,
+  and bg-preserve composition current through per-pack ETags.
+- Pass PocketRisu v1.8.1 clean-copy and production validation, including the
+  live iPhone persona and prompt workflows.
+
+## 0.1.1-experimental.3
+
+- Remove persona drag-and-drop and every touch/scroll interception path.
+- Make `Arrange` expose explicit left/right controls that move a persona one
+  slot within its current area or move a folder one slot among folders.
+- Keep `Arrange` active when opening a folder so its personas receive the same
+  one-slot controls.
+- Add a folder `+` action that opens a paginated 4×4 persona grid; tapping a
+  thumbnail selects or deselects that persona's folder membership.
+
+## 0.1.1-experimental.2
+
+- Replace iPhone's mid-gesture long-press scroll cancellation with an explicit
+  `Arrange` mode that locks the real `.rs-setting-cont-4` settings scroller
+  before the next touch begins, then restores its exact scroll state on
+  `Done`.
+- Add the independent `preset-integrity` pack. It preserves every prompt
+  preset while clamping an invalid persisted active index at load/save/change
+  boundaries and guarding the Prompt → Basic Info name binding.
+- Add the new pack to both default profiles with its own manifest ETag and
+  embedded PocketRisu invariant tests.
+
+## 0.1.1-experimental.1
+
+- Move the persona organizer from the chat persona-selection popup to the
+  actual Settings → Persona editor identified by its name, note, and
+  description fields.
+- Restore the selection popup to PocketRisu's original implementation during
+  patch recomposition.
+- Keep the settings page's existing `+` create/import menu and editor actions,
+  while adding a separate visible `New folder` control and 80×80 folder cards.
+- Paginate the root organizer and every folder as animated 4×4, sixteen-card
+  pages with arrows, dots, and held-edge drag navigation.
+- Lock iOS page scrolling only after long-press drag activation, preview
+  reordering with animated card reflow, and persist the order only on drop.
+
 ## 0.1.0
 
 - Promote the composable NodeOnly patcher to stable after PocketRisu v1.8.1

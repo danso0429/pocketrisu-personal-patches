@@ -5,8 +5,8 @@ stable release is `v0.1.0`, and its manifests target PocketRisu `v1.8.1`.
 
 ## Profiles
 
-- `pocketrisu-features.cjs` manages `lazy-chat-sync` (including startup cache)
-  and `persona-organizer`.
+- `pocketrisu-features.cjs` manages `lazy-chat-sync` (including startup cache),
+  `persona-organizer`, and `preset-integrity`.
   An existing bg-preserve installation remains an external layer.
 - `pocketrisu-all.cjs` adds bg-preserve `v1.0.0` and the
   `lazy-chat-bg-adapter` durable-save barrier as one composition.
@@ -69,21 +69,39 @@ before acknowledging and deleting a parked orchestration result.
 
 ### Persona organizer
 
-The existing persona selection popup gains:
+The thumbnail strip at the top of Settings → Persona gains:
 
 - an explicit `New folder` action and single-level folder cards;
 - persona thumbnails and folder images with the same 80×80 dimensions;
-- click-to-open folder contents and visible unfiled/folder drop zones;
-- drag-to-reorder within or between folders;
-- drag onto a folder card or its opened contents to move a persona into it;
-- drag onto the unfiled area to move a persona out;
+- click-to-open folder contents;
+- an `Arrange` action that gives personas and folders explicit left/right
+  one-slot movement controls;
+- folder content arrangement by opening a folder while `Arrange` is active;
+- a folder `+` action with a paginated 4×4 all-persona selector for adding or
+  removing folder members;
 - folder rename, reorder, and removal (folder removal keeps every persona);
-- desktop drag and iPhone long-press drag with an 8px scroll threshold and
-  click suppression.
+- normal page scrolling at all times, with no persona drag or touch-scroll
+  interception.
 
 `Database.personas` remains the canonical persona order, so existing
 index-based callers keep working. Selection is restored by stable persona ID
-after a reorder.
+after a reorder. The chat persona-selection popup is left as PocketRisu's
+original UI, and the existing name, note, description, image, import/export,
+and `+` create/import controls on the settings page remain available.
+
+### Prompt preset integrity
+
+The independent `preset-integrity` pack keeps the persisted active preset
+index inside the current preset array:
+
+- a one-past-end or otherwise invalid saved index is clamped to a surviving
+  preset without deleting or rewriting the preset entries;
+- an empty legacy array receives one valid fallback preset;
+- database load, preset save/change, and the Prompt → Basic Info name binding
+  each enforce or tolerate the invariant.
+
+This pack is separate from persona organization so its ETag, apply, and revert
+scope remain independent.
 
 ## Build and use
 

@@ -7,15 +7,15 @@ const PROFILES = Object.freeze({
     features: {
         id: 'features',
         description: 'Lazy chat synchronization, startup cache, and persona organization; bg-preserve stays external.',
-        defaults: ['lazy-chat-sync', 'persona-organizer'],
-        allowed: ['lazy-chat-sync', 'persona-organizer'],
+        defaults: ['lazy-chat-sync', 'persona-organizer', 'preset-integrity'],
+        allowed: ['lazy-chat-sync', 'persona-organizer', 'preset-integrity'],
         required: [],
     },
     all: {
         id: 'all',
         description: 'Unified bg-preserve, lazy chat synchronization, startup cache, and persona organization.',
-        defaults: ['bg-preserve', 'lazy-chat-sync', 'lazy-chat-bg-adapter', 'persona-organizer'],
-        allowed: ['bg-preserve', 'lazy-chat-sync', 'lazy-chat-bg-adapter', 'persona-organizer'],
+        defaults: ['bg-preserve', 'lazy-chat-sync', 'lazy-chat-bg-adapter', 'persona-organizer', 'preset-integrity'],
+        allowed: ['bg-preserve', 'lazy-chat-sync', 'lazy-chat-bg-adapter', 'persona-organizer', 'preset-integrity'],
         required: ['bg-preserve', 'lazy-chat-bg-adapter'],
     },
 })
@@ -27,6 +27,7 @@ function loadCatalog(repositoryRoot = path.resolve(__dirname, '..')) {
         require(path.join(repositoryRoot, 'patches/lazy-chat-sync/manifest.cjs')),
         require(path.join(repositoryRoot, 'patches/lazy-chat-bg-adapter/manifest.cjs')),
         require(path.join(repositoryRoot, 'patches/persona-organizer/manifest.cjs')),
+        require(path.join(repositoryRoot, 'patches/preset-integrity/manifest.cjs')),
     ]
 }
 

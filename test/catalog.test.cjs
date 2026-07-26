@@ -17,6 +17,7 @@ test('profiles share one catalog but have different ownership boundaries', () =>
         'lazy-chat-sync',
         'lazy-chat-bg-adapter',
         'persona-organizer',
+        'preset-integrity',
     ])
     assert.throws(
         () => validateProfileSelection(resolveProfile('features'), ['bg-preserve']),

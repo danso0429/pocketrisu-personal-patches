@@ -68,3 +68,22 @@ export function unfilePersonaFolder(
     }
     return personas
 }
+
+export function movePersonaWithinGroup(
+    personas: RisuPersona[],
+    folders: RisuPersonaFolder[],
+    sourceId: string,
+    folderId: string | null,
+    offset: -1 | 1,
+): RisuPersona[] {
+    const groups = buildPersonaGroups(personas, folders)
+    const group = groups.find((item) => item.id === folderId) ?? groups[0]
+    if (!group) return personas
+    const from = group.personas.findIndex((persona) => persona.id === sourceId)
+    const to = from + offset
+    if (from < 0 || to < 0 || to >= group.personas.length) return personas
+    const reordered = [...group.personas]
+    reordered.splice(to, 0, ...reordered.splice(from, 1))
+    group.personas = reordered
+    return flattenPersonaGroups(groups)
+}

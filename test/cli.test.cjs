@@ -10,6 +10,7 @@ test('fixed-profile list marks selectable, default, and required packs', async (
         { id: 'lazy-chat-sync', version: '1', units: [] },
         { id: 'lazy-chat-bg-adapter', version: '1', units: [] },
         { id: 'persona-organizer', version: '1', units: [] },
+        { id: 'preset-integrity', version: '1', units: [] },
     ]
     const lines = []
     const originalLog = console.log
@@ -37,6 +38,7 @@ test('fixed-profile list marks selectable, default, and required packs', async (
             { id: 'lazy-chat-sync', selectable: true, default: true, required: false },
             { id: 'lazy-chat-bg-adapter', selectable: false, default: false, required: false },
             { id: 'persona-organizer', selectable: true, default: true, required: false },
+            { id: 'preset-integrity', selectable: true, default: true, required: false },
         ],
     )
 })
