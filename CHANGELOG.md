@@ -1,5 +1,18 @@
 # Changelog
 
+## 0.1.0
+
+- Promote the composable NodeOnly patcher to stable after PocketRisu v1.8.1
+  clean-copy and production validation.
+- Ship the unified and features-only profiles with startup database caching,
+  lazy chat synchronization, persona folders/reordering, and optional
+  bg-preserve v1.0.0 composition.
+- Preserve chat and patch state through CAS, WAL, exact collision ordering,
+  stale-plan refusal, transactional rollback, and POSIX mode round trips.
+- Pass the live 89-file PocketRisu suite (1,179 tests, 3 skipped), Svelte
+  diagnostics, BG bundle load check, production build, restart health checks,
+  and iPhone functional validation.
+
 ## 0.1.0-experimental.7
 
 - Serialize each target root with an exclusive owner lock and reject a stale

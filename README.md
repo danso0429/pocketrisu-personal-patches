@@ -1,7 +1,7 @@
 # PocketRisu Personal Patches
 
 Private, composable patch delivery for PocketRisu NodeOnly. The current
-manifests target PocketRisu `v1.8.1`.
+stable release is `v0.1.0`, and its manifests target PocketRisu `v1.8.1`.
 
 ## Profiles
 
