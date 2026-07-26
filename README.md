@@ -30,6 +30,16 @@ context. It is adapted from
   unconditional authoritative server read;
 - the server keeps the encoded stubs-only payload paired with the exact ETag,
   so a warm `304` does not decode and re-encode the database.
+- each startup records `decoded-hit`, `raw-hit`, network miss, or recovery
+  fallback with probe/request/hydration timings in PocketRisu's System Logs.
+
+An isolated production measurement with writes and writer-session changes
+blocked confirmed a database `200` on the first load and `304` on the warm
+reload. Two unprofiled runs reduced the loading screen from roughly
+2.8–3.0 seconds to 1.7 seconds. The remaining time was outside the database
+transfer/decode cache, mainly application initialization and state setup.
+PR #49 combines this cache with a broader lazy-chat synchronization protocol,
+so its demo is not a cache-only comparison.
 
 The cache is optional. Applying or reverting this pack does not delete the
 PocketRisu database, chats, assets, or backups.
@@ -38,12 +48,15 @@ PocketRisu database, chats, assets, or backups.
 
 The existing persona selection popup gains:
 
-- single-level folders;
+- an explicit `New folder` action and single-level folder cards;
+- persona thumbnails and folder images with the same 80×80 dimensions;
+- click-to-open folder contents and visible unfiled/folder drop zones;
 - drag-to-reorder within or between folders;
-- drop-on-persona folder creation;
+- drag onto a folder card or its opened contents to move a persona into it;
+- drag onto the unfiled area to move a persona out;
 - folder rename, reorder, and removal (folder removal keeps every persona);
-- desktop drag and iPhone long-press drag with move threshold and click
-  suppression.
+- desktop drag and iPhone long-press drag with an 8px scroll threshold and
+  click suppression.
 
 `Database.personas` remains the canonical persona order, so existing
 index-based callers keep working. Selection is restored by stable persona ID

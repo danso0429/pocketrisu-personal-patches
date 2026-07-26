@@ -12,7 +12,8 @@ const nodeUnits = [
         file: 'src/ts/storage/nodeStorage.ts',
         type: 'replace',
         anchor: 'import { normalizeChat } from "./database.svelte"\n',
-        content: `import { appVer, nodeOnlyVer, normalizeChat } from "./database.svelte"
+        content: `import { addLog } from "../log"
+import { appVer, nodeOnlyVer, normalizeChat } from "./database.svelte"
 import { StartupDatabaseCache } from "./startupDatabaseCache"
 `,
     },
@@ -83,6 +84,23 @@ function responseDatabaseEtag(response: Response): string | null {
         }
     }
 
+    private reportStartupDatabaseCache(
+        outcome: string,
+        startedAt: number,
+        timings: Record<string, number>,
+    ): void {
+        const rounded = Object.fromEntries(
+            Object.entries(timings).map(([key, value]) => [key, Math.round(value)])
+        )
+        rounded.totalMs = Math.round(performance.now() - startedAt)
+        addLog({
+            level: 'info',
+            message: \`Startup database: \${outcome}\`,
+            description: JSON.stringify(rounded),
+            source: 'startup-cache',
+        })
+    }
+
     private async readDatabaseUnconditionally(): Promise<StartupDatabaseLoadResult> {
         const response = await this.authFetch('/api/read', {
             method: 'GET',
@@ -103,28 +121,61 @@ function responseDatabaseEtag(response: Response): string | null {
     }
 
     async loadDatabaseForStartup(): Promise<StartupDatabaseLoadResult> {
+        const startedAt = performance.now()
+        const probeStartedAt = performance.now()
         const probe = await this.startupDatabaseCache.probe()
-        if (!probe) return this.readDatabaseUnconditionally()
+        const probeMs = performance.now() - probeStartedAt
+        if (!probe) {
+            const requestStartedAt = performance.now()
+            const result = await this.readDatabaseUnconditionally()
+            this.reportStartupDatabaseCache('miss-network', startedAt, {
+                probeMs,
+                requestMs: performance.now() - requestStartedAt,
+            })
+            return result
+        }
 
         const headers = this.databaseReadHeaders()
         headers['if-none-match'] = probe.etag
+        const requestStartedAt = performance.now()
         const response = await this.authFetch('/api/read', { method: 'GET', headers })
+        const requestMs = performance.now() - requestStartedAt
         if (response.status === 304) {
+            const hydrateStartedAt = performance.now()
             const hit = await this.startupDatabaseCache.resolveNotModified(probe.etag, {
                 validateDecoded: (database) => !!database
                     && typeof database === 'object'
                     && !Array.isArray(database),
             })
+            const hydrateMs = performance.now() - hydrateStartedAt
             if (hit?.kind === 'decoded') {
                 this._lastDbEtag = hit.etag
+                this.reportStartupDatabaseCache('decoded-hit', startedAt, {
+                    probeMs,
+                    requestMs,
+                    hydrateMs,
+                })
                 return { bytes: null, decoded: hit.database, etag: hit.etag, fromCache: true }
             }
             if (hit?.kind === 'raw') {
                 this._lastDbEtag = hit.etag
+                this.reportStartupDatabaseCache('raw-hit', startedAt, {
+                    probeMs,
+                    requestMs,
+                    hydrateMs,
+                })
                 return { bytes: hit.bytes, decoded: null, etag: hit.etag, fromCache: true }
             }
             await this.startupDatabaseCache.invalidate()
-            return this.readDatabaseUnconditionally()
+            const fallbackStartedAt = performance.now()
+            const result = await this.readDatabaseUnconditionally()
+            this.reportStartupDatabaseCache('304-missing-body-fallback', startedAt, {
+                probeMs,
+                requestMs,
+                hydrateMs,
+                fallbackMs: performance.now() - fallbackStartedAt,
+            })
+            return result
         }
         if (response.status < 200 || response.status >= 300) {
             throw new Error(\`getItem Error (\${response.status})\`)
@@ -132,6 +183,10 @@ function responseDatabaseEtag(response: Response): string | null {
         const etag = responseDatabaseEtag(response)
         if (etag) this._lastDbEtag = etag
         const bytes = new Uint8Array(await response.arrayBuffer())
+        this.reportStartupDatabaseCache('server-changed', startedAt, {
+            probeMs,
+            requestMs,
+        })
         return {
             bytes: bytes.byteLength > 0 ? bytes : null,
             decoded: null,
@@ -439,7 +494,7 @@ for (let index = 1; index < serverUnits.length; index += 1) {
 
 module.exports = {
     id: 'startup-cache',
-    version: '0.1.0',
+    version: '0.1.1',
     inspiration: 'PocketRisu/PocketRisu#49',
     units: [
         {

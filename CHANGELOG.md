@@ -1,5 +1,17 @@
 # Changelog
 
+## 0.1.0-experimental.4
+
+- Replace drag-to-create folders with an explicit `New folder` action.
+- Render persona thumbnails and folder cards with matching 80×80 images;
+  clicking a folder opens its contents as a distinct drop zone.
+- Move personas into an opened folder or folder card, back to the unfiled
+  area, or before another persona without overlapping drop actions.
+- Record startup-cache outcome and probe/request/hydration timings in
+  PocketRisu System Logs.
+- Reopen cache validation after isolated cold/warm measurement confirmed a
+  database 200→304 path but found substantial non-cache startup work.
+
 ## 0.1.0-experimental.3
 
 - Separate persona drop targets visually and behaviorally: a highlighted row

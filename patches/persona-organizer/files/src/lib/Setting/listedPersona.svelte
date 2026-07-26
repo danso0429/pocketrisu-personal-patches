@@ -1,26 +1,30 @@
 <!-- POCKETRISU-PATCH:persona-organizer:START -->
 <script lang="ts">
     import {
-        ChevronDownIcon,
-        ChevronUpIcon,
+        ArrowDownIcon,
+        ArrowUpIcon,
         FolderIcon,
+        FolderOpenIcon,
         FolderPlusIcon,
         PencilIcon,
-        TrashIcon,
+        Trash2Icon,
         XIcon,
     } from "@lucide/svelte"
     import { language } from "../../lang"
     import { alertConfirm, alertInput } from "src/ts/alert"
+    import { getCharImage } from "src/ts/characters"
     import { requestImmediateSave } from "src/ts/globalApi.svelte"
     import { changeUserPersona, saveUserPersona } from "src/ts/persona"
     import {
         buildPersonaGroups,
-        flattenPersonaGroups,
         reorderPersonaList,
         type PersonaGroup,
     } from "src/ts/personaOrganizer"
+    import type {
+        RisuPersona,
+        RisuPersonaFolder,
+    } from "src/ts/storage/database.svelte"
     import { DBState } from "src/ts/stores.svelte"
-    import type { RisuPersona, RisuPersonaFolder } from "src/ts/storage/database.svelte"
     import { v4 } from "uuid"
 
     interface Props {
@@ -29,28 +33,36 @@
     }
 
     let { close = () => {}, onSelect = null }: Props = $props()
-    let currentDragId: string | null = null
-    let suppressClickUntil = 0
+
+    let openFolderId = $state<string | null>(null)
+    let currentDragId = $state<string | null>(null)
     let dragActive = $state(false)
     let highlightedDrop: HTMLElement | null = null
-    // PocketRisu force-enables mobile-drag-drop on iOS. Exposing an HTML
-    // draggable there lets the polyfill claim the gesture before this popup's
-    // long-press controller, so native drag is desktop-only just like Sidebar.
-    const isTouchDevice = typeof matchMedia !== "undefined"
-        && matchMedia("(pointer: coarse)").matches
+    let suppressClickUntil = 0
+    let touchDrag: {
+        sourceId: string
+        source: HTMLElement
+        ghost: HTMLElement | null
+    } | null = null
+    let longPressTimer: ReturnType<typeof setTimeout> | null = null
+    let touchStart = { x: 0, y: 0 }
 
-    function ensureModel(): void {
+    const isTouchDevice = typeof window !== "undefined"
+        && (window.matchMedia("(pointer: coarse)").matches || navigator.maxTouchPoints > 0)
+
+    const groups = $derived.by((): PersonaGroup[] => {
         DBState.db.personaFolders ??= []
         for (const persona of DBState.db.personas) persona.id ??= v4()
-    }
-
-    function groups(): PersonaGroup[] {
-        ensureModel()
         return buildPersonaGroups(DBState.db.personas, DBState.db.personaFolders)
-    }
+    })
+    const unfiledGroup = $derived(groups[0])
+    const openGroup = $derived(
+        openFolderId
+            ? groups.find((group) => group.id === openFolderId) ?? null
+            : null
+    )
 
-    function selectedId(): string | null {
-        ensureModel()
+    function selectedPersonaId(): string | null {
         return DBState.db.personas[DBState.db.selectedPersona]?.id ?? null
     }
 
@@ -62,56 +74,26 @@
     }
 
     function reorderPersona(sourceId: string, folderId: string | null, beforeId: string | null): void {
-        ensureModel()
         saveUserPersona()
-        const keepSelectedId = selectedId()
-        const reordered = reorderPersonaList(
-            DBState.db.personas,
-            DBState.db.personaFolders,
-            sourceId,
-            folderId,
-            beforeId,
+        const keepSelectedId = selectedPersonaId()
+        commitPersonas(
+            reorderPersonaList(
+                DBState.db.personas,
+                DBState.db.personaFolders,
+                sourceId,
+                folderId,
+                beforeId,
+            ),
+            keepSelectedId,
         )
-        commitPersonas(reordered, keepSelectedId)
-    }
-
-    async function createFolderWith(sourceId: string, targetId: string): Promise<void> {
-        ensureModel()
-        const source = DBState.db.personas.find((persona) => persona.id === sourceId)
-        const target = DBState.db.personas.find((persona) => persona.id === targetId)
-        if (!source || !target || source === target) return
-
-        if (target.folderId && DBState.db.personaFolders.some((folder) => folder.id === target.folderId)) {
-            reorderPersona(sourceId, target.folderId, targetId)
-            return
-        }
-
-        const name = await alertInput("Folder name", [], "New Folder")
-        if (!name?.trim()) return
-        saveUserPersona()
-        const keepSelectedId = selectedId()
-        const folder: RisuPersonaFolder = { id: v4(), name: name.trim() }
-        DBState.db.personaFolders = [...DBState.db.personaFolders, folder]
-        source.folderId = folder.id
-        target.folderId = folder.id
-        const reordered = reorderPersonaList(
-            DBState.db.personas,
-            DBState.db.personaFolders,
-            sourceId,
-            folder.id,
-            null,
-        )
-        commitPersonas(reordered, keepSelectedId)
     }
 
     async function addFolder(): Promise<void> {
-        const name = await alertInput("Folder name", [], "New Folder")
+        const name = await alertInput("Folder name")
         if (!name?.trim()) return
-        ensureModel()
-        DBState.db.personaFolders = [
-            ...DBState.db.personaFolders,
-            { id: v4(), name: name.trim() },
-        ]
+        const folder = { id: v4(), name: name.trim() }
+        DBState.db.personaFolders = [...DBState.db.personaFolders, folder]
+        openFolderId = folder.id
         void requestImmediateSave()
     }
 
@@ -129,7 +111,8 @@
             if (persona.folderId === folder.id) persona.folderId = undefined
         }
         DBState.db.personaFolders = DBState.db.personaFolders.filter((item) => item.id !== folder.id)
-        commitPersonas(flattenPersonaGroups(groups()), selectedId())
+        if (openFolderId === folder.id) openFolderId = null
+        void requestImmediateSave()
     }
 
     function moveFolder(folder: RisuPersonaFolder, offset: number): void {
@@ -139,328 +122,331 @@
         if (from < 0 || to < 0 || to >= folders.length) return
         folders.splice(to, 0, ...folders.splice(from, 1))
         DBState.db.personaFolders = folders
-        commitPersonas(flattenPersonaGroups(groups()), selectedId())
+        void requestImmediateSave()
     }
 
     function choosePersona(persona: RisuPersona): void {
-        if (Date.now() < suppressClickUntil) return
+        if (Date.now() < suppressClickUntil || dragActive) return
         const index = DBState.db.personas.findIndex((item) => item.id === persona.id)
         if (index < 0) return
+        saveUserPersona()
         if (onSelect) onSelect(index)
         else changeUserPersona(index)
         close()
     }
 
-    function dragStart(persona: RisuPersona, event: DragEvent): void {
-        currentDragId = persona.id ?? null
-        if (!currentDragId || !event.dataTransfer) return
-        dragActive = true
-        event.dataTransfer.effectAllowed = "move"
-        event.dataTransfer.setData("application/x-risu-persona", currentDragId)
-        event.dataTransfer.setData("application/x-risu-internal", "true")
-    }
-
-    function clearHighlight(): void {
+    function clearDropHighlight(): void {
         highlightedDrop?.classList.remove("persona-drop-active")
         highlightedDrop = null
     }
 
-    function highlightDrop(target: HTMLElement): void {
-        if (highlightedDrop === target) return
-        clearHighlight()
-        target.classList.add("persona-drop-active")
+    function highlightDrop(target: HTMLElement | null): void {
+        if (target === highlightedDrop) return
+        clearDropHighlight()
         highlightedDrop = target
-    }
-
-    function previewDrop(event: DragEvent): void {
-        event.preventDefault()
-        if (event.dataTransfer) event.dataTransfer.dropEffect = "move"
-        highlightDrop(event.currentTarget as HTMLElement)
-    }
-
-    function leaveDrop(event: DragEvent): void {
-        const target = event.currentTarget as HTMLElement
-        const related = event.relatedTarget as Node | null
-        if (highlightedDrop === target && (!related || !target.contains(related))) clearHighlight()
+        highlightedDrop?.classList.add("persona-drop-active")
     }
 
     function finishDrag(): void {
+        if (longPressTimer) clearTimeout(longPressTimer)
+        longPressTimer = null
+        touchDrag?.ghost?.remove()
+        touchDrag = null
         currentDragId = null
         dragActive = false
-        clearHighlight()
+        clearDropHighlight()
     }
 
-    function draggedId(event: DragEvent): string | null {
+    function dragStart(persona: RisuPersona, event: DragEvent): void {
+        currentDragId = persona.id ?? null
+        dragActive = !!currentDragId
+        if (!currentDragId || !event.dataTransfer) return
+        event.dataTransfer.effectAllowed = "move"
+        event.dataTransfer.setData("application/x-risu-persona", currentDragId)
+        event.dataTransfer.setData("text/plain", currentDragId)
+    }
+
+    function dragSource(event: DragEvent): string | null {
         return currentDragId
             ?? event.dataTransfer?.getData("application/x-risu-persona")
+            ?? event.dataTransfer?.getData("text/plain")
             ?? null
+    }
+
+    function dragOver(event: DragEvent & { currentTarget: HTMLElement }): void {
+        event.preventDefault()
+        event.stopPropagation()
+        if (event.dataTransfer) event.dataTransfer.dropEffect = "move"
+        highlightDrop(event.currentTarget)
     }
 
     function dropAt(folderId: string | null, beforeId: string | null, event: DragEvent): void {
         event.preventDefault()
-        const sourceId = draggedId(event)
+        event.stopPropagation()
+        const sourceId = dragSource(event)
         finishDrag()
-        if (sourceId) reorderPersona(sourceId, folderId, beforeId)
+        if (sourceId && sourceId !== beforeId) reorderPersona(sourceId, folderId, beforeId)
     }
 
-    function dropOnPersona(targetId: string, event: DragEvent): void {
-        event.preventDefault()
-        const sourceId = draggedId(event)
-        finishDrag()
-        if (sourceId && sourceId !== targetId) void createFolderWith(sourceId, targetId)
+    function createTouchGhost(source: HTMLElement): HTMLElement {
+        const rect = source.getBoundingClientRect()
+        const ghost = source.cloneNode(true) as HTMLElement
+        ghost.classList.add("persona-touch-ghost")
+        ghost.style.width = `${rect.width}px`
+        ghost.style.height = `${rect.height}px`
+        document.body.appendChild(ghost)
+        return ghost
     }
 
-    let touchDrag: {
-        sourceId: string
-        source: HTMLElement
-        ghost: HTMLElement | null
-    } | null = null
-    let touchTimer = 0
-    let touchStart = { x: 0, y: 0 }
+    function positionTouchGhost(ghost: HTMLElement, touch: Touch): void {
+        ghost.style.left = `${touch.clientX}px`
+        ghost.style.top = `${touch.clientY}px`
+    }
+
+    function findTouchTarget(touch: Touch): HTMLElement | null {
+        const hit = document.elementFromPoint(touch.clientX, touch.clientY) as HTMLElement | null
+        const target = hit?.closest(
+            "[data-persona-card],[data-folder-drop],[data-unfiled-drop]"
+        ) as HTMLElement | null
+        if (target?.dataset.personaId === touchDrag?.sourceId) return null
+        return target
+    }
 
     function startTouch(persona: RisuPersona, event: TouchEvent & { currentTarget: HTMLElement }): void {
         const touch = event.touches[0]
         if (!touch || !persona.id) return
         touchStart = { x: touch.clientX, y: touch.clientY }
         const source = event.currentTarget
-        if (touchTimer) clearTimeout(touchTimer)
-        touchTimer = window.setTimeout(() => {
-            touchDrag = { sourceId: persona.id!, source, ghost: null }
+        if (longPressTimer) clearTimeout(longPressTimer)
+        longPressTimer = setTimeout(() => {
+            const ghost = createTouchGhost(source)
+            touchDrag = { sourceId: persona.id!, source, ghost }
+            currentDragId = persona.id!
             dragActive = true
-            source.style.opacity = "0.45"
-            try { navigator.vibrate?.(30) } catch {}
-            const rect = source.getBoundingClientRect()
-            const ghost = source.cloneNode(true) as HTMLElement
-            ghost.style.cssText = [
-                "position:fixed",
-                "pointer-events:none",
-                "z-index:9999",
-                "opacity:0.78",
-                `width:${rect.width}px`,
-                `left:${touch.clientX - rect.width / 2}px`,
-                `top:${touch.clientY - rect.height / 2}px`,
-            ].join(";")
-            document.body.appendChild(ghost)
-            touchDrag!.ghost = ghost
-        }, 400)
-    }
-
-    function targetUnderTouch(touch: Touch): HTMLElement | null {
-        if (touchDrag?.ghost) touchDrag.ghost.style.display = "none"
-        const target = document.elementFromPoint(touch.clientX, touch.clientY) as HTMLElement | null
-        if (touchDrag?.ghost) touchDrag.ghost.style.display = ""
-        return target
+            suppressClickUntil = Date.now() + 700
+            positionTouchGhost(ghost, touch)
+            if (navigator.vibrate) navigator.vibrate(25)
+        }, 260)
     }
 
     function moveTouch(event: TouchEvent): void {
         const touch = event.touches[0]
         if (!touch) return
         if (!touchDrag) {
-            if (Math.abs(touch.clientX - touchStart.x) > 8 || Math.abs(touch.clientY - touchStart.y) > 8) {
-                if (touchTimer) clearTimeout(touchTimer)
-                touchTimer = 0
+            if (
+                longPressTimer
+                && (
+                    Math.abs(touch.clientX - touchStart.x) > 8
+                    || Math.abs(touch.clientY - touchStart.y) > 8
+                )
+            ) {
+                clearTimeout(longPressTimer)
+                longPressTimer = null
             }
             return
         }
         event.preventDefault()
-        if (touchDrag.ghost) {
-            const rect = touchDrag.source.getBoundingClientRect()
-            touchDrag.ghost.style.left = `${touch.clientX - rect.width / 2}px`
-            touchDrag.ghost.style.top = `${touch.clientY - rect.height / 2}px`
-        }
-        clearHighlight()
-        const target = targetUnderTouch(touch)?.closest(
-            "[data-persona-spacer],[data-persona-folder],[data-persona-row]",
-        ) as HTMLElement | null
-        if (target && target !== touchDrag.source) {
-            highlightDrop(target)
-        }
+        if (touchDrag.ghost) positionTouchGhost(touchDrag.ghost, touch)
+        highlightDrop(findTouchTarget(touch))
     }
 
-    function cleanupTouch(): string | null {
-        if (touchTimer) clearTimeout(touchTimer)
-        touchTimer = 0
-        if (!touchDrag) {
-            finishDrag()
-            return null
-        }
-        const sourceId = touchDrag.sourceId
-        touchDrag.source.style.opacity = ""
-        touchDrag.ghost?.remove()
-        touchDrag = null
+    function cancelTouch(): void {
         finishDrag()
-        return sourceId
     }
 
-    function endTouch(event: TouchEvent): void {
+    function endTouch(): void {
         if (!touchDrag) {
-            if (touchTimer) clearTimeout(touchTimer)
-            touchTimer = 0
+            if (longPressTimer) clearTimeout(longPressTimer)
+            longPressTimer = null
             return
         }
-        const touch = event.changedTouches[0]
-        // Execute the exact action shown by the last highlighted target. A
-        // fresh elementFromPoint at touchend can land on an adjacent spacer
-        // after Safari settles the finger, making reorder win over the folder
-        // preview the user actually saw.
-        const target = highlightedDrop ?? (touch ? targetUnderTouch(touch) : null)
-        const sourceId = cleanupTouch()
-        if (!sourceId || !target) return
+        const sourceId = touchDrag.sourceId
+        const target = highlightedDrop
+        const folder = target?.closest("[data-folder-drop]") as HTMLElement | null
+        const unfiled = target?.closest("[data-unfiled-drop]") as HTMLElement | null
+        const persona = target?.closest("[data-persona-card]") as HTMLElement | null
+        finishDrag()
+        suppressClickUntil = Date.now() + 500
 
-        const spacer = target.closest("[data-persona-spacer]") as HTMLElement | null
-        const folder = target.closest("[data-persona-folder]") as HTMLElement | null
-        const row = target.closest("[data-persona-row]") as HTMLElement | null
-        if (spacer) {
+        if (folder?.dataset.folderId) {
+            reorderPersona(sourceId, folder.dataset.folderId, null)
+        } else if (unfiled) {
+            reorderPersona(sourceId, null, null)
+        } else if (persona?.dataset.personaId && persona.dataset.personaId !== sourceId) {
             reorderPersona(
                 sourceId,
-                spacer.dataset.folderId || null,
-                spacer.dataset.beforeId || null,
+                persona.dataset.folderId || null,
+                persona.dataset.personaId,
             )
-        } else if (folder) {
-            reorderPersona(sourceId, folder.dataset.folderId || null, null)
-        } else if (row?.dataset.personaId && row.dataset.personaId !== sourceId) {
-            void createFolderWith(sourceId, row.dataset.personaId)
-        }
-        suppressClickUntil = Date.now() + 350
-    }
-
-    function touchContainer(node: HTMLElement) {
-        node.addEventListener("touchmove", moveTouch, { passive: false })
-        node.addEventListener("touchend", endTouch)
-        node.addEventListener("touchcancel", cleanupTouch)
-        return {
-            destroy() {
-                node.removeEventListener("touchmove", moveTouch)
-                node.removeEventListener("touchend", endTouch)
-                node.removeEventListener("touchcancel", cleanupTouch)
-            },
         }
     }
 </script>
 
-<div class="absolute w-full h-full z-40 bg-black/50 flex justify-center items-center">
-    <div
-        class="persona-panel relative bg-darkbg p-4 break-any rounded-md flex flex-col max-w-3xl w-96 max-h-full overflow-y-auto"
-        class:persona-dragging={dragActive}
-        use:touchContainer
+{#snippet personaCard(persona: RisuPersona)}
+    <button
+        class="persona-card text-textcolor"
+        class:persona-selected={selectedPersonaId() === persona.id}
+        draggable={!isTouchDevice}
+        data-persona-card
+        data-persona-id={persona.id}
+        data-folder-id={persona.folderId ?? ""}
+        aria-label={persona.name}
+        onclick={() => choosePersona(persona)}
+        ondragstart={!isTouchDevice ? (event) => dragStart(persona, event) : undefined}
+        ondragend={finishDrag}
+        ondragover={dragOver}
+        ondragleave={(event) => {
+            if (!event.currentTarget.contains(event.relatedTarget as Node | null)) clearDropHighlight()
+        }}
+        ondrop={(event) => dropAt(persona.folderId ?? null, persona.id ?? null, event)}
+        ontouchstart={isTouchDevice ? (event) => startTouch(persona, event) : undefined}
     >
-        <div class="flex items-center text-textcolor mb-3">
+        {#if persona.icon === ""}
+            <span class="persona-image bg-textcolor2"></span>
+        {:else}
+            {#await getCharImage(persona.icon, "css")}
+                <span class="persona-image bg-textcolor2"></span>
+            {:then imageStyle}
+                <span class="persona-image bg-textcolor2" style={imageStyle}></span>
+            {/await}
+        {/if}
+        <span class="persona-card-name" title={persona.note ? `${persona.name} / ${persona.note}` : persona.name}>
+            {persona.name}
+        </span>
+    </button>
+{/snippet}
+
+<div
+    class="absolute w-full h-full z-40 bg-black/50 flex justify-center items-center"
+    role="presentation"
+    ontouchmove={moveTouch}
+    ontouchend={endTouch}
+    ontouchcancel={cancelTouch}
+>
+    <div
+        class="persona-panel relative bg-darkbg p-4 break-any rounded-md flex flex-col max-w-3xl w-full mx-3 max-h-full overflow-y-auto"
+        class:persona-dragging={dragActive}
+    >
+        <div class="flex items-center text-textcolor mb-4 gap-2">
             <h2 class="mt-0 mb-0 font-bold">{language.persona}</h2>
-            <div class="grow flex justify-end gap-1">
+            <div class="grow flex justify-end items-center gap-2">
                 <button
-                    class="text-textcolor2 hover:text-primary cursor-pointer p-1"
+                    class="folder-create-button"
                     title="Create folder"
                     onclick={addFolder}
                 >
-                    <FolderPlusIcon size={21} />
+                    <FolderPlusIcon size={19} />
+                    <span>New folder</span>
                 </button>
-                <button class="text-textcolor2 hover:text-primary cursor-pointer p-1" onclick={close}>
-                    <XIcon size={24} />
+                <button class="text-textcolor2 hover:text-primary cursor-pointer items-center" onclick={close}>
+                    <XIcon size={24}/>
                 </button>
             </div>
         </div>
 
         {#if dragActive}
             <div class="persona-drag-guide" aria-live="polite">
-                <FolderPlusIcon size={16} />
-                <span>Drop on a persona: create folder · Drop between: move</span>
+                <span>Drop on a folder to move in · Drop on a persona to reorder</span>
             </div>
         {/if}
 
-        {#each groups() as group (group.id ?? "unfiled")}
-            <section class="mb-2">
-                <div
-                    class="flex items-center min-h-9 px-2 text-sm text-textcolor2 rounded"
-                    role="group"
-                    aria-label={`${group.name} persona folder`}
-                    data-persona-folder
-                    data-folder-id={group.id ?? ""}
-                    ondragover={previewDrop}
-                    ondragleave={leaveDrop}
-                    ondrop={(event) => dropAt(group.id, null, event)}
+        <div class="section-label">
+            <span>Unfiled</span>
+            <span>{unfiledGroup.personas.length}</span>
+        </div>
+        <div
+            class="persona-grid persona-drop-zone"
+            class:empty-drop-zone={unfiledGroup.personas.length === 0}
+            role="list"
+            aria-label="Unfiled personas and folders"
+            data-unfiled-drop
+            ondragover={dragOver}
+            ondragleave={(event) => {
+                if (!event.currentTarget.contains(event.relatedTarget as Node | null)) clearDropHighlight()
+            }}
+            ondrop={(event) => dropAt(null, null, event)}
+        >
+            {#each DBState.db.personaFolders as folder (folder.id)}
+                {@const group = groups.find((item) => item.id === folder.id)}
+                <button
+                    class="folder-card text-textcolor"
+                    class:folder-open={openFolderId === folder.id}
+                    aria-label={`Open ${folder.name} folder`}
+                    data-folder-drop
+                    data-folder-id={folder.id}
+                    onclick={() => {
+                        if (Date.now() < suppressClickUntil || dragActive) return
+                        openFolderId = openFolderId === folder.id ? null : folder.id
+                    }}
+                    ondragover={dragOver}
+                    ondragleave={(event) => {
+                        if (!event.currentTarget.contains(event.relatedTarget as Node | null)) clearDropHighlight()
+                    }}
+                    ondrop={(event) => dropAt(folder.id, null, event)}
                 >
-                    <FolderIcon size={16} class="mr-2 shrink-0" />
-                    <span class="font-medium grow truncate">{group.name}</span>
-                    <span class="persona-existing-folder-hint">Move into folder</span>
-                    {#if group.folder}
-                        <button
-                            class="p-1 hover:text-primary"
-                            title="Move folder up"
-                            onclick={() => moveFolder(group.folder!, -1)}
-                        ><ChevronUpIcon size={15} /></button>
-                        <button
-                            class="p-1 hover:text-primary"
-                            title="Move folder down"
-                            onclick={() => moveFolder(group.folder!, 1)}
-                        ><ChevronDownIcon size={15} /></button>
-                        <button
-                            class="p-1 hover:text-primary"
-                            title="Rename folder"
-                            onclick={() => renameFolder(group.folder!)}
-                        ><PencilIcon size={15} /></button>
-                        <button
-                            class="p-1 hover:text-red-400"
-                            title="Remove folder"
-                            onclick={() => removeFolder(group.folder!)}
-                        ><TrashIcon size={15} /></button>
+                    <span class="folder-image">
+                        {#if openFolderId === folder.id}
+                            <FolderOpenIcon size={46} />
+                        {:else}
+                            <FolderIcon size={46} />
+                        {/if}
+                        <span class="folder-count">{group?.personas.length ?? 0}</span>
+                    </span>
+                    <span class="persona-card-name">{folder.name}</span>
+                </button>
+            {/each}
+            {#each unfiledGroup.personas as persona (persona.id)}
+                {@render personaCard(persona)}
+            {/each}
+            {#if DBState.db.personaFolders.length === 0 && unfiledGroup.personas.length === 0}
+                <span class="drop-placeholder">Drop personas here</span>
+            {/if}
+        </div>
+
+        {#if openGroup?.folder}
+            <div
+                class="open-folder"
+                role="list"
+                aria-label={`${openGroup.name} folder contents`}
+                data-folder-drop
+                data-folder-id={openGroup.folder.id}
+                ondragover={dragOver}
+                ondragleave={(event) => {
+                    if (!event.currentTarget.contains(event.relatedTarget as Node | null)) clearDropHighlight()
+                }}
+                ondrop={(event) => dropAt(openGroup.folder!.id, null, event)}
+            >
+                <div class="open-folder-header">
+                    <FolderOpenIcon size={20} />
+                    <span class="font-semibold truncate">{openGroup.name}</span>
+                    <span class="text-xs opacity-70">{openGroup.personas.length}</span>
+                    <div class="grow"></div>
+                    <button title="Move folder up" onclick={() => moveFolder(openGroup.folder!, -1)}>
+                        <ArrowUpIcon size={17} />
+                    </button>
+                    <button title="Move folder down" onclick={() => moveFolder(openGroup.folder!, 1)}>
+                        <ArrowDownIcon size={17} />
+                    </button>
+                    <button title="Rename folder" onclick={() => renameFolder(openGroup.folder!)}>
+                        <PencilIcon size={17} />
+                    </button>
+                    <button title="Remove folder" onclick={() => removeFolder(openGroup.folder!)}>
+                        <Trash2Icon size={17} />
+                    </button>
+                </div>
+                <div
+                    class="persona-grid folder-contents"
+                    class:empty-drop-zone={openGroup.personas.length === 0}
+                >
+                    {#each openGroup.personas as persona (persona.id)}
+                        {@render personaCard(persona)}
+                    {/each}
+                    {#if openGroup.personas.length === 0}
+                        <span class="drop-placeholder">Drop personas into this folder</span>
                     {/if}
                 </div>
-
-                {#each group.personas as persona (persona.id)}
-                    <div
-                        class="persona-spacer h-2 rounded"
-                        role="separator"
-                        aria-label={`Move persona before ${persona.name}`}
-                        data-persona-spacer
-                        data-folder-id={group.id ?? ""}
-                        data-before-id={persona.id}
-                        ondragover={previewDrop}
-                        ondragleave={leaveDrop}
-                        ondrop={(event) => dropAt(group.id, persona.id ?? null, event)}
-                    >
-                        <span class="persona-move-drop-hint">Move here</span>
-                    </div>
-                    <button
-                        draggable={!isTouchDevice ? "true" : undefined}
-                        data-persona-row
-                        data-persona-id={persona.id}
-                        class="persona-row flex items-center w-full text-textcolor border-t-1 border-solid border-0 border-darkborderc p-2 cursor-pointer rounded"
-                        class:bg-selected={DBState.db.personas[DBState.db.selectedPersona]?.id === persona.id}
-                        onclick={() => choosePersona(persona)}
-                        ondragstart={!isTouchDevice ? (event) => dragStart(persona, event) : undefined}
-                        ondragend={!isTouchDevice ? finishDrag : undefined}
-                        ondragover={previewDrop}
-                        ondragleave={leaveDrop}
-                        ondrop={(event) => dropOnPersona(persona.id!, event)}
-                        ontouchstart={isTouchDevice ? (event) => startTouch(persona, event) : undefined}
-                    >
-                        <span class="persona-row-content overflow-x-auto whitespace-nowrap w-full text-left">
-                            <span class="font-medium">{persona.name}</span>
-                            {#if persona.note}
-                                <span class="opacity-75"> / {persona.note}</span>
-                            {/if}
-                        </span>
-                        <span class="persona-folder-drop-hint">
-                            <FolderPlusIcon size={17} />
-                            <span>{persona.folderId ? "Move into folder" : "Create folder"}</span>
-                        </span>
-                    </button>
-                {/each}
-                <div
-                    class="persona-spacer min-h-3 rounded"
-                    role="separator"
-                    aria-label={`Move persona to end of ${group.name}`}
-                    data-persona-spacer
-                    data-folder-id={group.id ?? ""}
-                    data-before-id=""
-                    ondragover={previewDrop}
-                    ondragleave={leaveDrop}
-                    ondrop={(event) => dropAt(group.id, null, event)}
-                >
-                    <span class="persona-move-drop-hint">Move here</span>
-                </div>
-            </section>
-        {/each}
+            </div>
+        {/if}
     </div>
 </div>
 
@@ -469,79 +455,169 @@
         word-break: normal;
         overflow-wrap: anywhere;
     }
-    .persona-row {
-        position: relative;
-        touch-action: pan-y;
+    .persona-panel {
+        overscroll-behavior: contain;
+    }
+    .folder-create-button {
+        display: inline-flex;
+        align-items: center;
+        gap: 0.35rem;
+        border: 1px solid var(--color-darkborderc);
+        border-radius: 0.5rem;
+        padding: 0.35rem 0.55rem;
+        color: var(--color-textcolor);
+        background: color-mix(in srgb, var(--color-darkborderc) 28%, transparent);
+    }
+    .folder-create-button:hover {
+        color: var(--color-primary);
+        border-color: var(--color-primary);
+    }
+    .section-label {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        color: var(--color-textcolor2);
+        font-size: 0.78rem;
+        margin: 0 0 0.4rem;
+    }
+    .persona-grid {
+        display: grid;
+        grid-template-columns: repeat(auto-fill, minmax(5rem, 1fr));
+        gap: 0.65rem;
+        align-items: start;
+        min-height: 6.4rem;
+        padding: 0.55rem;
+        border: 1px solid var(--color-darkborderc);
+        border-radius: 0.65rem;
+    }
+    .persona-card,
+    .folder-card {
+        display: flex;
+        min-width: 0;
+        flex-direction: column;
+        align-items: center;
+        gap: 0.35rem;
+        border-radius: 0.6rem;
+        padding: 0.25rem;
         user-select: none;
         -webkit-user-select: none;
+        touch-action: pan-y;
     }
-    .persona-spacer {
+    .persona-card:hover,
+    .folder-card:hover,
+    .folder-open {
+        color: var(--color-primary);
+        background: color-mix(in srgb, var(--color-primary) 10%, transparent);
+    }
+    .persona-image,
+    .folder-image {
         display: flex;
+        width: 5rem;
+        height: 5rem;
+        flex: 0 0 5rem;
         align-items: center;
         justify-content: center;
-        transition: background-color 120ms ease, min-height 120ms ease;
+        border-radius: 0.5rem;
+        box-shadow: 0 8px 18px rgb(0 0 0 / 0.2);
+        background-position: center !important;
+        background-repeat: no-repeat !important;
     }
-    .persona-spacer:has(+ .persona-row:hover) {
-        min-height: 0.75rem;
+    .folder-image {
+        position: relative;
+        background: color-mix(in srgb, var(--color-primary) 16%, var(--color-darkborderc));
+        border: 1px solid color-mix(in srgb, var(--color-primary) 40%, var(--color-darkborderc));
     }
-    :global(.persona-drop-active) {
-        outline: 2px solid rgb(var(--primary, 99 102 241));
-        outline-offset: -2px;
-        background: color-mix(in srgb, currentColor 12%, transparent);
+    .folder-count {
+        position: absolute;
+        right: 0.35rem;
+        bottom: 0.3rem;
+        min-width: 1.2rem;
+        border-radius: 999px;
+        padding: 0.05rem 0.3rem;
+        color: var(--color-textcolor);
+        background: rgb(0 0 0 / 0.55);
+        font-size: 0.7rem;
+        line-height: 1.1rem;
+    }
+    .persona-selected .persona-image {
+        outline: 3px solid var(--color-primary);
+        outline-offset: 1px;
+    }
+    .persona-card-name {
+        width: 100%;
+        overflow: hidden;
+        text-align: center;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+        font-size: 0.78rem;
+    }
+    .open-folder {
+        margin-top: 0.9rem;
+        border: 1px solid color-mix(in srgb, var(--color-primary) 40%, var(--color-darkborderc));
+        border-radius: 0.7rem;
+        padding: 0.6rem;
+    }
+    .open-folder-header {
+        display: flex;
+        align-items: center;
+        gap: 0.45rem;
+        color: var(--color-textcolor);
+        margin-bottom: 0.5rem;
+    }
+    .open-folder-header button {
+        display: inline-flex;
+        padding: 0.28rem;
+        border-radius: 0.35rem;
+        color: var(--color-textcolor2);
+    }
+    .open-folder-header button:hover {
+        color: var(--color-primary);
+        background: color-mix(in srgb, var(--color-primary) 12%, transparent);
+    }
+    .folder-contents {
+        border: 0;
+        padding: 0.2rem;
+    }
+    .empty-drop-zone {
+        align-items: center;
+        justify-items: center;
+    }
+    .drop-placeholder {
+        grid-column: 1 / -1;
+        align-self: center;
+        color: var(--color-textcolor2);
+        font-size: 0.8rem;
+        opacity: 0.8;
     }
     .persona-drag-guide {
-        position: absolute;
-        top: 3.25rem;
-        left: 1rem;
-        right: 1rem;
-        z-index: 20;
-        pointer-events: none;
-        display: flex;
-        align-items: center;
-        justify-content: center;
-        gap: 0.35rem;
-        min-height: 2rem;
-        padding: 0.35rem 0.5rem;
-        border-radius: 0.35rem;
-        color: rgb(var(--primary, 99 102 241));
-        background: color-mix(in srgb, currentColor 14%, rgb(var(--darkbg, 24 24 27)));
-        font-size: 0.75rem;
-        font-weight: 600;
+        position: sticky;
+        top: 0;
+        z-index: 5;
+        margin-bottom: 0.55rem;
+        border: 1px solid color-mix(in srgb, var(--color-primary) 55%, transparent);
+        border-radius: 0.5rem;
+        padding: 0.4rem 0.6rem;
+        color: var(--color-textcolor);
+        background: color-mix(in srgb, var(--color-primary) 18%, var(--color-darkbg));
+        text-align: center;
+        font-size: 0.78rem;
     }
-    .persona-folder-drop-hint {
-        position: absolute;
-        inset: 0;
-        pointer-events: none;
-        display: none;
-        align-items: center;
-        justify-content: center;
-        gap: 0.35rem;
-        border-radius: inherit;
-        color: rgb(var(--primary, 99 102 241));
-        background: color-mix(in srgb, currentColor 16%, rgb(var(--darkbg, 24 24 27)));
-        font-size: 0.8rem;
-        font-weight: 700;
+    :global(.persona-drop-active) {
+        outline: 3px solid var(--color-primary) !important;
+        outline-offset: 2px;
+        background: color-mix(in srgb, var(--color-primary) 18%, transparent) !important;
     }
-    :global(.persona-row.persona-drop-active) .persona-row-content {
-        opacity: 0.18;
+    :global(.persona-touch-ghost) {
+        position: fixed !important;
+        z-index: 1000 !important;
+        pointer-events: none !important;
+        margin: 0 !important;
+        opacity: 0.78 !important;
+        transform: translate(-50%, -60%) scale(1.04);
+        filter: drop-shadow(0 10px 14px rgb(0 0 0 / 0.45));
     }
-    :global(.persona-row.persona-drop-active) .persona-folder-drop-hint {
-        display: flex;
-    }
-    .persona-move-drop-hint,
-    .persona-existing-folder-hint {
-        pointer-events: none;
-        display: none;
-        color: rgb(var(--primary, 99 102 241));
-        font-size: 0.72rem;
-        font-weight: 700;
-    }
-    :global(.persona-spacer.persona-drop-active) {
-        min-height: 1.75rem;
-    }
-    :global(.persona-spacer.persona-drop-active) .persona-move-drop-hint,
-    :global([data-persona-folder].persona-drop-active) .persona-existing-folder-hint {
-        display: inline;
+    .persona-dragging {
+        cursor: grabbing;
     }
 </style>
 <!-- POCKETRISU-PATCH:persona-organizer:END -->
