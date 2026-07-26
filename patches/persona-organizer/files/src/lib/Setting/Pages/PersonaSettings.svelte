@@ -16,10 +16,13 @@
     import BaseRoundedButton from "src/lib/UI/BaseRoundedButton.svelte"
     import Button from "src/lib/UI/GUI/Button.svelte"
     import Check from "src/lib/UI/GUI/CheckInput.svelte"
+    import ShAlertDialog from "src/lib/UI/GUI/ShAlertDialog.svelte"
+    import ShButton from "src/lib/UI/GUI/ShButton.svelte"
+    import ShDialog from "src/lib/UI/GUI/ShDialog.svelte"
     import SettingPage from "src/lib/UI/GUI/SettingPage.svelte"
     import TextAreaInput from "src/lib/UI/GUI/TextAreaInput.svelte"
     import TextInput from "src/lib/UI/GUI/TextInput.svelte"
-    import { alertConfirm, alertInput, alertSelect } from "src/ts/alert"
+    import { alertConfirm, alertInput } from "src/ts/alert"
     import { getCharImage } from "src/ts/characters"
     import { requestImmediateSave } from "src/ts/globalApi.svelte"
     import {
@@ -30,9 +33,12 @@
         selectUserImg,
     } from "src/ts/persona"
     import {
+        applyPersonaDeletion,
+        buildPersonaDeletionPlan,
         buildPersonaGroups,
         movePersonaWithinGroup,
         reorderPersonaList,
+        type PersonaDeletionPlan,
         type PersonaGroup,
     } from "src/ts/personaOrganizer"
     import type {
@@ -60,6 +66,11 @@
     let arrangeMode = $state(false)
     let membershipMode = $state(false)
     let membershipPersonaIds = $state<string[]>([])
+    let addPersonaDialogOpen = $state(false)
+    let deleteMode = $state(false)
+    let deletePersonaIds = $state<string[]>([])
+    let deleteFolderIds = $state<string[]>([])
+    let deleteConfirmOpen = $state(false)
 
     const groups = $derived.by((): PersonaGroup[] => {
         DBState.db.personaFolders ??= []
@@ -117,6 +128,20 @@
     const currentPage = $derived(
         Math.min(pageByContext[displayContext] ?? 0, pageCount - 1)
     )
+    const deletionPlan = $derived.by((): PersonaDeletionPlan =>
+        buildPersonaDeletionPlan(
+            DBState.db.personas,
+            DBState.db.personaFolders,
+            deletePersonaIds,
+            deleteFolderIds,
+        )
+    )
+    const deletionSelectionCount = $derived(
+        deletionPlan.personaIds.length + deletionPlan.folderIds.length
+    )
+    const deletionAllowed = $derived(
+        deletionSelectionCount > 0 && deletionPlan.remainingCount >= 1
+    )
 
     function selectedPersonaId(): string | null {
         return DBState.db.personas[DBState.db.selectedPersona]?.id ?? null
@@ -173,6 +198,10 @@
     }
 
     function enterFolder(folder: RisuPersonaFolder): void {
+        if (deleteMode) {
+            toggleDeleteFolder(folder)
+            return
+        }
         openFolderId = folder.id
         membershipMode = false
         if (pageByContext[folder.id] === undefined) {
@@ -181,13 +210,14 @@
     }
 
     function leaveFolder(): void {
+        if (deleteMode) return
         membershipMode = false
         membershipPersonaIds = []
         openFolderId = null
     }
 
     function openMembershipEditor(): void {
-        if (!openFolderId) return
+        if (!openFolderId || deleteMode) return
         membershipPersonaIds = DBState.db.personas
             .map((persona) => persona.id)
             .filter((id): id is string => !!id)
@@ -198,6 +228,59 @@
     function closeMembershipEditor(): void {
         membershipMode = false
         membershipPersonaIds = []
+    }
+
+    function startDeleteMode(): void {
+        arrangeMode = false
+        membershipMode = false
+        membershipPersonaIds = []
+        deletePersonaIds = []
+        deleteFolderIds = []
+        deleteConfirmOpen = false
+        deleteMode = true
+    }
+
+    function cancelDeleteMode(): void {
+        deleteConfirmOpen = false
+        deletePersonaIds = []
+        deleteFolderIds = []
+        deleteMode = false
+    }
+
+    function toggleDeletePersona(persona: RisuPersona): void {
+        if (!deleteMode || !persona.id) return
+        deletePersonaIds = deletePersonaIds.includes(persona.id)
+            ? deletePersonaIds.filter((id) => id !== persona.id)
+            : [...deletePersonaIds, persona.id]
+    }
+
+    function toggleDeleteFolder(folder: RisuPersonaFolder): void {
+        if (!deleteMode || openFolderId) return
+        deleteFolderIds = deleteFolderIds.includes(folder.id)
+            ? deleteFolderIds.filter((id) => id !== folder.id)
+            : [...deleteFolderIds, folder.id]
+    }
+
+    function requestDeleteConfirmation(): void {
+        if (!deletionAllowed) return
+        deleteConfirmOpen = true
+    }
+
+    function confirmDeleteSelection(): void {
+        if (!deletionAllowed) return
+        saveUserPersona()
+        const keepSelectedId = selectedPersonaId()
+        const next = applyPersonaDeletion(
+            DBState.db.personas,
+            DBState.db.personaFolders,
+            deletionPlan,
+        )
+        DBState.db.personaFolders = next.folders
+        commitPersonas(next.personas, keepSelectedId)
+        deleteConfirmOpen = false
+        deletePersonaIds = []
+        deleteFolderIds = []
+        deleteMode = false
     }
 
     function toggleFolderMembership(persona: RisuPersona): void {
@@ -271,25 +354,23 @@
         changeUserPersona(index)
     }
 
-    async function addPersona(): Promise<void> {
-        const selected = parseInt(await alertSelect([
-            language.createfromScratch,
-            language.importCharacter,
-        ]))
-        if (selected === 0) {
-            DBState.db.personas.push({
-                id: v4(),
-                name: "New Persona",
-                icon: "",
-                personaPrompt: "",
-                note: "",
-            })
-            changeUserPersona(DBState.db.personas.length - 1)
-            void requestImmediateSave()
-        } else if (selected === 1) {
-            await importUserPersona()
-            void requestImmediateSave()
-        }
+    function createPersona(): void {
+        addPersonaDialogOpen = false
+        DBState.db.personas.push({
+            id: v4(),
+            name: "New Persona",
+            icon: "",
+            personaPrompt: "",
+            note: "",
+        })
+        changeUserPersona(DBState.db.personas.length - 1)
+        void requestImmediateSave()
+    }
+
+    async function importPersonaFromDialog(): Promise<void> {
+        addPersonaDialogOpen = false
+        await importUserPersona()
+        void requestImmediateSave()
     }
 
     onDestroy(() => {
@@ -302,10 +383,17 @@
         class="persona-card text-textcolor"
         class:persona-selected={!membership && selectedPersonaId() === persona.id}
         class:persona-member-selected={membership && persona.folderId === openFolderId}
-        aria-label={membership
-            ? `${persona.name}: ${persona.folderId === openFolderId ? "selected" : "not selected"}`
-            : persona.name}
-        onclick={() => membership ? toggleFolderMembership(persona) : choosePersona(persona)}
+        class:delete-selected={deleteMode && !!persona.id && deletePersonaIds.includes(persona.id)}
+        aria-label={deleteMode
+            ? `${persona.name}: ${persona.id && deletePersonaIds.includes(persona.id) ? "selected for deletion" : "not selected for deletion"}`
+            : membership
+                ? `${persona.name}: ${persona.folderId === openFolderId ? "selected" : "not selected"}`
+                : persona.name}
+        onclick={() => deleteMode
+            ? toggleDeletePersona(persona)
+            : membership
+                ? toggleFolderMembership(persona)
+                : choosePersona(persona)}
     >
         {#if persona.icon === ""}
             <span class="persona-image bg-textcolor2"></span>
@@ -320,6 +408,10 @@
             <span class="membership-mark" aria-hidden="true">
                 {persona.folderId === openFolderId ? "✓" : "+"}
             </span>
+        {:else if deleteMode}
+            <span class="delete-mark" aria-hidden="true">
+                {persona.id && deletePersonaIds.includes(persona.id) ? "✓" : ""}
+            </span>
         {/if}
         <span class="persona-card-name" title={persona.note ? `${persona.name} / ${persona.note}` : persona.name}>
             {persona.name}
@@ -330,22 +422,55 @@
 {#snippet folderCard(folder: RisuPersonaFolder, count: number)}
     <button
         class="folder-card text-textcolor"
-        aria-label={`Open ${folder.name} folder`}
+        class:delete-selected={deleteMode && deleteFolderIds.includes(folder.id)}
+        aria-label={deleteMode
+            ? `${folder.name} folder: ${deleteFolderIds.includes(folder.id) ? "selected for deletion" : "not selected for deletion"}`
+            : `Open ${folder.name} folder`}
         onclick={() => enterFolder(folder)}
     >
         <span class="folder-image">
             <FolderIcon size={46} />
             <span class="folder-count">{count}</span>
+            {#if deleteMode}
+                <span class="delete-mark" aria-hidden="true">
+                    {deleteFolderIds.includes(folder.id) ? "✓" : ""}
+                </span>
+            {/if}
         </span>
         <span class="persona-card-name">{folder.name}</span>
     </button>
+{/snippet}
+
+{#snippet deletePersonaRow(persona: RisuPersona)}
+    <div class="delete-persona-row">
+        {#if persona.icon === ""}
+            <span class="delete-persona-image bg-textcolor2"></span>
+        {:else}
+            {#await getCharImage(persona.icon, "css")}
+                <span class="delete-persona-image bg-textcolor2"></span>
+            {:then imageStyle}
+                <span class="delete-persona-image bg-textcolor2" style={imageStyle}></span>
+            {/await}
+        {/if}
+        <div class="delete-persona-copy">
+            <span class="font-semibold">{persona.name}</span>
+            <span class="text-xs text-textcolor2">
+                Alias: {persona.note?.trim() || "—"}
+            </span>
+        </div>
+    </div>
 {/snippet}
 
 <SettingPage title={language.persona}>
     <div class="persona-organizer rounded-md border-darkborderc border mb-2 p-3 w-full max-w-full min-w-0">
         {#if openGroup?.folder}
             <div class="folder-toolbar">
-                <button class="folder-back-button" title="Back to personas" onclick={leaveFolder}>
+                <button
+                    class="folder-back-button"
+                    title={deleteMode ? "Finish or cancel deletion first" : "Back to personas"}
+                    disabled={deleteMode}
+                    onclick={leaveFolder}
+                >
                     <ArrowLeftIcon size={19} />
                 </button>
                 <FolderOpenIcon size={20} />
@@ -362,6 +487,23 @@
                     <button class="toolbar-text-button toolbar-active" onclick={closeMembershipEditor}>
                         Done
                     </button>
+                {:else if deleteMode}
+                    <button
+                        class="toolbar-text-button delete-cancel-button"
+                        onclick={cancelDeleteMode}
+                    >
+                        Cancel
+                    </button>
+                    <button
+                        class="toolbar-text-button delete-done-button"
+                        disabled={!deletionAllowed}
+                        title={deletionPlan.remainingCount < 1
+                            ? "At least one persona must remain"
+                            : "Review selected personas"}
+                        onclick={requestDeleteConfirmation}
+                    >
+                        Done ({deletionSelectionCount})
+                    </button>
                 {:else}
                     <button class="folder-members-button" title="Add or remove personas" onclick={openMembershipEditor}>
                         <span aria-hidden="true">+</span>
@@ -374,43 +516,79 @@
                     >
                         {arrangeMode ? "Done" : "Arrange"}
                     </button>
+                    <button
+                        class="toolbar-text-button delete-button"
+                        onclick={startDeleteMode}
+                    >
+                        Delete
+                    </button>
                     <button title="Rename folder" onclick={() => renameFolder(openGroup.folder!)}>
                         <PencilIcon size={17} />
                     </button>
-                    <button title="Remove folder" onclick={() => removeFolder(openGroup.folder!)}>
+                    <button title="Remove folder but keep personas" onclick={() => removeFolder(openGroup.folder!)}>
                         <Trash2Icon size={17} />
                     </button>
                 {/if}
             </div>
         {:else}
             <div class="organizer-toolbar">
-                <button class="folder-create-button" title="Create folder" onclick={addFolder}>
+                <button
+                    class="folder-create-button"
+                    title={deleteMode ? "Finish or cancel deletion first" : "Create folder"}
+                    disabled={deleteMode}
+                    onclick={addFolder}
+                >
                     <FolderPlusIcon size={19} />
                     <span>New folder</span>
                 </button>
                 <div class="grow"></div>
-                <button
-                    class="toolbar-text-button"
-                    class:toolbar-active={arrangeMode}
-                    aria-pressed={arrangeMode}
-                    onclick={() => arrangeMode = !arrangeMode}
-                >
-                    {arrangeMode ? "Done" : "Arrange"}
-                </button>
-                <div class="flex justify-center items-center mx-1" title="Create or import persona">
-                    <BaseRoundedButton onClick={addPersona}>
-                        <svg viewBox="0 0 24 24" width="1.2em" height="1.2em">
-                            <path
-                                fill="none"
-                                stroke="currentColor"
-                                stroke-linecap="round"
-                                stroke-linejoin="round"
-                                stroke-width="2"
-                                d="M12 6v6m0 0v6m0-6h6m-6 0H6"
-                            />
-                        </svg>
-                    </BaseRoundedButton>
-                </div>
+                {#if deleteMode}
+                    <button
+                        class="toolbar-text-button delete-cancel-button"
+                        onclick={cancelDeleteMode}
+                    >
+                        Cancel
+                    </button>
+                    <button
+                        class="toolbar-text-button delete-done-button"
+                        disabled={!deletionAllowed}
+                        title={deletionPlan.remainingCount < 1
+                            ? "At least one persona must remain"
+                            : "Review selected personas and folders"}
+                        onclick={requestDeleteConfirmation}
+                    >
+                        Done ({deletionSelectionCount})
+                    </button>
+                {:else}
+                    <button
+                        class="toolbar-text-button"
+                        class:toolbar-active={arrangeMode}
+                        aria-pressed={arrangeMode}
+                        onclick={() => arrangeMode = !arrangeMode}
+                    >
+                        {arrangeMode ? "Done" : "Arrange"}
+                    </button>
+                    <button
+                        class="toolbar-text-button delete-button"
+                        onclick={startDeleteMode}
+                    >
+                        Delete
+                    </button>
+                    <div class="flex justify-center items-center mx-1" title="Create or import persona">
+                        <BaseRoundedButton onClick={() => addPersonaDialogOpen = true}>
+                            <svg viewBox="0 0 24 24" width="1.2em" height="1.2em">
+                                <path
+                                    fill="none"
+                                    stroke="currentColor"
+                                    stroke-linecap="round"
+                                    stroke-linejoin="round"
+                                    stroke-width="2"
+                                    d="M12 6v6m0 0v6m0-6h6m-6 0H6"
+                                />
+                            </svg>
+                        </BaseRoundedButton>
+                    </div>
+                {/if}
             </div>
         {/if}
 
@@ -551,6 +729,92 @@
     </div>
 </SettingPage>
 
+<ShDialog
+    bind:open={addPersonaDialogOpen}
+    size="sm"
+    tier="alert"
+    closable={true}
+    closeOnEscape={true}
+    closeOnOutsideClick={true}
+>
+    {#snippet title()}Add persona{/snippet}
+    {#snippet children()}
+        <div class="flex flex-col gap-2">
+            <ShButton variant="outline" className="w-full justify-start" onclick={createPersona}>
+                {language.createfromScratch}
+            </ShButton>
+            <ShButton variant="outline" className="w-full justify-start" onclick={importPersonaFromDialog}>
+                {language.importCharacter}
+            </ShButton>
+        </div>
+    {/snippet}
+    {#snippet footer()}
+        <ShButton variant="outline" onclick={() => addPersonaDialogOpen = false}>
+            Close
+        </ShButton>
+    {/snippet}
+</ShDialog>
+
+<ShAlertDialog
+    bind:open={deleteConfirmOpen}
+    size="lg"
+    tier="alert"
+    closeOnEscape={false}
+    closeOnOutsideClick={false}
+>
+    {#snippet title()}Delete selected personas?{/snippet}
+    {#snippet description()}
+        This permanently removes the listed persona records. This cannot be undone.
+    {/snippet}
+    {#snippet children()}
+        <div class="delete-preview">
+            {#if deletionPlan.loosePersonas.length > 0}
+                <section class="delete-preview-section">
+                    <h3>Personas</h3>
+                    <div class="delete-preview-list">
+                        {#each deletionPlan.loosePersonas as persona (persona.id)}
+                            {@render deletePersonaRow(persona)}
+                        {/each}
+                    </div>
+                </section>
+            {/if}
+
+            {#each deletionPlan.folders as entry (entry.folder.id)}
+                <section class="delete-preview-section delete-folder-group">
+                    <div class="delete-folder-heading">
+                        <span class="delete-folder-image">
+                            <FolderIcon size={32} />
+                        </span>
+                        <div>
+                            <h3>{entry.folder.name}</h3>
+                            <span class="text-xs text-textcolor2">
+                                Folder and {entry.personas.length} persona{entry.personas.length === 1 ? "" : "s"}
+                            </span>
+                        </div>
+                    </div>
+                    {#if entry.personas.length > 0}
+                        <div class="delete-preview-list">
+                            {#each entry.personas as persona (persona.id)}
+                                {@render deletePersonaRow(persona)}
+                            {/each}
+                        </div>
+                    {:else}
+                        <span class="text-sm text-textcolor2">Empty folder</span>
+                    {/if}
+                </section>
+            {/each}
+        </div>
+    {/snippet}
+    {#snippet footer()}
+        <ShButton variant="outline" onclick={() => deleteConfirmOpen = false}>
+            {language.no}
+        </ShButton>
+        <ShButton variant="destructive" onclick={confirmDeleteSelection}>
+            {language.yes}
+        </ShButton>
+    {/snippet}
+</ShAlertDialog>
+
 <style>
     .persona-organizer {
         position: relative;
@@ -606,6 +870,22 @@
     }
     .toolbar-active {
         background: color-mix(in srgb, var(--color-primary) 14%, transparent);
+    }
+    .folder-create-button:disabled,
+    .folder-back-button:disabled,
+    .toolbar-text-button:disabled {
+        cursor: not-allowed;
+        opacity: 0.35;
+    }
+    .delete-button,
+    .delete-cancel-button,
+    .delete-done-button {
+        border-color: color-mix(in srgb, var(--color-draculared, #ef4444) 55%, var(--color-darkborderc));
+        color: var(--color-draculared, #ef4444);
+    }
+    .delete-cancel-button,
+    .delete-done-button {
+        background: color-mix(in srgb, var(--color-draculared, #ef4444) 12%, transparent);
     }
     .folder-members-button {
         width: 2.35rem;
@@ -708,6 +988,11 @@
         outline: 3px solid var(--color-green-500, #22c55e);
         outline-offset: -3px;
     }
+    .delete-selected .persona-image,
+    .delete-selected .folder-image {
+        outline: 3px solid var(--color-draculared, #ef4444);
+        outline-offset: -3px;
+    }
     .membership-mark {
         position: absolute;
         top: 0.25rem;
@@ -725,6 +1010,26 @@
     }
     .persona-member-selected .membership-mark {
         background: var(--color-green-500, #22c55e);
+    }
+    .delete-mark {
+        position: absolute;
+        top: 0.25rem;
+        right: 0.25rem;
+        display: flex;
+        width: 1.35rem;
+        height: 1.35rem;
+        align-items: center;
+        justify-content: center;
+        border: 2px solid rgb(255 255 255 / 0.82);
+        border-radius: 999px;
+        color: white;
+        background: rgb(0 0 0 / 0.68);
+        font-size: 0.85rem;
+        font-weight: 700;
+    }
+    .delete-selected .delete-mark {
+        border-color: var(--color-draculared, #ef4444);
+        background: var(--color-draculared, #ef4444);
     }
     .persona-card-name {
         width: 100%;
@@ -808,6 +1113,75 @@
         min-width: 2.4rem;
         text-align: center;
         font-size: 0.72rem;
+    }
+    .delete-preview {
+        display: flex;
+        max-height: min(60vh, 34rem);
+        flex-direction: column;
+        gap: 0.75rem;
+        overflow-y: auto;
+        padding-right: 0.2rem;
+    }
+    .delete-preview-section {
+        display: flex;
+        flex-direction: column;
+        gap: 0.45rem;
+        border: 1px solid var(--color-darkborderc);
+        border-radius: 0.6rem;
+        padding: 0.65rem;
+    }
+    .delete-preview-section h3 {
+        margin: 0;
+        color: var(--color-textcolor);
+        font-size: 0.95rem;
+        font-weight: 700;
+    }
+    .delete-folder-group {
+        border-color: color-mix(in srgb, var(--color-draculared, #ef4444) 35%, var(--color-darkborderc));
+    }
+    .delete-folder-heading {
+        display: flex;
+        align-items: center;
+        gap: 0.6rem;
+    }
+    .delete-folder-image {
+        display: flex;
+        width: 2.8rem;
+        height: 2.8rem;
+        flex: 0 0 2.8rem;
+        align-items: center;
+        justify-content: center;
+        border-radius: 0.45rem;
+        color: var(--color-primary);
+        background: color-mix(in srgb, var(--color-primary) 16%, var(--color-darkborderc));
+    }
+    .delete-preview-list {
+        display: flex;
+        flex-direction: column;
+        gap: 0.35rem;
+    }
+    .delete-persona-row {
+        display: flex;
+        align-items: center;
+        gap: 0.6rem;
+        border-radius: 0.45rem;
+        padding: 0.35rem;
+        background: color-mix(in srgb, var(--color-darkborderc) 30%, transparent);
+    }
+    .delete-persona-image {
+        display: block;
+        width: 3rem;
+        height: 3rem;
+        flex: 0 0 3rem;
+        border-radius: 0.4rem;
+        background-position: center !important;
+        background-repeat: no-repeat !important;
+        background-size: cover !important;
+    }
+    .delete-persona-copy {
+        display: flex;
+        min-width: 0;
+        flex-direction: column;
     }
     @media (prefers-reduced-motion: reduce) {
         .page-track,

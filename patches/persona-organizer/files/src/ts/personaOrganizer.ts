@@ -7,6 +7,19 @@ export interface PersonaGroup {
     folder: RisuPersonaFolder | null
 }
 
+export interface PersonaDeletionFolder {
+    folder: RisuPersonaFolder
+    personas: RisuPersona[]
+}
+
+export interface PersonaDeletionPlan {
+    folders: PersonaDeletionFolder[]
+    loosePersonas: RisuPersona[]
+    personaIds: string[]
+    folderIds: string[]
+    remainingCount: number
+}
+
 export function buildPersonaGroups(
     personas: RisuPersona[],
     folders: RisuPersonaFolder[],
@@ -86,4 +99,66 @@ export function movePersonaWithinGroup(
     reordered.splice(to, 0, ...reordered.splice(from, 1))
     group.personas = reordered
     return flattenPersonaGroups(groups)
+}
+
+export function buildPersonaDeletionPlan(
+    personas: RisuPersona[],
+    folders: RisuPersonaFolder[],
+    selectedPersonaIds: string[],
+    selectedFolderIds: string[],
+): PersonaDeletionPlan {
+    const personaById = new Map(
+        personas
+            .filter((persona): persona is RisuPersona & { id: string } => !!persona.id)
+            .map((persona) => [persona.id, persona]),
+    )
+    const selectedFolders = new Set(selectedFolderIds)
+    const folderEntries = folders
+        .filter((folder) => selectedFolders.has(folder.id))
+        .map((folder) => ({
+            folder,
+            personas: personas.filter((persona) => persona.folderId === folder.id),
+        }))
+    const folderPersonaIds = new Set(
+        folderEntries.flatMap((entry) =>
+            entry.personas
+                .map((persona) => persona.id)
+                .filter((id): id is string => !!id)
+        ),
+    )
+    const loosePersonas = selectedPersonaIds
+        .filter((id) => !folderPersonaIds.has(id))
+        .flatMap((id) => {
+            const persona = personaById.get(id)
+            return persona ? [persona] : []
+        })
+    const personaIds = Array.from(new Set([
+        ...folderPersonaIds,
+        ...loosePersonas
+            .map((persona) => persona.id)
+            .filter((id): id is string => !!id),
+    ]))
+
+    return {
+        folders: folderEntries,
+        loosePersonas,
+        personaIds,
+        folderIds: folderEntries.map((entry) => entry.folder.id),
+        remainingCount: personas.length - personaIds.length,
+    }
+}
+
+export function applyPersonaDeletion(
+    personas: RisuPersona[],
+    folders: RisuPersonaFolder[],
+    plan: PersonaDeletionPlan,
+): { personas: RisuPersona[], folders: RisuPersonaFolder[] } {
+    const hasSelection = plan.personaIds.length > 0 || plan.folderIds.length > 0
+    if (!hasSelection || plan.remainingCount < 1) return { personas, folders }
+    const personaIds = new Set(plan.personaIds)
+    const folderIds = new Set(plan.folderIds)
+    return {
+        personas: personas.filter((persona) => !persona.id || !personaIds.has(persona.id)),
+        folders: folders.filter((folder) => !folderIds.has(folder.id)),
+    }
 }

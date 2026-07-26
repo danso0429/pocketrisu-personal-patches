@@ -79,6 +79,11 @@ The thumbnail strip at the top of Settings → Persona gains:
 - folder content arrangement by opening a folder while `Arrange` is active;
 - a folder `+` action with a paginated 4×4 all-persona selector for adding or
   removing folder members;
+- a closable create/import dialog for the root `+` action;
+- root and folder-scoped `Delete` selection modes with `Cancel`/`Done`,
+  grouped image/name/alias previews, and a final Yes/No gate;
+- folder selection that deletes the selected folder and its contained
+  personas together, while always keeping at least one persona;
 - folder rename, reorder, and removal (folder removal keeps every persona);
 - normal page scrolling at all times, with no persona drag or touch-scroll
   interception.

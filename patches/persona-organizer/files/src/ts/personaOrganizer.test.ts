@@ -1,6 +1,8 @@
 import { describe, expect, it } from "vitest"
 import type { RisuPersona, RisuPersonaFolder } from "./storage/database.svelte"
 import {
+    applyPersonaDeletion,
+    buildPersonaDeletionPlan,
     buildPersonaGroups,
     flattenPersonaGroups,
     movePersonaWithinGroup,
@@ -68,5 +70,50 @@ describe("persona organizer", () => {
         const input = [persona("a"), persona("b"), persona("x", "f1")]
         expect(movePersonaWithinGroup(input, folders, "a", null, -1)).toBe(input)
         expect(movePersonaWithinGroup(input, folders, "x", "f1", 1)).toBe(input)
+    })
+
+    it("builds a deduplicated deletion preview grouped by selected folder", () => {
+        const input = [
+            persona("a"),
+            persona("b", "f1"),
+            persona("c", "f1"),
+            persona("d", "f2"),
+        ]
+        const plan = buildPersonaDeletionPlan(input, folders, ["a", "b"], ["f1"])
+        expect(plan.folders.map((entry) => [
+            entry.folder.id,
+            entry.personas.map((item) => item.id),
+        ])).toEqual([["f1", ["b", "c"]]])
+        expect(plan.loosePersonas.map((item) => item.id)).toEqual(["a"])
+        expect(plan.personaIds).toEqual(["b", "c", "a"])
+        expect(plan.folderIds).toEqual(["f1"])
+        expect(plan.remainingCount).toBe(1)
+    })
+
+    it("deletes the confirmed selection while preserving every unrelated entry", () => {
+        const input = [
+            persona("a"),
+            persona("b", "f1"),
+            persona("c", "f1"),
+            persona("d", "f2"),
+        ]
+        const plan = buildPersonaDeletionPlan(input, folders, ["a"], ["f1"])
+        const output = applyPersonaDeletion(input, folders, plan)
+        expect(output.personas.map((item) => item.id)).toEqual(["d"])
+        expect(output.folders.map((item) => item.id)).toEqual(["f2"])
+    })
+
+    it("refuses an empty selection or deleting the final persona", () => {
+        const input = [persona("a")]
+        const empty = buildPersonaDeletionPlan(input, folders, [], [])
+        expect(applyPersonaDeletion(input, folders, empty)).toEqual({
+            personas: input,
+            folders,
+        })
+        const final = buildPersonaDeletionPlan(input, folders, ["a"], [])
+        expect(applyPersonaDeletion(input, folders, final)).toEqual({
+            personas: input,
+            folders,
+        })
     })
 })

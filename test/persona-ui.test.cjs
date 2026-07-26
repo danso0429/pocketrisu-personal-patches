@@ -74,6 +74,35 @@ test('arrange remains active when a folder is opened so its contents can be shif
     assert.match(source, /activeItems = \$derived\(openGroup \? folderItems : rootItems\)/)
 })
 
+test('bulk delete stays selection-only until a grouped confirmation is accepted', () => {
+    assert.match(source, /let deleteMode = \$state\(false\)/)
+    assert.match(source, /function startDeleteMode\(\): void \{[\s\S]*deleteMode = true/)
+    assert.match(source, /function cancelDeleteMode\(\): void \{[\s\S]*deletePersonaIds = \[\][\s\S]*deleteFolderIds = \[\][\s\S]*deleteMode = false/)
+    assert.match(source, /function requestDeleteConfirmation\(\): void \{[\s\S]*deleteConfirmOpen = true/)
+    assert.match(source, /function confirmDeleteSelection\(\): void \{[\s\S]*applyPersonaDeletion\([\s\S]*commitPersonas\(next\.personas, keepSelectedId\)/)
+    assert.match(source, /deletionPlan\.remainingCount >= 1/)
+    assert.match(source, /<ShAlertDialog[\s\S]*Delete selected personas\?[\s\S]*deletionPlan\.loosePersonas[\s\S]*deletionPlan\.folders/)
+    assert.match(source, /Alias: \{persona\.note\?\.trim\(\) \|\| "—"\}/)
+    assert.match(source, /Folder and \{entry\.personas\.length\} persona/)
+})
+
+test('folder delete mode cannot navigate out before done or cancel', () => {
+    assert.match(source, /function leaveFolder\(\): void \{\s*if \(deleteMode\) return/)
+    assert.match(source, /title=\{deleteMode \? "Finish or cancel deletion first" : "Back to personas"\}/)
+    assert.match(source, /disabled=\{deleteMode\}[\s\S]*onclick=\{leaveFolder\}/)
+    assert.match(source, /function toggleDeleteFolder\(folder: RisuPersonaFolder\): void \{\s*if \(!deleteMode \|\| openFolderId\) return/)
+    assert.match(source, /\{:else if deleteMode\}[\s\S]*Cancel[\s\S]*Done \(\{deletionSelectionCount\}\)/)
+})
+
+test('the persona plus menu is local, closable, and preserves create and import actions', () => {
+    assert.match(source, /let addPersonaDialogOpen = \$state\(false\)/)
+    assert.match(source, /<BaseRoundedButton onClick=\{\(\) => addPersonaDialogOpen = true\}>/)
+    assert.match(source, /<ShDialog[\s\S]*bind:open=\{addPersonaDialogOpen\}[\s\S]*closable=\{true\}[\s\S]*Close[\s\S]*<\/ShDialog>/)
+    assert.match(source, /function createPersona\(\): void \{[\s\S]*name: "New Persona"/)
+    assert.match(source, /async function importPersonaFromDialog\(\): Promise<void> \{[\s\S]*await importUserPersona\(\)/)
+    assert.doesNotMatch(source, /alertSelect/)
+})
+
 test('persona organizer targets the settings editor and leaves the selection popup original', () => {
     const replacementUnits = manifest.units.filter((unit) => unit.type === 'replace')
     assert.deepEqual(
@@ -86,7 +115,7 @@ test('persona organizer targets the settings editor and leaves the selection pop
     )
 })
 
-test('existing persona editor and plus-menu behavior remain available', () => {
+test('existing persona editor behavior remains available', () => {
     assert.match(source, /<SettingPage title=\{language\.persona\}>/)
     assert.match(source, /<Help key="personaName" \/>/)
     assert.match(source, /<Help key="personaNote" \/>/)
@@ -94,8 +123,8 @@ test('existing persona editor and plus-menu behavior remain available', () => {
     assert.match(source, /bind:value=\{DBState\.db\.username\}/)
     assert.match(source, /bind:value=\{DBState\.db\.userNote\}/)
     assert.match(source, /bind:value=\{DBState\.db\.personaPrompt\}/)
-    assert.match(source, /alertSelect\(\[[\s\S]*language\.createfromScratch,[\s\S]*language\.importCharacter/)
-    assert.match(source, /<BaseRoundedButton onClick=\{addPersona\}>/)
+    assert.match(source, /language\.createfromScratch/)
+    assert.match(source, /language\.importCharacter/)
     assert.match(source, /selectUserImg\(\)/)
     assert.match(source, /exportUserPersona/)
     assert.match(source, /importUserPersona/)

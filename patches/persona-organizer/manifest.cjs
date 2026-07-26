@@ -11,7 +11,7 @@ const originalPath = path.join(__dirname, 'anchors/PersonaSettings.svelte')
 
 module.exports = {
     id: 'persona-organizer',
-    version: '0.6.0',
+    version: '0.7.0',
     units: [
         {
             id: 'persona-organizer:logic',

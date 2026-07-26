@@ -1,5 +1,16 @@
 # Changelog
 
+## 0.1.2
+
+- Replace the Persona page's non-closable create/import selector with a local
+  dialog that has both an `X` and an explicit `Close` action.
+- Add root and folder-scoped bulk deletion modes with reversible selection,
+  `Cancel`/`Done` controls, and locked folder navigation while selecting.
+- Preview every selected persona with image, name, and alias before deletion;
+  selected folders are shown separately with all contained personas.
+- Apply deletion only after the final Yes action and refuse any selection that
+  would leave PocketRisu without a persona.
+
 ## 0.1.1
 
 - Move the persona organizer to the actual Settings → Persona editor while
