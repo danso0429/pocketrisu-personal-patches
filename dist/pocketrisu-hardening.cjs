@@ -1293,7 +1293,7 @@ module.exports = { parseArgs, runCli }
 
 cliModule.exports.runCli({
     catalog: EMBEDDED_CATALOG,
-    fixedProfile: "all",
+    fixedProfile: "hardening",
 }).catch((error) => {
     console.error('[pocketrisu-patches] ' + error.message);
     if (error.code) console.error('[' + error.code + ']');

@@ -1,5 +1,26 @@
 # Changelog
 
+## 0.1.6-experimental.1
+
+- Add an independent `hardening` profile containing `parser-hardening`, and
+  include the same pack in the unified `all` profile.
+- Drop only a terminal, empty, unterminated ChatML assistant generation marker
+  while preserving content-bearing unterminated messages and explicitly ended
+  empty messages.
+- Replace greedy Thoughts extraction with one shared depth-aware scanner for
+  ChatML and the main response path, covering sibling, empty, nested, and
+  unmatched blocks.
+- Evaluate CBS comparison operands before `and`/`or` while preserving
+  right-to-left logical evaluation and the legacy path without logical
+  operators.
+- Replace all three pre-existing parser skips with passing regression
+  specifications.
+- Keep hardening apply, status, revert, and SHA-256 pack ETag independent; test
+  that any managed-content change produces a different ETag.
+- Pass 9/9 patcher tests, a clean PocketRisu v1.8.1 suite with 94 files and
+  1,218 tests passed with no skips, Svelte diagnostics at 0 errors and 0
+  warnings, production build, and exact hardening/unified round trips.
+
 ## 0.1.5
 
 - Add a multi-image gallery to each persona while retaining `icon` as the

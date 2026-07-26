@@ -18,9 +18,15 @@ test('profiles share one catalog but have different ownership boundaries', () =>
         'lazy-chat-bg-adapter',
         'persona-organizer',
         'preset-integrity',
+        'parser-hardening',
     ])
     assert.throws(
         () => validateProfileSelection(resolveProfile('features'), ['bg-preserve']),
+        /cannot manage/,
+    )
+    assert.deepEqual(resolveProfile('hardening').defaults, ['parser-hardening'])
+    assert.throws(
+        () => validateProfileSelection(resolveProfile('hardening'), ['lazy-chat-sync']),
         /cannot manage/,
     )
     assert.doesNotThrow(
@@ -28,6 +34,7 @@ test('profiles share one catalog but have different ownership boundaries', () =>
             'bg-preserve',
             'lazy-chat-sync',
             'lazy-chat-bg-adapter',
+            'parser-hardening',
         ]),
     )
     assert.throws(
@@ -44,12 +51,19 @@ test('profiles share one catalog but have different ownership boundaries', () =>
     )
 })
 
-test('all can adopt features state, while features cannot silently remove all state', () => {
+test('all can adopt narrower states, while narrow profiles cannot remove other packs', () => {
     assert.doesNotThrow(
         () => validateProfileTransition(resolveProfile('all'), { profile: 'features' }),
     )
+    assert.doesNotThrow(
+        () => validateProfileTransition(resolveProfile('all'), { profile: 'hardening' }),
+    )
     assert.throws(
         () => validateProfileTransition(resolveProfile('features'), { profile: 'all' }),
+        /cannot take ownership/,
+    )
+    assert.throws(
+        () => validateProfileTransition(resolveProfile('hardening'), { profile: 'all' }),
         /cannot take ownership/,
     )
 })

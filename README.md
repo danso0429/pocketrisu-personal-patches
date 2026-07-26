@@ -2,14 +2,16 @@
 
 Private, composable patch delivery for PocketRisu NodeOnly. The current
 stable release is `v0.1.5`, and its manifests target PocketRisu `v1.8.1`.
+The current development checkpoint is `v0.1.6-experimental.1`.
 
 ## Profiles
 
 - `pocketrisu-features.cjs` manages `lazy-chat-sync` (including startup cache),
   `persona-organizer`, and `preset-integrity`.
   An existing bg-preserve installation remains an external layer.
-- `pocketrisu-all.cjs` adds bg-preserve `v1.0.0` and the
-  `lazy-chat-bg-adapter` durable-save barrier as one composition.
+- `pocketrisu-hardening.cjs` manages only `parser-hardening`.
+- `pocketrisu-all.cjs` combines the feature packs, parser hardening,
+  bg-preserve `v1.0.0`, and the `lazy-chat-bg-adapter` durable-save barrier.
 
 Both artifacts are generated from the same engine and manifests. They are not
 separate implementations.
@@ -24,6 +26,7 @@ separate implementations.
 | `v0.1.3` | Added content-addressed custom folder images with replace/reset and deletion-preview support, then made the full CI gate compatible with its Node.js 22 runner. |
 | `v0.1.4` | Fixed new-chat save failures by making stable chat IDs authoritative and classifying create versus update from the last server-confirmed database without weakening remote-deletion or concurrent-create safety. |
 | `v0.1.5` | Added a reusable multi-image gallery to every persona, active-image selection, non-destructive reference removal, and an export-time image picker while preserving legacy `icon` compatibility and all gallery/folder assets through cleanup and backup. |
+| `v0.1.6-experimental.1` | Added an independent parser-hardening profile and included it in `all`, replacing three permanent parser skips with passing coverage for ChatML terminal generation markers, Thoughts extraction, and CBS logical precedence. |
 
 The current `v0.1.5` release has been validated against PocketRisu `v1.8.1`
 with:
@@ -37,6 +40,11 @@ with:
 - BG orchestration bundle build/load and production health checks;
 - iPhone validation of multi-image add/select/remove, export-time selection,
   the compact gallery layout, and existing persona editing behavior.
+
+The `v0.1.6-experimental.1` hardening candidate has separately passed 9/9
+patcher tests, a clean unified PocketRisu run with 94 files and 1,218 tests
+passed with no skips, Svelte diagnostics at 0 errors and 0 warnings, a
+production build, and exact standalone hardening apply/re-plan/status/revert.
 
 See [CHANGELOG.md](CHANGELOG.md) for experimental checkpoints and the complete
 per-release change list. The preceding `v0.1.4` incident analysis and safety boundaries
@@ -155,6 +163,30 @@ index inside the current preset array:
 This pack is separate from persona organization so its ETag, apply, and revert
 scope remain independent.
 
+### Parser hardening
+
+The independent `parser-hardening` pack resolves the three parser
+specifications that PocketRisu v1.8.1 previously skipped:
+
+- `parses ChatML without ending token`: a final empty assistant generation
+  marker such as `<|im_start|>assistant` is a provider prompt boundary, not an
+  empty chat message. It is dropped only when it is terminal, recognized,
+  content-free, and lacks `<|im_end|>`; content-bearing unterminated messages
+  and explicitly ended empty messages remain valid.
+- `extracts multiple thoughts`: the greedy cross-block expression is replaced
+  by a depth-aware scanner that extracts sibling `<Thoughts>` blocks in order,
+  preserves nested markup inside one outer thought, removes empty blocks, and
+  leaves unmatched opening markup visible.
+- `Lower precedence than other operators`: CBS comparison operands are reduced
+  before `and`/`or`, while the existing right-to-left behavior between logical
+  operators and the legacy path for expressions without logical operators are
+  preserved.
+
+The Thoughts scanner is shared by ChatML parsing and the main response path, so
+the two consumers cannot silently diverge. The pack owns focused regression
+tests and has its own SHA-256 ETag; its managed content, apply state, status,
+and revert scope remain independent from feature and bg-preserve packs.
+
 ## Build and use
 
 ```bash
@@ -176,7 +208,8 @@ node dist/pocketrisu-all.cjs status --root /path/to/PocketRisu
 node dist/pocketrisu-all.cjs revert --root /path/to/PocketRisu
 ```
 
-Use `pocketrisu-features.cjs` for the profile that excludes bg-preserve.
+Use `pocketrisu-features.cjs` for feature packs without bg-preserve, or
+`pocketrisu-hardening.cjs` for parser hardening alone.
 After applying source changes, run PocketRisu's normal checks and production
 build. The unified profile also changes code included by the bg orchestration
 bundle, so rebuild it when that builder exists:
@@ -235,9 +268,9 @@ durable `awaitingMetadata` WAL quarantine. Only that orphan-prone subset has a
 backlog is logged after restart, and a save that would exceed the limit is
 rejected before ACK. Existing-chat WAL records are outside this pressure limit.
 
-The `features` artifact refuses to take ownership of an `all` state, because
-doing so could silently remove bg-preserve. The `all` artifact may safely
-adopt a prior `features` state.
+The `features` and `hardening` artifacts refuse to take ownership of another
+profile's state, because doing so could silently remove managed packs. The
+`all` artifact may safely adopt a prior `features` or `hardening` state.
 
 ## Upstream updates
 

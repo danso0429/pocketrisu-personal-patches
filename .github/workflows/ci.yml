@@ -30,6 +30,7 @@ jobs:
           npm run build
           git diff --exit-code -- dist
           node --check dist/pocketrisu-features.cjs
+          node --check dist/pocketrisu-hardening.cjs
           node --check dist/pocketrisu-all.cjs
 
       - name: Check out PocketRisu v1.8.1

@@ -11,11 +11,18 @@ const PROFILES = Object.freeze({
         allowed: ['lazy-chat-sync', 'persona-organizer', 'preset-integrity'],
         required: [],
     },
+    hardening: {
+        id: 'hardening',
+        description: 'Focused parser hardening without feature or bg-preserve ownership.',
+        defaults: ['parser-hardening'],
+        allowed: ['parser-hardening'],
+        required: [],
+    },
     all: {
         id: 'all',
-        description: 'Unified bg-preserve, lazy chat synchronization, startup cache, and persona organization.',
-        defaults: ['bg-preserve', 'lazy-chat-sync', 'lazy-chat-bg-adapter', 'persona-organizer', 'preset-integrity'],
-        allowed: ['bg-preserve', 'lazy-chat-sync', 'lazy-chat-bg-adapter', 'persona-organizer', 'preset-integrity'],
+        description: 'Unified bg-preserve, features, and parser hardening.',
+        defaults: ['bg-preserve', 'lazy-chat-sync', 'lazy-chat-bg-adapter', 'persona-organizer', 'preset-integrity', 'parser-hardening'],
+        allowed: ['bg-preserve', 'lazy-chat-sync', 'lazy-chat-bg-adapter', 'persona-organizer', 'preset-integrity', 'parser-hardening'],
         required: ['bg-preserve', 'lazy-chat-bg-adapter'],
     },
 })
@@ -28,6 +35,7 @@ function loadCatalog(repositoryRoot = path.resolve(__dirname, '..')) {
         require(path.join(repositoryRoot, 'patches/lazy-chat-bg-adapter/manifest.cjs')),
         require(path.join(repositoryRoot, 'patches/persona-organizer/manifest.cjs')),
         require(path.join(repositoryRoot, 'patches/preset-integrity/manifest.cjs')),
+        require(path.join(repositoryRoot, 'patches/parser-hardening/manifest.cjs')),
     ]
 }
 
@@ -53,7 +61,10 @@ function validateProfileSelection(profile, packIds) {
 
 function validateProfileTransition(profile, previousState) {
     if (!previousState || previousState.profile === profile.id) return
-    if (profile.id === 'all' && previousState.profile === 'features') return
+    if (
+        profile.id === 'all'
+        && (previousState.profile === 'features' || previousState.profile === 'hardening')
+    ) return
     throw new Error(
         `${profile.id} patcher cannot take ownership of ${previousState.profile} state; `
         + `use the ${previousState.profile} patcher or upgrade with the all patcher`,
