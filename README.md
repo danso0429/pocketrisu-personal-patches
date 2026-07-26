@@ -14,6 +14,34 @@ stable release is `v0.1.4`, and its manifests target PocketRisu `v1.8.1`.
 Both artifacts are generated from the same engine and manifests. They are not
 separate implementations.
 
+## Release history
+
+| Release | What changed |
+| --- | --- |
+| `v0.1.0` | Promoted the composable patcher to stable with unified/features profiles, transactional apply/revert, pack ETags, stale-plan refusal, exact collision ordering, POSIX mode preservation, startup database caching, lazy chat synchronization, persona organization, preset safety, and optional bg-preserve composition. |
+| `v0.1.1` | Moved Persona organization to Settings → Persona, replaced touch drag with paginated 4×4 membership and explicit one-slot Arrange controls, and added the independent prompt preset integrity pack. |
+| `v0.1.2` | Added closable create/import UI and root/folder-scoped bulk persona deletion with reversible selection, grouped previews, a final confirmation gate, and protection for the last remaining persona. |
+| `v0.1.3` | Added content-addressed custom folder images with replace/reset and deletion-preview support, then made the full CI gate compatible with its Node.js 22 runner. |
+| `v0.1.4` | Fixed new-chat save failures by making stable chat IDs authoritative and classifying create versus update from the last server-confirmed database without weakening remote-deletion or concurrent-create safety. |
+
+The current `v0.1.4` release has been validated against PocketRisu `v1.8.1`
+with:
+
+- 8/8 patcher tests and reproducible installer generation;
+- a clean unified apply, embedded PocketRisu checks, production build, and
+  exact byte-plus-mode revert in GitHub Actions;
+- 1,197 PocketRisu tests passed, with three pre-existing parser specifications
+  intentionally skipped;
+- Svelte diagnostics at 0 errors and 0 warnings;
+- BG orchestration bundle build/load and production health checks;
+- iPhone validation of new and existing chat saves, reload persistence, and
+  background-return behavior.
+
+See [CHANGELOG.md](CHANGELOG.md) for experimental checkpoints and the complete
+per-release change list. The `v0.1.4` incident analysis and safety boundaries
+are in
+[docs/NEW-CHAT-SAVE-REGRESSION-2026-07-26.md](docs/NEW-CHAT-SAVE-REGRESSION-2026-07-26.md).
+
 ## Feature packs
 
 ### Lazy chat synchronization and startup cache
