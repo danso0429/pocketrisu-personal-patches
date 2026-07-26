@@ -4,6 +4,7 @@
   "private": true,
   "type": "commonjs",
   "scripts": {
+    "build": "node scripts/build-installers.cjs",
     "test": "node --test --test-isolation=none test/*.test.cjs"
   },
   "engines": {
