@@ -1,0 +1,12 @@
+{
+  "name": "pocketrisu-personal-patches",
+  "version": "0.1.0-experimental.1",
+  "private": true,
+  "type": "commonjs",
+  "scripts": {
+    "test": "node --test --test-isolation=none test/*.test.cjs"
+  },
+  "engines": {
+    "node": ">=22"
+  }
+}
