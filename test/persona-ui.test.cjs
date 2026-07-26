@@ -16,3 +16,11 @@ test('persona native drag does not compete with the iOS long-press controller', 
     assert.match(source, /ontouchstart=\{isTouchDevice \?/)
     assert.doesNotMatch(source, /draggable="true"/)
 })
+
+test('persona folder and reorder targets advertise and preserve distinct actions', () => {
+    assert.match(source, /Drop on a persona: create folder · Drop between: move/)
+    assert.match(source, /persona-folder-drop-hint/)
+    assert.match(source, /persona-move-drop-hint/)
+    assert.match(source, /const target = highlightedDrop \?\?/)
+    assert.match(source, /dropOnPersona\(persona\.id!, event\)/)
+})

@@ -1,5 +1,13 @@
 # Changelog
 
+## 0.1.0-experimental.3
+
+- Separate persona drop targets visually and behaviorally: a highlighted row
+  creates or joins a folder, while a highlighted gap only reorders.
+- Execute the last displayed iPhone drop target instead of resolving the
+  finger position again at touchend, preventing an adjacent reorder gap from
+  replacing a visible folder action.
+
 ## 0.1.0-experimental.2
 
 - Keep persona HTML drag desktop-only so PocketRisu's iOS drag polyfill cannot
