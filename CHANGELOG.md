@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.1.0-experimental.2
+
+- Keep persona HTML drag desktop-only so PocketRisu's iOS drag polyfill cannot
+  preempt the popup's 400 ms long-press reorder controller.
+
 ## 0.1.0-experimental.1
 
 - Add one composable patch engine with `features` and `all` artifacts.

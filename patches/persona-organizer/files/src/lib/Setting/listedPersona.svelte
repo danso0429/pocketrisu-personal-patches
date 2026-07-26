@@ -31,6 +31,11 @@
     let { close = () => {}, onSelect = null }: Props = $props()
     let currentDragId: string | null = null
     let suppressClickUntil = 0
+    // PocketRisu force-enables mobile-drag-drop on iOS. Exposing an HTML
+    // draggable there lets the polyfill claim the gesture before this popup's
+    // long-press controller, so native drag is desktop-only just like Sidebar.
+    const isTouchDevice = typeof matchMedia !== "undefined"
+        && matchMedia("(pointer: coarse)").matches
 
     function ensureModel(): void {
         DBState.db.personaFolders ??= []
@@ -375,17 +380,17 @@
                         ondrop={(event) => dropAt(group.id, persona.id ?? null, event)}
                     ></div>
                     <button
-                        draggable="true"
+                        draggable={!isTouchDevice ? "true" : undefined}
                         data-persona-row
                         data-persona-id={persona.id}
                         class="persona-row flex items-center w-full text-textcolor border-t-1 border-solid border-0 border-darkborderc p-2 cursor-pointer rounded"
                         class:bg-selected={DBState.db.personas[DBState.db.selectedPersona]?.id === persona.id}
                         onclick={() => choosePersona(persona)}
-                        ondragstart={(event) => dragStart(persona, event)}
-                        ondragend={() => { currentDragId = null }}
+                        ondragstart={!isTouchDevice ? (event) => dragStart(persona, event) : undefined}
+                        ondragend={!isTouchDevice ? () => { currentDragId = null } : undefined}
                         ondragover={allowDrop}
                         ondrop={(event) => dropOnPersona(persona.id!, event)}
-                        ontouchstart={(event) => startTouch(persona, event)}
+                        ontouchstart={isTouchDevice ? (event) => startTouch(persona, event) : undefined}
                     >
                         <span class="overflow-x-auto whitespace-nowrap w-full text-left">
                             <span class="font-medium">{persona.name}</span>
