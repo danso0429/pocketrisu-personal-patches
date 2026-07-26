@@ -11,6 +11,7 @@ import { addLog } from "../log"
 import { decodeRisuSave, encodeRisuSaveLegacy } from "./risuSave"
 import { appVer, nodeOnlyVer, normalizeChat } from "./database.svelte"
 import { StartupDatabaseCache } from "./startupDatabaseCache"
+import type { ChatSaveIntent } from "./chatSaveIntent"
 
 const DATABASE_KEY = 'database/database.bin'
 // Bump this when decoding the same bytes can produce a different runtime shape.
@@ -1096,12 +1097,18 @@ export class NodeStorage{
         return serverSnapshot.chat
     }
 
-    async saveChatContent(chaId: string, chatIndex: number, chatId: string, chat: any): Promise<void> {
+    async saveChatContent(
+        chaId: string,
+        chatIndex: number,
+        chatId: string,
+        chat: any,
+        intent: ChatSaveIntent = 'update',
+    ): Promise<void> {
         const key = this.chatSyncKey(chaId, chatId)
         const previous = this.chatSaveTails.get(key) ?? Promise.resolve()
         const operation = previous
             .catch(() => undefined)
-            .then(() => this.saveChatContentSerialized(chaId, chatIndex, chatId, chat))
+            .then(() => this.saveChatContentSerialized(chaId, chatIndex, chatId, chat, intent))
         this.chatSaveTails.set(key, operation)
         try {
             await operation
@@ -1118,6 +1125,7 @@ export class NodeStorage{
         chatIndex: number,
         chatId: string,
         chat: any,
+        intent: ChatSaveIntent,
     ): Promise<void> {
         const encoded = encodeRisuSaveLegacy(chat)
         const currentSnapshot = normalizeChat(await decodeRisuSave(encoded))
@@ -1144,6 +1152,12 @@ export class NodeStorage{
                 )
             }
             if (serverSnapshot) {
+                if (intent === 'create') {
+                    throw new ChatConflictError(
+                        'A chat with this ID already exists on the server',
+                        serverSnapshot.revision,
+                    )
+                }
                 this.rememberChatSyncState(
                     syncKey,
                     serverSnapshot.revision,
@@ -1153,8 +1167,11 @@ export class NodeStorage{
                 this.chatDeltaSupported = true
                 syncState = this.chatSyncStates.get(syncKey)
             }
-            else {
+            else if (intent === 'create') {
                 createOnly = true
+            }
+            else {
+                throw new ChatConflictError('Chat was removed on the server')
             }
         }
         if (

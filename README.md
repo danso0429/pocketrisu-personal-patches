@@ -1,7 +1,7 @@
 # PocketRisu Personal Patches
 
 Private, composable patch delivery for PocketRisu NodeOnly. The current
-stable release is `v0.1.0`, and its manifests target PocketRisu `v1.8.1`.
+stable release is `v0.1.4`, and its manifests target PocketRisu `v1.8.1`.
 
 ## Profiles
 
@@ -27,6 +27,11 @@ context. The storage protocol is adapted from
 - chat writes use exact transport revisions, CAS preconditions, bounded JSON
   Patch deltas, and response-loss confirmation instead of unconditional full
   overwrites;
+- stable chat IDs, rather than mutable array indices, are authoritative for
+  reads whenever the client supplies an ID;
+- the last server-confirmed database distinguishes creates from updates, so
+  only a confirmed missing new ID may use create-only persistence while a
+  remotely removed existing chat remains a conflict;
 - a server write-ahead journal preserves acknowledged chat writes until their
   database metadata is durable;
 - database conflicts use three-way reconciliation with explicit

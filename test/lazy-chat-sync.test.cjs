@@ -18,7 +18,7 @@ function payload(relative) {
 
 test('lazy chat pack includes CAS, WAL, reconciliation, and safe hydration boundaries', () => {
     assert.equal(lazyManifest.id, 'lazy-chat-sync')
-    assert.equal(lazyManifest.version, '0.1.2')
+    assert.equal(lazyManifest.version, '0.1.3')
     assert.match(payload('server/node/server.cjs'), /chatWriteJournal/)
     assert.match(payload('server/node/server.cjs'), /\/api\/chat-content\/:chaId\/:chatIndex\/patch/)
     assert.match(payload('server/node/server.cjs'), /validateStrippedDatabaseTransition/)
@@ -26,6 +26,8 @@ test('lazy chat pack includes CAS, WAL, reconciliation, and safe hydration bound
     assert.match(payload('server/node/chatWriteJournal.cjs'), /CHAT_JOURNAL_CAPACITY/)
     assert.match(payload('server/node/chatWriteJournal.cjs'), /DEFAULT_MAX_AWAITING_RECORDS = 128/)
     assert.match(payload('src/ts/storage/nodeStorage.ts'), /x-chat-base-revision/)
+    assert.match(payload('src/ts/storage/nodeStorage.ts'), /ChatSaveIntent/)
+    assert.match(payload('src/ts/globalApi.svelte.ts'), /classifyChatSaveIntent/)
     assert.match(payload('src/ts/storage/conflictRebase.ts'), /mergeThreeWayValue/)
     assert.match(payload('src/ts/plugins/apiV3/pluginChatAccess.ts'), /hydrateChat/)
     const missingPayloadNotice = lazyManifest.units.find((unit) =>

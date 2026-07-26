@@ -38,6 +38,7 @@ const {
     evaluateFullChatWritePrecondition,
     applyChatDelta,
     canonicalizeStrippedDatabase,
+    resolveChatReadTarget,
     validateStrippedDatabaseTransition,
 } = require('./chatDelta.cjs');
 const {
@@ -4755,7 +4756,9 @@ app.get('/api/chat-content/:chaId/:chatIndex', async (req, res, next) => {
         await queueStorageOperation(async () => {
         const chaId = req.params.chaId;
         const chatIndex = parseInt(req.params.chatIndex, 10);
-        const expectedChatId = req.headers['x-chat-id'];
+        const expectedChatId = typeof req.headers['x-chat-id'] === 'string'
+            ? req.headers['x-chat-id']
+            : '';
 
         await ensureChatStore();
         // First try fullChatStore (fast path)
@@ -4778,21 +4781,16 @@ app.get('/api/chat-content/:chaId/:chatIndex', async (req, res, next) => {
             }
         }
 
-        // Fallback: load from disk and find by index
+        // Fallback: load canonical metadata. Stable ID is authoritative when
+        // present; the path index remains only for legacy callers.
         const raw = kvGet('database/database.bin');
         if (!raw) {
             return res.status(404).json({ error: 'Database not found' });
         }
         const dbObj = await decodeRisuSave(raw);
         const char = dbObj.characters?.find(c => c?.chaId === chaId);
-        if (!char?.chats?.[chatIndex]) {
-            return res.status(404).json({ error: 'Chat not found' });
-        }
-        const chat = char.chats[chatIndex];
-        // Verify chatId matches if provided
-        if (expectedChatId && chat.id !== expectedChatId) {
-            return res.status(409).json({ error: 'Chat ID mismatch — index may have shifted' });
-        }
+        const chat = resolveChatReadTarget(char, chatIndex, expectedChatId);
+        if (!chat) return res.status(404).json({ error: 'Chat not found' });
         // A legacy metadata-only shell is not a valid chat payload. Returning
         // it as 200 makes the client decoder treat hydration as malformed and
         // can turn a send attempt into an unhandled error. Report an explicit

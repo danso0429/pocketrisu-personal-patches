@@ -8,6 +8,7 @@ const {
     applyChatDelta,
     validateChatPatch,
     canonicalizeStrippedDatabase,
+    resolveChatReadTarget,
     chatIdentityKey,
     collectMissingFullChatKeys,
     validateStrippedDatabase,
@@ -30,6 +31,11 @@ const {
     applyChatDelta: (chat: any, patch: any[], expectedChatId: string) => any
     validateChatPatch: (patch: any[]) => void
     canonicalizeStrippedDatabase: (database: any) => any
+    resolveChatReadTarget: (
+        character: any,
+        chatIndex: number,
+        expectedChatId?: string,
+    ) => any | null
     chatIdentityKey: (chaId: string, chatId: string) => string
     collectMissingFullChatKeys: (
         database: any,
@@ -176,6 +182,37 @@ describe('incremental chat persistence', () => {
             matches: false,
             status: 409,
         })
+    })
+})
+
+describe('stable chat read resolution', () => {
+    const oldChat = { id: 'chat-old', name: 'Old', message: [] }
+    const shiftedChat = { id: 'chat-shifted', name: 'Shifted', message: [] }
+    const character = {
+        chaId: 'char-1',
+        chats: [oldChat, shiftedChat],
+    }
+
+    it('does not substitute an occupied path index for an absent stable ID', () => {
+        expect(resolveChatReadTarget(character, 0, 'chat-new')).toBeNull()
+    })
+
+    it('finds an existing stable ID after its index shifts', () => {
+        expect(resolveChatReadTarget(character, 0, 'chat-shifted')).toBe(shiftedChat)
+    })
+
+    it('retains index lookup for legacy callers without a stable ID header', () => {
+        expect(resolveChatReadTarget(character, 1)).toBe(shiftedChat)
+        expect(resolveChatReadTarget(character, 5)).toBeNull()
+    })
+
+    it('returns the exact legacy shell so the route can preserve its missing-payload response', () => {
+        const legacyShell = { id: 'chat-legacy', name: 'Legacy', _stub: true }
+        const withLegacyShell = {
+            chaId: 'char-1',
+            chats: [oldChat, legacyShell],
+        }
+        expect(resolveChatReadTarget(withLegacyShell, 0, 'chat-legacy')).toBe(legacyShell)
     })
 })
 

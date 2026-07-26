@@ -29,6 +29,8 @@ const ownedFiles = [
     'src/ts/plugins/apiV3/pluginChatAccess.ts',
     'src/ts/storage/conflictRebase.test.ts',
     'src/ts/storage/conflictRebase.ts',
+    'src/ts/storage/chatSaveIntent.test.ts',
+    'src/ts/storage/chatSaveIntent.ts',
     'src/ts/storage/nodeStorage.chatDelta.test.ts',
     'src/ts/storage/startupDatabaseCache.test.ts',
     'src/ts/storage/startupDatabaseCache.ts',
@@ -40,7 +42,7 @@ function unitId(relative) {
 
 module.exports = {
     id: 'lazy-chat-sync',
-    version: '0.1.2',
+    version: '0.1.3',
     units: [
         ...replacedFiles.map((relative) => ({
             id: `lazy-chat-sync:replace:${unitId(relative)}`,

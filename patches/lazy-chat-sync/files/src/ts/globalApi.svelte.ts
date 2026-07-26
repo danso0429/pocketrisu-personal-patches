@@ -13,6 +13,7 @@ import { characterURLImport, hubURL } from "./characterCards";
 import { defaultJailbreak, defaultMainPrompt, oldJailbreak, oldMainPrompt } from "./storage/defaultPrompts";
 import { decodeRisuSave, encodeRisuSaveLegacy, findDangerousChatOps, normalizeJSON, RisuSaveEncoder, RisuSavePatcher, type toSaveType } from "./storage/risuSave";
 import { isHydrating, saveChatToServer, ensureChatHydrated, chatToStub, classifyChat, convertStubsToPlaceholders } from "./storage/chatStorage";
+import { classifyChatSaveIntent } from "./storage/chatSaveIntent";
 import { AutoStorage } from "./storage/autoStorage";
 import { ConflictError, type PatchItemResult, type PersistWarning } from "./storage/nodeStorage";
 import { supportsPatchSync } from "./platform";
@@ -968,7 +969,8 @@ export async function saveDb() {
             // Skip placeholders — they have no real data to save
             if (!chat || chat._placeholder) continue
             try {
-                await saveChatToServer(chaId, chatIndex, chatId, chat)
+                const intent = classifyChatSaveIntent(lastConfirmedServerDb, chaId, chatId)
+                await saveChatToServer(chaId, chatIndex, chatId, chat, intent)
             } catch (e) {
                 console.error(`[Save] Failed to save chat ${chaId}/${chatId}:`, e)
                 failedChats.push([chaId, chatId])

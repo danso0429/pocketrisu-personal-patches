@@ -1,5 +1,20 @@
 # Changelog
 
+## 0.1.4
+
+- Fix new-chat saves when PocketRisu inserts the new chat at index zero before
+  its database metadata reaches the server.
+- Resolve chat reads by stable ID whenever `x-chat-id` is present, retaining
+  path-index lookup only for legacy callers without the header.
+- Classify create versus update from the last server-confirmed database. Only
+  an authoritative missing new ID enables `If-None-Match: *`; remote deletion
+  and concurrent ID collision remain explicit conflicts.
+- Preserve lost-ack confirmation for successful creates and keep the composer
+  draft on blocked saves.
+- Pass the clean PocketRisu v1.8.1 suite with 1,197 tests passed and 3
+  intentionally skipped parser specifications, Svelte diagnostics, BG bundle
+  load check, production build, exact apply/revert round trip, and iPhone L3.
+
 ## 0.1.3
 
 - Add custom folder images to the Persona organizer using PocketRisu's existing

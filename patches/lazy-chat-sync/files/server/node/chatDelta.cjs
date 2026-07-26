@@ -51,6 +51,23 @@ function evaluateFullChatWritePrecondition(chat, { baseRevision = '', createOnly
     };
 }
 
+/**
+ * Resolve a chat read against the stable ID when the caller supplies one.
+ *
+ * The path index is only a compatibility fallback for legacy callers. A new
+ * chat is inserted at index zero before its metadata save, so consulting that
+ * occupied index for a different stable ID would turn a valid create into a
+ * false conflict. Existing IDs may likewise move when chats are reordered.
+ */
+function resolveChatReadTarget(character, chatIndex, expectedChatId = '') {
+    const chats = Array.isArray(character?.chats) ? character.chats : [];
+    if (typeof expectedChatId === 'string' && expectedChatId.length > 0) {
+        return chats.find((chat) => chat?.id === expectedChatId) || null;
+    }
+    if (!Number.isInteger(chatIndex) || chatIndex < 0) return null;
+    return chats[chatIndex] || null;
+}
+
 function validatePointer(path) {
     if (typeof path !== 'string' || !path.startsWith('/')) {
         throw new Error('Chat patch paths must be non-root JSON pointers');
@@ -236,6 +253,7 @@ module.exports = {
     chatRevision,
     evaluateChatRevisionPrecondition,
     evaluateFullChatWritePrecondition,
+    resolveChatReadTarget,
     validateChatPatch,
     applyChatDelta,
     canonicalizeStrippedDatabase,

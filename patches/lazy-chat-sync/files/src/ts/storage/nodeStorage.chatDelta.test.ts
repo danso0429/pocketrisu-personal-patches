@@ -19,6 +19,8 @@ vi.mock('./risuSave', () => ({
 }))
 
 const { ChatConflictError, NodeStorage } = await import('./nodeStorage')
+const { classifyChatSaveIntent } = await import('./chatSaveIntent')
+const chatDelta = (await import('../../../server/node/chatDelta.cjs')).default
 
 const fakeStartupCache = {
     probe: vi.fn(async () => null),
@@ -262,7 +264,7 @@ describe('NodeStorage chat revision safety', () => {
             success,
         ])
 
-        await storage.saveChatContent('char-1', 0, 'chat-1', created)
+        await storage.saveChatContent('char-1', 0, 'chat-1', created, 'create')
 
         expect(authFetch).toHaveBeenCalledTimes(2)
         const [, saveRequest] = authFetch.mock.calls[1]!
@@ -270,6 +272,130 @@ describe('NodeStorage chat revision safety', () => {
             .toBe('*')
         expect((saveRequest.headers as Record<string, string>)['x-chat-base-revision'])
             .toBeUndefined()
+    })
+
+    test('blocks an update when the authoritative stable ID is absent', async () => {
+        const changed = chat([{ role: 'user', data: 'local edit' }])
+        const { storage, authFetch } = makeStorage([
+            new Response('', { status: 404 }),
+        ])
+
+        await expect(storage.saveChatContent(
+            'char-1',
+            0,
+            'chat-1',
+            changed,
+            'update',
+        )).rejects.toBeInstanceOf(ChatConflictError)
+        expect(authFetch).toHaveBeenCalledTimes(1)
+    })
+
+    test('blocks a create collision instead of converting it into a CAS update', async () => {
+        const local = chat([{ role: 'user', data: 'local new chat' }])
+        const remote = chat([{ role: 'user', data: 'different remote chat' }])
+        const { storage, authFetch } = makeStorage([
+            serverChatResponse(remote, 'revision-remote'),
+        ])
+
+        await expect(storage.saveChatContent(
+            'char-1',
+            0,
+            'chat-1',
+            local,
+            'create',
+        )).rejects.toBeInstanceOf(ChatConflictError)
+        expect(authFetch).toHaveBeenCalledTimes(1)
+    })
+
+    test('creates an unshifted chat when index zero is occupied by old server metadata', async () => {
+        const baseline = {
+            characters: [{
+                chaId: 'char-1',
+                chats: [{ id: 'chat-old', _stub: true }],
+            }],
+        }
+        const localChats = [
+            { id: 'chat-new', name: 'New', message: [{ role: 'user', data: 'hello' }] },
+            { id: 'chat-old', name: 'Old', message: [] },
+        ]
+        const intent = classifyChatSaveIntent(baseline, 'char-1', 'chat-new')
+        const serverTarget = chatDelta.resolveChatReadTarget(
+            baseline.characters[0],
+            0,
+            'chat-new',
+        )
+        const success = new Response(JSON.stringify({ revision: 'revision-new' }), {
+            status: 200,
+            headers: {
+                'content-type': 'application/json',
+                'x-chat-revision': 'revision-new',
+            },
+        })
+        const { storage, authFetch } = makeStorage([
+            new Response('', { status: serverTarget ? 200 : 404 }),
+            success,
+        ])
+
+        expect(intent).toBe('create')
+        expect(serverTarget).toBeNull()
+        await storage.saveChatContent('char-1', 0, 'chat-new', localChats[0], intent)
+
+        const [, saveRequest] = authFetch.mock.calls[1]!
+        expect((saveRequest.headers as Record<string, string>)['if-none-match']).toBe('*')
+    })
+
+    test('confirms a create whose success acknowledgement was lost', async () => {
+        const created = chat([{ role: 'user', data: 'brand new chat' }])
+        const { storage, authFetch } = makeStorage([
+            new Response('', { status: 404 }),
+            new TypeError('connection reset after create commit'),
+            serverChatResponse(created, 'revision-created'),
+        ])
+
+        await expect(storage.saveChatContent(
+            'char-1',
+            0,
+            'chat-1',
+            created,
+            'create',
+        )).resolves.toBeUndefined()
+        expect(authFetch).toHaveBeenCalledTimes(3)
+        const [, createRequest] = authFetch.mock.calls[1]!
+        expect((createRequest.headers as Record<string, string>)['if-none-match']).toBe('*')
+        expect((storage as any).chatSyncStates.get('char-1|chat-1').revision)
+            .toBe('revision-created')
+    })
+
+    test('keeps a concurrent create collision after the initial 404', async () => {
+        const local = chat([{ role: 'user', data: 'local create' }])
+        const remote = chat([{ role: 'user', data: 'concurrent remote create' }])
+        const collision = new Response(JSON.stringify({
+            error: 'Chat already exists',
+            currentRevision: 'revision-remote',
+        }), {
+            status: 412,
+            headers: {
+                'content-type': 'application/json',
+                'x-chat-revision': 'revision-remote',
+            },
+        })
+        const { storage, authFetch } = makeStorage([
+            new Response('', { status: 404 }),
+            collision,
+            serverChatResponse(remote, 'revision-remote'),
+        ])
+
+        await expect(storage.saveChatContent(
+            'char-1',
+            0,
+            'chat-1',
+            local,
+            'create',
+        )).rejects.toBeInstanceOf(ChatConflictError)
+        expect(authFetch).toHaveBeenCalledTimes(3)
+        const [, createRequest] = authFetch.mock.calls[1]!
+        expect((createRequest.headers as Record<string, string>)['if-none-match']).toBe('*')
+        expect((storage as any).chatSyncStates.has('char-1|chat-1')).toBe(false)
     })
 
     test('recovers a lost full-save acknowledgement by verifying the server snapshot', async () => {
