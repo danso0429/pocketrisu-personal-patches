@@ -1,5 +1,21 @@
 # Changelog
 
+## 0.1.0-experimental.6
+
+- Validate stripped-database transitions instead of rejecting every save when
+  an accepted legacy database already contains a metadata-only chat shell.
+- Grandfather only the same character/chat identities; newly introduced
+  missing payloads, malformed stubs, and cross-character moves remain blocked.
+- Return an explicit missing-payload response for legacy shells and keep the
+  composer draft when the user attempts to send from one.
+
+## 0.1.0-experimental.5
+
+- Add lazy chat hydration, incremental CAS chat saves, durable chat WAL,
+  three-way database conflict reconciliation, and a BG durable-save adapter.
+- Combine decoded startup caching with the lazy database shape and race the
+  two iOS browser-cache metadata probes independently.
+
 ## 0.1.0-experimental.4
 
 - Replace drag-to-create folders with an explicit `New folder` action.

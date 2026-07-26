@@ -109,6 +109,49 @@ function canonicalizeStrippedDatabase(database) {
     return database;
 }
 
+function chatIdentityKey(chaId, chatId) {
+    return JSON.stringify([chaId, chatId]);
+}
+
+/**
+ * Identify canonical stubs that are already missing their full payload.
+ *
+ * Some long-lived NodeOnly databases contain legacy metadata-only chat shells.
+ * They predate lazy synchronization and must not make every unrelated update
+ * impossible. The server snapshots this identity set from the accepted
+ * baseline, then validateStrippedDatabase may grandfather only those exact
+ * character/chat pairs. A newly introduced missing payload is still rejected.
+ */
+function collectMissingFullChatKeys(database, hasFullChat) {
+    const missing = new Set();
+    if (!database || typeof database !== 'object' || !Array.isArray(database.characters)) {
+        return missing;
+    }
+    if (typeof hasFullChat !== 'function') {
+        throw new Error('Full-chat lookup is required');
+    }
+
+    for (const character of database.characters) {
+        const chaId = character?.chaId;
+        if (typeof chaId !== 'string' || !Array.isArray(character?.chats)) continue;
+        for (const chat of character.chats) {
+            if (
+                chat
+                && typeof chat === 'object'
+                && !Array.isArray(chat)
+                && chat._stub === true
+                && !Array.isArray(chat.message)
+                && typeof chat.id === 'string'
+                && chat.id.length > 0
+                && !hasFullChat(chaId, chat.id)
+            ) {
+                missing.add(chatIdentityKey(chaId, chat.id));
+            }
+        }
+    }
+    return missing;
+}
+
 /**
  * Validate the canonical stubs-only database before replacing dbCache.
  *
@@ -116,7 +159,7 @@ function canonicalizeStrippedDatabase(database) {
  * pure and testable. Chat identity is scoped to a character because the
  * runtime store is Map<chaId, Map<chatId, Chat>>.
  */
-function validateStrippedDatabase(database, hasFullChat) {
+function validateStrippedDatabase(database, hasFullChat, allowMissingFullChat = () => false) {
     if (!database || typeof database !== 'object' || !Array.isArray(database.characters)) {
         throw new Error('Database characters must be an array');
     }
@@ -163,12 +206,29 @@ function validateStrippedDatabase(database, hasFullChat) {
                     `Character ${chaId} chat ${chatId} contains non-stub fields: ${unexpectedFields.join(', ')}`
                 );
             }
-            if (!hasFullChat(chaId, chatId)) {
+            if (!hasFullChat(chaId, chatId) && !allowMissingFullChat(chaId, chatId)) {
                 throw new Error(`Character ${chaId} chat ${chatId} has no full-chat payload`);
             }
         }
     }
     return true;
+}
+
+/**
+ * Validate an accepted-baseline → candidate transition.
+ *
+ * Missing payloads are grandfathered by stable character/chat identity only
+ * when they were already missing in the accepted baseline. This permits
+ * unrelated saves and metadata/order changes around legacy shells without
+ * weakening the invariant for newly introduced chats.
+ */
+function validateStrippedDatabaseTransition(previousDatabase, nextDatabase, hasFullChat) {
+    const grandfathered = collectMissingFullChatKeys(previousDatabase, hasFullChat);
+    return validateStrippedDatabase(
+        nextDatabase,
+        hasFullChat,
+        (chaId, chatId) => grandfathered.has(chatIdentityKey(chaId, chatId)),
+    );
 }
 
 module.exports = {
@@ -179,5 +239,8 @@ module.exports = {
     validateChatPatch,
     applyChatDelta,
     canonicalizeStrippedDatabase,
+    chatIdentityKey,
+    collectMissingFullChatKeys,
     validateStrippedDatabase,
+    validateStrippedDatabaseTransition,
 };

@@ -38,7 +38,7 @@ const {
     evaluateFullChatWritePrecondition,
     applyChatDelta,
     canonicalizeStrippedDatabase,
-    validateStrippedDatabase,
+    validateStrippedDatabaseTransition,
 } = require('./chatDelta.cjs');
 const {
     DEFAULT_PREFIX: CHAT_WRITE_JOURNAL_PREFIX,
@@ -465,6 +465,11 @@ function stripChatsFromDb(dbObj) {
         return { ...char, chats: char.chats.map(chatToStub) };
     });
     return stripped;
+}
+
+function hasFullChatPayload(chaId, chatId) {
+    const fullChat = fullChatStore?.get(chaId)?.get(chatId);
+    return !!fullChat && Array.isArray(fullChat.message);
 }
 
 /**
@@ -3677,14 +3682,25 @@ app.post('/api/write', async (req, res, next) => {
                 try {
                     const incomingDb = normalizeJSON(await decodeRisuSave(fileContent));
                     await ensureChatStore();
+                    let acceptedStrippedDb = dbCache[DB_HEX_KEY];
+                    if (!acceptedStrippedDb) {
+                        const currentRaw = kvGet(key);
+                        const currentDb = currentRaw
+                            ? normalizeJSON(await decodeRisuSave(currentRaw))
+                            : {};
+                        acceptedStrippedDb = canonicalizeStrippedDatabase(
+                            normalizeJSON(stripChatsFromDb(currentDb))
+                        );
+                    }
                     incomingStrippedDb = canonicalizeStrippedDatabase(
                         normalizeJSON(stripChatsFromDb(incomingDb))
                     );
                     try {
-                        validateStrippedDatabase(incomingStrippedDb, (chaId, chatId) => {
-                            const fullChat = fullChatStore?.get(chaId)?.get(chatId);
-                            return !!fullChat && Array.isArray(fullChat.message);
-                        });
+                        validateStrippedDatabaseTransition(
+                            acceptedStrippedDb,
+                            incomingStrippedDb,
+                            hasFullChatPayload,
+                        );
                     } catch (invariantError) {
                         res.status(422).json({
                             error: 'Write rejected: stripped database invariant failed',
@@ -3891,10 +3907,11 @@ app.post('/api/patch', async (req, res, next) => {
             if (decodedKey === 'database/database.bin') {
                 try {
                     await ensureChatStore();
-                    validateStrippedDatabase(nextDocument, (chaId, chatId) => {
-                        const fullChat = fullChatStore?.get(chaId)?.get(chatId);
-                        return !!fullChat && Array.isArray(fullChat.message);
-                    });
+                    validateStrippedDatabaseTransition(
+                        dbCache[cacheKey],
+                        nextDocument,
+                        hasFullChatPayload,
+                    );
                 } catch (invariantError) {
                     cacheStrippedDatabase(dbCache[cacheKey]);
                     setRevisionHeaders(res, dbEtag, 'x-db-etag');
@@ -4762,6 +4779,16 @@ app.get('/api/chat-content/:chaId/:chatIndex', async (req, res, next) => {
         // Verify chatId matches if provided
         if (expectedChatId && chat.id !== expectedChatId) {
             return res.status(409).json({ error: 'Chat ID mismatch — index may have shifted' });
+        }
+        // A legacy metadata-only shell is not a valid chat payload. Returning
+        // it as 200 makes the client decoder treat hydration as malformed and
+        // can turn a send attempt into an unhandled error. Report an explicit
+        // missing payload so the composer can keep the user's draft intact.
+        if (chat?._stub === true && !Array.isArray(chat.message)) {
+            return res.status(404).json({
+                error: 'Chat metadata exists but its full payload is unavailable',
+                code: 'CHAT_PAYLOAD_MISSING',
+            });
         }
         if (!restoreColdStorageChat(chat)) {
             return res.status(500).json({ error: 'Cold storage restore failed' });

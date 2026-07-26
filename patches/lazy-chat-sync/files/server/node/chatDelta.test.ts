@@ -8,7 +8,10 @@ const {
     applyChatDelta,
     validateChatPatch,
     canonicalizeStrippedDatabase,
+    chatIdentityKey,
+    collectMissingFullChatKeys,
     validateStrippedDatabase,
+    validateStrippedDatabaseTransition,
 } = pkg as {
     chatRevision: (chat: any) => string
     evaluateChatRevisionPrecondition: (
@@ -27,7 +30,21 @@ const {
     applyChatDelta: (chat: any, patch: any[], expectedChatId: string) => any
     validateChatPatch: (patch: any[]) => void
     canonicalizeStrippedDatabase: (database: any) => any
-    validateStrippedDatabase: (database: any, hasFullChat: (chaId: string, chatId: string) => boolean) => boolean
+    chatIdentityKey: (chaId: string, chatId: string) => string
+    collectMissingFullChatKeys: (
+        database: any,
+        hasFullChat: (chaId: string, chatId: string) => boolean,
+    ) => Set<string>
+    validateStrippedDatabase: (
+        database: any,
+        hasFullChat: (chaId: string, chatId: string) => boolean,
+        allowMissingFullChat?: (chaId: string, chatId: string) => boolean,
+    ) => boolean
+    validateStrippedDatabaseTransition: (
+        previousDatabase: any,
+        nextDatabase: any,
+        hasFullChat: (chaId: string, chatId: string) => boolean,
+    ) => boolean
 }
 
 function baseChat() {
@@ -214,5 +231,47 @@ describe('stripped database invariant', () => {
         expect(() => validateStrippedDatabase(leakedField, hasFullChat)).toThrow(/non-stub fields/i)
 
         expect(() => validateStrippedDatabase(strippedDatabase(), () => false)).toThrow(/no full-chat payload/i)
+    })
+
+    it('grandfathers only baseline orphan identities while rejecting new ones', () => {
+        const baseline = strippedDatabase()
+        const noPayloads = () => false
+        const grandfathered = collectMissingFullChatKeys(baseline, noPayloads)
+        const allowBaseline = (chaId: string, chatId: string) =>
+            grandfathered.has(chatIdentityKey(chaId, chatId))
+
+        expect([...grandfathered]).toEqual([chatIdentityKey('char-1', 'chat-1')])
+        expect(validateStrippedDatabase(baseline, noPayloads, allowBaseline)).toBe(true)
+        expect(validateStrippedDatabaseTransition(baseline, baseline, noPayloads)).toBe(true)
+
+        const metadataEdit = structuredClone(baseline)
+        metadataEdit.characters[0].chats[0].name = 'Renamed legacy shell'
+        expect(validateStrippedDatabaseTransition(baseline, metadataEdit, noPayloads)).toBe(true)
+
+        const reordered = structuredClone(baseline)
+        reordered.characters[0].chats.unshift({
+            id: 'chat-backed',
+            name: 'Backed',
+            _stub: true,
+        })
+        expect(validateStrippedDatabaseTransition(
+            baseline,
+            reordered,
+            (chaId, chatId) => chaId === 'char-1' && chatId === 'chat-backed',
+        )).toBe(true)
+
+        const introduced = structuredClone(baseline)
+        introduced.characters[0].chats.push({
+            id: 'chat-new-orphan',
+            name: 'Unsafe',
+            _stub: true,
+        })
+        expect(() => validateStrippedDatabaseTransition(baseline, introduced, noPayloads))
+            .toThrow(/chat-new-orphan has no full-chat payload/i)
+
+        const moved = structuredClone(baseline)
+        moved.characters[0].chaId = 'char-other'
+        expect(() => validateStrippedDatabaseTransition(baseline, moved, noPayloads))
+            .toThrow(/chat-1 has no full-chat payload/i)
     })
 })

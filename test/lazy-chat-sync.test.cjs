@@ -18,11 +18,19 @@ function payload(relative) {
 
 test('lazy chat pack includes CAS, WAL, reconciliation, and safe hydration boundaries', () => {
     assert.equal(lazyManifest.id, 'lazy-chat-sync')
+    assert.equal(lazyManifest.version, '0.1.1')
     assert.match(payload('server/node/server.cjs'), /chatWriteJournal/)
     assert.match(payload('server/node/server.cjs'), /\/api\/chat-content\/:chaId\/:chatIndex\/patch/)
+    assert.match(payload('server/node/server.cjs'), /validateStrippedDatabaseTransition/)
+    assert.match(payload('server/node/server.cjs'), /CHAT_PAYLOAD_MISSING/)
     assert.match(payload('src/ts/storage/nodeStorage.ts'), /x-chat-base-revision/)
     assert.match(payload('src/ts/storage/conflictRebase.ts'), /mergeThreeWayValue/)
     assert.match(payload('src/ts/plugins/apiV3/pluginChatAccess.ts'), /hydrateChat/)
+    const missingPayloadNotice = lazyManifest.units.find((unit) =>
+        unit.id === 'lazy-chat-sync:chat-missing-payload-notice'
+    )
+    assert.ok(missingPayloadNotice)
+    assert.match(missingPayloadNotice.content, /Your draft was kept/)
 })
 
 test('startup probe accepts either valid browser cache without joining stalled backends', () => {

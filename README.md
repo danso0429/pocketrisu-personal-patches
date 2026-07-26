@@ -31,6 +31,11 @@ context. The storage protocol is adapted from
   database metadata is durable;
 - database conflicts use three-way reconciliation with explicit
   deletion-versus-edit handling;
+- legacy metadata-only chat shells already present in an accepted database are
+  grandfathered by stable character/chat identity, while new missing payloads
+  remain blocked;
+- selecting a legacy shell reports that its payload is unavailable, and a send
+  attempt keeps the composer draft instead of clearing it;
 - the authenticated `/api/read` response is revalidated with its database
   ETag before a browser cache is trusted;
 - unchanged startup data can use a decoded IndexedDB baseline, avoiding the

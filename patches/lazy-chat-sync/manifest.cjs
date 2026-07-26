@@ -40,7 +40,7 @@ function unitId(relative) {
 
 module.exports = {
     id: 'lazy-chat-sync',
-    version: '0.1.0',
+    version: '0.1.1',
     units: [
         ...replacedFiles.map((relative) => ({
             id: `lazy-chat-sync:replace:${unitId(relative)}`,
@@ -55,5 +55,22 @@ module.exports = {
             type: 'owned',
             content: read(filesRoot, relative),
         })),
+        {
+            id: 'lazy-chat-sync:chat-missing-payload-notice',
+            file: 'src/lib/ChatScreens/DefaultChatScreen.svelte',
+            type: 'replace',
+            anchor: `        const activeChat = await ensureActiveChatReady(selectedChar)
+        if(!activeChat) return
+`,
+            content: `        const activeChat = await ensureActiveChatReady(selectedChar)
+        if(!activeChat) {
+            notifyError('Chat data unavailable', {
+                description: 'The server has metadata for this chat but no message payload. Your draft was kept.',
+                source: 'chat-hydration',
+            })
+            return
+        }
+`,
+        },
     ],
 }
