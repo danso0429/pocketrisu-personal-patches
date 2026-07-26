@@ -11,7 +11,7 @@ const originalPath = path.join(__dirname, 'anchors/PersonaSettings.svelte')
 
 module.exports = {
     id: 'persona-organizer',
-    version: '0.7.0',
+    version: '0.8.0',
     units: [
         {
             id: 'persona-organizer:logic',
@@ -45,6 +45,7 @@ module.exports = {
         if (!folder || typeof folder.id !== 'string' || !folder.id || personaFolderIds.has(folder.id)) return false
         personaFolderIds.add(folder.id)
         if (typeof folder.name !== 'string' || !folder.name.trim()) folder.name = 'Folder'
+        if (typeof folder.icon !== 'string') folder.icon = ''
         return true
     })
     for (const persona of data.personas) {
@@ -78,6 +79,7 @@ module.exports = {
             content: `export interface RisuPersonaFolder {
     id:string
     name:string
+    icon?:string
 }
 `,
         },

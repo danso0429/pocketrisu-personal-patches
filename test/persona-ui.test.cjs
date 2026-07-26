@@ -34,6 +34,28 @@ test('persona folders are explicit same-size cards that open normally', () => {
     assert.doesNotMatch(source, /data-folder-drop|dropAt|dropOnPersona|createFolderWith/)
 })
 
+test('folder images use shared asset storage and can return to the default icon', () => {
+    const normalization = manifest.units.find(
+        (unit) => unit.id === 'persona-organizer:model-normalization',
+    )
+    const folderInterface = manifest.units.find(
+        (unit) => unit.id === 'persona-organizer:folder-interface',
+    )
+
+    assert.equal(manifest.version, '0.8.0')
+    assert.match(normalization.content, /typeof folder\.icon !== 'string'\) folder\.icon = ''/)
+    assert.match(folderInterface.content, /icon\?:string/)
+    assert.match(source, /import \{ saveImage \} from "src\/ts\/storage\/database\.svelte"/)
+    assert.match(source, /selectSingleFile\(\["png", "webp", "gif", "jpg", "jpeg"\]\)/)
+    assert.match(source, /folder\.icon = await saveImage\(selected\.data, "", selected\.name\)/)
+    assert.match(source, /function resetFolderImage\(folder: RisuPersonaFolder\): void \{[\s\S]*folder\.icon = ""/)
+    assert.match(source, /class="toolbar-text-button folder-image-button"[\s\S]*<span>Image<\/span>/)
+    assert.match(source, /<ShDialog[\s\S]*bind:open=\{folderImageDialogOpen\}[\s\S]*Folder image[\s\S]*Replace image[\s\S]*Use default folder image/)
+    assert.match(source, /\{#if folder\.icon\}[\s\S]*getCharImage\(folder\.icon, "css"\)[\s\S]*folder-image-fill/)
+    assert.match(source, /\{#if entry\.folder\.icon\}[\s\S]*getCharImage\(entry\.folder\.icon, "css"\)[\s\S]*delete-folder-image-fill/)
+    assert.doesNotMatch(source, /deleteAsset|removeAsset|forageStorage\.removeItem/)
+})
+
 test('folder membership uses a stable sixteen-card selection grid', () => {
     assert.match(source, /function openMembershipEditor\(\)/)
     assert.match(source, /membershipPersonaIds = DBState\.db\.personas/)

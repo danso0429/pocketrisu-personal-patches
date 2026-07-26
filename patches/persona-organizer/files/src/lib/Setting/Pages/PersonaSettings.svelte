@@ -7,6 +7,7 @@
         FolderIcon,
         FolderOpenIcon,
         FolderPlusIcon,
+        ImageIcon,
         PencilIcon,
         Trash2Icon,
     } from "@lucide/svelte"
@@ -45,7 +46,9 @@
         RisuPersona,
         RisuPersonaFolder,
     } from "src/ts/storage/database.svelte"
+    import { saveImage } from "src/ts/storage/database.svelte"
     import { DBState } from "src/ts/stores.svelte"
+    import { selectSingleFile } from "src/ts/util"
     import { v4 } from "uuid"
 
     type ViewItem = {
@@ -67,6 +70,7 @@
     let membershipMode = $state(false)
     let membershipPersonaIds = $state<string[]>([])
     let addPersonaDialogOpen = $state(false)
+    let folderImageDialogOpen = $state(false)
     let deleteMode = $state(false)
     let deletePersonaIds = $state<string[]>([])
     let deleteFolderIds = $state<string[]>([])
@@ -213,6 +217,7 @@
         if (deleteMode) return
         membershipMode = false
         membershipPersonaIds = []
+        folderImageDialogOpen = false
         openFolderId = null
     }
 
@@ -296,7 +301,7 @@
         const name = await alertInput("Folder name")
         if (!name?.trim()) return
         saveUserPersona()
-        const folder = { id: v4(), name: name.trim() }
+        const folder = { id: v4(), name: name.trim(), icon: "" }
         DBState.db.personaFolders = [...DBState.db.personaFolders, folder]
         pageByContext = { ...pageByContext, [folder.id]: 0 }
         openFolderId = folder.id
@@ -309,6 +314,23 @@
         if (!name?.trim()) return
         saveUserPersona()
         folder.name = name.trim()
+        DBState.db.personaFolders = [...DBState.db.personaFolders]
+        void requestImmediateSave()
+    }
+
+    async function chooseFolderImage(folder: RisuPersonaFolder): Promise<void> {
+        const selected = await selectSingleFile(["png", "webp", "gif", "jpg", "jpeg"])
+        if (!selected) return
+        saveUserPersona()
+        folder.icon = await saveImage(selected.data, "", selected.name)
+        DBState.db.personaFolders = [...DBState.db.personaFolders]
+        void requestImmediateSave()
+    }
+
+    function resetFolderImage(folder: RisuPersonaFolder): void {
+        if (!folder.icon) return
+        saveUserPersona()
+        folder.icon = ""
         DBState.db.personaFolders = [...DBState.db.personaFolders]
         void requestImmediateSave()
     }
@@ -326,6 +348,7 @@
         pageByContext = remainingPages
         membershipMode = false
         membershipPersonaIds = []
+        folderImageDialogOpen = false
         openFolderId = null
         void requestImmediateSave()
     }
@@ -429,7 +452,19 @@
         onclick={() => enterFolder(folder)}
     >
         <span class="folder-image">
-            <FolderIcon size={46} />
+            {#if folder.icon}
+                {#await getCharImage(folder.icon, "css")}
+                    <FolderIcon size={46} />
+                {:then imageStyle}
+                    {#if imageStyle}
+                        <span class="folder-image-fill" style={imageStyle}></span>
+                    {:else}
+                        <FolderIcon size={46} />
+                    {/if}
+                {/await}
+            {:else}
+                <FolderIcon size={46} />
+            {/if}
             <span class="folder-count">{count}</span>
             {#if deleteMode}
                 <span class="delete-mark" aria-hidden="true">
@@ -507,6 +542,14 @@
                 {:else}
                     <button class="folder-members-button" title="Add or remove personas" onclick={openMembershipEditor}>
                         <span aria-hidden="true">+</span>
+                    </button>
+                    <button
+                        class="toolbar-text-button folder-image-button"
+                        title="Choose or reset folder image"
+                        onclick={() => folderImageDialogOpen = true}
+                    >
+                        <ImageIcon size={15} />
+                        <span>Image</span>
                     </button>
                     <button
                         class="toolbar-text-button"
@@ -755,6 +798,60 @@
     {/snippet}
 </ShDialog>
 
+<ShDialog
+    bind:open={folderImageDialogOpen}
+    size="sm"
+    tier="alert"
+    closable={true}
+    closeOnEscape={true}
+    closeOnOutsideClick={true}
+>
+    {#snippet title()}Folder image{/snippet}
+    {#snippet children()}
+        {#if openGroup?.folder}
+            <div class="folder-image-editor">
+                <span class="folder-image folder-image-editor-preview">
+                    {#if openGroup.folder.icon}
+                        {#await getCharImage(openGroup.folder.icon, "css")}
+                            <FolderIcon size={46} />
+                        {:then imageStyle}
+                            {#if imageStyle}
+                                <span class="folder-image-fill" style={imageStyle}></span>
+                            {:else}
+                                <FolderIcon size={46} />
+                            {/if}
+                        {/await}
+                    {:else}
+                        <FolderIcon size={46} />
+                    {/if}
+                </span>
+                <span class="font-semibold">{openGroup.folder.name}</span>
+                <ShButton
+                    variant="outline"
+                    className="w-full"
+                    onclick={() => chooseFolderImage(openGroup.folder!)}
+                >
+                    {openGroup.folder.icon ? "Replace image" : "Choose image"}
+                </ShButton>
+                {#if openGroup.folder.icon}
+                    <ShButton
+                        variant="outline"
+                        className="w-full"
+                        onclick={() => resetFolderImage(openGroup.folder!)}
+                    >
+                        Use default folder image
+                    </ShButton>
+                {/if}
+            </div>
+        {/if}
+    {/snippet}
+    {#snippet footer()}
+        <ShButton variant="outline" onclick={() => folderImageDialogOpen = false}>
+            Close
+        </ShButton>
+    {/snippet}
+</ShDialog>
+
 <ShAlertDialog
     bind:open={deleteConfirmOpen}
     size="lg"
@@ -783,7 +880,19 @@
                 <section class="delete-preview-section delete-folder-group">
                     <div class="delete-folder-heading">
                         <span class="delete-folder-image">
-                            <FolderIcon size={32} />
+                            {#if entry.folder.icon}
+                                {#await getCharImage(entry.folder.icon, "css")}
+                                    <FolderIcon size={32} />
+                                {:then imageStyle}
+                                    {#if imageStyle}
+                                        <span class="delete-folder-image-fill" style={imageStyle}></span>
+                                    {:else}
+                                        <FolderIcon size={32} />
+                                    {/if}
+                                {/await}
+                            {:else}
+                                <FolderIcon size={32} />
+                            {/if}
                         </span>
                         <div>
                             <h3>{entry.folder.name}</h3>
@@ -861,6 +970,9 @@
         gap: 0.4rem;
         padding-right: 0.7rem;
         padding-left: 0.7rem;
+    }
+    .folder-image-button {
+        gap: 0.3rem;
     }
     .folder-create-button:hover,
     .toolbar-text-button:hover,
@@ -965,11 +1077,22 @@
     }
     .folder-image {
         position: relative;
+        overflow: hidden;
         border: 1px solid color-mix(in srgb, var(--color-primary) 40%, var(--color-darkborderc));
         background: color-mix(in srgb, var(--color-primary) 16%, var(--color-darkborderc));
     }
+    .folder-image-fill,
+    .delete-folder-image-fill {
+        position: absolute;
+        inset: 0;
+        border-radius: inherit;
+        background-position: center !important;
+        background-repeat: no-repeat !important;
+        background-size: cover !important;
+    }
     .folder-count {
         position: absolute;
+        z-index: 2;
         right: 0.35rem;
         bottom: 0.3rem;
         min-width: 1.2rem;
@@ -1013,6 +1136,7 @@
     }
     .delete-mark {
         position: absolute;
+        z-index: 3;
         top: 0.25rem;
         right: 0.25rem;
         display: flex;
@@ -1145,6 +1269,7 @@
         gap: 0.6rem;
     }
     .delete-folder-image {
+        position: relative;
         display: flex;
         width: 2.8rem;
         height: 2.8rem;
@@ -1152,8 +1277,18 @@
         align-items: center;
         justify-content: center;
         border-radius: 0.45rem;
+        overflow: hidden;
         color: var(--color-primary);
         background: color-mix(in srgb, var(--color-primary) 16%, var(--color-darkborderc));
+    }
+    .folder-image-editor {
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        gap: 0.7rem;
+    }
+    .folder-image-editor-preview {
+        color: var(--color-primary);
     }
     .delete-preview-list {
         display: flex;

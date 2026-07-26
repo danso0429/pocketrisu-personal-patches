@@ -1,5 +1,14 @@
 # Changelog
 
+## 0.1.3
+
+- Add custom folder images to the Persona organizer using PocketRisu's existing
+  content-addressed asset storage.
+- Let an opened folder choose, replace, or reset its image through a closable
+  dialog while retaining the existing folder icon as the default.
+- Render custom folder images on folder cards and grouped deletion previews
+  without deleting shared asset data when a folder image is reset or removed.
+
 ## 0.1.2
 
 - Replace the Persona page's non-closable create/import selector with a local

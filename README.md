@@ -77,6 +77,8 @@ The thumbnail strip at the top of Settings → Persona gains:
 - an `Arrange` action that gives personas and folders explicit left/right
   one-slot movement controls;
 - folder content arrangement by opening a folder while `Arrange` is active;
+- custom folder images that can be selected, replaced, or reset from inside
+  the folder;
 - a folder `+` action with a paginated 4×4 all-persona selector for adding or
   removing folder members;
 - a closable create/import dialog for the root `+` action;
