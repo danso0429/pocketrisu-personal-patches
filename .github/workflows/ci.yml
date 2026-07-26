@@ -1,0 +1,72 @@
+name: patch-integrity
+
+on:
+  pull_request:
+  push:
+    branches:
+      - main
+      - agent/composable-patch-engine
+
+permissions:
+  contents: read
+
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out patch repository
+        uses: actions/checkout@v4
+
+      - name: Use Node.js 22
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - name: Test patch engine and manifests
+        run: npm test
+
+      - name: Rebuild installers reproducibly
+        run: |
+          npm run build
+          git diff --exit-code -- dist
+          node --check dist/pocketrisu-features.cjs
+          node --check dist/pocketrisu-all.cjs
+
+      - name: Check out PocketRisu v1.8.1
+        uses: actions/checkout@v4
+        with:
+          repository: PocketRisu/PocketRisu
+          ref: v1.8.1
+          path: .ci/pocketrisu
+
+      - name: Install pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: 10.34.1
+
+      - name: Install PocketRisu dependencies
+        working-directory: .ci/pocketrisu
+        run: pnpm install --frozen-lockfile
+
+      - name: Apply unified patch profile
+        run: |
+          node dist/pocketrisu-all.cjs plan --root .ci/pocketrisu --json
+          node dist/pocketrisu-all.cjs apply --root .ci/pocketrisu --json
+          node dist/pocketrisu-all.cjs status --root .ci/pocketrisu --json
+
+      - name: Run embedded PocketRisu checks
+        working-directory: .ci/pocketrisu
+        env:
+          NODE_OPTIONS: --no-experimental-webstorage
+        run: |
+          pnpm test
+          pnpm check
+          pnpm build
+
+      - name: Verify byte and mode round trip
+        run: |
+          node dist/pocketrisu-all.cjs revert --root .ci/pocketrisu --json
+          rm -f .ci/pocketrisu/server/node/bgOrchBundle.css
+          rm -f .ci/pocketrisu/server/node/bgOrchBundle.mjs
+          git -C .ci/pocketrisu diff --exit-code
+          test -z "$(git -C .ci/pocketrisu status --porcelain)"

@@ -36,6 +36,11 @@ test('profiles share one catalog but have different ownership boundaries', () =>
         ]),
         /requires pack lazy-chat-bg-adapter/,
     )
+    const bgPack = catalog.find((pack) => pack.id === 'bg-preserve')
+    assert.equal(
+        bgPack.units.some((unit) => unit.file === 'src/ts/bgPreserveInstaller.test.ts'),
+        false,
+    )
 })
 
 test('all can adopt features state, while features cannot silently remove all state', () => {

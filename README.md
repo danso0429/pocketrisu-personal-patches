@@ -146,13 +146,24 @@ Runtime HTTP caching uses the database ETag. Patch management uses SHA-256
 pack ETags and exact output hashes:
 
 - unchanged pack ETags and current output hashes are skipped;
+- one exclusive lock serializes recovery, planning, and writes for each target
+  root; a stale plan or overlapping patcher exits before creating a journal;
 - exact old unit snapshots are retained, so an updated pack can revert its
   previous representation before recomposition;
+- existing POSIX file modes are preserved through apply, rollback, and revert;
+  new owned files default to `0644` unless a unit declares another mode, while
+  patch state and transaction metadata use `0600`;
 - `save/pocketrisu-patches/state.json` records the active profile and graph;
 - writes are journaled in
   `save/pocketrisu-patches/transaction.json`;
 - a failed or interrupted transaction restores every touched file before the
   next operation.
+
+New-chat payloads acknowledged before their first database stub remain in a
+durable `awaitingMetadata` WAL quarantine. Only that orphan-prone subset has a
+128-record/256 MiB pressure limit: existing payloads are never evicted, the
+backlog is logged after restart, and a save that would exceed the limit is
+rejected before ACK. Existing-chat WAL records are outside this pressure limit.
 
 The `features` artifact refuses to take ownership of an `all` state, because
 doing so could silently remove bg-preserve. The `all` artifact may safely

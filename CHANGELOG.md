@@ -1,5 +1,20 @@
 # Changelog
 
+## 0.1.0-experimental.7
+
+- Serialize each target root with an exclusive owner lock and reject a stale
+  plan before creating a transaction journal or touching any managed file.
+- Preserve existing POSIX modes through apply, failure recovery, and revert;
+  new owned files default to `0644` and private patch state to `0600`.
+- Bound only new-chat `awaitingMetadata` WAL quarantine by record and byte
+  capacity. Existing recoverable payloads are never evicted; the server logs
+  retained backlog and rejects an unsafe new ACK once capacity is reached.
+- Clean up persona touch drag state on component unmount and make the tested
+  260 ms long-press contract explicit.
+- Mark fixed-profile pack availability in `list` and add a CI gate for
+  reproducible installers, PocketRisu v1.8.1 apply/check/build/revert, and
+  byte-plus-mode round trips.
+
 ## 0.1.0-experimental.6
 
 - Validate stripped-database transitions instead of rejecting every save when
@@ -39,7 +54,7 @@
 ## 0.1.0-experimental.2
 
 - Keep persona HTML drag desktop-only so PocketRisu's iOS drag polyfill cannot
-  preempt the popup's 400 ms long-press reorder controller.
+  preempt the popup's 260 ms long-press reorder controller.
 
 ## 0.1.0-experimental.1
 

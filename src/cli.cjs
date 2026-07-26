@@ -10,6 +10,7 @@ const {
     planTransition,
     restoreJournal,
     status,
+    withRootLock,
 } = require('./manager.cjs')
 const {
     loadCatalog,
@@ -82,57 +83,67 @@ async function runCli({
 
     const loadedCatalog = catalog ?? loadCatalog(repositoryRoot)
     if (options.command === 'list') {
+        const listProfile = profileId ? resolveProfile(profileId) : null
         print(loadedCatalog.map((pack) => ({
             id: pack.id,
             version: pack.version,
             etag: packEtag(pack),
             units: pack.units.length,
+            selectable: listProfile ? listProfile.allowed.includes(pack.id) : true,
+            default: listProfile ? listProfile.defaults.includes(pack.id) : false,
+            required: listProfile ? listProfile.required.includes(pack.id) : false,
         })), options.json)
         return
     }
 
     assertPocketRisuRoot(options.root)
-    const recovered = restoreJournal(options.root)
-    if (recovered.recovered) {
-        console.error(`[pocketrisu-patches] recovered interrupted transaction ${recovered.transactionId}`)
-    }
+    return withRootLock(options.root, () => {
+        const recovered = restoreJournal(options.root)
+        if (recovered.recovered) {
+            console.error(`[pocketrisu-patches] recovered interrupted transaction ${recovered.transactionId}`)
+        }
 
-    if (options.command === 'status') {
-        const current = status({ root: options.root })
-        const currentEtags = new Map(loadedCatalog.map((pack) => [pack.id, packEtag(pack)]))
-        current.packs = current.packs.map((pack) => ({
-            ...pack,
-            catalogStatus: currentEtags.get(pack.id) === pack.etag ? 'current' : 'update-available',
-        }))
-        print(current, options.json)
-        return
-    }
+        if (options.command === 'status') {
+            const current = status({ root: options.root })
+            const currentEtags = new Map(loadedCatalog.map((pack) => [pack.id, packEtag(pack)]))
+            current.packs = current.packs.map((pack) => ({
+                ...pack,
+                catalogStatus: currentEtags.get(pack.id) === pack.etag ? 'current' : 'update-available',
+            }))
+            print(current, options.json)
+            return
+        }
 
-    if (!['plan', 'apply', 'revert'].includes(options.command)) {
-        throw new Error('Usage: <plan|apply|revert|status|list> [--root PATH] [--packs a,b] [--json]')
-    }
+        if (!['plan', 'apply', 'revert'].includes(options.command)) {
+            throw new Error('Usage: <plan|apply|revert|status|list> [--root PATH] [--packs a,b] [--json]')
+        }
 
-    const profile = resolveProfile(profileId)
-    const previous = loadState(options.root, DEFAULT_STATE_PATH)
-    validateProfileTransition(profile, previous)
-    const packIds = options.command === 'revert'
-        ? []
-        : (options.packIds ?? profile.defaults)
-    if (options.command !== 'revert') validateProfileSelection(profile, packIds)
+        const profile = resolveProfile(profileId)
+        const previous = loadState(options.root, DEFAULT_STATE_PATH)
+        validateProfileTransition(profile, previous)
+        const packIds = options.command === 'revert'
+            ? []
+            : (options.packIds ?? profile.defaults)
+        if (options.command !== 'revert') validateProfileSelection(profile, packIds)
 
-    const transition = planTransition({
-        root: options.root,
-        catalog: loadedCatalog,
-        packIds,
-        profile: profile.id,
+        const transition = planTransition({
+            root: options.root,
+            catalog: loadedCatalog,
+            packIds,
+            profile: profile.id,
+        })
+        if (options.command === 'plan') {
+            print(summarizeTransition(transition), options.json)
+            return
+        }
+
+        const outcome = applyTransition({
+            root: options.root,
+            transition,
+            lockHeld: true,
+        })
+        print({ ...summarizeTransition(transition), outcome }, options.json)
     })
-    if (options.command === 'plan') {
-        print(summarizeTransition(transition), options.json)
-        return
-    }
-
-    const outcome = applyTransition({ root: options.root, transition })
-    print({ ...summarizeTransition(transition), outcome }, options.json)
 }
 
 if (require.main === module) {

@@ -1,6 +1,8 @@
 'use strict';
 
 const DEFAULT_PREFIX = 'internal/chat-write/v1/';
+const DEFAULT_MAX_AWAITING_RECORDS = 128;
+const DEFAULT_MAX_AWAITING_BYTES = 256 * 1024 * 1024;
 
 function pairKey(chaId, chatId) {
     return JSON.stringify([chaId, chatId]);
@@ -36,10 +38,31 @@ function createChatWriteJournal({
     decode,
     prefix = DEFAULT_PREFIX,
     onInvalid = () => {},
+    onBacklog = () => {},
+    onPressure = () => {},
+    maxAwaitingRecords = DEFAULT_MAX_AWAITING_RECORDS,
+    maxAwaitingBytes = DEFAULT_MAX_AWAITING_BYTES,
 }) {
     const records = new Map();
     let loadPromise = null;
     let loaded = false;
+
+    function stats() {
+        let awaitingRecords = 0;
+        let awaitingBytes = 0;
+        for (const record of records.values()) {
+            if (!record.awaitingMetadata) continue;
+            awaitingRecords += 1;
+            awaitingBytes += record.storageBytes || 0;
+        }
+        return {
+            records: records.size,
+            awaitingRecords,
+            awaitingBytes,
+            maxAwaitingRecords,
+            maxAwaitingBytes,
+        };
+    }
 
     function isValidRecord(record) {
         return record
@@ -71,12 +94,15 @@ function createChatWriteJournal({
                     records.set(pairKey(record.chaId, record.chatId), {
                         ...record,
                         storageKey: key,
+                        storageBytes: Buffer.byteLength(value),
                     });
                 } catch (error) {
                     onInvalid(key, error);
                 }
             }
             loaded = true;
+            const loadedStats = stats();
+            if (loadedStats.awaitingRecords > 0) onBacklog(loadedStats);
         })();
         try {
             await loadPromise;
@@ -103,9 +129,39 @@ function createChatWriteJournal({
             throw new Error('Refusing to journal an invalid chat payload');
         }
         const keyOnDisk = storageKey(prefix, chaId, chatId);
+        const encoded = Buffer.from(encode(record));
+        if (record.awaitingMetadata) {
+            const currentStats = stats();
+            const previousAwaitingRecords = previous?.awaitingMetadata ? 1 : 0;
+            const previousAwaitingBytes = previous?.awaitingMetadata
+                ? (previous.storageBytes || 0)
+                : 0;
+            const proposed = {
+                ...currentStats,
+                awaitingRecords: currentStats.awaitingRecords - previousAwaitingRecords + 1,
+                awaitingBytes: currentStats.awaitingBytes - previousAwaitingBytes + encoded.byteLength,
+            };
+            if (
+                proposed.awaitingRecords > maxAwaitingRecords
+                || proposed.awaitingBytes > maxAwaitingBytes
+            ) {
+                const error = new Error(
+                    'Chat write journal awaiting-metadata capacity reached; '
+                    + 'existing recoverable payloads were retained'
+                );
+                error.code = 'CHAT_JOURNAL_CAPACITY';
+                error.stats = proposed;
+                onPressure(proposed);
+                throw error;
+            }
+        }
         // Persist before publishing to memory or acknowledging the request.
-        kvSet(keyOnDisk, Buffer.from(encode(record)));
-        records.set(key, { ...record, storageKey: keyOnDisk });
+        kvSet(keyOnDisk, encoded);
+        records.set(key, {
+            ...record,
+            storageKey: keyOnDisk,
+            storageBytes: encoded.byteLength,
+        });
     }
 
     async function restoreInto(chatStore) {
@@ -160,10 +216,13 @@ function createChatWriteJournal({
         isAwaitingMetadata,
         resetMemory,
         size: () => records.size,
+        stats,
     };
 }
 
 module.exports = {
+    DEFAULT_MAX_AWAITING_BYTES,
+    DEFAULT_MAX_AWAITING_RECORDS,
     DEFAULT_PREFIX,
     createChatWriteJournal,
     hasChatMetadata,

@@ -3,6 +3,13 @@
 const fs = require('node:fs')
 const path = require('node:path')
 
+// The standalone installer test imports ../../bg-preserve-install.cjs, which
+// is deliberately not installed by the composable patcher. Its hook semantics
+// are covered by this repository's compose/manager round-trip tests instead.
+const EXCLUDED_PAYLOAD_FILES = new Set([
+    'src/ts/bgPreserveInstaller.test.ts',
+])
+
 function parseInstaller(source) {
     const payloadMatch = source.match(/const PAYLOAD_B64 = "([^"]+)"/)
     if (!payloadMatch) throw new Error('Could not locate PAYLOAD_B64')
@@ -46,6 +53,7 @@ function buildPack(source, version) {
     }
 
     for (const [file, content] of Object.entries(payload)) {
+        if (EXCLUDED_PAYLOAD_FILES.has(file)) continue
         units.push({
             id: `bg-preserve:owned:${file}`,
             file,

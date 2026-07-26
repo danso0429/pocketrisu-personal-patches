@@ -10,6 +10,7 @@
         Trash2Icon,
         XIcon,
     } from "@lucide/svelte"
+    import { onDestroy } from "svelte"
     import { language } from "../../lang"
     import { alertConfirm, alertInput } from "src/ts/alert"
     import { getCharImage } from "src/ts/characters"
@@ -46,6 +47,7 @@
     } | null = null
     let longPressTimer: ReturnType<typeof setTimeout> | null = null
     let touchStart = { x: 0, y: 0 }
+    const PERSONA_LONG_PRESS_MS = 260
 
     const isTouchDevice = typeof window !== "undefined"
         && (window.matchMedia("(pointer: coarse)").matches || navigator.maxTouchPoints > 0)
@@ -157,6 +159,8 @@
         clearDropHighlight()
     }
 
+    onDestroy(finishDrag)
+
     function dragStart(persona: RisuPersona, event: DragEvent): void {
         currentDragId = persona.id ?? null
         dragActive = !!currentDragId
@@ -226,7 +230,7 @@
             suppressClickUntil = Date.now() + 700
             positionTouchGhost(ghost, touch)
             if (navigator.vibrate) navigator.vibrate(25)
-        }, 260)
+        }, PERSONA_LONG_PRESS_MS)
     }
 
     function moveTouch(event: TouchEvent): void {

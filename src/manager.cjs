@@ -1,7 +1,9 @@
 'use strict'
 
 const fs = require('node:fs')
+const os = require('node:os')
 const path = require('node:path')
+const crypto = require('node:crypto')
 const {
     PatchCompositionError,
     compose,
@@ -12,6 +14,9 @@ const {
 const STATE_FORMAT = 1
 const DEFAULT_STATE_PATH = 'save/pocketrisu-patches/state.json'
 const DEFAULT_JOURNAL_PATH = 'save/pocketrisu-patches/transaction.json'
+const DEFAULT_LOCK_PATH = 'save/pocketrisu-patches/lock.json'
+const DEFAULT_NEW_FILE_MODE = 0o644
+const PRIVATE_STATE_MODE = 0o600
 
 class PatchManagerError extends Error {
     constructor(code, message, details = {}) {
@@ -104,13 +109,40 @@ function readOptionalText(root, relativePath) {
     return value === null ? null : value.toString('utf8')
 }
 
-function writeAtomic(root, relativePath, buffer) {
+function readOptionalMode(root, relativePath) {
+    assertNoSymlinkPath(root, relativePath)
+    const absolute = resolveInside(root, relativePath)
+    try {
+        return fs.statSync(absolute).mode & 0o7777
+    } catch (error) {
+        if (error.code === 'ENOENT') return null
+        throw error
+    }
+}
+
+function writeAtomic(root, relativePath, buffer, { mode } = {}) {
     assertNoSymlinkPath(root, relativePath)
     const absolute = resolveInside(root, relativePath)
     fs.mkdirSync(path.dirname(absolute), { recursive: true })
-    const temporary = `${absolute}.pocketrisu-patch-tmp-${process.pid}`
-    fs.writeFileSync(temporary, buffer)
-    fs.renameSync(temporary, absolute)
+    const desiredMode = mode ?? readOptionalMode(root, relativePath) ?? DEFAULT_NEW_FILE_MODE
+    const temporary = `${absolute}.pocketrisu-patch-tmp-${process.pid}-${crypto.randomUUID()}`
+    try {
+        fs.writeFileSync(temporary, buffer, {
+            flag: 'wx',
+            mode: desiredMode,
+        })
+        // writeFileSync's creation mode is filtered through umask. chmod makes
+        // the manifest/original mode contract exact before the atomic rename.
+        fs.chmodSync(temporary, desiredMode)
+        fs.renameSync(temporary, absolute)
+    } catch (error) {
+        try {
+            fs.unlinkSync(temporary)
+        } catch (cleanupError) {
+            if (cleanupError.code !== 'ENOENT') error.cleanupError = cleanupError
+        }
+        throw error
+    }
 }
 
 function removeFile(root, relativePath) {
@@ -133,6 +165,106 @@ function parseJsonBuffer(buffer, label) {
     }
 }
 
+function processIsAlive(pid) {
+    if (!Number.isSafeInteger(pid) || pid <= 0) return null
+    try {
+        process.kill(pid, 0)
+        return true
+    } catch (error) {
+        if (error.code === 'ESRCH') return false
+        if (error.code === 'EPERM') return true
+        return null
+    }
+}
+
+function acquireRootLock(root, lockPath = DEFAULT_LOCK_PATH) {
+    assertNoSymlinkPath(root, lockPath)
+    const absolute = resolveInside(root, lockPath)
+    fs.mkdirSync(path.dirname(absolute), { recursive: true })
+
+    for (let attempt = 0; attempt < 2; attempt += 1) {
+        const owner = {
+            version: 1,
+            token: crypto.randomUUID(),
+            pid: process.pid,
+            hostname: os.hostname(),
+            startedAt: new Date().toISOString(),
+        }
+        try {
+            const fd = fs.openSync(absolute, 'wx', PRIVATE_STATE_MODE)
+            try {
+                fs.writeFileSync(fd, `${JSON.stringify(owner, null, 2)}\n`)
+                fs.fsyncSync(fd)
+            } finally {
+                fs.closeSync(fd)
+            }
+            return { path: lockPath, absolute, owner }
+        } catch (error) {
+            if (error.code !== 'EEXIST') throw error
+            let existing = null
+            try {
+                existing = parseJsonBuffer(fs.readFileSync(absolute), lockPath)
+            } catch {
+                // An unreadable lock cannot be proven stale. Refuse instead of
+                // risking overlap with an owner still writing its metadata.
+            }
+            const sameHost = existing?.hostname === os.hostname()
+            const alive = sameHost ? processIsAlive(existing?.pid) : null
+            if (attempt === 0 && sameHost && alive === false) {
+                try {
+                    fs.unlinkSync(absolute)
+                    continue
+                } catch (unlinkError) {
+                    if (unlinkError.code === 'ENOENT') continue
+                }
+            }
+            throw new PatchManagerError(
+                'PATCH_LOCKED',
+                `Another patch operation owns ${lockPath}`,
+                {
+                    pid: existing?.pid ?? null,
+                    hostname: existing?.hostname ?? null,
+                    startedAt: existing?.startedAt ?? null,
+                },
+            )
+        }
+    }
+    throw new PatchManagerError('PATCH_LOCKED', `Could not acquire ${lockPath}`)
+}
+
+function releaseRootLock(lock) {
+    let current = null
+    try {
+        current = parseJsonBuffer(fs.readFileSync(lock.absolute), lock.path)
+    } catch (error) {
+        if (error.code === 'ENOENT') return
+        throw error
+    }
+    if (current?.token !== lock.owner.token) {
+        throw new PatchManagerError(
+            'PATCH_LOCK_CHANGED',
+            `Refusing to release a lock now owned by another process: ${lock.path}`,
+        )
+    }
+    fs.unlinkSync(lock.absolute)
+}
+
+function withRootLock(root, callback, lockPath = DEFAULT_LOCK_PATH) {
+    const lock = acquireRootLock(root, lockPath)
+    let result
+    try {
+        result = callback()
+    } catch (error) {
+        releaseRootLock(lock)
+        throw error
+    }
+    if (result && typeof result.then === 'function') {
+        return Promise.resolve(result).finally(() => releaseRootLock(lock))
+    }
+    releaseRootLock(lock)
+    return result
+}
+
 function loadState(root, statePath = DEFAULT_STATE_PATH) {
     const raw = readOptionalBuffer(root, statePath)
     if (raw === null) return null
@@ -152,7 +284,12 @@ function restoreJournal(root, journalPath = DEFAULT_JOURNAL_PATH) {
     }
     for (const original of journal.originals) {
         if (original.content === null) removeFile(root, original.path)
-        else writeAtomic(root, original.path, Buffer.from(original.content, 'base64'))
+        else writeAtomic(
+            root,
+            original.path,
+            Buffer.from(original.content, 'base64'),
+            { mode: Number.isInteger(original.mode) ? original.mode : undefined },
+        )
     }
     removeFile(root, journalPath)
     return { recovered: true, transactionId: journal.transactionId }
@@ -167,6 +304,17 @@ function validatePack(pack) {
     }
     if (!Array.isArray(pack.units)) {
         throw new PatchManagerError('INVALID_PACK', `${pack.id}: units must be an array`)
+    }
+    for (const unit of pack.units) {
+        if (
+            unit.mode !== undefined
+            && (!Number.isInteger(unit.mode) || unit.mode < 0 || unit.mode > 0o7777)
+        ) {
+            throw new PatchManagerError(
+                'INVALID_PACK',
+                `${pack.id}: ${unit.id} has an invalid file mode`,
+            )
+        }
     }
 }
 
@@ -216,7 +364,25 @@ function stripCurrentUnits(currentFiles, state) {
     return baselines
 }
 
-function makeState(profile, packs, units, result, baselines) {
+function outputModeForFile(file, output, currentModes, units) {
+    if (output === null) return null
+    const declared = [...new Set(
+        units
+            .filter((unit) => unit.file === file && unit.mode !== undefined)
+            .map((unit) => unit.mode),
+    )]
+    if (declared.length > 1) {
+        throw new PatchManagerError(
+            'MODE_CONFLICT',
+            `${file} has conflicting new-file mode declarations`,
+        )
+    }
+    const currentMode = currentModes.get(file) ?? null
+    if (currentMode !== null) return currentMode
+    return declared[0] ?? DEFAULT_NEW_FILE_MODE
+}
+
+function makeState(profile, packs, units, result, baselines, currentModes) {
     const files = {}
     for (const file of new Set(units.map((unit) => unit.file))) {
         const baseline = baselines.get(file) ?? null
@@ -224,6 +390,7 @@ function makeState(profile, packs, units, result, baselines) {
         files[file] = {
             baselineHash: baseline === null ? null : sha256(baseline),
             outputHash: output === null ? null : sha256(output),
+            outputMode: outputModeForFile(file, output, currentModes, units),
         }
     }
     return {
@@ -260,23 +427,38 @@ function planTransition({
         ...(previous?.units ?? []).map((unit) => unit.file),
     ])
     const current = new Map([...paths].map((file) => [file, readOptionalText(root, file)]))
+    const currentModes = new Map([...paths].map((file) => [file, readOptionalMode(root, file)]))
     const baselines = previous ? stripCurrentUnits(current, previous) : new Map(current)
     const result = compose(units, baselines)
-    const nextState = makeState(profile, packs, units, result, baselines)
+    const nextState = makeState(profile, packs, units, result, baselines, currentModes)
     const changes = []
 
     for (const file of paths) {
         const before = current.get(file) ?? null
+        const beforeMode = currentModes.get(file) ?? null
         const after = result.outputs.has(file)
             ? result.outputs.get(file)
             : baselines.get(file) ?? null
-        if (before !== after) changes.push({ path: file, before, after })
+        const afterMode = outputModeForFile(file, after, currentModes, units)
+        if (before !== after || beforeMode !== afterMode) {
+            changes.push({ path: file, before, beforeMode, after, afterMode })
+        }
     }
 
     const stateBefore = readOptionalText(root, statePath)
+    const stateBeforeMode = readOptionalMode(root, statePath)
     const stateAfter = units.length === 0 ? null : encodeState(nextState).toString('utf8')
-    if (stateBefore !== stateAfter) {
-        changes.push({ path: statePath, before: stateBefore, after: stateAfter })
+    const stateAfterMode = stateAfter === null
+        ? null
+        : (stateBeforeMode ?? PRIVATE_STATE_MODE)
+    if (stateBefore !== stateAfter || stateBeforeMode !== stateAfterMode) {
+        changes.push({
+            path: statePath,
+            before: stateBefore,
+            beforeMode: stateBeforeMode,
+            after: stateAfter,
+            afterMode: stateAfterMode,
+        })
     }
 
     return {
@@ -285,23 +467,70 @@ function planTransition({
         order: result.order,
         collisions: result.collisions,
         changes,
+        preconditions: [
+            ...[...paths].map((file) => ({
+                path: file,
+                before: current.get(file) ?? null,
+                beforeMode: currentModes.get(file) ?? null,
+            })),
+            {
+                path: statePath,
+                before: stateBefore,
+                beforeMode: stateBeforeMode,
+            },
+        ],
         state: units.length === 0 ? null : nextState,
         skippedFiles: [...paths].filter((file) => !changes.some((change) => change.path === file)),
     }
 }
 
-function applyTransition({
+function validateTransitionPreconditions(root, transition) {
+    const preconditions = transition.preconditions
+        ?? transition.changes.map((change) => ({
+            path: change.path,
+            before: change.before,
+            beforeMode: change.beforeMode,
+        }))
+    const stale = []
+    for (const expected of preconditions) {
+        const actual = readOptionalText(root, expected.path)
+        const actualMode = readOptionalMode(root, expected.path)
+        const contentMatches = actual === expected.before
+        const modeMatches = expected.beforeMode === undefined
+            || actualMode === expected.beforeMode
+        if (!contentMatches || !modeMatches) {
+            stale.push({
+                path: expected.path,
+                expectedHash: expected.before === null ? null : sha256(expected.before),
+                actualHash: actual === null ? null : sha256(actual),
+                expectedMode: expected.beforeMode ?? null,
+                actualMode,
+            })
+        }
+    }
+    if (stale.length > 0) {
+        throw new PatchManagerError(
+            'STALE_TRANSITION',
+            `Patch plan is stale for ${stale.length} path(s); no files were written`,
+            { stale },
+        )
+    }
+}
+
+function applyTransitionUnlocked({
     root,
     transition,
     journalPath = DEFAULT_JOURNAL_PATH,
     injectFailureAfter = null,
 }) {
+    validateTransitionPreconditions(root, transition)
     if (transition.changes.length === 0) return { changed: false, files: [] }
     const originals = transition.changes.map((change) => {
         const original = readOptionalBuffer(root, change.path)
         return {
             path: change.path,
             content: original === null ? null : original.toString('base64'),
+            mode: readOptionalMode(root, change.path),
         }
     })
     const journal = {
@@ -309,13 +538,23 @@ function applyTransition({
         transactionId: `${Date.now()}-${process.pid}`,
         originals,
     }
-    writeAtomic(root, journalPath, Buffer.from(`${JSON.stringify(journal, null, 2)}\n`))
+    writeAtomic(
+        root,
+        journalPath,
+        Buffer.from(`${JSON.stringify(journal, null, 2)}\n`),
+        { mode: PRIVATE_STATE_MODE },
+    )
 
     try {
         for (let index = 0; index < transition.changes.length; index += 1) {
             const change = transition.changes[index]
             if (change.after === null) removeFile(root, change.path)
-            else writeAtomic(root, change.path, Buffer.from(change.after))
+            else writeAtomic(
+                root,
+                change.path,
+                Buffer.from(change.after),
+                { mode: change.afterMode ?? undefined },
+            )
             if (injectFailureAfter === index + 1) {
                 throw new Error('Injected transaction failure')
             }
@@ -331,17 +570,46 @@ function applyTransition({
     }
 }
 
+function applyTransition({
+    root,
+    transition,
+    journalPath = DEFAULT_JOURNAL_PATH,
+    lockHeld = false,
+    injectFailureAfter = null,
+}) {
+    const apply = () => {
+        restoreJournal(root, journalPath)
+        return applyTransitionUnlocked({
+            root,
+            transition,
+            journalPath,
+            injectFailureAfter,
+        })
+    }
+    return lockHeld ? applyTransitionUnlocked({
+        root,
+        transition,
+        journalPath,
+        injectFailureAfter,
+    }) : withRootLock(root, apply)
+}
+
 function status({ root, statePath = DEFAULT_STATE_PATH }) {
     const state = loadState(root, statePath)
     if (!state) return { status: 'clean', packs: [], files: [] }
     const files = Object.entries(state.files).map(([file, expected]) => {
         const content = readOptionalText(root, file)
         const actualHash = content === null ? null : sha256(content)
+        const actualMode = readOptionalMode(root, file)
+        const modeMatches = expected.outputMode === undefined
+            || expected.outputMode === actualMode
         return {
             file,
-            status: actualHash === expected.outputHash ? 'current' : 'drifted',
+            status: actualHash === expected.outputHash && modeMatches ? 'current' : 'drifted',
             expectedHash: expected.outputHash,
             actualHash,
+            expectedMode: expected.outputMode ?? null,
+            actualMode,
         }
     })
     return {
@@ -354,6 +622,7 @@ function status({ root, statePath = DEFAULT_STATE_PATH }) {
 
 module.exports = {
     DEFAULT_JOURNAL_PATH,
+    DEFAULT_LOCK_PATH,
     DEFAULT_STATE_PATH,
     PatchManagerError,
     applyTransition,
@@ -366,4 +635,5 @@ module.exports = {
     selectPacks,
     stableStringify,
     status,
+    withRootLock,
 }

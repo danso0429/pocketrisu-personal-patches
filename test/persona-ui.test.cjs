@@ -14,6 +14,9 @@ test('persona native drag does not compete with the iOS long-press controller', 
     assert.match(source, /matchMedia\("\(pointer: coarse\)"\)/)
     assert.match(source, /draggable=\{!isTouchDevice\}/)
     assert.match(source, /ontouchstart=\{isTouchDevice \?/)
+    assert.match(source, /const PERSONA_LONG_PRESS_MS = 260/)
+    assert.match(source, /onDestroy\(finishDrag\)/)
+    assert.match(source, /}, PERSONA_LONG_PRESS_MS\)/)
     assert.doesNotMatch(source, /draggable="true"/)
 })
 

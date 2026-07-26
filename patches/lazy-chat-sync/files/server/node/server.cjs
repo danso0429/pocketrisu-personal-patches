@@ -81,6 +81,19 @@ const chatWriteJournal = createChatWriteJournal({
     onInvalid: (key, error) => {
         logger.warn(`[ChatJournal] Could not process ${key}:`, error?.message || error);
     },
+    onBacklog: (stats) => {
+        logger.warn(
+            `[ChatJournal] Retained awaiting-metadata backlog: `
+            + `${stats.awaitingRecords} record(s), ${stats.awaitingBytes} byte(s)`
+        );
+    },
+    onPressure: (stats) => {
+        logger.error(
+            `[ChatJournal] Awaiting-metadata capacity reached; existing payloads retained. `
+            + `records=${stats.awaitingRecords}/${stats.maxAwaitingRecords} `
+            + `bytes=${stats.awaitingBytes}/${stats.maxAwaitingBytes}`
+        );
+    },
 });
 
 // ETag for database.bin
