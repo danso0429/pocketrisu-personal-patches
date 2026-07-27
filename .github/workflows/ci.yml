@@ -15,10 +15,10 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Check out patch repository
-        uses: actions/checkout@v4
+        uses: actions/checkout@v6
 
       - name: Use Node.js 22
-        uses: actions/setup-node@v4
+        uses: actions/setup-node@v6
         with:
           node-version: 22
 
@@ -34,14 +34,14 @@ jobs:
           node --check dist/pocketrisu-all.cjs
 
       - name: Check out PocketRisu v1.8.1
-        uses: actions/checkout@v4
+        uses: actions/checkout@v6
         with:
           repository: PocketRisu/PocketRisu
           ref: v1.8.1
           path: .ci/pocketrisu
 
       - name: Install pnpm
-        uses: pnpm/action-setup@v4
+        uses: pnpm/action-setup@v6
         with:
           version: 10.34.1
 
