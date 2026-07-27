@@ -1,8 +1,7 @@
 # PocketRisu Personal Patches
 
 Private, composable patch delivery for PocketRisu NodeOnly. The current
-stable release is `v0.1.5`, and its manifests target PocketRisu `v1.8.1`.
-The current development checkpoint is `v0.1.6-experimental.2`.
+stable release is `v0.1.7`, and its manifests target PocketRisu `v1.8.1`.
 
 ## Profiles
 
@@ -30,28 +29,22 @@ separate implementations.
 | `v0.1.5` | Added a reusable multi-image gallery to every persona, active-image selection, non-destructive reference removal, and an export-time image picker while preserving legacy `icon` compatibility and all gallery/folder assets through cleanup and backup. |
 | `v0.1.6-experimental.1` | Added an independent parser-hardening profile and included it in `all`, replacing three permanent parser skips with passing coverage for ChatML terminal generation markers, Thoughts extraction, and CBS logical precedence. |
 | `v0.1.6-experimental.2` | Added independent toolchain hardening for Node.js 25's incomplete experimental `localStorage` and Lightning CSS `::highlight` support, while retaining actionable large lazy-chunk warnings. |
+| `v0.1.7` | Promoted parser and toolchain hardening together: the three parser specifications now run and pass, Node.js 25 receives a scoped test-storage polyfill, and Lightning CSS resolves consistently through the manifest and frozen lockfile. |
 
-The current `v0.1.5` release has been validated against PocketRisu `v1.8.1`
-with:
+The current `v0.1.7` release has passed 10/10 patcher test files with 56 tests,
+a clean standalone hardening run with 63 files and 936 tests passed with no
+skips under Node.js 25, a production build without `::highlight` compatibility
+warnings, and exact standalone hardening apply/re-plan/status/revert. Its
+fresh unified run passed 94 files and 1,218 tests with no skips, Svelte
+diagnostics at 0 errors and 0 warnings, the production build and BG bundle
+load check, current ETags with no drift, and exact source revert.
 
-- 8/8 patcher tests and reproducible installer generation;
-- a clean unified apply, embedded PocketRisu checks, production build, and
-  exact byte-plus-mode revert in GitHub Actions;
-- 1,206 PocketRisu tests passed, with three pre-existing parser specifications
-  intentionally skipped;
-- Svelte diagnostics at 0 errors and 0 warnings;
-- BG orchestration bundle build/load and production health checks;
-- iPhone validation of multi-image add/select/remove, export-time selection,
-  the compact gallery layout, and existing persona editing behavior.
-
-The `v0.1.6-experimental.2` hardening candidate has separately passed 10/10
-patcher tests, a clean standalone hardening run with 63 files and 936 tests
-passed with no skips under Node.js 25, a production build without
-`::highlight` compatibility warnings, and exact standalone hardening
-apply/re-plan/status/revert. Its clean unified run passed 94 files and 1,218
-tests with no skips, Svelte diagnostics at 0 errors and 0 warnings, the
-production build and BG bundle load check, current ETags with no drift, and
-exact source revert.
+The live PocketRisu upgrade applied only the nine parser files, three toolchain
+files, and patch state that differed from `v0.1.5`. Frozen install resolved one
+Lightning CSS 1.33.0, the same 1,218 tests and Svelte 0/0 diagnostics passed,
+the frontend and server bundle rebuilt, and restart smoke checks returned the
+expected root, authenticated-status, and hashed-asset responses. A final
+unified plan reported no changed files.
 
 See [CHANGELOG.md](CHANGELOG.md) for experimental checkpoints and the complete
 per-release change list. The preceding `v0.1.4` incident analysis and safety boundaries

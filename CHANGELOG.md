@@ -1,5 +1,25 @@
 # Changelog
 
+## 0.1.7
+
+- Promote the parser and toolchain hardening checkpoints together as the next
+  stable release for PocketRisu `v1.8.1`.
+- Replace the three former parser skips with passing regression coverage for
+  ChatML terminal markers, depth-aware Thoughts extraction, and CBS logical
+  precedence.
+- Add independently versioned test and build hardening for Node.js 25
+  `localStorage` behavior and Lightning CSS 1.33.0 resolution.
+- Preserve feature-only ownership while including both hardening packs in the
+  dedicated `hardening` and unified `all` profiles.
+- Retain automatic content-addressed ETags, reproducible installers, frozen
+  dependency installation, and exact byte-plus-mode revert boundaries.
+- Pass all 56 patcher tests and fresh/live PocketRisu runs with 94 files,
+  1,218 tests, no skips, Svelte 0/0 diagnostics, production builds, and BG
+  bundle load checks.
+- Deploy the unified profile with one Lightning CSS 1.33.0 resolution, restart
+  only after active and parked orchestration counts reach zero, pass HTTP
+  smoke checks, and finish with a zero-change patch plan.
+
 ## 0.1.6-experimental.2
 
 - Add an independent `toolchain-hardening` pack to the `hardening` and `all`
