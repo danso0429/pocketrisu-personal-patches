@@ -2,15 +2,17 @@
 
 Private, composable patch delivery for PocketRisu NodeOnly. The current
 stable release is `v0.1.5`, and its manifests target PocketRisu `v1.8.1`.
-The current development checkpoint is `v0.1.6-experimental.1`.
+The current development checkpoint is `v0.1.6-experimental.2`.
 
 ## Profiles
 
 - `pocketrisu-features.cjs` manages `lazy-chat-sync` (including startup cache),
   `persona-organizer`, and `preset-integrity`.
   An existing bg-preserve installation remains an external layer.
-- `pocketrisu-hardening.cjs` manages only `parser-hardening`.
-- `pocketrisu-all.cjs` combines the feature packs, parser hardening,
+- `pocketrisu-hardening.cjs` manages `parser-hardening` and
+  `toolchain-hardening`.
+- `pocketrisu-all.cjs` combines the feature packs, parser and toolchain
+  hardening,
   bg-preserve `v1.0.0`, and the `lazy-chat-bg-adapter` durable-save barrier.
 
 Both artifacts are generated from the same engine and manifests. They are not
@@ -27,6 +29,7 @@ separate implementations.
 | `v0.1.4` | Fixed new-chat save failures by making stable chat IDs authoritative and classifying create versus update from the last server-confirmed database without weakening remote-deletion or concurrent-create safety. |
 | `v0.1.5` | Added a reusable multi-image gallery to every persona, active-image selection, non-destructive reference removal, and an export-time image picker while preserving legacy `icon` compatibility and all gallery/folder assets through cleanup and backup. |
 | `v0.1.6-experimental.1` | Added an independent parser-hardening profile and included it in `all`, replacing three permanent parser skips with passing coverage for ChatML terminal generation markers, Thoughts extraction, and CBS logical precedence. |
+| `v0.1.6-experimental.2` | Added independent toolchain hardening for Node.js 25's incomplete experimental `localStorage` and Lightning CSS `::highlight` support, while retaining actionable large lazy-chunk warnings. |
 
 The current `v0.1.5` release has been validated against PocketRisu `v1.8.1`
 with:
@@ -41,10 +44,14 @@ with:
 - iPhone validation of multi-image add/select/remove, export-time selection,
   the compact gallery layout, and existing persona editing behavior.
 
-The `v0.1.6-experimental.1` hardening candidate has separately passed 9/9
-patcher tests, a clean unified PocketRisu run with 94 files and 1,218 tests
-passed with no skips, Svelte diagnostics at 0 errors and 0 warnings, a
-production build, and exact standalone hardening apply/re-plan/status/revert.
+The `v0.1.6-experimental.2` hardening candidate has separately passed 10/10
+patcher tests, a clean standalone hardening run with 63 files and 936 tests
+passed with no skips under Node.js 25, a production build without
+`::highlight` compatibility warnings, and exact standalone hardening
+apply/re-plan/status/revert. Its clean unified run passed 94 files and 1,218
+tests with no skips, Svelte diagnostics at 0 errors and 0 warnings, the
+production build and BG bundle load check, current ETags with no drift, and
+exact source revert.
 
 See [CHANGELOG.md](CHANGELOG.md) for experimental checkpoints and the complete
 per-release change list. The preceding `v0.1.4` incident analysis and safety boundaries
@@ -187,6 +194,24 @@ the two consumers cannot silently diverge. The pack owns focused regression
 tests and has its own SHA-256 ETag; its managed content, apply state, status,
 and revert scope remain independent from feature and bg-preserve packs.
 
+### Toolchain hardening
+
+The independent `toolchain-hardening` pack keeps test and build tooling
+deterministic without changing PocketRisu runtime source:
+
+- Vitest conditionally replaces an incomplete Node.js experimental
+  `globalThis.localStorage` with `happy-dom`'s `Storage`. Browser-like
+  environments that already expose a complete Storage API are left unchanged.
+- `package.json` and the matching lockfile sections override Lightning CSS to
+  1.33.0, so both Tailwind and Vite understand the standard `::highlight`
+  selectors already used by PocketRisu.
+- the override and every lockfile resolution are one reversible patch graph;
+  frozen installs remain valid and revert restores the original bytes and
+  modes.
+
+After applying this pack, run `pnpm install --frozen-lockfile` before tests or
+builds so an existing `node_modules` tree also adopts the locked version.
+
 ## Build and use
 
 ```bash
@@ -215,12 +240,20 @@ build. The unified profile also changes code included by the bg orchestration
 bundle, so rebuild it when that builder exists:
 
 ```bash
+pnpm install --frozen-lockfile
 pnpm check
 pnpm build
 test ! -f server/node/bgOrchBundle.build.cjs || node server/node/bgOrchBundle.build.cjs
 ```
 
 Restarting a running PocketRisu process is deliberately outside the patcher.
+
+PocketRisu's production build can still report chunks above its 2,000 kB
+warning threshold. The current over-limit outputs are already separate lazy
+assets for model token data, Monaco, WebLLM, and web tokenizers. Do not raise
+the threshold merely to hide them. Revisit chunking when an initial-load chunk
+crosses the threshold, a formerly smaller chunk regresses, or a supported
+upstream split can reduce transferred bytes without removing those features.
 
 ## Composition and collision rules
 
@@ -242,6 +275,35 @@ to be removed or assigned an unrelated order.
 Cross-file semantic requirements cannot be inferred from text transforms.
 Those belong in explicit manifest `requires`/`before`/`after` contracts and
 tests.
+
+## Adding or updating a patch pack
+
+1. Inspect the exact PocketRisu version and the complete normal call paths
+   affected by the change. Store large exact replacement baselines under the
+   pack's `anchors/` directory and managed replacements under `files/`.
+2. Add a versioned manifest with a unique pack ID and unique unit IDs. Use
+   `requires`, `before`, or `after` for semantic order that cannot be inferred
+   from text collisions. Avoid owning unrelated files or broad sections.
+3. Register the manifest in `src/catalog.cjs`, then add it only to profiles
+   whose ownership boundary should include it. Update profile transition tests.
+4. Do not hard-code an ETag. `packEtag()` calculates SHA-256 over the stable
+   JSON representation of the pack's exact `{ id, version, units, contracts }`.
+   Any managed text, anchor, ordering contract, mode, or version change
+   therefore changes the ETag automatically. Never edit a target's
+   `save/pocketrisu-patches/state.json` by hand.
+5. Add a test that mutates one managed field and proves the ETag changes while
+   the original remains stable. Also test the pack's profile inclusion and
+   explicit file boundary.
+6. Run `npm test` and build the installers twice; byte hashes must match. On a
+   clean target, verify `plan`, `apply`, a second `plan` with no changed files,
+   `status` with `catalogStatus: current`, and `revert` restoring exact content
+   and POSIX modes.
+7. For dependency changes, patch both the package manifest and lockfile, then
+   prove `pnpm install --frozen-lockfile` succeeds and the resolved dependency
+   graph contains the intended single version.
+8. Bump the pack's semantic version whenever its behavior changes, even though
+   content-addressed ETags would detect the change. Update the repository
+   version, README release history, and CHANGELOG before publishing.
 
 ## State, ETags, and recovery
 

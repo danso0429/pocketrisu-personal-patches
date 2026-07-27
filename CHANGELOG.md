@@ -1,5 +1,24 @@
 # Changelog
 
+## 0.1.6-experimental.2
+
+- Add an independent `toolchain-hardening` pack to the `hardening` and `all`
+  profiles without adding it to the feature-only profile.
+- Replace Node.js 25's incomplete experimental global `localStorage` with
+  `happy-dom` Storage only when the required API is missing, retaining normal
+  browser-like and CI environments.
+- Override Lightning CSS to 1.33.0 across Tailwind, Vite, and the frozen
+  lockfile, removing false `::highlight` compatibility warnings.
+- Keep the real 2,000 kB lazy-chunk warning visible and document the current
+  model-data, Monaco, WebLLM, and tokenizer sources plus re-evaluation triggers.
+- Document the complete new-pack workflow: profile boundaries, automatic
+  content-addressed ETags, semantic version bumps, reproducible installers,
+  current-state re-plans, frozen dependency resolution, and exact revert.
+- Pass 10/10 patcher tests; 63 standalone hardening files with 936 tests; and
+  94 unified files with 1,218 tests, all without skips under Node.js 25.
+  Complete Svelte 0/0 diagnostics, production build, BG bundle load check,
+  current ETags with no drift, and exact source revert.
+
 ## 0.1.6-experimental.1
 
 - Add an independent `hardening` profile containing `parser-hardening`, and
