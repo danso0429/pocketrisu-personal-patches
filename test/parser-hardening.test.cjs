@@ -9,7 +9,7 @@ const { packEtag } = require('../src/manager.cjs')
 test('parser hardening is independently versioned and included by hardening and all', () => {
     assert.equal(manifest.id, 'parser-hardening')
     assert.equal(manifest.version, '0.1.0')
-    assert.deepEqual(PROFILES.hardening.defaults, [manifest.id])
+    assert.equal(PROFILES.hardening.defaults.includes(manifest.id), true)
     assert.equal(PROFILES.features.defaults.includes(manifest.id), false)
     assert.equal(PROFILES.all.defaults.includes(manifest.id), true)
 })

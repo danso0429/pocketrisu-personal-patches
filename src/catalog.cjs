@@ -13,16 +13,16 @@ const PROFILES = Object.freeze({
     },
     hardening: {
         id: 'hardening',
-        description: 'Focused parser hardening without feature or bg-preserve ownership.',
-        defaults: ['parser-hardening'],
-        allowed: ['parser-hardening'],
+        description: 'Focused parser and toolchain hardening without feature or bg-preserve ownership.',
+        defaults: ['parser-hardening', 'toolchain-hardening'],
+        allowed: ['parser-hardening', 'toolchain-hardening'],
         required: [],
     },
     all: {
         id: 'all',
-        description: 'Unified bg-preserve, features, and parser hardening.',
-        defaults: ['bg-preserve', 'lazy-chat-sync', 'lazy-chat-bg-adapter', 'persona-organizer', 'preset-integrity', 'parser-hardening'],
-        allowed: ['bg-preserve', 'lazy-chat-sync', 'lazy-chat-bg-adapter', 'persona-organizer', 'preset-integrity', 'parser-hardening'],
+        description: 'Unified bg-preserve, features, parser hardening, and toolchain hardening.',
+        defaults: ['bg-preserve', 'lazy-chat-sync', 'lazy-chat-bg-adapter', 'persona-organizer', 'preset-integrity', 'parser-hardening', 'toolchain-hardening'],
+        allowed: ['bg-preserve', 'lazy-chat-sync', 'lazy-chat-bg-adapter', 'persona-organizer', 'preset-integrity', 'parser-hardening', 'toolchain-hardening'],
         required: ['bg-preserve', 'lazy-chat-bg-adapter'],
     },
 })
@@ -36,6 +36,7 @@ function loadCatalog(repositoryRoot = path.resolve(__dirname, '..')) {
         require(path.join(repositoryRoot, 'patches/persona-organizer/manifest.cjs')),
         require(path.join(repositoryRoot, 'patches/preset-integrity/manifest.cjs')),
         require(path.join(repositoryRoot, 'patches/parser-hardening/manifest.cjs')),
+        require(path.join(repositoryRoot, 'patches/toolchain-hardening/manifest.cjs')),
     ]
 }
 

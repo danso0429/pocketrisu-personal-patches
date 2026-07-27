@@ -19,12 +19,16 @@ test('profiles share one catalog but have different ownership boundaries', () =>
         'persona-organizer',
         'preset-integrity',
         'parser-hardening',
+        'toolchain-hardening',
     ])
     assert.throws(
         () => validateProfileSelection(resolveProfile('features'), ['bg-preserve']),
         /cannot manage/,
     )
-    assert.deepEqual(resolveProfile('hardening').defaults, ['parser-hardening'])
+    assert.deepEqual(
+        resolveProfile('hardening').defaults,
+        ['parser-hardening', 'toolchain-hardening'],
+    )
     assert.throws(
         () => validateProfileSelection(resolveProfile('hardening'), ['lazy-chat-sync']),
         /cannot manage/,
@@ -35,6 +39,7 @@ test('profiles share one catalog but have different ownership boundaries', () =>
             'lazy-chat-sync',
             'lazy-chat-bg-adapter',
             'parser-hardening',
+            'toolchain-hardening',
         ]),
     )
     assert.throws(

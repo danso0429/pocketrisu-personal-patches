@@ -75,7 +75,7 @@ async function runCli({
     const options = parseArgs(argv)
     const profileId = fixedProfile ?? options.profile
     if (!profileId && !['status', 'list'].includes(options.command)) {
-        throw new Error('Pass --profile <features|all>')
+        throw new Error('Pass --profile <features|hardening|all>')
     }
     if (fixedProfile && options.profile && options.profile !== fixedProfile) {
         throw new Error(`This artifact is fixed to the ${fixedProfile} profile`)
