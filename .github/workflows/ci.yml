@@ -45,15 +45,17 @@ jobs:
         with:
           version: 10.34.1
 
-      - name: Install PocketRisu dependencies
-        working-directory: .ci/pocketrisu
-        run: pnpm install --frozen-lockfile
-
       - name: Apply unified patch profile
         run: |
           node dist/pocketrisu-all.cjs plan --root .ci/pocketrisu --json
           node dist/pocketrisu-all.cjs apply --root .ci/pocketrisu --json
           node dist/pocketrisu-all.cjs status --root .ci/pocketrisu --json
+
+      - name: Install patched PocketRisu dependencies
+        working-directory: .ci/pocketrisu
+        run: |
+          pnpm install --frozen-lockfile
+          pnpm why lightningcss
 
       - name: Run embedded PocketRisu checks
         working-directory: .ci/pocketrisu
