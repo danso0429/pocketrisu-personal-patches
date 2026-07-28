@@ -42,7 +42,7 @@ function unitId(relative) {
 
 module.exports = {
     id: 'lazy-chat-sync',
-    version: '0.1.3',
+    version: '0.1.4',
     units: [
         ...replacedFiles.map((relative) => ({
             id: `lazy-chat-sync:replace:${unitId(relative)}`,

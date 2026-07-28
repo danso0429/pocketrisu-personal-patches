@@ -87,8 +87,6 @@ context. The storage protocol is adapted from
   unconditional authoritative server read;
 - the server keeps the encoded stubs-only payload paired with the exact ETag,
   so a warm `304` does not decode and re-encode the database.
-- each startup records `decoded-hit`, `raw-hit`, network miss, or recovery
-  fallback with probe/request/hydration timings in PocketRisu's System Logs.
 - IndexedDB and CacheStorage metadata probes race independently, so one stalled
   iOS storage backend cannot delay a valid result from the other for the full
   1500 ms timeout.

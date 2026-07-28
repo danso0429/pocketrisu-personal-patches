@@ -1,5 +1,11 @@
 # Changelog
 
+## Unreleased
+
+- Remove the startup database cache's per-boot System Log telemetry after
+  production validation, while preserving ETag revalidation, decoded/raw cache
+  hits, authoritative network fallback, and cache invalidation behavior.
+
 ## 0.1.7
 
 - Promote the parser and toolchain hardening checkpoints together as the next

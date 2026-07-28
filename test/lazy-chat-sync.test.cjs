@@ -18,7 +18,7 @@ function payload(relative) {
 
 test('lazy chat pack includes CAS, WAL, reconciliation, and safe hydration boundaries', () => {
     assert.equal(lazyManifest.id, 'lazy-chat-sync')
-    assert.equal(lazyManifest.version, '0.1.3')
+    assert.equal(lazyManifest.version, '0.1.4')
     assert.match(payload('server/node/server.cjs'), /chatWriteJournal/)
     assert.match(payload('server/node/server.cjs'), /\/api\/chat-content\/:chaId\/:chatIndex\/patch/)
     assert.match(payload('server/node/server.cjs'), /validateStrippedDatabaseTransition/)
