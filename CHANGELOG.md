@@ -2,6 +2,30 @@
 
 ## Unreleased
 
+## 0.2.0-experimental.4
+
+- Store format-2 intent as either a rolling preset or a pinned custom
+  capability list. Interactive all and `--all` follow newly published packs;
+  customize, `--packs`, and revert remain explicit and stable.
+- Derive rolling `all`, selector availability, and narrow profile defaults
+  from the active catalog and validated per-manifest `presetDefaults`
+  metadata. Adding a pack now requires one catalog registration and optional
+  narrow-preset metadata rather than edits to duplicated profile arrays.
+- Read legacy format-1 intent conservatively: only an exact current effective
+  preset match becomes rolling, while partial or older selections stay pinned.
+- Cover future-pack inclusion, custom pinning, empty revert persistence,
+  legacy migration, metadata ETags, and catalog invariants in the patcher
+  suite. Pass 126/126 tests, all 256 user-pack selections with exact byte/mode
+  round trips, reproducible generation and syntax checks for all four
+  installers, and a live migration that skips all 126 managed source paths,
+  writes only state/intent metadata, and immediately re-plans to zero changes.
+- Pass the unchanged live PocketRisu source through 95 test files and 1,232
+  tests, Svelte 0/0 diagnostics, a 7,716-module production build, and an 8,094
+  KB BG bundle load check. Restart with active/durable work at zero, then
+  confirm root HTTP, the BG cache-status 401 gate, exact served/local asset
+  hash, no stale bundle warning, and zero new stderr bytes. No new UI L3 is
+  needed because this checkpoint changes patcher policy and live metadata only.
+
 ## 0.2.0-experimental.3
 
 - Add an independent `character-organizer` pack to the feature, all, and

@@ -14,11 +14,16 @@
 
 ## Persistent state
 
-- `intent.json` records the user-requested capabilities and survives upstream
-  replacement.
+- `intent.json` format 2 records either `mode: preset`, which recalculates
+  current catalog defaults, or `mode: custom`, which pins explicit
+  capabilities. Both survive upstream replacement.
 - `state.json` records the exact resolved units applied to one target baseline.
 - A new upstream tree is always planned as a fresh baseline in staging; an old
   applied-state snapshot is never treated as if its managed blocks still exist.
+- Legacy format-1 preset intent becomes rolling only when its requested list
+  exactly matches the current preset's effective defaults. Any mismatch is
+  migrated as pinned custom intent so an update cannot silently broaden an
+  older customized selection.
 
 ## Upstream lifecycle
 
@@ -73,8 +78,13 @@ Only `verified` targets may be applied by a downloader release.
 
 - One universal installer contains the catalog, resolver, planner, reporter,
   staging gates, and CLI.
-- `--all` expands to every compatible user-facing capability; storage packs
-  still normalize through supersede rules, so users never choose their order.
+- `--all` and interactive all store a rolling preset. The universal preset is
+  derived from every registered user-facing manifest, while narrow presets use
+  each manifest's validated `presetDefaults` metadata. Storage packs still
+  normalize through supersede rules, so users never choose their order.
+- Interactive customize and `--packs` store pinned custom intent. Revert
+  stores an empty custom intent rather than leaving a preset that could
+  reinstall itself on the next plain apply.
 - Legacy profile artifacts remain compatibility wrappers around named presets.
 - User-facing packs stay independently versioned even though delivery uses one
   artifact.

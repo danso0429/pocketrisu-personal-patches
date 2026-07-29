@@ -2,18 +2,21 @@
 
 Private, composable patch delivery for PocketRisu NodeOnly. The current
 stable release is `v0.1.7`, and its manifests target PocketRisu `v1.8.1`.
-The current development checkpoint is `v0.2.0-experimental.3`.
+The current development checkpoint is `v0.2.0-experimental.4`.
 
 ## Universal installer and compatibility presets
 
 `pocketrisu-patcher.cjs` is the primary artifact. Users select capabilities;
 the resolver decides pack order, dependencies, superseded packs, and hidden
 integration adapters. `configure` may be used interactively or with
-`--packs`; its first prompt offers all, customize, or none. `--all` is the
-non-interactive alias for every compatible capability, and a selection of
-`none` is valid. Because lazy chat synchronization contains startup caching,
-the all graph resolves to lazy storage instead of installing both storage
-implementations.
+`--packs`; its first prompt offers all, customize, or none. Choosing all, or
+using `--all`, stores a rolling preset policy: a newer qualified patcher
+automatically includes every newly published user-facing pack in that preset.
+Customize and `--packs` store a pinned capability list, while `none` stores
+an empty pinned list. Because lazy chat synchronization contains startup
+caching, the all graph resolves to lazy storage instead of installing both
+storage implementations. A newly included pack still passes normal planning,
+compatibility, and staging gates; a conflict blocks before source writes.
 
 The older named artifacts remain preset wrappers:
 
@@ -33,6 +36,7 @@ not separate implementations.
 
 | Release | What changed |
 | --- | --- |
+| `v0.2.0-experimental.4` | Makes all and named presets rolling catalog policies while keeping customized selections pinned, derives universal inclusion and selector availability from one registered manifest, and conservatively migrates legacy intent. |
 | `v0.2.0-experimental.3` | Adds a hamburger-menu Character organizer with paginated 4×4 folder membership and explicit Arrange controls, including a local-only folder draft that cannot persist empty. |
 | `v0.2.0-experimental.2` | Adds an explicit install-all path and optional conflict-report delivery into one exact-name RisuAI persona description, module lorebook, or character description through PocketRisu's loopback authenticated database API. |
 | `v0.2.0-experimental.1` | Adds capability selection, deterministic pack/adaptor resolution, intent/state separation, detailed no-auto-fix conflict reports, exact-version qualification, isolated candidate staging, and an optional public update-notification channel while retaining private source. |
@@ -60,6 +64,28 @@ Lightning CSS 1.33.0, the same 1,218 tests and Svelte 0/0 diagnostics passed,
 the frontend and server bundle rebuilt, and restart smoke checks returned the
 expected root, authenticated-status, and hashed-asset responses. A final
 unified plan reported no changed files.
+
+The `v0.2.0-experimental.4` checkpoint passes all 126 patcher tests in 17
+files. The same 256 raw selections still normalize to 192 graphs and pass
+apply, zero-change re-plan, and exact byte/mode revert across 126 managed paths
+with up to 257 units. All four installers pass CJS syntax checks and two
+consecutive builds produce byte-identical artifacts. The generated installer
+was then applied to the live experimental.3 `all` installation: it interpreted
+the legacy intent as rolling, skipped all 126 managed source paths, and wrote
+only `state.json` ETag metadata plus format-2 `intent.json`. The immediate
+re-plan reported no changed files and the stored intent was
+`{ format: 2, mode: 'preset', preset: 'all' }`.
+
+The unchanged live source passed 95 PocketRisu test files and 1,232 tests,
+Svelte diagnostics at 0 errors and 0 warnings, a 7,716-module production
+frontend build, and an 8,094 KB BG bundle build/load check. PocketRisu was
+restarted only with active requests and durable operations/results at zero;
+root HTTP, the unauthenticated BG cache-status 401 gate, exact served/local
+main-asset SHA-256, no stale BG bundle warning, and zero new stderr bytes were
+confirmed. No new iPhone L3 was required because this checkpoint changed only
+patcher policy and live patch metadata, not any managed PocketRisu source or UI
+behavior; those CLI and migration paths are covered by the automated and live
+zero-change checks above.
 
 The `v0.2.0-experimental.3` checkpoint passes 17 patcher test files containing
 118 top-level test declarations. All 256 raw selections of the eight
@@ -307,6 +333,12 @@ node dist/pocketrisu-patcher.cjs status --root /path/to/PocketRisu
 node dist/pocketrisu-patcher.cjs revert --root /path/to/PocketRisu
 ```
 
+The first command stores rolling `all` intent. The second reuses whichever
+policy was saved: rolling presets are recalculated from that installer's
+catalog, while customized selections remain pinned until configured again.
+`revert` records an empty custom selection, so a later plain `apply` does
+not silently reinstall the former preset.
+
 Use `pocketrisu-features.cjs` for feature packs without bg-preserve, or
 `pocketrisu-hardening.cjs` for parser hardening alone.
 
@@ -433,16 +465,22 @@ blocked and its report remains available through the `report` command.
 2. Add a versioned manifest with a unique pack ID and unique unit IDs. Use
    `requires`, `before`, or `after` for semantic order that cannot be inferred
    from text collisions. Avoid owning unrelated files or broad sections.
-3. Register the manifest in `src/catalog.cjs`, then add it only to profiles
-   whose ownership boundary should include it. Update profile transition tests.
+3. Register the manifest once in `src/catalog.cjs`; this explicit line is the
+   publication gate. Every registered user-facing pack automatically appears
+   in the universal selector and rolling `all` preset. Add
+   `presetDefaults: ['features']` or `['hardening']` in the manifest only
+   when the corresponding narrow wrapper should own it. Omit that metadata for
+   universal-only packs. Internal adapters use `userSelectable: false` and
+   cannot be preset defaults.
 4. Do not hard-code an ETag. `packEtag()` calculates SHA-256 over the stable
-   JSON representation of the pack's exact `{ id, version, units, contracts }`.
-   Any managed text, anchor, ordering contract, mode, or version change
-   therefore changes the ETag automatically. Never edit a target's
+   JSON representation of the pack's identity, visibility, preset metadata,
+   graph relations, targets, units, and contracts. Any managed text, anchor,
+   ordering contract, mode, profile ownership, or version change therefore
+   changes the ETag automatically. Never edit a target's
    `save/pocketrisu-patches/state.json` by hand.
 5. Add a test that mutates one managed field and proves the ETag changes while
-   the original remains stable. Also test the pack's profile inclusion and
-   explicit file boundary.
+   the original remains stable. Also test the pack's narrow-profile metadata,
+   automatic `all` inclusion, selector visibility, and explicit file boundary.
 6. Run `npm test` and build the installers twice; byte hashes must match. On a
    clean target, verify `plan`, `apply`, a second `plan` with no changed files,
    `status` with `catalogStatus: current`, and `revert` restoring exact content
@@ -470,9 +508,10 @@ pack ETags and exact output hashes:
   new owned files default to `0644` unless a unit declares another mode, while
   patch state and transaction metadata use `0600`;
 - `save/pocketrisu-patches/state.json` records the active profile and graph;
-- `save/pocketrisu-patches/intent.json` separately records the capabilities
-  requested by the user, so a fresh upstream candidate never mistakes an old
-  applied-state snapshot for blocks present in new source;
+- `save/pocketrisu-patches/intent.json` separately records either a rolling
+  preset policy or a pinned custom capability list, so a fresh upstream
+  candidate never mistakes an old applied-state snapshot for blocks present
+  in new source;
 - writes are journaled in
   `save/pocketrisu-patches/transaction.json`;
 - a failed or interrupted transaction restores every touched file before the
@@ -489,6 +528,9 @@ rejected before ACK. Existing-chat WAL records are outside this pressure limit.
 The `features` and `hardening` artifacts refuse to take ownership of another
 profile's state, because doing so could silently remove managed packs. The
 `all` artifact may safely adopt a prior `features` or `hardening` state.
+Legacy format-1 intent is read conservatively: an exact match for the current
+effective preset defaults becomes rolling, while any partial or older list
+stays pinned. The next successful intent-writing transition stores format 2.
 
 ## Upstream updates
 
