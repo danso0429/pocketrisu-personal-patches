@@ -29,6 +29,7 @@ jobs:
         run: |
           npm run build
           git diff --exit-code -- dist
+          node --check dist/pocketrisu-patcher.cjs
           node --check dist/pocketrisu-features.cjs
           node --check dist/pocketrisu-hardening.cjs
           node --check dist/pocketrisu-all.cjs
@@ -44,6 +45,9 @@ jobs:
         uses: pnpm/action-setup@v6
         with:
           version: 10.34.1
+
+      - name: Verify every user-selectable pack combination
+        run: npm run verify:combinations -- --root .ci/pocketrisu --json
 
       - name: Apply unified patch profile
         run: |

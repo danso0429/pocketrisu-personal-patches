@@ -9,7 +9,9 @@ const read = (root, relative) => fs.readFileSync(path.join(root, relative), 'utf
 
 module.exports = {
     id: 'toolchain-hardening',
+    title: 'Toolchain hardening',
     version: '0.1.0',
+    userSelectable: true,
     units: [
         {
             id: 'toolchain-hardening:vitest-storage',

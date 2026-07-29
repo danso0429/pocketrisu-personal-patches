@@ -115,6 +115,68 @@ describe('PluginChatAccess hydration boundary', () => {
         expect(harness.hydrateChat).toHaveBeenCalledTimes(2)
     })
 
+    test('returns detached chat metadata without hydrating or exposing payload fields', () => {
+        const sourceChat = placeholder('chat-1')
+        Object.assign(sourceChat, {
+            name: 'First chat',
+            lastDate: 12345,
+            folderId: 'folder-1',
+            modules: ['module-1'],
+            note: 'private note',
+            localLore: [{ key: 'private lore' }],
+        })
+        const sourceCharacter = {
+            ...character('char-1', [sourceChat]),
+            name: 'Character one',
+        }
+        const harness = createHarness([sourceCharacter])
+
+        const result = harness.access.getDatabaseWithChatMetadata()
+        const projectedCharacter = result.characters?.[0]
+        const projectedChat = projectedCharacter?.chats?.[0]
+
+        expect(harness.hydrateChat).not.toHaveBeenCalled()
+        expect(projectedCharacter).not.toBe(sourceCharacter)
+        expect(projectedCharacter?.chats).not.toBe(sourceCharacter.chats)
+        expect(projectedChat).toEqual({
+            id: 'chat-1',
+            name: 'First chat',
+            lastDate: 12345,
+            folderId: 'folder-1',
+            modules: ['module-1'],
+        })
+        expect(projectedChat).not.toHaveProperty('message')
+        expect(projectedChat).not.toHaveProperty('note')
+        expect(projectedChat).not.toHaveProperty('localLore')
+        expect(projectedChat).not.toHaveProperty('_placeholder')
+        expect(projectedChat).not.toHaveProperty('_stub')
+        expect(sourceChat._placeholder).toBe(true)
+        expect(sourceChat.message).toEqual([])
+    })
+
+    test('metadata access tolerates a missing payload while full access stays strict', async () => {
+        const chats = [placeholder('missing-chat')]
+        const database: PluginDatabaseLike = {
+            characters: [character('char-1', chats)],
+        }
+        const hydrateChat = vi.fn(async () => null)
+        const access = new PluginChatAccess({
+            getDatabase: () => database,
+            hydrateChat,
+            normalizeChat: chat => chat,
+            markChatDirty: vi.fn(),
+            markCharacterDirty: vi.fn(),
+        })
+
+        expect(access.getDatabaseWithChatMetadata().characters?.[0].chats?.[0])
+            .toEqual({ id: 'missing-chat', name: 'missing-chat' })
+        expect(hydrateChat).not.toHaveBeenCalled()
+
+        await expect(access.getHydratedDatabase())
+            .rejects.toThrow('Plugin chat hydration failed (char-1/missing-chat)')
+        expect(hydrateChat).toHaveBeenCalledTimes(1)
+    })
+
     test('rejects a raw stub instead of presenting it as an empty chat', async () => {
         const harness = createHarness([character('char-1', [{
             id: 'chat-1',

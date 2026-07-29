@@ -439,7 +439,9 @@ for (let index = 1; index < serverUnits.length; index += 1) {
 
 module.exports = {
     id: 'startup-cache',
+    title: 'Startup database cache',
     version: '0.1.2',
+    userSelectable: true,
     inspiration: 'PocketRisu/PocketRisu#49',
     units: [
         {

@@ -7,13 +7,16 @@ const test = require('node:test')
 const assert = require('node:assert/strict')
 const {
     DEFAULT_JOURNAL_PATH,
+    DEFAULT_INTENT_PATH,
     DEFAULT_LOCK_PATH,
     applyTransition,
+    loadIntent,
     loadState,
     planTransition,
     restoreJournal,
     resolveInside,
     status,
+    STATE_FORMAT,
     withRootLock,
 } = require('../src/manager.cjs')
 
@@ -134,6 +137,85 @@ test('removing B restores A without removing unrelated A units', () => withRoot(
     assert.match(read(root, 'src/shared.ts'), /INNER/)
     assert.match(read(root, 'src/unrelated.ts'), /A1/)
     assert.deepEqual(loadState(root).packs.map((pack) => pack.id), ['a'])
+}))
+
+test('intent and applied state are committed in the same transition', () => withRoot((root) => {
+    write(root, 'package.json', JSON.stringify({ name: 'pocketrisu', version: '9.9.9' }))
+    write(root, 'src/unrelated.ts', 'U\n')
+    write(root, 'src/shared.ts', 'const value = BASE\n')
+
+    const apply = planTransition({
+        root,
+        catalog: [packA],
+        packIds: ['a'],
+        profile: 'custom',
+        persistIntent: true,
+    })
+    assert.equal(
+        apply.changes.some((change) => change.path === DEFAULT_INTENT_PATH),
+        true,
+    )
+    applyTransition({ root, transition: apply })
+
+    assert.deepEqual(loadIntent(root), {
+        format: 1,
+        requestedPacks: ['a'],
+        preset: null,
+    })
+    const state = loadState(root)
+    assert.equal(state.format, STATE_FORMAT)
+    assert.deepEqual(state.target, {
+        packageName: 'pocketrisu',
+        packageVersion: '9.9.9',
+    })
+    assert.deepEqual(state.selection.effectiveRequested, ['a'])
+
+    const revert = planTransition({
+        root,
+        catalog: [packA],
+        packIds: [],
+        profile: 'custom',
+        persistIntent: true,
+    })
+    applyTransition({ root, transition: revert })
+    assert.equal(loadState(root), null)
+    assert.deepEqual(loadIntent(root).requestedPacks, [])
+    assert.equal(read(root, 'src/unrelated.ts'), 'U\n')
+    assert.equal(read(root, 'src/shared.ts'), 'const value = BASE\n')
+}))
+
+test('format-1 applied state is upgraded without rewriting unchanged source', () => withRoot((root) => {
+    write(root, 'src/unrelated.ts', 'U\n')
+    write(root, 'src/shared.ts', 'const value = BASE\n')
+    const initial = planTransition({
+        root,
+        catalog: [packA],
+        packIds: ['a'],
+        profile: 'features',
+    })
+    applyTransition({ root, transition: initial })
+
+    const legacy = loadState(root)
+    legacy.format = 1
+    delete legacy.target
+    delete legacy.selection
+    write(root, 'save/pocketrisu-patches/state.json', `${JSON.stringify(legacy, null, 2)}\n`)
+
+    const upgrade = planTransition({
+        root,
+        catalog: [packA],
+        packIds: ['a'],
+        profile: 'custom',
+        persistIntent: true,
+    })
+    assert.deepEqual(
+        upgrade.changes.map((change) => change.path).sort(),
+        [DEFAULT_INTENT_PATH, 'save/pocketrisu-patches/state.json'],
+    )
+    applyTransition({ root, transition: upgrade })
+    assert.equal(loadState(root).format, STATE_FORMAT)
+    assert.match(read(root, 'src/unrelated.ts'), /A1/)
+    assert.match(read(root, 'src/shared.ts'), /INNER/)
 }))
 
 test('failed writes roll back every touched file and state', () => withRoot((root) => {
@@ -355,7 +437,68 @@ test('pack request order does not rewrite an otherwise current state', () => wit
         profile: 'features',
     })
     assert.deepEqual(second.changes, [])
+    const stateMtime = fs.statSync(
+        path.join(root, 'save/pocketrisu-patches/state.json'),
+    ).mtimeMs
+    assert.deepEqual(applyTransition({ root, transition: second }), {
+        changed: false,
+        files: [],
+    })
+    assert.equal(
+        fs.statSync(path.join(root, 'save/pocketrisu-patches/state.json')).mtimeMs,
+        stateMtime,
+    )
+    assert.equal(fs.existsSync(path.join(root, DEFAULT_JOURNAL_PATH)), false)
 }))
+
+test('one-time supersede input does not cause a follow-up state rewrite', () =>
+    withRoot((root) => {
+        write(root, 'src/shared.ts', 'const value = BASE\n')
+        const narrow = {
+            id: 'narrow',
+            version: '1',
+            units: [{
+                id: 'narrow:shared',
+                file: 'src/shared.ts',
+                type: 'replace',
+                anchor: 'BASE',
+                content: 'NARROW',
+            }],
+        }
+        const complete = {
+            id: 'complete',
+            version: '1',
+            supersedes: ['narrow'],
+            units: [{
+                id: 'complete:shared',
+                file: 'src/shared.ts',
+                type: 'replace',
+                anchor: 'BASE',
+                content: 'COMPLETE',
+            }],
+        }
+        const initial = planTransition({
+            root,
+            catalog: [narrow, complete],
+            packIds: ['narrow', 'complete'],
+            profile: 'custom',
+            persistIntent: true,
+        })
+        assert.deepEqual(initial.resolution.superseded, [{
+            pack: 'narrow',
+            by: 'complete',
+        }])
+        applyTransition({ root, transition: initial })
+
+        const repeated = planTransition({
+            root,
+            catalog: [narrow, complete],
+            packIds: loadIntent(root).requestedPacks,
+            profile: 'custom',
+            persistIntent: false,
+        })
+        assert.deepEqual(repeated.changes, [])
+    }))
 
 test('managed paths cannot escape the target root', () => withRoot((root) => {
     assert.throws(() => resolveInside(root, '../outside'), /Unsafe managed path/)

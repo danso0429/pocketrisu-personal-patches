@@ -1,11 +1,13 @@
 {
   "name": "pocketrisu-personal-patches",
-  "version": "0.1.7",
+  "version": "0.2.0-experimental.3",
   "private": true,
   "type": "commonjs",
   "scripts": {
     "build": "node scripts/build-installers.cjs",
-    "test": "node --test test/*.test.cjs"
+    "qualify": "node scripts/qualify-target.cjs",
+    "test": "node --test test/*.test.cjs",
+    "verify:combinations": "node scripts/verify-all-combinations.cjs"
   },
   "engines": {
     "node": ">=22"

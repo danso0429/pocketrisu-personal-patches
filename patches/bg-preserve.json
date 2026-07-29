@@ -1,42 +1,10 @@
 {
   "id": "bg-preserve",
+  "title": "Background generation preservation",
   "version": "v1.0.0",
+  "userSelectable": true,
   "source": "bg-preserve-install.cjs",
   "units": [
-    {
-      "id": "bg-preserve:hook:nodestorage-asset-upload-retry-import",
-      "file": "src/ts/storage/nodeStorage.ts",
-      "type": "insert",
-      "where": "after",
-      "anchor": "import { StartupDatabaseCache } from \"./startupDatabaseCache\"\n",
-      "managed": "/* BG-PRESERVE:START asset-upload-retry-import */\nimport { retryAssetUpload } from \"./assetUploadRetry\"\n/* BG-PRESERVE:END */\n",
-      "markerNeedle": "asset-upload-retry-import",
-      "anchorPolicy": "first"
-    },
-    {
-      "id": "bg-preserve:hook:nodestorage-adaptive-asset-upload-retry",
-      "file": "src/ts/storage/nodeStorage.ts",
-      "type": "replace",
-      "anchor": "        const da = await this.authFetch('/api/write', {\n            method: \"POST\",\n            body: value as any,\n            headers\n        })\n",
-      "managed": "        /* BG-PRESERVE:START asset-upload-adaptive-retry */\n        const upload = () => this.authFetch('/api/write', {\n            method: \"POST\",\n            body: value as any,\n            headers\n        })\n        const da = key.startsWith('assets/')\n            ? await retryAssetUpload(upload)\n            : await upload()\n        /* BG-PRESERVE:END */\n",
-      "markerNeedle": "asset-upload-adaptive-retry",
-      "anchorPolicy": "first",
-      "after": [
-        "bg-preserve:hook:nodestorage-asset-upload-retry-import"
-      ]
-    },
-    {
-      "id": "bg-preserve:hook:nodestorage-asset-upload-error-detail",
-      "file": "src/ts/storage/nodeStorage.ts",
-      "type": "replace",
-      "anchor": "        if(da.status < 200 || da.status >= 300){\n            const data = await da.clone().json().catch(() => ({}))\n            throw new Error(data?.detail || data?.error || `setItem Error (${da.status})`)\n        }\n",
-      "managed": "        /* BG-PRESERVE:START asset-upload-error-detail */\n        if(da.status < 200 || da.status >= 300){\n            if (key.startsWith('assets/')) {\n                let detail = ''\n                try {\n                    const body = await da.clone().json()\n                    detail = typeof body?.error === 'string' ? `: ${body.error}` : ''\n                } catch {\n                    // A non-JSON proxy/server response is still identified by its HTTP status.\n                }\n                throw new Error(`Asset upload failed (HTTP ${da.status})${detail}`)\n            }\n            const data = await da.clone().json().catch(() => ({}))\n            throw new Error(data?.detail || data?.error || `setItem Error (${da.status})`)\n        }\n        /* BG-PRESERVE:END */\n",
-      "markerNeedle": "asset-upload-error-detail",
-      "anchorPolicy": "first",
-      "after": [
-        "bg-preserve:hook:nodestorage-adaptive-asset-upload-retry"
-      ]
-    },
     {
       "id": "bg-preserve:hook:processzip-asset-save-aggregate-cause",
       "file": "src/ts/process/processzip.ts",

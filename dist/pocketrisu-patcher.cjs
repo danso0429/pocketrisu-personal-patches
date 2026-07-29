@@ -4717,6 +4717,6 @@ module.exports = {
 
 cliModule.exports.runCli({
     catalog: EMBEDDED_CATALOG,
-    fixedProfile: "hardening",
+    fixedProfile: null,
     patcherVersion: "0.2.0-experimental.3",
 }).catch(cliModule.exports.handleCliFailure);

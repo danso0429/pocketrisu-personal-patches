@@ -5,7 +5,9 @@ const path = require('node:path')
 
 module.exports = {
     id: 'preset-integrity',
+    title: 'Prompt preset integrity',
     version: '0.1.0',
+    userSelectable: true,
     units: [
         {
             id: 'preset-integrity:normalizer',

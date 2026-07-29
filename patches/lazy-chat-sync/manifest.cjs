@@ -42,7 +42,10 @@ function unitId(relative) {
 
 module.exports = {
     id: 'lazy-chat-sync',
-    version: '0.1.4',
+    title: 'Lazy chat synchronization and startup cache',
+    version: '0.1.5',
+    userSelectable: true,
+    supersedes: ['startup-cache'],
     units: [
         ...replacedFiles.map((relative) => ({
             id: `lazy-chat-sync:replace:${unitId(relative)}`,
@@ -72,6 +75,23 @@ module.exports = {
             })
             return
         }
+`,
+        },
+        {
+            id: 'lazy-chat-sync:plugin-api-chat-metadata-types',
+            file: 'src/ts/plugins/apiV3/risuai.d.ts',
+            type: 'replace',
+            anchor: `    getDatabase(includeOnly:string[]|'all' = 'all'): Promise<DatabaseSubset|null>;
+`,
+            content: `    getDatabase(includeOnly:string[]|'all' = 'all'): Promise<DatabaseSubset|null>;
+
+    /**
+     * Gets the same allowed database keys without hydrating chat message
+     * payloads. Character chat entries contain only id, name, lastDate,
+     * folderId, and modules, so this method is suitable for read-only lists.
+     * Use getDatabase() when chat messages are required.
+     */
+    getDatabaseMetadata(includeOnly:string[]|'all' = 'all'): Promise<DatabaseSubset|null>;
 `,
         },
     ],

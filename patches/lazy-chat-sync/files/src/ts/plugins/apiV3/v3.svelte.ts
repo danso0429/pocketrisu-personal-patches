@@ -936,6 +936,24 @@ const makeRisuaiAPIV3 = (iframe:HTMLIFrameElement,plugin:RisuPlugin) => {
             }
             return liteDB;
         },
+        getDatabaseMetadata: async (includeOnly:string[]|'all' = 'all') => {
+            const conf = await getPluginPermission(plugin.name, 'db', 'periodically');
+            if(!conf){
+                return null;
+            }
+            const shouldIncludeCharacters = includeOnly === 'all' || includeOnly.includes('characters')
+            const db = shouldIncludeCharacters
+                ? pluginChatAccess.getDatabaseWithChatMetadata()
+                : DBState.db
+            let liteDB = {}
+            for(const key of allowedDbKeys){
+                if(includeOnly !== 'all' && !includeOnly.includes(key)){
+                    continue;
+                }
+                (liteDB as any)[key] = $state.snapshot((db as any)[key]);
+            }
+            return liteDB;
+        },
 
         installPlugin: handlePluginInstallViaPlugin,
 

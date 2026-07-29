@@ -10,9 +10,13 @@ const {
     revertUnit,
     sha256,
 } = require('./compose.cjs')
+const { resolveSelection } = require('./resolver.cjs')
 
-const STATE_FORMAT = 1
+const STATE_FORMAT = 2
+const LEGACY_STATE_FORMAT = 1
+const JOURNAL_FORMAT = 1
 const DEFAULT_STATE_PATH = 'save/pocketrisu-patches/state.json'
+const DEFAULT_INTENT_PATH = 'save/pocketrisu-patches/intent.json'
 const DEFAULT_JOURNAL_PATH = 'save/pocketrisu-patches/transaction.json'
 const DEFAULT_LOCK_PATH = 'save/pocketrisu-patches/lock.json'
 const DEFAULT_NEW_FILE_MODE = 0o644
@@ -42,7 +46,14 @@ function stableStringify(value) {
 function packEtag(pack) {
     return sha256(stableStringify({
         id: pack.id,
+        title: pack.title ?? null,
         version: pack.version,
+        userSelectable: pack.userSelectable ?? true,
+        requires: pack.requires ?? [],
+        conflicts: pack.conflicts ?? [],
+        supersedes: pack.supersedes ?? [],
+        autoWhen: pack.autoWhen ?? null,
+        targets: pack.targets ?? null,
         units: pack.units,
         contracts: pack.contracts ?? [],
     }))
@@ -269,17 +280,72 @@ function loadState(root, statePath = DEFAULT_STATE_PATH) {
     const raw = readOptionalBuffer(root, statePath)
     if (raw === null) return null
     const state = parseJsonBuffer(raw, statePath)
-    if (state.format !== STATE_FORMAT || !Array.isArray(state.units) || !Array.isArray(state.order)) {
+    if (
+        ![LEGACY_STATE_FORMAT, STATE_FORMAT].includes(state.format)
+        || !Array.isArray(state.units)
+        || !Array.isArray(state.order)
+    ) {
         throw new PatchManagerError('INVALID_STATE', `${statePath} has an unsupported format`)
     }
     return state
+}
+
+function encodeIntent(requestedPacks, preset = null) {
+    return Buffer.from(`${JSON.stringify({
+        format: 1,
+        requestedPacks: [...new Set(requestedPacks)].sort(),
+        preset: preset === 'custom' ? null : preset,
+    }, null, 2)}\n`)
+}
+
+function loadIntent(root, intentPath = DEFAULT_INTENT_PATH) {
+    const raw = readOptionalBuffer(root, intentPath)
+    if (raw === null) return null
+    const intent = parseJsonBuffer(raw, intentPath)
+    if (
+        intent.format !== 1
+        || !Array.isArray(intent.requestedPacks)
+        || intent.requestedPacks.some((id) => typeof id !== 'string' || !id)
+        || (intent.preset !== null && typeof intent.preset !== 'string')
+    ) {
+        throw new PatchManagerError('INVALID_INTENT', `${intentPath} has an unsupported format`)
+    }
+    return {
+        format: 1,
+        requestedPacks: [...new Set(intent.requestedPacks)].sort(),
+        preset: intent.preset === 'custom' ? null : intent.preset,
+    }
+}
+
+function saveIntentUnlocked({
+    root,
+    requestedPacks,
+    preset = null,
+    intentPath = DEFAULT_INTENT_PATH,
+}) {
+    const encoded = encodeIntent(requestedPacks, preset)
+    const before = readOptionalBuffer(root, intentPath)
+    if (before !== null && before.equals(encoded)) return { changed: false, path: intentPath }
+    writeAtomic(root, intentPath, encoded, { mode: PRIVATE_STATE_MODE })
+    return { changed: true, path: intentPath }
+}
+
+function saveIntent({
+    root,
+    requestedPacks,
+    preset = null,
+    intentPath = DEFAULT_INTENT_PATH,
+    lockHeld = false,
+}) {
+    const save = () => saveIntentUnlocked({ root, requestedPacks, preset, intentPath })
+    return lockHeld ? save() : withRootLock(root, save)
 }
 
 function restoreJournal(root, journalPath = DEFAULT_JOURNAL_PATH) {
     const raw = readOptionalBuffer(root, journalPath)
     if (raw === null) return { recovered: false }
     const journal = parseJsonBuffer(raw, journalPath)
-    if (journal.format !== STATE_FORMAT || !Array.isArray(journal.originals)) {
+    if (journal.format !== JOURNAL_FORMAT || !Array.isArray(journal.originals)) {
         throw new PatchManagerError('INVALID_JOURNAL', `${journalPath} has an unsupported format`)
     }
     for (const original of journal.originals) {
@@ -319,29 +385,9 @@ function validatePack(pack) {
 }
 
 function selectPacks(catalog, packIds) {
-    const requested = [...new Set(packIds)]
-    const byId = new Map(catalog.map((pack) => [pack.id, pack]))
-    const selected = []
-    const visiting = new Set()
-    const visited = new Set()
-
-    function visit(id) {
-        if (visited.has(id)) return
-        if (visiting.has(id)) {
-            throw new PatchManagerError('PACK_DEPENDENCY_CYCLE', `Pack dependency cycle at ${id}`)
-        }
-        const pack = byId.get(id)
-        if (!pack) throw new PatchManagerError('UNKNOWN_PACK', `Unknown patch pack: ${id}`)
-        validatePack(pack)
-        visiting.add(id)
-        for (const dependency of pack.requires ?? []) visit(dependency)
-        visiting.delete(id)
-        visited.add(id)
-        selected.push(pack)
-    }
-
-    for (const id of requested) visit(id)
-    return selected.sort((left, right) => left.id.localeCompare(right.id))
+    const resolution = resolveSelection(catalog, packIds)
+    for (const pack of resolution.packs) validatePack(pack)
+    return resolution.packs
 }
 
 function flattenUnits(packs) {
@@ -382,7 +428,22 @@ function outputModeForFile(file, output, currentModes, units) {
     return declared[0] ?? DEFAULT_NEW_FILE_MODE
 }
 
-function makeState(profile, packs, units, result, baselines, currentModes) {
+function readTargetIdentity(root) {
+    const packageBuffer = readOptionalBuffer(root, 'package.json')
+    if (packageBuffer === null) {
+        return { packageName: null, packageVersion: null }
+    }
+    const pkg = parseJsonBuffer(packageBuffer, 'package.json')
+    return {
+        packageName: typeof pkg.name === 'string' ? pkg.name : null,
+        packageVersion: typeof pkg.version === 'string' ? pkg.version : null,
+    }
+}
+
+function makeState(profile, packs, units, result, baselines, currentModes, {
+    resolution,
+    target,
+} = {}) {
     const files = {}
     for (const file of new Set(units.map((unit) => unit.file))) {
         const baseline = baselines.get(file) ?? null
@@ -396,6 +457,13 @@ function makeState(profile, packs, units, result, baselines, currentModes) {
     return {
         format: STATE_FORMAT,
         profile,
+        target: target ?? null,
+        selection: resolution ? {
+            effectiveRequested: resolution.effectiveRequested,
+            resolvedIds: resolution.resolvedIds,
+            autoAdded: resolution.autoAdded,
+            dependencyAdded: resolution.dependencyAdded,
+        } : null,
         packs: packs.map((pack) => ({
             id: pack.id,
             version: pack.version,
@@ -418,9 +486,13 @@ function planTransition({
     packIds,
     profile,
     statePath = DEFAULT_STATE_PATH,
+    intentPath = DEFAULT_INTENT_PATH,
+    persistIntent = false,
 }) {
     const previous = loadState(root, statePath)
-    const packs = selectPacks(catalog, packIds)
+    const resolution = resolveSelection(catalog, packIds)
+    const packs = resolution.packs
+    for (const pack of packs) validatePack(pack)
     const units = flattenUnits(packs)
     const paths = new Set([
         ...units.map((unit) => unit.file),
@@ -430,7 +502,10 @@ function planTransition({
     const currentModes = new Map([...paths].map((file) => [file, readOptionalMode(root, file)]))
     const baselines = previous ? stripCurrentUnits(current, previous) : new Map(current)
     const result = compose(units, baselines)
-    const nextState = makeState(profile, packs, units, result, baselines, currentModes)
+    const nextState = makeState(profile, packs, units, result, baselines, currentModes, {
+        resolution,
+        target: readTargetIdentity(root),
+    })
     const changes = []
 
     for (const file of paths) {
@@ -461,8 +536,34 @@ function planTransition({
         })
     }
 
+    let intentBefore = null
+    let intentBeforeMode = null
+    if (persistIntent) {
+        intentBefore = readOptionalText(root, intentPath)
+        intentBeforeMode = readOptionalMode(root, intentPath)
+        const intentAfter = encodeIntent(resolution.effectiveRequested, profile).toString('utf8')
+        const intentAfterMode = intentBeforeMode ?? PRIVATE_STATE_MODE
+        if (intentBefore !== intentAfter || intentBeforeMode !== intentAfterMode) {
+            changes.push({
+                path: intentPath,
+                before: intentBefore,
+                beforeMode: intentBeforeMode,
+                after: intentAfter,
+                afterMode: intentAfterMode,
+            })
+        }
+    }
+
     return {
         profile,
+        resolution: {
+            requested: resolution.requested,
+            effectiveRequested: resolution.effectiveRequested,
+            resolvedIds: resolution.resolvedIds,
+            autoAdded: resolution.autoAdded,
+            dependencyAdded: resolution.dependencyAdded,
+            superseded: resolution.superseded,
+        },
         packs: nextState.packs,
         order: result.order,
         collisions: result.collisions,
@@ -478,6 +579,11 @@ function planTransition({
                 before: stateBefore,
                 beforeMode: stateBeforeMode,
             },
+            ...(persistIntent ? [{
+                path: intentPath,
+                before: intentBefore,
+                beforeMode: intentBeforeMode,
+            }] : []),
         ],
         state: units.length === 0 ? null : nextState,
         skippedFiles: [...paths].filter((file) => !changes.some((change) => change.path === file)),
@@ -534,7 +640,7 @@ function applyTransitionUnlocked({
         }
     })
     const journal = {
-        format: STATE_FORMAT,
+        format: JOURNAL_FORMAT,
         transactionId: `${Date.now()}-${process.pid}`,
         originals,
     }
@@ -614,24 +720,31 @@ function status({ root, statePath = DEFAULT_STATE_PATH }) {
     })
     return {
         status: files.every((file) => file.status === 'current') ? 'current' : 'drifted',
+        stateFormat: state.format,
         profile: state.profile,
+        target: state.target ?? null,
+        selection: state.selection ?? null,
         packs: state.packs,
         files,
     }
 }
 
 module.exports = {
+    DEFAULT_INTENT_PATH,
     DEFAULT_JOURNAL_PATH,
     DEFAULT_LOCK_PATH,
     DEFAULT_STATE_PATH,
+    STATE_FORMAT,
     PatchManagerError,
     applyTransition,
     flattenUnits,
     loadState,
+    loadIntent,
     packEtag,
     planTransition,
     resolveInside,
     restoreJournal,
+    saveIntent,
     selectPacks,
     stableStringify,
     status,

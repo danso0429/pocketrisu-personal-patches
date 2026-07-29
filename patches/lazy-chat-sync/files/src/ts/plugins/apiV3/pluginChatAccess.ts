@@ -47,9 +47,26 @@ type ChatTarget = CharacterTarget & {
 type CommitGuard = () => boolean
 
 const MAX_COLLECTION_HYDRATION_PASSES = 3
+const CHAT_METADATA_KEYS = [
+    'id',
+    'name',
+    'lastDate',
+    'folderId',
+    'modules',
+] as const
 
 function characterKeys(characters: PluginCharacterLike[]): string[] {
     return Object.keys(characters)
+}
+
+function projectChatMetadata(chat: PluginChatLike | null | undefined): PluginChatLike {
+    if (!chat || typeof chat !== 'object' || Array.isArray(chat)) return {}
+
+    const metadata: PluginChatLike = {}
+    for (const key of CHAT_METADATA_KEYS) {
+        if (key in chat) metadata[key] = chat[key]
+    }
+    return metadata
 }
 
 /**
@@ -186,6 +203,31 @@ export class PluginChatAccess {
             if (target) this.assertCharacterTargetIsCurrent(target)
         }
         return database
+    }
+
+    /**
+     * Returns a detached character collection with stable chat-list metadata,
+     * without hydrating chat bodies. This is intentionally read-only: callers
+     * that need message payloads or want to write characters must use the
+     * hydrated APIs and pass their existing validation boundary.
+     */
+    getDatabaseWithChatMetadata(): PluginDatabaseLike {
+        const database = this.dependencies.getDatabase()
+        const characters = database?.characters
+        if (!Array.isArray(characters)) return database
+
+        return {
+            ...database,
+            characters: characters.map(character => {
+                if (!character || typeof character !== 'object') return character
+                return {
+                    ...character,
+                    chats: Array.isArray(character.chats)
+                        ? character.chats.map(projectChatMetadata)
+                        : character.chats,
+                }
+            }),
+        }
     }
 
     async getHydratedCharacterAt(ordinal: number): Promise<PluginCharacterLike | null> {
