@@ -2,9 +2,65 @@
 
 ## Unreleased
 
+## 0.2.0-experimental.3
+
+- Add an independent `character-organizer` pack to the feature, all, and
+  universal capability catalogs. It registers a built-in hamburger-menu
+  entry without modifying the persisted plugin array.
+- Arrange root characters, character folders, and opened-folder contents in
+  paginated 4×4 grids with explicit one-slot left/right controls and no drag,
+  long-press, or touch-scroll interception.
+- Keep a newly named folder as component-local draft state until its first
+  character is selected, then commit the move and complete non-empty folder
+  in one `characterOrder` assignment. Closing, backing out, or discarding
+  before that selection writes nothing.
+- Add explicit folder membership selection and folder rename/removal while
+  keeping characters, folder images/colors, and the original sidebar drag
+  implementation. Any move that would empty and remove a persisted folder
+  requires confirmation.
+- Pass 17 patcher test files, every selection of the eight public packs,
+  exact byte/mode round trips, reproducible installer generation, the live
+  PocketRisu suite with 95 files and 1,232 tests, Svelte 0/0 diagnostics,
+  frontend and BG bundle builds, restart smoke checks, and iPhone L3 for menu
+  coexistence, 4×4 arrangement, draft discard, first-member persistence, and
+  last-member character preservation.
+
+## 0.2.0-experimental.2
+
+- Add an explicit interactive and non-interactive install-all choice while
+  retaining resolver-controlled storage superseding, dependencies, and order.
+- Let the same universal artifact print a saved conflict report or optionally
+  deliver it into one exact-name RisuAI persona description, module lorebook,
+  or character description through PocketRisu's authenticated loopback API.
+- Refuse missing or duplicate report receivers, direct SQLite writes, remote
+  delivery hosts, concurrent database drift, and unverified delivery; flush
+  through PocketRisu with a local session cookie that does not claim the active
+  writer session, then re-read the exact report before reporting success.
+
+## 0.2.0-experimental.1
+
 - Remove the startup database cache's per-boot System Log telemetry after
   production validation, while preserving ETag revalidation, decoded/raw cache
   hits, authoritative network fallback, and cache invalidation behavior.
+- Add one universal installer whose users select capabilities while a
+  deterministic resolver handles dependencies, superseded packs, conflicts,
+  and hidden BG/storage adapters.
+- Separate durable user intent from the exact applied-state snapshot, with
+  transactional migration from format 1 state and compatibility preset
+  wrappers for the three existing artifacts.
+- Refuse unknown upstream targets before application and generate private
+  Markdown/JSON reports with pack, unit, relative file, verified anchor,
+  candidate line, and exact refusal evidence when available.
+- Add an isolated `stage` lifecycle that never overlaps the live tree, applies
+  only a fresh verified candidate, runs frozen install/test/check/build and
+  the BG bundle builder, then writes an explicit ready-or-failed receipt
+  without performing cutover or restart.
+- Add a source-only maintainer qualification gate for exact versions declared
+  `reviewing`; downloader artifacts continue to accept only `verified`
+  targets.
+- Add a disabled-by-default, notification-only HTTPS update feed with host
+  allowlists, no installed-version transmission, private caching, and
+  fail-open network behavior.
 
 ## 0.1.7
 

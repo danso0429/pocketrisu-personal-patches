@@ -2,11 +2,23 @@
 
 Private, composable patch delivery for PocketRisu NodeOnly. The current
 stable release is `v0.1.7`, and its manifests target PocketRisu `v1.8.1`.
+The current development checkpoint is `v0.2.0-experimental.3`.
 
-## Profiles
+## Universal installer and compatibility presets
+
+`pocketrisu-patcher.cjs` is the primary artifact. Users select capabilities;
+the resolver decides pack order, dependencies, superseded packs, and hidden
+integration adapters. `configure` may be used interactively or with
+`--packs`; its first prompt offers all, customize, or none. `--all` is the
+non-interactive alias for every compatible capability, and a selection of
+`none` is valid. Because lazy chat synchronization contains startup caching,
+the all graph resolves to lazy storage instead of installing both storage
+implementations.
+
+The older named artifacts remain preset wrappers:
 
 - `pocketrisu-features.cjs` manages `lazy-chat-sync` (including startup cache),
-  `persona-organizer`, and `preset-integrity`.
+  `persona-organizer`, `character-organizer`, and `preset-integrity`.
   An existing bg-preserve installation remains an external layer.
 - `pocketrisu-hardening.cjs` manages `parser-hardening` and
   `toolchain-hardening`.
@@ -14,13 +26,16 @@ stable release is `v0.1.7`, and its manifests target PocketRisu `v1.8.1`.
   hardening,
   bg-preserve `v1.0.0`, and the `lazy-chat-bg-adapter` durable-save barrier.
 
-Both artifacts are generated from the same engine and manifests. They are not
-separate implementations.
+All four artifacts are generated from the same engine and manifests. They are
+not separate implementations.
 
 ## Release history
 
 | Release | What changed |
 | --- | --- |
+| `v0.2.0-experimental.3` | Adds a hamburger-menu Character organizer with paginated 4×4 folder membership and explicit Arrange controls, including a local-only folder draft that cannot persist empty. |
+| `v0.2.0-experimental.2` | Adds an explicit install-all path and optional conflict-report delivery into one exact-name RisuAI persona description, module lorebook, or character description through PocketRisu's loopback authenticated database API. |
+| `v0.2.0-experimental.1` | Adds capability selection, deterministic pack/adaptor resolution, intent/state separation, detailed no-auto-fix conflict reports, exact-version qualification, isolated candidate staging, and an optional public update-notification channel while retaining private source. |
 | `v0.1.0` | Promoted the composable patcher to stable with unified/features profiles, transactional apply/revert, pack ETags, stale-plan refusal, exact collision ordering, POSIX mode preservation, startup database caching, lazy chat synchronization, persona organization, preset safety, and optional bg-preserve composition. |
 | `v0.1.1` | Moved Persona organization to Settings → Persona, replaced touch drag with paginated 4×4 membership and explicit one-slot Arrange controls, and added the independent prompt preset integrity pack. |
 | `v0.1.2` | Added closable create/import UI and root/folder-scoped bulk persona deletion with reversible selection, grouped previews, a final confirmation gate, and protection for the last remaining persona. |
@@ -45,6 +60,37 @@ Lightning CSS 1.33.0, the same 1,218 tests and Svelte 0/0 diagnostics passed,
 the frontend and server bundle rebuilt, and restart smoke checks returned the
 expected root, authenticated-status, and hashed-asset responses. A final
 unified plan reported no changed files.
+
+The `v0.2.0-experimental.3` checkpoint passes 17 patcher test files containing
+118 top-level test declarations. All 256 raw selections of the eight
+user-facing packs resolve to 192 graphs and pass apply, current-state re-plan,
+and exact byte/mode revert across 126 managed paths, with up to 257 resolved
+units. The standalone Character organizer applies cleanly to an unmodified
+PocketRisu v1.8.1 tree; its 12 focused helper tests pass, Svelte diagnostics
+report 0 errors and only the four pre-existing warnings outside its managed
+paths, the production frontend builds, and exact re-plan and source revert
+checks pass. Report delivery tests cover exact persona/character fields,
+inactive module lore, missing and duplicate receivers, loopback URL
+restrictions, concurrent hash refusal, durable flush confirmation, and exact
+read-back using PocketRisu's actual msgpack dependency without touching live
+data. They also require the flush session cookie to be issued without an
+`x-session-id`, so report delivery cannot replace RisuAI's active writer
+session. All four generated artifacts pass syntax checks and consecutive
+generation produces byte-identical files.
+
+The live `--all` transition wrote only the Character organizer's five source
+files plus patch state and intent metadata, while 121 already-current managed
+paths were not rewritten. The live PocketRisu tree then passed 95 test files
+and 1,232 tests, Svelte diagnostics at 0 errors and 0 warnings, the production
+frontend build, and the 8,094 KB BG bundle build/load check. RisuAI was
+restarted only after active requests and durable operations/results reached
+zero; root and authenticated-status smoke checks, the served main-asset byte
+match, unchanged stderr, all eight resolved packs and 126 managed paths
+current, and a zero-change `--all` re-plan were confirmed. iPhone L3 passed
+hamburger-menu coexistence, 4×4 root/folder arrangement and scrolling, local
+draft discard through Back and Close, first-member persistence across a cold
+PWA reopen, and last-member folder removal without character loss or an empty
+folder orphan.
 
 See [CHANGELOG.md](CHANGELOG.md) for experimental checkpoints and the complete
 per-release change list. The preceding `v0.1.4` incident analysis and safety boundaries
@@ -147,6 +193,35 @@ picker and embeds the selected image without changing the active image; the
 full database and partial backup retain every gallery image. Removing an entry
 from a persona or resetting a folder image never deletes the shared asset.
 
+### Character organizer
+
+The independent `character-organizer` pack adds a built-in entry alongside
+plugin-provided icons in PocketRisu's hamburger menu. It does not install a
+plugin, replace `Database.plugins`, or depend on Persona organization.
+
+- The root character order is shown as paginated 4×4 character and folder
+  cards, preserving the exact interleaving already stored in
+  `characterOrder`.
+- `Arrange` adds explicit left/right one-slot buttons. Opening a folder keeps
+  the same controls within that folder's membership order.
+- `New folder` asks for a name and opens a local draft. The draft is not added
+  to the database, does not own an asset, and is discarded when the screen is
+  closed or backed out.
+- The folder `+` opens the same 4×4 all-character selector. Selecting the
+  draft's first member creates a complete non-empty folder and moves the
+  character in one array assignment; there is no saved empty-folder interval.
+- Existing folders can be renamed, removed while keeping their characters,
+  and populated from loose characters or other folders. Moving the final
+  member out of a folder requires an explicit confirmation because PocketRisu
+  removes empty character folders.
+- No character records or assets are deleted. Existing folder color and image
+  metadata are copied unchanged, and PocketRisu's original desktop/mobile
+  sidebar behavior and drag setting remain available outside this organizer.
+
+All persisted operations replace `Database.characterOrder` once and request an
+immediate save. The organizer contains no draggable elements, long-press
+handler, touch event handler, or scroll interception.
+
 ### Prompt preset integrity
 
 The independent `preset-integrity` pack keeps the persisted active preset
@@ -213,31 +288,47 @@ npm run build
 Preview a unified install without writing:
 
 ```bash
-node dist/pocketrisu-all.cjs plan --root /path/to/PocketRisu --json
+node dist/pocketrisu-patcher.cjs list
+node dist/pocketrisu-patcher.cjs configure \
+  --root /path/to/PocketRisu \
+  --packs bg-preserve,lazy-chat-sync,persona-organizer
+node dist/pocketrisu-patcher.cjs plan --root /path/to/PocketRisu --json
 ```
 
-Apply, inspect, or revert:
+Apply every compatible capability, apply a saved custom selection, inspect, or
+revert:
 
 ```bash
-node dist/pocketrisu-all.cjs apply --root /path/to/PocketRisu
-node dist/pocketrisu-all.cjs status --root /path/to/PocketRisu
-node dist/pocketrisu-all.cjs revert --root /path/to/PocketRisu
+node dist/pocketrisu-patcher.cjs apply \
+  --root /path/to/PocketRisu \
+  --all
+node dist/pocketrisu-patcher.cjs apply --root /path/to/PocketRisu
+node dist/pocketrisu-patcher.cjs status --root /path/to/PocketRisu
+node dist/pocketrisu-patcher.cjs revert --root /path/to/PocketRisu
 ```
 
 Use `pocketrisu-features.cjs` for feature packs without bg-preserve, or
 `pocketrisu-hardening.cjs` for parser hardening alone.
-After applying source changes, run PocketRisu's normal checks and production
-build. The unified profile also changes code included by the bg orchestration
-bundle, so rebuild it when that builder exists:
+
+For an upstream upgrade, keep the current installation as `--root` and place
+the pristine new upstream in a separate `--candidate` directory:
 
 ```bash
-pnpm install --frozen-lockfile
-pnpm check
-pnpm build
-test ! -f server/node/bgOrchBundle.build.cjs || node server/node/bgOrchBundle.build.cjs
+node dist/pocketrisu-patcher.cjs stage \
+  --root /path/to/current/PocketRisu \
+  --candidate /path/to/fresh/new/PocketRisu \
+  --json
 ```
 
-Restarting a running PocketRisu process is deliberately outside the patcher.
+`stage` reuses the saved user intent, proves the candidate is separate and
+fresh, plans every selected pack, requires exact target qualification, applies
+only to the candidate, then verifies the declared pnpm version and runs frozen
+dependency installation, target tests, Svelte diagnostics, the production
+build, and the BG orchestration bundle builder when selected. A successful
+private receipt says only that the
+candidate is ready for a separately reviewed manual cutover. Cutover,
+user-data movement, and restarting a running PocketRisu process are
+deliberately outside the patcher.
 
 PocketRisu's production build can still report chunks above its 2,000 kB
 warning threshold. The current over-limit outputs are already separate lazy
@@ -248,7 +339,10 @@ upstream split can reduce transferred bytes without removing those features.
 
 ## Composition and collision rules
 
-There is no global feature order. Units in different files are independent.
+Users never choose a patch order. Pack-level `requires`, `conflicts`,
+`supersedes`, and conditional hidden adapters are resolved deterministically
+from the selected capabilities. There is no global unit order: units in
+different files are independent.
 For unordered units in the same file, the engine dry-runs both orders against
 the reconstructed baseline:
 
@@ -266,6 +360,70 @@ to be removed or assigned an unrelated order.
 Cross-file semantic requirements cannot be inferred from text transforms.
 Those belong in explicit manifest `requires`/`before`/`after` contracts and
 tests.
+
+## Conflict reports inside RisuAI
+
+Every refused transition still writes private Markdown and JSON reports under
+`save/pocketrisu-patches/reports`. When the operator cannot browse that
+directory, the same universal artifact can copy a report into RisuAI through
+the running PocketRisu server.
+
+First create exactly one dedicated persona, module, or character with this
+exact name:
+
+```text
+PocketRisu Patcher Report
+```
+
+Do not use that receiver for normal chats or enable its module: persona and
+character descriptions are prompt-bearing fields, and module lore can be
+activated by its keys. The patcher never creates a persona, module, or
+character. It also never chooses between duplicate receivers.
+
+Ask a failing command to deliver its new report automatically:
+
+```bash
+node dist/pocketrisu-patcher.cjs apply \
+  --root /path/to/PocketRisu \
+  --report-to auto
+```
+
+Or print/deliver the latest saved report later:
+
+```bash
+# Print the complete report to the terminal.
+node dist/pocketrisu-patcher.cjs report --root /path/to/PocketRisu
+
+# Require one unique match across all three RisuAI object types.
+node dist/pocketrisu-patcher.cjs report \
+  --root /path/to/PocketRisu \
+  --report-to auto
+
+# Resolve an intentional same-name object in another type.
+node dist/pocketrisu-patcher.cjs report \
+  --root /path/to/PocketRisu \
+  --report-to module \
+  --report-id 20260729123456-abcdef1234
+```
+
+`persona` replaces only the matching persona's `personaPrompt`; `character`
+replaces only the matching character's `desc`. `module` replaces the content
+of its single patcher-created lorebook named `PocketRisu Patcher Report`, or
+appends that inactive, random-key lorebook when the dedicated module has none.
+A same-name lorebook with ordinary activation settings is refused instead of
+being repurposed. Every operation requires an exact unique name, uses
+PocketRisu's current database hash as a concurrency precondition, calls the
+authenticated loopback `/api/patch` and `/api/db/flush` paths, then reads the
+database back and checks the exact report text. Because the flush path uses a
+session cookie, the patcher obtains one through `/api/session` without sending
+`x-session-id`; this does not replace the currently active RisuAI writer
+session. It never edits `risuai.db` directly.
+
+The local server must be running. The default is PocketRisu's own loopback
+port; a different loopback origin can be supplied with `--risu-url`. Remote
+hosts, embedded credentials, redirects, and non-root URL paths are refused.
+If delivery is unavailable or ambiguous, the original conflict remains
+blocked and its report remains available through the `report` command.
 
 ## Adding or updating a patch pack
 
@@ -301,7 +459,9 @@ tests.
 Runtime HTTP caching uses the database ETag. Patch management uses SHA-256
 pack ETags and exact output hashes:
 
-- unchanged pack ETags and current output hashes are skipped;
+- every selected pack still participates in the in-memory graph and collision
+  check, but files whose final bytes and POSIX mode are already current are not
+  rewritten; a fully identical apply creates no transaction journal;
 - one exclusive lock serializes recovery, planning, and writes for each target
   root; a stale plan or overlapping patcher exits before creating a journal;
 - exact old unit snapshots are retained, so an updated pack can revert its
@@ -310,10 +470,15 @@ pack ETags and exact output hashes:
   new owned files default to `0644` unless a unit declares another mode, while
   patch state and transaction metadata use `0600`;
 - `save/pocketrisu-patches/state.json` records the active profile and graph;
+- `save/pocketrisu-patches/intent.json` separately records the capabilities
+  requested by the user, so a fresh upstream candidate never mistakes an old
+  applied-state snapshot for blocks present in new source;
 - writes are journaled in
   `save/pocketrisu-patches/transaction.json`;
 - a failed or interrupted transaction restores every touched file before the
-  next operation.
+  next operation;
+- conflict reports, update-check cache data, and staging receipts are private
+  `0600` metadata.
 
 New-chat payloads acknowledged before their first database stub remain in a
 durable `awaitingMetadata` WAL quarantine. Only that orphan-prone subset has a
@@ -327,11 +492,66 @@ profile's state, because doing so could silently remove managed packs. The
 
 ## Upstream updates
 
-Run `plan` against the newly updated PocketRisu tree before building or
-restarting. Missing anchors, drifted managed blocks, unknown owned-file
-content, ambiguous order, and cycles stop the plan. A manifest should be
-updated only after inspecting the new upstream code and rerunning the clean
-apply/revert round trip.
+Do not overwrite the live tree and then hope that the patches still apply.
+Use this lifecycle:
+
+1. Keep the old live installation and its `intent.json` unchanged.
+2. Acquire a pristine new upstream tree in a non-overlapping candidate path.
+3. Run `stage` from the latest patcher. Structural planning and exact-version
+   qualification happen before candidate source writes.
+4. If an anchor, dependency, ownership, order, qualification, check, or build
+   gate fails, do not edit the manifest locally. Send the generated Markdown
+   or JSON report to the patch maintainer. It identifies the pack, unit,
+   relative file, expected anchor, target candidate lines, and refusal cause
+   when that evidence is available. Operators without filesystem access may
+   print it or deliver it to the dedicated RisuAI receiver described above.
+5. The maintainer preserves the pack's intended behavior, updates and
+   requalifies it against pristine upstream, and publishes a new patcher.
+6. Recreate or cleanly reacquire the candidate, rerun `stage`, and perform a
+   separately reviewed manual cutover only when its receipt is `ready`.
+
+The patcher does not fuzzy-reanchor, silently skip a pack, weaken a feature, or
+offer a downloader-facing force option. A failed staging check may leave the
+disposable candidate patched for maintainer diagnosis, but marks it
+`readyForManualCutover: false`; it must not replace the live installation.
+
+Maintainers do not mark an unknown version verified merely to get past this
+gate. In the private source tree, declare that exact version as `reviewing`
+for every affected pack and run:
+
+```bash
+npm run qualify -- stage \
+  --root /path/to/current/PocketRisu \
+  --candidate /path/to/pristine/review/PocketRisu \
+  --packs pack-a,pack-b
+
+npm run verify:combinations -- \
+  --root /path/to/separate/pristine/review/PocketRisu \
+  --allow-reviewing \
+  --json
+```
+
+This source-only entry point accepts `reviewing` targets but retains the same
+isolation, planning, and full check gates. It is not embedded in distributed
+installers. Its automated receipt is `review-passed` with
+`readyForManualCutover: false`; it cannot qualify its own behavioral intent.
+Move the version from `reviewing` to `verified` only after the maintainer also
+confirms the intended behaviors and round trip, then rebuild and retest the
+downloader artifact.
+
+## Update notification channel
+
+Distributed installers can poll a small public HTTPS JSON feed even while this
+source repository and release workflow remain private. The check is
+notification-only: it sends no installed version, follows no redirects,
+allowlists both feed and release-link hosts, caches privately, never executes
+downloaded code, and does not block local patch commands when offline.
+
+The channel is intentionally disabled in `src/update-channel.cjs` until a
+stable public endpoint is chosen. Before the first public installer release,
+publish a feed matching `docs/update-feed.example.json`, set the exact
+allowlisted hosts, and rebuild the artifact. An already distributed installer
+that contains no checker cannot learn about later versions retroactively.
 
 ## Attribution
 

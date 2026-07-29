@@ -1,0 +1,9 @@
+{
+  "schema": 1,
+  "channel": "stable",
+  "latest": "0.2.0",
+  "minimumSupported": "0.2.0",
+  "publishedAt": "2026-07-29T00:00:00Z",
+  "message": "A compatibility update is available.",
+  "releasePage": "https://releases.example.invalid/pocketrisu-patcher/0.2.0/"
+}
