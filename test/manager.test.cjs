@@ -10,9 +10,11 @@ const {
     DEFAULT_INTENT_PATH,
     DEFAULT_LOCK_PATH,
     applyTransition,
+    customIntent,
     loadIntent,
     loadState,
     planTransition,
+    presetIntent,
     restoreJournal,
     resolveInside,
     status,
@@ -150,6 +152,7 @@ test('intent and applied state are committed in the same transition', () => with
         packIds: ['a'],
         profile: 'custom',
         persistIntent: true,
+        intentPolicy: customIntent(['a']),
     })
     assert.equal(
         apply.changes.some((change) => change.path === DEFAULT_INTENT_PATH),
@@ -158,7 +161,8 @@ test('intent and applied state are committed in the same transition', () => with
     applyTransition({ root, transition: apply })
 
     assert.deepEqual(loadIntent(root), {
-        format: 1,
+        format: 2,
+        mode: 'custom',
         requestedPacks: ['a'],
         preset: null,
     })
@@ -176,6 +180,7 @@ test('intent and applied state are committed in the same transition', () => with
         packIds: [],
         profile: 'custom',
         persistIntent: true,
+        intentPolicy: customIntent([]),
     })
     applyTransition({ root, transition: revert })
     assert.equal(loadState(root), null)
@@ -207,6 +212,7 @@ test('format-1 applied state is upgraded without rewriting unchanged source', ()
         packIds: ['a'],
         profile: 'custom',
         persistIntent: true,
+        intentPolicy: customIntent(['a']),
     })
     assert.deepEqual(
         upgrade.changes.map((change) => change.path).sort(),
@@ -483,6 +489,7 @@ test('one-time supersede input does not cause a follow-up state rewrite', () =>
             packIds: ['narrow', 'complete'],
             profile: 'custom',
             persistIntent: true,
+            intentPolicy: customIntent(['narrow', 'complete']),
         })
         assert.deepEqual(initial.resolution.superseded, [{
             pack: 'narrow',
@@ -499,6 +506,37 @@ test('one-time supersede input does not cause a follow-up state rewrite', () =>
         })
         assert.deepEqual(repeated.changes, [])
     }))
+
+test('preset intent stores policy without freezing the current pack list', () => withRoot((root) => {
+    const transition = planTransition({
+        root,
+        catalog: [{ id: 'a', version: '1', units: [] }],
+        packIds: ['a'],
+        profile: 'all',
+        persistIntent: true,
+        intentPolicy: presetIntent('all'),
+    })
+    applyTransition({ root, transition })
+    assert.deepEqual(loadIntent(root), {
+        format: 2,
+        mode: 'preset',
+        preset: 'all',
+    })
+}))
+
+test('legacy intent remains readable for conservative CLI migration', () => withRoot((root) => {
+    write(root, DEFAULT_INTENT_PATH, JSON.stringify({
+        format: 1,
+        requestedPacks: ['b', 'a', 'a'],
+        preset: 'all',
+    }))
+    assert.deepEqual(loadIntent(root), {
+        format: 1,
+        mode: 'legacy',
+        requestedPacks: ['a', 'b'],
+        preset: 'all',
+    })
+}))
 
 test('managed paths cannot escape the target root', () => withRoot((root) => {
     assert.throws(() => resolveInside(root, '../outside'), /Unsafe managed path/)

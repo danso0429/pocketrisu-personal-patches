@@ -45,6 +45,7 @@ module.exports = {
     title: 'Lazy chat synchronization and startup cache',
     version: '0.1.5',
     userSelectable: true,
+    presetDefaults: ['features'],
     supersedes: ['startup-cache'],
     units: [
         ...replacedFiles.map((relative) => ({

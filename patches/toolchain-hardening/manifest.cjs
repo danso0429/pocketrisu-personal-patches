@@ -12,6 +12,7 @@ module.exports = {
     title: 'Toolchain hardening',
     version: '0.1.0',
     userSelectable: true,
+    presetDefaults: ['hardening'],
     units: [
         {
             id: 'toolchain-hardening:vitest-storage',

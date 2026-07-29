@@ -11,31 +11,45 @@ const DEFAULT_TARGETS = Object.freeze({
 })
 
 const PROFILES = Object.freeze({
-    features: {
+    features: Object.freeze({
         id: 'features',
         description: 'Lazy chat synchronization, startup cache, persona organization, and character organization; bg-preserve stays external.',
-        defaults: ['lazy-chat-sync', 'persona-organizer', 'character-organizer', 'preset-integrity'],
-        allowed: ['lazy-chat-sync', 'persona-organizer', 'character-organizer', 'preset-integrity'],
-        required: [],
-    },
-    hardening: {
+    }),
+    hardening: Object.freeze({
         id: 'hardening',
         description: 'Focused parser and toolchain hardening without feature or bg-preserve ownership.',
-        defaults: ['parser-hardening', 'toolchain-hardening'],
-        allowed: ['parser-hardening', 'toolchain-hardening'],
-        required: [],
-    },
-    all: {
+    }),
+    all: Object.freeze({
         id: 'all',
         description: 'Unified bg-preserve, features, parser hardening, and toolchain hardening.',
-        defaults: ['bg-preserve', 'lazy-chat-sync', 'persona-organizer', 'character-organizer', 'preset-integrity', 'parser-hardening', 'toolchain-hardening'],
-        allowed: ['bg-preserve', 'startup-cache', 'lazy-chat-sync', 'persona-organizer', 'character-organizer', 'preset-integrity', 'parser-hardening', 'toolchain-hardening'],
-        required: [],
-    },
+    }),
 })
 
+const NARROW_PROFILE_IDS = Object.freeze(['features', 'hardening'])
+
+function validateProfileMetadata(catalog) {
+    for (const pack of catalog) {
+        const defaults = pack.presetDefaults ?? []
+        if (
+            !Array.isArray(defaults)
+            || defaults.some((id) => typeof id !== 'string' || !id)
+            || new Set(defaults).size !== defaults.length
+        ) {
+            throw new Error(`${pack.id}.presetDefaults must be a unique array of preset ids`)
+        }
+        for (const presetId of defaults) {
+            if (!NARROW_PROFILE_IDS.includes(presetId)) {
+                throw new Error(`${pack.id}.presetDefaults contains unknown preset ${presetId}`)
+            }
+        }
+        if (pack.userSelectable === false && defaults.length > 0) {
+            throw new Error(`${pack.id} is internal and cannot be a preset default`)
+        }
+    }
+}
+
 function loadCatalog(repositoryRoot = path.resolve(__dirname, '..')) {
-    return [
+    const catalog = [
         JSON.parse(fs.readFileSync(path.join(repositoryRoot, 'patches/bg-preserve.json'), 'utf8')),
         require(path.join(repositoryRoot, 'patches/bg-preserve-storage-base/manifest.cjs')),
         require(path.join(repositoryRoot, 'patches/startup-cache/manifest.cjs')),
@@ -50,12 +64,29 @@ function loadCatalog(repositoryRoot = path.resolve(__dirname, '..')) {
         targets: DEFAULT_TARGETS,
         ...pack,
     }))
+    validateProfileMetadata(catalog)
+    return catalog
 }
 
-function resolveProfile(profileId) {
-    const profile = PROFILES[profileId]
-    if (!profile) throw new Error(`Unknown profile: ${profileId}`)
-    return profile
+function resolveProfile(profileId, catalog) {
+    const definition = PROFILES[profileId]
+    if (!definition) throw new Error(`Unknown profile: ${profileId}`)
+    if (!Array.isArray(catalog)) {
+        throw new Error(`Resolving profile ${profileId} requires the active catalog`)
+    }
+    validateProfileMetadata(catalog)
+    const visible = catalog.filter((pack) => pack.userSelectable !== false)
+    const defaults = profileId === 'all'
+        ? visible.map((pack) => pack.id)
+        : visible
+            .filter((pack) => (pack.presetDefaults ?? []).includes(profileId))
+            .map((pack) => pack.id)
+    return {
+        ...definition,
+        defaults,
+        allowed: [...defaults],
+        required: [],
+    }
 }
 
 function validateProfileSelection(profile, packIds) {
@@ -94,6 +125,7 @@ module.exports = {
     PROFILES,
     loadCatalog,
     resolveProfile,
+    validateProfileMetadata,
     validateProfileSelection,
     validateProfileTransition,
 }

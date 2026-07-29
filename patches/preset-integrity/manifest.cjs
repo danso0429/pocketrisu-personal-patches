@@ -8,6 +8,7 @@ module.exports = {
     title: 'Prompt preset integrity',
     version: '0.1.0',
     userSelectable: true,
+    presetDefaults: ['features'],
     units: [
         {
             id: 'preset-integrity:normalizer',

@@ -5,10 +5,13 @@ const path = require('node:path')
 const {
     DEFAULT_STATE_PATH,
     applyTransition,
+    customIntent,
     loadIntent,
     loadState,
+    normalizeIntentPolicy,
     packEtag,
     planTransition,
+    presetIntent,
     restoreJournal,
     saveIntent,
     status,
@@ -128,6 +131,7 @@ function print(value, json) {
 function summarizeTransition(transition) {
     return {
         profile: transition.profile,
+        intent: transition.intent,
         selection: transition.resolution,
         compatibility: transition.compatibility,
         patcherUpdate: transition.patcherUpdate,
@@ -171,18 +175,95 @@ function inferRequestedPacks(state, catalog) {
         .sort()
 }
 
+function samePackIds(left, right) {
+    const sortedLeft = [...left].sort()
+    const sortedRight = [...right].sort()
+    return (
+        sortedLeft.length === sortedRight.length
+        && sortedLeft.every((id, index) => id === sortedRight[index])
+    )
+}
+
+function resolveIntentPolicy(intent, catalog) {
+    if (!intent) return null
+    if (intent.mode !== 'legacy') return normalizeIntentPolicy(intent)
+    if (!intent.preset) return customIntent(intent.requestedPacks)
+
+    const profile = resolveProfile(intent.preset, catalog)
+    const defaults = resolveSelection(catalog, profile.defaults, {
+        allowedIds: profile.allowed,
+    }).effectiveRequested
+    return samePackIds(intent.requestedPacks, defaults)
+        ? presetIntent(profile.id)
+        : customIntent(intent.requestedPacks, profile.id)
+}
+
+function requestedPacksForIntent(intentPolicy, catalog) {
+    if (!intentPolicy) return null
+    if (intentPolicy.mode === 'preset') {
+        return resolveProfile(intentPolicy.preset, catalog).defaults
+    }
+    return intentPolicy.requestedPacks
+}
+
 function selectActivePreset({
+    explicitPreset,
+    intentPolicy,
+    previous,
+    explicitPacks,
+    catalog,
+}) {
+    if (explicitPreset) return explicitPreset
+    if (intentPolicy?.preset) return resolveProfile(intentPolicy.preset, catalog)
+    if (!explicitPacks && previous?.profile && PROFILES[previous.profile]) {
+        return resolveProfile(previous.profile, catalog)
+    }
+    return null
+}
+
+function resolveOperationIntent({
+    options,
+    catalog,
     explicitPreset,
     intent,
     previous,
-    explicitPacks,
 }) {
-    if (explicitPreset) return explicitPreset
-    if (intent?.preset) return resolveProfile(intent.preset)
-    if (!explicitPacks && previous?.profile && PROFILES[previous.profile]) {
-        return resolveProfile(previous.profile)
+    const savedPolicy = resolveIntentPolicy(intent, catalog)
+    const activePreset = selectActivePreset({
+        explicitPreset,
+        intentPolicy: savedPolicy,
+        previous,
+        explicitPacks: options.packIds !== null,
+        catalog,
+    })
+
+    let intentPolicy = null
+    if (options.command === 'revert') {
+        intentPolicy = customIntent([], activePreset?.id ?? null)
+    } else if (options.all) {
+        if (!activePreset) throw new Error('--all requires an active preset')
+        intentPolicy = presetIntent(activePreset.id)
+    } else if (options.packIds !== null) {
+        intentPolicy = customIntent(options.packIds, activePreset?.id ?? null)
+    } else if (savedPolicy) {
+        intentPolicy = savedPolicy
+    } else {
+        const inferred = inferRequestedPacks(previous, catalog)
+        if (inferred !== null) {
+            intentPolicy = customIntent(inferred, activePreset?.id ?? null)
+        } else if (activePreset) {
+            intentPolicy = presetIntent(activePreset.id)
+        }
     }
-    return null
+
+    if (intentPolicy?.mode === 'custom' && activePreset) {
+        intentPolicy = customIntent(intentPolicy.requestedPacks, activePreset.id)
+    }
+    return {
+        activePreset,
+        intentPolicy,
+        packIds: requestedPacksForIntent(intentPolicy, catalog),
+    }
 }
 
 function reportFailure({
@@ -233,6 +314,7 @@ function checksForOutput(checks) {
 async function promptForSelection({
     catalog,
     current = [],
+    presetId = null,
     input = process.stdin,
     output = process.stdout,
 }) {
@@ -277,12 +359,9 @@ async function promptForSelection({
             'c',
         )
         if (mode === 'a' || mode === 'all') {
-            return catalog
-                .filter((pack) => pack.userSelectable !== false)
-                .map((pack) => pack.id)
-                .sort()
+            return presetIntent(presetId ?? 'all')
         }
-        if (mode === 'n' || mode === 'none') return []
+        if (mode === 'n' || mode === 'none') return customIntent([], presetId)
 
         const storageDefault = selected.has('lazy-chat-sync')
             ? '2'
@@ -312,7 +391,7 @@ async function promptForSelection({
             ) continue
             await toggle(pack)
         }
-        return [...selected].sort()
+        return customIntent([...selected], presetId)
     } finally {
         interface_.close()
     }
@@ -335,13 +414,12 @@ async function runCli({
     reportDeliverer = deliverConflictReport,
 } = {}) {
     const options = parseArgs(argv)
+    const loadedCatalog = catalog ?? loadCatalog(repositoryRoot)
     const presetId = fixedProfile ?? (options.all ? 'all' : options.preset)
     if (fixedProfile && options.preset && options.preset !== fixedProfile) {
         throw new Error(`This artifact is fixed to the ${fixedProfile} profile`)
     }
-    const preset = presetId ? resolveProfile(presetId) : null
-
-    const loadedCatalog = catalog ?? loadCatalog(repositoryRoot)
+    const preset = presetId ? resolveProfile(presetId, loadedCatalog) : null
     const delivery = options.reportTo === null
         ? null
         : {
@@ -395,21 +473,34 @@ async function runCli({
 
     if (options.command === 'configure') {
         const previousIntent = loadIntent(options.root)
+        const previousPolicy = resolveIntentPolicy(previousIntent, loadedCatalog)
         const previousState = loadState(options.root, DEFAULT_STATE_PATH)
         if (preset) validateProfileTransition(preset, previousState, loadedCatalog)
         const inferred = previousIntent
             ? null
             : inferRequestedPacks(previousState, loadedCatalog)
-        const requested = options.all
-            ? preset.defaults
-            : (
-                options.packIds ?? await promptSelection({
+        const currentPolicy = previousPolicy
+            ?? (inferred === null ? null : customIntent(inferred, preset?.id ?? null))
+        let intentPolicy
+        if (options.all) {
+            intentPolicy = presetIntent(preset.id)
+        } else if (options.packIds !== null) {
+            intentPolicy = customIntent(options.packIds, preset?.id ?? null)
+        } else {
+            const prompted = await promptSelection({
                     catalog: loadedCatalog.filter((pack) =>
                         !preset || pack.userSelectable === false || preset.allowed.includes(pack.id)
                     ),
-                    current: previousIntent?.requestedPacks ?? inferred ?? preset?.defaults ?? [],
+                    current: requestedPacksForIntent(currentPolicy, loadedCatalog)
+                        ?? preset?.defaults
+                        ?? [],
+                    presetId: preset?.id ?? null,
                 })
-            )
+            intentPolicy = Array.isArray(prompted)
+                ? customIntent(prompted, preset?.id ?? null)
+                : normalizeIntentPolicy(prompted)
+        }
+        const requested = requestedPacksForIntent(intentPolicy, loadedCatalog)
         if (preset) validateProfileSelection(preset, requested)
         let resolution
         try {
@@ -428,13 +519,16 @@ async function runCli({
                 patcherVersion,
             })
         }
+        const persistedIntent = intentPolicy.mode === 'preset'
+            ? intentPolicy
+            : customIntent(resolution.effectiveRequested, intentPolicy.preset)
         const outcome = saveIntent({
             root: options.root,
-            requestedPacks: resolution.effectiveRequested,
-            preset: preset?.id ?? null,
+            intent: persistedIntent,
         })
         print({
             preset: preset?.id ?? null,
+            intent: persistedIntent,
             ...summarizeResolution(resolution),
             compatibility: evaluateTargetCompatibility(options.root, resolution.packs),
             patcherUpdate,
@@ -450,23 +544,17 @@ async function runCli({
         }
         const intent = loadIntent(options.root)
         const previous = loadState(options.root, DEFAULT_STATE_PATH)
-        const activePreset = selectActivePreset({
+        const selection = resolveOperationIntent({
+            options,
+            catalog: loadedCatalog,
             explicitPreset: preset,
             intent,
             previous,
-            explicitPacks: options.packIds !== null,
         })
+        const { activePreset, intentPolicy, packIds } = selection
         if (activePreset) {
             validateProfileTransition(activePreset, previous, loadedCatalog)
         }
-        const packIds = options.all
-            ? activePreset.defaults
-            : (
-                options.packIds
-                ?? intent?.requestedPacks
-                ?? inferRequestedPacks(previous, loadedCatalog)
-                ?? activePreset?.defaults
-            )
         if (!packIds) {
             throw new Error('No saved selection; run configure or pass --packs a,b')
         }
@@ -508,6 +596,7 @@ async function runCli({
                     packIds,
                     profile: activePreset?.id ?? 'custom',
                     persistIntent: true,
+                    intentPolicy,
                 })
             } catch (error) {
                 throw recordFailure({
@@ -692,6 +781,7 @@ async function runCli({
         if (options.command === 'status') {
             const current = status({ root: options.root })
             const intent = loadIntent(options.root)
+            const intentPolicy = resolveIntentPolicy(intent, loadedCatalog)
             const currentEtags = new Map(loadedCatalog.map((pack) => [pack.id, packEtag(pack)]))
             current.packs = current.packs.map((pack) => ({
                 ...pack,
@@ -704,17 +794,21 @@ async function runCli({
                     ),
             }))
             current.intent = intent
+            current.intentPolicy = intentPolicy
             current.patcherUpdate = patcherUpdate
             const inferred = intent
                 ? null
                 : inferRequestedPacks(loadState(options.root, DEFAULT_STATE_PATH), loadedCatalog)
             current.inferredIntent = inferred
-            if (intent?.requestedPacks ?? inferred) {
+            const desiredPolicy = intentPolicy
+                ?? (inferred === null ? null : customIntent(inferred))
+            const desiredPackIds = requestedPacksForIntent(desiredPolicy, loadedCatalog)
+            if (desiredPackIds !== null) {
                 let desired
                 try {
                     desired = resolveSelection(
                         loadedCatalog,
-                        intent?.requestedPacks ?? inferred,
+                        desiredPackIds,
                     )
                 } catch (error) {
                     throw recordFailure({
@@ -723,7 +817,7 @@ async function runCli({
                         catalog: loadedCatalog,
                         error,
                         phase: 'status-resolution',
-                        packIds: intent?.requestedPacks ?? inferred,
+                        packIds: desiredPackIds,
                         resolution: null,
                         patcherVersion,
                     })
@@ -745,27 +839,17 @@ async function runCli({
 
         const intent = loadIntent(options.root)
         const previous = loadState(options.root, DEFAULT_STATE_PATH)
-        const activePreset = selectActivePreset({
+        const selection = resolveOperationIntent({
+            options,
+            catalog: loadedCatalog,
             explicitPreset: preset,
             intent,
             previous,
-            explicitPacks: options.packIds !== null,
         })
+        const { activePreset, intentPolicy, packIds } = selection
         if (activePreset) {
             validateProfileTransition(activePreset, previous, loadedCatalog)
         }
-        const packIds = options.command === 'revert'
-            ? []
-            : (
-                options.all
-                    ? activePreset.defaults
-                    : (
-                        options.packIds
-                        ?? intent?.requestedPacks
-                        ?? inferRequestedPacks(previous, loadedCatalog)
-                        ?? activePreset?.defaults
-                    )
-            )
         if (!packIds) {
             throw new Error('No saved selection; run configure or pass --packs a,b')
         }
@@ -783,6 +867,7 @@ async function runCli({
                 packIds,
                 profile: activePreset?.id ?? 'custom',
                 persistIntent: true,
+                intentPolicy,
             })
         } catch (error) {
             if (!resolution) try {
@@ -903,6 +988,9 @@ module.exports = {
     inferRequestedPacks,
     parseArgs,
     promptForSelection,
+    requestedPacksForIntent,
+    resolveIntentPolicy,
+    resolveOperationIntent,
     runCli,
     selectActivePreset,
 }

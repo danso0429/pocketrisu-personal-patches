@@ -14,6 +14,7 @@ module.exports = {
     title: 'Persona organizer',
     version: '0.9.0',
     userSelectable: true,
+    presetDefaults: ['features'],
     units: [
         {
             id: 'persona-organizer:logic',

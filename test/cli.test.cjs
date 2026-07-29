@@ -9,11 +9,17 @@ const {
     handleCliFailure,
     inferRequestedPacks,
     parseArgs,
+    resolveIntentPolicy,
     runCli,
     selectActivePreset,
 } = require('../src/cli.cjs')
 const { assertTargetReviewable } = require('../src/compatibility.cjs')
-const { loadIntent, saveIntent } = require('../src/manager.cjs')
+const {
+    customIntent,
+    loadIntent,
+    presetIntent,
+    saveIntent,
+} = require('../src/manager.cjs')
 const { loadCatalog } = require('../src/catalog.cjs')
 
 function withRoot(fn) {
@@ -84,17 +90,20 @@ test('v1 intent inference preserves unknown packs and excludes only known intern
 })
 
 test('a universal v1 migration preserves a known preset unless packs are explicit', () => {
+    const catalog = loadCatalog()
     assert.equal(selectActivePreset({
         explicitPreset: null,
-        intent: null,
+        intentPolicy: null,
         previous: { profile: 'all' },
         explicitPacks: false,
+        catalog,
     }).id, 'all')
     assert.equal(selectActivePreset({
         explicitPreset: null,
-        intent: null,
+        intentPolicy: null,
         previous: { profile: 'all' },
         explicitPacks: true,
+        catalog,
     }), null)
 })
 
@@ -137,11 +146,11 @@ async function capture(run) {
 test('fixed-profile list marks selectable, default, and required packs', async () => {
     const catalog = [
         { id: 'bg-preserve', version: '1', units: [] },
-        { id: 'lazy-chat-sync', version: '1', units: [] },
+        { id: 'lazy-chat-sync', version: '1', presetDefaults: ['features'], units: [] },
         { id: 'lazy-chat-bg-adapter', version: '1', units: [] },
-        { id: 'persona-organizer', version: '1', units: [] },
-        { id: 'character-organizer', version: '1', units: [] },
-        { id: 'preset-integrity', version: '1', units: [] },
+        { id: 'persona-organizer', version: '1', presetDefaults: ['features'], units: [] },
+        { id: 'character-organizer', version: '1', presetDefaults: ['features'], units: [] },
+        { id: 'preset-integrity', version: '1', presetDefaults: ['features'], units: [] },
     ]
     const lines = []
     const originalLog = console.log
@@ -199,7 +208,8 @@ test('universal configure stores normalized intent without changing source files
         assert.equal(output.resolved.includes('lazy-chat-bg-adapter'), true)
         assert.equal(output.sourceFilesChanged, false)
         assert.deepEqual(loadIntent(root), {
-            format: 1,
+            format: 2,
+            mode: 'custom',
             requestedPacks: ['bg-preserve', 'lazy-chat-sync'],
             preset: null,
         })
@@ -236,10 +246,98 @@ test('universal configure --all saves every all-preset capability without prompt
         ])
         assert.equal(output.resolved.includes('lazy-chat-bg-adapter'), true)
         assert.deepEqual(loadIntent(root), {
-            format: 1,
-            requestedPacks: output.effectiveRequested,
+            format: 2,
+            mode: 'preset',
             preset: 'all',
         })
+    }))
+
+test('legacy all intent becomes rolling only when it matches current effective defaults', () => {
+    const catalog = loadCatalog()
+    const currentAll = [
+        'bg-preserve',
+        'character-organizer',
+        'lazy-chat-sync',
+        'parser-hardening',
+        'persona-organizer',
+        'preset-integrity',
+        'toolchain-hardening',
+    ]
+    assert.deepEqual(resolveIntentPolicy({
+        format: 1,
+        mode: 'legacy',
+        preset: 'all',
+        requestedPacks: currentAll,
+    }, catalog), presetIntent('all'))
+
+    const olderAll = currentAll.filter((id) => id !== 'character-organizer')
+    assert.deepEqual(resolveIntentPolicy({
+        format: 1,
+        mode: 'legacy',
+        preset: 'all',
+        requestedPacks: olderAll,
+    }, catalog), customIntent(olderAll, 'all'))
+})
+
+test('rolling all includes a newly published pack while custom remains pinned', () =>
+    withRoot(async (root) => {
+        const catalog = [
+            { id: 'existing-pack', version: '1', units: [] },
+            { id: 'future-pack', version: '1', units: [] },
+        ]
+        saveIntent({
+            root,
+            intent: presetIntent('all'),
+        })
+        const rolling = await capture(() => runCli({
+            argv: ['node', 'patcher', 'plan', '--root', root, '--json'],
+            catalog,
+        }))
+        assert.deepEqual(rolling.selection.requested, [
+            'existing-pack',
+            'future-pack',
+        ])
+        assert.deepEqual(rolling.intent, presetIntent('all'))
+
+        saveIntent({
+            root,
+            intent: customIntent(['existing-pack'], 'all'),
+        })
+        const pinned = await capture(() => runCli({
+            argv: ['node', 'patcher', 'plan', '--root', root, '--json'],
+            catalog,
+        }))
+        assert.deepEqual(pinned.selection.requested, ['existing-pack'])
+        assert.deepEqual(pinned.intent, customIntent(['existing-pack'], 'all'))
+    }))
+
+test('revert persists empty custom intent so a later plain plan stays empty', () =>
+    withRoot(async (root) => {
+        const catalog = [
+            { id: 'existing-pack', version: '1', units: [] },
+            { id: 'future-pack', version: '1', units: [] },
+        ]
+        saveIntent({
+            root,
+            intent: presetIntent('all'),
+        })
+        await capture(() => runCli({
+            argv: ['node', 'patcher', 'revert', '--root', root, '--json'],
+            catalog,
+            targetGate: () => {},
+        }))
+        assert.deepEqual(loadIntent(root), {
+            format: 2,
+            mode: 'custom',
+            preset: 'all',
+            requestedPacks: [],
+        })
+
+        const planned = await capture(() => runCli({
+            argv: ['node', 'patcher', 'plan', '--root', root, '--json'],
+            catalog,
+        }))
+        assert.deepEqual(planned.selection.requested, [])
     }))
 
 test('plan --all overrides an older saved partial intent', () =>
@@ -266,8 +364,7 @@ test('plan --all overrides an older saved partial intent', () =>
         }))
         saveIntent({
             root,
-            requestedPacks: ['parser-hardening'],
-            preset: null,
+            intent: customIntent(['parser-hardening']),
         })
 
         const output = await capture(() => runCli({
@@ -620,7 +717,8 @@ test('stage patches and validates an isolated candidate without changing live so
                 true,
             )
             assert.deepEqual(loadIntent(candidate), {
-                format: 1,
+                format: 2,
+                mode: 'custom',
                 requestedPacks: ['qualified-pack'],
                 preset: null,
             })
@@ -629,6 +727,70 @@ test('stage patches and validates an isolated candidate without changing live so
                 'utf8',
             ))
             assert.equal(receipt.status, 'ready')
+        } finally {
+            fs.rmSync(candidate, { recursive: true, force: true })
+        }
+    }))
+
+test('stage carries rolling all and a newly published pack into the candidate', () =>
+    withRoot(async (live) => {
+        const candidate = makeCandidate()
+        const catalog = [
+            ...qualifiedCatalog(),
+            {
+                id: 'future-pack',
+                version: '1.0.0',
+                targets: {
+                    pocketrisu: {
+                        verified: ['1.8.1'],
+                    },
+                },
+                units: [],
+            },
+        ]
+        try {
+            saveIntent({
+                root: live,
+                intent: presetIntent('all'),
+            })
+            const output = await capture(() => runCli({
+                argv: [
+                    'node',
+                    'patcher',
+                    'stage',
+                    '--root',
+                    live,
+                    '--candidate',
+                    candidate,
+                    '--json',
+                ],
+                catalog,
+                patcherVersion: '0.2.0-test',
+                stagingCheckFactory: () => [{
+                    id: 'synthetic-check',
+                    kind: 'check',
+                    command: 'synthetic',
+                    args: [],
+                }],
+                stagingCheckRunner: () => ({
+                    status: 0,
+                    signal: null,
+                    stdout: '',
+                    stderr: '',
+                }),
+            }))
+
+            assert.deepEqual(output.selection.requested, [
+                'future-pack',
+                'qualified-pack',
+            ])
+            assert.deepEqual(loadIntent(candidate), {
+                format: 2,
+                mode: 'preset',
+                preset: 'all',
+            })
+            assert.equal(loadIntent(live).mode, 'preset')
+            assert.equal(fs.existsSync(path.join(live, 'src/example.ts')), false)
         } finally {
             fs.rmSync(candidate, { recursive: true, force: true })
         }

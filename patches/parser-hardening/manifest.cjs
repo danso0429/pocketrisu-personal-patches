@@ -11,6 +11,7 @@ module.exports = {
     title: 'Parser hardening',
     version: '0.1.0',
     userSelectable: true,
+    presetDefaults: ['hardening'],
     units: [
         {
             id: 'parser-hardening:thought-extractor',

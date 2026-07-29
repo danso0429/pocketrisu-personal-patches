@@ -14,6 +14,8 @@ const { resolveSelection } = require('./resolver.cjs')
 
 const STATE_FORMAT = 2
 const LEGACY_STATE_FORMAT = 1
+const INTENT_FORMAT = 2
+const LEGACY_INTENT_FORMAT = 1
 const JOURNAL_FORMAT = 1
 const DEFAULT_STATE_PATH = 'save/pocketrisu-patches/state.json'
 const DEFAULT_INTENT_PATH = 'save/pocketrisu-patches/intent.json'
@@ -49,6 +51,7 @@ function packEtag(pack) {
         title: pack.title ?? null,
         version: pack.version,
         userSelectable: pack.userSelectable ?? true,
+        presetDefaults: pack.presetDefaults ?? [],
         requires: pack.requires ?? [],
         conflicts: pack.conflicts ?? [],
         supersedes: pack.supersedes ?? [],
@@ -290,11 +293,67 @@ function loadState(root, statePath = DEFAULT_STATE_PATH) {
     return state
 }
 
-function encodeIntent(requestedPacks, preset = null) {
+function normalizeRequestedPacks(requestedPacks, label = 'requestedPacks') {
+    if (
+        !Array.isArray(requestedPacks)
+        || requestedPacks.some((id) => typeof id !== 'string' || !id)
+    ) {
+        throw new PatchManagerError('INVALID_INTENT', `${label} must be an array of pack ids`)
+    }
+    return [...new Set(requestedPacks)].sort()
+}
+
+function normalizeIntentPolicy(intent) {
+    if (!intent || typeof intent !== 'object') {
+        throw new PatchManagerError('INVALID_INTENT', 'Intent policy must be an object')
+    }
+    if (intent.mode === 'preset') {
+        if (typeof intent.preset !== 'string' || !intent.preset) {
+            throw new PatchManagerError('INVALID_INTENT', 'Preset intent requires a preset id')
+        }
+        if (intent.requestedPacks !== undefined) {
+            throw new PatchManagerError(
+                'INVALID_INTENT',
+                'Preset intent must derive requested packs from the active catalog',
+            )
+        }
+        return {
+            mode: 'preset',
+            preset: intent.preset,
+        }
+    }
+    if (intent.mode === 'custom') {
+        if (
+            intent.preset !== null
+            && intent.preset !== undefined
+            && (typeof intent.preset !== 'string' || !intent.preset)
+        ) {
+            throw new PatchManagerError('INVALID_INTENT', 'Custom intent has an invalid preset scope')
+        }
+        return {
+            mode: 'custom',
+            preset: intent.preset === undefined || intent.preset === 'custom'
+                ? null
+                : intent.preset,
+            requestedPacks: normalizeRequestedPacks(intent.requestedPacks),
+        }
+    }
+    throw new PatchManagerError('INVALID_INTENT', `Unknown intent mode: ${intent.mode ?? 'missing'}`)
+}
+
+function presetIntent(preset) {
+    return normalizeIntentPolicy({ mode: 'preset', preset })
+}
+
+function customIntent(requestedPacks, preset = null) {
+    return normalizeIntentPolicy({ mode: 'custom', preset, requestedPacks })
+}
+
+function encodeIntent(intent) {
+    const normalized = normalizeIntentPolicy(intent)
     return Buffer.from(`${JSON.stringify({
-        format: 1,
-        requestedPacks: [...new Set(requestedPacks)].sort(),
-        preset: preset === 'custom' ? null : preset,
+        format: INTENT_FORMAT,
+        ...normalized,
     }, null, 2)}\n`)
 }
 
@@ -302,28 +361,48 @@ function loadIntent(root, intentPath = DEFAULT_INTENT_PATH) {
     const raw = readOptionalBuffer(root, intentPath)
     if (raw === null) return null
     const intent = parseJsonBuffer(raw, intentPath)
-    if (
-        intent.format !== 1
-        || !Array.isArray(intent.requestedPacks)
-        || intent.requestedPacks.some((id) => typeof id !== 'string' || !id)
-        || (intent.preset !== null && typeof intent.preset !== 'string')
-    ) {
+    if (intent.format === LEGACY_INTENT_FORMAT) {
+        if (
+            !Array.isArray(intent.requestedPacks)
+            || intent.requestedPacks.some((id) => typeof id !== 'string' || !id)
+            || (
+                intent.preset !== null
+                && (typeof intent.preset !== 'string' || !intent.preset)
+            )
+        ) {
+            throw new PatchManagerError('INVALID_INTENT', `${intentPath} has an unsupported format`)
+        }
+        return {
+            format: LEGACY_INTENT_FORMAT,
+            mode: 'legacy',
+            requestedPacks: [...new Set(intent.requestedPacks)].sort(),
+            preset: intent.preset === 'custom' ? null : intent.preset,
+        }
+    }
+    if (intent.format !== INTENT_FORMAT) {
         throw new PatchManagerError('INVALID_INTENT', `${intentPath} has an unsupported format`)
     }
-    return {
-        format: 1,
-        requestedPacks: [...new Set(intent.requestedPacks)].sort(),
-        preset: intent.preset === 'custom' ? null : intent.preset,
+    try {
+        return {
+            format: INTENT_FORMAT,
+            ...normalizeIntentPolicy(intent),
+        }
+    } catch (error) {
+        if (error instanceof PatchManagerError && error.code === 'INVALID_INTENT') {
+            throw new PatchManagerError('INVALID_INTENT', `${intentPath} has an unsupported format`, {
+                cause: error.message,
+            })
+        }
+        throw error
     }
 }
 
 function saveIntentUnlocked({
     root,
-    requestedPacks,
-    preset = null,
+    intent,
     intentPath = DEFAULT_INTENT_PATH,
 }) {
-    const encoded = encodeIntent(requestedPacks, preset)
+    const encoded = encodeIntent(intent)
     const before = readOptionalBuffer(root, intentPath)
     if (before !== null && before.equals(encoded)) return { changed: false, path: intentPath }
     writeAtomic(root, intentPath, encoded, { mode: PRIVATE_STATE_MODE })
@@ -332,12 +411,11 @@ function saveIntentUnlocked({
 
 function saveIntent({
     root,
-    requestedPacks,
-    preset = null,
+    intent,
     intentPath = DEFAULT_INTENT_PATH,
     lockHeld = false,
 }) {
-    const save = () => saveIntentUnlocked({ root, requestedPacks, preset, intentPath })
+    const save = () => saveIntentUnlocked({ root, intent, intentPath })
     return lockHeld ? save() : withRootLock(root, save)
 }
 
@@ -488,6 +566,7 @@ function planTransition({
     statePath = DEFAULT_STATE_PATH,
     intentPath = DEFAULT_INTENT_PATH,
     persistIntent = false,
+    intentPolicy = null,
 }) {
     const previous = loadState(root, statePath)
     const resolution = resolveSelection(catalog, packIds)
@@ -538,10 +617,27 @@ function planTransition({
 
     let intentBefore = null
     let intentBeforeMode = null
+    let persistedIntent = null
     if (persistIntent) {
+        if (intentPolicy === null) {
+            throw new PatchManagerError(
+                'INVALID_INTENT',
+                'persistIntent requires an explicit preset or custom intent policy',
+            )
+        }
+        const normalizedIntent = normalizeIntentPolicy(intentPolicy)
+        if (normalizedIntent.mode === 'preset' && normalizedIntent.preset !== profile) {
+            throw new PatchManagerError(
+                'INVALID_INTENT',
+                `Preset intent ${normalizedIntent.preset} does not match transition profile ${profile}`,
+            )
+        }
+        persistedIntent = normalizedIntent.mode === 'preset'
+            ? normalizedIntent
+            : customIntent(resolution.effectiveRequested, normalizedIntent.preset)
         intentBefore = readOptionalText(root, intentPath)
         intentBeforeMode = readOptionalMode(root, intentPath)
-        const intentAfter = encodeIntent(resolution.effectiveRequested, profile).toString('utf8')
+        const intentAfter = encodeIntent(persistedIntent).toString('utf8')
         const intentAfterMode = intentBeforeMode ?? PRIVATE_STATE_MODE
         if (intentBefore !== intentAfter || intentBeforeMode !== intentAfterMode) {
             changes.push({
@@ -556,6 +652,7 @@ function planTransition({
 
     return {
         profile,
+        intent: persistedIntent,
         resolution: {
             requested: resolution.requested,
             effectiveRequested: resolution.effectiveRequested,
@@ -734,14 +831,18 @@ module.exports = {
     DEFAULT_JOURNAL_PATH,
     DEFAULT_LOCK_PATH,
     DEFAULT_STATE_PATH,
+    INTENT_FORMAT,
     STATE_FORMAT,
     PatchManagerError,
     applyTransition,
+    customIntent,
     flattenUnits,
     loadState,
     loadIntent,
+    normalizeIntentPolicy,
     packEtag,
     planTransition,
+    presetIntent,
     resolveInside,
     restoreJournal,
     saveIntent,

@@ -5,6 +5,7 @@ const assert = require('node:assert/strict')
 const {
     loadCatalog,
     resolveProfile,
+    validateProfileMetadata,
     validateProfileSelection,
     validateProfileTransition,
 } = require('../src/catalog.cjs')
@@ -24,19 +25,23 @@ test('profiles share one catalog but have different ownership boundaries', () =>
         'toolchain-hardening',
     ])
     assert.throws(
-        () => validateProfileSelection(resolveProfile('features'), ['bg-preserve']),
+        () => validateProfileSelection(resolveProfile('features', catalog), ['bg-preserve']),
         /cannot manage/,
     )
     assert.deepEqual(
-        resolveProfile('hardening').defaults,
+        resolveProfile('features', catalog).defaults,
+        ['lazy-chat-sync', 'persona-organizer', 'character-organizer', 'preset-integrity'],
+    )
+    assert.deepEqual(
+        resolveProfile('hardening', catalog).defaults,
         ['parser-hardening', 'toolchain-hardening'],
     )
     assert.throws(
-        () => validateProfileSelection(resolveProfile('hardening'), ['lazy-chat-sync']),
+        () => validateProfileSelection(resolveProfile('hardening', catalog), ['lazy-chat-sync']),
         /cannot manage/,
     )
     assert.doesNotThrow(
-        () => validateProfileSelection(resolveProfile('all'), [
+        () => validateProfileSelection(resolveProfile('all', catalog), [
             'bg-preserve',
             'lazy-chat-sync',
             'parser-hardening',
@@ -44,7 +49,7 @@ test('profiles share one catalog but have different ownership boundaries', () =>
         ]),
     )
     assert.throws(
-        () => validateProfileSelection(resolveProfile('all'), ['lazy-chat-bg-adapter']),
+        () => validateProfileSelection(resolveProfile('all', catalog), ['lazy-chat-bg-adapter']),
         /cannot manage/,
     )
     const bgPack = catalog.find((pack) => pack.id === 'bg-preserve')
@@ -57,13 +62,13 @@ test('profiles share one catalog but have different ownership boundaries', () =>
 test('all can adopt narrower states, while narrow profiles cannot remove other packs', () => {
     const catalog = loadCatalog()
     assert.doesNotThrow(
-        () => validateProfileTransition(resolveProfile('all'), { profile: 'features' }),
+        () => validateProfileTransition(resolveProfile('all', catalog), { profile: 'features' }),
     )
     assert.doesNotThrow(
-        () => validateProfileTransition(resolveProfile('all'), { profile: 'hardening' }),
+        () => validateProfileTransition(resolveProfile('all', catalog), { profile: 'hardening' }),
     )
     assert.doesNotThrow(
-        () => validateProfileTransition(resolveProfile('all'), {
+        () => validateProfileTransition(resolveProfile('all', catalog), {
             profile: 'custom',
             packs: [
                 { id: 'persona-organizer' },
@@ -72,18 +77,48 @@ test('all can adopt narrower states, while narrow profiles cannot remove other p
         }, catalog),
     )
     assert.throws(
-        () => validateProfileTransition(resolveProfile('all'), {
+        () => validateProfileTransition(resolveProfile('all', catalog), {
             profile: 'custom',
             packs: [{ id: 'unknown-future-pack' }],
         }, catalog),
         /cannot take ownership/,
     )
     assert.throws(
-        () => validateProfileTransition(resolveProfile('features'), { profile: 'all' }),
+        () => validateProfileTransition(resolveProfile('features', catalog), { profile: 'all' }),
         /cannot take ownership/,
     )
     assert.throws(
-        () => validateProfileTransition(resolveProfile('hardening'), { profile: 'all' }),
+        () => validateProfileTransition(resolveProfile('hardening', catalog), { profile: 'all' }),
         /cannot take ownership/,
+    )
+})
+
+test('all derives every visible pack from the active catalog', () => {
+    const catalog = [
+        { id: 'existing', version: '1', units: [] },
+        { id: 'future-pack', version: '1', units: [] },
+        { id: 'internal-adapter', version: '1', userSelectable: false, units: [] },
+    ]
+    assert.deepEqual(resolveProfile('all', catalog).defaults, [
+        'existing',
+        'future-pack',
+    ])
+})
+
+test('narrow preset metadata is validated at the catalog boundary', () => {
+    assert.throws(
+        () => validateProfileMetadata([{
+            id: 'unknown-default',
+            presetDefaults: ['missing-profile'],
+        }]),
+        /unknown preset/,
+    )
+    assert.throws(
+        () => validateProfileMetadata([{
+            id: 'internal-default',
+            userSelectable: false,
+            presetDefaults: ['features'],
+        }]),
+        /internal and cannot be a preset default/,
     )
 })

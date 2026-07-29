@@ -12,6 +12,7 @@ module.exports = {
     title: 'Character organizer',
     version: '0.1.0',
     userSelectable: true,
+    presetDefaults: ['features'],
     units: [
         {
             id: 'character-organizer:logic',

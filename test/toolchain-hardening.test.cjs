@@ -3,15 +3,16 @@
 const test = require('node:test')
 const assert = require('node:assert/strict')
 const manifest = require('../patches/toolchain-hardening/manifest.cjs')
-const { PROFILES } = require('../src/catalog.cjs')
+const { loadCatalog, resolveProfile } = require('../src/catalog.cjs')
 const { packEtag } = require('../src/manager.cjs')
 
 test('toolchain hardening is independently versioned and included by hardening and all', () => {
+    const catalog = loadCatalog()
     assert.equal(manifest.id, 'toolchain-hardening')
     assert.equal(manifest.version, '0.1.0')
-    assert.equal(PROFILES.hardening.defaults.includes(manifest.id), true)
-    assert.equal(PROFILES.features.defaults.includes(manifest.id), false)
-    assert.equal(PROFILES.all.defaults.includes(manifest.id), true)
+    assert.equal(resolveProfile('hardening', catalog).defaults.includes(manifest.id), true)
+    assert.equal(resolveProfile('features', catalog).defaults.includes(manifest.id), false)
+    assert.equal(resolveProfile('all', catalog).defaults.includes(manifest.id), true)
 })
 
 test('toolchain hardening ETag covers exact setup and dependency content', () => {
