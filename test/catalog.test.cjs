@@ -20,6 +20,7 @@ test('profiles share one catalog but have different ownership boundaries', () =>
         'lazy-chat-bg-adapter',
         'persona-organizer',
         'character-organizer',
+        'character-import-ux',
         'preset-integrity',
         'parser-hardening',
         'toolchain-hardening',
@@ -30,7 +31,13 @@ test('profiles share one catalog but have different ownership boundaries', () =>
     )
     assert.deepEqual(
         resolveProfile('features', catalog).defaults,
-        ['lazy-chat-sync', 'persona-organizer', 'character-organizer', 'preset-integrity'],
+        [
+            'lazy-chat-sync',
+            'persona-organizer',
+            'character-organizer',
+            'character-import-ux',
+            'preset-integrity',
+        ],
     )
     assert.deepEqual(
         resolveProfile('hardening', catalog).defaults,

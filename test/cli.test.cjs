@@ -237,6 +237,7 @@ test('universal configure --all saves every all-preset capability without prompt
         assert.equal(output.preset, 'all')
         assert.deepEqual(output.effectiveRequested, [
             'bg-preserve',
+            'character-import-ux',
             'character-organizer',
             'lazy-chat-sync',
             'parser-hardening',
@@ -256,6 +257,7 @@ test('legacy all intent becomes rolling only when it matches current effective d
     const catalog = loadCatalog()
     const currentAll = [
         'bg-preserve',
+        'character-import-ux',
         'character-organizer',
         'lazy-chat-sync',
         'parser-hardening',

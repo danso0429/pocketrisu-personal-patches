@@ -169,6 +169,42 @@ function resolveSelection(catalog, requestedIds, {
     }
     expandDependencies()
 
+    // A superseding pack may enter through a dependency rather than the raw
+    // selection. Normalize that graph too: selecting character-import-ux, for
+    // example, adds lazy-chat-sync, which must still replace startup-cache.
+    // Do not silently remove a pack that another resolved pack explicitly
+    // requires; that is an unsatisfiable graph and keeps the existing
+    // SUPERSEDED_PACK_REQUIRED failure contract.
+    let supersedeChanged = true
+    while (supersedeChanged) {
+        supersedeChanged = false
+        for (const id of [...selected].sort()) {
+            const pack = byId.get(id)
+            for (const replaced of pack.supersedes ?? []) {
+                if (!selected.has(replaced)) continue
+                const requiredBy = [...selected]
+                    .filter((candidate) =>
+                        candidate !== replaced
+                        && (byId.get(candidate).requires ?? []).includes(replaced)
+                    )
+                    .sort()
+                if (requiredBy.length > 0) {
+                    throw new PatchResolutionError(
+                        'SUPERSEDED_PACK_REQUIRED',
+                        `${id} supersedes ${replaced}, but ${requiredBy.join(', ')} requires it`,
+                        { pack: replaced, by: id, requiredBy },
+                    )
+                }
+                selected.delete(replaced)
+                effective.delete(replaced)
+                automatic.delete(replaced)
+                dependencies.delete(replaced)
+                superseded.push({ pack: replaced, by: id })
+                supersedeChanged = true
+            }
+        }
+    }
+
     for (const { pack, by } of superseded) {
         if (selected.has(pack)) {
             throw new PatchResolutionError(

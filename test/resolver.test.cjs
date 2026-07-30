@@ -5,7 +5,7 @@ const assert = require('node:assert/strict')
 const { loadCatalog } = require('../src/catalog.cjs')
 const { resolveSelection } = require('../src/resolver.cjs')
 
-test('catalog exposes eight user packs and keeps integration packs internal', () => {
+test('catalog exposes nine user packs and keeps integration packs internal', () => {
     const catalog = loadCatalog()
     assert.deepEqual(
         catalog.filter((pack) => pack.userSelectable !== false).map((pack) => pack.id),
@@ -15,6 +15,7 @@ test('catalog exposes eight user packs and keeps integration packs internal', ()
             'lazy-chat-sync',
             'persona-organizer',
             'character-organizer',
+            'character-import-ux',
             'preset-integrity',
             'parser-hardening',
             'toolchain-hardening',
@@ -33,6 +34,21 @@ test('lazy chat supersedes the narrower startup cache pack', () => {
         pack: 'startup-cache',
         by: 'lazy-chat-sync',
     }])
+    assert.equal(resolution.resolvedIds.includes('startup-cache'), false)
+})
+
+test('a dependency-added lazy chat pack also supersedes requested startup cache', () => {
+    const resolution = resolveSelection(
+        loadCatalog(),
+        ['character-import-ux', 'startup-cache'],
+    )
+    assert.deepEqual(resolution.effectiveRequested, ['character-import-ux'])
+    assert.deepEqual(resolution.dependencyAdded, ['lazy-chat-sync'])
+    assert.deepEqual(resolution.superseded, [{
+        pack: 'startup-cache',
+        by: 'lazy-chat-sync',
+    }])
+    assert.equal(resolution.resolvedIds.includes('lazy-chat-sync'), true)
     assert.equal(resolution.resolvedIds.includes('startup-cache'), false)
 })
 

@@ -13,7 +13,7 @@ const DEFAULT_TARGETS = Object.freeze({
 const PROFILES = Object.freeze({
     features: Object.freeze({
         id: 'features',
-        description: 'Lazy chat synchronization, startup cache, persona organization, and character organization; bg-preserve stays external.',
+        description: 'Lazy chat synchronization, startup cache, persona and character organization, and non-blocking character import; bg-preserve stays external.',
     }),
     hardening: Object.freeze({
         id: 'hardening',
@@ -57,6 +57,7 @@ function loadCatalog(repositoryRoot = path.resolve(__dirname, '..')) {
         require(path.join(repositoryRoot, 'patches/lazy-chat-bg-adapter/manifest.cjs')),
         require(path.join(repositoryRoot, 'patches/persona-organizer/manifest.cjs')),
         require(path.join(repositoryRoot, 'patches/character-organizer/manifest.cjs')),
+        require(path.join(repositoryRoot, 'patches/character-import-ux/manifest.cjs')),
         require(path.join(repositoryRoot, 'patches/preset-integrity/manifest.cjs')),
         require(path.join(repositoryRoot, 'patches/parser-hardening/manifest.cjs')),
         require(path.join(repositoryRoot, 'patches/toolchain-hardening/manifest.cjs')),
