@@ -2,7 +2,7 @@
 
 Private, composable patch delivery for PocketRisu NodeOnly. The current
 stable release is `v0.1.7`, and its manifests target PocketRisu `v1.8.1`.
-The current development checkpoint is `v0.2.0-experimental.6`.
+The current development checkpoint is `v0.2.0-experimental.7`.
 
 ## Universal installer and compatibility presets
 
@@ -22,7 +22,7 @@ The older named artifacts remain preset wrappers:
 
 - `pocketrisu-features.cjs` manages `lazy-chat-sync` (including startup cache),
   `persona-organizer`, `character-organizer`, `character-import-ux`, and
-  `preset-integrity`.
+  `personal-settings`, and `preset-integrity`.
   An existing bg-preserve installation remains an external layer.
 - `pocketrisu-hardening.cjs` manages `parser-hardening` and
   `toolchain-hardening`.
@@ -37,6 +37,7 @@ not separate implementations.
 
 | Release | What changed |
 | --- | --- |
+| `v0.2.0-experimental.7` | Adds a built-in Personal settings page directly after System and a persisted opt-in toggle that keeps the import-start screen after local card, character-package, and Realm imports without changing import durability or the default navigation behavior. |
 | `v0.2.0-experimental.6` | Replaces ordinary character import's blocking reading/progress modal with one non-blocking progress toast, reads embedded PNG data once, and reports success only after the new character and every stable chat ID are confirmed by the server and flushed locally. |
 | `v0.2.0-experimental.5` | Repairs a missing initial chat ID only for a fully hydrated character proven new by the last server-confirmed database, while existing identities, lazy placeholders, and missing baselines continue to fail closed. |
 | `v0.2.0-experimental.4` | Makes all and named presets rolling catalog policies while keeping customized selections pinned, derives universal inclusion and selector availability from one registered manifest, and conservatively migrates legacy intent. |
@@ -90,19 +91,26 @@ patcher policy and live patch metadata, not any managed PocketRisu source or UI
 behavior; those CLI and migration paths are covered by the automated and live
 zero-change checks above.
 
-The `v0.2.0-experimental.6` candidate passes 18 patcher test files with 134
-top-level declarations. All 512 raw selections of the nine user-facing packs
-normalize to 256 graphs and pass apply, zero-change re-plan, and exact
-byte/file-mode revert across 136 managed paths with up to 275 resolved units.
+The `v0.2.0-experimental.7` candidate passes 19 patcher test files with 140
+top-level declarations. All 1,024 raw selections of the ten user-facing packs
+normalize to 512 graphs and pass apply, zero-change re-plan, and exact
+byte/file-mode revert across 142 managed paths with up to 289 resolved units.
 All four installers pass CJS syntax checks and two consecutive builds produce
-byte-identical artifacts. The clean unified PocketRisu candidate passes 97
-frontend files and 1,245 tests, 53/53 server tests, 53 compatibility tests with
+byte-identical artifacts. The clean unified PocketRisu candidate passes 98
+frontend files and 1,248 tests, 53/53 server tests, 53 compatibility tests with
 5 skipped, Svelte diagnostics at 0 errors and 0 warnings, a production build,
 and the BG bundle build/load check.
-The live cutover and restart gates passed, and the user confirmed on iPhone
-that the follow-up keeps one progress toast visible while its stage and asset
-counter update in place, leaves navigation and messaging usable, and preserves
-the imported character across a cold PWA reopen.
+
+The live rolling-all plan changed only the Personal pack's eight source files
+and patch state while retaining 134 current managed paths. Its focused 3/3
+tests, Svelte 0/0 diagnostics, 7,722-module frontend build, 8,101 KB BG bundle
+build/load check, and zero-change re-plan passed without restarting PocketRisu.
+The running server returns root 200 and unauthenticated BG cache-status 401,
+and its served main asset is byte-identical to the local build and contains the
+new Personal labels. The user passed the iPhone L3 for the Personal menu,
+toggle behavior, import-screen retention, and cold-reopen persistence. Realm's
+separate branch remains covered by the automated predicate and build gates; no
+separate Realm hands-on result was reported.
 
 The `v0.2.0-experimental.3` checkpoint passes 17 patcher test files containing
 118 top-level test declarations. All 256 raw selections of the eight
@@ -264,6 +272,31 @@ plugin, replace `Database.plugins`, or depend on Persona organization.
 All persisted operations replace `Database.characterOrder` once and request an
 immediate save. The organizer contains no draggable elements, long-press
 handler, touch event handler, or scroll interception.
+
+### Personal settings
+
+The independent `personal-settings` pack adds a built-in `개인 설정` entry
+directly after System in PocketRisu's Settings menu. It is a dedicated home
+for personal toggles and does not install a plugin or replace
+`Database.plugins`.
+
+Its first toggle, `캐릭터 임포트 후 현재 화면 유지`, is opt-in:
+
+- when absent or off, local card and character-package imports keep their
+  existing automatic navigation, and Realm continues to follow PocketRisu's
+  existing `임포트 시 캐릭터로 이동` setting or an explicit forced redirect;
+- when on, a completed local card, character-package, or Realm import leaves
+  the UI on the screen where that import began while the imported character
+  remains saved and available in the character list;
+- creating a character from scratch still opens the new character;
+- the navigation decision reads the latest toggle value when import finishes,
+  so changing it during a non-blocking import affects only the final
+  navigation decision, not parsing or persistence.
+
+The setting is stored in the optional
+`Database.pocketRisuPersonalSettings` namespace. Reading a missing namespace
+does not initialize or rewrite the database, and updates preserve any future
+personal-setting fields in that namespace.
 
 ### Non-blocking character import
 

@@ -2,6 +2,42 @@
 
 ## Unreleased
 
+## 0.2.0-experimental.7
+
+- Add the independent `personal-settings 0.1.0` pack to the rolling
+  `features` and `all` presets. It places a built-in `개인 설정` page directly
+  after System without installing a plugin or writing `Database.plugins`.
+- Add the opt-in `캐릭터 임포트 후 현재 화면 유지` toggle. When enabled,
+  completed local card, character-package, and Realm imports remain on their
+  import-start screen while the imported character stays saved in the
+  character list; creating a character from scratch still opens it.
+- Keep existing behavior when the setting is absent or disabled. Realm still
+  follows PocketRisu's existing `임포트 시 캐릭터로 이동` setting or a forced
+  redirect unless the personal override is enabled.
+- Store the toggle under the optional
+  `Database.pocketRisuPersonalSettings` namespace and preserve future fields
+  when updating it. The navigation decision reads the latest toggle value at
+  import completion without changing the import parse, confirmation, or save
+  contracts.
+- Pass 19 patcher test files with 140 top-level declarations. Verify all 1,024
+  raw selections of the ten user-facing packs as 512 normalized graphs across
+  142 managed paths and up to 289 units, including zero-change re-plans and
+  exact byte/file-mode reverts on PocketRisu v1.8.1.
+- Pass the final clean unified candidate with 98 frontend files and 1,248
+  tests, 53/53 server tests, 53 compatibility tests with 5 skipped, Svelte
+  diagnostics with no findings, the production frontend build, and the BG
+  bundle build/load check.
+- Apply only the eight new Personal source paths and patch state to the live
+  rolling-all installation while retaining 134 current paths. Pass focused
+  3/3 tests, Svelte 0/0, a 7,722-module frontend build, an 8,101 KB BG bundle
+  build/load check, exact served/local main-asset SHA-256, root 200,
+  unauthenticated BG cache-status 401, and a zero-change re-plan without
+  restarting PocketRisu.
+- Pass the iPhone L3 for the Personal menu, toggle behavior, import-screen
+  retention, and cold-reopen persistence. Realm's separate branch remains
+  covered by automated predicate and build gates; no separate Realm hands-on
+  result was reported.
+
 ## 0.2.0-experimental.6
 
 - Add the independent `character-import-ux 0.1.1` pack to the rolling
