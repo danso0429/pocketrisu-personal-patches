@@ -2,6 +2,33 @@
 
 ## Unreleased
 
+## 0.2.0-experimental.9
+
+- Import bg-preserve `v1.0.1`, including direct iOS touch-end dispatch for
+  rendered module controls and source-aware module selection after the server
+  installs a new database snapshot.
+- Preserve the existing manual-trigger/Lua dispatch, scroll and multi-touch
+  rejection, keyboard/programmatic click path, output-trigger orchestration,
+  and provider rate-limit behavior.
+- Exclude exactly three standalone `nodeStorage.ts` asset-retry hooks during
+  bg-preserve import because the hidden standard/lazy adapters already own
+  those storage paths. Add importer coverage that rejects any broader or
+  missing exclusion.
+- Import 179 bg units: 58 owned files plus 121 host hooks. Relative to the
+  previous manifest, add four owned files and eight hooks, update the existing
+  server orchestrator, and remove no prior unit.
+- Pass 20 patcher test files with 142 top-level declarations. Verify all 1,024
+  raw selections as 512 normalized graphs across 152 managed paths and up to
+  305 units, including zero-change re-plans and exact byte/file-mode reverts;
+  generate all four syntax-valid installers twice with identical bytes.
+- Reconcile the live rolling-all installation to 152 current paths and a
+  zero-change plan, restart only with active/durable/parked work at zero, and
+  pass root, asset-hash, cache-status, bundle-freshness, and error-log smoke
+  checks.
+- Pass the iPhone L3 for one-tap GigaTrans request status without scroll
+  activation and for automatic translation surviving background/return.
+  Provider 429 handling remains out of scope.
+
 ## 0.2.0-experimental.8
 
 - Split `personal-settings 0.1.1` from one 181-line manifest and three

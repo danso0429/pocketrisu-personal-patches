@@ -2,7 +2,7 @@
 
 Private, composable patch delivery for PocketRisu NodeOnly. The current
 stable release is `v0.1.7`, and its manifests target PocketRisu `v1.8.1`.
-The current development checkpoint is `v0.2.0-experimental.8`.
+The current development checkpoint is `v0.2.0-experimental.9`.
 
 ## Universal installer and compatibility presets
 
@@ -28,7 +28,7 @@ The older named artifacts remain preset wrappers:
   `toolchain-hardening`.
 - `pocketrisu-all.cjs` combines the feature packs, parser and toolchain
   hardening,
-  bg-preserve `v1.0.0`, and the `lazy-chat-bg-adapter` durable-save barrier.
+  bg-preserve `v1.0.1`, and the `lazy-chat-bg-adapter` durable-save barrier.
 
 All four artifacts are generated from the same engine and manifests. They are
 not separate implementations.
@@ -37,6 +37,7 @@ not separate implementations.
 
 | Release | What changed |
 | --- | --- |
+| `v0.2.0-experimental.9` | Imports bg-preserve v1.0.1 so iOS-rendered module controls dispatch directly and server module selection follows each installed database snapshot, while the composition importer excludes three standalone storage hooks already owned by the lazy/standard adapters. |
 | `v0.2.0-experimental.8` | Splits Personal settings into a small composition manifest, shared core, and setting-owned modules so future toggles can be added independently while retaining the existing public entry point, patch unit IDs, storage contract, and import behavior. |
 | `v0.2.0-experimental.7` | Adds a built-in Personal settings page directly after System and a persisted opt-in toggle that keeps the import-start screen after local card, character-package, and Realm imports without changing import durability or the default navigation behavior. |
 | `v0.2.0-experimental.6` | Replaces ordinary character import's blocking reading/progress modal with one non-blocking progress toast, reads embedded PNG data once, and reports success only after the new character and every stable chat ID are confirmed by the server and flushed locally. |
@@ -110,6 +111,28 @@ and its served main asset is byte-identical to the local build and contains the
 Personal and import-navigation labels. The error log size and modification time
 did not change. The user passed the iPhone L3 for the Personal menu, persisted
 toggle, and import-screen retention after the modular split.
+
+The `v0.2.0-experimental.9` checkpoint imports bg-preserve `v1.0.1` through
+the existing composition boundary. Its importer excludes only the three
+standalone `nodeStorage.ts` asset-retry hooks because the standard and
+lazy-chat adapters already own those exact storage paths; the remaining
+bg-preserve delta adds four owned files, eight host hooks, and one updated
+server-orchestrator file without removing an earlier bg unit.
+
+The candidate passes 20 patcher test files with 142 top-level declarations.
+All 1,024 raw selections of the ten user-facing packs normalize to 512 graphs
+and pass apply, zero-change re-plan, and exact byte/file-mode revert across
+152 managed paths with up to 305 resolved units. All four installers pass CJS
+syntax checks and two consecutive builds produce byte-identical artifacts.
+
+The live rolling-all composition reports all 152 managed paths current and an
+immediate zero-change plan. PocketRisu was restarted only after active
+requests, durable operations, and parked results were all zero. Root and
+hashed-asset HTTP checks, exact served/local asset SHA-256, unauthenticated BG
+cache-status 401, BG bundle freshness/load, and the post-restart error-log
+window passed. The user then passed the iPhone L3 for one-tap GigaTrans
+request status without scroll activation and for automatic translation
+surviving background/return. Provider 429 policy remains unchanged.
 
 The `v0.2.0-experimental.3` checkpoint passes 17 patcher test files containing
 118 top-level test declarations. All 256 raw selections of the eight
