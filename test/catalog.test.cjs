@@ -25,6 +25,7 @@ test('profiles share one catalog but have different ownership boundaries', () =>
         'preset-integrity',
         'parser-hardening',
         'toolchain-hardening',
+        'pocketrisu-kei',
     ])
     assert.throws(
         () => validateProfileSelection(resolveProfile('features', catalog), ['bg-preserve']),
@@ -112,6 +113,13 @@ test('all derives every visible pack from the active catalog', () => {
         'existing',
         'future-pack',
     ])
+})
+
+test('PocketRisu Kei joins rolling all without entering narrow presets', () => {
+    const catalog = loadCatalog()
+    assert.equal(resolveProfile('all', catalog).defaults.includes('pocketrisu-kei'), true)
+    assert.equal(resolveProfile('features', catalog).defaults.includes('pocketrisu-kei'), false)
+    assert.equal(resolveProfile('hardening', catalog).defaults.includes('pocketrisu-kei'), false)
 })
 
 test('narrow preset metadata is validated at the catalog boundary', () => {

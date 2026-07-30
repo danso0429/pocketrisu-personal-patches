@@ -108,7 +108,7 @@ function main(argv = process.argv) {
             applyTransition({ root: options.root, transition })
 
             const current = status({ root: options.root })
-            const expectedStatus = selected.length === 0 ? 'clean' : 'current'
+            const expectedStatus = transition.state === null ? 'clean' : 'current'
             if (current.status !== expectedStatus) {
                 throw new Error(
                     `Expected ${expectedStatus} status, observed ${current.status}`,

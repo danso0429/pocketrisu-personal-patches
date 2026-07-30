@@ -5,7 +5,7 @@ const assert = require('node:assert/strict')
 const { loadCatalog } = require('../src/catalog.cjs')
 const { resolveSelection } = require('../src/resolver.cjs')
 
-test('catalog exposes ten user packs and keeps integration packs internal', () => {
+test('catalog exposes eleven user packs and keeps integration packs internal', () => {
     const catalog = loadCatalog()
     assert.deepEqual(
         catalog.filter((pack) => pack.userSelectable !== false).map((pack) => pack.id),
@@ -20,6 +20,7 @@ test('catalog exposes ten user packs and keeps integration packs internal', () =
             'preset-integrity',
             'parser-hardening',
             'toolchain-hardening',
+            'pocketrisu-kei',
         ],
     )
     assert.deepEqual(

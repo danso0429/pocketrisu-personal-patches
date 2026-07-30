@@ -243,6 +243,7 @@ test('universal configure --all saves every all-preset capability without prompt
             'parser-hardening',
             'persona-organizer',
             'personal-settings',
+            'pocketrisu-kei',
             'preset-integrity',
             'toolchain-hardening',
         ])
@@ -264,6 +265,7 @@ test('legacy all intent becomes rolling only when it matches current effective d
         'parser-hardening',
         'persona-organizer',
         'personal-settings',
+        'pocketrisu-kei',
         'preset-integrity',
         'toolchain-hardening',
     ]
