@@ -8,9 +8,23 @@ const path = require('node:path')
 const patchRoot = path.join(__dirname, '../patches/personal-settings')
 const read = (relative) => fs.readFileSync(path.join(patchRoot, relative), 'utf8')
 const manifest = require('../patches/personal-settings/manifest.cjs')
-const logic = read('files/src/ts/personalSettings.ts')
-const logicTests = read('files/src/ts/personalSettings.test.ts')
-const page = read('files/src/lib/Setting/Pages/PersonalSettings.svelte')
+const coreUnits = require('../patches/personal-settings/core/units.cjs')
+const importNavigationUnits = require(
+    '../patches/personal-settings/settings/import-navigation/units.cjs',
+)
+const logic = read('core/files/src/ts/personalSettings.ts')
+const logicTests = read('core/files/src/ts/personalSettings.test.ts')
+const storage = read('core/files/src/ts/personalSettings/core.ts')
+const page = read('core/files/src/lib/Setting/Pages/PersonalSettings.svelte')
+const importNavigationLogic = read(
+    'settings/import-navigation/files/src/ts/personalSettings/importNavigation.ts',
+)
+const importNavigationTests = read(
+    'settings/import-navigation/files/src/ts/personalSettings/importNavigation.test.ts',
+)
+const importNavigationSection = read(
+    'settings/import-navigation/files/src/lib/Setting/Pages/PersonalSettings/ImportNavigationSetting.svelte',
+)
 
 function unit(id) {
     const result = manifest.units.find((candidate) => candidate.id === id)
@@ -24,20 +38,44 @@ function replacementText(candidate) {
 
 test('personal settings is an independent rolling feature pack', () => {
     assert.equal(manifest.id, 'personal-settings')
-    assert.equal(manifest.version, '0.1.0')
+    assert.equal(manifest.version, '0.1.1')
     assert.equal(manifest.userSelectable, true)
     assert.deepEqual(manifest.presetDefaults, ['features'])
     assert.equal(manifest.requires, undefined)
 })
 
+test('the root manifest only aggregates core and setting-owned units', () => {
+    assert.deepEqual(manifest.units, [
+        ...coreUnits,
+        ...importNavigationUnits,
+    ])
+    assert.equal(
+        new Set(manifest.units.map((candidate) => candidate.id)).size,
+        manifest.units.length,
+    )
+    assert.ok(coreUnits.some((candidate) => candidate.id === 'personal-settings:page'))
+    assert.ok(importNavigationUnits.some(
+        (candidate) => candidate.id === 'personal-settings:local-import-navigation',
+    ))
+    assert.equal(
+        coreUnits.some((candidate) => candidate.id.includes('import-navigation')),
+        false,
+    )
+})
+
 test('the personal namespace defaults to existing behavior and preserves future fields', () => {
-    assert.match(logic, /stayOnCurrentCharacterAfterImport\?: boolean/)
+    assert.match(logic, /from '\.\/personalSettings\/core'/)
+    assert.match(logic, /from '\.\/personalSettings\/importNavigation'/)
+    assert.match(storage, /stayOnCurrentCharacterAfterImport\?: boolean/)
     assert.match(
-        logic,
+        importNavigationLogic,
         /pocketRisuPersonalSettings\?\.stayOnCurrentCharacterAfterImport === true/,
     )
-    assert.match(logic, /\.\.\.\(db\.pocketRisuPersonalSettings \?\? \{\}\)/)
-    assert.match(logicTests, /keeps the existing import navigation behavior when the setting is absent/)
+    assert.match(storage, /\.\.\.\(db\.pocketRisuPersonalSettings \?\? \{\}\)/)
+    assert.match(
+        importNavigationTests,
+        /keeps the existing import navigation behavior when the setting is absent/,
+    )
     assert.match(logicTests, /futureSetting: 'preserved'/)
 
     const databaseField = unit('personal-settings:database-field')
@@ -60,16 +98,31 @@ test('settings UI adds Personal directly after System with a persisted toggle', 
     assert.equal(route.content, '    Personal: 24 as const,\n')
 
     assert.match(page, /<SettingPage title="개인 설정">/)
-    assert.match(page, /캐릭터 임포트 후 현재 화면 유지/)
-    assert.match(page, /새 캐릭터로 자동 이동하지 않고 임포트를 시작한 화면에 머뭅니다/)
-    assert.match(page, /setStayOnCurrentCharacterAfterImport\(DBState\.db, enabled\)/)
-    assert.match(page, /기존 ‘임포트 시 캐릭터로 이동’ 설정보다 우선/)
+    assert.match(page, /<ImportNavigationSetting \/>/)
+    assert.match(importNavigationSection, /캐릭터 임포트 후 현재 화면 유지/)
+    assert.match(
+        importNavigationSection,
+        /새 캐릭터로 자동 이동하지 않고 임포트를 시작한 화면에 머뭅니다/,
+    )
+    assert.match(
+        importNavigationSection,
+        /setStayOnCurrentCharacterAfterImport\(DBState\.db, enabled\)/,
+    )
+    assert.match(
+        importNavigationSection,
+        /기존 ‘임포트 시 캐릭터로 이동’ 설정보다 우선/,
+    )
 })
 
 test('local file and package imports stay put only when the override is enabled', () => {
+    const helper = unit('personal-settings:local-import-helper')
     const navigation = unit('personal-settings:local-import-navigation')
     const text = replacementText(navigation)
 
+    assert.equal(
+        helper.content,
+        'import { shouldStayOnCurrentCharacterAfterImport } from "./personalSettings";\n',
+    )
     assert.match(
         text,
         /const importedCharacter = r === 'importCharacter' \|\| r === 'importPackage'/,
@@ -104,7 +157,11 @@ test('personal settings never writes the database plugin array', () => {
     const patchText = [
         logic,
         logicTests,
+        storage,
         page,
+        importNavigationLogic,
+        importNavigationTests,
+        importNavigationSection,
         ...manifest.units.flatMap((candidate) => [
             candidate.content ?? '',
             candidate.managed ?? '',

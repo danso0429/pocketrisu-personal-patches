@@ -2,9 +2,9 @@ import { describe, expect, it } from 'vitest'
 import {
     setStayOnCurrentCharacterAfterImport,
     shouldStayOnCurrentCharacterAfterImport,
-} from './personalSettings'
+} from './importNavigation'
 
-describe('personal settings', () => {
+describe('personal import navigation setting', () => {
     it('keeps the existing import navigation behavior when the setting is absent', () => {
         const db = {}
 
@@ -25,19 +25,15 @@ describe('personal settings', () => {
         })).toBe(false)
     })
 
-    it('updates the setting without discarding future personal settings', () => {
-        const db = {
-            pocketRisuPersonalSettings: {
-                stayOnCurrentCharacterAfterImport: false,
-                futureSetting: 'preserved',
-            },
-        }
+    it('writes through the shared personal settings namespace', () => {
+        const db = {}
 
         setStayOnCurrentCharacterAfterImport(db, true)
 
-        expect(db.pocketRisuPersonalSettings).toEqual({
-            stayOnCurrentCharacterAfterImport: true,
-            futureSetting: 'preserved',
+        expect(db).toEqual({
+            pocketRisuPersonalSettings: {
+                stayOnCurrentCharacterAfterImport: true,
+            },
         })
     })
 })

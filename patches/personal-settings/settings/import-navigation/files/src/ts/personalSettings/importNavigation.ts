@@ -1,10 +1,7 @@
-export interface PocketRisuPersonalSettings {
-    stayOnCurrentCharacterAfterImport?: boolean
-}
-
-interface PersonalSettingsCarrier {
-    pocketRisuPersonalSettings?: PocketRisuPersonalSettings
-}
+import {
+    updatePersonalSettings,
+    type PersonalSettingsCarrier,
+} from './core'
 
 export function shouldStayOnCurrentCharacterAfterImport(
     db: PersonalSettingsCarrier,
@@ -16,8 +13,7 @@ export function setStayOnCurrentCharacterAfterImport(
     db: PersonalSettingsCarrier,
     enabled: boolean,
 ): void {
-    db.pocketRisuPersonalSettings = {
-        ...(db.pocketRisuPersonalSettings ?? {}),
+    updatePersonalSettings(db, {
         stayOnCurrentCharacterAfterImport: enabled,
-    }
+    })
 }
