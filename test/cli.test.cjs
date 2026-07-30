@@ -242,6 +242,7 @@ test('universal configure --all saves every all-preset capability without prompt
             'lazy-chat-sync',
             'parser-hardening',
             'persona-organizer',
+            'personal-settings',
             'preset-integrity',
             'toolchain-hardening',
         ])
@@ -262,6 +263,7 @@ test('legacy all intent becomes rolling only when it matches current effective d
         'lazy-chat-sync',
         'parser-hardening',
         'persona-organizer',
+        'personal-settings',
         'preset-integrity',
         'toolchain-hardening',
     ]

@@ -21,6 +21,7 @@ test('profiles share one catalog but have different ownership boundaries', () =>
         'persona-organizer',
         'character-organizer',
         'character-import-ux',
+        'personal-settings',
         'preset-integrity',
         'parser-hardening',
         'toolchain-hardening',
@@ -36,6 +37,7 @@ test('profiles share one catalog but have different ownership boundaries', () =>
             'persona-organizer',
             'character-organizer',
             'character-import-ux',
+            'personal-settings',
             'preset-integrity',
         ],
     )
