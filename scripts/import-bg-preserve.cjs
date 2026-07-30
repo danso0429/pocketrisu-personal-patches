@@ -10,6 +10,16 @@ const EXCLUDED_PAYLOAD_FILES = new Set([
     'src/ts/bgPreserveInstaller.test.ts',
 ])
 
+// The standalone installer owns one nodeStorage implementation. The composable
+// patcher replaces it with exactly one storage-specific integration pack:
+// bg-preserve-storage-base for standard storage, or lazy-chat-bg-adapter when
+// lazy-chat-sync owns nodeStorage.ts.
+const EXCLUDED_HOOK_IDS = new Set([
+    'nodeStorage: asset upload retry import',
+    'nodeStorage: adaptive asset upload retry',
+    'nodeStorage: asset upload error detail',
+])
+
 function parseInstaller(source) {
     const payloadMatch = source.match(/const PAYLOAD_B64 = "([^"]+)"/)
     if (!payloadMatch) throw new Error('Could not locate PAYLOAD_B64')
@@ -36,6 +46,7 @@ function buildPack(source, version) {
     const units = []
 
     for (const hook of hooks) {
+        if (EXCLUDED_HOOK_IDS.has(hook.id)) continue
         const id = `bg-preserve:hook:${sanitizeId(hook.id)}`
         const previous = previousByFile.get(hook.file)
         units.push({
@@ -64,7 +75,9 @@ function buildPack(source, version) {
 
     return {
         id: 'bg-preserve',
+        title: 'Background generation preservation',
         version,
+        userSelectable: true,
         source: 'bg-preserve-install.cjs',
         units,
     }
