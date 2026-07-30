@@ -2,6 +2,65 @@
 
 ## Unreleased
 
+## 0.2.0-experimental.6
+
+- Add the independent `character-import-ux 0.1.1` pack to the rolling
+  `features` and `all` presets. Ordinary JSON, PNG, JPEG, CharX, shared-file,
+  Chub, and Realm character imports use one non-blocking Sonner progress toast
+  instead of the full-screen reading/asset-progress modal.
+- Create that progress toast component once and update only its subscribed
+  status store. This avoids `svelte-sonner 1.1.0` rearming an updated
+  infinite-duration toast and repeatedly removing/recreating it during fast
+  asset progress. Put stable-width counters in the same title: known totals
+  render like `(001/014)` and one-pass PNG streams render like `(001/???)`.
+- Release the import lease and `beforeunload` listener if the custom progress
+  toast itself cannot mount, so that a presentation failure cannot leave
+  imports and guarded storage actions disabled until reload.
+- Keep messages, navigation, character editing, and unrelated settings usable
+  during import. Refuse only a second import, page unload, self-update,
+  database/backup/snapshot replacement, save-folder import, and migrated-file
+  cleanup until the active import reaches a terminal state.
+- Read PNG character chunks and embedded assets in one streaming pass and give
+  both core imported-character constructors a stable initial chat ID before
+  insertion. Package import and CharX-to-module conversion keep their parent
+  blocking/atomic progress contracts.
+- Do not emit import success merely because parsing returned. Enlist the new
+  character and every full chat in lazy-chat tracking, wait until their stable
+  IDs appear in the last server-confirmed database, flush the local database
+  write, and report confirmation failures through the same toast.
+- Normalize superseding relations after dependency expansion as well as at the
+  raw-selection boundary. Selecting `character-import-ux` together with the
+  narrower startup cache now adds lazy-chat and then removes startup-cache
+  instead of attempting to compose both storage implementations.
+- Pass 18 patcher test files with 134 top-level declarations, 97 frontend
+  files with 1,245 tests, 53/53 server tests, 53 compat tests with 5 skipped,
+  Svelte diagnostics with no findings, the production frontend build, and the
+  BG bundle build/load check on a clean PocketRisu v1.8.1 candidate. Verify
+  all 512 raw selections as 256 normalized graphs across 136 managed paths and
+  up to 275 units with zero-change re-plans and exact byte/file-mode reverts;
+  generate all four syntax-valid installers twice with identical hashes.
+- Pass the follow-up iPhone gate with one continuously visible import toast,
+  in-place stage/counter updates, non-blocking navigation and messaging, and a
+  successful durable import after cold PWA reopen.
+
+## 0.2.0-experimental.5
+
+- Repair missing initial chat IDs at the lazy-chat write boundary only when
+  the last confirmed database proves the character is new and the chat payload
+  is fully hydrated. Existing-character identity loss, placeholders, stubs,
+  and missing baselines continue to fail closed.
+- Apply the same bounded repair before API v3 database validation so import
+  plugins cannot insert a new character whose initial chat has no stable ID.
+  Keep API v2 direct mutations covered by the ordinary save boundary.
+- Give the safe blank chat created after a failed server cold-storage restore
+  its stable ID at construction time.
+- Add focused identity tests for new-character repair, existing-character and
+  lazy-payload refusal, missing-baseline refusal, atomic failure, and generated
+  ID collision retry. Verify the pack on clean PocketRisu v1.8.1 with 1,021
+  frontend tests passed and 3 skipped, 53/53 server tests, 53 compat tests
+  passed and 5 skipped, Svelte diagnostics with no findings, a production
+  build, zero-change re-plan/current status, and exact source/mode revert.
+
 ## 0.2.0-experimental.4
 
 - Store format-2 intent as either a rolling preset or a pinned custom

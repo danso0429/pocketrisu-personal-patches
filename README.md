@@ -2,7 +2,7 @@
 
 Private, composable patch delivery for PocketRisu NodeOnly. The current
 stable release is `v0.1.7`, and its manifests target PocketRisu `v1.8.1`.
-The current development checkpoint is `v0.2.0-experimental.4`.
+The current development checkpoint is `v0.2.0-experimental.6`.
 
 ## Universal installer and compatibility presets
 
@@ -21,7 +21,8 @@ compatibility, and staging gates; a conflict blocks before source writes.
 The older named artifacts remain preset wrappers:
 
 - `pocketrisu-features.cjs` manages `lazy-chat-sync` (including startup cache),
-  `persona-organizer`, `character-organizer`, and `preset-integrity`.
+  `persona-organizer`, `character-organizer`, `character-import-ux`, and
+  `preset-integrity`.
   An existing bg-preserve installation remains an external layer.
 - `pocketrisu-hardening.cjs` manages `parser-hardening` and
   `toolchain-hardening`.
@@ -36,6 +37,8 @@ not separate implementations.
 
 | Release | What changed |
 | --- | --- |
+| `v0.2.0-experimental.6` | Replaces ordinary character import's blocking reading/progress modal with one non-blocking progress toast, reads embedded PNG data once, and reports success only after the new character and every stable chat ID are confirmed by the server and flushed locally. |
+| `v0.2.0-experimental.5` | Repairs a missing initial chat ID only for a fully hydrated character proven new by the last server-confirmed database, while existing identities, lazy placeholders, and missing baselines continue to fail closed. |
 | `v0.2.0-experimental.4` | Makes all and named presets rolling catalog policies while keeping customized selections pinned, derives universal inclusion and selector availability from one registered manifest, and conservatively migrates legacy intent. |
 | `v0.2.0-experimental.3` | Adds a hamburger-menu Character organizer with paginated 4×4 folder membership and explicit Arrange controls, including a local-only folder draft that cannot persist empty. |
 | `v0.2.0-experimental.2` | Adds an explicit install-all path and optional conflict-report delivery into one exact-name RisuAI persona description, module lorebook, or character description through PocketRisu's loopback authenticated database API. |
@@ -86,6 +89,20 @@ confirmed. No new iPhone L3 was required because this checkpoint changed only
 patcher policy and live patch metadata, not any managed PocketRisu source or UI
 behavior; those CLI and migration paths are covered by the automated and live
 zero-change checks above.
+
+The `v0.2.0-experimental.6` candidate passes 18 patcher test files with 134
+top-level declarations. All 512 raw selections of the nine user-facing packs
+normalize to 256 graphs and pass apply, zero-change re-plan, and exact
+byte/file-mode revert across 136 managed paths with up to 275 resolved units.
+All four installers pass CJS syntax checks and two consecutive builds produce
+byte-identical artifacts. The clean unified PocketRisu candidate passes 97
+frontend files and 1,245 tests, 53/53 server tests, 53 compatibility tests with
+5 skipped, Svelte diagnostics at 0 errors and 0 warnings, a production build,
+and the BG bundle build/load check.
+The live cutover and restart gates passed, and the user confirmed on iPhone
+that the follow-up keeps one progress toast visible while its stage and asset
+counter update in place, leaves navigation and messaging usable, and preserves
+the imported character across a cold PWA reopen.
 
 The `v0.2.0-experimental.3` checkpoint passes 17 patcher test files containing
 118 top-level test declarations. All 256 raw selections of the eight
@@ -247,6 +264,41 @@ plugin, replace `Database.plugins`, or depend on Persona organization.
 All persisted operations replace `Database.characterOrder` once and request an
 immediate save. The organizer contains no draggable elements, long-press
 handler, touch event handler, or scroll interception.
+
+### Non-blocking character import
+
+The independent `character-import-ux` pack changes ordinary JSON, PNG, JPEG,
+CharX, shared-file, and Realm character imports from a full-screen
+`Loading... (Reading)` / asset-progress modal to one persistent Sonner toast:
+
+- reading, archive extraction, and asset-save progress update one stable toast
+  without locking the chat, navigation, or ordinary settings;
+- the toast component is created once per import and subscribes to a reactive
+  status store, so rapid progress changes replace only its visible text rather
+  than reissuing Sonner toasts and restarting enter/exit transitions;
+- asset stages show a fixed-width counter in the title. Formats with known
+  totals use `(001/014)`; one-pass PNG streams use `(001/???)` so progress stays
+  visible without restoring the preliminary count pass that slowed imports;
+- a second character import is refused while the first owns the import lease;
+- page unload, application self-update, backup/snapshot restore, save-folder
+  replacement, and migrated-file cleanup are refused until the lease ends;
+- package and module conversion imports retain their parent operation's
+  existing progress and atomic save contract;
+- PNG metadata and embedded assets are consumed by one streaming pass rather
+  than a preliminary count pass followed by the real import;
+- the two core character constructors assign the initial chat ID before the
+  character enters the database;
+- success appears only after lazy-chat synchronization confirms the imported
+  character and every full chat ID in the server baseline, then flushes the
+  local database write. A refused or failed confirmation never emits a false
+  success toast.
+
+The guard is intentionally narrow: sending messages, editing existing
+characters, switching screens, and changing settings that do not replace the
+database remain available during asset import. Closing the progress toast does
+not cancel or roll back an in-flight import. The browser `beforeunload` guard
+is best effort; an iOS force-close, process kill, or OS eviction cannot be
+prevented by application code.
 
 ### Prompt preset integrity
 
