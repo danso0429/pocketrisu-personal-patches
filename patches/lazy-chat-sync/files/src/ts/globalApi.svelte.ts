@@ -14,6 +14,7 @@ import { defaultJailbreak, defaultMainPrompt, oldJailbreak, oldMainPrompt } from
 import { decodeRisuSave, encodeRisuSaveLegacy, findDangerousChatOps, normalizeJSON, RisuSaveEncoder, RisuSavePatcher, type toSaveType } from "./storage/risuSave";
 import { isHydrating, saveChatToServer, ensureChatHydrated, chatToStub, classifyChat, convertStubsToPlaceholders } from "./storage/chatStorage";
 import { classifyChatSaveIntent } from "./storage/chatSaveIntent";
+import { assignMissingChatIdsToNewCharacters } from "./storage/chatIdentityRepair";
 import { AutoStorage } from "./storage/autoStorage";
 import { ConflictError, type PatchItemResult, type PersistWarning } from "./storage/nodeStorage";
 import { supportsPatchSync } from "./platform";
@@ -254,6 +255,9 @@ let requestImmediateSaveImpl: ((options?: {
     forceFullWrite?: boolean
 }) => Promise<void> | void) = () => {}
 let requestChatSaveImpl: ((chaId: string, chatId: string) => Promise<void> | void) = () => {}
+let requestImportedCharacterSaveImpl: ((chaId: string) => Promise<void>) = async () => {
+    throw new Error('character import save is not initialized')
+}
 const pendingExplicitChats = new Map<string, [string, string]>()
 const pendingExplicitCharacters = new Set<string>()
 let markChatDirtyImpl = (chaId: string, chatId: string) => {
@@ -376,6 +380,14 @@ export function requestImmediateSave(options?: {
     forceFullWrite?: boolean
 }) {
     return requestImmediateSaveImpl(options)
+}
+
+/**
+ * Enlists every full chat of a newly imported character, waits for the server
+ * to confirm the stripped database identity, then flushes the debounced write.
+ */
+export function requestImportedCharacterSave(chaId: string): Promise<void> {
+    return requestImportedCharacterSaveImpl(chaId)
 }
 
 /** Explicit dirty hook for async plugin APIs that mutate an inactive chat. */
@@ -958,6 +970,33 @@ export async function saveDb() {
             return 'noop'
         }
 
+        // Some legacy/plugin character constructors still omit the initial
+        // chat ID. Repair only server-unknown characters with full payloads:
+        // assigning a new ID to an existing lazy chat could orphan its
+        // server-side content. Include repaired identities in this exact save
+        // attempt because the ordinary tracker snapshot was already taken.
+        const assignedChatIds = assignMissingChatIdsToNewCharacters(
+            db,
+            lastConfirmedServerDb,
+            v4,
+        )
+        for (const { chaId, chatId } of assignedChatIds) {
+            if (!toSave.character.includes(chaId)) {
+                toSave.character.unshift(chaId)
+            }
+            if (!toSave.chat.some(([trackedChaId, trackedChatId]) =>
+                trackedChaId === chaId && trackedChatId === chatId
+            )) {
+                toSave.chat.unshift([chaId, chatId])
+            }
+        }
+        if (assignedChatIds.length > 0) {
+            console.warn(
+                `[Save] Assigned stable IDs to ${assignedChatIds.length} hydrated chat`
+                + `${assignedChatIds.length === 1 ? '' : 's'} on new characters`,
+            )
+        }
+
         // ── Save changed chat content to server ─────────────────────────
         const failedChats: [string, string][] = []
         for (const [chaId, chatId] of collectChatsToPersist(db, toSave)) {
@@ -1337,6 +1376,53 @@ export async function saveDb() {
         await triggerSave({
             forceFullWrite: options?.forceFullWrite,
         })
+    }
+
+    requestImportedCharacterSaveImpl = async (chaId) => {
+        const database = getDatabase()
+        const character = database.characters?.find((item) => item?.chaId === chaId)
+        if (!character) {
+            throw new Error('Imported character is no longer present')
+        }
+
+        queueTrackedCharacter(chaId)
+        const expectedChatIds: string[] = []
+        for (const chat of character.chats ?? []) {
+            if (
+                typeof chat?.id !== 'string'
+                || chat.id.trim().length === 0
+                || chat._placeholder
+                || !Array.isArray(chat.message)
+            ) {
+                throw new Error('Imported character contains an invalid chat')
+            }
+            expectedChatIds.push(chat.id)
+            queueTrackedChat(chaId, chat.id)
+        }
+        if (expectedChatIds.length === 0) {
+            throw new Error('Imported character has no chat')
+        }
+
+        changed = true
+        await tick()
+        if (saveInFlight) await saveInFlight
+        await triggerSave()
+
+        const confirmedCharacter = lastConfirmedServerDb?.characters?.find(
+            (item) => item?.chaId === chaId,
+        )
+        const confirmedChatIds = new Set(
+            (confirmedCharacter?.chats ?? [])
+                .map((chat) => chat?.id)
+                .filter((id): id is string => typeof id === 'string' && id.length > 0),
+        )
+        if (
+            !confirmedCharacter
+            || expectedChatIds.some((chatId) => !confirmedChatIds.has(chatId))
+        ) {
+            throw new Error('Server has not confirmed the imported character yet')
+        }
+        await forageStorage.flushDatabase()
     }
 
     requestChatSaveImpl = async (chaId, chatId) => {

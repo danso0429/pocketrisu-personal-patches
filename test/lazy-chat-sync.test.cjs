@@ -18,7 +18,7 @@ function payload(relative) {
 
 test('lazy chat pack includes CAS, WAL, reconciliation, and safe hydration boundaries', () => {
     assert.equal(lazyManifest.id, 'lazy-chat-sync')
-    assert.equal(lazyManifest.version, '0.1.5')
+    assert.equal(lazyManifest.version, '0.1.6')
     assert.match(payload('server/node/server.cjs'), /chatWriteJournal/)
     assert.match(payload('server/node/server.cjs'), /\/api\/chat-content\/:chaId\/:chatIndex\/patch/)
     assert.match(payload('server/node/server.cjs'), /validateStrippedDatabaseTransition/)
@@ -28,10 +28,27 @@ test('lazy chat pack includes CAS, WAL, reconciliation, and safe hydration bound
     assert.match(payload('src/ts/storage/nodeStorage.ts'), /x-chat-base-revision/)
     assert.match(payload('src/ts/storage/nodeStorage.ts'), /ChatSaveIntent/)
     assert.match(payload('src/ts/globalApi.svelte.ts'), /classifyChatSaveIntent/)
+    assert.match(payload('src/ts/globalApi.svelte.ts'), /assignMissingChatIdsToNewCharacters/)
+    const importedCharacterSave = payload('src/ts/globalApi.svelte.ts').slice(
+        payload('src/ts/globalApi.svelte.ts').indexOf('requestImportedCharacterSaveImpl = async'),
+        payload('src/ts/globalApi.svelte.ts').indexOf('requestChatSaveImpl = async'),
+    )
+    assert.match(importedCharacterSave, /queueTrackedCharacter\(chaId\)/)
+    assert.match(importedCharacterSave, /queueTrackedChat\(chaId, chat\.id\)/)
+    assert.match(importedCharacterSave, /lastConfirmedServerDb/)
+    assert.match(importedCharacterSave, /forageStorage\.flushDatabase\(\)/)
     assert.match(payload('src/ts/storage/conflictRebase.ts'), /mergeThreeWayValue/)
     assert.match(payload('src/ts/plugins/apiV3/pluginChatAccess.ts'), /hydrateChat/)
     assert.match(payload('src/ts/plugins/apiV3/pluginChatAccess.ts'), /getDatabaseWithChatMetadata/)
     assert.match(payload('src/ts/plugins/apiV3/v3.svelte.ts'), /getDatabaseMetadata/)
+    assert.match(payload('src/ts/plugins/apiV3/v3.svelte.ts'), /assignMissingChatIdsToNewCharacters/)
+    assert.match(payload('src/ts/storage/chatIdentityRepair.ts'), /Refusing to replace the missing ID of existing character/)
+    const serverSource = payload('server/node/server.cjs')
+    const failedColdStoragePromotion = serverSource.slice(
+        serverSource.indexOf('function promoteFailedColdStorageStub'),
+        serverSource.indexOf('function restoreColdStorageCharactersInDb'),
+    )
+    assert.match(failedColdStoragePromotion, /id: nodeCrypto\.randomUUID\(\),[\s\S]*name: 'Chat 1'/)
     const metadataTypes = lazyManifest.units.find((unit) =>
         unit.id === 'lazy-chat-sync:plugin-api-chat-metadata-types'
     )

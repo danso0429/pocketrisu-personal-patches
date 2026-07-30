@@ -4692,7 +4692,13 @@ function promoteFailedColdStorageStub(char) {
     char.firstMsgIndex = -1;
     // Ensure chats array is valid
     if (!Array.isArray(char.chats) || char.chats.length === 0) {
-        char.chats = [{ message: [], note: '', name: 'Chat 1', localLore: [] }];
+        char.chats = [{
+            id: nodeCrypto.randomUUID(),
+            message: [],
+            note: '',
+            name: 'Chat 1',
+            localLore: [],
+        }];
     }
     // Leave recovery breadcrumb and remove cold storage markers
     char.desc = `[Cold storage restore failed. Original key: ${coldKey}]\n\n${char.desc || ''}`.trim();

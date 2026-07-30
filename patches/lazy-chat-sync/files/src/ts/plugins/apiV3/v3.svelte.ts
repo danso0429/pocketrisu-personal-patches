@@ -18,6 +18,7 @@ import { hasher } from "src/ts/parser/parser.svelte";
 import { LLMFlags, LLMFormat, LLMProvider, LLMTokenizer, type LLMModel } from "src/ts/model/types";
 import { readPersistentJson, removePersistentKey, writePersistentJson } from "src/ts/storage/persistentKv";
 import { ensureChatHydrated, ensureCurrentChatReady } from "src/ts/storage/chatStorage";
+import { assignMissingChatIdsToNewCharacters } from "src/ts/storage/chatIdentityRepair";
 import { sendChat as processSendChat, doingChat } from "src/ts/process/index.svelte";
 import { getModelInfo } from "src/ts/model/modellist";
 import type { ModelModeExtended } from "src/ts/process/request/shared";
@@ -793,7 +794,31 @@ const makeRisuaiAPIV3 = (iframe:HTMLIFrameElement,plugin:RisuPlugin) => {
         }
 
         const previousCharacters = [...(database.characters ?? [])]
-        const nextCharacters = pluginChatAccess.validateCharacterCollection(newDb.characters)
+        // Work on detached character/chat shells so assigning an omitted ID
+        // cannot mutate a plugin-owned payload if later validation fails.
+        const candidateCharacters = Array.isArray(newDb.characters)
+            ? newDb.characters.map((character: any) => {
+                if (!character || typeof character !== 'object' || Array.isArray(character)) {
+                    return character
+                }
+                return {
+                    ...character,
+                    chats: Array.isArray(character.chats)
+                        ? character.chats.map((chat: any) => (
+                            chat && typeof chat === 'object' && !Array.isArray(chat)
+                                ? { ...chat }
+                                : chat
+                        ))
+                        : character.chats,
+                }
+            })
+            : newDb.characters
+        assignMissingChatIdsToNewCharacters(
+            { characters: candidateCharacters },
+            { characters: previousCharacters },
+            v4,
+        )
+        const nextCharacters = pluginChatAccess.validateCharacterCollection(candidateCharacters)
         return {
             payload: { ...newDb, characters: nextCharacters },
             previousCharacters,
