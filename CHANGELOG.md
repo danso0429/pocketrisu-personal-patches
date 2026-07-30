@@ -2,6 +2,32 @@
 
 ## Unreleased
 
+## 0.2.0-experimental.8
+
+- Split `personal-settings 0.1.1` from one 181-line manifest and three
+  combined source files into a small root composition manifest, shared
+  manifest helpers, `core/`, and the independently owned
+  `settings/import-navigation/` feature.
+- Keep the stable public `personalSettings.ts` entry point, all 14 previously
+  published unit IDs, local and Realm hook payloads, optional database
+  namespace, and import-navigation behavior. Add four internal units for
+  shared storage plus the extracted setting logic, tests, and Svelte section.
+- Pass 19 patcher test files with 141 top-level declarations. Verify all 1,024
+  raw selections as 512 normalized graphs across 146 managed paths and up to
+  293 units, including zero-change re-plans and exact byte/file-mode reverts;
+  generate all four syntax-valid installers twice with identical bytes.
+- Pass the clean unified PocketRisu candidate with 99 frontend files and 1,249
+  tests, Svelte diagnostics with no findings, and a 7,725-module production
+  build.
+- Apply only seven Personal-owned source files and patch state to the live
+  rolling-all installation. Pass focused 4/4 tests, Svelte 0/0, a
+  7,725-module frontend build, an 8,101 KB BG bundle build/load check, 146
+  current managed paths, exact served/local main-asset SHA-256, root 200,
+  unauthenticated BG cache-status 401, unchanged error-log size/mtime, and a
+  zero-change re-plan without restarting PocketRisu.
+- Pass the iPhone L3 for the Personal menu, persisted toggle, and
+  import-screen retention after the modular split.
+
 ## 0.2.0-experimental.7
 
 - Add the independent `personal-settings 0.1.0` pack to the rolling
