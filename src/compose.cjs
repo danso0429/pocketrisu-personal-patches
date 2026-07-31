@@ -231,6 +231,103 @@ function analyzePair(base, left, right) {
     }
 }
 
+function stableCacheValue(value) {
+    if (Array.isArray(value)) return value.map(stableCacheValue)
+    if (!value || typeof value !== 'object') return value
+    return Object.fromEntries(
+        Object.keys(value).sort().map((key) => [key, stableCacheValue(value[key])]),
+    )
+}
+
+function pairUnitCacheKey(unit) {
+    return JSON.stringify(stableCacheValue(unit))
+}
+
+function createPairAnalysisCache() {
+    return {
+        analyses: new Map(),
+        entries: 0,
+        hits: 0,
+        misses: 0,
+    }
+}
+
+function sameCacheValue(left, right) {
+    if (left === right) return true
+    if (Array.isArray(left) || Array.isArray(right)) {
+        if (!Array.isArray(left) || !Array.isArray(right) || left.length !== right.length) {
+            return false
+        }
+        return left.every((value, index) => sameCacheValue(value, right[index]))
+    }
+    if (!left || !right || typeof left !== 'object' || typeof right !== 'object') {
+        return false
+    }
+    const leftKeys = Object.keys(left).sort()
+    const rightKeys = Object.keys(right).sort()
+    return leftKeys.length === rightKeys.length
+        && leftKeys.every((key, index) =>
+            key === rightKeys[index]
+            && sameCacheValue(left[key], right[key])
+        )
+}
+
+function sameBaselineMap(left, right) {
+    if (left.size !== right.size) return false
+    for (const [file, value] of left) {
+        if (!right.has(file) || right.get(file) !== value) return false
+    }
+    return true
+}
+
+function createCompositionCache() {
+    return {
+        bypasses: 0,
+        hits: 0,
+        misses: 0,
+        record: null,
+        stores: 0,
+    }
+}
+
+function cloneCompositionPlan(plan) {
+    return {
+        order: [...plan.order],
+        collisions: stableCacheValue(plan.collisions),
+        edges: stableCacheValue(plan.edges),
+        outputs: new Map(plan.outputs),
+    }
+}
+
+function analyzePairCached(cache, base, left, right, leftKey, rightKey) {
+    let byBase = cache.analyses.get(left.file)
+    if (!byBase) {
+        byBase = new Map()
+        cache.analyses.set(left.file, byBase)
+    }
+    let byPair = byBase.get(base)
+    if (!byPair) {
+        byPair = new Map()
+        byBase.set(base, byPair)
+    }
+    const key = JSON.stringify([leftKey, rightKey])
+    if (byPair.has(key)) {
+        cache.hits += 1
+        return byPair.get(key)
+    }
+
+    cache.misses += 1
+    const analysis = analyzePair(base, left, right)
+    // Failure analysis stays uncached so invalid graphs reproduce their exact
+    // error path every time. Valid deterministic relationships may be reused
+    // only for the same full unit definitions and exact baseline text.
+    if (analysis.kind !== 'incompatible') {
+        byPair.set(key, analysis)
+        cache.entries += 1
+    }
+    return analysis
+}
+
 function addEdge(edges, from, to, reason) {
     if (from === to) {
         throw new PatchCompositionError('ORDER_CYCLE', `Self dependency for ${from}`, { from, to, reason })
@@ -284,7 +381,9 @@ function topologicalSort(units, edges) {
     return output
 }
 
-function buildPlan(units, baselines) {
+function buildPlan(units, baselines, {
+    pairAnalysisCache = null,
+} = {}) {
     const byId = new Map()
     for (const unit of units) {
         assertUnit(unit)
@@ -293,6 +392,9 @@ function buildPlan(units, baselines) {
         }
         byId.set(unit.id, unit)
     }
+    const pairUnitKeys = pairAnalysisCache === null
+        ? null
+        : new Map(units.map((unit) => [unit.id, pairUnitCacheKey(unit)]))
 
     const edges = new Map()
     for (const unit of units) {
@@ -324,7 +426,16 @@ function buildPlan(units, baselines) {
                 continue
             }
             const base = baselines.get(left.file) ?? null
-            const analysis = analyzePair(base, left, right)
+            const analysis = pairAnalysisCache === null
+                ? analyzePair(base, left, right)
+                : analyzePairCached(
+                    pairAnalysisCache,
+                    base,
+                    left,
+                    right,
+                    pairUnitKeys.get(left.id),
+                    pairUnitKeys.get(right.id),
+                )
             if (analysis.kind === 'ordered') {
                 addEdge(edges, analysis.before, analysis.after, 'inferred-structural-collision')
                 collisions.push({ units: [left.id, right.id], ...analysis })
@@ -368,8 +479,32 @@ function buildPlan(units, baselines) {
     }
 }
 
-function compose(units, baselines) {
-    const plan = buildPlan(units, baselines)
+function compose(units, baselines, {
+    compositionCache = null,
+    pairAnalysisCache = null,
+} = {}) {
+    if (compositionCache === null || units.length === 0) {
+        if (compositionCache !== null) compositionCache.bypasses += 1
+        return buildPlan(units, baselines, { pairAnalysisCache })
+    }
+
+    if (
+        compositionCache.record
+        && sameCacheValue(compositionCache.record.units, units)
+        && sameBaselineMap(compositionCache.record.baselines, baselines)
+    ) {
+        compositionCache.hits += 1
+        return cloneCompositionPlan(compositionCache.record.plan)
+    }
+
+    compositionCache.misses += 1
+    const plan = buildPlan(units, baselines, { pairAnalysisCache })
+    compositionCache.record = {
+        units: stableCacheValue(units),
+        baselines: new Map(baselines),
+        plan: cloneCompositionPlan(plan),
+    }
+    compositionCache.stores += 1
     return plan
 }
 
@@ -379,6 +514,8 @@ module.exports = {
     applyUnit,
     buildPlan,
     compose,
+    createCompositionCache,
+    createPairAnalysisCache,
     insertionText,
     markedBlock,
     markerEnd,

@@ -8,6 +8,8 @@ const {
     applyUnit,
     buildPlan,
     compose,
+    createCompositionCache,
+    createPairAnalysisCache,
     revertUnit,
 } = require('../src/compose.cjs')
 
@@ -34,6 +36,130 @@ test('disjoint insertions in one file commute without an ordering edge', () => {
     const plan = buildPlan([b, a], new Map([['x.ts', base]]))
     assert.deepEqual(plan.collisions, [])
     assert.deepEqual(plan.order, ['a', 'b'])
+})
+
+test('pair analysis cache is exact, invalidates on input changes, and preserves plans', () => {
+    const base = 'A\nB\n'
+    const units = [
+        insert('a', 'x.ts', 'A\n', 'one'),
+        insert('b', 'x.ts', 'B\n', 'two'),
+    ]
+    const baselines = new Map([['x.ts', base]])
+    const cache = createPairAnalysisCache()
+    const uncached = buildPlan(units, baselines)
+    const first = buildPlan(units, baselines, { pairAnalysisCache: cache })
+    const repeated = buildPlan(units, baselines, { pairAnalysisCache: cache })
+
+    assert.deepEqual(first, uncached)
+    assert.deepEqual(repeated, uncached)
+    assert.deepEqual(
+        { entries: cache.entries, hits: cache.hits, misses: cache.misses },
+        { entries: 1, hits: 1, misses: 1 },
+    )
+
+    const changedBase = new Map([['x.ts', `prefix\n${base}`]])
+    buildPlan(units, changedBase, { pairAnalysisCache: cache })
+    const changedUnit = [
+        { ...units[0], content: 'changed' },
+        units[1],
+    ]
+    buildPlan(changedUnit, baselines, { pairAnalysisCache: cache })
+    assert.deepEqual(
+        { entries: cache.entries, hits: cache.hits, misses: cache.misses },
+        { entries: 3, hits: 1, misses: 3 },
+    )
+})
+
+test('pair analysis cache does not retain incompatible failures', () => {
+    const units = [
+        { id: 'a', file: 'x.ts', type: 'owned', content: 'a' },
+        { id: 'b', file: 'x.ts', type: 'owned', content: 'b' },
+    ]
+    const cache = createPairAnalysisCache()
+    for (let attempt = 0; attempt < 2; attempt += 1) {
+        assert.throws(
+            () => buildPlan(units, new Map([['x.ts', null]]), {
+                pairAnalysisCache: cache,
+            }),
+            (error) =>
+                error instanceof PatchCompositionError
+                && error.code === 'INCOMPATIBLE_UNITS',
+        )
+    }
+    assert.deepEqual(
+        { entries: cache.entries, hits: cache.hits, misses: cache.misses },
+        { entries: 0, hits: 0, misses: 2 },
+    )
+})
+
+test('composition cache reuses only the exact non-empty units and baselines', () => {
+    const units = [
+        insert('a', 'x.ts', 'A\n', 'one'),
+        insert('b', 'x.ts', 'B\n', 'two'),
+    ]
+    const baselines = new Map([['x.ts', 'A\nB\n']])
+    const compositionCache = createCompositionCache()
+    const uncached = compose(units, baselines)
+    const first = compose(units, baselines, { compositionCache })
+    first.order.reverse()
+    first.outputs.set('x.ts', 'caller mutation')
+    const repeated = compose(units, baselines, { compositionCache })
+
+    assert.deepEqual(repeated, uncached)
+    assert.deepEqual(
+        {
+            bypasses: compositionCache.bypasses,
+            hits: compositionCache.hits,
+            misses: compositionCache.misses,
+            stores: compositionCache.stores,
+        },
+        { bypasses: 0, hits: 1, misses: 1, stores: 1 },
+    )
+
+    compose(units, new Map([
+        ['x.ts', 'A\nB\n'],
+        ['extra.ts', 'extra\n'],
+    ]), { compositionCache })
+    compose([
+        { ...units[0], content: 'changed' },
+        units[1],
+    ], baselines, { compositionCache })
+    compose([], baselines, { compositionCache })
+    assert.deepEqual(
+        {
+            bypasses: compositionCache.bypasses,
+            hits: compositionCache.hits,
+            misses: compositionCache.misses,
+            stores: compositionCache.stores,
+        },
+        { bypasses: 1, hits: 1, misses: 3, stores: 3 },
+    )
+})
+
+test('composition cache does not retain failed plans', () => {
+    const units = [
+        { id: 'a', file: 'x.ts', type: 'owned', content: 'a' },
+        { id: 'b', file: 'x.ts', type: 'owned', content: 'b' },
+    ]
+    const compositionCache = createCompositionCache()
+    for (let attempt = 0; attempt < 2; attempt += 1) {
+        assert.throws(
+            () => compose(units, new Map([['x.ts', null]]), {
+                compositionCache,
+            }),
+            (error) =>
+                error instanceof PatchCompositionError
+                && error.code === 'INCOMPATIBLE_UNITS',
+        )
+    }
+    assert.deepEqual(
+        {
+            hits: compositionCache.hits,
+            misses: compositionCache.misses,
+            stores: compositionCache.stores,
+        },
+        { hits: 0, misses: 2, stores: 0 },
+    )
 })
 
 test('structural collision infers the only valid order', () => {

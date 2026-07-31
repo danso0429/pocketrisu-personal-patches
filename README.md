@@ -689,6 +689,27 @@ npm run verify:combinations -- \
   --json
 ```
 
+The verifier does not deduplicate raw selections. It runs plan, apply,
+zero-change re-plan, status, and exact byte/mode revert for every mask, sharded
+across isolated target copies. Automatic worker count follows available CPU
+parallelism with a four-worker resource cap; use `--jobs N` to override it.
+The result fails closed unless every mask is reported exactly once.
+
+On Linux, a sufficiently sized memory filesystem can reduce disposable-worker
+I/O without changing the source root or the checks:
+
+```bash
+TMPDIR=/dev/shm npm run verify:combinations -- \
+  --root /path/to/separate/pristine/review/PocketRisu \
+  --jobs 2 \
+  --json
+```
+
+Check tmpfs capacity first. Worker copies and caches are temporary and are
+removed on normal completion or a handled failure; abrupt process termination
+can leave the verifier-named temporary directory. The supplied pristine root
+is only read.
+
 This source-only entry point accepts `reviewing` targets but retains the same
 isolation, planning, and full check gates. It is not embedded in distributed
 installers. Its automated receipt is `review-passed` with

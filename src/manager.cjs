@@ -45,8 +45,66 @@ function stableStringify(value) {
     return JSON.stringify(stableValue(value))
 }
 
-function packEtag(pack) {
-    return sha256(stableStringify({
+function sameStateValue(left, right) {
+    if (left === right) return true
+    if (Array.isArray(left) || Array.isArray(right)) {
+        if (!Array.isArray(left) || !Array.isArray(right) || left.length !== right.length) {
+            return false
+        }
+        return left.every((value, index) => sameStateValue(value, right[index]))
+    }
+    if (!left || !right || typeof left !== 'object' || typeof right !== 'object') {
+        return false
+    }
+    const leftKeys = Object.keys(left).sort()
+    const rightKeys = Object.keys(right).sort()
+    return leftKeys.length === rightKeys.length
+        && leftKeys.every((key, index) =>
+            key === rightKeys[index]
+            && sameStateValue(left[key], right[key])
+        )
+}
+
+function createPackEtagCache() {
+    return {
+        hits: 0,
+        misses: 0,
+        values: new WeakMap(),
+    }
+}
+
+function createStateEncodingCache() {
+    return {
+        hits: 0,
+        misses: 0,
+        record: null,
+    }
+}
+
+function assertDeepFrozen(value, seen = new Set()) {
+    if (!value || typeof value !== 'object' || seen.has(value)) return
+    if (!Object.isFrozen(value)) {
+        throw new PatchManagerError(
+            'PACK_ETAG_CACHE_REQUIRES_FROZEN_PACK',
+            'Pack ETag caching requires a deeply frozen pack',
+        )
+    }
+    seen.add(value)
+    for (const child of Object.values(value)) assertDeepFrozen(child, seen)
+}
+
+function packEtag(pack, {
+    cache = null,
+} = {}) {
+    if (cache !== null) {
+        if (cache.values.has(pack)) {
+            cache.hits += 1
+            return cache.values.get(pack)
+        }
+        assertDeepFrozen(pack)
+        cache.misses += 1
+    }
+    const etag = sha256(stableStringify({
         id: pack.id,
         title: pack.title ?? null,
         version: pack.version,
@@ -60,6 +118,8 @@ function packEtag(pack) {
         units: pack.units,
         contracts: pack.contracts ?? [],
     }))
+    if (cache !== null) cache.values.set(pack, etag)
+    return etag
 }
 
 function assertSafeRelative(relativePath) {
@@ -519,6 +579,7 @@ function readTargetIdentity(root) {
 }
 
 function makeState(profile, packs, units, result, baselines, currentModes, {
+    packEtagCache = null,
     resolution,
     target,
 } = {}) {
@@ -545,7 +606,7 @@ function makeState(profile, packs, units, result, baselines, currentModes, {
         packs: packs.map((pack) => ({
             id: pack.id,
             version: pack.version,
-            etag: packEtag(pack),
+            etag: packEtag(pack, { cache: packEtagCache }),
         })),
         order: result.order,
         collisions: result.collisions,
@@ -554,8 +615,17 @@ function makeState(profile, packs, units, result, baselines, currentModes, {
     }
 }
 
-function encodeState(state) {
-    return Buffer.from(`${JSON.stringify(state, null, 2)}\n`)
+function encodeState(state, {
+    cache = null,
+} = {}) {
+    if (cache?.record && sameStateValue(cache.record.state, state)) {
+        cache.hits += 1
+        return cache.record.encoded
+    }
+    if (cache !== null) cache.misses += 1
+    const encoded = Buffer.from(`${JSON.stringify(state, null, 2)}\n`)
+    if (cache !== null) cache.record = { state: stableValue(state), encoded }
+    return encoded
 }
 
 function planTransition({
@@ -567,6 +637,9 @@ function planTransition({
     intentPath = DEFAULT_INTENT_PATH,
     persistIntent = false,
     intentPolicy = null,
+    compositionOptions = undefined,
+    packEtagCache = null,
+    stateEncodingCache = null,
 }) {
     const previous = loadState(root, statePath)
     const resolution = resolveSelection(catalog, packIds)
@@ -580,8 +653,9 @@ function planTransition({
     const current = new Map([...paths].map((file) => [file, readOptionalText(root, file)]))
     const currentModes = new Map([...paths].map((file) => [file, readOptionalMode(root, file)]))
     const baselines = previous ? stripCurrentUnits(current, previous) : new Map(current)
-    const result = compose(units, baselines)
+    const result = compose(units, baselines, compositionOptions)
     const nextState = makeState(profile, packs, units, result, baselines, currentModes, {
+        packEtagCache,
         resolution,
         target: readTargetIdentity(root),
     })
@@ -601,7 +675,9 @@ function planTransition({
 
     const stateBefore = readOptionalText(root, statePath)
     const stateBeforeMode = readOptionalMode(root, statePath)
-    const stateAfter = units.length === 0 ? null : encodeState(nextState).toString('utf8')
+    const stateAfter = units.length === 0
+        ? null
+        : encodeState(nextState, { cache: stateEncodingCache }).toString('utf8')
     const stateAfterMode = stateAfter === null
         ? null
         : (stateBeforeMode ?? PRIVATE_STATE_MODE)
@@ -836,6 +912,8 @@ module.exports = {
     PatchManagerError,
     applyTransition,
     customIntent,
+    createPackEtagCache,
+    createStateEncodingCache,
     flattenUnits,
     loadState,
     loadIntent,

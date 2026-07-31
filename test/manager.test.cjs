@@ -10,9 +10,12 @@ const {
     DEFAULT_INTENT_PATH,
     DEFAULT_LOCK_PATH,
     applyTransition,
+    createPackEtagCache,
+    createStateEncodingCache,
     customIntent,
     loadIntent,
     loadState,
+    packEtag,
     planTransition,
     presetIntent,
     restoreJournal,
@@ -80,6 +83,65 @@ const packB = {
         },
     ],
 }
+
+function deepFreeze(value) {
+    if (!value || typeof value !== 'object' || Object.isFrozen(value)) return value
+    for (const child of Object.values(value)) deepFreeze(child)
+    return Object.freeze(value)
+}
+
+test('pack ETag cache accepts only immutable definitions', () => {
+    const cache = createPackEtagCache()
+    const frozen = deepFreeze(structuredClone(packA))
+    const first = packEtag(frozen, { cache })
+    assert.equal(packEtag(frozen, { cache }), first)
+    const changed = deepFreeze({
+        ...structuredClone(packA),
+        version: '2',
+    })
+    assert.notEqual(packEtag(changed, { cache }), first)
+    assert.deepEqual(
+        { hits: cache.hits, misses: cache.misses },
+        { hits: 1, misses: 2 },
+    )
+    assert.throws(
+        () => packEtag(packA, { cache }),
+        (error) => error.code === 'PACK_ETAG_CACHE_REQUIRES_FROZEN_PACK',
+    )
+})
+
+test('state encoding cache reuses only an exact state value', () => withRoot((root) => {
+    write(root, 'src/unrelated.ts', 'U\n')
+    write(root, 'src/shared.ts', 'const value = BASE\n')
+    const stateEncodingCache = createStateEncodingCache()
+    const first = planTransition({
+        root,
+        catalog: [packA],
+        packIds: ['a'],
+        profile: 'features',
+        stateEncodingCache,
+    })
+    first.state.profile = 'mutated-after-encoding'
+    const repeated = planTransition({
+        root,
+        catalog: [packA],
+        packIds: ['a'],
+        profile: 'features',
+        stateEncodingCache,
+    })
+    assert.equal(repeated.state.profile, 'features')
+    planTransition({
+        root,
+        catalog: [packA],
+        packIds: ['a'],
+        profile: 'custom',
+        stateEncodingCache,
+    })
+    assert.deepEqual(
+        { hits: stateEncodingCache.hits, misses: stateEncodingCache.misses },
+        { hits: 1, misses: 2 },
+    )
+}))
 
 test('adding a colliding pack recomposes only the connected file', () => withRoot((root) => {
     write(root, 'src/unrelated.ts', 'U\n')
