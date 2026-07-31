@@ -3,8 +3,8 @@
 module.exports = {
     id: 'pocketrisu-kei',
     title: 'PocketRisu Kei integration',
-    version: '0.1.0',
+    version: '0.2.0',
     userSelectable: true,
-    requires: [],
+    requires: ['kei-fullscreen-image-viewer-core'],
     units: [],
 }

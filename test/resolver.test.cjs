@@ -25,7 +25,11 @@ test('catalog exposes eleven user packs and keeps integration packs internal', (
     )
     assert.deepEqual(
         catalog.filter((pack) => pack.userSelectable === false).map((pack) => pack.id),
-        ['bg-preserve-storage-base', 'lazy-chat-bg-adapter'],
+        [
+            'bg-preserve-storage-base',
+            'lazy-chat-bg-adapter',
+            'kei-fullscreen-image-viewer-core',
+        ],
     )
 })
 

@@ -15,3 +15,19 @@ modified PocketRisu source code.
 Local changes add iOS-independent cache probing, startup observability, and a
 bg-preserve durable-save adapter. BG semantic merge revisions remain separate
 from the PR's exact transport revisions.
+
+## PocketRisu Kei
+
+The optional fullscreen image viewer adapts a focused capability from
+PocketRisu Kei:
+
+- Source: https://github.com/seto-sama/PocketRisu-Kei
+- Revision: `cc1d1b195babd887577ebf943d5e82f01f58135c`
+- License: GNU General Public License v3.0
+- Adapted source paths:
+  `src/lib/UI/GUI/FullscreenImageViewer.svelte` and the additional-image
+  preview flow in `src/lib/SideBars/CharConfig.svelte`
+
+The local adaptation keeps PocketRisu's existing inlay gallery and character
+asset management paths, centralizes Escape/arrow handling in the viewer, and
+adds pure sparse-gallery navigation tests.

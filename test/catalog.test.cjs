@@ -25,6 +25,7 @@ test('profiles share one catalog but have different ownership boundaries', () =>
         'preset-integrity',
         'parser-hardening',
         'toolchain-hardening',
+        'kei-fullscreen-image-viewer-core',
         'pocketrisu-kei',
     ])
     assert.throws(
