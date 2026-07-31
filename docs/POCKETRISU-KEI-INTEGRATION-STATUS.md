@@ -22,6 +22,7 @@ worktree path into repository history.
 | `a1c23d5` | Empty `pocketrisu-kei` meta-pack foundation | Implemented and automatically validated |
 | `2436606` | K19 fullscreen image viewer | Implemented and automatically validated; review and iPhone interaction gate remain |
 | `85cfb43` | Exhaustive verifier optimization | Implemented and validated; infrastructure only, no Kei catalog feature progress |
+| `6ffed92` | K13 robust OpenAI/Google SSE parsing | Implemented and automatically validated; review and consolidated iPhone/provider gate remain |
 
 The catalog custody, verification procedure, and this status are kept in a
 separate documentation commit. Its hash is read from history rather than
@@ -37,13 +38,13 @@ PocketRisu tree, or followed by a PocketRisu restart.
 | 1. Empty meta pack and resolver/catalog foundation | Candidate complete | `docs/POCKETRISU-KEI-FOUNDATION-VALIDATION.md`; review remains before publication |
 | 2. Minimal K02 primitives required by K19, then K19 | Implementation and automated gates complete | PocketRisu 1.8.1 already supplied the Svelte/icon primitives needed by the focused K19 port, so no K02 child was added. K19 evidence is in `docs/POCKETRISU-KEI-K19-VALIDATION.md`. HQ review and the concrete iPhone gate remain, so this step is not publication-qualified. |
 | Detour: exhaustive verifier performance | Complete as local infrastructure | `docs/COMBINATION-VERIFIER-OPTIMIZATION-VALIDATION.md`; this does not advance an admission step |
-| 3. K13 stream parser, K14 render stability, K16 navigation/hotkeys | Not started | Catalog-level source classification exists; no implementation child, adapter, or feature receipt exists |
+| 3. K13 stream parser, K14 render stability, K16 navigation/hotkeys | In progress | K13 core plus mutually exclusive base/bg adapters passed focused/full tests, diagnostics/build, L2.5, all 2,048 raw patch selections, and exact revert; evidence is `docs/POCKETRISU-KEI-K13-VALIDATION.md`. K14 and K16 are not implemented. |
 | 4. K15 partial edit, K11 Hypa tools, K12 translation tools | Not started | Must follow step 3 one feature at a time |
 | 5. K03/K04 preset behavior and K26 backup tools | Not started | Existing-authority preservation contracts remain controlling |
 | 6. K20/K22/K23/K29 existing-authority merges | Not started | No parallel order/schema/orchestration authority may be introduced |
 | 7. K05–K09, K24/K25, K27, K28 policy packs | Not started | Separate explicit opt-in packs; none blocks the umbrella |
 
-K19 is the only Kei feature implementation presently in the candidate.
+K19 and K13 are the Kei feature implementations presently in the candidate.
 Excluded/deferred rows and policy-pack designs are catalog decisions, not
 implemented progress.
 
@@ -61,6 +62,13 @@ implemented progress.
    - navigate previous and next across sparse available assets;
    - close the viewer;
    - confirm existing add, delete, and excluded-asset behavior is unchanged.
+   For K13 it includes:
+   - use a classic OpenAI-compatible model with streaming enabled and observe
+     a visibly multi-paragraph/emoji response through completion;
+   - use a classic Gemini model with streaming enabled, background the iPhone
+     PWA while text is arriving, and return after completion;
+   - confirm neither final response has missing/duplicated text and the Gemini
+     chat is not left in a streaming state.
 4. Record the observed L3 result. Do not claim swipe navigation: the current
    focused K19 adaptation provides touch-sized previous/next and close
    controls plus keyboard navigation.
@@ -77,27 +85,13 @@ Resume catalog admission step 3 in the local branch. Implement and commit each
 capability separately while preserving the review and publication boundary
 above.
 
-### K13 — stream parser
-
-1. Re-open the pinned Kei paths and caller chain for OpenAI and Google SSE
-   parsing; record exact retained behavior and base anchors.
-2. Keep protocol-stream parsing separate from `parser-hardening`'s chat-text
-   parsing responsibility.
-3. Define `kei-stream-parser-core`, a base OpenAI adapter, and the exact
-   `bg-preserve` Google-delivery adapter. Do not create a broad bg adapter.
-4. Test split UTF-8, multiline events, split JSON, tool calls, reasoning,
-   multi-choice output, one-time signatures, cancellation, replay, and bg
-   stream completeness.
-5. Run focused target tests, applicable base/bg graphs, L2.5 runtime audit,
-   the patch combination gate, diagnostics/build, exact revert, and a concrete
-   mobile/background scenario.
-
 ### K14 — render stability
 
-Only after K13's boundary is resolved, implement the render core and base/bg
-adapters. Preserve the active chat component, scroll state, bg completion,
-result claim, ACK, and reconnect behavior. Keep its commit and receipt
-separate from K13.
+K13's automated boundary is resolved. Re-open the pinned K14 source and
+current active-chat caller chain, then define the smallest render core and
+base/bg adapters. Preserve the active chat component, scroll state, bg
+completion, result claim, ACK, and reconnect behavior. Keep its commit and
+receipt separate from K13.
 
 ### K16 — navigation and hotkeys
 
