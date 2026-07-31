@@ -33,7 +33,7 @@ test('fullscreen viewer remains a hidden umbrella child with no narrow preset ow
     assert.equal(manifest.version, '0.1.0')
     assert.equal(manifest.userSelectable, false)
     assert.equal(manifest.presetDefaults, undefined)
-    assert.equal(metaManifest.version, '0.6.0')
+    assert.equal(metaManifest.version, '0.7.0')
     assert.equal(metaManifest.requires.includes(manifest.id), true)
     assert.equal(resolveProfile('features', catalog).defaults.includes(metaManifest.id), false)
     assert.equal(resolveProfile('hardening', catalog).defaults.includes(metaManifest.id), false)

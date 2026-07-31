@@ -20,7 +20,8 @@ from the PR's exact transport revisions.
 
 The optional fullscreen image viewer, robust OpenAI and Google SSE stream
 parsing, streaming chat render identity, navigation/hotkey behavior, and
-shared partial-message editing adapt focused capabilities from PocketRisu Kei:
+shared partial-message editing and HypaMemory manual tools adapt focused
+capabilities from PocketRisu Kei:
 
 - Source: https://github.com/seto-sama/PocketRisu-Kei
 - Revision: `cc1d1b195babd887577ebf943d5e82f01f58135c`
@@ -40,6 +41,9 @@ shared partial-message editing adapt focused capabilities from PocketRisu Kei:
   `src/lib/ChatScreens/keiPartialEditIdentity.ts`, and focused partial-edit
   wiring in `src/lib/ChatScreens/DefaultChatScreen.svelte` and
   `src/lib/ChatScreens/Chat.svelte`;
+  `src/lib/Others/HypaV3Modal/manual-summary-panel.svelte`,
+  `src/lib/Others/HypaV3Modal/utils.ts`, and focused HypaV3 modal, header,
+  connected-message, next-target, and language wiring;
   `src/ts/hotkey.ts`, `src/ts/defaulthotkeys.ts`,
   `src/ts/mobileBackNavigation.ts`, and the focused bootstrap, database,
   hotkey-settings, accessibility-settings, and language wiring.
@@ -65,3 +69,8 @@ screen manager, binds an edit to captured chat, message, and DOM identities,
 and requires an issued translation-cache token before a translated fragment
 can be saved. It does not take ownership of generation delivery,
 bg-preserve result claim/ACK, cancellation, or chat storage.
+The HypaMemory adaptation preserves PocketRisu's existing search, category,
+tag, bulk-edit, and next-target UI while adding contiguous-frontier manual
+summarization and corrected CBS display processing. It calls the existing
+HypaV3 summarizer and does not add Revenant, a second generation transport,
+or a parallel result/ACK authority.
