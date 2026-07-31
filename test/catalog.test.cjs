@@ -28,6 +28,9 @@ test('profiles share one catalog but have different ownership boundaries', () =>
         'kei-stream-parser-core',
         'kei-stream-parser-base-adapter',
         'kei-stream-parser-bg-adapter',
+        'kei-chat-render-core',
+        'kei-chat-render-base-adapter',
+        'kei-chat-render-bg-adapter',
         'kei-fullscreen-image-viewer-core',
         'pocketrisu-kei',
     ])

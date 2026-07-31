@@ -65,6 +65,9 @@ function loadCatalog(repositoryRoot = path.resolve(__dirname, '..')) {
         require(path.join(repositoryRoot, 'patches/kei-stream-parser-core/manifest.cjs')),
         require(path.join(repositoryRoot, 'patches/kei-stream-parser-base-adapter/manifest.cjs')),
         require(path.join(repositoryRoot, 'patches/kei-stream-parser-bg-adapter/manifest.cjs')),
+        require(path.join(repositoryRoot, 'patches/kei-chat-render-core/manifest.cjs')),
+        require(path.join(repositoryRoot, 'patches/kei-chat-render-base-adapter/manifest.cjs')),
+        require(path.join(repositoryRoot, 'patches/kei-chat-render-bg-adapter/manifest.cjs')),
         require(path.join(repositoryRoot, 'patches/kei-fullscreen-image-viewer-core/manifest.cjs')),
         require(path.join(repositoryRoot, 'patches/pocketrisu-kei/manifest.cjs')),
     ].map((pack) => ({

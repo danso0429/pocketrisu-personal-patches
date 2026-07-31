@@ -18,8 +18,9 @@ from the PR's exact transport revisions.
 
 ## PocketRisu Kei
 
-The optional fullscreen image viewer and robust OpenAI and Google SSE stream
-parsing adapt focused capabilities from PocketRisu Kei:
+The optional fullscreen image viewer, robust OpenAI and Google SSE stream
+parsing, and streaming chat render identity adapt focused capabilities from
+PocketRisu Kei:
 
 - Source: https://github.com/seto-sama/PocketRisu-Kei
 - Revision: `cc1d1b195babd887577ebf943d5e82f01f58135c`
@@ -30,7 +31,11 @@ parsing adapt focused capabilities from PocketRisu Kei:
   `src/ts/process/request/openAI/requests.ts`,
   `src/ts/process/request/openAI/requests.stream.test.ts`,
   `src/ts/process/request/google.ts`, and
-  `src/ts/process/request/google.test.ts`.
+  `src/ts/process/request/google.test.ts`;
+  `src/lib/ChatScreens/Chats.svelte`,
+  `src/lib/ChatScreens/Chat.svelte`, and
+  `src/lib/ChatScreens/ChatBody.svelte`, with the active-generation signal
+  supplied by `src/lib/ChatScreens/DefaultChatScreen.svelte`.
 
 The local adaptation keeps PocketRisu's existing inlay gallery and character
 asset management paths, centralizes Escape/arrow handling in the viewer, and
@@ -38,3 +43,7 @@ adds pure sparse-gallery navigation tests. Its stream adaptation keeps
 provider delivery, cancellation, tool execution, and bg-preserve routing in
 their existing owners while moving incremental UTF-8/SSE framing into a
 replayable side-effect-free core.
+The render adaptation keeps the active streaming message mounted, updates its
+reactive content prop, preserves global reload behavior, and defers automatic
+translation until the stream completes. It does not replace request delivery,
+background result claim/ACK, reconnect, or storage behavior.

@@ -9,11 +9,12 @@ const { resolveSelection } = require('../src/resolver.cjs')
 
 test('PocketRisu Kei remains a unit-free universal-only meta pack', () => {
     assert.equal(manifest.id, 'pocketrisu-kei')
-    assert.equal(manifest.version, '0.3.0')
+    assert.equal(manifest.version, '0.4.0')
     assert.equal(manifest.userSelectable, true)
     assert.deepEqual(manifest.requires, [
         'kei-fullscreen-image-viewer-core',
         'kei-stream-parser-core',
+        'kei-chat-render-core',
     ])
     assert.deepEqual(manifest.units, [])
     assert.equal(Object.hasOwn(manifest, 'presetDefaults'), false)
@@ -27,16 +28,22 @@ test('PocketRisu Kei remains a unit-free universal-only meta pack', () => {
 
     const resolution = resolveSelection(catalog, [manifest.id])
     assert.deepEqual(resolution.resolvedIds, [
+        'kei-chat-render-base-adapter',
+        'kei-chat-render-core',
         'kei-fullscreen-image-viewer-core',
         'kei-stream-parser-base-adapter',
         'kei-stream-parser-core',
         manifest.id,
     ])
     assert.deepEqual(resolution.dependencyAdded, [
+        'kei-chat-render-core',
         'kei-fullscreen-image-viewer-core',
         'kei-stream-parser-core',
     ])
-    assert.deepEqual(resolution.autoAdded, ['kei-stream-parser-base-adapter'])
+    assert.deepEqual(resolution.autoAdded, [
+        'kei-chat-render-base-adapter',
+        'kei-stream-parser-base-adapter',
+    ])
 })
 
 test('PocketRisu Kei can require hidden children without exposing them directly', () => {
@@ -60,6 +67,8 @@ test('PocketRisu Kei can require hidden children without exposing them directly'
 
     const resolution = resolveSelection(futureCatalog, [manifest.id])
     assert.deepEqual(resolution.resolvedIds, [
+        'kei-chat-render-base-adapter',
+        'kei-chat-render-core',
         child.id,
         'kei-fullscreen-image-viewer-core',
         'kei-stream-parser-base-adapter',
@@ -67,6 +76,7 @@ test('PocketRisu Kei can require hidden children without exposing them directly'
         manifest.id,
     ])
     assert.deepEqual(resolution.dependencyAdded, [
+        'kei-chat-render-core',
         child.id,
         'kei-fullscreen-image-viewer-core',
         'kei-stream-parser-core',
@@ -83,6 +93,9 @@ test('PocketRisu Kei adds only its child units to every existing unit graph', ()
         .filter((pack) => pack.userSelectable !== false && pack.id !== manifest.id)
         .map((pack) => pack.id)
     const keiPackIds = new Set([
+        'kei-chat-render-core',
+        'kei-chat-render-base-adapter',
+        'kei-chat-render-bg-adapter',
         'kei-fullscreen-image-viewer-core',
         'kei-stream-parser-core',
         'kei-stream-parser-base-adapter',
@@ -109,6 +122,14 @@ test('PocketRisu Kei adds only its child units to every existing unit graph', ()
         )
         assert.equal(
             withKeiResolution.resolvedIds.includes('kei-stream-parser-bg-adapter'),
+            withKeiResolution.resolvedIds.includes('bg-preserve'),
+        )
+        assert.equal(
+            withKeiResolution.resolvedIds.includes('kei-chat-render-base-adapter'),
+            !withKeiResolution.resolvedIds.includes('bg-preserve'),
+        )
+        assert.equal(
+            withKeiResolution.resolvedIds.includes('kei-chat-render-bg-adapter'),
             withKeiResolution.resolvedIds.includes('bg-preserve'),
         )
     }

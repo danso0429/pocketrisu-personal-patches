@@ -31,6 +31,9 @@ test('catalog exposes eleven user packs and keeps integration packs internal', (
             'kei-stream-parser-core',
             'kei-stream-parser-base-adapter',
             'kei-stream-parser-bg-adapter',
+            'kei-chat-render-core',
+            'kei-chat-render-base-adapter',
+            'kei-chat-render-bg-adapter',
             'kei-fullscreen-image-viewer-core',
         ],
     )
