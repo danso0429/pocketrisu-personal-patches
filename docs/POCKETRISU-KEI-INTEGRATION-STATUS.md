@@ -23,6 +23,7 @@ worktree path into repository history.
 | `2436606` | K19 fullscreen image viewer | Implemented and automatically validated; review and iPhone interaction gate remain |
 | `85cfb43` | Exhaustive verifier optimization | Implemented and validated; infrastructure only, no Kei catalog feature progress |
 | `6ffed92` | K13 robust OpenAI/Google SSE parsing | Implemented and automatically validated; review and consolidated iPhone/provider gate remain |
+| `ee91f24` | K14 streaming chat render stability | Implemented and automatically validated; review and consolidated iPhone scroll/background gate remain |
 
 The catalog custody, verification procedure, and this status are kept in a
 separate documentation commit. Its hash is read from history rather than
@@ -38,13 +39,13 @@ PocketRisu tree, or followed by a PocketRisu restart.
 | 1. Empty meta pack and resolver/catalog foundation | Candidate complete | `docs/POCKETRISU-KEI-FOUNDATION-VALIDATION.md`; review remains before publication |
 | 2. Minimal K02 primitives required by K19, then K19 | Implementation and automated gates complete | PocketRisu 1.8.1 already supplied the Svelte/icon primitives needed by the focused K19 port, so no K02 child was added. K19 evidence is in `docs/POCKETRISU-KEI-K19-VALIDATION.md`. HQ review and the concrete iPhone gate remain, so this step is not publication-qualified. |
 | Detour: exhaustive verifier performance | Complete as local infrastructure | `docs/COMBINATION-VERIFIER-OPTIMIZATION-VALIDATION.md`; this does not advance an admission step |
-| 3. K13 stream parser, K14 render stability, K16 navigation/hotkeys | In progress | K13 core plus mutually exclusive base/bg adapters passed focused/full tests, diagnostics/build, L2.5, all 2,048 raw patch selections, and exact revert; evidence is `docs/POCKETRISU-KEI-K13-VALIDATION.md`. K14 and K16 are not implemented. |
+| 3. K13 stream parser, K14 render stability, K16 navigation/hotkeys | In progress | K13 and K14 each have separate pure cores, mutually exclusive base/bg adapters, receipts, L2.5 audits, complete target tests/builds, all 2,048 raw patch selections, and exact revert. Evidence is `docs/POCKETRISU-KEI-K13-VALIDATION.md` and `docs/POCKETRISU-KEI-K14-VALIDATION.md`. K16 is next and is not implemented. |
 | 4. K15 partial edit, K11 Hypa tools, K12 translation tools | Not started | Must follow step 3 one feature at a time |
 | 5. K03/K04 preset behavior and K26 backup tools | Not started | Existing-authority preservation contracts remain controlling |
 | 6. K20/K22/K23/K29 existing-authority merges | Not started | No parallel order/schema/orchestration authority may be introduced |
 | 7. K05–K09, K24/K25, K27, K28 policy packs | Not started | Separate explicit opt-in packs; none blocks the umbrella |
 
-K19 and K13 are the Kei feature implementations presently in the candidate.
+K19, K13, and K14 are the Kei feature implementations presently in the candidate.
 Excluded/deferred rows and policy-pack designs are catalog decisions, not
 implemented progress.
 
@@ -69,6 +70,18 @@ implemented progress.
      PWA while text is arriving, and return after completion;
    - confirm neither final response has missing/duplicated text and the Gemini
      chat is not left in a streaming state.
+   For K14 it includes:
+   - use a model preset whose own streaming switch is on and, if practical,
+     leave the global classic-provider streaming switch off;
+   - while a long response is visibly streaming, scroll several messages
+     upward, stop touching the screen, and confirm the viewport is not reset
+     for every chunk;
+   - return to the bottom and confirm the same message grows without
+     duplicate/missing text or repeated whole-message flicker;
+   - with auto-translation enabled, confirm partial text is not repeatedly
+     translated and completed text returns to the normal translation flow;
+   - background and return during a separate bg-preserve generation, then
+     confirm one final reply and cleared streaming/busy UI.
 4. Record the observed L3 result. Do not claim swipe navigation: the current
    focused K19 adaptation provides touch-sized previous/next and close
    controls plus keyboard navigation.
@@ -85,17 +98,10 @@ Resume catalog admission step 3 in the local branch. Implement and commit each
 capability separately while preserving the review and publication boundary
 above.
 
-### K14 — render stability
-
-K13's automated boundary is resolved. Re-open the pinned K14 source and
-current active-chat caller chain, then define the smallest render core and
-base/bg adapters. Preserve the active chat component, scroll state, bg
-completion, result claim, ACK, and reconnect behavior. Keep its commit and
-receipt separate from K13.
-
 ### K16 — navigation and hotkeys
 
-Only after K14, implement the navigation core and base/lazy adapters. Preserve
+K13 and K14 automated boundaries are resolved. Implement the navigation core
+and base/lazy adapters. Preserve
 startup-cache reconstruction, lazy hydration ordering, pending local changes,
 and route restoration. Keep its commit and receipt separate from K13/K14.
 
