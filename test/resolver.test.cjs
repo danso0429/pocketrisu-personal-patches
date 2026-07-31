@@ -37,6 +37,9 @@ test('catalog exposes eleven user packs and keeps integration packs internal', (
             'kei-mobile-navigation-core',
             'kei-mobile-navigation-base-adapter',
             'kei-mobile-navigation-lazy-adapter',
+            'kei-partial-edit-core',
+            'kei-partial-edit-base-adapter',
+            'kei-partial-edit-bg-adapter',
             'kei-fullscreen-image-viewer-core',
         ],
     )

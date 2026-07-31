@@ -19,8 +19,8 @@ from the PR's exact transport revisions.
 ## PocketRisu Kei
 
 The optional fullscreen image viewer, robust OpenAI and Google SSE stream
-parsing, streaming chat render identity, and navigation/hotkey behavior adapt
-focused capabilities from PocketRisu Kei:
+parsing, streaming chat render identity, navigation/hotkey behavior, and
+shared partial-message editing adapt focused capabilities from PocketRisu Kei:
 
 - Source: https://github.com/seto-sama/PocketRisu-Kei
 - Revision: `cc1d1b195babd887577ebf943d5e82f01f58135c`
@@ -36,6 +36,10 @@ focused capabilities from PocketRisu Kei:
   `src/lib/ChatScreens/Chat.svelte`, and
   `src/lib/ChatScreens/ChatBody.svelte`, with the active-generation signal
   supplied by `src/lib/ChatScreens/DefaultChatScreen.svelte`;
+  `src/lib/ChatScreens/PartialEditManager.svelte`,
+  `src/lib/ChatScreens/keiPartialEditIdentity.ts`, and focused partial-edit
+  wiring in `src/lib/ChatScreens/DefaultChatScreen.svelte` and
+  `src/lib/ChatScreens/Chat.svelte`;
   `src/ts/hotkey.ts`, `src/ts/defaulthotkeys.ts`,
   `src/ts/mobileBackNavigation.ts`, and the focused bootstrap, database,
   hotkey-settings, accessibility-settings, and language wiring.
@@ -56,3 +60,8 @@ selection, and an opt-in mobile back guard. Its bootstrap adapters preserve
 the existing startup-cache and lazy-chat replacement order and do not take
 ownership of route restoration, chat hydration, pending local writes, or
 generation delivery.
+The partial-edit adaptation replaces per-message listener sets with one
+screen manager, binds an edit to captured chat, message, and DOM identities,
+and requires an issued translation-cache token before a translated fragment
+can be saved. It does not take ownership of generation delivery,
+bg-preserve result claim/ACK, cancellation, or chat storage.
