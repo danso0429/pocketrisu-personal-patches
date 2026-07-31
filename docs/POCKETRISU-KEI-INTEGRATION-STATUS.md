@@ -26,6 +26,7 @@ worktree path into repository history.
 | `ee91f24` | K14 streaming chat render stability | Implemented and automatically validated; review and consolidated iPhone scroll/background gate remain |
 | `038df10` | K16 navigation, hotkeys, pointer gestures, and opt-in mobile Back guard | Implemented and automatically validated; review and consolidated iPhone input/history gate remain |
 | `f79c00f` | K15 shared partial-message editing and translation-cache identity guards | Implemented and automatically validated; review and consolidated iPhone selection/edit gate remain |
+| `5090a81` | K11 HypaMemory manual summarization, frontier integrity, and CBS/next-target corrections | Implemented and automatically validated; review and consolidated iPhone HypaMemory gate remain |
 
 The catalog custody, verification procedure, and this status are kept in a
 separate documentation commit. Its hash is read from history rather than
@@ -42,18 +43,18 @@ PocketRisu tree, or followed by a PocketRisu restart.
 | 2. Minimal K02 primitives required by K19, then K19 | Implementation and automated gates complete | PocketRisu 1.8.1 already supplied the Svelte/icon primitives needed by the focused K19 port, so no K02 child was added. K19 evidence is in `docs/POCKETRISU-KEI-K19-VALIDATION.md`. HQ review and the concrete iPhone gate remain, so this step is not publication-qualified. |
 | Detour: exhaustive verifier performance | Complete as local infrastructure | `docs/COMBINATION-VERIFIER-OPTIMIZATION-VALIDATION.md`; this does not advance an admission step |
 | 3. K13 stream parser, K14 render stability, K16 navigation/hotkeys | Implementation and automated gates recorded | Each feature has an isolated core/adapters, receipt, L2.5 audit, base/composed target tests and builds, all 2,048 raw patch selections, and exact revert evidence. See `docs/POCKETRISU-KEI-K13-VALIDATION.md`, `docs/POCKETRISU-KEI-K14-VALIDATION.md`, and `docs/POCKETRISU-KEI-K16-VALIDATION.md`. HQ review and each consolidated L3 scenario remain, so this step is not publication-qualified. |
-| 4. K15 partial edit, K11 Hypa tools, K12 translation tools | K15 automated gates complete; next: K11 | K15 evidence is in `docs/POCKETRISU-KEI-K15-VALIDATION.md`. HQ review and its consolidated L3 scenario remain. Implement K11 and K12 one at a time; editing/cache/generation ownership remains controlling. |
+| 4. K15 partial edit, K11 Hypa tools, K12 translation tools | K15 and K11 automated gates complete; next: K12 | Evidence is in `docs/POCKETRISU-KEI-K15-VALIDATION.md` and `docs/POCKETRISU-KEI-K11-VALIDATION.md`. HQ review and their consolidated L3 scenarios remain. Implement K12 separately; editing/cache/generation ownership remains controlling. |
 | 5. K03/K04 preset behavior and K26 backup tools | Not started | Existing-authority preservation contracts remain controlling |
 | 6. K20/K22/K23/K29 existing-authority merges | Not started | No parallel order/schema/orchestration authority may be introduced |
 | 7. K05–K09, K24/K25, K27, K28 policy packs | Not started | Separate explicit opt-in packs; none blocks the umbrella |
 
-K19, K13, K14, K16, and K15 are the Kei feature implementations presently in the candidate.
+K19, K13, K14, K16, K15, and K11 are the Kei feature implementations presently in the candidate.
 Excluded/deferred rows and policy-pack designs are catalog decisions, not
 implemented progress.
 
 ## Current review and publication boundary
 
-1. Keep the foundation, K19, verifier, K13, K14, K16, K15, and documentation
+1. Keep the foundation, K19, verifier, K13, K14, K16, K15, K11, and documentation
    commits available for review without pushing, tagging, releasing, or
    modifying the live PocketRisu tree.
 2. Resolve any review finding in its own feature or infrastructure commit.
@@ -116,6 +117,27 @@ implemented progress.
      exercise selection, scrolling, rotation, and virtual-keyboard resize;
    - if a mouse/trackpad is available, exercise the separate block-hover
      entry point. A touch-only iPhone cannot mark that hover path passed.
+   For K11 it includes:
+   - open the existing HypaMemory modal and confirm its search, category, tag,
+     edit, bulk-resummary, and automatic-memory controls remain available
+     outside the new manual mode;
+   - enter manual mode, select a later unsummarized message, and confirm all
+     earlier eligible messages—including rows hidden by search—form one
+     contiguous selected prefix;
+   - generate, preview, reroll, cancel, generate again, and apply, then
+     confirm exactly one summary was added and the next-target preview
+     advanced without falling back to a completed greeting;
+   - if a safe fixture exists, confirm missing/duplicated message IDs and an
+     orphaned/ambiguous last-summary frontier block selection rather than
+     skipping or restarting;
+   - start a summary and change the chat, greeting, selected message, summary
+     frontier, or Hypa preset before completion, then confirm the stale result
+     cannot apply;
+   - exercise the longest chat with search, scrolling, keyboard, rotation,
+     modal close/reopen, CBS/first-message context, and the configured
+     bg-supported Gemini/helper route. Closing manual mode must not apply a
+     late result; the underlying request can still finish as recorded in the
+     K11 receipt.
 4. Record the observed L3 result. For K19, do not claim swipe navigation: its
    focused viewer provides touch-sized previous/next and close controls plus
    keyboard navigation. K16's separate whole-view swipe scenario is the one
@@ -133,17 +155,17 @@ Resume catalog admission step 4 in the local branch. Implement and commit each
 capability separately while preserving the review and publication boundary
 above.
 
-### K11 — HypaMemory tools
+### K12 — translation tools
 
-K15 now has separate core/base/bg-preserve packs, automatic gates, exact
-revert evidence, and an L2.5 receipt. Next, trace the frozen Kei HypaMemory
-management, manual summarization, search, and next-target UI end to end before
-coding. Separate deterministic selection/UI state from generation delivery.
-When bg-preserve is selected, any summarization generation must remain under
-bg-preserve rather than introducing Revenant or a second request/result
-authority.
+K15 and K11 now have separate core/base/bg-preserve packs, automatic gates,
+exact revert evidence, and L2.5 receipts. Next, trace the frozen Kei
+translation-cache list/search/edit/delete/import/export/clear/unused-cleanup
+and abortable-loading flow end to end before coding. Preserve the complete
+translation identity, existing cancellation, explicit destructive-action
+boundary, storage owner, and bg-preserve request delivery. Do not fold K12
+into K15 merely because both touch translation caches.
 
-After K11, continue with K12, then admission steps 5–7 in catalog
+After K12, continue with admission steps 5–7 in catalog
 order. A later Kei revision reopens only the affected rows under the
 catalog's re-evaluation rule; it does not silently replace this frozen
 comparison.
