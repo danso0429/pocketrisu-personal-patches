@@ -689,6 +689,10 @@ npm run verify:combinations -- \
   --json
 ```
 
+The canonical maintainer procedure, acceptance fields, anti-reward-hacking
+rules, and distinction from L2.5 runtime audit are in
+[`docs/patch-combination-verification-instructions.md`](docs/patch-combination-verification-instructions.md).
+
 The verifier does not deduplicate raw selections. It runs plan, apply,
 zero-change re-plan, status, and exact byte/mode revert for every mask, sharded
 across isolated target copies. Automatic worker count follows available CPU

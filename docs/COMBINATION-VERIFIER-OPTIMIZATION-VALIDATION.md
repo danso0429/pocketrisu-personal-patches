@@ -2,6 +2,10 @@
 
 Date: 2026-07-31 KST
 
+The reusable maintainer procedure is
+`docs/patch-combination-verification-instructions.md`. This document is the
+implementation and measurement receipt for the initial optimized verifier.
+
 ## Preserved verification contract
 
 This change optimizes only exhaustive patch-combination verification. It does
