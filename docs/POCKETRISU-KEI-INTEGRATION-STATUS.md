@@ -53,9 +53,10 @@ implemented progress.
    for review without pushing, tagging, releasing, or modifying the live
    PocketRisu tree.
 2. Resolve any review finding in its own feature or infrastructure commit.
-3. Before K19 publication, and only after explicit live/candidate-apply
-   authorization, perform the
-   K19 iPhone scenario:
+3. The user chose one consolidated iPhone L3 session after all planned local
+   integrations. That session must still perform and record each feature's
+   concrete scenario separately; batching the session does not merge or waive
+   child gates. For K19 it includes:
    - open a character's additional image;
    - navigate previous and next across sparse available assets;
    - close the viewer;
@@ -64,10 +65,11 @@ implemented progress.
    focused K19 adaptation provides touch-sized previous/next and close
    controls plus keyboard navigation.
 
-The pending K19 review and mobile publication gate do not block source audit
-or separately committed local implementation of the next catalog child. They
-continue to block publication of K19 and any aggregate candidate containing
-it.
+The deferred K19 mobile gate does not block source audit or separately
+committed local implementation of the next catalog child. Review and the
+consolidated per-feature L3 results continue to block push, tag, release, and
+publication of the aggregate candidate. Live/candidate apply and any
+PocketRisu restart remain separate explicit-authorization boundaries.
 
 ## Next implementation sequence
 
