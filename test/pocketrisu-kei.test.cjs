@@ -9,12 +9,13 @@ const { resolveSelection } = require('../src/resolver.cjs')
 
 test('PocketRisu Kei remains a unit-free universal-only meta pack', () => {
     assert.equal(manifest.id, 'pocketrisu-kei')
-    assert.equal(manifest.version, '0.4.0')
+    assert.equal(manifest.version, '0.5.0')
     assert.equal(manifest.userSelectable, true)
     assert.deepEqual(manifest.requires, [
         'kei-fullscreen-image-viewer-core',
         'kei-stream-parser-core',
         'kei-chat-render-core',
+        'kei-mobile-navigation-core',
     ])
     assert.deepEqual(manifest.units, [])
     assert.equal(Object.hasOwn(manifest, 'presetDefaults'), false)
@@ -31,6 +32,8 @@ test('PocketRisu Kei remains a unit-free universal-only meta pack', () => {
         'kei-chat-render-base-adapter',
         'kei-chat-render-core',
         'kei-fullscreen-image-viewer-core',
+        'kei-mobile-navigation-base-adapter',
+        'kei-mobile-navigation-core',
         'kei-stream-parser-base-adapter',
         'kei-stream-parser-core',
         manifest.id,
@@ -38,10 +41,12 @@ test('PocketRisu Kei remains a unit-free universal-only meta pack', () => {
     assert.deepEqual(resolution.dependencyAdded, [
         'kei-chat-render-core',
         'kei-fullscreen-image-viewer-core',
+        'kei-mobile-navigation-core',
         'kei-stream-parser-core',
     ])
     assert.deepEqual(resolution.autoAdded, [
         'kei-chat-render-base-adapter',
+        'kei-mobile-navigation-base-adapter',
         'kei-stream-parser-base-adapter',
     ])
 })
@@ -71,6 +76,8 @@ test('PocketRisu Kei can require hidden children without exposing them directly'
         'kei-chat-render-core',
         child.id,
         'kei-fullscreen-image-viewer-core',
+        'kei-mobile-navigation-base-adapter',
+        'kei-mobile-navigation-core',
         'kei-stream-parser-base-adapter',
         'kei-stream-parser-core',
         manifest.id,
@@ -79,6 +86,7 @@ test('PocketRisu Kei can require hidden children without exposing them directly'
         'kei-chat-render-core',
         child.id,
         'kei-fullscreen-image-viewer-core',
+        'kei-mobile-navigation-core',
         'kei-stream-parser-core',
     ])
     assert.throws(
@@ -97,6 +105,9 @@ test('PocketRisu Kei adds only its child units to every existing unit graph', ()
         'kei-chat-render-base-adapter',
         'kei-chat-render-bg-adapter',
         'kei-fullscreen-image-viewer-core',
+        'kei-mobile-navigation-core',
+        'kei-mobile-navigation-base-adapter',
+        'kei-mobile-navigation-lazy-adapter',
         'kei-stream-parser-core',
         'kei-stream-parser-base-adapter',
         'kei-stream-parser-bg-adapter',
@@ -131,6 +142,14 @@ test('PocketRisu Kei adds only its child units to every existing unit graph', ()
         assert.equal(
             withKeiResolution.resolvedIds.includes('kei-chat-render-bg-adapter'),
             withKeiResolution.resolvedIds.includes('bg-preserve'),
+        )
+        assert.equal(
+            withKeiResolution.resolvedIds.includes('kei-mobile-navigation-base-adapter'),
+            !withKeiResolution.resolvedIds.includes('lazy-chat-sync'),
+        )
+        assert.equal(
+            withKeiResolution.resolvedIds.includes('kei-mobile-navigation-lazy-adapter'),
+            withKeiResolution.resolvedIds.includes('lazy-chat-sync'),
         )
     }
 })

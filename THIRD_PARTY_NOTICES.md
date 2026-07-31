@@ -19,8 +19,8 @@ from the PR's exact transport revisions.
 ## PocketRisu Kei
 
 The optional fullscreen image viewer, robust OpenAI and Google SSE stream
-parsing, and streaming chat render identity adapt focused capabilities from
-PocketRisu Kei:
+parsing, streaming chat render identity, and navigation/hotkey behavior adapt
+focused capabilities from PocketRisu Kei:
 
 - Source: https://github.com/seto-sama/PocketRisu-Kei
 - Revision: `cc1d1b195babd887577ebf943d5e82f01f58135c`
@@ -35,7 +35,10 @@ PocketRisu Kei:
   `src/lib/ChatScreens/Chats.svelte`,
   `src/lib/ChatScreens/Chat.svelte`, and
   `src/lib/ChatScreens/ChatBody.svelte`, with the active-generation signal
-  supplied by `src/lib/ChatScreens/DefaultChatScreen.svelte`.
+  supplied by `src/lib/ChatScreens/DefaultChatScreen.svelte`;
+  `src/ts/hotkey.ts`, `src/ts/defaulthotkeys.ts`,
+  `src/ts/mobileBackNavigation.ts`, and the focused bootstrap, database,
+  hotkey-settings, accessibility-settings, and language wiring.
 
 The local adaptation keeps PocketRisu's existing inlay gallery and character
 asset management paths, centralizes Escape/arrow handling in the viewer, and
@@ -47,3 +50,9 @@ The render adaptation keeps the active streaming message mounted, updates its
 reactive content prop, preserves global reload behavior, and defers automatic
 translation until the stream completes. It does not replace request delivery,
 background result claim/ACK, reconnect, or storage behavior.
+The navigation adaptation adds non-mutating hotkey matching, safe adjacent
+character boundaries, pointer gesture cleanup, an enable switch, model-preset
+selection, and an opt-in mobile back guard. Its bootstrap adapters preserve
+the existing startup-cache and lazy-chat replacement order and do not take
+ownership of route restoration, chat hydration, pending local writes, or
+generation delivery.
