@@ -28,6 +28,9 @@ test('catalog exposes eleven user packs and keeps integration packs internal', (
         [
             'bg-preserve-storage-base',
             'lazy-chat-bg-adapter',
+            'kei-stream-parser-core',
+            'kei-stream-parser-base-adapter',
+            'kei-stream-parser-bg-adapter',
             'kei-fullscreen-image-viewer-core',
         ],
     )

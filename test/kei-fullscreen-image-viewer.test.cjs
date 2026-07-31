@@ -27,19 +27,19 @@ function managedText(candidate) {
     return candidate.managed ?? candidate.content ?? ''
 }
 
-test('fullscreen viewer is one hidden umbrella child with no narrow preset ownership', () => {
+test('fullscreen viewer remains a hidden umbrella child with no narrow preset ownership', () => {
     const catalog = loadCatalog()
     assert.equal(manifest.id, 'kei-fullscreen-image-viewer-core')
     assert.equal(manifest.version, '0.1.0')
     assert.equal(manifest.userSelectable, false)
     assert.equal(manifest.presetDefaults, undefined)
-    assert.equal(metaManifest.version, '0.2.0')
-    assert.deepEqual(metaManifest.requires, [manifest.id])
+    assert.equal(metaManifest.version, '0.3.0')
+    assert.equal(metaManifest.requires.includes(manifest.id), true)
     assert.equal(resolveProfile('features', catalog).defaults.includes(metaManifest.id), false)
     assert.equal(resolveProfile('hardening', catalog).defaults.includes(metaManifest.id), false)
 
     const resolution = resolveSelection(catalog, [metaManifest.id])
-    assert.deepEqual(resolution.dependencyAdded, [manifest.id])
+    assert.equal(resolution.dependencyAdded.includes(manifest.id), true)
     assert.equal(resolution.resolvedIds.includes(manifest.id), true)
     assert.throws(
         () => resolveSelection(catalog, [manifest.id]),

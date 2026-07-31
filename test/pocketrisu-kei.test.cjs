@@ -9,9 +9,12 @@ const { resolveSelection } = require('../src/resolver.cjs')
 
 test('PocketRisu Kei remains a unit-free universal-only meta pack', () => {
     assert.equal(manifest.id, 'pocketrisu-kei')
-    assert.equal(manifest.version, '0.2.0')
+    assert.equal(manifest.version, '0.3.0')
     assert.equal(manifest.userSelectable, true)
-    assert.deepEqual(manifest.requires, ['kei-fullscreen-image-viewer-core'])
+    assert.deepEqual(manifest.requires, [
+        'kei-fullscreen-image-viewer-core',
+        'kei-stream-parser-core',
+    ])
     assert.deepEqual(manifest.units, [])
     assert.equal(Object.hasOwn(manifest, 'presetDefaults'), false)
 
@@ -25,9 +28,15 @@ test('PocketRisu Kei remains a unit-free universal-only meta pack', () => {
     const resolution = resolveSelection(catalog, [manifest.id])
     assert.deepEqual(resolution.resolvedIds, [
         'kei-fullscreen-image-viewer-core',
+        'kei-stream-parser-base-adapter',
+        'kei-stream-parser-core',
         manifest.id,
     ])
-    assert.deepEqual(resolution.dependencyAdded, ['kei-fullscreen-image-viewer-core'])
+    assert.deepEqual(resolution.dependencyAdded, [
+        'kei-fullscreen-image-viewer-core',
+        'kei-stream-parser-core',
+    ])
+    assert.deepEqual(resolution.autoAdded, ['kei-stream-parser-base-adapter'])
 })
 
 test('PocketRisu Kei can require hidden children without exposing them directly', () => {
@@ -53,11 +62,14 @@ test('PocketRisu Kei can require hidden children without exposing them directly'
     assert.deepEqual(resolution.resolvedIds, [
         child.id,
         'kei-fullscreen-image-viewer-core',
+        'kei-stream-parser-base-adapter',
+        'kei-stream-parser-core',
         manifest.id,
     ])
     assert.deepEqual(resolution.dependencyAdded, [
         child.id,
         'kei-fullscreen-image-viewer-core',
+        'kei-stream-parser-core',
     ])
     assert.throws(
         () => resolveSelection(futureCatalog, [child.id]),
@@ -70,28 +82,34 @@ test('PocketRisu Kei adds only its child units to every existing unit graph', ()
     const existingVisible = catalog
         .filter((pack) => pack.userSelectable !== false && pack.id !== manifest.id)
         .map((pack) => pack.id)
-    const childUnitIds = new Set(
-        catalog
-            .find((pack) => pack.id === 'kei-fullscreen-image-viewer-core')
-            .units
-            .map((unit) => unit.id),
-    )
+    const keiPackIds = new Set([
+        'kei-fullscreen-image-viewer-core',
+        'kei-stream-parser-core',
+        'kei-stream-parser-base-adapter',
+        'kei-stream-parser-bg-adapter',
+        manifest.id,
+    ])
 
     for (let mask = 0; mask < (2 ** existingVisible.length); mask += 1) {
         const selected = existingVisible.filter((_, index) => mask & (2 ** index))
-        const withoutKei = resolveSelection(catalog, selected)
-            .packs
+        const withoutKeiResolution = resolveSelection(catalog, selected)
+        const withKeiResolution = resolveSelection(catalog, [...selected, manifest.id])
+        const withoutKei = withoutKeiResolution.packs
             .flatMap((pack) => pack.units.map((unit) => unit.id))
-        const withKei = resolveSelection(catalog, [...selected, manifest.id])
-            .packs
+        const withKei = withKeiResolution.packs
+            .filter((pack) => !keiPackIds.has(pack.id))
             .flatMap((pack) => pack.units.map((unit) => unit.id))
         assert.deepEqual(
-            withKei.filter((id) => !childUnitIds.has(id)),
+            withKei,
             withoutKei,
         )
-        assert.deepEqual(
-            withKei.filter((id) => childUnitIds.has(id)).sort(),
-            [...childUnitIds].sort(),
+        assert.equal(
+            withKeiResolution.resolvedIds.includes('kei-stream-parser-base-adapter'),
+            !withKeiResolution.resolvedIds.includes('bg-preserve'),
+        )
+        assert.equal(
+            withKeiResolution.resolvedIds.includes('kei-stream-parser-bg-adapter'),
+            withKeiResolution.resolvedIds.includes('bg-preserve'),
         )
     }
 })
