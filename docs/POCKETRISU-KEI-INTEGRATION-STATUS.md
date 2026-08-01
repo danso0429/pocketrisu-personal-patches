@@ -1,21 +1,45 @@
 # PocketRisu Kei integration status and next plan
 
-> **Status date:** 2026-07-31 KST
+> **Status date:** 2026-08-01 KST
 >
 > **Planning authority:** `docs/POCKETRISU-KEI-INTEGRATION-CATALOG.md`
 >
 > **Frozen comparison:** PocketRisu 1.8.1
 > `63832a138c14cc7f11364cf7efdcb61950e7894c`, PocketRisu Kei
 > `cc1d1b195babd887577ebf943d5e82f01f58135c`, patcher base `77e23c0`.
+>
+> **New target overlay:** Official PocketRisu 1.9.0
+> `85a65f3137b45c8de4a8d21a9887be213b1ac3fc`; see
+> `docs/POCKETRISU-1.9-REBASE-AUDIT.md`.
 
 This file records progress against the catalog. It does not change a catalog
 disposition or preservation contract.
 
+## PocketRisu 1.9.0 pivot
+
+PocketRisu 1.9.0 changes the generation, recovery, logging, usage, streaming
+render, preset, backup, and asset-viewer baseline. The existing 1.8.1
+candidate is preserved rather than mutated in place.
+
+- `codex/pocketrisu-kei-integration` remains at `081a32b` with K12 staged but
+  uncommitted against 1.8.1.
+- `codex/pocketrisu-1.9-rebase` starts at `081a32b` without importing those
+  uncommitted bytes.
+- The 1.9 branch requalifies existing packs and admitted Kei children before
+  any new catalog child is implemented.
+- Neither branch has been pushed, tagged, released, applied live, or followed
+  by a PocketRisu restart.
+
+The exact overlap, semantic classification, generation-authority conflict,
+privacy-policy correction, and ordered rebase plan are in the 1.9 audit.
+
 ## Current branch boundary
 
-The local integration branch is `codex/pocketrisu-kei-integration`. Resolve
-its active checkout with `git worktree list`; do not encode one machine's
-worktree path into repository history.
+The preserved 1.8.1 integration branch is
+`codex/pocketrisu-kei-integration`; the active target-rebase branch is
+`codex/pocketrisu-1.9-rebase`. Resolve either checkout with
+`git worktree list`; do not encode one machine's worktree path into repository
+history.
 
 | Commit | Boundary | State |
 | --- | --- | --- |
@@ -43,7 +67,7 @@ PocketRisu tree, or followed by a PocketRisu restart.
 | 2. Minimal K02 primitives required by K19, then K19 | Implementation and automated gates complete | PocketRisu 1.8.1 already supplied the Svelte/icon primitives needed by the focused K19 port, so no K02 child was added. K19 evidence is in `docs/POCKETRISU-KEI-K19-VALIDATION.md`. HQ review and the concrete iPhone gate remain, so this step is not publication-qualified. |
 | Detour: exhaustive verifier performance | Complete as local infrastructure | `docs/COMBINATION-VERIFIER-OPTIMIZATION-VALIDATION.md`; this does not advance an admission step |
 | 3. K13 stream parser, K14 render stability, K16 navigation/hotkeys | Implementation and automated gates recorded | Each feature has an isolated core/adapters, receipt, L2.5 audit, base/composed target tests and builds, all 2,048 raw patch selections, and exact revert evidence. See `docs/POCKETRISU-KEI-K13-VALIDATION.md`, `docs/POCKETRISU-KEI-K14-VALIDATION.md`, and `docs/POCKETRISU-KEI-K16-VALIDATION.md`. HQ review and each consolidated L3 scenario remain, so this step is not publication-qualified. |
-| 4. K15 partial edit, K11 Hypa tools, K12 translation tools | K15 and K11 automated gates complete; next: K12 | Evidence is in `docs/POCKETRISU-KEI-K15-VALIDATION.md` and `docs/POCKETRISU-KEI-K11-VALIDATION.md`. HQ review and their consolidated L3 scenarios remain. Implement K12 separately; editing/cache/generation ownership remains controlling. |
+| 4. K15 partial edit, K11 Hypa tools, K12 translation tools | K15 and K11 automated 1.8.1 gates complete; K12 is staged only on the preserved 1.8.1 branch | Evidence is in `docs/POCKETRISU-KEI-K15-VALIDATION.md` and `docs/POCKETRISU-KEI-K11-VALIDATION.md`. Rebase all three onto 1.9 owners before claiming target qualification. |
 | 5. K03/K04 preset behavior and K26 backup tools | Not started | Existing-authority preservation contracts remain controlling |
 | 6. K20/K22/K23/K29 existing-authority merges | Not started | No parallel order/schema/orchestration authority may be introduced |
 | 7. K05–K09, K24/K25, K27, K28 policy packs | Not started | Separate explicit opt-in packs; none blocks the umbrella |
@@ -151,21 +175,20 @@ PocketRisu restart remain separate explicit-authorization boundaries.
 
 ## Next implementation sequence
 
-Resume catalog admission step 4 in the local branch. Implement and commit each
-capability separately while preserving the review and publication boundary
-above.
+Pause new catalog admission while the official 1.9 target is requalified.
+Follow `docs/POCKETRISU-1.9-REBASE-AUDIT.md` in this order:
 
-### K12 — translation tools
+1. add a review-only exact 1.9 target boundary;
+2. requalify localized existing packs;
+3. rebase storage/import owners;
+4. resolve native-job versus bg-preserve authority before composing either;
+5. adapt K19, K13, K14, K16, K15, and K11 as separate deltas;
+6. port the preserved staged K12 implementation;
+7. re-evaluate future and policy catalog rows against the new baseline;
+8. run focused target gates, L2.5, and exhaustive raw-selection combination
+   verification before any `verified` declaration.
 
-K15 and K11 now have separate core/base/bg-preserve packs, automatic gates,
-exact revert evidence, and L2.5 receipts. Next, trace the frozen Kei
-translation-cache list/search/edit/delete/import/export/clear/unused-cleanup
-and abortable-loading flow end to end before coding. Preserve the complete
-translation identity, existing cancellation, explicit destructive-action
-boundary, storage owner, and bg-preserve request delivery. Do not fold K12
-into K15 merely because both touch translation caches.
-
-After K12, continue with admission steps 5–7 in catalog
-order. A later Kei revision reopens only the affected rows under the
-catalog's re-evaluation rule; it does not silently replace this frozen
-comparison.
+K12 remains a separate feature and keeps its complete translation identity,
+cancellation, explicit destructive-action, storage-owner, and bg-delivery
+contracts. Its staged 1.8.1 implementation is evidence, not a patch that may
+be copied blindly onto 1.9.0.

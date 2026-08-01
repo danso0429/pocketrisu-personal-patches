@@ -15,6 +15,12 @@ The comparison is frozen to:
 | PocketRisu Kei | `cc1d1b195babd887577ebf943d5e82f01f58135c` |
 | Patcher before this catalog | `77e23c0` / `v0.2.0-experimental.9` |
 
+PocketRisu 1.9.0 later changed the target baseline. The target-specific
+overlap and rebase decisions are recorded in
+`docs/POCKETRISU-1.9-REBASE-AUDIT.md`. That overlay updates applicability
+against 1.9.0 without silently changing this catalog's frozen Kei comparison
+or its ownership and preservation contracts.
+
 Kei is explicitly described by its maintainer as a nightly build. Its source,
 callers, and tests therefore take precedence over README wording, and no Kei
 behavior is admitted merely because it appears in the feature list.
