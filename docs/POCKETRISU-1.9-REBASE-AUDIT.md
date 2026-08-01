@@ -115,7 +115,7 @@ only changed filenames.
 | K14 render stability | Upstream adds optional balanced/strong display coalescing, active-message mount reuse, raw strong-mode rendering, and edit suppression. | Qualified as a native-renderer delta: add live-generation validation, lifecycle/local-reload identity, reactive message/generation metadata, partial-translation deferral, and BG ordering without copying a second renderer. Receipt: `docs/POCKETRISU-1.9-KEI-K14-VALIDATION.md`. |
 | K16 navigation/hotkeys | Upstream fixes adjacent-character bounds, model-preset shortcut handling, and a generic unload guard. | Qualified as a target-scoped extension: retain the native model shortcut and unload owner, reuse the corrected character host with K16 filtering, and keep the master switch, exact modifier/Meta matching, pointer cleanup, modal/control guards, and opt-in same-page Back behavior. Receipt: `docs/POCKETRISU-1.9-KEI-K16-VALIDATION.md`. |
 | K15 partial edit | Upstream merely suppresses its existing per-message partial editor during optimized streaming. | Qualified as an exact-target delta: replace the per-message controller with the shared manager while preserving upstream/K14 optimized-stream suppression, native overscroll, exact target/DOM identity, stale cancellation, and translation-cache token/key/data guards. Receipt: `docs/POCKETRISU-1.9-KEI-K15-VALIDATION.md`. |
-| K11 Hypa tools | Upstream fixes CBS-aware preview and filtered search and retains existing summary reroll/bulk-resummary UI. | Keep manual contiguous-prefix selection, generate/preview/reroll/cancel/apply, exact frontier rejection, and generation-owner adapters. Remove any now-duplicate preview/search correction. |
+| K11 Hypa tools | Upstream fixes CBS-aware preview and filtered search and retains existing summary reroll/bulk-resummary UI. | Qualified as an exact-target delta: retain native preview, summary-item reroll, and filtered search; add manual contiguous-prefix selection, generate/preview/reroll/cancel/apply, exact frontier rejection, and generation-owner adapters. Receipt: `docs/POCKETRISU-1.9-KEI-K11-VALIDATION.md`. |
 | K12 translation tools | Upstream fixes the original-text persistent-cache key. It does not add entry list/search/edit/delete, CAS, import/export management, unused-candidate review, progressive loading, or cancellation. | Port the staged K12 core after removing the duplicate cache-key fix and rebasing four changed runtime anchors. Preserve complete translation identity and explicit destructive actions. |
 
 The current `pocketrisu-kei` graph does not plan on raw 1.9.0. K14's changed
@@ -301,7 +301,14 @@ Only observed results may move 1.9.0 from `reviewing` to `verified`.
   translation-cache identity guards. Its dual-target plan, base/lazy+BG
   gates, exact round trips, runtime audit, and remaining iPhone scenarios are
   recorded in `docs/POCKETRISU-1.9-KEI-K15-VALIDATION.md`.
-- K11, K12, and aggregate qualification remain pending.
+- K11 Hypa tools: qualified for exact 1.9.0 with separate 20-unit 1.8 and
+  18-unit 1.9 adapters plus its four-unit core. The 1.9 path retains native
+  preview, summary-item reroll, and filtered search while adding only the
+  manual workflow and frontier correction. Its dual-target plan,
+  base/lazy+BG gates, exact round trips, runtime audit, and remaining iPhone
+  scenarios are recorded in
+  `docs/POCKETRISU-1.9-KEI-K11-VALIDATION.md`.
+- K12 and aggregate qualification remain pending.
 
 ## Post-audit operational handoff
 

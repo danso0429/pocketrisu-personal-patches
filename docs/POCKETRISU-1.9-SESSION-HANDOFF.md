@@ -7,9 +7,10 @@
 > **Exact target:** official PocketRisu `v1.9.0` /
 > `85a65f3137b45c8de4a8d21a9887be213b1ac3fc`
 >
-> **Immediate next feature:** adapt K11 HypaMemory manual tools while removing
-> the native 1.9 CBS-preview/search overlap. The BG/lazy owner graph and K19,
-> K13, K14, K16, K15 Kei children are qualified; K12 remains last.
+> **Immediate next feature:** port the preserved staged K12 translation-cache
+> tools, removing the native 1.9 original-text cache-key overlap and adapting
+> its changed runtime anchors. The BG/lazy owner graph and K19, K13, K14, K16,
+> K15, K11 Kei children are qualified.
 
 This document records the complete local work boundary from the beginning of
 the Kei selection effort through the 1.9 pivot and live-update preparation.
@@ -250,9 +251,9 @@ gate. Resume owner integration in this order:
 1. Retain the qualified request-class table and combined BG/lazy adapter graph
    without weakening result/claim/ACK, cancellation, hydration, or
    no-resurrection contracts.
-2. Retain the qualified K19, K13, K14, K16, and K15 deltas. Rebase K11 as a
-   separate focused commit, removing only behavior proven equivalent in
-   official 1.9 and preserving every missing outcome and owner contract.
+2. Retain the qualified K19, K13, K14, K16, K15, and K11 deltas. K11 leaves
+   native preview, summary-item reroll, and filtered search under upstream
+   ownership while retaining the missing manual/frontier outcomes.
 3. Port the preserved staged K12 last. Remove the duplicate cache-key fix,
    adapt its four changed runtime anchors, and repeat identity/CAS/cancel/
    import/export/cleanup gates.

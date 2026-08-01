@@ -78,7 +78,7 @@ official 1.9 base and is not a candidate publication or patch qualification.
 | 2. Minimal K02 primitives required by K19, then K19 | Implementation and automated gates complete | PocketRisu 1.8.1 already supplied the Svelte/icon primitives needed by the focused K19 port, so no K02 child was added. K19 evidence is in `docs/POCKETRISU-KEI-K19-VALIDATION.md`. HQ review and the concrete iPhone gate remain, so this step is not publication-qualified. |
 | Detour: exhaustive verifier performance | Complete as local infrastructure | `docs/COMBINATION-VERIFIER-OPTIMIZATION-VALIDATION.md`; this does not advance an admission step |
 | 3. K13 stream parser, K14 render stability, K16 navigation/hotkeys | Exact-1.9 implementation and automated gates recorded | Each feature has an isolated core/adapters, 1.9 receipt, L2.5 audit, base/composed target tests and builds, dual-target planning, and exact revert evidence. See `docs/POCKETRISU-1.9-KEI-K13-VALIDATION.md`, `docs/POCKETRISU-1.9-KEI-K14-VALIDATION.md`, and `docs/POCKETRISU-1.9-KEI-K16-VALIDATION.md`. The aggregate raw-selection gate, HQ review, and each consolidated L3 scenario remain, so this step is not publication-qualified. |
-| 4. K15 partial edit, K11 Hypa tools, K12 translation tools | K15 exact-1.9 implementation and automated gates recorded; K11 remains qualified only on 1.8.1; K12 is staged only on the preserved 1.8.1 branch | K15 evidence is in `docs/POCKETRISU-1.9-KEI-K15-VALIDATION.md`; the historical 1.8 receipts remain `docs/POCKETRISU-KEI-K15-VALIDATION.md` and `docs/POCKETRISU-KEI-K11-VALIDATION.md`. Rebase K11 and K12 before claiming the step or aggregate target-qualified. |
+| 4. K15 partial edit, K11 Hypa tools, K12 translation tools | K15 and K11 exact-1.9 implementations and automated gates recorded; K12 is staged only on the preserved 1.8.1 branch | Exact-1.9 evidence is in `docs/POCKETRISU-1.9-KEI-K15-VALIDATION.md` and `docs/POCKETRISU-1.9-KEI-K11-VALIDATION.md`; the historical 1.8 receipts remain available. Rebase K12 before claiming the step or aggregate target-qualified. |
 | 5. K03/K04 preset behavior and K26 backup tools | Not started | Existing-authority preservation contracts remain controlling |
 | 6. K20/K22/K23/K29 existing-authority merges | Not started | No parallel order/schema/orchestration authority may be introduced |
 | 7. K05–K09, K24/K25, K27, K28 policy packs | Not started | Separate explicit opt-in packs; none blocks the umbrella |
@@ -199,8 +199,9 @@ unchanged replayable SSE core and dual graph adapters are qualified on exact
 optimization, K16 retains only the navigation/hotkey outcomes missing from
 the native shortcut and unload owners, and K15 preserves upstream optimized
 stream suppression while replacing the per-message controller with its
-shared identity-guarded manager. The exact next executable work is K11
-HypaMemory manual tools.
+shared identity-guarded manager. K11 retains native preview/search and adds
+only the manual frontier workflow. The exact next executable work is the
+preserved K12 translation-cache tools port.
 Follow
 `docs/POCKETRISU-1.9-SESSION-HANDOFF.md` and
 `docs/POCKETRISU-1.9-REBASE-AUDIT.md` in this order:
@@ -216,7 +217,7 @@ Follow
    receipts;
 4. retain the qualified native-job/BG authority split and combined lazy/BG
    adapter without adding a second request-class owner;
-5. retain the qualified K19, K13, K14, K16, and K15 deltas, then adapt K11;
+5. retain the qualified K19, K13, K14, K16, K15, and K11 deltas;
 6. port the preserved staged K12 implementation;
 7. re-evaluate future and policy catalog rows against the new baseline;
 8. run focused target gates, L2.5, and exhaustive raw-selection combination

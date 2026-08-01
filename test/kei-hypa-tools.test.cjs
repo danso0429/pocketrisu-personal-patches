@@ -25,6 +25,14 @@ test('K11 keeps one internal core and exactly one base/bg adapter', () => {
     assert.equal(core.userSelectable, false)
     assert.equal(base.userSelectable, false)
     assert.equal(bg.userSelectable, false)
+    for (const pack of [core, base, bg]) {
+        assert.deepEqual(pack.targets, {
+            pocketrisu: {
+                verified: ['1.8.1', '1.9.0'],
+                reviewing: [],
+            },
+        })
+    }
     assert.deepEqual(base.requires, ['kei-hypa-tools-core'])
     assert.deepEqual(bg.requires, ['kei-hypa-tools-core', 'bg-preserve'])
     assert.deepEqual(base.autoWhen, {
@@ -73,9 +81,29 @@ test('K11 owns only its deterministic selection and manual panel code', () => {
         'src/lib/Others/HypaV3Modal/utils.ts',
     ]
     for (const adapter of [base, bg]) {
+        const units181 = adapter.units.filter((unit) =>
+            unit.targetVersions?.pocketrisu?.includes('1.8.1')
+        )
+        const units190 = adapter.units.filter((unit) =>
+            unit.targetVersions?.pocketrisu?.includes('1.9.0')
+        )
+        assert.equal(units181.length, 20)
+        assert.equal(units190.length, 18)
+        assert.equal(
+            adapter.units.every((unit) =>
+                unit.targetVersions?.pocketrisu?.length === 1
+            ),
+            true,
+        )
         assert.deepEqual(
             [...new Set(adapter.units.map((unit) => unit.file))].sort(),
             expectedHosts,
+        )
+        assert.deepEqual(
+            [...new Set(units190.map((unit) => unit.file))].sort(),
+            expectedHosts.filter((file) =>
+                file !== 'src/lib/Others/HypaV3Modal/modal-summary-item.svelte'
+            ),
         )
         const managed = adapter.units.map(unitText).join('\n')
         assert.doesNotMatch(
@@ -83,6 +111,12 @@ test('K11 owns only its deterministic selection and manual panel code', () => {
             /revenant|sendChat|bgOrchestrat|result.?claim|acknowledge|setCurrentChat|setDatabase/i,
         )
         assert.doesNotMatch(managed, /TagManagerModal\s*\/>|performSearch\s*=|delete\s+tag/i)
+        const managed190 = units190.map(unitText).join('\n')
+        assert.doesNotMatch(
+            managed190,
+            /export async function processRegexScript/,
+        )
+        assert.match(managed190, /processMessageForPreview\(/)
     }
 })
 
@@ -139,27 +173,55 @@ test('K11 selection blocks gaps, ambiguous identities, and stale apply', () => {
 
 test('K11 adapters retain existing management surfaces and correct CBS context', () => {
     for (const adapter of [base, bg]) {
-        const processing = adapter.units.find((unit) =>
+        const processing181 = adapter.units.find((unit) =>
             unit.id.endsWith(':utils-message-processing'),
         )
-        const modalOpen = adapter.units.find((unit) =>
-            unit.id.endsWith(':modal-panel-open'),
+        const processing190 = adapter.units.find((unit) =>
+            unit.id.endsWith(':utils-message-processing:1.9'),
         )
-        const modalClose = adapter.units.find((unit) =>
-            unit.id.endsWith(':modal-panel-close'),
+        assert.ok(processing181)
+        assert.ok(processing190)
+        for (const processing of [processing181, processing190]) {
+            assert.match(unitText(processing), /chatID: msgIndex/)
+            assert.match(unitText(processing), /rmVar: true/)
+            assert.match(unitText(processing), /firstmsg: firstMessage/)
+            assert.match(unitText(processing), /deriveHypaManualFrontier/)
+        }
+        assert.equal(processing190.type, 'insert')
+        assert.match(
+            processing190.anchor,
+            /export async function processMessageForPreview/,
         )
-        assert.ok(processing)
-        assert.ok(modalOpen)
-        assert.ok(modalClose)
-        assert.match(unitText(processing), /chatID: msgIndex/)
-        assert.match(unitText(processing), /rmVar: true/)
-        assert.match(unitText(processing), /firstmsg: firstMessage/)
-        assert.match(unitText(processing), /deriveHypaManualFrontier/)
-        assert.match(unitText(modalOpen), /KeiHypaManualSummaryPanel/)
-        assert.match(unitText(modalClose), /\{\/if\}/)
+        assert.doesNotMatch(
+            processing190.content,
+            /export async function processMessageForPreview/,
+        )
+        assert.match(
+            processing190.content,
+            /return await processMessageForPreview\(/,
+        )
+        for (const targetSuffix of ['', ':1.9']) {
+            const modalOpen = adapter.units.find((unit) =>
+                unit.id.endsWith(`:modal-panel-open${targetSuffix}`)
+            )
+            const modalClose = adapter.units.find((unit) =>
+                unit.id.endsWith(`:modal-panel-close${targetSuffix}`)
+            )
+            assert.ok(modalOpen)
+            assert.ok(modalClose)
+            assert.match(unitText(modalOpen), /KeiHypaManualSummaryPanel/)
+            assert.match(unitText(modalClose), /\{\/if\}/)
+        }
         assert.match(
             adapter.units.map(unitText).join('\n'),
             /manualSummaryDisabled=\{bulkResummaryState !== null\}/,
+        )
+        assert.equal(
+            adapter.units.some((unit) =>
+                unit.id.endsWith(':summary-item-helper-import:1.9')
+                || unit.id.endsWith(':summary-item-helper-call:1.9')
+            ),
+            false,
         )
     }
 
