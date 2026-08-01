@@ -7,7 +7,7 @@
 > **Exact target:** official PocketRisu `v1.9.0` /
 > `85a65f3137b45c8de4a8d21a9887be213b1ac3fc`
 >
-> **Immediate next feature:** `bg-preserve-storage-base` 1.9 semantic
+> **Immediate next feature:** `persona-organizer` 1.9 rebase and semantic
 > qualification. Do not resume with Kei or K12 first.
 
 This document records the complete local work boundary from the beginning of
@@ -111,17 +111,22 @@ the staged K12 bytes.
 | `270547f` | Qualified `toolchain-hardening` for exact 1.9.0 with isolated apply/reapply/revert evidence. |
 | `ae70364` | Qualified `startup-cache` for exact 1.9.0 as a cache-only delta, including focused and combined evidence. |
 | `88ddfe5` | Qualified `parser-hardening` for exact 1.9.0, including unchanged upstream parser defects, focused parsing tests, toolchain composition, and exact round trips. |
+| `532547c` | Qualified `character-organizer` while preserving native 1.9 drag/file-drop and AssetViewer behavior. |
+| `3406325` | Added exact-target-scoped units and stale-target preconditions, with exhaustive exact-1.8 combination evidence. |
+| `eca26f0` | Added the 1.9-only native Settings Search adapter for `personal-settings` while preserving its 1.8 graph. |
 
-The last implementation commit is `88ddfe5`; the branch HEAD containing this
-handoff should be clean. Patcher tests observed after the three localized
-qualifications were 28/28. Exact 1.9 remains `reviewing`, not globally
-`verified`; all other packs remain under review.
+The exact commit sequence through the current branch HEAD remains authoritative
+in `git log`; do not resume from the historical `88ddfe5` boundary. The
+conditional `bg-preserve-storage-base` adapter was subsequently qualified as
+an asset-only 1.9 delta while its parent remained reviewing. Patcher tests
+observed after that qualification were 29/29. Exact 1.9 remains `reviewing`,
+not globally `verified`; later packs remain under review.
 
 The generated `dist/` installers were last rebuilt in `b815d51`. They do not
-yet contain the later source-manifest qualifications from `270547f`,
-`ae70364`, and `88ddfe5`. Do not use or publish the current generated
-installers as a HEAD-equivalent 1.9 artifact. Rebuild them reproducibly and
-record deterministic hashes before any installer or delivery claim.
+yet contain the later source-manifest qualifications, target-scoped manager,
+or 1.9 adapters. Do not use or publish the current generated installers as a
+HEAD-equivalent 1.9 artifact. Rebuild them reproducibly and record
+deterministic hashes before any installer or delivery claim.
 
 ## Live-installation operation performed in this session
 
@@ -230,29 +235,24 @@ before editing anything.
 
 The exact-1.9 target boundary, `toolchain-hardening`, `startup-cache`,
 `parser-hardening`, `character-organizer`, and the version-aware
-`personal-settings` Search adaptation are locally qualified. Resume rebase
-step 2 in this order:
+`personal-settings` Search adaptation are locally qualified. The conditional
+asset-only `bg-preserve-storage-base` adapter is also qualified without
+promoting its parent BG pack. Resume storage/import-owner rebase in this order:
 
-1. **`bg-preserve-storage-base`:** its anchors remain structurally exact, but
-   review storage and native model-job recovery ordering before semantic
-   qualification.
-
-After those localized packs:
-
-2. Rebase `persona-organizer`, `character-import-ux`, and then
-   `lazy-chat-sync`, preserving native 1.9 model jobs, boot recovery, request
+1. Rebase `persona-organizer`, then `character-import-ux`, and then
+   `lazy-chat-sync`. Preserve native 1.9 model jobs, boot recovery, request
    logging, the session/writer lock, storage headers, and settings-only backup.
-3. Write and test the request-class ownership table before touching
+2. Write and test the request-class ownership table before touching
    `bg-preserve` or `lazy-chat-bg-adapter`. Assign exactly one owner for
    ordinary bg-eligible sends, client-only/programmatic sends, helpers, stream
    transport, terminal persistence/claim, cancellation, and boot recovery.
-4. Rebase K19, K13, K14, K16, K15, and K11 as separate focused commits. Remove
+3. Rebase K19, K13, K14, K16, K15, and K11 as separate focused commits. Remove
    only behavior proven equivalent in official 1.9; preserve missing outcomes
    and each existing owner contract.
-5. Port the preserved staged K12 last. Remove the duplicate cache-key fix,
+4. Port the preserved staged K12 last. Remove the duplicate cache-key fix,
    adapt its four changed runtime anchors, and repeat identity/CAS/cancel/
    import/export/cleanup gates.
-6. Re-evaluate future and policy rows, including unresolved K27/K28, only
+5. Re-evaluate future and policy rows, including unresolved K27/K28, only
    after the owner graph is usable.
 
 For every numbered implementation, keep a feature-local receipt and commit.

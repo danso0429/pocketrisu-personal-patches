@@ -4,6 +4,12 @@ module.exports = {
     id: 'bg-preserve-storage-base',
     title: 'BG preserve storage integration for standard PocketRisu storage',
     version: '0.1.0',
+    targets: {
+        pocketrisu: {
+            verified: ['1.8.1', '1.9.0'],
+            reviewing: [],
+        },
+    },
     userSelectable: false,
     requires: ['bg-preserve'],
     conflicts: ['lazy-chat-sync'],

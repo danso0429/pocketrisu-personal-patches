@@ -68,7 +68,7 @@ It is a review surface, not proof of a semantic conflict.
 | Pack | Managed paths | Paths changed by 1.9.0 | Structural result on pristine 1.9.0 |
 | --- | ---: | ---: | --- |
 | `bg-preserve` | 85 | 22 | Refused: changed/multiple anchors and duplicate generation authority |
-| `bg-preserve-storage-base` | 1 | 1 | All three anchors still exact; semantic review required |
+| `bg-preserve-storage-base` | 1 | 1 | Qualified on exact 1.9.0 as an asset-only conditional adapter; parent BG remains reviewing |
 | `lazy-chat-sync` | 27 | 9 | Refused: seven full-file replacement anchors changed |
 | `lazy-chat-bg-adapter` | 4 | 2 | Four parent-dependent anchors unavailable until both owners are rebased |
 | `startup-cache` | 6 | 4 | Qualified on exact 1.9.0; conditional startup-cache delta retained |
@@ -249,11 +249,16 @@ Only observed results may move 1.9.0 from `reviewing` to `verified`.
   planning excludes both 1.9-only paths. Its dual-target gates, exact round
   trips, exhaustive 1.8 combination result, and runtime audit are recorded in
   `docs/POCKETRISU-1.9-PERSONAL-SETTINGS-VALIDATION.md`.
+- `bg-preserve-storage-base`: qualified for exact 1.9.0 as a conditional
+  asset-only retry/error adapter. Native database/chat/model-job storage paths
+  bypass its branch, and the parent BG pack remains under review. Its exact
+  target gates, round trip, and runtime audit are recorded in
+  `docs/POCKETRISU-1.9-BG-PRESERVE-STORAGE-BASE-VALIDATION.md`.
 - Other pack requalification and every later executable step remain pending.
 
 ## Post-audit operational handoff
 
-After the audit and the three localized qualifications, the old live 1.8.1
+After the audit and the localized qualifications, the old live 1.8.1
 patch graph was reverted with the patcher's normal revert path in preparation
 for a base update. The observed round trip restored 54 baseline files, removed
 98 patch-owned files, and found zero mismatches across 152 managed paths. The
