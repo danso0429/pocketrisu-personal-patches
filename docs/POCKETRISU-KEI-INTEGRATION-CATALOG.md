@@ -159,7 +159,7 @@ exact-1.9 aggregate, these later decisions control admission:
 | Rows | Current aggregate decision |
 | --- | --- |
 | K03 | Distinct but deferred future child; preset folders were never admitted before the target pivot. |
-| K04 | Direct port dropped because exact 1.9 owns prompt-role normalization and UI; `preset-integrity` retains active-selection invariants. |
+| K04 | Broad direct port remains dropped. Audit-admitted K04-F01 adds one-way frozen typed `.role` compatibility inside the native `.role2` normalizer; native `.role2` wins, lorebook is excluded, and `preset-integrity` retains active-selection invariants. |
 | K20/K22 | No parallel character/persona organization schema; missing presentation outcomes remain future owner-local changes. |
 | K23/K29 | Direct ports excluded; qualified `bg-preserve` schema and generation authorities remain canonical. |
 | K26 | Combined port dropped because exact 1.9 owns snapshots and backup/restore. Only separately admitted missing-asset or schedule outcomes may return later. |

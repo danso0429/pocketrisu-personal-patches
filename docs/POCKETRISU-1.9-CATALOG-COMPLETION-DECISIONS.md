@@ -24,7 +24,7 @@ owners.
 | Row | 1.9 decision | Reason and owner |
 | --- | --- | --- |
 | K03 preset folders | Defer as a future child; not in the current aggregate | Kei has a distinct `promptPresetFolders`/`folderId` schema and sortable `PresetPickerLayout`; exact 1.9 has no corresponding symbols. This is a new feature, not a target adaptation of an already-admitted child. A later admission must compose with `preset-integrity` and the organizer-owned picker schemas. |
-| K04 prompt roles/preset behavior | Drop the direct port | Exact 1.9 already has `PromptRole`, import/database normalization, and role selection for prompt blocks. Its block role uses native `role2`; copying Kei's parallel `role` field would create a second schema. Active-index behavior remains in `preset-integrity`. |
+| K04 prompt roles/preset behavior | Keep only audited K04-F01 compatibility; drop the broad direct port | Exact 1.9 keeps native `role2` authoritative, but frozen Kei typed blocks can persist only `.role`. The hidden exact-1.9 compatibility child passes `.role` through the native normalizer only when `.role2` is nullish. It excludes lorebook and adds no second schema. Active-index behavior remains in `preset-integrity`. |
 | K20 character list/sidebar expansion | Defer missing search/recent/view controls to `character-organizer` | Folder and order authority is already qualified in `character-organizer`. No second Kei order schema enters the aggregate. A later independently specified UI delta may render the existing schema. |
 | K22 persona picker/list expansion | Defer missing presentation controls to `persona-organizer` | `persona-organizer` remains the folder/order/normalization/import-export owner. No concrete missing outcome requires a new runtime unit for the current aggregate. |
 | K23 regex/lorebook rewrite | Exclude the direct port | `bg-preserve` already depends on the multi-type `types[]` schema along generation paths. Kei's broad/single-type rewrite is not schema-equivalent and no independently specified missing outcome was found. |
@@ -48,7 +48,10 @@ the seven admitted children.
 - Exact 1.9 contains no `promptPresetFolders` or prompt-preset `folderId`.
 - Both trees define prompt roles and normalize imported aliases. Exact 1.9's
   block items use `role2` in `database.svelte.ts`, `prompt.ts`, and
-  `PromptDataItem.svelte`; that schema stays native.
+  `PromptDataItem.svelte`; that schema stays native. The overlap audit found a
+  one-way frozen-data gap: typed Kei `.role` was otherwise retained but not
+  consumed. K04-F01 closes only that gap at the native normalizer, with
+  non-null `.role2` precedence and no lorebook role behavior.
 
 ### Backup and restore
 

@@ -3,7 +3,7 @@
 module.exports = {
     id: 'pocketrisu-kei',
     title: 'PocketRisu Kei integration',
-    version: '0.9.0',
+    version: '0.10.0',
     userSelectable: true,
     targets: {
         pocketrisu: {
@@ -19,6 +19,7 @@ module.exports = {
         'kei-hypa-tools-core',
         'kei-partial-edit-core',
         'kei-translation-tools-core',
+        'kei-prompt-role-compat-core',
     ],
     units: [],
 }
