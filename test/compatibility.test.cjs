@@ -10,6 +10,7 @@ const {
     assertTargetVerified,
     evaluateTargetCompatibility,
 } = require('../src/compatibility.cjs')
+const { loadCatalog } = require('../src/catalog.cjs')
 
 function withRoot(version, fn) {
     const root = fs.mkdtempSync(path.join(os.tmpdir(), 'pocketrisu-target-'))
@@ -69,6 +70,42 @@ test('only the private maintainer gate may stage an explicitly reviewing target'
             (error) => error.code === 'TARGET_REVIEW_REQUIRED',
         )
         assert.doesNotThrow(() => assertTargetReviewable(result))
+    }))
+
+test('official PocketRisu 1.9.0 is reviewable by maintainers but not verified', () =>
+    withRoot('1.9.0', (root) => {
+        const catalog = loadCatalog()
+        const result = evaluateTargetCompatibility(root, catalog)
+        assert.equal(result.status, 'under-review')
+        assert.equal(result.verifiedPacks.length, 0)
+        assert.deepEqual(
+            result.underReviewPacks.map((entry) => entry.id),
+            catalog.map((entry) => entry.id),
+        )
+        assert.deepEqual(result.reviewRequiredPacks, [])
+        assert.throws(
+            () => assertTargetVerified(result),
+            (error) => error.code === 'TARGET_REVIEW_REQUIRED'
+                && error.details.packs.length === catalog.length,
+        )
+        assert.doesNotThrow(() => assertTargetReviewable(result))
+    }))
+
+test('an unlisted PocketRisu patch release remains outside the maintainer gate', () =>
+    withRoot('1.9.1', (root) => {
+        const catalog = loadCatalog()
+        const result = evaluateTargetCompatibility(root, catalog)
+        assert.equal(result.status, 'review-required')
+        assert.equal(result.underReviewPacks.length, 0)
+        assert.deepEqual(
+            result.reviewRequiredPacks.map((entry) => entry.id),
+            catalog.map((entry) => entry.id),
+        )
+        assert.throws(
+            () => assertTargetReviewable(result),
+            (error) => error.code === 'TARGET_REVIEW_REQUIRED'
+                && error.details.packs.length === catalog.length,
+        )
     }))
 
 test('revert with no selected packs is not blocked by target qualification', () =>

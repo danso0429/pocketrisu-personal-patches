@@ -220,6 +220,14 @@ iPhone L3 remains a later release gate and does not merge child evidence.
 
 Only observed results may move 1.9.0 from `reviewing` to `verified`.
 
+### Progress
+
+- Baseline/provenance boundary: implemented locally. Exact 1.9.0 is
+  `reviewing`, ordinary apply still rejects it, and unlisted releases remain
+  outside the maintainer gate. Evidence is in
+  `docs/POCKETRISU-1.9-TARGET-BOUNDARY-VALIDATION.md`.
+- Pack requalification and every later executable step remain pending.
+
 ## Review method and limitations
 
 The official changed-path set and manifest intersections were checked

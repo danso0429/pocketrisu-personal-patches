@@ -32,6 +32,9 @@ candidate is preserved rather than mutated in place.
 
 The exact overlap, semantic classification, generation-authority conflict,
 privacy-policy correction, and ordered rebase plan are in the 1.9 audit.
+The exact review-only target boundary is implemented and recorded in
+`docs/POCKETRISU-1.9-TARGET-BOUNDARY-VALIDATION.md`; no pack is thereby
+qualified on 1.9.0.
 
 ## Current branch boundary
 
@@ -178,8 +181,8 @@ PocketRisu restart remain separate explicit-authorization boundaries.
 Pause new catalog admission while the official 1.9 target is requalified.
 Follow `docs/POCKETRISU-1.9-REBASE-AUDIT.md` in this order:
 
-1. add a review-only exact 1.9 target boundary;
-2. requalify localized existing packs;
+1. use the completed review-only exact 1.9 target boundary;
+2. requalify localized existing packs next;
 3. rebase storage/import owners;
 4. resolve native-job versus bg-preserve authority before composing either;
 5. adapt K19, K13, K14, K16, K15, and K11 as separate deltas;

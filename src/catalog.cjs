@@ -6,7 +6,7 @@ const path = require('node:path')
 const DEFAULT_TARGETS = Object.freeze({
     pocketrisu: Object.freeze({
         verified: Object.freeze(['1.8.1']),
-        reviewing: Object.freeze([]),
+        reviewing: Object.freeze(['1.9.0']),
     }),
 })
 
