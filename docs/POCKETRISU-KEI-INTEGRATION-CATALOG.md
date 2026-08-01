@@ -135,7 +135,7 @@ select the top-level policy explicitly.
 | K14 | Chat render stability during streaming | V | U, A | `kei-chat-render-core` plus base and bg-preserve adapters. Preserve the active chat component and scroll state without weakening bg completion, result claim, or reconnect behavior. |
 | K15 | Partial message editing and shared edit listener | V | U, A | `kei-partial-edit-core` plus base and bg-preserve adapters. Resolve the intended message once, cancel stale targets, and prevent translation-cache cross-message writes. |
 | K16 | Chat navigation, hotkeys, and mobile back behavior | V | U, A | `kei-mobile-navigation-core` plus base and `lazy-chat-sync` bootstrap adapters. Keep existing startup cache/lazy hydration ordering and route restoration intact. |
-| K17 | Themes, chat text display, and broad styling controls | S | X | PocketRisu and the current API-v3 surface already expose text-theme behavior. Do not port the broad refactor. A separately specified missing behavior can receive its own later catalog entry. |
+| K17 | Themes, chat text display, and broad styling controls | V | U, X | Keep the broad refactor excluded. Audit-admitted K17-F01 adds only defensive normalization of unsupported text-theme values at native load, preset-activation, and runtime-CSS boundaries; `standard`, `highcontrast`, `custom`, and the existing API-v3 validation remain native and authoritative. |
 | K18 | Reorganized image, TTS, and inlay settings | S | X | Exclude the route and settings reorganization. Port only a feature with an independent outcome; fullscreen viewing is split into K19. |
 | K19 | Fullscreen image viewer with gallery and character-image navigation | V | U | `kei-fullscreen-image-viewer-core`. Retain keyboard, pointer, and mobile navigation behavior and avoid taking ownership of unrelated image/TTS settings. |
 | K20 | Character list/sidebar ordering, folders, search, recent items, and list/grid presentation | V | M | Merge selected behavior into `character-organizer`, which remains canonical for order and folders. Search/recent/view controls may be added there only if they preserve its ordering model. Do not add a second character-order schema. |
@@ -160,15 +160,16 @@ exact-1.9 aggregate, these later decisions control admission:
 | --- | --- |
 | K03 | Distinct but deferred future child; preset folders were never admitted before the target pivot. |
 | K04 | Broad direct port remains dropped. Audit-admitted K04-F01 adds one-way frozen typed `.role` compatibility inside the native `.role2` normalizer; native `.role2` wins, lorebook is excluded, and `preset-integrity` retains active-selection invariants. |
+| K17 | Broad styling remains excluded. Audit-admitted K17-F01 is the hidden exact-1.9 `kei-text-theme-normalization-core`; it admits only the three native values and falls back to `standard` at load, preset activation, and runtime CSS without changing API-v3. |
 | K20/K22 | No parallel character/persona organization schema; missing presentation outcomes remain future owner-local changes. |
 | K23/K29 | Direct ports excluded; qualified `bg-preserve` schema and generation authorities remain canonical. |
 | K26 | Combined port dropped because exact 1.9 owns snapshots and backup/restore. Only separately admitted missing-asset or schedule outcomes may return later. |
 | K27/K28 | Deferred explicit policy packs, never hidden umbrella behavior. Exact 1.9 request bodies are bounded/cursor-paginated/masked but default on; usage is content-free and failure-isolated but unbounded/unpaginated and coupled to the log toggle. |
 
 The evidence and exact source anchors are in
-`docs/POCKETRISU-1.9-CATALOG-COMPLETION-DECISIONS.md`. These decisions let the
-seven already-admitted Kei children enter aggregate qualification without
-claiming deferred rows as implemented.
+`docs/POCKETRISU-1.9-CATALOG-COMPLETION-DECISIONS.md`. The seven original
+children and the later audit-admitted K04/K17 corrections enter aggregate
+qualification without claiming deferred rows as implemented.
 
 That exact-1.9 aggregate qualification subsequently passed and is recorded in
 `docs/POCKETRISU-1.9-AGGREGATE-VALIDATION.md`. This result advances the

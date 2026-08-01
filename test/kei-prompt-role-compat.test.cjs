@@ -32,7 +32,7 @@ test('K04 compatibility is a hidden exact-1.9 umbrella child', () => {
             reviewing: [],
         },
     })
-    assert.equal(meta.version, '0.10.0')
+    assert.equal(meta.version, '0.11.0')
     assert.equal(meta.requires.includes(manifest.id), true)
     assert.equal(resolveProfile('features', catalog).defaults.includes(meta.id), false)
     assert.equal(resolveProfile('hardening', catalog).defaults.includes(meta.id), false)

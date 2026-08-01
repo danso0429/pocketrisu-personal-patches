@@ -9,7 +9,7 @@ const { resolveSelection } = require('../src/resolver.cjs')
 
 test('PocketRisu Kei remains a unit-free universal-only meta pack', () => {
     assert.equal(manifest.id, 'pocketrisu-kei')
-    assert.equal(manifest.version, '0.10.0')
+    assert.equal(manifest.version, '0.11.0')
     assert.equal(manifest.userSelectable, true)
     assert.deepEqual(manifest.targets, {
         pocketrisu: {
@@ -26,6 +26,7 @@ test('PocketRisu Kei remains a unit-free universal-only meta pack', () => {
         'kei-partial-edit-core',
         'kei-translation-tools-core',
         'kei-prompt-role-compat-core',
+        'kei-text-theme-normalization-core',
     ])
     assert.deepEqual(manifest.units, [])
     assert.equal(Object.hasOwn(manifest, 'presetDefaults'), false)
@@ -51,6 +52,7 @@ test('PocketRisu Kei remains a unit-free universal-only meta pack', () => {
         'kei-prompt-role-compat-core',
         'kei-stream-parser-base-adapter',
         'kei-stream-parser-core',
+        'kei-text-theme-normalization-core',
         'kei-translation-tools-base-adapter',
         'kei-translation-tools-core',
         manifest.id,
@@ -63,6 +65,7 @@ test('PocketRisu Kei remains a unit-free universal-only meta pack', () => {
         'kei-partial-edit-core',
         'kei-prompt-role-compat-core',
         'kei-stream-parser-core',
+        'kei-text-theme-normalization-core',
         'kei-translation-tools-core',
     ])
     assert.deepEqual(resolution.autoAdded, [
@@ -109,6 +112,7 @@ test('PocketRisu Kei can require hidden children without exposing them directly'
         'kei-prompt-role-compat-core',
         'kei-stream-parser-base-adapter',
         'kei-stream-parser-core',
+        'kei-text-theme-normalization-core',
         'kei-translation-tools-base-adapter',
         'kei-translation-tools-core',
         manifest.id,
@@ -122,6 +126,7 @@ test('PocketRisu Kei can require hidden children without exposing them directly'
         'kei-partial-edit-core',
         'kei-prompt-role-compat-core',
         'kei-stream-parser-core',
+        'kei-text-theme-normalization-core',
         'kei-translation-tools-core',
     ])
     assert.throws(
@@ -150,6 +155,7 @@ test('PocketRisu Kei adds only its child units to every existing unit graph', ()
         'kei-partial-edit-base-adapter',
         'kei-partial-edit-bg-adapter',
         'kei-prompt-role-compat-core',
+        'kei-text-theme-normalization-core',
         'kei-translation-tools-core',
         'kei-translation-tools-base-adapter',
         'kei-translation-tools-bg-adapter',

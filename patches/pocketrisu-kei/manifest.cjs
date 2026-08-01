@@ -3,7 +3,7 @@
 module.exports = {
     id: 'pocketrisu-kei',
     title: 'PocketRisu Kei integration',
-    version: '0.10.0',
+    version: '0.11.0',
     userSelectable: true,
     targets: {
         pocketrisu: {
@@ -20,6 +20,7 @@ module.exports = {
         'kei-partial-edit-core',
         'kei-translation-tools-core',
         'kei-prompt-role-compat-core',
+        'kei-text-theme-normalization-core',
     ],
     units: [],
 }

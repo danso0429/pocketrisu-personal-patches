@@ -55,6 +55,7 @@ test('profiles share one catalog but have different ownership boundaries', () =>
         'kei-translation-tools-bg-adapter',
         'kei-fullscreen-image-viewer-core',
         'kei-prompt-role-compat-core',
+        'kei-text-theme-normalization-core',
         'pocketrisu-kei',
     ])
     assert.throws(

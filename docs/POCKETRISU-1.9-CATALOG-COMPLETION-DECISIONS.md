@@ -9,10 +9,11 @@ been admitted before the target pivot. It decides whether each row is part of
 the current aggregate candidate; it does not claim that every possible Kei
 feature has been implemented.
 
-The current `pocketrisu-kei` aggregate remains the seven already-admitted
-children K19, K13, K14, K16, K15, K11, and K12. No new runtime unit, storage
-schema, provider, privacy policy, or destructive action is added by this
-decision.
+The original `pocketrisu-kei` aggregate contained the seven admitted children
+K19, K13, K14, K16, K15, K11, and K12. The later overlap-equivalence audit
+admitted narrowly bounded K04-F01 and K17-F01 compatibility corrections. They
+reuse native schemas and owners; neither adds a provider, privacy policy, or
+destructive action.
 
 Evidence was read from frozen PocketRisu Kei revision
 `cc1d1b195babd887577ebf943d5e82f01f58135c`, exact official PocketRisu 1.9.0
@@ -25,6 +26,7 @@ owners.
 | --- | --- | --- |
 | K03 preset folders | Defer as a future child; not in the current aggregate | Kei has a distinct `promptPresetFolders`/`folderId` schema and sortable `PresetPickerLayout`; exact 1.9 has no corresponding symbols. This is a new feature, not a target adaptation of an already-admitted child. A later admission must compose with `preset-integrity` and the organizer-owned picker schemas. |
 | K04 prompt roles/preset behavior | Keep only audited K04-F01 compatibility; drop the broad direct port | Exact 1.9 keeps native `role2` authoritative, but frozen Kei typed blocks can persist only `.role`. The hidden exact-1.9 compatibility child passes `.role` through the native normalizer only when `.role2` is nullish. It excludes lorebook and adds no second schema. Active-index behavior remains in `preset-integrity`. |
+| K17 text-theme normalization | Keep only audited K17-F01 compatibility; drop the broad refactor | Exact 1.9 has the same three official theme modes and API-v3 validation, but unsupported persisted or preset values can survive and leave stale CSS. The hidden exact-1.9 child normalizes load, preset activation, and runtime CSS to `standard` while preserving `standard`, `highcontrast`, and `custom`. |
 | K20 character list/sidebar expansion | Defer missing search/recent/view controls to `character-organizer` | Folder and order authority is already qualified in `character-organizer`. No second Kei order schema enters the aggregate. A later independently specified UI delta may render the existing schema. |
 | K22 persona picker/list expansion | Defer missing presentation controls to `persona-organizer` | `persona-organizer` remains the folder/order/normalization/import-export owner. No concrete missing outcome requires a new runtime unit for the current aggregate. |
 | K23 regex/lorebook rewrite | Exclude the direct port | `bg-preserve` already depends on the multi-type `types[]` schema along generation paths. Kei's broad/single-type rewrite is not schema-equivalent and no independently specified missing outcome was found. |
@@ -36,7 +38,7 @@ owners.
 K05-K09 and K24-K25 remain separate opt-in provider/network/storage-policy
 designs under the frozen catalog. K21 destructive retention and K30 broad
 restore refactoring also remain outside the umbrella. None is a dependency of
-the seven admitted children.
+the original seven children or the K04/K17 compatibility corrections.
 
 ## Exact source anchors
 
@@ -52,6 +54,17 @@ the seven admitted children.
   one-way frozen-data gap: typed Kei `.role` was otherwise retained but not
   consumed. K04-F01 closes only that gap at the native normalizer, with
   non-null `.role2` precedence and no lorebook role behavior.
+
+### Text theme
+
+- Exact 1.9 and frozen Kei expose the same `standard`, `highcontrast`, and
+  `custom` runtime branches and the same API-v3 validation surface.
+- Exact 1.9 previously defaulted only nullish database values, copied a raw
+  preset value on activation, and switched on a raw runtime value without a
+  default branch.
+- K17-F01 keeps that native owner and schema, but admits only the three native
+  values at load, preset activation, and runtime CSS. Unsupported values become
+  `standard`; preset save/import expansion and broad styling remain excluded.
 
 ### Backup and restore
 
