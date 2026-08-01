@@ -12,6 +12,7 @@ const coreUnits = require('../patches/personal-settings/core/units.cjs')
 const importNavigationUnits = require(
     '../patches/personal-settings/settings/import-navigation/units.cjs',
 )
+const searchUnits = require('../patches/personal-settings/settings/search/units.cjs')
 const logic = read('core/files/src/ts/personalSettings.ts')
 const logicTests = read('core/files/src/ts/personalSettings.test.ts')
 const storage = read('core/files/src/ts/personalSettings/core.ts')
@@ -38,7 +39,13 @@ function replacementText(candidate) {
 
 test('personal settings is an independent rolling feature pack', () => {
     assert.equal(manifest.id, 'personal-settings')
-    assert.equal(manifest.version, '0.1.1')
+    assert.equal(manifest.version, '0.2.0')
+    assert.deepEqual(manifest.targets, {
+        pocketrisu: {
+            verified: ['1.8.1', '1.9.0'],
+            reviewing: [],
+        },
+    })
     assert.equal(manifest.userSelectable, true)
     assert.deepEqual(manifest.presetDefaults, ['features'])
     assert.equal(manifest.requires, undefined)
@@ -48,6 +55,7 @@ test('the root manifest only aggregates core and setting-owned units', () => {
     assert.deepEqual(manifest.units, [
         ...coreUnits,
         ...importNavigationUnits,
+        ...searchUnits,
     ])
     assert.equal(
         new Set(manifest.units.map((candidate) => candidate.id)).size,
@@ -61,6 +69,32 @@ test('the root manifest only aggregates core and setting-owned units', () => {
         coreUnits.some((candidate) => candidate.id.includes('import-navigation')),
         false,
     )
+    assert.equal(searchUnits.length, 2)
+    assert.ok(searchUnits.every((candidate) =>
+        candidate.targetVersions?.pocketrisu?.length === 1
+        && candidate.targetVersions.pocketrisu[0] === '1.9.0'
+    ))
+})
+
+test('PocketRisu 1.9 Settings Search indexes and tests the Personal page', () => {
+    const entry = unit('personal-settings:search-manifest-1.9')
+    const searchTest = unit('personal-settings:search-index-test-1.9')
+
+    assert.equal(entry.file, 'src/ts/setting/searchManifestData.ts')
+    assert.equal(entry.where, 'after')
+    assert.match(entry.anchor, /id: 'manual\.system\.pluginStorage'/)
+    assert.match(entry.managed, /id: 'manual\.page\.personal'/)
+    assert.match(entry.managed, /label: \(\) => '개인 설정'/)
+    assert.match(entry.managed, /route: SettingsRoute\.Personal/)
+    assert.match(entry.managed, /'personal settings'/)
+    assert.deepEqual(entry.requires, ['personal-settings:routing'])
+
+    assert.equal(searchTest.file, 'src/ts/setting/searchIndex.test.ts')
+    assert.match(searchTest.managed, /personalPageHits\('개인 설정'\)/)
+    assert.match(searchTest.managed, /personalPageHits\('personal settings'\)/)
+    assert.match(searchTest.managed, /result\.key === 'manual\.page\.personal'/)
+    assert.match(searchTest.managed, /expect\(hits\)\.toHaveLength\(1\)/)
+    assert.deepEqual(searchTest.requires, ['personal-settings:search-manifest-1.9'])
 })
 
 test('the personal namespace defaults to existing behavior and preserves future fields', () => {
@@ -162,6 +196,10 @@ test('personal settings never writes the database plugin array', () => {
         importNavigationLogic,
         importNavigationTests,
         importNavigationSection,
+        ...searchUnits.flatMap((candidate) => [
+            candidate.content ?? '',
+            candidate.managed ?? '',
+        ]),
         ...manifest.units.flatMap((candidate) => [
             candidate.content ?? '',
             candidate.managed ?? '',

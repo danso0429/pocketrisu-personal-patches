@@ -7,8 +7,8 @@
 > **Exact target:** official PocketRisu `v1.9.0` /
 > `85a65f3137b45c8de4a8d21a9887be213b1ac3fc`
 >
-> **Immediate next feature:** `character-organizer` 1.9 semantic
-> requalification. Do not resume with Kei or K12 first.
+> **Immediate next feature:** `bg-preserve-storage-base` 1.9 semantic
+> qualification. Do not resume with Kei or K12 first.
 
 This document records the complete local work boundary from the beginning of
 the Kei selection effort through the 1.9 pivot and live-update preparation.
@@ -222,43 +222,37 @@ than a floating branch if needed.
 
 ## Exact patcher resume point
 
-Start at the clean `codex/pocketrisu-1.9-rebase` branch HEAD containing this
-handoff; its last non-documentation implementation commit is `88ddfe5`. First
-re-read this handoff, the integration status, the 1.9 audit, the catalog, and
-the combination-verification instructions. Confirm all worktree heads and the
-preserved staged K12 index before editing anything.
+Start at the `codex/pocketrisu-1.9-rebase` branch HEAD containing this handoff
+and the feature-local qualification receipts. First re-read this handoff, the
+integration status, the 1.9 audit, the catalog, and the combination-verification
+instructions. Confirm all worktree heads and the preserved staged K12 index
+before editing anything.
 
-Then resume rebase step 2 in this order:
+The exact-1.9 target boundary, `toolchain-hardening`, `startup-cache`,
+`parser-hardening`, `character-organizer`, and the version-aware
+`personal-settings` Search adaptation are locally qualified. Resume rebase
+step 2 in this order:
 
-1. **`character-organizer`:** plan against exact 1.9, then inspect the changed
-   `App.svelte` overlay and file-drop ordering semantically. Upstream has no
-   equivalent organizer outcome, but structural planning alone is not enough
-   to qualify the unchanged behavior.
-2. **`personal-settings`:** do not qualify unchanged. PocketRisu 1.9 adds
-   Settings Search, while the current pack adds a route/page without
-   registering the new search manifest/index. Design a version-aware 1.9
-   search adapter or pack boundary that preserves 1.8 support; do not add
-   1.9-only files unconditionally to the existing dual-target unit graph.
-3. **`bg-preserve-storage-base`:** its anchors remain structurally exact, but
+1. **`bg-preserve-storage-base`:** its anchors remain structurally exact, but
    review storage and native model-job recovery ordering before semantic
    qualification.
 
 After those localized packs:
 
-4. Rebase `persona-organizer`, `character-import-ux`, and then
+2. Rebase `persona-organizer`, `character-import-ux`, and then
    `lazy-chat-sync`, preserving native 1.9 model jobs, boot recovery, request
    logging, the session/writer lock, storage headers, and settings-only backup.
-5. Write and test the request-class ownership table before touching
+3. Write and test the request-class ownership table before touching
    `bg-preserve` or `lazy-chat-bg-adapter`. Assign exactly one owner for
    ordinary bg-eligible sends, client-only/programmatic sends, helpers, stream
    transport, terminal persistence/claim, cancellation, and boot recovery.
-6. Rebase K19, K13, K14, K16, K15, and K11 as separate focused commits. Remove
+4. Rebase K19, K13, K14, K16, K15, and K11 as separate focused commits. Remove
    only behavior proven equivalent in official 1.9; preserve missing outcomes
    and each existing owner contract.
-7. Port the preserved staged K12 last. Remove the duplicate cache-key fix,
+5. Port the preserved staged K12 last. Remove the duplicate cache-key fix,
    adapt its four changed runtime anchors, and repeat identity/CAS/cancel/
    import/export/cleanup gates.
-8. Re-evaluate future and policy rows, including unresolved K27/K28, only
+6. Re-evaluate future and policy rows, including unresolved K27/K28, only
    after the owner graph is usable.
 
 For every numbered implementation, keep a feature-local receipt and commit.
@@ -280,8 +274,8 @@ process can recreate paths.
 
 - `codex/pocketrisu-kei-integration`: staged K12 evidence; no cleanup or
   in-place rebase.
-- `codex/pocketrisu-1.9-rebase`: clean continuation branch containing this
-  handoff; its last implementation commit is `88ddfe5`.
+- `codex/pocketrisu-1.9-rebase`: continuation branch containing this handoff
+  and feature-local 1.9 qualification receipts.
 - The original main checkout: it remains at the pre-integration release and
   contains an untracked catalog copy. Do not absorb, overwrite, or delete it
   as incidental cleanup.

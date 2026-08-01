@@ -76,7 +76,7 @@ It is a review surface, not proof of a semantic conflict.
 | `persona-organizer` | 11 | 5 | Refused at the server gallery-assets anchor |
 | `character-organizer` | 5 | 1 | Qualified on exact 1.9.0; native drag/file-drop and AssetViewer behavior preserved |
 | `character-import-ux` | 10 | 2 | Refused at the snapshot/import guard anchor |
-| `personal-settings` | 12 | 4 | Planned structurally; semantic review required |
+| `personal-settings` | 14 | 6 | Qualified on exact 1.9.0 with two 1.9-only native Settings Search units |
 | `parser-hardening` | 9 | 1 | Qualified on exact 1.9.0; parser-only delta retained |
 | `toolchain-hardening` | 3 | 1 | Qualified on exact 1.9.0; test setup and dependency-only delta retained |
 
@@ -244,6 +244,11 @@ Only observed results may move 1.9.0 from `reviewing` to `verified`.
   outcome, native drag/file-drop and AssetViewer preservation, focused target
   gates, and exact round trip are recorded in
   `docs/POCKETRISU-1.9-CHARACTER-ORGANIZER-VALIDATION.md`.
+- `personal-settings`: qualified for exact 1.9.0 with a target-scoped native
+  Settings Search manifest entry and exact-one-result tests. Exact 1.8.1
+  planning excludes both 1.9-only paths. Its dual-target gates, exact round
+  trips, exhaustive 1.8 combination result, and runtime audit are recorded in
+  `docs/POCKETRISU-1.9-PERSONAL-SETTINGS-VALIDATION.md`.
 - Other pack requalification and every later executable step remain pending.
 
 ## Post-audit operational handoff

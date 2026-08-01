@@ -307,9 +307,10 @@ storage, the stable public `personalSettings.ts` entry point, and the Personal
 page shell live under `core/`; each optional feature owns its patch units,
 logic, tests, and Svelte section under `settings/<feature>/`. Adding a setting
 therefore extends the composition list without growing one monolithic manifest
-or page. The `0.1.1` split retains all 14 previously published unit IDs and
-hook payloads; four new internal units own the extracted storage and
-import-navigation files.
+or page. Version `0.2.0` retains all previously published unit IDs and hook
+payloads, and adds two PocketRisu 1.9-only units that register and test the
+page in native Settings Search. PocketRisu 1.8.1 keeps the same Personal
+Settings graph without reading or creating the 1.9-only search files.
 
 Its first toggle, `캐릭터 임포트 후 현재 화면 유지`, is opt-in:
 
