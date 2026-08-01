@@ -136,6 +136,357 @@ function adaptBgRequestLogging190(unit) {
     return content
 }
 
+function adaptBgRetention190(content, unitId) {
+    content = replaceExact(
+        content,
+        "} = require('./bgOrchestrationOperationStore.cjs')\n",
+        `} = require('./bgOrchestrationOperationStore.cjs')
+const {
+  ORCH_RESULT_RETENTION_TTL_MS,
+  ORCH_RESULT_RETENTION_MAX_ROWS,
+  ORCH_RESULT_RETENTION_MAX_BYTES,
+  hasLiveDeliveryClaim,
+  sweepOrchestrationResultRetention,
+} = require('./bgOrchestrationResultRetention.cjs')
+`,
+        `${unitId}: bounded result-retention owner import`,
+    )
+    content = replaceExact(
+        content,
+        "const ORCH_RESULT_PREFIX = 'bg-orch-result:'\nconst ORCH_RESULT_TTL_MS = 30 * 60 * 1000\n",
+        "const ORCH_RESULT_PREFIX = 'bg-orch-result:'\n",
+        `${unitId}: remove legacy result TTL`,
+    )
+    content = replaceExact(
+        content,
+        `      const now = Date.now()
+      const claim = parsed.deliveryClaim
+      if (claim && claim.consumerId !== consumerId && now - claim.claimedAt < ORCH_RESULT_CLAIM_TTL_MS) {
+        return res.status(409).json({
+          found: false, error: 'result-claimed',
+          retryAfterMs: ORCH_RESULT_CLAIM_TTL_MS - (now - claim.claimedAt),
+        })
+      }
+      // Refresh an active consumer's lease at a bounded cadence. The client sends a lightweight
+      // heartbeat while IndexedDB/root persistence is in progress; without this refresh, a slow
+      // save could cross the two-minute TTL and let a second PWA consume the same revision.
+      if (!claim || claim.consumerId !== consumerId || now - claim.claimedAt >= ORCH_RESULT_CLAIM_REFRESH_MS) {
+`,
+        `      const now = Date.now()
+      const claim = parsed.deliveryClaim
+      const claimIsLive = hasLiveDeliveryClaim(parsed, now, ORCH_RESULT_CLAIM_TTL_MS)
+      if (claim && claim.consumerId !== consumerId && claimIsLive) {
+        return res.status(409).json({
+          found: false, error: 'result-claimed',
+          retryAfterMs: ORCH_RESULT_CLAIM_TTL_MS - (now - claim.claimedAt),
+        })
+      }
+      // Refresh an active consumer's lease at a bounded cadence. A far-future/corrupt claim is
+      // replaced instead of becoming an unbounded storage lease.
+      if (!claimIsLive || claim.consumerId !== consumerId
+        || now - claim.claimedAt >= ORCH_RESULT_CLAIM_REFRESH_MS) {
+`,
+        `${unitId}: bounded operation delivery claim`,
+    )
+    content = replaceExact(
+        content,
+        "      const explicitAck = req.query && req.query.delivery === 'ack-v1'\n",
+        "      const explicitAck = req.query && req.query.delivery === 'ack-v1'\n      const consumerId = req.query && req.query.consumerId\n",
+        `${unitId}: rolling result consumer identity`,
+    )
+    content = replaceExact(
+        content,
+        `      if (explicitAck && !validOperationId(parsed.resultId)) {
+        if (typeof kvSet !== 'function') {
+          return res.status(503).json({ found: false, error: 'result-store-unavailable' })
+        }
+        parsed = { ...parsed, resultId: nodeCrypto.randomUUID() }
+        kvSet(key, JSON.stringify(parsed))
+      }
+`,
+        `      let persistDeliveryLease = false
+      if (explicitAck && !validOperationId(parsed.resultId)) {
+        parsed = { ...parsed, resultId: nodeCrypto.randomUUID() }
+        persistDeliveryLease = true
+      }
+      if (explicitAck && validOperationId(consumerId) && validOperationId(parsed.operationId)) {
+        const now = Date.now()
+        const claim = parsed.deliveryClaim
+        const claimIsLive = hasLiveDeliveryClaim(parsed, now, ORCH_RESULT_CLAIM_TTL_MS)
+        if (claim && claim.consumerId !== consumerId && claimIsLive) {
+          return res.status(409).json({ found: false, error: 'result-claimed' })
+        }
+        if (!claimIsLive || claim.consumerId !== consumerId
+          || now - claim.claimedAt >= ORCH_RESULT_CLAIM_REFRESH_MS) {
+          parsed = { ...parsed, deliveryClaim: { consumerId, claimedAt: now } }
+          persistDeliveryLease = true
+        }
+      } else if (explicitAck) {
+        // A rolling client without consumer identity still receives one bounded lease window.
+        // Rewriting the unchanged row refreshes updatedAt; the retention owner treats only that
+        // recent legacy window as protected, so compatibility cannot become indefinite storage.
+        persistDeliveryLease = true
+      }
+      if (persistDeliveryLease) {
+        if (typeof kvSet !== 'function') {
+          return res.status(503).json({ found: false, error: 'result-store-unavailable' })
+        }
+        kvSet(key, JSON.stringify(parsed))
+      }
+      if (explicitAck && req.query && req.query.heartbeat === '1'
+        && validOperationId(consumerId) && validOperationId(parsed.operationId)) {
+        return res.json({
+          found: true, operationId: parsed.operationId, resultId: parsed.resultId,
+          publishSeq: parsed.publishSeq, resultKeyVersion: 0,
+        })
+      }
+`,
+        `${unitId}: rolling delivery lease`,
+    )
+    content = replaceExact(
+        content,
+        `      const key = orchResultKey(req.params.charId, req.params.chatId)
+      const outcome = acknowledgeResult(kvGet, kvDel, key, req.params.resultId)
+`,
+        `      const key = orchResultKey(req.params.charId, req.params.chatId)
+      const delivery = peekResult(kvGet, key)
+      const consumerId = req.query && req.query.consumerId
+      if (delivery.state === 'found' && delivery.record.deliveryClaim
+        && delivery.record.deliveryClaim.consumerId !== consumerId) {
+        return res.status(409).json({ acked: false, reason: 'claimed' })
+      }
+      const outcome = acknowledgeResult(kvGet, kvDel, key, req.params.resultId)
+`,
+        `${unitId}: rolling ACK claim ownership`,
+    )
+    content = replaceExact(
+        content,
+        `  // Bound kv growth — purge orchestration results the client never consumed (page closed/reloaded).
+  if (typeof kvList === 'function' && typeof kvGetUpdatedAt === 'function' && typeof kvDel === 'function') {
+    setInterval(() => {
+      try {
+        const now = Date.now()
+        for (const prefix of [ORCH_RESULT_PREFIX, OPERATION_RESULT_PREFIX, OPERATION_STATE_PREFIX]) {
+          for (const key of kvList(prefix)) {
+            const at = kvGetUpdatedAt(key)
+            if (at != null && now - at > ORCH_RESULT_TTL_MS) kvDel(key)
+          }
+        }
+      } catch { /* best-effort */ }
+    }, 10 * 60 * 1000)
+  }
+`,
+        `  // Keep completed paid responses through an overnight mobile absence, then enforce one
+  // bounded owner-local result budget. Active runs and live delivery leases can temporarily exceed
+  // the target; every other operation result receives a durable tombstone before payload deletion.
+  if (typeof kvList === 'function' && typeof kvGet === 'function' && typeof kvSet === 'function'
+    && typeof kvGetUpdatedAt === 'function' && typeof kvDel === 'function') {
+    const sweepResultRetention = () => {
+      try {
+        sweepOrchestrationResultRetention({
+          kvList, kvGet, kvSet, kvDel, kvGetUpdatedAt,
+          readOperationState, writeOperationState,
+          resultPrefixes: [ORCH_RESULT_PREFIX, OPERATION_RESULT_PREFIX],
+          statePrefix: OPERATION_STATE_PREFIX,
+          ttlMs: ORCH_RESULT_RETENTION_TTL_MS,
+          maxRows: ORCH_RESULT_RETENTION_MAX_ROWS,
+          maxBytes: ORCH_RESULT_RETENTION_MAX_BYTES,
+          claimTtlMs: ORCH_RESULT_CLAIM_TTL_MS,
+          isOperationActive: (operationId) => orchestrationRuns.status(operationId) === 'running',
+        })
+      } catch { /* best-effort; paid payloads fail closed in the retention owner */ }
+    }
+    sweepResultRetention()
+    const retentionTimer = setInterval(sweepResultRetention, 10 * 60 * 1000)
+    if (retentionTimer && typeof retentionTimer.unref === 'function') retentionTimer.unref()
+  }
+`,
+        `${unitId}: bounded result-retention sweep`,
+    )
+    return content
+}
+
+function adaptBgOrchestrateRetention190(unit) {
+    let content = replaceExact(
+        unit.content,
+        "} from './bgOrchestrationPending'\n",
+        "} from './bgOrchestrationPending'\nimport { orchestrationRetentionFailureMessage } from './bgOrchestrationRetentionState'\n",
+        `${unit.id}: retention terminal-state import`,
+    )
+    content = replaceExact(
+        content,
+        "    return `/api/bg-orchestrate-result/${encodeURIComponent(charId)}/${encodeURIComponent(chatId)}?delivery=ack-v1`\n",
+        "    return `/api/bg-orchestrate-result/${encodeURIComponent(charId)}/${encodeURIComponent(chatId)}?delivery=ack-v1&consumerId=${encodeURIComponent(orchestrationConsumerId)}`\n",
+        `${unit.id}: rolling delivery consumer identity`,
+    )
+    content = replaceExact(
+        content,
+        "    if (resultKeyVersion !== 1 || !operationId) return () => {}\n",
+        "    if (!operationId) return () => {}\n",
+        `${unit.id}: rolling delivery claim heartbeat`,
+    )
+    content = replaceExact(
+        content,
+        "    const baseUrl = orchestrationResultUrl(charId, chatId, operationId, 1)\n",
+        "    const baseUrl = orchestrationResultUrl(charId, chatId, operationId, resultKeyVersion)\n",
+        `${unit.id}: heartbeat follows negotiated result key`,
+    )
+    content = replaceExact(
+        content,
+        "        : `/api/bg-orchestrate-result/${encodeURIComponent(charId)}/${encodeURIComponent(chatId)}/${encodeURIComponent(resultId)}`\n",
+        "        : `/api/bg-orchestrate-result/${encodeURIComponent(charId)}/${encodeURIComponent(chatId)}/${encodeURIComponent(resultId)}?consumerId=${encodeURIComponent(orchestrationConsumerId)}`\n",
+        `${unit.id}: rolling ACK consumer identity`,
+    )
+    content = replaceExact(
+        content,
+        `            if (data?.operationState === 'delivered' || data?.operationState === 'cancelled') {
+`,
+        `            const retentionFailure = orchestrationRetentionFailureMessage(data?.operationState)
+            if (retentionFailure) {
+                stopWatch()
+                try { alertError(retentionFailure) } catch { /* best-effort */ }
+                return
+            }
+            if (data?.operationState === 'delivered' || data?.operationState === 'cancelled') {
+`,
+        `${unit.id}: live retention terminal state`,
+    )
+    content = replaceExact(
+        content,
+        `                if (operationState === 'delivered' || operationState === 'cancelled') {
+`,
+        `                const retentionFailure = orchestrationRetentionFailureMessage(operationState)
+                if (retentionFailure) {
+                    finishBootRecovery(operationId)
+                    try { alertError(retentionFailure) } catch { /* best-effort */ }
+                    return
+                }
+                if (operationState === 'delivered' || operationState === 'cancelled') {
+`,
+        `${unit.id}: boot retention terminal state`,
+    )
+    content = replaceExact(
+        content,
+        '    // can still ACK/merge the paid result until the normal 30-minute marker/result TTL expires.\n',
+        '    // can still ACK/merge the paid result during the bounded server/browser retention window.\n',
+        `${unit.id}: bounded recovery comment`,
+    )
+    return content
+}
+
+function adaptRunRegistryRetention190(unit) {
+    let content = replaceExact(
+        unit.content,
+        "'use strict'\n",
+        "'use strict'\n\nconst { ORCH_RESULT_RETENTION_TTL_MS } = require('./bgOrchestrationResultRetention.cjs')\n",
+        `${unit.id}: retention policy import`,
+    )
+    content = replaceExact(
+        content,
+        '  const retainMs = options && Number.isFinite(options.retainMs) ? Math.max(0, options.retainMs) : 30 * 60 * 1000\n',
+        '  const retainMs = options && Number.isFinite(options.retainMs) ? Math.max(0, options.retainMs) : ORCH_RESULT_RETENTION_TTL_MS\n',
+        `${unit.id}: overnight tombstone retention`,
+    )
+    content = replaceExact(
+        content,
+        "      if (run.state !== 'running' && run.finishedAt <= cutoff) deleteRun(id, run)\n",
+        "      if (run.state !== 'running' && run.finishedAt < cutoff) deleteRun(id, run)\n",
+        `${unit.id}: inclusive TTL boundary`,
+    )
+    content = replaceExact(
+        content,
+        '      }, retainMs)\n',
+        '      }, retainMs + 1)\n',
+        `${unit.id}: inclusive retention timer`,
+    )
+    return content
+}
+
+function adaptPendingRetention190(unit) {
+    let content = replaceExact(
+        unit.content,
+        'export const ORCHESTRATION_PENDING_MAX_AGE_MS = 30 * 60 * 1000\n',
+        `// The server retains from result completion; this marker starts before provider work.
+// One bounded hour of generation margin keeps the browser identity alive for the full 48-hour
+// completed-result horizon without turning it into Revenant-style indefinite recovery.
+export const ORCHESTRATION_PENDING_MAX_AGE_MS = 49 * 60 * 60 * 1000
+`,
+        `${unit.id}: overnight marker horizon`,
+    )
+    content = replaceExact(
+        content,
+        `export function readPendingMarkers(
+    storage: MarkerStorage,
+    now = Date.now(),
+): OrchestrationPendingMarker[] {
+`,
+        `export function readPendingMarkers(
+    storage: MarkerStorage,
+    now = Date.now(),
+    protectedOperationId: string | null = null,
+): OrchestrationPendingMarker[] {
+`,
+        `${unit.id}: protected marker admission`,
+    )
+    content = replaceExact(
+        content,
+        `        const marker = parseMarker(storage.getItem(key))
+        if (!marker || (marker.ts > 0 && now - marker.ts > ORCHESTRATION_PENDING_MAX_AGE_MS)) {
+            storage.removeItem(key)
+            continue
+        }
+        candidates.push({ key, marker })
+`,
+        `        let marker = parseMarker(storage.getItem(key))
+        if (!marker || (marker.ts > 0 && now - marker.ts > ORCHESTRATION_PENDING_MAX_AGE_MS)) {
+            storage.removeItem(key)
+            continue
+        }
+        // A wall-clock rollback must not make old future-dated markers immortal or rank a newly
+        // admitted paid operation behind them. Rebase each future marker once to this read time.
+        if (marker.ts > now) {
+            marker = { ...marker, ts: now }
+            storage.setItem(key, JSON.stringify(marker))
+        }
+        candidates.push({ key, marker })
+`,
+        `${unit.id}: future marker normalization`,
+    )
+    content = replaceExact(
+        content,
+        `    candidates.sort((a, b) => a.marker.ts - b.marker.ts)
+    const retained = candidates.slice(-ORCHESTRATION_PENDING_MAX_ENTRIES)
+    for (const candidate of candidates.slice(0, -ORCHESTRATION_PENDING_MAX_ENTRIES)) {
+        storage.removeItem(candidate.key)
+    }
+`,
+        `    candidates.sort((a, b) => a.marker.ts - b.marker.ts)
+    const protectedCandidate = protectedOperationId
+        ? candidates.find((candidate) => candidate.marker.operationId === protectedOperationId)
+        : undefined
+    const ordinary = protectedCandidate
+        ? candidates.filter((candidate) => candidate !== protectedCandidate)
+        : candidates
+    const retained = [
+        ...ordinary.slice(-(ORCHESTRATION_PENDING_MAX_ENTRIES - (protectedCandidate ? 1 : 0))),
+        ...(protectedCandidate ? [protectedCandidate] : []),
+    ].sort((a, b) => a.marker.ts - b.marker.ts)
+    const retainedKeys = new Set(retained.map((candidate) => candidate.key))
+    for (const candidate of candidates) {
+        if (!retainedKeys.has(candidate.key)) storage.removeItem(candidate.key)
+    }
+`,
+        `${unit.id}: cap with new marker protection`,
+    )
+    content = replaceExact(
+        content,
+        '    readPendingMarkers(storage, marker.ts)\n',
+        '    readPendingMarkers(storage, marker.ts, marker.operationId)\n',
+        `${unit.id}: protected marker cleanup`,
+    )
+    return content
+}
+
 const regexImportMerge190 = `            /* BG-PRESERVE:START regex-import-merge */
             // Preserve execution multiplicity while retaining the canonical types[] schema.
             // Equal-key rows may share one canonical object only when none of their directions
@@ -181,8 +532,86 @@ const variant190 = new Map([
     ['bg-preserve:owned:server/node/bgOrchestrator.cjs', (unit) => ({
         ...unit,
         id: `${unit.id}:1.9`,
-        content: adaptBgRequestLogging190(unit),
-        requires: ['bg-preserve:owned:server/node/bgRequestLogBridge.cjs:1.9'],
+        content: adaptBgRetention190(adaptBgRequestLogging190(unit), unit.id),
+        requires: [
+            'bg-preserve:owned:server/node/bgRequestLogBridge.cjs:1.9',
+            'bg-preserve:owned:server/node/bgOrchestrationResultRetention.cjs:1.9',
+        ],
+        targetVersions: pocketRisu190,
+    })],
+    ['bg-preserve:owned:server/node/bgOrchestrationRunRegistry.cjs', (unit) => ({
+        ...unit,
+        id: `${unit.id}:1.9`,
+        content: adaptRunRegistryRetention190(unit),
+        requires: ['bg-preserve:owned:server/node/bgOrchestrationResultRetention.cjs:1.9'],
+        targetVersions: pocketRisu190,
+    })],
+    ['bg-preserve:owned:src/ts/bgOrchestrationRunRegistry.test.ts', (unit) => ({
+        ...unit,
+        id: `${unit.id}:1.9`,
+        content: `${unit.content}
+const { ORCH_RESULT_RETENTION_TTL_MS } = require('../../server/node/bgOrchestrationResultRetention.cjs') as {
+    ORCH_RESULT_RETENTION_TTL_MS: number
+}
+
+test('default tombstones retain the exact 48-hour boundary and expire one millisecond later', () => {
+    let now = 0
+    const registry = createOrchestrationRunRegistry({ now: () => now })
+    const run = registry.start('operation-overnight').run
+    registry.finish('operation-overnight', run)
+
+    now = ORCH_RESULT_RETENTION_TTL_MS
+    expect(registry.get('operation-overnight')).toBe(run)
+    now += 1
+    expect(registry.get('operation-overnight')).toBeNull()
+})
+`,
+        requires: [
+            'bg-preserve:owned:server/node/bgOrchestrationRunRegistry.cjs:1.9',
+            'bg-preserve:owned:server/node/bgOrchestrationResultRetention.cjs:1.9',
+        ],
+        targetVersions: pocketRisu190,
+    })],
+    ['bg-preserve:owned:src/ts/bgOrchestrationPending.ts', (unit) => ({
+        ...unit,
+        id: `${unit.id}:1.9`,
+        content: adaptPendingRetention190(unit),
+        targetVersions: pocketRisu190,
+    })],
+    ['bg-preserve:owned:src/ts/bgOrchestrationPending.test.ts', (unit) => ({
+        ...unit,
+        id: `${unit.id}:1.9`,
+        content: `${unit.content}
+test('49-hour marker horizon includes the bounded generation margin', () => {
+    expect(ORCHESTRATION_PENDING_MAX_AGE_MS).toBe(49 * 60 * 60 * 1000)
+    const storage = new MemoryStorage()
+    writePendingMarker(storage, marker('operation-margin', 1))
+    expect(readPendingMarkers(storage, 1 + ORCHESTRATION_PENDING_MAX_AGE_MS)).toHaveLength(1)
+    expect(readPendingMarkers(storage, 2 + ORCHESTRATION_PENDING_MAX_AGE_MS)).toHaveLength(0)
+})
+
+test('clock rollback cannot evict a newly admitted marker behind future timestamps', () => {
+    const storage = new MemoryStorage()
+    for (let i = 0; i < ORCHESTRATION_PENDING_MAX_ENTRIES; i++) {
+        const value = marker('future-operation-' + i, 10_000 + i)
+        storage.setItem(ORCHESTRATION_PENDING_PREFIX + value.operationId, JSON.stringify(value))
+    }
+    writePendingMarker(storage, marker('operation-new', 100))
+
+    const retained = readPendingMarkers(storage, 100)
+    expect(retained).toHaveLength(ORCHESTRATION_PENDING_MAX_ENTRIES)
+    expect(retained.some((value) => value.operationId === 'operation-new')).toBe(true)
+    expect(retained.every((value) => value.ts <= 100)).toBe(true)
+})
+`,
+        requires: ['bg-preserve:owned:src/ts/bgOrchestrationPending.ts:1.9'],
+        targetVersions: pocketRisu190,
+    })],
+    ['bg-preserve:owned:src/ts/bgOrchestrate.ts', (unit) => ({
+        ...unit,
+        id: `${unit.id}:1.9`,
+        content: adaptBgOrchestrateRetention190(unit),
+        requires: ['bg-preserve:owned:src/ts/bgOrchestrationRetentionState.ts:1.9'],
         targetVersions: pocketRisu190,
     })],
     ['bg-preserve:hook:server-cjs-register-routes', (unit) => ({
@@ -363,6 +792,42 @@ const units = base.units.flatMap((rawUnit) => {
 
 units.push(
     {
+        id: 'bg-preserve:owned:server/node/bgOrchestrationResultRetention.cjs:1.9',
+        file: 'server/node/bgOrchestrationResultRetention.cjs',
+        type: 'owned',
+        content: owned('server/node/bgOrchestrationResultRetention.cjs'),
+        targetVersions: pocketRisu190,
+    },
+    {
+        id: 'bg-preserve:owned:server/node/bgOrchestrationResultRetention.test.ts:1.9',
+        file: 'server/node/bgOrchestrationResultRetention.test.ts',
+        type: 'owned',
+        content: owned('server/node/bgOrchestrationResultRetention.test.ts'),
+        requires: [
+            'bg-preserve:owned:server/node/bgOrchestrationResultRetention.cjs:1.9',
+            'bg-preserve:owned:server/node/bgOrchestrator.cjs:1.9',
+        ],
+        targetVersions: pocketRisu190,
+    },
+    {
+        id: 'bg-preserve:owned:src/ts/bgOrchestrationRetentionState.ts:1.9',
+        file: 'src/ts/bgOrchestrationRetentionState.ts',
+        type: 'owned',
+        content: owned('src/ts/bgOrchestrationRetentionState.ts'),
+        targetVersions: pocketRisu190,
+    },
+    {
+        id: 'bg-preserve:owned:src/ts/bgOrchestrationRetentionState.test.ts:1.9',
+        file: 'src/ts/bgOrchestrationRetentionState.test.ts',
+        type: 'owned',
+        content: owned('src/ts/bgOrchestrationRetentionState.test.ts'),
+        requires: [
+            'bg-preserve:owned:src/ts/bgOrchestrationRetentionState.ts:1.9',
+            'bg-preserve:owned:src/ts/bgOrchestrate.ts:1.9',
+        ],
+        targetVersions: pocketRisu190,
+    },
+    {
         id: 'bg-preserve:owned:server/node/bgRequestLogBridge.cjs:1.9',
         file: 'server/node/bgRequestLogBridge.cjs',
         type: 'owned',
@@ -410,7 +875,7 @@ units.push(
 
 module.exports = {
     ...base,
-    version: 'v1.0.1-patcher.3',
+    version: 'v1.0.1-patcher.4',
     source: 'bg-preserve-install.cjs + PocketRisu 1.9 authority adapter',
     targets: {
         pocketrisu: {

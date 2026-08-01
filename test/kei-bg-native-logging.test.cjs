@@ -23,7 +23,7 @@ function sha(value) {
 }
 
 test('K27-F01 keeps the 1.8 BG payload and scopes native logging to exact 1.9', () => {
-    assert.equal(manifest.version, 'v1.0.1-patcher.3')
+    assert.equal(manifest.version, 'v1.0.1-patcher.4')
     const orchestrator181 = unit('bg-preserve:owned:server/node/bgOrchestrator.cjs')
     const orchestrator190 = unit('bg-preserve:owned:server/node/bgOrchestrator.cjs:1.9')
     const register181 = unit('bg-preserve:hook:server-cjs-register-routes')
