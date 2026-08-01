@@ -159,7 +159,8 @@ the rename window, and the original save directory was briefly observed as
 
 The original database was identified by its unchanged inode and moved back by
 exact rename. The race-created save directory was quarantined; it contained
-only new empty/log database files. Current observations after recovery are:
+only new empty/log database files. Observations immediately after that
+recovery were:
 
 - source package and `.installed-version`: 1.8.1;
 - patch state absent and empty custom intent present;
@@ -171,15 +172,53 @@ only new empty/log database files. Current observations after recovery are:
 - PM2 online with active requests 0 and process-reported version 1.8.1;
 - no restart was performed.
 
-Because the PM2 process predates the source revert, it has not loaded the
-reverted source. Treat the current runtime as the previously loaded patched
-1.8.1 process while the on-disk source is reverted 1.8.1. Do not describe the
-live runtime as clean, 1.9, or restarted.
+At that intermediate boundary, the PM2 process predated the source revert and
+had not loaded the reverted source. The runtime was therefore the previously
+loaded patched 1.8.1 process while the on-disk source was reverted 1.8.1.
 
-The exact-1.9 staging tree and recovery snapshots are disposable local
-artifacts, not repository evidence. They may disappear between sessions. If
-they are absent, reconstruct from the exact official tag rather than from a
-floating branch.
+### Authorized exact-1.9 base cutover
+
+The user then explicitly authorized the 1.9 base update and its PocketRisu
+restart in this session, while keeping all patcher and Kei adaptation in a
+different session.
+
+The second cutover used the following observed sequence:
+
+1. Rechecked active requests 0, durable BG rows 0, SQLite `quick_check: ok`,
+   the preserved database inode, and absence of a nested save directory.
+2. Compared every tracked staging file against the exact official
+   `v1.9.0` checkout; the work-tree comparison reported no differences.
+3. Verified the actual `msgpackr` pack/unpack path with native acceleration,
+   `better-sqlite3`, and the production dependency graph. A direct
+   `require('msgpackr-extract')` is not the package's application entry point
+   after pruning and was not used as a false failure.
+4. Stopped PM2 before any rename, moved the old application tree to a
+   recoverable rollback location, moved exact 1.9 into the live path, and
+   moved the original `save/` and `backups/` directories into it by rename.
+5. Restarted PM2 and observed process version 1.9.0, PID `2963365`, unstable
+   restarts 0, and active requests 0.
+6. Observed root HTTP 200 and the main asset HTTP 200. The served main asset
+   was byte-identical to the local build with SHA-256
+   `c924e511a40d444c5631cdf85ee1013acdf17927a435c367678e08becf2db153`.
+7. Rechecked the live source against exact tag
+   `85a65f3137b45c8de4a8d21a9887be213b1ac3fc`: tracked differences 0.
+   The PM2 error log size and mtime did not increase; the output-log delta
+   contained the expected old-process SIGINT flush, new HTTP-server startup,
+   and local smoke connections.
+8. Rechecked the original database and backup directory after restart. Their
+   inodes were unchanged, `quick_check` remained `ok`, the KV count remained
+   10,878, durable BG rows remained 0, and no nested save directory appeared.
+
+The current live base is therefore pristine official PocketRisu 1.9.0 with
+no patcher candidate applied. Patch state is absent and the preserved intent
+still requests an empty custom pack set. The old 1.8.1 application source is
+retained as a local rollback tree without `save/` or `backups/`; user data
+remains only in the live 1.9 tree.
+
+The staging tree was consumed by the successful live rename. The rollback and
+recovery snapshots are disposable local artifacts, not repository evidence.
+They may disappear between sessions; reconstruct source from exact tags rather
+than a floating branch if needed.
 
 ## Exact patcher resume point
 
@@ -228,14 +267,14 @@ runtime effects; and run the complete raw-selection combination gate before
 any aggregate `verified` declaration. A consolidated future iPhone L3 session
 still records each child's concrete scenario separately.
 
-## Separate live-update boundary
+## Live candidate boundary after the base cutover
 
-Do not perform a live cutover merely because patcher work resumes. If the
-user later asks to continue the base update, obtain explicit approval to stop
-or restart PocketRisu, recheck active requests and durable BG work, stop the
-old process before any directory rename, preserve `save/` and `backups/`, then
-cut over and restart before smoke testing. Never directory-swap the
-installation while the old process can recreate paths.
+The official 1.9 base cutover is complete; do not repeat it merely because
+patcher work resumes. Applying a requalified pack graph to this live base is a
+separate explicit-authorization boundary. Recheck active requests and durable
+BG work before any future apply/restart and keep `save/` and `backups/`
+outside source replacement. Never directory-swap the installation while its
+process can recreate paths.
 
 ## Files to preserve
 

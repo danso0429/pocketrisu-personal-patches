@@ -261,10 +261,23 @@ using its unchanged inode; the race-created directory was quarantined.
 After recovery, SQLite `quick_check` returned `ok`, the original backup
 directory remained present, and no nested save directory remained.
 
-The on-disk source is therefore reverted PocketRisu 1.8.1, while the
-not-restarted process still predates that revert and must be treated as the
-previously loaded patched 1.8.1 runtime. The 1.9 source and every 1.9 patch
-candidate remain unapplied. Full observations, limitations, preserved
+That left an intermediate boundary in which on-disk source was reverted
+PocketRisu 1.8.1 while the not-restarted process still ran the previously
+loaded patched 1.8.1 runtime.
+
+The user subsequently authorized the base update and restart in this session,
+while reserving all patcher adaptation for another session. Active requests,
+durable BG rows, and database integrity were rechecked; PM2 was stopped before
+any rename; the original `save/` and `backups/` were moved into the exact 1.9
+tree; and PM2 restarted on version 1.9.0. The live tracked source differs from
+official tag `85a65f3137b45c8de4a8d21a9887be213b1ac3fc` by zero files. Root and
+main-asset HTTP checks returned 200, the served main asset matched the local
+build byte-for-byte, the error log did not grow, and the original database
+inode and `quick_check: ok` result were preserved.
+
+The current live base is pristine official PocketRisu 1.9.0 with patch state
+absent and an empty custom intent. Every requalified pack and 1.9 Kei
+candidate remains unapplied. Full observations, limitations, preserved
 worktrees, and the exact next patcher step are in
 `docs/POCKETRISU-1.9-SESSION-HANDOFF.md`.
 

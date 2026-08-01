@@ -30,11 +30,12 @@ candidate is preserved rather than mutated in place.
   uncommitted bytes.
 - The 1.9 branch requalifies existing packs and admitted Kei children before
   any new catalog child is implemented.
-- Neither candidate branch has been pushed, tagged, released, applied live,
-  or followed by a PocketRisu restart. Separately, the live 1.8.1 patch graph
-  was reverted while preparing the base update; the process was not restarted
-  and the 1.9 cutover did not complete. The exact disk/runtime boundary and
-  recovered cutover incident are recorded in the session handoff.
+- Neither candidate branch has been pushed, tagged, released, or applied
+  live. Separately, the old live 1.8.1 patch graph was reverted and the live
+  base was upgraded and restarted on pristine official 1.9.0 after explicit
+  authorization. No requalified pack or Kei candidate is installed. The
+  interrupted first attempt, recovery, and successful stopped-process cutover
+  are recorded in the session handoff.
 
 The exact overlap, semantic classification, generation-authority conflict,
 privacy-policy correction, and ordered rebase plan are in the 1.9 audit.
@@ -65,9 +66,9 @@ The catalog custody, verification procedure, and this status are kept in a
 separate documentation commit. Its hash is read from history rather than
 embedded in this file, which would create a self-referential commit hash.
 
-The candidate branch has not been pushed, tagged, released, applied to the
-live PocketRisu tree, or followed by a PocketRisu restart. This statement does
-not undo the separate operational revert of the old live patch graph.
+The candidate branch has not been pushed, tagged, released, or applied to the
+live PocketRisu tree. The live process restart installed only the pristine
+official 1.9 base and is not a candidate publication or patch qualification.
 
 ## Admission-order position
 
@@ -180,8 +181,9 @@ implemented progress.
 The deferred K19 mobile gate does not block source audit or separately
 committed local implementation of the next catalog child. Review and the
 consolidated per-feature L3 results continue to block push, tag, release, and
-publication of the aggregate candidate. Live/candidate apply and any
-PocketRisu restart remain separate explicit-authorization boundaries.
+publication of the aggregate candidate. A future live candidate apply and
+any restart it needs remain separate explicit-authorization boundaries; the
+already completed pristine 1.9 base restart does not authorize either.
 
 ## Next implementation sequence
 
