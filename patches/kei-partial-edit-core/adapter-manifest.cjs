@@ -1,5 +1,8 @@
 'use strict'
 
+const pocketRisu181 = { pocketrisu: ['1.8.1'] }
+const pocketRisu190 = { pocketrisu: ['1.9.0'] }
+
 function createPartialEditAdapterManifest({
     id,
     title,
@@ -85,33 +88,7 @@ function createPartialEditAdapterManifest({
      data-partial-edit-translated={translated && DBState.db.translatorType === 'llm'}
 `
 
-    return {
-        id,
-        title,
-        version: '0.1.0',
-        userSelectable: false,
-        requires: bgPreserve
-            ? [
-                'kei-partial-edit-core',
-                'kei-chat-render-bg-adapter',
-                'bg-preserve',
-            ]
-            : [
-                'kei-partial-edit-core',
-                'kei-chat-render-base-adapter',
-            ],
-        conflicts: bgPreserve
-            ? ['kei-partial-edit-base-adapter']
-            : ['bg-preserve', 'kei-partial-edit-bg-adapter'],
-        autoWhen: bgPreserve
-            ? {
-                all: ['kei-partial-edit-core', 'bg-preserve'],
-            }
-            : {
-                all: ['kei-partial-edit-core'],
-                none: ['bg-preserve'],
-            },
-        units: [
+    const units181 = [
             {
                 id: `${prefix}default-chat-import`,
                 file: 'src/lib/ChatScreens/DefaultChatScreen.svelte',
@@ -518,6 +495,125 @@ function createPartialEditAdapterManifest({
                 anchorPolicy: 'first',
                 requires: [`${prefix}lang-en-match-confidence`],
             },
+        ]
+
+    const bySuffix = (suffix) => units181.find((unit) =>
+        unit.id === `${prefix}${suffix}`
+    )
+    const defaultChatRootBinding190 = {
+        ...bySuffix('default-chat-root-binding'),
+        anchor: `        <div class="h-full w-full flex flex-col-reverse overflow-y-auto overscroll-y-contain relative default-chat-screen"
+            class:nodeonly-standard={DBState.db.theme === ''}
+`,
+        managed: `        <!-- ${marker('default-chat-root-binding')} -->
+        <div class="h-full w-full flex flex-col-reverse overflow-y-auto overscroll-y-contain relative default-chat-screen"
+            bind:this={chatScreenRoot}
+            class:nodeonly-standard={DBState.db.theme === ''}
+`,
+    }
+    const chatTranslationBridge190 = {
+        ...bySuffix('chat-translation-bridge'),
+        content: bySuffix('chat-translation-bridge').content.replaceAll(
+            'isStreamingDisplay',
+            'isOptimizedStreamingMessage',
+        ),
+    }
+    const chatRemoveController190 = {
+        ...bySuffix('chat-remove-controller'),
+        anchor: `            {#if idx >= 0 && !editMode && !isOptimizedStreamingMessage && partialEditEnabled && (DBState.db.enableBlockPartialEdit || DBState.db.enableDragPartialEdit)}
+                <PartialEditController
+                    messageData={message}
+                    chatIndex={idx}
+                    {bodyRoot}
+                    blockEditEnabled={DBState.db.enableBlockPartialEdit}
+                    dragEditEnabled={DBState.db.enableDragPartialEdit}
+                    on:save={handlePartialEditSave}
+                />
+            {/if}
+`,
+    }
+    const chatStandardRoot190 = {
+        ...bySuffix('chat-standard-root'),
+        managed: bySuffix('chat-standard-root').managed.replaceAll(
+            'isStreamingDisplay',
+            'isOptimizedStreamingMessage',
+        ),
+    }
+    const chatThemedRoot190 = {
+        ...bySuffix('chat-themed-root'),
+        managed: bySuffix('chat-themed-root').managed.replaceAll(
+            'isStreamingDisplay',
+            'isOptimizedStreamingMessage',
+        ),
+    }
+    const replacements190 = new Map([
+        [`${prefix}default-chat-root-binding`, defaultChatRootBinding190],
+        [`${prefix}chat-translation-bridge`, chatTranslationBridge190],
+        [`${prefix}chat-remove-controller`, chatRemoveController190],
+        [`${prefix}chat-standard-root`, chatStandardRoot190],
+        [`${prefix}chat-themed-root`, chatThemedRoot190],
+    ])
+    const units190Source = units181.map((unit) =>
+        replacements190.get(unit.id) ?? unit
+    )
+    const units190Ids = new Set(units190Source.map((unit) => unit.id))
+    const target190Dependency = (dependency) => {
+        if (units190Ids.has(dependency)) return `${dependency}:1.9`
+        if (dependency === `${chatRenderAdapter}:chat-streaming-default`) {
+            return `${chatRenderAdapter}:chat-reactive-metadata:1.9`
+        }
+        if (
+            dependency === `${chatRenderAdapter}:default-chat-generation-state`
+            || dependency === `${chatRenderAdapter}:chat-body-streaming-prop`
+        ) return `${dependency}:1.9`
+        return dependency
+    }
+    const units190 = units190Source.map((unit) => ({
+        ...unit,
+        id: `${unit.id}:1.9`,
+        requires: unit.requires?.map(target190Dependency),
+        after: unit.after?.map(target190Dependency),
+        targetVersions: pocketRisu190,
+    }))
+
+    return {
+        id,
+        title,
+        version: '0.2.0',
+        userSelectable: false,
+        targets: {
+            pocketrisu: {
+                verified: ['1.8.1', '1.9.0'],
+                reviewing: [],
+            },
+        },
+        requires: bgPreserve
+            ? [
+                'kei-partial-edit-core',
+                'kei-chat-render-bg-adapter',
+                'bg-preserve',
+            ]
+            : [
+                'kei-partial-edit-core',
+                'kei-chat-render-base-adapter',
+            ],
+        conflicts: bgPreserve
+            ? ['kei-partial-edit-base-adapter']
+            : ['bg-preserve', 'kei-partial-edit-bg-adapter'],
+        autoWhen: bgPreserve
+            ? {
+                all: ['kei-partial-edit-core', 'bg-preserve'],
+            }
+            : {
+                all: ['kei-partial-edit-core'],
+                none: ['bg-preserve'],
+            },
+        units: [
+            ...units181.map((unit) => ({
+                ...unit,
+                targetVersions: pocketRisu181,
+            })),
+            ...units190,
         ],
     }
 }

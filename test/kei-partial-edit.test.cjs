@@ -24,6 +24,14 @@ test('K15 keeps its core and base/bg adapters internal', () => {
     assert.equal(core.userSelectable, false)
     assert.equal(base.userSelectable, false)
     assert.equal(bg.userSelectable, false)
+    for (const pack of [core, base, bg]) {
+        assert.deepEqual(pack.targets, {
+            pocketrisu: {
+                verified: ['1.8.1', '1.9.0'],
+                reviewing: [],
+            },
+        })
+    }
     assert.deepEqual(base.requires, [
         'kei-partial-edit-core',
         'kei-chat-render-base-adapter',
@@ -80,6 +88,20 @@ test('K15 owns only identity/manager code and hooks four focused hosts', () => {
         'src/lib/ChatScreens/DefaultChatScreen.svelte',
     ]
     for (const adapter of [base, bg]) {
+        const units181 = adapter.units.filter((unit) =>
+            unit.targetVersions?.pocketrisu?.includes('1.8.1')
+        )
+        const units190 = adapter.units.filter((unit) =>
+            unit.targetVersions?.pocketrisu?.includes('1.9.0')
+        )
+        assert.equal(units181.length, 14)
+        assert.equal(units190.length, 14)
+        assert.equal(
+            adapter.units.every((unit) =>
+                unit.targetVersions?.pocketrisu?.length === 1
+            ),
+            true,
+        )
         assert.deepEqual(
             [...new Set(adapter.units.map((unit) => unit.file))].sort(),
             expectedHosts,
@@ -89,7 +111,29 @@ test('K15 owns only identity/manager code and hooks four focused hosts', () => {
             managed,
             /bgOrchestrat|result.?claim|acknowledge|sendChat|requestStatus|setCurrentChat/i,
         )
-        assert.equal((managed.match(/setLLMCache/g) ?? []).length, 1)
+        assert.equal((managed.match(/setLLMCache/g) ?? []).length, 2)
+
+        const managed181 = units181.map(unitText).join('\n')
+        const managed190 = units190.map(unitText).join('\n')
+        assert.match(managed181, /isStreamingDisplay/)
+        assert.doesNotMatch(managed190, /isStreamingDisplay/)
+        assert.match(managed190, /isOptimizedStreamingMessage/)
+        assert.match(managed190, /overscroll-y-contain/)
+        const rootState190 = units190.find((unit) =>
+            unit.id.endsWith(':chat-root-state:1.9')
+        )
+        const manager190 = units190.find((unit) =>
+            unit.id.endsWith(':default-chat-manager:1.9')
+        )
+        assert.ok(rootState190)
+        assert.ok(manager190)
+        assert.deepEqual(rootState190.after, [
+            `kei-chat-render-${adapter === base ? 'base' : 'bg'}-adapter:chat-reactive-metadata:1.9`,
+        ])
+        assert.match(
+            manager190.requires.join('\n'),
+            /default-chat-generation-state:1\.9/,
+        )
     }
 })
 
@@ -155,46 +199,57 @@ test('K15 translation bridge requires an issued current cache identity', () => {
     assert.match(identity, /request\.expectedData === issued\.data/)
 
     for (const adapter of [base, bg]) {
-        const bridge = adapter.units.find((unit) =>
-            unit.id.endsWith(':chat-translation-bridge'),
+        const bridges = adapter.units.filter((unit) =>
+            unit.id.endsWith(':chat-translation-bridge')
+            || unit.id.endsWith(':chat-translation-bridge:1.9')
         )
-        assert.ok(bridge)
-        const payload = unitText(bridge)
-        assert.match(payload, /chatRef: chat as object/)
-        assert.match(payload, /messageRef: messageRef as object/)
-        assert.match(payload, /issuedPartialEditTranslation !== issued/)
-        assert.match(payload, /partialEditTranslationSaveMatchesIssue/)
-        assert.match(payload, /currentKey !== issued\.key/)
-        assert.match(payload, /currentData !== issued\.data/)
-        assert.match(payload, /commitPartialEditTranslationCache/)
-        assert.match(
-            payload,
-            /!DBState\.db\.enableBlockPartialEdit && !DBState\.db\.enableDragPartialEdit/,
-        )
-        assert.match(payload, /samePartialEditMessageIdentity/)
-        assert.doesNotMatch(
-            payload,
-            /bgOrchestrat|result.?claim|acknowledge|sendChat|setCurrentChat/i,
-        )
+        assert.equal(bridges.length, 2)
+        for (const bridge of bridges) {
+            const payload = unitText(bridge)
+            assert.match(payload, /chatRef: chat as object/)
+            assert.match(payload, /messageRef: messageRef as object/)
+            assert.match(payload, /issuedPartialEditTranslation !== issued/)
+            assert.match(payload, /partialEditTranslationSaveMatchesIssue/)
+            assert.match(payload, /currentKey !== issued\.key/)
+            assert.match(payload, /currentData !== issued\.data/)
+            assert.match(payload, /commitPartialEditTranslationCache/)
+            assert.match(
+                payload,
+                /!DBState\.db\.enableBlockPartialEdit && !DBState\.db\.enableDragPartialEdit/,
+            )
+            assert.match(payload, /samePartialEditMessageIdentity/)
+            assert.doesNotMatch(
+                payload,
+                /bgOrchestrat|result.?claim|acknowledge|sendChat|setCurrentChat/i,
+            )
+        }
     }
 })
 
 test('K15 bg adapter follows existing touch ownership without replacing it', () => {
     for (const suffix of ['chat-standard-root', 'chat-themed-root']) {
-        const unit = bg.units.find((candidate) =>
-            candidate.id.endsWith(`:${suffix}`),
+        const units = bg.units.filter((candidate) =>
+            candidate.id.endsWith(`:${suffix}`)
+            || candidate.id.endsWith(`:${suffix}:1.9`),
         )
-        assert.ok(unit)
-        assert.deepEqual(unit.after, [
+        assert.equal(units.length, 2)
+        assert.deepEqual(units[0].after, [
             'kei-chat-render-bg-adapter:chat-body-streaming-prop',
             'bg-preserve:hook:chat-standard-risu-control-touch-events',
             'bg-preserve:hook:chat-themed-risu-control-touch-events',
         ])
-        assert.match(unitText(unit), /BG-PRESERVE:START risu-control-touch-/)
-        assert.doesNotMatch(
-            unitText(unit),
-            /ontouchstartcapture|ontouchendcapture|onclickcapture/,
-        )
+        assert.deepEqual(units[1].after, [
+            'kei-chat-render-bg-adapter:chat-body-streaming-prop:1.9',
+            'bg-preserve:hook:chat-standard-risu-control-touch-events',
+            'bg-preserve:hook:chat-themed-risu-control-touch-events',
+        ])
+        for (const unit of units) {
+            assert.match(unitText(unit), /BG-PRESERVE:START risu-control-touch-/)
+            assert.doesNotMatch(
+                unitText(unit),
+                /ontouchstartcapture|ontouchendcapture|onclickcapture/,
+            )
+        }
     }
 })
 
