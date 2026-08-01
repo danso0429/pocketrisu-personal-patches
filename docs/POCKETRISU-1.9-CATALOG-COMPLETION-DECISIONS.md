@@ -29,7 +29,7 @@ owners.
 | K17 text-theme normalization | Keep only audited K17-F01 compatibility; drop the broad refactor | Exact 1.9 has the same three official theme modes and API-v3 validation, but unsupported persisted or preset values can survive and leave stale CSS. The hidden exact-1.9 child normalizes load, preset activation, and runtime CSS to `standard` while preserving `standard`, `highcontrast`, and `custom`. |
 | K20 character list/sidebar expansion | Defer missing search/recent/view controls to `character-organizer` | Folder and order authority is already qualified in `character-organizer`. No second Kei order schema enters the aggregate. A later independently specified UI delta may render the existing schema. |
 | K22 persona picker/list expansion | Defer missing presentation controls to `persona-organizer` | `persona-organizer` remains the folder/order/normalization/import-export owner. No concrete missing outcome requires a new runtime unit for the current aggregate. |
-| K23 regex/lorebook rewrite | Exclude the direct port | `bg-preserve` already depends on the multi-type `types[]` schema along generation paths. Kei's broad/single-type rewrite is not schema-equivalent and no independently specified missing outcome was found. |
+| K23 regex/lorebook rewrite | Keep only audited K23-F01 in `bg-preserve`; exclude the direct port | The canonical `types[]` row already provides grouped edit/delete/reorder, but the old import bucket collapsed equal same-direction records and lost an execution. K23-F01 merges only disjoint mode sets and starts a separate canonical row on any overlap. It adds no identity or multi-object grouping schema; regex search and lorebook features remain deferred. |
 | K26 backup tools | Drop the combined direct port; defer only distinct additions | Exact 1.9 creates bounded database snapshots on successful persistence, exposes count/byte limits and atomic server restore, provides full server and settings-only backup paths, and offers a boot-time full-backup prompt. Kei's manual schedule and selective missing-asset restore remain distinct, but must be split into future owner-local additions rather than duplicate the qualified storage/import system. |
 | K27 request logs | Keep as a future explicit policy pack only | Exact 1.9 already bounds body storage to 256 MiB, caps individual fields, masks credential patterns, retains at least 50 recent rows, and cursor-paginates list reads. It nevertheless defaults to content capture. A future policy adapter may choose metadata-only defaults or expiry; it is not an umbrella child. |
 | K28 usage insights | Keep as a future explicit policy pack only | Exact 1.9 already records content-free, failure-isolated LLM usage, but the rows are unbounded/unpaginated and writes are coupled to the body-log toggle. Retention, pagination, and decoupling require an explicit policy decision; they do not block the current umbrella. |
@@ -65,6 +65,19 @@ the original seven children or the K04/K17 compatibility corrections.
 - K17-F01 keeps that native owner and schema, but admits only the three native
   values at load, preset activation, and runtime CSS. Unsupported values become
   `standard`; preset save/import expansion and broad styling remain excluded.
+
+### Regex import multiplicity
+
+- `bg-preserve` remains the only owner of the local `customscript.types[]`
+  extension. Its runtime, translator, editor, delete, reorder, import, and
+  vanilla-export paths all consume the same canonical row objects.
+- The prior import map kept only one row per editable-field key, so a second
+  record with an already present direction was deduplicated into the same
+  `types[]` set and one execution disappeared.
+- K23-F01 keeps the key and schema but stores multiple candidate rows per key.
+  It merges into the first row whose modes are disjoint; any overlap appends a
+  new canonical row. Vanilla export still emits one single-type record for each
+  direction on every row.
 
 ### Backup and restore
 

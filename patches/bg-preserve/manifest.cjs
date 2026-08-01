@@ -7,6 +7,8 @@ const base = JSON.parse(fs.readFileSync(
     path.join(__dirname, '..', 'bg-preserve.json'),
     'utf8',
 ))
+const filesRoot = path.join(__dirname, 'files')
+const owned = (relative) => fs.readFileSync(path.join(filesRoot, relative), 'utf8')
 
 const pocketRisu181 = { pocketrisu: ['1.8.1'] }
 const pocketRisu190 = { pocketrisu: ['1.9.0'] }
@@ -61,7 +63,54 @@ function adaptUniversalUnit(unit) {
     return unit
 }
 
+const regexImportMerge190 = `            /* BG-PRESERVE:START regex-import-merge */
+            // Preserve execution multiplicity while retaining the canonical types[] schema.
+            // Equal-key rows may share one canonical object only when none of their directions
+            // overlap. A repeated direction starts another row, so import never deduplicates an
+            // execution. The first disjoint row wins and canonical row order remains stable.
+            const mergeKey = (d:customscript) => JSON.stringify([d.comment, d.in, d.out, d.flag ?? '', d.ableFlag ? 1 : 0])
+            const byKey = new Map<string, customscript[]>()
+            for(const data of datas){
+                const key = mergeKey(data)
+                const incoming = Array.from(new Set(scriptModes(data)))
+                const incomingSet = new Set(incoming)
+                let candidates = byKey.get(key)
+                if(!candidates){
+                    candidates = []
+                    byKey.set(key, candidates)
+                }
+                const existing = candidates.find((candidate) =>
+                    scriptModes(candidate).every((mode) => !incomingSet.has(mode))
+                )
+                if(existing){
+                    const merged = Array.from(new Set([...scriptModes(existing), ...incoming]))
+                    existing.types = merged
+                    existing.type = merged[0]
+                }
+                else{
+                    const copy:customscript = { ...data }
+                    if(incoming.length > 1){
+                        copy.types = incoming
+                        copy.type = incoming[0]
+                    }
+                    else{
+                        delete copy.types
+                        copy.type = incoming[0]
+                    }
+                    candidates.push(copy)
+                    o.push(copy)
+                }
+            }
+            /* BG-PRESERVE:END */
+`
+
 const variant190 = new Map([
+    ['bg-preserve:hook:regex-import-merge', (unit) => ({
+        ...unit,
+        id: `${unit.id}:1.9`,
+        managed: regexImportMerge190,
+        targetVersions: pocketRisu190,
+    })],
     ['bg-preserve:hook:globalapi-fetch-impl-register', (unit) => ({
         ...unit,
         id: `${unit.id}:1.9`,
@@ -240,11 +289,19 @@ units.push(
         content: 'import { abortGeneration } from "./generationState";\n',
         targetVersions: pocketRisu190,
     },
+    {
+        id: 'bg-preserve:owned:src/ts/process/regexImportMultiplicity.test.ts:1.9',
+        file: 'src/ts/process/regexImportMultiplicity.test.ts',
+        type: 'owned',
+        content: owned('src/ts/process/regexImportMultiplicity.test.ts'),
+        requires: ['bg-preserve:hook:regex-import-merge:1.9'],
+        targetVersions: pocketRisu190,
+    },
 )
 
 module.exports = {
     ...base,
-    version: 'v1.0.1-patcher.1',
+    version: 'v1.0.1-patcher.2',
     source: 'bg-preserve-install.cjs + PocketRisu 1.9 authority adapter',
     targets: {
         pocketrisu: {

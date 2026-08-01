@@ -29,7 +29,7 @@ function owned(file) {
 
 test('BG pack keeps exact 1.8 support and verifies its target-scoped 1.9 graph', () => {
     assert.equal(manifest.id, 'bg-preserve')
-    assert.equal(manifest.version, 'v1.0.1-patcher.1')
+    assert.equal(manifest.version, 'v1.0.1-patcher.2')
     assert.deepEqual(manifest.targets, {
         pocketrisu: {
             verified: ['1.8.1', '1.9.0'],
