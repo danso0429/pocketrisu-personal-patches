@@ -10,7 +10,7 @@ const owned = (relative) =>
 module.exports = {
     id: 'kei-partial-edit-core',
     title: 'PocketRisu Kei partial message editing core',
-    version: '0.2.0',
+    version: '0.3.0',
     userSelectable: false,
     targets: {
         pocketrisu: {

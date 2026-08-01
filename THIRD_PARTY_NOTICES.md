@@ -19,9 +19,9 @@ from the PR's exact transport revisions.
 ## PocketRisu Kei
 
 The optional fullscreen image viewer, robust OpenAI and Google SSE stream
-parsing, streaming chat render identity, navigation/hotkey behavior, and
-shared partial-message editing and HypaMemory manual tools adapt focused
-capabilities from PocketRisu Kei:
+parsing, streaming chat render identity, navigation/hotkey behavior, shared
+partial-message editing, HypaMemory manual tools, and translation cache
+management/cancellation adapt focused capabilities from PocketRisu Kei:
 
 - Source: https://github.com/seto-sama/PocketRisu-Kei
 - Revision: `cc1d1b195babd887577ebf943d5e82f01f58135c`
@@ -44,6 +44,12 @@ capabilities from PocketRisu Kei:
   `src/lib/Others/HypaV3Modal/manual-summary-panel.svelte`,
   `src/lib/Others/HypaV3Modal/utils.ts`, and focused HypaV3 modal, header,
   connected-message, next-target, and language wiring;
+  `src/ts/translator/translator.ts`,
+  `src/lib/Setting/Pages/Language/TranslationCachePanel.svelte`,
+  `src/lib/Setting/Pages/Language/translationCacheEntries.ts`,
+  `src/lib/Setting/Pages/LanguageSettings.svelte`,
+  `src/lib/ChatScreens/ChatBody.svelte`, and focused translator-preset and
+  language wiring;
   `src/ts/hotkey.ts`, `src/ts/defaulthotkeys.ts`,
   `src/ts/mobileBackNavigation.ts`, and the focused bootstrap, database,
   hotkey-settings, accessibility-settings, and language wiring.
@@ -74,3 +80,11 @@ tag, bulk-edit, and next-target UI while adding contiguous-frontier manual
 summarization and corrected CBS display processing. It calls the existing
 HypaV3 summarizer and does not add Revenant, a second generation transport,
 or a parallel result/ACK authority.
+The translation adaptation preserves PocketRisu's existing persistent cache
+prefix, raw source-text lookup key, import/export/clear controls, provider
+selection, and bg-preserve request ownership. It adds progressive cache
+management, exact observed-entry mutation guards, preview-before-delete
+unused cleanup, cancellation propagation, and focused batch/race tests. It
+does not introduce Revenant, a second provider route, or a new cache schema;
+the inherited raw-key language/preset/provider collision boundary remains
+documented in the K12 validation receipt.

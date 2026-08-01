@@ -105,6 +105,7 @@ describe('partial edit identity', () => {
         expect(write).toHaveBeenCalledWith(
             'translation-key',
             'updated translation',
+            'cached translation',
         )
     })
 
@@ -139,5 +140,37 @@ describe('partial edit identity', () => {
             'cached translation',
         )).resolves.toBe(false)
         expect(write).toHaveBeenCalledTimes(2)
+    })
+
+    it('does not restore over a newer value when the writer enforces expectations', async () => {
+        let current = 'cached translation'
+        const write = vi.fn(async (
+            _key: string,
+            value: string,
+            expectedValue?: string,
+        ) => {
+            if (current !== expectedValue) {
+                throw new Error('cache changed')
+            }
+            if (value === 'updated translation') {
+                current = 'new generated translation'
+                throw new Error('write failed')
+            }
+            current = value
+        })
+
+        await expect(commitPartialEditTranslationCache(
+            write,
+            'translation-key',
+            'updated translation',
+            'cached translation',
+        )).resolves.toBe(false)
+        expect(current).toBe('new generated translation')
+        expect(write).toHaveBeenNthCalledWith(
+            2,
+            'translation-key',
+            'cached translation',
+            'updated translation',
+        )
     })
 })

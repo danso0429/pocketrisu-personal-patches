@@ -3,7 +3,7 @@
 module.exports = {
     id: 'pocketrisu-kei',
     title: 'PocketRisu Kei integration',
-    version: '0.7.0',
+    version: '0.8.0',
     userSelectable: true,
     requires: [
         'kei-fullscreen-image-viewer-core',
@@ -12,6 +12,7 @@ module.exports = {
         'kei-mobile-navigation-core',
         'kei-hypa-tools-core',
         'kei-partial-edit-core',
+        'kei-translation-tools-core',
     ],
     units: [],
 }

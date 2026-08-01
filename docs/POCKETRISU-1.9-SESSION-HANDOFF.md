@@ -7,10 +7,10 @@
 > **Exact target:** official PocketRisu `v1.9.0` /
 > `85a65f3137b45c8de4a8d21a9887be213b1ac3fc`
 >
-> **Immediate next feature:** port the preserved staged K12 translation-cache
-> tools, removing the native 1.9 original-text cache-key overlap and adapting
-> its changed runtime anchors. The BG/lazy owner graph and K19, K13, K14, K16,
-> K15, K11 Kei children are qualified.
+> **Immediate next gate:** qualify the aggregate exact-1.9 graph, run the full
+> raw-selection verifier, and rebuild deterministic installers. The BG/lazy
+> owner graph and K19, K13, K14, K16, K15, K11, K12 Kei children have
+> feature-local exact-1.9 receipts.
 
 This document records the complete local work boundary from the beginning of
 the Kei selection effort through the 1.9 pivot and live-update preparation.
@@ -251,12 +251,13 @@ gate. Resume owner integration in this order:
 1. Retain the qualified request-class table and combined BG/lazy adapter graph
    without weakening result/claim/ACK, cancellation, hydration, or
    no-resurrection contracts.
-2. Retain the qualified K19, K13, K14, K16, K15, and K11 deltas. K11 leaves
+2. Retain the qualified K19, K13, K14, K16, K15, K11, and K12 deltas. K11 leaves
    native preview, summary-item reroll, and filtered search under upstream
-   ownership while retaining the missing manual/frontier outcomes.
-3. Port the preserved staged K12 last. Remove the duplicate cache-key fix,
-   adapt its four changed runtime anchors, and repeat identity/CAS/cancel/
-   import/export/cleanup gates.
+   ownership while retaining the missing manual/frontier outcomes. K12
+   preserves native request logging and cache-key behavior while retaining
+   its identity/CAS/cancel/import/export/cleanup outcomes.
+3. Run the aggregate exact-1.9 target, L2.5, raw-selection, deterministic
+   installer, and review gates without applying the candidate live.
 4. Re-evaluate future and policy rows, including unresolved K27/K28, only
    after the owner graph is usable.
 

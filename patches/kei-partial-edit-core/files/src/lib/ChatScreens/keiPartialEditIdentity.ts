@@ -23,6 +23,7 @@ export interface PartialEditTranslationSaveRequest
 export type PartialEditTranslationCacheWriter = (
     key: string,
     value: string,
+    expectedValue?: string,
 ) => Promise<void>
 
 export function samePartialEditMessageIdentity(
@@ -56,12 +57,12 @@ export async function commitPartialEditTranslationCache(
     previousData: string,
 ) {
     try {
-        await write(key, nextData)
+        await write(key, nextData, previousData)
         return true
     }
     catch {
         try {
-            await write(key, previousData)
+            await write(key, previousData, nextData)
         }
         catch {
             // The caller receives false either way. The storage implementation

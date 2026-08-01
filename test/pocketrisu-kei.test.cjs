@@ -9,7 +9,7 @@ const { resolveSelection } = require('../src/resolver.cjs')
 
 test('PocketRisu Kei remains a unit-free universal-only meta pack', () => {
     assert.equal(manifest.id, 'pocketrisu-kei')
-    assert.equal(manifest.version, '0.7.0')
+    assert.equal(manifest.version, '0.8.0')
     assert.equal(manifest.userSelectable, true)
     assert.deepEqual(manifest.requires, [
         'kei-fullscreen-image-viewer-core',
@@ -18,6 +18,7 @@ test('PocketRisu Kei remains a unit-free universal-only meta pack', () => {
         'kei-mobile-navigation-core',
         'kei-hypa-tools-core',
         'kei-partial-edit-core',
+        'kei-translation-tools-core',
     ])
     assert.deepEqual(manifest.units, [])
     assert.equal(Object.hasOwn(manifest, 'presetDefaults'), false)
@@ -42,6 +43,8 @@ test('PocketRisu Kei remains a unit-free universal-only meta pack', () => {
         'kei-partial-edit-core',
         'kei-stream-parser-base-adapter',
         'kei-stream-parser-core',
+        'kei-translation-tools-base-adapter',
+        'kei-translation-tools-core',
         manifest.id,
     ])
     assert.deepEqual(resolution.dependencyAdded, [
@@ -51,6 +54,7 @@ test('PocketRisu Kei remains a unit-free universal-only meta pack', () => {
         'kei-mobile-navigation-core',
         'kei-partial-edit-core',
         'kei-stream-parser-core',
+        'kei-translation-tools-core',
     ])
     assert.deepEqual(resolution.autoAdded, [
         'kei-chat-render-base-adapter',
@@ -58,6 +62,7 @@ test('PocketRisu Kei remains a unit-free universal-only meta pack', () => {
         'kei-mobile-navigation-base-adapter',
         'kei-partial-edit-base-adapter',
         'kei-stream-parser-base-adapter',
+        'kei-translation-tools-base-adapter',
     ])
 })
 
@@ -94,6 +99,8 @@ test('PocketRisu Kei can require hidden children without exposing them directly'
         'kei-partial-edit-core',
         'kei-stream-parser-base-adapter',
         'kei-stream-parser-core',
+        'kei-translation-tools-base-adapter',
+        'kei-translation-tools-core',
         manifest.id,
     ])
     assert.deepEqual(resolution.dependencyAdded, [
@@ -104,6 +111,7 @@ test('PocketRisu Kei can require hidden children without exposing them directly'
         'kei-mobile-navigation-core',
         'kei-partial-edit-core',
         'kei-stream-parser-core',
+        'kei-translation-tools-core',
     ])
     assert.throws(
         () => resolveSelection(futureCatalog, [child.id]),
@@ -130,6 +138,9 @@ test('PocketRisu Kei adds only its child units to every existing unit graph', ()
         'kei-partial-edit-core',
         'kei-partial-edit-base-adapter',
         'kei-partial-edit-bg-adapter',
+        'kei-translation-tools-core',
+        'kei-translation-tools-base-adapter',
+        'kei-translation-tools-bg-adapter',
         'kei-stream-parser-core',
         'kei-stream-parser-base-adapter',
         'kei-stream-parser-bg-adapter',
@@ -187,6 +198,14 @@ test('PocketRisu Kei adds only its child units to every existing unit graph', ()
         )
         assert.equal(
             withKeiResolution.resolvedIds.includes('kei-partial-edit-bg-adapter'),
+            withKeiResolution.resolvedIds.includes('bg-preserve'),
+        )
+        assert.equal(
+            withKeiResolution.resolvedIds.includes('kei-translation-tools-base-adapter'),
+            !withKeiResolution.resolvedIds.includes('bg-preserve'),
+        )
+        assert.equal(
+            withKeiResolution.resolvedIds.includes('kei-translation-tools-bg-adapter'),
             withKeiResolution.resolvedIds.includes('bg-preserve'),
         )
     }
