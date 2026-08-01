@@ -441,6 +441,12 @@ module.exports = {
     id: 'startup-cache',
     title: 'Startup database cache',
     version: '0.1.2',
+    targets: {
+        pocketrisu: {
+            verified: ['1.8.1', '1.9.0'],
+            reviewing: [],
+        },
+    },
     userSelectable: true,
     inspiration: 'PocketRisu/PocketRisu#49',
     units: [

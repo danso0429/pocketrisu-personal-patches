@@ -27,3 +27,13 @@ test('startup cache keeps cache behavior without permanent System Log telemetry'
         assert.match(source, /startupDatabaseCache\.invalidate\(\)/)
     }
 })
+
+test('startup cache is qualified only for reviewed exact PocketRisu targets', () => {
+    assert.deepEqual(startupManifest.targets, {
+        pocketrisu: {
+            verified: ['1.8.1', '1.9.0'],
+            reviewing: [],
+        },
+    })
+    assert.equal(startupManifest.targets.pocketrisu.verified.includes('1.9.1'), false)
+})

@@ -68,7 +68,7 @@ It is a review surface, not proof of a semantic conflict.
 | `bg-preserve-storage-base` | 1 | 1 | All three anchors still exact; semantic review required |
 | `lazy-chat-sync` | 27 | 9 | Refused: seven full-file replacement anchors changed |
 | `lazy-chat-bg-adapter` | 4 | 2 | Four parent-dependent anchors unavailable until both owners are rebased |
-| `startup-cache` | 6 | 4 | All 17 non-owned anchors exact; semantic review required |
+| `startup-cache` | 6 | 4 | Qualified on exact 1.9.0; conditional startup-cache delta retained |
 | `preset-integrity` | 3 | 1 | All six anchors exact; active `-1` preset policy conflicts with new ID helper |
 | `persona-organizer` | 11 | 5 | Refused at the server gallery-assets anchor |
 | `character-organizer` | 5 | 1 | Planned structurally; semantic review required |
@@ -229,6 +229,10 @@ Only observed results may move 1.9.0 from `reviewing` to `verified`.
 - `toolchain-hardening`: qualified for exact 1.9.0 without changing runtime
   source. Its single-pack stage, zero-change reapply, and exact revert evidence
   is in `docs/POCKETRISU-1.9-TOOLCHAIN-HARDENING-VALIDATION.md`.
+- `startup-cache`: qualified for exact 1.9.0 as a cache-only delta. Its
+  baseline comparison, focused and combined gates, zero-change reapply, and
+  exact revert evidence is in
+  `docs/POCKETRISU-1.9-STARTUP-CACHE-VALIDATION.md`.
 - Other pack requalification and every later executable step remain pending.
 
 ## Review method and limitations
