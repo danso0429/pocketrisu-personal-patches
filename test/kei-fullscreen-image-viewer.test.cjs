@@ -5,7 +5,7 @@ const assert = require('node:assert/strict')
 const fs = require('node:fs')
 const path = require('node:path')
 const { loadCatalog, resolveProfile } = require('../src/catalog.cjs')
-const { packEtag } = require('../src/manager.cjs')
+const { packEtag, unitMatchesTarget } = require('../src/manager.cjs')
 const { resolveSelection } = require('../src/resolver.cjs')
 const manifest = require('../patches/kei-fullscreen-image-viewer-core/manifest.cjs')
 const metaManifest = require('../patches/pocketrisu-kei/manifest.cjs')
@@ -16,6 +16,12 @@ const component = read('files/src/lib/UI/GUI/FullscreenImageViewer.svelte')
 const navigation = read('files/src/ts/fullscreenImageNavigation.ts')
 const navigationTests = read('files/src/ts/fullscreenImageNavigation.test.ts')
 const notice = fs.readFileSync(path.join(__dirname, '../THIRD_PARTY_NOTICES.md'), 'utf8')
+const target181 = { packageName: 'pocketrisu', packageVersion: '1.8.1' }
+const target190 = { packageName: 'pocketrisu', packageVersion: '1.9.0' }
+
+function active(target) {
+    return manifest.units.filter((candidate) => unitMatchesTarget(candidate, target))
+}
 
 function unit(id) {
     const result = manifest.units.find((candidate) => candidate.id === id)
@@ -30,7 +36,13 @@ function managedText(candidate) {
 test('fullscreen viewer remains a hidden umbrella child with no narrow preset ownership', () => {
     const catalog = loadCatalog()
     assert.equal(manifest.id, 'kei-fullscreen-image-viewer-core')
-    assert.equal(manifest.version, '0.1.0')
+    assert.equal(manifest.version, '0.2.0')
+    assert.deepEqual(manifest.targets, {
+        pocketrisu: {
+            verified: ['1.8.1', '1.9.0'],
+            reviewing: [],
+        },
+    })
     assert.equal(manifest.userSelectable, false)
     assert.equal(manifest.presetDefaults, undefined)
     assert.equal(metaManifest.version, '0.7.0')
@@ -47,12 +59,12 @@ test('fullscreen viewer remains a hidden umbrella child with no narrow preset ow
     )
 })
 
-test('core owns only focused files and hooks only character additional-image UI', () => {
-    const ownedFiles = manifest.units
+test('1.8 keeps focused K19 files while 1.9 retires duplicate viewer ownership', () => {
+    const ownedFiles = active(target181)
         .filter((candidate) => candidate.type === 'owned')
         .map((candidate) => candidate.file)
     const hostFiles = [...new Set(
-        manifest.units
+        active(target181)
             .filter((candidate) => candidate.type !== 'owned')
             .map((candidate) => candidate.file),
     )]
@@ -63,14 +75,33 @@ test('core owns only focused files and hooks only character additional-image UI'
         'src/lib/UI/GUI/FullscreenImageViewer.svelte',
     ])
     assert.deepEqual(hostFiles, ['src/lib/SideBars/CharConfig.svelte'])
+    assert.equal(active(target190).some((candidate) => candidate.type === 'owned'), false)
+    assert.deepEqual(
+        [...new Set(active(target190).map((candidate) => candidate.file))],
+        ['src/lib/Others/AssetViewer.svelte'],
+    )
     assert.equal(
-        manifest.units.some((candidate) =>
+        active(target190).some((candidate) =>
             candidate.file.includes('InlayImageGallery')
             || candidate.file.includes('database')
             || candidate.file.includes('characters.ts')
+            || candidate.file.includes('CharConfig')
         ),
         false,
     )
+})
+
+test('1.9 adds only dialog, accessible-name, and touch-target deltas', () => {
+    const combined = active(target190).map(managedText).join('\n')
+    assert.match(combined, /role="dialog"/)
+    assert.match(combined, /aria-modal="true"/)
+    assert.match(combined, /aria-label=\{assetViewerStore\.title\}/)
+    assert.match(combined, /aria-label=\{language\.search\}/)
+    assert.match(combined, /aria-label=\{item\.name\}/)
+    assert.match(combined, /aria-label=\{`← \$\{filtered\[zoomIndex - 1\]\?\.name/)
+    assert.match(combined, /aria-label=\{`→ \$\{filtered\[zoomIndex \+ 1\]\?\.name/)
+    assert.equal((combined.match(/w-11 h-11/g) ?? []).length >= 4, true)
+    assert.doesNotMatch(combined, /additionalAssets|openAssetViewer|scrollToIndex|onscroll/)
 })
 
 test('viewer centralizes one keyboard action and exposes touch-sized controls', () => {

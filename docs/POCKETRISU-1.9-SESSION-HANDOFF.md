@@ -7,9 +7,8 @@
 > **Exact target:** official PocketRisu `v1.9.0` /
 > `85a65f3137b45c8de4a8d21a9887be213b1ac3fc`
 >
-> **Immediate next feature:** rebase K19 fullscreen viewer as the first Kei
-> child. The request-class BG/lazy owner graph is now qualified; K12 remains
-> last.
+> **Immediate next feature:** rebase K13 robust SSE parser. The BG/lazy owner
+> graph and K19 native AssetViewer delta are qualified; K12 remains last.
 
 This document records the complete local work boundary from the beginning of
 the Kei selection effort through the 1.9 pivot and live-update preparation.
