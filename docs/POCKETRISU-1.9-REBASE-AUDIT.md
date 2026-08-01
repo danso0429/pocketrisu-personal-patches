@@ -25,8 +25,11 @@ The safe rebase is therefore:
 6. keep request-log and usage policy unresolved until their new upstream
    defaults are accepted or adapted explicitly.
 
-No patch was applied to a live PocketRisu tree. No PocketRisu process was
-restarted, and no branch, tag, release, or installer was published.
+At the audit boundary, no candidate patch had been applied to a live
+PocketRisu tree. No PocketRisu process was restarted, and no branch, tag,
+release, or installer was published. A later operational revert of the old
+live 1.8.1 patch graph is recorded separately below; it does not qualify or
+apply the 1.9 candidate.
 
 ## Provenance
 
@@ -238,6 +241,32 @@ Only observed results may move 1.9.0 from `reviewing` to `verified`.
   exact round trips are recorded in
   `docs/POCKETRISU-1.9-PARSER-HARDENING-VALIDATION.md`.
 - Other pack requalification and every later executable step remain pending.
+
+## Post-audit operational handoff
+
+After the audit and the three localized qualifications, the old live 1.8.1
+patch graph was reverted with the patcher's normal revert path in preparation
+for a base update. The observed round trip restored 54 baseline files, removed
+98 patch-owned files, and found zero mismatches across 152 managed paths. The
+patch state is absent and the remaining format-2 intent requests an empty
+custom pack set.
+
+An exact official 1.9 staging installation passed its recorded server tests,
+check, production build, production-dependency load, and provenance checks.
+It was not installed live. An attempted directory cutover was rolled back
+when the accompanying PM2 restart lacked explicit approval. The still-running
+old process recreated a save directory during the rename window, briefly
+nesting the original save. The original database was restored by exact rename
+using its unchanged inode; the race-created directory was quarantined.
+After recovery, SQLite `quick_check` returned `ok`, the original backup
+directory remained present, and no nested save directory remained.
+
+The on-disk source is therefore reverted PocketRisu 1.8.1, while the
+not-restarted process still predates that revert and must be treated as the
+previously loaded patched 1.8.1 runtime. The 1.9 source and every 1.9 patch
+candidate remain unapplied. Full observations, limitations, preserved
+worktrees, and the exact next patcher step are in
+`docs/POCKETRISU-1.9-SESSION-HANDOFF.md`.
 
 ## Review method and limitations
 

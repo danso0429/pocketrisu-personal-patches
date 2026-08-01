@@ -11,6 +11,9 @@
 > **New target overlay:** Official PocketRisu 1.9.0
 > `85a65f3137b45c8de4a8d21a9887be213b1ac3fc`; see
 > `docs/POCKETRISU-1.9-REBASE-AUDIT.md`.
+>
+> **Session handoff and exact resume point:**
+> `docs/POCKETRISU-1.9-SESSION-HANDOFF.md`.
 
 This file records progress against the catalog. It does not change a catalog
 disposition or preservation contract.
@@ -27,8 +30,11 @@ candidate is preserved rather than mutated in place.
   uncommitted bytes.
 - The 1.9 branch requalifies existing packs and admitted Kei children before
   any new catalog child is implemented.
-- Neither branch has been pushed, tagged, released, applied live, or followed
-  by a PocketRisu restart.
+- Neither candidate branch has been pushed, tagged, released, applied live,
+  or followed by a PocketRisu restart. Separately, the live 1.8.1 patch graph
+  was reverted while preparing the base update; the process was not restarted
+  and the 1.9 cutover did not complete. The exact disk/runtime boundary and
+  recovered cutover incident are recorded in the session handoff.
 
 The exact overlap, semantic classification, generation-authority conflict,
 privacy-policy correction, and ordered rebase plan are in the 1.9 audit.
@@ -59,8 +65,9 @@ The catalog custody, verification procedure, and this status are kept in a
 separate documentation commit. Its hash is read from history rather than
 embedded in this file, which would create a self-referential commit hash.
 
-The branch has not been pushed, tagged, released, applied to the live
-PocketRisu tree, or followed by a PocketRisu restart.
+The candidate branch has not been pushed, tagged, released, applied to the
+live PocketRisu tree, or followed by a PocketRisu restart. This statement does
+not undo the separate operational revert of the old live patch graph.
 
 ## Admission-order position
 
@@ -179,10 +186,18 @@ PocketRisu restart remain separate explicit-authorization boundaries.
 ## Next implementation sequence
 
 Pause new catalog admission while the official 1.9 target is requalified.
-Follow `docs/POCKETRISU-1.9-REBASE-AUDIT.md` in this order:
+Start from the clean `codex/pocketrisu-1.9-rebase` branch HEAD containing the
+session handoff; its last implementation commit is `88ddfe5`. Preserve the
+separate staged K12 worktree. The exact next executable pack is
+`character-organizer`, not a Kei child. Follow
+`docs/POCKETRISU-1.9-SESSION-HANDOFF.md` and
+`docs/POCKETRISU-1.9-REBASE-AUDIT.md` in this order:
 
 1. use the completed review-only exact 1.9 target boundary;
-2. requalify localized existing packs next;
+2. continue localized existing packs: `toolchain-hardening`, `startup-cache`,
+   and `parser-hardening` are already qualified; do `character-organizer`,
+   the version-aware Settings Search adaptation for `personal-settings`, and
+   semantic review of `bg-preserve-storage-base` next;
 3. rebase storage/import owners;
 4. resolve native-job versus bg-preserve authority before composing either;
 5. adapt K19, K13, K14, K16, K15, and K11 as separate deltas;
