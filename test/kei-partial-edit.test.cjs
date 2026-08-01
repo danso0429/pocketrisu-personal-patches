@@ -276,6 +276,6 @@ test('K15 payloads participate in ETags and retain pinned attribution', () => {
         'utf8',
     )
     assert.match(notices, /cc1d1b195babd887577ebf943d5e82f01f58135c/)
-    assert.match(notices, /shared partial-message editing/)
+    assert.match(notices, /shared\s+partial-message editing/)
     assert.match(notices, /issued translation-cache token/)
 })
