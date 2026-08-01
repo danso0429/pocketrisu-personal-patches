@@ -122,7 +122,7 @@ select the top-level policy explicitly.
 | K01 | Package, workspace, TypeScript, Vite, and Vitest refactor | S | X, M | Do not rebase the patcher target onto Kei's toolchain. Port only a concrete fix into `toolchain-hardening`, with both `package.json` and `pnpm-lock.yaml` qualified together. Do not copy deleted `.npmrc` or workspace layout merely for parity. |
 | K02 | Shared UI controls and settings wrappers | S | U, X | `kei-ui-foundation-core` may contain only components consumed by an admitted child. Exclude the blanket UI/settings rewrite and Kei branding. Existing Personal and Admin Stats routes remain intact. |
 | K03 | Preset folders and sortable picker layout | V | U, A, M | `kei-preset-folders-core` plus base and `preset-integrity` adapters. Prompt-preset selection validity remains owned by `preset-integrity`; persona and character picker behavior remains owned by their organizer packs. |
-| K04 | Prompt roles and preset behavior | V | U, A, M | Admit only independently testable role/picker behavior. Any create, delete, import, restore, or active-index invariant merges into `preset-integrity`; do not port deleted legacy UI wholesale. |
+| K04 | Prompt roles and preset behavior | V | U, A, M | Audit-admitted `kei-prompt-role-compat-core` adds only exact-1.9 one-way frozen `.role` compatibility for persona/description/author-note/memory. Native `.role2` wins and the native normalizer owns fallback; lorebook and broad preset/UI behavior remain excluded. |
 | K05 | Model preset compiler, additional parameters, thinking controls, HTTP transport, and provider-neutral runtime | V | T | Root of `kei-model-runtime`. Preserve custom endpoints, local LLMs, Vertex/environment branches, plugin overrides, and existing provider defaults. It receives no umbrella default. |
 | K06 | Amazon Bedrock, Cloudflare, Developer Custom, OpenAI Responses/API mode, and related adapters | V | T | Hidden children of `kei-model-runtime`, independently gated per provider. Credential transport, streaming format, tool calls, and error mapping require provider-specific tests. |
 | K07 | `models.dev` remote catalog and six-hour cache | V | T | Optional child of `kei-model-runtime`. Implement an additive overlay with an offline/static fallback. Reject Kei's deletion of 168 bundled provider/profile JSON files and retain Developer Custom, local, plugin, and Vertex paths. |
@@ -137,17 +137,17 @@ select the top-level policy explicitly.
 | K16 | Chat navigation, hotkeys, and mobile back behavior | V | U, A | `kei-mobile-navigation-core` plus base and `lazy-chat-sync` bootstrap adapters. Keep existing startup cache/lazy hydration ordering and route restoration intact. |
 | K17 | Themes, chat text display, and broad styling controls | V | U, X | Keep the broad refactor excluded. Audit-admitted K17-F01 adds only defensive normalization of unsupported text-theme values at native load, preset-activation, and runtime-CSS boundaries; `standard`, `highcontrast`, `custom`, and the existing API-v3 validation remain native and authoritative. |
 | K18 | Reorganized image, TTS, and inlay settings | S | X | Exclude the route and settings reorganization. Port only a feature with an independent outcome; fullscreen viewing is split into K19. |
-| K19 | Fullscreen image viewer with gallery and character-image navigation | V | U | `kei-fullscreen-image-viewer-core`. Retain keyboard, pointer, and mobile navigation behavior and avoid taking ownership of unrelated image/TTS settings. |
+| K19 | Fullscreen image viewer with gallery and character-image navigation | V | U | Retain the existing `kei-fullscreen-image-viewer-core`; add no second viewer implementation. Keyboard/pointer behavior is source-qualified, while iPhone swipe, VoiceOver labels/focus, and focus return remain final aggregate L3. |
 | K20 | Character list/sidebar ordering, folders, search, recent items, and list/grid presentation | V | M | Merge selected behavior into `character-organizer`, which remains canonical for order and folders. Search/recent/view controls may be added there only if they preserve its ordering model. Do not add a second character-order schema. |
 | K21 | Character trash/restore/permanent delete and `localOnly` filtering | V | T, M, X | `localOnly` visibility belongs to an explicitly selected multi-device policy. Non-destructive search/restore UI may merge into `character-organizer`. Permanent deletion is excluded until a separate opt-in pack has confirmation, restore, and retention contracts; it is never an umbrella child. |
-| K22 | Persona picker/list improvements | V | M | Merge only missing behavior into `persona-organizer`. Preserve its folder schema, order, deletion plan, database normalization, and import/export behavior. Do not install Kei's parallel persona organization model. |
+| K22 | Persona picker/list improvements | V | M, X | Keep `persona-organizer` canonical. Audit-admitted K22-F01 P04-P06 adds case-insensitive name/note search, Folder and Unfiled filtering with canonical indices, and create/import into a still-valid selected folder. Invalid/deleted scope falls back without dropping personas. Existing normalization, referential cleanup, and asset cleanup remain authoritative; P07 duplicate and any parallel identity/schema are excluded. |
 | K23 | Regex and lorebook grouping/editing | V | M, X | Keep `bg-preserve`'s `types[]` schema canonical. Audit-admitted K23-F01 changes only regex import bucketing so equal-key rows merge when their mode sets are disjoint and any overlapping direction starts another canonical row. R05-R07 already use one canonical row; Kei's multi-object helper, regex search, lorebook roles, quick activation, inline rename, and broad UI rewrite remain excluded. |
 | K24 | Remote-only chat/folder filtering | V | T | Part of `kei-multidevice-sync`, not the umbrella. It requires an explicit trust/exposure policy and must not infer “remote” solely from a Cloudflare hostname in environments using another tunnel or tailnet. |
 | K25 | WebSocket multi-device database synchronization and self-echo suppression | V | T, possible later M | Initially a separate `kei-multidevice-sync` pack. It must preserve unsaved local edits through versioned merge/rebase or produce an explicit conflict; remote `setDatabase()` must not silently discard pending local state. If adopted as the universal storage protocol later, merge a qualified major version into `lazy-chat-sync` instead of stacking two writers. |
-| K26 | Manual snapshots, boot-time automatic backups, missing-asset recovery, and management UI | V | U, A | `kei-backup-tools-core` plus standard-storage, lazy-storage, and character-import lease adapters. Preserve existing v1.8.1 backup/import/snapshot behavior. Restore requires confirmation, a pre-restore backup, strict storage flush, and exact failure reporting. |
+| K26 | Manual snapshots, boot-time automatic backups, missing-asset recovery, and management UI | V | U, A, M, X | Keep the broad Kei backup owner excluded. Audit-admitted K26-F02 extends exact 1.9's native restore owner only: every local-file, server-file, and database-snapshot restore first creates and verifies a new rollback snapshot outside the five-minute throttle. Failure stops before staging or destructive writes and issues a five-minute, one-use token bound to that restore target. Its single repeated request burns the token whether the new snapshot attempt succeeds or fails, and may continue snapshot-less only after that attempt fails. Standard/lazy adapters preserve their existing flush owners, and no boot/manual/scheduled/selective tool is added. |
 | K27 | Persistent request logs | V | M for K27-F01; T, X as-is for remaining policy | Audit-admitted K27-F01 extends `bg-preserve` only: the server bundle's existing native log POST is delivered to official 1.9's already-open `requestLogs` owner. Its toggle, masking, body caps, 256 MiB rotation, pagination, and schema remain canonical. Platform metadata and per-row deletion stay excluded; a future safer content/retention policy remains a separate explicit pack. |
 | K28 | Usage tracking, token/cache/reasoning/service-tier fields, gateway cost, and price estimation | V | M for U03 through K27-F01; T for remaining policy | K27-F01 also lets the native owner's content-free usage transaction observe BG requests. Rich cache/service-tier/gateway/pricing dimensions, independent enablement, retention, and pagination remain future `kei-usage-insights` scope. Accounting failure must never fail generation. |
-| K29 | Revenant server-side generation | V | M, X direct port | Do not create `kei-revenant`. Mine only demonstrably missing improvements into `bg-preserve`, whose operation-keyed result/claim/ACK, whole-pipeline cancellation, reconnect, cold recovery, and delivery contracts remain canonical. |
+| K29 | Revenant server-side generation | V | M, X direct port | Do not create `kei-revenant`. K29-F05 extends the existing `bg-preserve` result/claim/ACK owner with a 48-hour TTL, 128 result rows, and a 256 MiB payload budget; active/live-claimed work is not evicted and ACK/idempotency remain authoritative. The completed G06 matrix proved no safe owner-local reroll/continue composition, so G06 has no runtime unit. G03, G07/G08/G12, G13-G15, and G20 remain excluded. |
 | K30 | Data-restore server refactor and legacy restore paths | V | X, U only through K26 | Do not replace current migration/import behavior as a structural cleanup. Reuse a narrowly needed helper only within K26 after proving round-trip compatibility with existing RisuAI and PocketRisu backups. |
 | K31 | Consolidated UI/settings structures, Kei sticker/branding, and legacy-code deletion | S | X | No direct integration. Deletion and branding are not functional dependencies. Minimal required UI pieces remain governed by K02. |
 
@@ -161,18 +161,24 @@ exact-1.9 aggregate, these later decisions control admission:
 | K03 | Distinct but deferred future child; preset folders were never admitted before the target pivot. |
 | K04 | Broad direct port remains dropped. Audit-admitted K04-F01 adds one-way frozen typed `.role` compatibility inside the native `.role2` normalizer; native `.role2` wins, lorebook is excluded, and `preset-integrity` retains active-selection invariants. |
 | K17 | Broad styling remains excluded. Audit-admitted K17-F01 is the hidden exact-1.9 `kei-text-theme-normalization-core`; it admits only the three native values and falls back to `standard` at load, preset activation, and runtime CSS without changing API-v3. |
-| K20/K22 | No parallel character/persona organization schema; missing presentation outcomes remain future owner-local changes. |
+| K19 | Existing viewer child remains unchanged; iPhone swipe, VoiceOver, and focus return remain aggregate L3 rather than a new implementation. |
+| K20 | No parallel character schema; character search/recent/view variants remain future owner-local changes. |
+| K22 | Audit-admitted P04-P06 now live inside `persona-organizer`: name/note search, Folder/Unfiled filter, canonical indices, and selected-folder create/import. P07 duplicate and any parallel identity/schema remain excluded. |
 | K23 | Direct port remains excluded. Audit-admitted K23-F01 preserves same-direction import multiplicity inside `bg-preserve`'s canonical `types[]` owner; R05-R07 are not reimplemented. |
-| K29 | Direct Revenant port remains excluded; qualified `bg-preserve` generation authority stays canonical. |
-| K26 | Combined port dropped because exact 1.9 owns snapshots and backup/restore. Only separately admitted missing-asset or schedule outcomes may return later. |
+| K29 | Direct Revenant remains excluded. K29-F05 adds only bounded 48-hour/128-row/256-MiB result retention inside `bg-preserve`, protecting active/live-claimed work and preserving ACK/idempotency. G06 is documentation-only blocked; the remaining listed cold/live consumers are excluded. |
+| K26 | Broad port remains dropped. Audit-admitted K26-F02 is the hidden exact-1.9 `kei-backup-restore-safety-core` plus exactly one standard/lazy adapter. It force-creates and verifies a fresh rollback snapshot before the three destructive restore paths, reconciles the lazy migration/journal owner first, preserves native rotation and confirmations, and permits at most one target-bound, explicitly confirmed retry after structured failure. That retry burns its token regardless of whether the repeated snapshot succeeds or fails. Lazy database replacement and journal deletion share the native SQLite transaction; best-effort limit trimming follows commit. |
 | K27/K28 | Audit-admitted K27-F01 closes only BG delivery L02/U03 inside the existing `bg-preserve` and native request-log owners. Exact 1.9 request bodies remain bounded/cursor-paginated/masked but default on; usage remains content-free and failure-isolated but unbounded/unpaginated and coupled to the log toggle. Platform/delete, rich accounting, independent usage, and safer privacy/retention policy remain deferred explicit features. |
 
 The evidence and exact source anchors are in
 `docs/POCKETRISU-1.9-CATALOG-COMPLETION-DECISIONS.md`. The seven original
-children and the later audit-admitted K04/K17 corrections enter aggregate
-qualification without claiming deferred rows as implemented.
+children plus hidden K04, K17, and K26 children enter the umbrella. K23, K27,
+K29-F05, and K22 stay owner-local in packs already selected by the final
+graph. This structure does not claim deferred rows as implemented.
 
-That exact-1.9 aggregate qualification subsequently passed and is recorded in
+That exact-1.9 aggregate qualification subsequently passed: 2,048/2,048 raw
+selections, 1,024 normalized graphs, 222 managed paths, a 537-unit maximum
+graph, complete target gates, exact revert, and deterministic installers. The
+observations are recorded in
 `docs/POCKETRISU-1.9-AGGREGATE-VALIDATION.md`. This result advances the
 existing admitted children; it does not change any deferred disposition in
 this catalog.
@@ -192,7 +198,8 @@ Merge or adapt:
 - K14 streaming render/reconnect integration
 - K15 partial-edit interaction with in-flight generation
 - K23 multi-type regex schema compatibility
-- K29 selected Revenant improvements
+- K29-F05 bounded terminal-result retention only; G06 is a documented blocker
+  with no runtime unit
 
 Preserve:
 
@@ -208,7 +215,7 @@ Adapt:
 
 - K16 bootstrap/navigation wiring
 - K25 only if multi-device sync is later adopted as the canonical writer
-- K26 backup/restore flush and storage leases
+- K26-F02 fresh-snapshot reconciliation through the active standard/lazy owner
 
 Preserve:
 
@@ -228,14 +235,15 @@ selection across deletion, import, restore, and empty-list recovery.
 
 ### `persona-organizer` and `character-organizer`
 
-Merge K20 and K22 into the corresponding organizer. Existing folder/order
-schemas remain canonical. A Kei UI component may render those schemas; it may
-not create a parallel source of truth.
+K22 P04-P06 now render the existing persona folder/order schema in the picker
+and reuse its import/save owners; P07 remains deferred. K20 may later render
+the character organizer schema through an independently admitted delta.
+Neither may create a parallel source of truth.
 
 ### `character-import-ux`
 
-Adapt K26 where backup, restore, or migration overlaps its import lease and
-non-blocking import flow.
+K26-F02 UI hooks compose after the existing import guards and reuse their
+selected file/backup/snapshot closure. They do not add another import lease.
 
 ### `personal-settings`
 
@@ -263,7 +271,8 @@ normative.
 | --- | --- | --- |
 | `kei-ui-foundation-core` | none; consumed components only | none |
 | `kei-preset-folders-core` | `kei-preset-folders-base-adapter` | `kei-preset-folders-preset-integrity-adapter`; organizer-owned pickers merge instead |
-| `kei-prompt-roles-core` | `kei-prompt-roles-base-adapter` | `kei-prompt-roles-preset-integrity-adapter` |
+| `kei-prompt-role-compat-core` | exact-1.9 native normalizer hook | none; hidden umbrella child |
+| `kei-text-theme-normalization-core` | exact-1.9 native load/preset/CSS hooks | none; hidden umbrella child |
 | `kei-hypa-tools-core` | `kei-hypa-tools-base-adapter` | `kei-hypa-tools-bg-adapter` |
 | `kei-translation-tools-core` | `kei-translation-tools-base-adapter` | `kei-translation-tools-bg-adapter` |
 | `kei-stream-parser-core` | `kei-stream-parser-base-adapter` | `kei-stream-parser-bg-adapter` |
@@ -271,14 +280,14 @@ normative.
 | `kei-partial-edit-core` | `kei-partial-edit-base-adapter` | `kei-partial-edit-bg-adapter` |
 | `kei-mobile-navigation-core` | `kei-mobile-navigation-base-adapter` | `kei-mobile-navigation-lazy-adapter` |
 | `kei-fullscreen-image-viewer-core` | direct focused UI hooks | none unless a later owner reaches the same gallery state |
-| `kei-backup-tools-core` | `kei-backup-standard-adapter` | `kei-backup-lazy-adapter`, `kei-backup-character-import-adapter` |
+| `kei-backup-restore-safety-core` | `kei-backup-restore-safety-standard-adapter` | `kei-backup-restore-safety-lazy-adapter`; common UI units order after existing character-import guards |
 
 An adapter is selected only for its exact graph condition. For example, the
 base partial-edit adapter requires the core and excludes `bg-preserve`, while
 the bg adapter requires both the core and `bg-preserve`. Both must produce the
 same user-visible edit contract.
 
-## Forty current collision surfaces
+## Current collision surfaces
 
 This ledger prevents the raw overlap count from being mistaken for a conflict
 decision. Each path is listed exactly once with its current local owner or
@@ -297,14 +306,15 @@ owners.
 | `src/lib/Setting/Pages/Model/ModelPresetSettings.svelte` | `bg-preserve` | K05/K09 separate model-runtime composition |
 | `src/lib/Setting/Pages/PersonaSettings.svelte` | `persona-organizer` | K22 merge |
 | `src/lib/Setting/Pages/PromptPreset/PromptPresetBasicInfo.svelte` | `preset-integrity` | K03/K04 integrity adapters |
-| `src/lib/Setting/Pages/SystemBackup.svelte` | `character-import-ux` | K26 import/restore lease adapter |
-| `src/lib/Setting/ServerBackupList.svelte` | `character-import-ux` | K26 import/restore lease adapter |
+| `src/lib/Setting/listedPersona.svelte` | `persona-organizer` | K22 P04-P06 picker search/filter/create/import; canonical indices only |
+| `src/lib/Setting/Pages/SystemBackup.svelte` | `character-import-ux` | K26-F02 structured retry after the existing double-confirm restore guard |
+| `src/lib/Setting/ServerBackupList.svelte` | `character-import-ux` | K26-F02 same-backup retry after the existing guard |
 | `src/lib/Setting/Settings.svelte` | `personal-settings` | Additive route composition; preserve existing pages |
 | `src/lib/SideBars/Scripts/RegexData.svelte` | `bg-preserve` | K23 merge; retain multi-type schema |
 | `src/ts/bootstrap.ts` | `lazy-chat-sync`, `startup-cache` | K16 lazy adapter; preserve hydration/cache order |
 | `src/ts/characterCards.ts` | `character-import-ux`, `personal-settings` | K20/K21 merge only with import and navigation contracts intact |
 | `src/ts/characters.ts` | `personal-settings` | K20 merge only; preserve post-import setting behavior |
-| `src/ts/drive/backuplocal.ts` | `character-import-ux`, `persona-organizer` | K26 adapter; preserve organizer/import migrations |
+| `src/ts/drive/backuplocal.ts` | `character-import-ux`, `persona-organizer` | K26-F02 same-file retry; preserve organizer/import migrations |
 | `src/ts/globalApi.svelte.ts` | `bg-preserve`, `lazy-chat-bg-adapter`, `lazy-chat-sync`, `persona-organizer` | K25 cannot replace pending-save semantics; K29 remains bg-owned |
 | `src/ts/network/proxyJobWs.ts` | `bg-preserve` | K13/K29 merge or bg adapter |
 | `src/ts/parser/parser.svelte.ts` | `parser-hardening` | Keep K13 protocol parsing separate unless a primitive is genuinely shared |
@@ -320,9 +330,9 @@ owners.
 | `src/ts/process/scripts.ts` | `bg-preserve` | Preserve orchestration hooks; feature-specific adapter only |
 | `src/ts/routing.ts` | `personal-settings` | K16 additive navigation composition |
 | `src/ts/status/requestStatus.ts` | `bg-preserve` | K14/K29 bg-owned status behavior |
-| `src/ts/storage/autoStorage.ts` | `lazy-chat-sync`, `startup-cache` | K25/K26 storage-policy adapter |
+| `src/ts/storage/autoStorage.ts` | `lazy-chat-sync`, `startup-cache` | K25 policy; K26-F02 forwards only the per-attempt restore option |
 | `src/ts/storage/database.svelte.ts` | `bg-preserve`, `persona-organizer`, `personal-settings`, `preset-integrity` | Schema fields merge into the relevant authority; no whole-database replacement |
-| `src/ts/storage/nodeStorage.ts` | `bg-preserve-storage-base`, `lazy-chat-bg-adapter`, `lazy-chat-sync`, `startup-cache` | K25/K26 exact storage adapter per resolved graph |
+| `src/ts/storage/nodeStorage.ts` | `bg-preserve-storage-base`, `lazy-chat-bg-adapter`, `lazy-chat-sync`, `startup-cache` | K25 policy; K26-F02 exact standard/lazy transport adapter ordered after the optional BG node owner |
 | `src/ts/tokenizer.ts` | `bg-preserve` | K11/K28 accounting or generation changes preserve bg token flow |
 | `src/ts/translator/translator.ts` | `bg-preserve` | K12 bg adapter |
 | `vitest.setup.ts` | `toolchain-hardening` | K01 merge only if a concrete test-environment fix is retained |
@@ -378,14 +388,15 @@ estimate.
    with base and existing-owner graphs.
 4. Admit state-editing features K15 partial edit, K11 Hypa tools, and K12
    translation tools one at a time.
-5. Against PocketRisu 1.9, record K03/K04/K26 as native, dropped, or deferred
-   before aggregate qualification; do not create placeholder children.
-6. Keep K20/K22/K23/K29 under their existing authorities. Admit a later
-   independently specified missing outcome only through its own gates.
+5. Completed post-audit admissions are K04-F01, K17-F01, K23-F01, K26-F02,
+   K27-F01, K29-F05, and K22-F01 P04-P06. Each remains bounded by its feature
+   receipt and exact revert surface; G06 has a blocker receipt and no runtime.
+6. Remaining organizer candidates are K20 presentation variants and K22 P07.
+   K03 is a distinct deferred child. None enters through aggregate cleanup.
 7. Design and qualify K05–K09 and K24/K25 as separate top-level policy packs.
-   For K27/K28, keep only audited BG delivery K27-F01 inside `bg-preserve`;
-   design every remaining privacy, retention, platform, deletion, rich
-   accounting, and independent-usage outcome as a separate explicit feature.
+   For K27/K28, every remaining privacy, retention, platform, deletion, rich
+   accounting, and independent-usage outcome stays a separate explicit
+   feature.
 
 The `pocketrisu-kei` meta pack gains a child only after that child's individual
 release gate. A partially implemented child is never hidden behind the meta
@@ -410,8 +421,8 @@ Before any child or merge is published:
 7. Perform concrete iPhone checks for user-visible behavior. Relevant examples
    are: stream while the app backgrounds and returns, edit a partial response,
    back-swipe through chat/settings history, navigate a fullscreen gallery,
-   reorder/select presets, and restore a snapshot after an automatic
-   pre-restore backup.
+   reorder/select presets, and restore a snapshot after a verified fresh
+   pre-restore snapshot.
 8. Update the individual pack version and source/provenance notice. Preserve
    PocketRisu Kei's GPL-3.0 attribution and the exact source revision used.
 

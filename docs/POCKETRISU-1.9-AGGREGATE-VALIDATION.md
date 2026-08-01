@@ -1,282 +1,308 @@
-# PocketRisu 1.9 aggregate validation
+# PocketRisu 1.9 post-overlap aggregate validation
 
 ## Scope and boundary
 
-This receipt qualifies the current local PocketRisu patch catalog and the
-seven-child `pocketrisu-kei` 0.9.0 umbrella on exact official PocketRisu
-1.9.0, commit `85a65f3137b45c8de4a8d21a9887be213b1ac3fc`.
+This receipt requalifies the local PocketRisu patch catalog on exact official
+PocketRisu 1.9.0, commit
+`85a65f3137b45c8de4a8d21a9887be213b1ac3fc`, after the
+overlap-equivalence-authorized follow-up implementation.
 
-The admitted Kei children are K19, K13, K14, K16, K15, K11, and K12. The
-keep/drop/defer decisions for the remaining catalog rows are recorded in
-`docs/POCKETRISU-1.9-CATALOG-COMPLETION-DECISIONS.md`; this aggregate does not
-silently add a preset-folder, backup, request-log, usage, regex, persona,
-character, or second generation owner.
+`pocketrisu-kei` 0.12.0 is a unit-free umbrella with ten hidden children: the
+original K19, K13, K14, K16, K15, K11, and K12 children plus bounded K04-F01,
+K17-F01, and K26-F02 children. K23-F01, K27-F01, K29-F05, and K22-F01 P04-P06
+extend their existing selected owners rather than becoming parallel children.
+K29-F02 G06 has a complete blocker/matrix receipt and no runtime unit.
 
-`verified` in this receipt means exact-target source and automated graph
-qualification. It does not mean publication-qualified: review and the
-consolidated feature-by-feature iPhone L3 remain. No live apply, PocketRisu
-restart, push, tag, or release was performed.
+The former aggregate commit `2991355` remains historical baseline evidence.
+Its pack, unit, managed-path, installer, and test numbers are not reused as
+post-overlap results.
 
-## Provenance
+`verified` here means exact-target source, graph, automated behavior, build,
+and exact-revert qualification. It does not mean publication-qualified: the
+consolidated feature-by-feature iPhone L3 remains. No live apply, live patch
+state or user-data change, PocketRisu restart, push, tag, or release occurred.
 
-- The immutable source archive was produced from the exact official commit.
-  Its SHA-256 was
+## Provenance and preserved state
+
+- The exact official source archive SHA-256 remains
   `cba5851498a398fbe5f416573712465d24eb4b90d9ed0a3d7708f03f330bda69`.
-- The extracted source measured 91,524 KiB, reported package
-  `pocketrisu 1.9.0`, and contained no patch state.
-- The existing staged K12 evidence worktree on
-  `codex/pocketrisu-kei-integration` was not changed, unstaged, rebased, or
-  used as the target root.
-- All candidates in this receipt were separate temporary checkouts. The live
-  PocketRisu tree remained pristine 1.9.0.
+- All target work used disposable copies or the proved-pristine exact source.
+  The live PocketRisu tree remained on its existing pristine 1.9.0 state.
+- The preserved K12 worktree stayed at
+  `081a32ba4ae27c8f25f1719ef90406504a490928`. Its index listing SHA-256 stayed
+  `632b6d3285e85650be19efe5c4f6c70a3af56fdec683fc9a5a182505118704b3`
+  and its cached binary diff SHA-256 stayed
+  `916440ab240e0f7541844f0082ce53d1d5f516d08ea1bdfc79a55149d7ca66a9`.
+- User-owned dirty STATUS/HANDOFF hunks were not staged into feature commits.
 
-## Graphs observed
+## Admitted follow-up outcomes
 
-| Graph | Compatibility | Resolved packs | Units | Ordered collisions | Planned changed paths |
-| --- | --- | ---: | ---: | ---: | ---: |
-| `pocketrisu-kei,toolchain-hardening` | verified | 15 | 176 | 0 | 57 |
-| `pocketrisu-kei,lazy-chat-sync,bg-preserve,toolchain-hardening` | verified | 18 | 387 | 3 | 160 |
-| `--all` | verified | 24 | 475 | 4 | 201 |
+| Audit recommendation | Final authority and result |
+| --- | --- |
+| K04-F01 | Hidden exact-1.9 native-normalizer child. Non-null `.role2` wins; otherwise frozen typed `.role` is normalized one way for persona/description/author-note/memory. Lorebook is excluded. |
+| K17-F01 | Hidden exact-1.9 native-theme child. Invalid load, preset-activation, and runtime CSS values become `standard`; the three official values and API validation remain native. |
+| K23-F01 | `bg-preserve` keeps canonical `types[]`; disjoint directions merge while any overlapping direction starts another canonical row and preserves execution multiplicity. |
+| K27-F01 | The BG server fetch bridge delivers the existing native request-log batch to `requestLogs.addRequestLogBatch`; native toggle, masking, caps, byte budget, content-free usage, and failure isolation remain authoritative. |
+| K26-F02 | Hidden core plus exactly one standard/lazy adapter requires a verified fresh snapshot before three destructive restore paths. Failure stops; only a target-bound, five-minute, one-use, explicitly confirmed retry may proceed after another failed snapshot attempt. |
+| K29-F05 | `bg-preserve` retains unconsumed terminal results for 48 hours under 128 rows and 256 MiB. Active/live-claimed work is protected; durable delivered state, exact-revision ACK, and idempotency remain authoritative. |
+| K29-F02 G06 | No runtime change. The provider/request-class matrix proved the blocking reroll/continue caller's typed target, browser epilogue, cancel rollback, and exact-once mutation cannot be represented safely by the append-oriented BG contract. |
+| K22-F01 P04-P06 | `persona-organizer` adds picker name/note search, Folder/Unfiled filters with canonical indices, and selected-folder create/import. Invalid folder scope falls back without dropping personas. P07 duplicate is excluded. |
 
-The three composed collisions are explicit lazy-chat-before-BG orders on
-`globalApi.svelte.ts`, `server.cjs`, and plugin chat access. The fourth
-`--all` collision orders two units owned by `persona-organizer`. None was an
-unresolved pair.
+Detailed purpose, trigger, state/result, preservation, revert, tests, and L2.5
+evidence remain in each feature receipt and the implementation ledger.
 
-Adapter resolution selected exactly one host adapter for each Kei core:
+## Resolved graphs
 
-- base versus BG for stream parsing, chat rendering, Hypa tools, partial
-  editing, and translation tools;
-- base versus lazy-chat for mobile navigation;
-- the lazy/BG storage adapter only when both parent owners were present.
+| Graph | Compatibility | Resolved packs | Units | Ordered collisions | Planned paths | Source paths |
+| --- | --- | ---: | ---: | ---: | ---: | ---: |
+| `pocketrisu-kei,toolchain-hardening` | verified | 19 | 228 | 0 | 73 | 71 |
+| `pocketrisu-kei,lazy-chat-sync,bg-preserve,toolchain-hardening` | verified | 22 | 447 | 3 | 180 | 178 |
+| `--all` | verified | 28 | 537 | 5 | 219 | 217 |
 
-## Observed automated gates
+The three composed collisions preserve the declared lazy-before-BG order on
+`globalApi.svelte.ts`, `server.cjs`, and plugin chat access. The maximum graph
+also contains:
 
-Before the umbrella compatibility change, both the base and lazy/BG composed
-candidates passed their maintainer staging pipelines. Each pipeline completed
-the pinned pnpm check, frozen install, complete frontend and server target
-tests, Svelte diagnostics, and production build. The composed candidate also
-built the BG orchestration bundle.
+- lazy server replacement before `persona-organizer`'s 1.9 gallery-asset
+  extension; and
+- `persona-organizer` folder-interface before its persona folder field.
 
-The reviewing-target exhaustive run then observed:
+All five are explicit ordered pairs. No unordered collision was accepted.
+`startup-cache` is intentionally superseded by `lazy-chat-sync` in `--all`.
+Base/BG, base/lazy, and standard/lazy K26 resolution selected exactly one
+applicable adapter in each graph.
 
-- 11 discovered user-selectable packs;
-- 2,048/2,048 raw selections;
-- 1,024 normalized graphs;
-- 204 managed paths;
-- a maximum of 475 resolved units;
-- exact apply, current status, zero-change repeated plan, and byte/mode
-  round-trip for every selection.
+The catalog contained 37 packs, 11 of them user-selectable. The umbrella ETag
+was `ed1063cd05724923139b556d20edc6791b729aee03022ace405f669a4e7113e2`.
 
-After these results, `pocketrisu-kei` moved from 0.8.0 to 0.9.0 and explicitly
-listed 1.8.1 and 1.9.0 as verified targets. No global default target boundary
-was widened. Patcher tests then passed 31/31.
+## Exhaustive selection and round-trip gate
 
-The ordinary, non-maintainer exact-1.9 gate repeated the entire discovered
-domain and observed the same 2,048/2,048 raw selections, 1,024 normalized
-graphs, 204 managed paths, maximum 475 units, and passing round trips with
-compatibility `verified`.
+The complete exact-1.9 catalog produced this observed result:
 
-The ordinary `--all` staging candidate then completed:
+```json
+{
+  "compatibility": "verified",
+  "rawSelections": 2048,
+  "verifiedSelections": 2048,
+  "normalizedGraphs": 1024,
+  "managedPaths": 222,
+  "maximumResolvedUnits": 537,
+  "roundTrips": "passed",
+  "workers": 2
+}
+```
 
-- pinned package-manager and frozen-install checks;
-- complete frontend and server target tests;
-- Svelte diagnostics;
-- production build;
-- BG orchestration bundle build.
+Every reachable selection completed first plan/apply, current status,
+zero-change repeated plan, empty-selection revert, and managed byte/mode
+snapshot comparison.
 
-Its status was current across 199 transaction-managed files. A repeated
-`--all` plan retained 475 units and four ordered collisions while changing
-zero files and skipping all 199 current files. Empty-selection revert changed
-the managed graph back, removed patch state, produced CLI status `clean`, and
-left the official tracked source diff at zero. The only remaining untracked
-files in that temporary checkout were the two BG bundle build outputs.
+## Maximum-target automated gates
 
-## Deterministic installers
+A fresh disposable exact-1.9 target received ordinary source-CLI `--all`.
+Frozen dependency installation completed with pnpm 10.34.1, reusing all 485
+resolved packages. The optional `msgpackr-extract` prebuilt probe failed under
+Node 25, then its documented local native fallback compiled successfully;
+installation exited 0.
 
-The four generated installers were rebuilt twice from the same source and
-catalog. Both builds produced identical SHA-256 values:
+Observed gates on the applied maximum graph:
+
+- client tests: 128 files and 1,533 tests passed;
+- server tests: 9 files and 163 tests passed;
+- Svelte diagnostics: 0 errors and 0 warnings;
+- production frontend build: 7,857 modules transformed, exit 0; and
+- BG orchestration bundle: 8,200 KB, builder exit 0, `sendChat=function` load
+  check passed.
+
+The first combined server run inside the restricted sandbox exited 1: two
+socket-owning files could not `listen` on `127.0.0.1` (`EPERM`) and timed out.
+The server suite was rerun unchanged with localhost permission and produced the
+9-file/163-test passing result above. The sandbox failure is recorded as an
+environment restriction, not omitted or relabelled as a code pass.
+
+Source patcher tests passed 38/38 after the final K22 payload. Feature receipts
+add their focused adversarial counts and baseline reproductions; the aggregate
+numbers above are the fresh maximum-graph observations.
+
+## Status, idempotency, and exact revert
+
+After maximum apply, status reported `current` for 28 packs and all 217
+transaction-managed source paths. A repeated `--all` plan retained 537 units
+and five collisions, changed zero paths, and skipped all 217. Reapply likewise
+changed zero paths.
+
+Empty-selection revert changed the 217 source paths plus patch state and
+intent, and status returned `clean`. An independent post-revert SHA-256/mode
+comparison across all 222 catalog-managed paths against the pristine exact
+source reported zero mismatches. Dependency and frontend build output plus the
+two BG bundle products were outside patch ownership and were not used to make
+the exact-revert claim.
+
+## Deterministic generated installers
+
+Only `scripts/build-installers.cjs` through `npm run build` regenerated
+`dist/`. Two consecutive builds produced identical sizes and SHA-256 values;
+all four files passed `node --check`:
 
 | Installer | Bytes | SHA-256 |
 | --- | ---: | --- |
-| `pocketrisu-patcher.cjs` | 4,685,641 | `02c573aa09e16fd27a70fa0f8d5657f831cf7eb42e538633c64398ff64e23fb0` |
-| `pocketrisu-features.cjs` | 4,685,647 | `6608219ae8538eee956e2ce306c7966fe4729894bf77d00e094c6d9b106fcb12` |
-| `pocketrisu-hardening.cjs` | 4,685,648 | `898a669ec2b0bab2a1d4494b390ff1c43785be8a372006a51c89e89ebc20525e` |
-| `pocketrisu-all.cjs` | 4,685,642 | `367eb505d355261999787a30f401c2c637280ac574094926dcac480bb44fdbca` |
+| `pocketrisu-patcher.cjs` | 5,083,789 | `b00001943284a4c8af6c288c2ca94d111ad61a06417fe5ecd5451ea19e6dbcbd` |
+| `pocketrisu-features.cjs` | 5,083,795 | `a80914f806ae37299afaaedd4a4fca49ca18f7e6aae10c7c4b4252ce2be39b08` |
+| `pocketrisu-hardening.cjs` | 5,083,796 | `bc0b358cfbf95e9e23c8c374b37b2927aba81ae4289c7aa614178039dafee631` |
+| `pocketrisu-all.cjs` | 5,083,790 | `640c8f94faf832474f75c7c5cb10c1c99268a9ae3de584c74b09fa0b25e99dca` |
 
-Both the fixed-profile `pocketrisu-all.cjs` and generic
-`pocketrisu-patcher.cjs --all` emitted the same verified 24-pack, 475-unit,
-four-ordered-collision plan. Both embedded `pocketrisu-kei` 0.9.0 with ETag
-`1efbbf7d1666dcc2c27bd7b05b6df85e7e55bc107473d5d9cb3cc66aa69f236c`.
+Source CLI `--all`, fixed-profile `pocketrisu-all.cjs`, and generic
+`pocketrisu-patcher.cjs --all` each returned compatibility `verified`, 28
+resolved packs, 537 units, five ordered collisions, 219 planned paths, and the
+same umbrella version/ETag.
 
-## L2.5 runtime audit
+## L2.5 aggregate runtime audit
 
 ### Phase 1 — flat discovery
 
-- exact-target compatibility and rejection of unlisted PocketRisu versions;
-- umbrella dependency expansion and hidden-child direct-selection rejection;
-- base/BG and base/lazy adapter exclusivity;
-- unit dependency ordering and the four explicit ordered collisions;
-- transactional first apply, status, repeated plan, failed-apply rollback,
-  empty-selection revert, intent, state, file bytes, modes, and owned files;
-- K19 native AssetViewer ownership plus accessibility-only replacements;
-- K13 OpenAI and Gemini SSE framing, replay, completion, tool-call, thought,
-  malformed-frame, and BG stream interaction;
-- K14 active-stream identity, reactive in-place update, viewport stability,
-  auto-translation deferral, terminal render, and BG completion;
-- K16 shortcut enablement, editable-target rules, character navigation,
-  pointer navigation, listener initialization, lazy bootstrap, and mobile Back;
-- K15 shared selection mapping, exact message/chat/cache identity, stale edit,
-  streaming disablement, translation-cache CAS, and manager lifecycle;
-- K11 manual frontier, contiguous selection, preview/reroll/cancel/apply,
-  native search/bulk mode preservation, stale result, and BG request path;
-- K12 translation task supersession, abort propagation, cache identity,
-  scan, pagination, edit/delete CAS, explicit confirmation, and BG delivery;
-- lazy-chat storage, BG generation/result ownership, startup cache
-  supersession, and durable save interactions;
-- character import/organizer, persona organizer, personal settings, parser
-  hardening, preset integrity, and toolchain behavior in the maximum graph;
-- timers, event listeners, rAF callbacks, mounted components, abort
-  controllers, promises, sockets, storage writes, and build outputs;
-- iOS touch, swipe, keyboard, rotation, suspension, resume, focus, safe-area,
-  memory, and provider-specific behavior;
-- cache and log growth, request content, translation-cache deletion, plugin
-  array writes, malformed external input, and generated-installer provenance.
+- target compatibility, hidden-child expansion, direct hidden selection, and
+  future-version refusal;
+- exact adapter exclusivity and the five ordered same-file compositions;
+- initial apply, status, repeated plan/apply, revert, state/intent, bytes,
+  modes, and generated-installer provenance;
+- native `.role2` precedence and exclusion of lorebook role semantics;
+- theme load/preset/runtime normalization without widening API validation;
+- regex import multiplicity without new identity or grouping state;
+- BG request-log toggle, credential masking, body caps, 256 MiB rotation,
+  content-free usage, and generation failure isolation;
+- fresh snapshot uniqueness, throttle bypass, three restore callers, lazy
+  journal transaction, bounded retry tokens, original disk/size guards, and
+  double confirmations;
+- result TTL, rows, bytes, active/live-claim protection, browser marker,
+  tombstone, durable delivered state, exact ACK, and cleanup ordering;
+- provider override, custom/local/plugin endpoints, blocking reroll/continue,
+  browser epilogue, swipe target, cancellation, and exact-once limits for G06;
+- picker search, folder scope, Unfiled/orphan fallback, canonical indices,
+  async import DB refresh, PersonaBind callback, save, normalization,
+  referential cleanup, and asset cleanup;
+- existing K19/K13/K14/K16/K15/K11/K12 child behavior and lazy/BG/storage
+  composition;
+- timers, listeners, controllers, sockets, requests, database rows, retained
+  payloads, in-memory tokens, DOM rows, build output, and cleanup paths; and
+- iOS swipe, VoiceOver, focus, keyboard, background/kill/reload, picker taps,
+  restore dialogs, request-log visibility, and real persistence.
 
 ### Phase 2 — external-anchor resolution
 
-- **Target boundary.** The manifest now lists only exact 1.8.1 and 1.9.0 as
-  verified. Compatibility tests prove 1.9.0 is accepted while an unlisted
-  1.9.1 remains rejected. Ordinary source and generated-installer plans both
-  reported `verified`; the maintainer-only reviewing gate was not needed
-  after promotion.
-- **Dependency and adapter exclusivity.** The umbrella remains unit-free and
-  requires exactly seven hidden cores. Each adapter manifest declares its
-  parent requirements, opposite-adapter conflicts, and base/BG or base/lazy
-  `autoWhen` predicate. The 2,048 raw-selection run is the external anchor
-  that every reachable selection resolved, reapplied without changes, and
-  reverted exactly; a direct-child request remains rejected by patcher tests.
-- **Ordered collisions.** The maximum plan reported only the three existing
-  lazy-before-BG pairs and one intra-persona pair. Their `before`/`after`
-  directions were present in the composed order; no unordered collision was
-  accepted. The complete target test/build and round-trip gates ran on the
-  resulting order rather than merely inspecting the plan.
-- **K13 with BG.** Applied `google.ts` and `openAI/requests.ts` each instantiate
-  the shared replayable parser inside the BG adapter. The Google units are
-  explicitly after the BG sub-key hooks. Provider integration tests passed in
-  the complete target suite. Actual classic-provider chunking and iOS
-  suspension remain empirical surfaces.
-- **K14, K12, and K15 on chat hosts.** Applied `ChatBody.svelte` captures
-  `streamingDisplay`, refuses auto/retranslation while it is true, begins one
-  task, checks abort after async parse/translate boundaries, commits only the
-  current task, and finishes it in `finally`. `Chats.svelte` keeps a stable
-  active-stream hash and calls the mounted component's reactive update instead
-  of remounting per chunk. `DefaultChatScreen.svelte` installs one shared
-  partial-edit manager only when either feature setting is enabled and passes
-  the same current chat identity alongside the K14 generation state. The K14,
-  K15, and K12 focused tests plus both composed complete target suites are the
-  behavioral anchors.
-- **K16 with lazy-chat.** Applied `bootstrap.ts` invokes idempotent hotkey
-  initialization only after the lazy bootstrap path has loaded the database.
-  Applied `hotkey.ts` has one initialization guard, reads the current database
-  per event, turns all configured actions off when the master setting is
-  false, and rejects nonmatching/editable contexts before mutations. Focused
-  tests and the composed target suite cover deterministic DOM/navigation
-  behavior; iOS history and gesture arbitration remain empirical.
-- **K11 native-owner preservation.** Applied `HypaV3Modal.svelte` makes manual
-  mode mutually exclusive with search, bulk edit, category, and tag state,
-  and wraps the native summary list, native search, footer, bulk reroll, and
-  bulk edit UI in `!manualSummaryMode` rather than replacing those owners.
-  K11 focused tests and the composed target suite anchor frontier and stale
-  result behavior. The configured remote summary route remains an L3 surface.
-- **K19 native-owner preservation.** Applied exact-1.9 source retains native
-  search, keyboard, scroll-snap swipe, adjacent-slide mounting, rAF scroll
-  guard, URL resolution, and character/module entry ownership. The K19 delta
-  adds only modal/group semantics, accessible names, explicit button types,
-  and 44-pixel close targets. Diagnostics and production build passed; iOS
-  VoiceOver, focus return, and swipe physics remain empirical.
-- **Destructive and plugin data paths.** K12 individual and cleanup deletion
-  require UI confirmation and compare the exact storage key/key/value before
-  removal; changed or missing rows are skipped. A fresh aggregate search found
-  zero calls that pass a top-level `plugins` array to `setDatabase()` or
-  `setDatabaseLite()`. This does not authorize deleting real cache fixtures in
-  L3 or changing installed plugins.
-- **Transaction and generated artifact integrity.** The ordinary exhaustive
-  gate compares bytes and modes after every selection. The maximum candidate
-  additionally observed current status, zero-change repeated plan, clean
-  tracked revert, and absent state. Two installer builds produced identical
-  hashes, and both embedded installers reproduced the source graph.
-- **Resource and environment claims.** The source shows abort-controller,
-  listener cleanup, idempotent initialization, current-task guards, rAF
-  bounding, and adjacent-image mounting at the changed owners. Tests establish
-  deterministic lifecycle outcomes. Actual iOS suspension, viewport/focus,
-  provider timing, long-chat/cache memory, and network delivery cannot be
-  concluded from detached Node tests, so they remain explicit surfaces rather
-  than being called safe.
+- **Target and graph — measured.** Source and generated installers agreed on
+  exact 1.9 verification and the 537-unit maximum graph. The exhaustive gate
+  round-tripped all 2,048 raw selections and 1,024 normalized graphs.
+- **Same-file ownership — plan plus target gates.** Only the five declared
+  ordered collisions appeared. The maximum applied graph passed client/server
+  tests, diagnostics, both builds, current status, idempotency, and exact
+  managed-path comparison after revert.
+- **K04/K17/K23 — focused tests plus native-owner read.** Native role/theme and
+  canonical regex schemas remain the write authorities. Unsupported aliases,
+  invalid themes, and overlapping import directions were tested at their
+  actual normalization/import boundaries; excluded broad/lorebook/UI paths
+  have no units.
+- **K27 — native transaction and negative path tests.** BG delivery invokes the
+  same already-open request-log owner. The native capture toggle remains
+  before the POST; masking/caps/rotation and content-free usage remain in its
+  single transaction; parse/write failure stays best effort. No second DB,
+  platform badge, row-delete API, or independent policy was added.
+- **K26 — adversarial route and transaction tests.** All three callers require
+  a newly verified snapshot, target-bound token retries are capped at 128 and
+  expire after five minutes, and lazy DB replacement/journal deletion share
+  the native transaction. Existing disk/size guards and two confirmations
+  remain ahead of destructive work.
+- **K29 retention — measured policy and adversarial cleanup tests.** The
+  selected 48-hour/128-row/256-MiB bounds were based on recorded live KV/event
+  and result/journal sizes in the feature receipt. Active/live-claimed rows may
+  temporarily exceed pressure targets and become evictable only after
+  protection ends. ACK remains immediate. Browser marker and tombstone ledgers
+  remain bounded at 128.
+- **G06 — complete blocker matrix.** No hosted-provider subset was inferred
+  safe from provider name alone. Continue can keep message count unchanged;
+  reroll owns browser-local swipe/comment mutation; native job recovery does
+  not reconstruct that epilogue; classic custom/local/plugin routes do not
+  share one server-safe transport. No runtime change was admitted.
+- **K22 — focused tests, independent review, and build.** Filtered entries keep
+  canonical indices and share ordinary/PersonaBind selection. Independent
+  review found and closed a stale-DB/index race across async asset work. The
+  final picker adds no second identity/schema or broad database/plugin write.
+- **Destructive and plugin boundaries — negative search.** The delta adds no
+  `setDatabase({plugins})`, `setDatabaseLite({plugins})`, whole-plugin-array
+  replacement, unconfirmed destructive restore, persona duplicate, or new
+  privacy/usage policy.
+- **Resources — bounded or trigger-local.** K26 tokens are five-minute/128;
+  K29 rows, bytes, TTL, markers, and tombstones are bounded as above; K22
+  filtering is a trigger-local array scan. No new background queue, recurring
+  request, socket owner, or unbounded follow-up collection was admitted.
+- **Environment — prepared, not inferred.** Automated gates establish the
+  deterministic code paths. iOS suspension, VoiceOver/focus, real restore
+  archive contents, provider timing, and overnight return remain observable
+  surfaces rather than being called passed.
 
 ### Phase 3 — triage
 
-- **Q3, resolved:** exact-target metadata, adapter exclusivity, ordered graph
-  composition, current/replan/revert behavior, stale 1.9 installers, and the
-  aggregate test/build gate are closed by the observations above.
-- **Q3, no additional aggregate code fix:** the cross-feature code read found
-  no second owner, unordered collision, unconditional destructive path, whole
-  plugin-array write, or new unbounded collection introduced by the umbrella.
-  This is bounded to the inspected exact-1.9 graph and is not a completeness
-  claim about arbitrary future versions.
-- **Q4, consolidated iPhone L3:** native AssetViewer/VoiceOver, K13 provider
-  streams, K14 scrolling/background completion, K16 keyboard/gesture/history,
-  K15 selection/edit/cache identity, K11 manual summary, and K12 cache and
-  translation cancellation must each be observed in the concrete scenarios
-  retained by the status and feature receipts.
-- **Q4, unavailable routes:** DeepLX, Bergamot, classic OpenAI/Gemini variants,
-  mouse/trackpad block-hover, and Realm/Chub marker behavior are recorded as
-  not exercised when the configured environment cannot supply them; they are
-  not silently marked passed.
-- **Q4, policy packs:** K27 request-content policy and K28 usage retention are
-  explicit future decisions. The aggregate preserves official 1.9 behavior
-  and does not imply that those privacy/retention choices were made.
+- **Q3, fixed:** stale async persona import DB/index; lazy snapshot/journal
+  non-atomicity; BG request-log in-process delivery; regex same-direction
+  multiplicity; invalid theme/legacy role normalization; and result retention
+  bounds.
+- **Q3, deliberately blocked:** K29 G06 has no safe owner-local composition in
+  the current request/result schema. Its exact callers and missing operation
+  contract are recorded; the other approved features continued.
+- **Q3, resolved by observed gates:** graph exclusivity, ordered composition,
+  focused/complete tests, diagnostics, frontend/BG builds, current/reapply,
+  exact revert, exhaustive combinations, and deterministic installers.
+- **Q4, consolidated iPhone L3:** the concrete scenarios below remain. They
+  block aggregate acceptance and publication, not these local commits.
 
-## Final aggregate review
+## Future consolidated iPhone L3
 
-The final review covered the 29 commits and 117 changed paths from the
-preserved `081a32b` boundary through installer commit `782c6ab`. Large exact
-1.9 anchor and replacement snapshots were reviewed through their semantic
-owners and validation receipts rather than being treated as ordinary hand
-edits.
+Do not request or execute these scenarios during this implementation session.
+Run them later on a separately authorized aggregate candidate while recording
+each feature result independently.
 
-- The loaded catalog contained 32 packs, 11 user-selectable packs, zero packs
-  still reviewing 1.9.0, and zero packs missing explicit 1.9.0 verification.
-  The conservative global default still leaves 1.9.0 review-only for a future
-  manifest that does not declare its own targets.
-- The meta pack remained unit-free and required only the seven admitted
-  children. Direct hidden-child requests, opposite adapters, unresolved
-  collisions, and undeclared target-scoped versions remain rejected by the
-  manager/resolver tests.
-- The four ordered collisions matched their declared single-owner composition
-  contracts. The maximum applied graph, complete target suite, diagnostics,
-  build, exact revert, and exhaustive selection gate exercised that order.
-- Added TODO/placeholder-style matches were inspected. They were native search
-  placeholder attributes and the intentional lazy-chat database placeholder
-  state with fail-closed tests, not unfinished implementation placeholders.
-- The K12 third-party attribution paths were checked against the frozen Kei
-  revision. The generated installers contained no user path, tailnet/IP,
-  email, TOTP, or embedded credential value; generic runtime `password`
-  variables came from PocketRisu's existing input/server paths.
-- The final source rebuild left the worktree clean, and source and embedded
-  installer plans retained the same verified 475-unit graph and Kei ETag.
+1. **K19 viewer swipe and VoiceOver.** Open a middle image, swipe once in each
+   direction and verify exactly one image movement; at each boundary verify no
+   drift. With VoiceOver, verify image/count, previous/next, and close labels,
+   44-pixel controls, modal focus containment, and focus return to the opener.
+2. **K29 bounded overnight ordinary result.** Start a paid ordinary BG
+   generation, leave the PWA absent overnight without consuming the result,
+   return to the same chat, and verify one completion, one materialization,
+   and ACK cleanup with no duplicate or missing paid response.
+3. **K29 existing G09 cold reroll.** Start the already qualified cold-reroll
+   path, background then kill/reload the PWA, return to the same chat, and
+   verify exactly one overwrite at the intended existing message/swipe target,
+   with zero appended duplicate. This does not claim the blocked standard
+   non-Gemini G06 path.
+4. **K22 picker.** Search once by persona name and once by note; use Folder and
+   Unfiled scopes; select through ordinary and PersonaBind callers; create and
+   import disposable personas into a folder; cold-start and verify membership.
+   Delete a disposable selected folder before a stale picker action and verify
+   create/import falls back to Unfiled without hiding or reindexing personas.
+5. **K26 restore safety.** On a disposable backup target only, walk local-file,
+   server-file, and snapshot restore through both original confirmations and
+   verify a newly timestamped snapshot exists before each destructive write.
+   Force one snapshot failure, verify restore stops, then explicitly confirm
+   the one-use same-target retry and verify wrong-target/replayed approval is
+   refused. Do not use existing user backups as destructive fixtures.
+6. **K27 BG native logging.** With request logging enabled, issue one
+   disposable BG request and verify one masked native request row plus one
+   content-free usage row. Disable the toggle, issue another request, and
+   verify neither row is added while generation still completes.
+7. **Existing children.** Execute the concrete K13 provider stream, K14
+   background render/scroll, K16 hotkey/back gesture, K15 partial edit, K11
+   Hypa manual summary, and K12 translation/cache cancellation scenarios from
+   their individual 1.9 receipts. A combined session does not merge or omit
+   their separate observations.
 
-No actionable source, ownership, documentation, or generated-artifact finding
-remained in this inspected exact-1.9 boundary. This is not evidence for the
-unobserved iOS/provider interactions below or for an arbitrary future
-PocketRisu version.
+Wrong viewer movement/focus, missing or duplicate materialization, wrong
+reroll target, lost persona/binding, restore without a fresh snapshot,
+reusable/wrong-target bypass, unmasked content, log-toggle leakage, or any
+original-child regression is the unsafe signal.
 
 ## Remaining gates
 
-1. Run the consolidated iPhone L3 while recording every child scenario
-   separately.
-2. Resolve any L3 finding in the owning feature or infrastructure commit, then
-   rerun the affected focused gate and the aggregate gates required by the
-   change.
-3. Only after L3 decide whether to publish, push, tag, release, or authorize a
-   separate live candidate apply/restart.
+1. Run and record the consolidated iPhone L3 scenarios above and the individual
+   child receipts without collapsing their results.
+2. Resolve any finding in its owning feature/infrastructure commit and rerun
+   the affected focused and aggregate gates.
+3. Only after L3 and a separate authorization decide whether to push, tag,
+   release, apply to live PocketRisu, or restart it.

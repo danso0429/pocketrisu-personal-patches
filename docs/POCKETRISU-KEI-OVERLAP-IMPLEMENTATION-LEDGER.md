@@ -29,7 +29,7 @@
 | K17-F01 text-theme normalization | Native database/theme/CSS owner | Hidden exact-1.9 `kei-text-theme-normalization-core`, required by `pocketrisu-kei` | Three valid values, invalid/null load, preset boundary, runtime boundary, API source unchanged | `POCKETRISU-1.9-KEI-K17-THEME-VALIDATION.md` | K17 only |
 | K23-F01 regex multiplicity | Existing `bg-preserve` `types[]` owner | Versioned extension of `bg-preserve`; no new pack/schema | Same-key disjoint merge, same-direction duplicate split, partial overlap split, order/export contract | `POCKETRISU-1.9-KEI-K23-REGEX-VALIDATION.md` | K23 only |
 | K27-F01 BG log/usage delivery | Native `request-logs.cjs` owner plus `bg-preserve` transport | Versioned extension of `bg-preserve`; in-process adapter calls native `addRequestLogBatch` | owner absent/present, disabled toggle no POST, masking/caps delegated, invalid body/failure isolation | `POCKETRISU-1.9-KEI-K27-BG-LOGGING-VALIDATION.md` | K27 only |
-| K26-F02 fresh pre-restore snapshot | Native 1.9 snapshot/import owner | Hidden `kei-backup-restore-safety-core` plus exactly one standard/lazy storage adapter, required by `pocketrisu-kei` | throttle bypass, unique snapshot, failure stop, per-attempt acknowledgement, three restore routes, disk/limit guards | `POCKETRISU-1.9-KEI-K26-RESTORE-VALIDATION.md` | K26 helper/adapters/UI as one atomic feature |
+| K26-F02 fresh pre-restore snapshot | Native 1.9 snapshot/import owner | Hidden `kei-backup-restore-safety-core` plus exactly one standard/lazy storage adapter, required by `pocketrisu-kei` | throttle bypass, unique snapshot, failure stop, bounded one-use target acknowledgement, lazy journal failure atomicity, three restore routes, disk/limit guards | `POCKETRISU-1.9-KEI-K26-RESTORE-VALIDATION.md` plus `POCKETRISU-1.9-LAZY-SNAPSHOT-RESTORE-ATOMICITY-VALIDATION.md` | Existing lazy owner atomicity infrastructure first; K26 helper/adapters/UI second |
 | K29-F05 bounded overnight retention | Existing `bg-preserve` operation/result/claim/ACK owner | Versioned extension of `bg-preserve` | TTL boundary, row/byte pressure, active and live-claim protection, ACK cleanup, marker/tombstone alignment | `POCKETRISU-1.9-KEI-K29-RETENTION-VALIDATION.md` | K29 retention only |
 | K29-F02 G06 | Existing BG owner considered; current caller contract blocks safe composition | Documentation-only matrix/blocker receipt; no runtime unit | Full provider/request-class source matrix and negative graph assertions | `POCKETRISU-1.9-KEI-K29-G06-MATRIX.md` | Documentation-only |
 | K22-F01 P04-P06 | Existing `persona-organizer` folder/order owner | Versioned extension of `persona-organizer`; no new pack/schema | name/note search, folder/unfiled filter, selected-folder create/import, invalid-folder fallback | `POCKETRISU-1.9-KEI-K22-PICKER-VALIDATION.md` | K22 only |
@@ -109,17 +109,25 @@ owners.
   snapshot restore after the existing two confirmations.
 - **State/result:** pending DB state is flushed without its automatic snapshot;
   a force-new, collision-free snapshot is copied and rotated before the first
-  destructive write. A creation error aborts. Only a second request carrying
-  the UI's explicit acknowledgement for that restore may continue after a
-  repeated snapshot attempt fails.
+  destructive write. A creation error aborts and the server issues a five-minute,
+  one-use confirmation token bound to that restore target. Only a second request
+  carrying both the explicit-bypass marker and that token may continue after a
+  repeated snapshot attempt fails; header-only, wrong-target, expired, and
+  replayed requests cannot bypass the gate. The owner retains at most 128
+  in-memory tokens and creates no persisted state.
 - **Preservation:** automatic five-minute throttling remains the normal-save
   policy; backup upload/disk limits, snapshot count/byte rotation, storage
   queue/import lease, cache invalidation, migrations, and both original
-  confirmations stay in place. Boot/manual/scheduled/selective backup features
-  are not added.
+  confirmations stay in place. The lazy owner transactionally couples snapshot
+  DB replacement and journal discard, resetting journal memory only after
+  commit; best-effort limit trimming runs after that commit so an
+  auto-rollback-class SQLite error cannot strand the old DB without its
+  journal. Boot/manual/scheduled/selective backup features are not added.
 - **Revert surface:** the K26 core helper/test and common UI/transport units,
   exactly one standard/lazy server-storage adapter, umbrella/catalog entries,
-  and corrected K26 catalog/completion wording.
+  and corrected K26 catalog/completion wording. The pre-feature lazy-owner
+  atomicity helper/test and exact-1.9 call site are a preceding infrastructure
+  commit with their own receipt and revert surface.
 
 ### K29-F05 — bounded overnight result retention
 
@@ -128,31 +136,36 @@ owners.
 - **Trigger:** terminal/intermediate result persistence and the periodic
   operation-result cleanup sweep.
 - **Measured inputs before policy selection:** the current live KV had zero
-  orchestration result/state rows; the retained PM2 log had 18 main-completion
-  anchors and one content-free `S4a full` result-size anchor of 5,659 bytes;
-  32 native model-job journals totalled 217,622 bytes (mean 6,800, maximum
-  16,865). Existing bounds were 30 minutes, 128 run-registry entries, 128
-  client pending markers, a two-minute result claim, and no result row/byte
-  cap.
+  rows under all three existing orchestration result/state prefixes. The
+  retained PM2 output contained 3,882 distinct `S4b detached done` event
+  anchors. Six `S4a full` payload-size anchors totalled 310,621 bytes (mean
+  51,770.17, minimum 43,613, maximum 62,134). Thirty-two native model-job
+  journals totalled 217,622 bytes (mean 6,800.69, maximum 16,865). Existing
+  bounds were 30 minutes, 128 run-registry entries, 128 client pending markers,
+  a two-minute result claim, and no result row/byte cap.
 - **Selected state/result policy:** 48-hour TTL, 128 result rows, and 256 MiB
   aggregate result-payload budget. Oldest unclaimed terminal payloads are
-  evicted first under pressure. The client marker and in-memory paid-operation
-  tombstone use the same 48-hour horizon and retain their 128-entry cap.
+  evicted first under pressure. The in-memory paid-operation tombstone uses
+  the same 48-hour horizon; the browser pending marker uses 49 hours so a
+  request created up to one hour before server persistence is not discarded
+  first. Both client-side ledgers retain their 128-entry cap.
 - **Preservation:** an in-memory active operation or a result with a live claim
   is never evicted. Such protected rows may temporarily exceed the row/byte
   target; the sweep removes evictable rows once protection ends. Exact revision
   ACK remains the immediate deletion owner, and durable delivered state is
   still written before payload deletion.
-- **Revert surface:** one owned retention planner/test, BG result cleanup and
-  constants, run-registry TTL, pending-marker TTL, version/receipt changes.
+- **Revert surface:** the four owned retention/state helper and test files;
+  exact-1.9 orchestrator, run-registry, pending-marker, and client sibling
+  bytes; the BG pack version; focused patcher test; and receipt.
 
 The 48-hour window supplies a full overnight plus the following day without
 turning absence into indefinite retention. The 128-row bound matches both
-operation and browser ledgers. The 256 MiB budget is over 46,000 times the one
-observed full-result payload and over 15,000 times the observed maximum native
-job journal, while still preventing accumulated full-chat snapshots from
-growing without a byte policy. Those ratios are evidence context, not a claim
-that future results share the observed distribution.
+operation and browser ledgers. At the largest observed full-result sample, 128
+rows occupy about 7.58 MiB, so the row cap binds ordinary observed sizes. The
+256 MiB backstop can hold 4,320 maximum-observed full results or 15,916
+maximum-observed native job journals, while still bounding a pathological
+small-row/large-full-chat distribution. Those ratios are evidence context, not
+a claim that future results share the observed distribution.
 
 ### K29-F02 G06 — provider/request-class decision
 
@@ -193,15 +206,35 @@ client epilogue without generalizing G07, G08, or G12.
   or create/import while a folder filter is selected.
 - **State/result:** ordered personas are filtered by case-insensitive name/note
   and canonical folder membership. `Unfiled` includes absent and orphaned
-  references. A new/imported persona receives only a currently valid selected
-  folder ID.
+  references. Every filtered row retains its original persona-array index. A
+  new/imported persona receives only a currently valid selected folder ID;
+  import completes asset storage before it re-reads the current database,
+  pushes once, and returns the actual inserted index.
 - **Preservation:** selection/binding callbacks, note display, organizer
   normalization, deletion/referential cleanup, icon/gallery cleanup, and
   import encoding remain in their existing owners. P07 duplicate is absent.
 - **Revert surface:** persona-organizer helper/test additions, the managed
-  `listedPersona.svelte`, the optional import folder argument, version/receipt.
+  `listedPersona.svelte`, selected-folder Settings actions, the optional import
+  folder argument, manifest/version changes, focused test, and receipt.
 
-## 4. Gate sequence for every feature commit
+## 4. Explicit exclusions retained after implementation
+
+- K29 G03 live token replay; G07/G08/G12; translation/Hypa/Lua cold consumers
+  G13-G15; and server-restart partial materialization G20.
+- K29 G06 has a completed provider/request-class matrix but no runtime unit;
+  the current blocking reroll/continue caller cannot preserve the typed target,
+  browser epilogue, cancel rollback, and exact-once materialization inside the
+  append-oriented BG owner.
+- K27 platform badge and per-row delete; rich accounting, an independent usage
+  policy, or a new privacy policy.
+- K04/K23 lorebook roles; K23 quick activation, inline rename, and regex
+  search.
+- K20 character presentation variants and K22 persona duplicate P07.
+- K26 boot-snapshot third choice and manual, scheduled, or selective backup.
+- K19 viewer reimplementation. Its existing swipe/VoiceOver/focus behavior is
+  retained only as an aggregate iPhone L3 surface.
+
+## 5. Gate sequence for every feature commit
 
 1. Run the feature's patcher contract/adversarial test and relevant existing
    owner tests.
@@ -216,14 +249,16 @@ client epilogue without generalizing G07, G08, or G12.
    `dist/` is regenerated only by `scripts/build-installers.cjs` after source
    features close; it is never hand-edited.
 
-## 5. Aggregate-only L3 remainder
+## 6. Aggregate-only L3 remainder
 
 The final aggregate receipt will retain, without asking for execution in this
 session:
 
 - K19: fullscreen viewer horizontal swipe, VoiceOver label/focus, and close
   focus restoration on iPhone.
-- K29: reroll, background the PWA, kill/reload, return to the same chat, and
-  verify one recovered response at the intended swipe target with no duplicate.
+- K29: exercise the already qualified G09 cold-reroll presentation path by
+  rerolling, backgrounding/killing/reloading the PWA, returning to the same
+  chat, and verifying one recovered response at the intended swipe target with
+  no duplicate. This is not the blocked standard non-Gemini G06 path.
 
 No L3 result is claimed by this ledger.
