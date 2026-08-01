@@ -79,7 +79,7 @@ official 1.9 base and is not a candidate publication or patch qualification.
 | Detour: exhaustive verifier performance | Complete as local infrastructure | `docs/COMBINATION-VERIFIER-OPTIMIZATION-VALIDATION.md`; this does not advance an admission step |
 | 3. K13 stream parser, K14 render stability, K16 navigation/hotkeys | Exact-1.9 implementation and automated gates recorded | Each feature has an isolated core/adapters, 1.9 receipt, L2.5 audit, base/composed target tests and builds, dual-target planning, and exact revert evidence. See `docs/POCKETRISU-1.9-KEI-K13-VALIDATION.md`, `docs/POCKETRISU-1.9-KEI-K14-VALIDATION.md`, and `docs/POCKETRISU-1.9-KEI-K16-VALIDATION.md`. The aggregate raw-selection gate, HQ review, and each consolidated L3 scenario remain, so this step is not publication-qualified. |
 | 4. K15 partial edit, K11 Hypa tools, K12 translation tools | All three exact-1.9 implementations and feature-local automated gates recorded | Exact-1.9 evidence is in `docs/POCKETRISU-1.9-KEI-K15-VALIDATION.md`, `docs/POCKETRISU-1.9-KEI-K11-VALIDATION.md`, and `docs/POCKETRISU-1.9-KEI-K12-VALIDATION.md`. Aggregate combination, review, installer, and L3 gates remain. |
-| 5. K03/K04 preset behavior and K26 backup tools | Not started | Existing-authority preservation contracts remain controlling |
+| 5. K03/K04 preset behavior and K26 backup tools | Baseline overlap re-evaluation in progress | Existing `preset-integrity` is now exact-1.9-qualified with the native no-active sentinel preserved. K03/K04/K26 remain catalog decisions; native 1.9 preset roles, stable IDs, settings export, snapshots, and restore must be classified before any additional child is admitted. |
 | 6. K20/K22/K23/K29 existing-authority merges | Not started | No parallel order/schema/orchestration authority may be introduced |
 | 7. K05–K09, K24/K25, K27, K28 policy packs | Not started | Separate explicit opt-in packs; none blocks the umbrella |
 
@@ -89,7 +89,8 @@ implemented progress.
 
 ## Current review and publication boundary
 
-1. Keep the foundation, K19, verifier, K13, K14, K16, K15, K11, K12, and documentation
+1. Keep the foundation, existing-pack qualifications, K19, verifier, K13,
+   K14, K16, K15, K11, K12, and documentation
    commits available for review without pushing, tagging, releasing, or
    modifying the live PocketRisu tree.
 2. Resolve any review finding in its own feature or infrastructure commit.
@@ -213,8 +214,10 @@ stream suppression while replacing the per-message controller with its
 shared identity-guarded manager. K11 retains native preview/search and adds
 only the manual frontier workflow. K12 preserves official request logging,
 the native original-text cache-key outcome, K14's exact render boundary, and
-K15's CAS while adding its cache-management/cancellation outcomes. The exact
-next executable work is aggregate graph qualification.
+K15's CAS while adding its cache-management/cancellation outcomes. Existing
+`preset-integrity` now preserves the native no-active sentinel on exact 1.9.
+The exact next work is the remaining future/policy row decision record,
+followed by aggregate graph qualification.
 Follow
 `docs/POCKETRISU-1.9-SESSION-HANDOFF.md` and
 `docs/POCKETRISU-1.9-REBASE-AUDIT.md` in this order:
@@ -232,7 +235,8 @@ Follow
    adapter without adding a second request-class owner;
 5. retain the qualified K19, K13, K14, K16, K15, K11, and K12 deltas;
 6. retain the completed exact-1.9 K12 implementation and feature receipt;
-7. re-evaluate future and policy catalog rows against the new baseline;
+7. retain the exact-1.9 `preset-integrity` qualification and re-evaluate
+   future and policy catalog rows against the new baseline;
 8. run aggregate target gates, L2.5, and exhaustive raw-selection combination
    verification before any `verified` declaration.
 

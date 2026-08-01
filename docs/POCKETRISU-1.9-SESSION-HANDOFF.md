@@ -7,10 +7,12 @@
 > **Exact target:** official PocketRisu `v1.9.0` /
 > `85a65f3137b45c8de4a8d21a9887be213b1ac3fc`
 >
-> **Immediate next gate:** qualify the aggregate exact-1.9 graph, run the full
-> raw-selection verifier, and rebuild deterministic installers. The BG/lazy
-> owner graph and K19, K13, K14, K16, K15, K11, K12 Kei children have
-> feature-local exact-1.9 receipts.
+> **Immediate next gate:** record the remaining future/policy row decisions,
+> then qualify the aggregate exact-1.9 graph, run the full raw-selection
+> verifier, and rebuild deterministic installers. The existing
+> `preset-integrity` conflict is resolved, and the BG/lazy owner graph plus
+> K19, K13, K14, K16, K15, K11, K12 Kei children have feature-local exact-1.9
+> receipts.
 
 This document records the complete local work boundary from the beginning of
 the Kei selection effort through the 1.9 pivot and live-update preparation.
@@ -246,7 +248,9 @@ and settings-only export semantics. `lazy-chat-sync` and its dependent
 `character-import-ux` graph are now qualified with target-scoped full
 replacements, native 1.9 recovery/logging/lock/backup preservation, combined
 target gates, ordinary exact round trip, L2.5, and the exhaustive exact-1.8
-gate. Resume owner integration in this order:
+gate. `preset-integrity` is also qualified with separate 1.8 and 1.9 units;
+the 1.9 path preserves the native `-1` no-active sentinel and guards
+active-only settings controls. Resume owner integration in this order:
 
 1. Retain the qualified request-class table and combined BG/lazy adapter graph
    without weakening result/claim/ACK, cancellation, hydration, or
@@ -256,10 +260,10 @@ gate. Resume owner integration in this order:
    ownership while retaining the missing manual/frontier outcomes. K12
    preserves native request logging and cache-key behavior while retaining
    its identity/CAS/cancel/import/export/cleanup outcomes.
-3. Run the aggregate exact-1.9 target, L2.5, raw-selection, deterministic
+3. Record final keep/drop/defer decisions for the future and policy rows,
+   including native 1.9 overlap and unresolved K27/K28.
+4. Run the aggregate exact-1.9 target, L2.5, raw-selection, deterministic
    installer, and review gates without applying the candidate live.
-4. Re-evaluate future and policy rows, including unresolved K27/K28, only
-   after the owner graph is usable.
 
 For every numbered implementation, keep a feature-local receipt and commit.
 Run target-focused tests and exact round trips before advancing; run L2.5 for

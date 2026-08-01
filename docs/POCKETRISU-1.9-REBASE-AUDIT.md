@@ -72,7 +72,7 @@ It is a review surface, not proof of a semantic conflict.
 | `lazy-chat-sync` | 27 | 9 | Qualified with seven mutually exclusive 1.8/1.9 full replacements; native model-job, recovery, logging, lock, and backup behavior retained |
 | `lazy-chat-bg-adapter` | 4 | 2 | Qualified with both parents active; strict chat save plus root DB flush is the BG ACK barrier |
 | `startup-cache` | 6 | 4 | Qualified on exact 1.9.0; conditional startup-cache delta retained |
-| `preset-integrity` | 3 | 1 | All six anchors exact; active `-1` preset policy conflicts with new ID helper |
+| `preset-integrity` | 3 | 1 | Qualified with separate 1.8/1.9 units; malformed indices are repaired while the native 1.9 `-1` no-active sentinel and stable-ID helpers remain authoritative |
 | `persona-organizer` | 11 | 5 | Qualified with a target-scoped 1.9 server asset walker; native embedded-module and settings-only semantics preserved |
 | `character-organizer` | 5 | 1 | Qualified on exact 1.9.0; native drag/file-drop and AssetViewer behavior preserved |
 | `character-import-ux` | 10 | 2 | Qualified with a version-neutral backup guard and the target-qualified lazy save parent |
@@ -98,8 +98,10 @@ as upstream collisions.
   call. The qualified lazy integration retains both startup initializers, and
   their cache, hydration, and native recovery tests pass in one target graph.
 - The new `setActiveBotPresetById(undefined)` deliberately stores `-1`.
-  `preset-integrity` normalizes negative selection to `0`; the two policies
-  cannot be composed by anchor success alone.
+  The qualified `preset-integrity` adapter preserves that exact sentinel,
+  repairs only malformed values, keeps invalid explicit changes in range, and
+  guards active-only settings controls. Its dual-target and round-trip
+  evidence is in `docs/POCKETRISU-1.9-PRESET-INTEGRITY-VALIDATION.md`.
 - The all-pack graph also encounters an `App.svelte` ordering collision
   between the changed mobile file-drop region and character organization.
 
@@ -116,7 +118,7 @@ only changed filenames.
 | K16 navigation/hotkeys | Upstream fixes adjacent-character bounds, model-preset shortcut handling, and a generic unload guard. | Qualified as a target-scoped extension: retain the native model shortcut and unload owner, reuse the corrected character host with K16 filtering, and keep the master switch, exact modifier/Meta matching, pointer cleanup, modal/control guards, and opt-in same-page Back behavior. Receipt: `docs/POCKETRISU-1.9-KEI-K16-VALIDATION.md`. |
 | K15 partial edit | Upstream merely suppresses its existing per-message partial editor during optimized streaming. | Qualified as an exact-target delta: replace the per-message controller with the shared manager while preserving upstream/K14 optimized-stream suppression, native overscroll, exact target/DOM identity, stale cancellation, and translation-cache token/key/data guards. Receipt: `docs/POCKETRISU-1.9-KEI-K15-VALIDATION.md`. |
 | K11 Hypa tools | Upstream fixes CBS-aware preview and filtered search and retains existing summary reroll/bulk-resummary UI. | Qualified as an exact-target delta: retain native preview, summary-item reroll, and filtered search; add manual contiguous-prefix selection, generate/preview/reroll/cancel/apply, exact frontier rejection, and generation-owner adapters. Receipt: `docs/POCKETRISU-1.9-KEI-K11-VALIDATION.md`. |
-| K12 translation tools | Upstream fixes the original-text persistent-cache key. It does not add entry list/search/edit/delete, CAS, import/export management, unused-candidate review, progressive loading, or cancellation. | Port the staged K12 core after removing the duplicate cache-key fix and rebasing four changed runtime anchors. Preserve complete translation identity and explicit destructive actions. |
+| K12 translation tools | Upstream fixes the original-text persistent-cache key. It does not add entry list/search/edit/delete, CAS, import/export management, unused-candidate review, progressive loading, or cancellation. | Qualified as an exact-target delta: consume the native cache-key fix, preserve 1.9 request logging and K14 render ownership, and retain complete translation identity, K15 CAS, management, explicit deletion, and cancellation. Receipt: `docs/POCKETRISU-1.9-KEI-K12-VALIDATION.md`. |
 
 The current `pocketrisu-kei` graph does not plan on raw 1.9.0. K14's changed
 `DefaultChatScreen` wiring invalidates K15's chained root-binding anchor before
@@ -288,6 +290,11 @@ Only observed results may move 1.9.0 from `reviewing` to `verified`.
   gates, exact round trip, runtime audit, and remaining iPhone scenario are
   recorded in
   `docs/POCKETRISU-1.9-CHARACTER-IMPORT-UX-ADAPTER-VALIDATION.md`.
+- `preset-integrity`: qualified for exact 1.9.0 with separate historical and
+  sentinel-preserving target units. Its official/managed preset tests,
+  full target gates, exact dual-target planning, round trip, and runtime audit
+  are recorded in
+  `docs/POCKETRISU-1.9-PRESET-INTEGRITY-VALIDATION.md`.
 - K16 navigation/hotkeys: qualified for exact 1.9.0 with separate 37-unit
   1.8 and 35-unit 1.9 adapters. The 1.9 path preserves the native model
   shortcut and global unload owner while adding the remaining K16 behavior.
@@ -308,7 +315,14 @@ Only observed results may move 1.9.0 from `reviewing` to `verified`.
   base/lazy+BG gates, exact round trips, runtime audit, and remaining iPhone
   scenarios are recorded in
   `docs/POCKETRISU-1.9-KEI-K11-VALIDATION.md`.
-- K12 and aggregate qualification remain pending.
+- K12 translation tools: qualified for exact 1.9.0 with separate 46-unit
+  1.8 and 46-unit 1.9 adapters plus its ten-unit core. The 1.9 path consumes
+  the native raw-text cache-key fix, preserves request logging and K14's
+  optimized-render boundary, and retains K15 CAS plus cache management,
+  explicit deletion, and cancellation. Its dual-target plans, base/lazy+BG
+  gates, exact round trips, runtime audit, and remaining interaction scenarios
+  are recorded in `docs/POCKETRISU-1.9-KEI-K12-VALIDATION.md`.
+- Aggregate qualification remains pending.
 
 ## Post-audit operational handoff
 
