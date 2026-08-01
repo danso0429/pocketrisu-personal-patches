@@ -23,6 +23,14 @@ test('K13 keeps the pure core and graph-specific adapters internal', () => {
     assert.equal(core.userSelectable, false)
     assert.equal(base.userSelectable, false)
     assert.equal(bg.userSelectable, false)
+    for (const pack of [core, base, bg]) {
+        assert.deepEqual(pack.targets, {
+            pocketrisu: {
+                verified: ['1.8.1', '1.9.0'],
+                reviewing: [],
+            },
+        })
+    }
     assert.deepEqual(base.autoWhen, {
         all: ['kei-stream-parser-core'],
         none: ['bg-preserve'],

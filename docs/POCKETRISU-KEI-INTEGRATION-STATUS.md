@@ -193,8 +193,10 @@ session handoff and feature-local qualification receipts. Preserve the
 separate staged K12 worktree. `lazy-chat-sync` and combined
 `character-import-ux` qualification are complete. The request-class authority
 table, target-scoped `bg-preserve`, and combined lazy/BG adapter qualification
-and the K19 native AssetViewer accessibility delta are also complete. The
-exact next executable work is K13 robust SSE parser. Follow
+and the K19 native AssetViewer accessibility delta are also complete. K13's
+unchanged replayable SSE core and dual graph adapters are qualified on exact
+1.9.0. The exact next executable work is K14 streaming render stability.
+Follow
 `docs/POCKETRISU-1.9-SESSION-HANDOFF.md` and
 `docs/POCKETRISU-1.9-REBASE-AUDIT.md` in this order:
 

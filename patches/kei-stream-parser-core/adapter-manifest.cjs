@@ -32,6 +32,12 @@ function createStreamAdapterManifest({
         title,
         version: '0.1.0',
         userSelectable: false,
+        targets: {
+            pocketrisu: {
+                verified: ['1.8.1', '1.9.0'],
+                reviewing: [],
+            },
+        },
         requires: bgPreserve
             ? ['kei-stream-parser-core', 'bg-preserve']
             : ['kei-stream-parser-core'],

@@ -11,6 +11,12 @@ module.exports = {
     title: 'PocketRisu Kei replayable SSE parser core',
     version: '0.1.0',
     userSelectable: false,
+    targets: {
+        pocketrisu: {
+            verified: ['1.8.1', '1.9.0'],
+            reviewing: [],
+        },
+    },
     units: [
         {
             id: 'kei-stream-parser-core:runtime',
