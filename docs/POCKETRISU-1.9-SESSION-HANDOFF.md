@@ -7,9 +7,9 @@
 > **Exact target:** official PocketRisu `v1.9.0` /
 > `85a65f3137b45c8de4a8d21a9887be213b1ac3fc`
 >
-> **Immediate next feature:** adapt K16 navigation, hotkeys, pointer cleanup,
-> and opt-in mobile Back behavior. The BG/lazy owner graph and K19, K13, K14
-> Kei children are qualified; K12 remains last.
+> **Immediate next feature:** adapt K15 shared partial-message editing and its
+> exact target/DOM/translation-cache identity guards. The BG/lazy owner graph
+> and K19, K13, K14, K16 Kei children are qualified; K12 remains last.
 
 This document records the complete local work boundary from the beginning of
 the Kei selection effort through the 1.9 pivot and live-update preparation.
@@ -250,9 +250,9 @@ gate. Resume owner integration in this order:
 1. Retain the qualified request-class table and combined BG/lazy adapter graph
    without weakening result/claim/ACK, cancellation, hydration, or
    no-resurrection contracts.
-2. Rebase K19, K13, K14, K16, K15, and K11 as separate focused commits. Remove
-   only behavior proven equivalent in official 1.9; preserve missing outcomes
-   and each existing owner contract.
+2. Retain the qualified K19, K13, K14, and K16 deltas. Rebase K15 and K11 as
+   separate focused commits, removing only behavior proven equivalent in
+   official 1.9 and preserving every missing outcome and owner contract.
 3. Port the preserved staged K12 last. Remove the duplicate cache-key fix,
    adapt its four changed runtime anchors, and repeat identity/CAS/cancel/
    import/export/cleanup gates.

@@ -4,6 +4,7 @@ import { createMobileBackNavigationGuard } from './mobileBackNavigation'
 function createHarness(
     initialState: unknown = null,
     hasUserActivation: () => boolean = () => true,
+    ownsBeforeUnload = true,
 ) {
     let state = initialState
     const listeners = new Map<string, Set<(event?: Event) => void>>()
@@ -38,6 +39,7 @@ function createHarness(
         eventTarget as unknown as
             Parameters<typeof createMobileBackNavigationGuard>[1],
         hasUserActivation,
+        ownsBeforeUnload,
     )
 
     return {
@@ -126,6 +128,23 @@ describe('mobile back navigation guard', () => {
         ) as BeforeUnloadEvent
         harness.dispatch('beforeunload', disabledEvent)
         expect(disabledEvent.defaultPrevented).toBe(false)
+    })
+
+    it('leaves unload handling to an upstream owner when configured', () => {
+        const harness = createHarness(null, () => true, false)
+        const event = new Event(
+            'beforeunload',
+            { cancelable: true },
+        ) as BeforeUnloadEvent
+
+        harness.guard.setEnabled(true)
+        harness.dispatch('beforeunload', event)
+
+        expect(event.defaultPrevented).toBe(false)
+        expect(harness.eventTarget.addEventListener).not.toHaveBeenCalledWith(
+            'beforeunload',
+            expect.any(Function),
+        )
     })
 
     it('bounds persistent push failure to one attempt per enable cycle', () => {

@@ -113,7 +113,7 @@ only changed filenames.
 | K19 fullscreen images | Upstream now supplies character/module asset grid, search, fullscreen arrows, keyboard navigation, and native scroll-snap swipe. It lacked K19's dialog/ARIA names and used 36px close controls. | Qualified: duplicate viewer/wiring retired on 1.9; eight native AssetViewer accessibility/touch hooks remain. Receipt: `docs/POCKETRISU-1.9-KEI-K19-VALIDATION.md`. |
 | K13 stream parser | OpenAI still decodes an accumulated buffer with `toString().split('\n')`; Google still creates a decoder per chunk and accepts only one-line `data: `. | Qualified unchanged on exact 1.9: keep K13's pure replayable parser and mutually exclusive base/BG adapters. Request-log metadata is not an SSE framing fix. Receipt: `docs/POCKETRISU-1.9-KEI-K13-VALIDATION.md`. |
 | K14 render stability | Upstream adds optional balanced/strong display coalescing, active-message mount reuse, raw strong-mode rendering, and edit suppression. | Qualified as a native-renderer delta: add live-generation validation, lifecycle/local-reload identity, reactive message/generation metadata, partial-translation deferral, and BG ordering without copying a second renderer. Receipt: `docs/POCKETRISU-1.9-KEI-K14-VALIDATION.md`. |
-| K16 navigation/hotkeys | Upstream fixes adjacent-character bounds, model-preset shortcut handling, and a generic unload guard. | Keep the remaining master switch, Meta matching, pointer cleanup, modal/control gesture guards, and opt-in same-page mobile Back behavior; rebase changed hotkey hosts. |
+| K16 navigation/hotkeys | Upstream fixes adjacent-character bounds, model-preset shortcut handling, and a generic unload guard. | Qualified as a target-scoped extension: retain the native model shortcut and unload owner, reuse the corrected character host with K16 filtering, and keep the master switch, exact modifier/Meta matching, pointer cleanup, modal/control guards, and opt-in same-page Back behavior. Receipt: `docs/POCKETRISU-1.9-KEI-K16-VALIDATION.md`. |
 | K15 partial edit | Upstream merely suppresses its existing per-message partial editor during optimized streaming. | Keep the shared manager, exact target/DOM identity, stale cancellation, and translation-cache token/CAS guards; adapt to upstream's render lifecycle. |
 | K11 Hypa tools | Upstream fixes CBS-aware preview and filtered search and retains existing summary reroll/bulk-resummary UI. | Keep manual contiguous-prefix selection, generate/preview/reroll/cancel/apply, exact frontier rejection, and generation-owner adapters. Remove any now-duplicate preview/search correction. |
 | K12 translation tools | Upstream fixes the original-text persistent-cache key. It does not add entry list/search/edit/delete, CAS, import/export management, unused-candidate review, progressive loading, or cancellation. | Port the staged K12 core after removing the duplicate cache-key fix and rebasing four changed runtime anchors. Preserve complete translation identity and explicit destructive actions. |
@@ -288,7 +288,13 @@ Only observed results may move 1.9.0 from `reviewing` to `verified`.
   gates, exact round trip, runtime audit, and remaining iPhone scenario are
   recorded in
   `docs/POCKETRISU-1.9-CHARACTER-IMPORT-UX-ADAPTER-VALIDATION.md`.
-- Other pack requalification and every later executable step remain pending.
+- K16 navigation/hotkeys: qualified for exact 1.9.0 with separate 37-unit
+  1.8 and 35-unit 1.9 adapters. The 1.9 path preserves the native model
+  shortcut and global unload owner while adding the remaining K16 behavior.
+  Its dual-target plan, base/lazy+BG gates, exact round trips, runtime audit,
+  and remaining iPhone scenarios are recorded in
+  `docs/POCKETRISU-1.9-KEI-K16-VALIDATION.md`.
+- K15, K11, K12, and aggregate qualification remain pending.
 
 ## Post-audit operational handoff
 

@@ -35,6 +35,7 @@ export function createMobileBackNavigationGuard(
     eventTarget: NavigationEventTarget,
     hasUserActivation: () => boolean =
         () => navigator.userActivation?.hasBeenActive ?? false,
+    ownsBeforeUnload = true,
 ) {
     let enabled = false
     let cleanupPending = false
@@ -83,6 +84,7 @@ export function createMobileBackNavigationGuard(
     }
 
     const setBeforeUnloadListening = (shouldListen: boolean) => {
+        if (!ownsBeforeUnload) return
         if (beforeUnloadListening === shouldListen) return
         beforeUnloadListening = shouldListen
         if (shouldListen) {
@@ -145,6 +147,22 @@ export function createMobileBackNavigationGuard(
 
 let mobileBackNavigationGuard:
     ReturnType<typeof createMobileBackNavigationGuard> | undefined
+let mobileBackNavigationOwnsBeforeUnload = true
+
+export function configureMobileBackNavigationGuard(configuration: {
+    ownsBeforeUnload: boolean
+}): void {
+    if (
+        mobileBackNavigationGuard
+        && mobileBackNavigationOwnsBeforeUnload
+            !== configuration.ownsBeforeUnload
+    ) {
+        throw new Error(
+            'Mobile back navigation guard ownership cannot change after initialization',
+        )
+    }
+    mobileBackNavigationOwnsBeforeUnload = configuration.ownsBeforeUnload
+}
 
 export function syncMobileBackNavigationGuard(
     enabled: boolean,
@@ -157,6 +175,8 @@ export function syncMobileBackNavigationGuard(
         mobileBackNavigationGuard = createMobileBackNavigationGuard(
             window.history,
             window,
+            undefined,
+            mobileBackNavigationOwnsBeforeUnload,
         )
     }
     mobileBackNavigationGuard.setEnabled(

@@ -27,6 +27,14 @@ test('K16 keeps its core and base/lazy adapters internal', () => {
     assert.equal(core.userSelectable, false)
     assert.equal(base.userSelectable, false)
     assert.equal(lazy.userSelectable, false)
+    for (const pack of [core, base, lazy]) {
+        assert.deepEqual(pack.targets, {
+            pocketrisu: {
+                verified: ['1.8.1', '1.9.0'],
+                reviewing: [],
+            },
+        })
+    }
     assert.deepEqual(base.autoWhen, {
         all: ['kei-mobile-navigation-core'],
         none: ['lazy-chat-sync'],
@@ -143,6 +151,9 @@ test('K16 guard waits for activation and removes only its history entry', () => 
     assert.match(mobileBack, /if \(!armFailureReported\)/)
     assert.match(mobileBack, /browserHistory\.back\(\)/)
     assert.match(mobileBack, /beforeunload/)
+    assert.match(mobileBack, /ownsBeforeUnload/)
+    assert.match(mobileBack, /configureMobileBackNavigationGuard/)
+    assert.match(mobileBackTests, /leaves unload handling to an upstream owner/)
     assert.match(
         mobileBack,
         /if \(!mobileBackNavigationGuard && !shouldEnable\) return/,
@@ -155,39 +166,82 @@ test('K16 guard waits for activation and removes only its history entry', () => 
 
 test('K16 adapters preserve existing hotkeys and harden pointer cleanup', () => {
     for (const adapter of [base, lazy]) {
-        const managed = adapter.units.map(unitText).join('\n')
-        assert.match(managed, /data\.enableHotkeys \?\?= true/)
-        assert.match(
-            managed,
-            /data\.disableMobileBackNavigation \?\?= false/,
+        const units181 = adapter.units.filter((unit) =>
+            unit.targetVersions?.pocketrisu?.includes('1.8.1')
         )
-        assert.match(managed, /openModelPresetList/)
+        const units190 = adapter.units.filter((unit) =>
+            unit.targetVersions?.pocketrisu?.includes('1.9.0')
+        )
+        assert.equal(units181.length, 37)
+        assert.equal(units190.length, 35)
         assert.equal(
-            (
-                managed.match(
-                    /DBState\.db\.enableHotkeys !== false/g,
-                ) ?? []
-            ).length,
-            2,
+            adapter.units.every((unit) =>
+                unit.targetVersions?.pocketrisu?.length === 1
+            ),
+            true,
         )
-        assert.match(managed, /shouldIgnoreNavigationPointer\(/)
-        assert.match(managed, /get\(alertStore\)\.type/)
-        assert.match(managed, /pressingPointers\.clear\(\)/)
-        assert.match(managed, /let mobileGestureInitialized = false/)
-        assert.match(managed, /if\(mobileGestureInitialized\) return/)
-        assert.match(managed, /pointercancel/)
-        assert.match(managed, /if\(!start\) return/)
-        assert.match(managed, /export \{ hotkeyMatches \}/)
-        assert.doesNotMatch(managed, /toggleVoice.*remove|webcam.*remove/)
+
+        for (const units of [units181, units190]) {
+            const managed = units.map(unitText).join('\n')
+            assert.match(managed, /data\.enableHotkeys \?\?= true/)
+            assert.match(
+                managed,
+                /data\.disableMobileBackNavigation \?\?= false/,
+            )
+            assert.equal(
+                (
+                    managed.match(
+                        /DBState\.db\.enableHotkeys !== false/g,
+                    ) ?? []
+                ).length,
+                2,
+            )
+            assert.match(managed, /shouldIgnoreNavigationPointer\(/)
+            assert.match(managed, /get\(alertStore\)\.type/)
+            assert.match(managed, /pressingPointers\.clear\(\)/)
+            assert.match(managed, /let mobileGestureInitialized = false/)
+            assert.match(managed, /if\(mobileGestureInitialized\) return/)
+            assert.match(managed, /pointercancel/)
+            assert.match(managed, /if\(!start\) return/)
+            assert.match(managed, /export \{ hotkeyMatches \}/)
+            assert.doesNotMatch(managed, /toggleVoice.*remove|webcam.*remove/)
+        }
+
+        const managed181 = units181.map(unitText).join('\n')
+        const managed190 = units190.map(unitText).join('\n')
+        assert.match(managed181, /openModelPresetList/)
+        assert.doesNotMatch(managed190, /openModelPresetList/)
+        assert.match(
+            managed190,
+            /configureMobileBackNavigationGuard\(\{ ownsBeforeUnload: false \}\)/,
+        )
+        assert.match(
+            managed190,
+            /Prevent Back Navigation on Mobile/,
+        )
+        assert.match(
+            managed190,
+            /same-page history guard/,
+        )
+        assert.match(
+            managed190,
+            /built-in page-exit confirmation remains unchanged/,
+        )
+        assert.doesNotMatch(
+            managed181,
+            /built-in page-exit confirmation remains unchanged/,
+        )
     }
 })
 
 test('K16 bootstrap ordering follows startup-cache or lazy replacement', () => {
     const baseBootstrap = base.units.filter((unit) =>
-        unit.file === 'src/ts/bootstrap.ts',
+        unit.file === 'src/ts/bootstrap.ts'
+        && unit.targetVersions?.pocketrisu?.includes('1.8.1'),
     )
     const lazyBootstrap = lazy.units.filter((unit) =>
-        unit.file === 'src/ts/bootstrap.ts',
+        unit.file === 'src/ts/bootstrap.ts'
+        && unit.targetVersions?.pocketrisu?.includes('1.8.1'),
     )
     assert.equal(baseBootstrap.length, 2)
     assert.equal(lazyBootstrap.length, 2)
@@ -195,6 +249,26 @@ test('K16 bootstrap ordering follows startup-cache or lazy replacement', () => {
         assert.deepEqual(unit.after, ['startup-cache:bootstrap'])
     }
     for (const unit of lazyBootstrap) {
+        assert.deepEqual(unit.after, [
+            'lazy-chat-sync:replace:src:ts:bootstrap-ts',
+            'lazy-chat-sync:replace:src:ts:bootstrap-ts:1.9',
+        ])
+    }
+
+    const baseBootstrap190 = base.units.filter((unit) =>
+        unit.file === 'src/ts/bootstrap.ts'
+        && unit.targetVersions?.pocketrisu?.includes('1.9.0')
+    )
+    const lazyBootstrap190 = lazy.units.filter((unit) =>
+        unit.file === 'src/ts/bootstrap.ts'
+        && unit.targetVersions?.pocketrisu?.includes('1.9.0')
+    )
+    assert.equal(baseBootstrap190.length, 2)
+    assert.equal(lazyBootstrap190.length, 2)
+    for (const unit of baseBootstrap190) {
+        assert.deepEqual(unit.after, ['startup-cache:bootstrap'])
+    }
+    for (const unit of lazyBootstrap190) {
         assert.deepEqual(unit.after, [
             'lazy-chat-sync:replace:src:ts:bootstrap-ts',
             'lazy-chat-sync:replace:src:ts:bootstrap-ts:1.9',

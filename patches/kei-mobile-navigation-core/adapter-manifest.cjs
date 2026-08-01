@@ -1,5 +1,8 @@
 'use strict'
 
+const pocketRisu181 = { pocketrisu: ['1.8.1'] }
+const pocketRisu190 = { pocketrisu: ['1.9.0'] }
+
 function createMobileNavigationAdapterManifest({
     id,
     title,
@@ -16,29 +19,7 @@ function createMobileNavigationAdapterManifest({
         ]
         : ['startup-cache:bootstrap']
 
-    return {
-        id,
-        title,
-        version: '0.1.0',
-        userSelectable: false,
-        requires: lazyChat
-            ? ['kei-mobile-navigation-core', 'lazy-chat-sync']
-            : ['kei-mobile-navigation-core'],
-        conflicts: lazyChat
-            ? ['kei-mobile-navigation-base-adapter']
-            : [
-                'lazy-chat-sync',
-                'kei-mobile-navigation-lazy-adapter',
-            ],
-        autoWhen: lazyChat
-            ? {
-                all: ['kei-mobile-navigation-core', 'lazy-chat-sync'],
-            }
-            : {
-                all: ['kei-mobile-navigation-core'],
-                none: ['lazy-chat-sync'],
-            },
-        units: [
+    const units181 = [
             {
                 id: `${prefix}main-import`,
                 file: 'src/main.ts',
@@ -891,6 +872,151 @@ import { syncMobileBackNavigationGuard } from "./mobileBackNavigation";
 `,
                 anchorPolicy: 'first',
             },
+        ]
+
+    const bySuffix = (suffix) => units181.find((unit) =>
+        unit.id === `${prefix}${suffix}`
+    )
+    const adjacentCharacter190 = {
+        ...bySuffix('hotkey-adjacent-character'),
+        anchor: `                case 'prevChar':{
+                    const sorted = database.characters.map((v, i) => {
+                        return {name: v.name, i}
+                    }).sort((a, b) => a.name.localeCompare(b.name))
+                    const currentIndex = sorted.findIndex(v => v.i === get(selectedCharID))
+                    if(currentIndex <= 0){
+                        return
+                    }
+                    selectedCharID.set(sorted[currentIndex - 1].i)
+                    PlaygroundStore.set(0)
+                    OpenRealmStore.set(false)
+                    break
+                }
+                case 'nextChar':{
+                    const sorted = database.characters.map((v, i) => {
+                        return {name: v.name, i}
+                    }).sort((a, b) => a.name.localeCompare(b.name))
+                    const currentIndex = sorted.findIndex(v => v.i === get(selectedCharID))
+                    if(currentIndex >= sorted.length - 1){
+                        return
+                    }
+                    // currentIndex === -1 (nothing selected) intentionally falls through
+                    // to sorted[0], matching the previous behaviour.
+                    selectedCharID.set(sorted[currentIndex + 1].i)
+                    PlaygroundStore.set(0)
+                    OpenRealmStore.set(false)
+                    break
+                }
+`,
+    }
+    const bootstrapImports190 = {
+        ...bySuffix('bootstrap-imports'),
+        managed: `/* ${marker('bootstrap-imports')} */
+import { initHotkey, initMobileGesture } from "./hotkey";
+import {
+    configureMobileBackNavigationGuard,
+    syncMobileBackNavigationGuard,
+} from "./mobileBackNavigation";
+`,
+    }
+    const bootstrapInitialize190 = {
+        ...bySuffix('bootstrap-initialize'),
+        managed: `            updateGuisize()
+            /* ${marker('bootstrap-initialize')} */
+            initHotkey()
+            configureMobileBackNavigationGuard({ ownsBeforeUnload: false })
+            syncMobileBackNavigationGuard(db.disableMobileBackNavigation)
+            if (!db.didFirstSetup) {
+`,
+    }
+    const languageEnMobileBack190 = {
+        ...bySuffix('language-en-mobile-back'),
+        content: `    disableMobileBackNavigation: "Prevent Back Navigation on Mobile",
+`,
+    }
+    const languageKoMobileBack190 = {
+        ...bySuffix('language-ko-mobile-back'),
+        content: `  disableMobileBackNavigation: "모바일에서 뒤로 가기 방지",
+`,
+    }
+    const helpEnMobileBack190 = {
+        ...bySuffix('help-en-mobile-back'),
+        content: `        disableMobileBackNavigation: "Adds a same-page history guard against accidental mobile back navigation. PocketRisu's built-in page-exit confirmation remains unchanged.",
+`,
+    }
+    const helpKoMobileBack190 = {
+        ...bySuffix('help-ko-mobile-back'),
+        content: `        "disableMobileBackNavigation": "모바일에서 실수로 뒤로 가지 않도록 같은 페이지의 방문 기록 보호를 추가합니다. PocketRisu의 기본 페이지 이탈 확인은 그대로 유지됩니다.",
+`,
+    }
+    const replaced190 = new Set([
+        `${prefix}hotkey-store-imports`,
+        `${prefix}hotkey-model-select`,
+        `${prefix}hotkey-adjacent-character`,
+        `${prefix}bootstrap-imports`,
+        `${prefix}bootstrap-initialize`,
+        `${prefix}language-en-mobile-back`,
+        `${prefix}language-ko-mobile-back`,
+        `${prefix}help-en-mobile-back`,
+        `${prefix}help-ko-mobile-back`,
+    ])
+    const units190Source = [
+        ...units181.filter((unit) => !replaced190.has(unit.id)),
+        adjacentCharacter190,
+        bootstrapImports190,
+        bootstrapInitialize190,
+        languageEnMobileBack190,
+        languageKoMobileBack190,
+        helpEnMobileBack190,
+        helpKoMobileBack190,
+    ]
+    const units190Ids = new Set(units190Source.map((unit) => unit.id))
+    const units190 = units190Source.map((unit) => ({
+        ...unit,
+        id: `${unit.id}:1.9`,
+        requires: unit.requires?.map((required) =>
+            units190Ids.has(required) ? `${required}:1.9` : required
+        ),
+        after: unit.after?.map((predecessor) =>
+            units190Ids.has(predecessor) ? `${predecessor}:1.9` : predecessor
+        ),
+        targetVersions: pocketRisu190,
+    }))
+
+    return {
+        id,
+        title,
+        version: '0.2.0',
+        userSelectable: false,
+        targets: {
+            pocketrisu: {
+                verified: ['1.8.1', '1.9.0'],
+                reviewing: [],
+            },
+        },
+        requires: lazyChat
+            ? ['kei-mobile-navigation-core', 'lazy-chat-sync']
+            : ['kei-mobile-navigation-core'],
+        conflicts: lazyChat
+            ? ['kei-mobile-navigation-base-adapter']
+            : [
+                'lazy-chat-sync',
+                'kei-mobile-navigation-lazy-adapter',
+            ],
+        autoWhen: lazyChat
+            ? {
+                all: ['kei-mobile-navigation-core', 'lazy-chat-sync'],
+            }
+            : {
+                all: ['kei-mobile-navigation-core'],
+                none: ['lazy-chat-sync'],
+            },
+        units: [
+            ...units181.map((unit) => ({
+                ...unit,
+                targetVersions: pocketRisu181,
+            })),
+            ...units190,
         ],
     }
 }

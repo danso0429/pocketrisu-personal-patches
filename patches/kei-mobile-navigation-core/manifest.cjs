@@ -10,8 +10,14 @@ const owned = (relative) =>
 module.exports = {
     id: 'kei-mobile-navigation-core',
     title: 'PocketRisu Kei mobile navigation core',
-    version: '0.1.0',
+    version: '0.2.0',
     userSelectable: false,
+    targets: {
+        pocketrisu: {
+            verified: ['1.8.1', '1.9.0'],
+            reviewing: [],
+        },
+    },
     units: [
         {
             id: 'kei-mobile-navigation-core:hotkey-navigation',
