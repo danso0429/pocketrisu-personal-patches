@@ -195,7 +195,8 @@ separate staged K12 worktree. `lazy-chat-sync` and combined
 table, target-scoped `bg-preserve`, and combined lazy/BG adapter qualification
 and the K19 native AssetViewer accessibility delta are also complete. K13's
 unchanged replayable SSE core and dual graph adapters are qualified on exact
-1.9.0. The exact next executable work is K14 streaming render stability.
+1.9.0, and K14 is qualified as a focused delta over native streaming render
+optimization. The exact next executable work is K16 navigation/hotkeys.
 Follow
 `docs/POCKETRISU-1.9-SESSION-HANDOFF.md` and
 `docs/POCKETRISU-1.9-REBASE-AUDIT.md` in this order:

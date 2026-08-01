@@ -23,6 +23,14 @@ test('K14 keeps its pure core and graph-specific adapters internal', () => {
     assert.equal(core.userSelectable, false)
     assert.equal(base.userSelectable, false)
     assert.equal(bg.userSelectable, false)
+    for (const pack of [core, base, bg]) {
+        assert.deepEqual(pack.targets, {
+            pocketrisu: {
+                verified: ['1.8.1', '1.9.0'],
+                reviewing: [],
+            },
+        })
+    }
     assert.deepEqual(base.autoWhen, {
         all: ['kei-chat-render-core'],
         none: ['bg-preserve'],
@@ -124,9 +132,47 @@ test('K14 updates mounted props and defers translation only for active streaming
     }
 })
 
+test('K14 reuses the native 1.9 streaming renderer and adds only missing guarantees', () => {
+    for (const adapter of [base, bg]) {
+        const units181 = adapter.units.filter((unit) =>
+            unit.targetVersions?.pocketrisu?.includes('1.8.1')
+        )
+        const units190 = adapter.units.filter((unit) =>
+            unit.targetVersions?.pocketrisu?.includes('1.9.0')
+        )
+        assert.equal(units181.length, 20)
+        assert.equal(units190.length, 16)
+        assert.equal(
+            adapter.units.every((unit) =>
+                unit.targetVersions?.pocketrisu?.length === 1
+            ),
+            true,
+        )
+
+        const managed = units190.map(unitText).join('\n')
+        assert.match(managed, /isActiveStreamingMessage/)
+        assert.match(managed, /generationActive/)
+        assert.match(managed, /hashReloadPointer/)
+        assert.match(managed, /updateStreamingDisplay/)
+        assert.match(managed, /messageGenerationInfo: message\.generationInfo/)
+        assert.match(managed, /message = state\.rawStreamingText/)
+        assert.match(managed, /getChatBodyReloadPointer/)
+        assert.match(managed, /!streamingDisplay && DBState\.db\.autoTranslate/)
+        assert.doesNotMatch(managed, /const props = \$state<ChatMountProps>/)
+        assert.doesNotMatch(managed, /type ChatMountEntry/)
+        assert.doesNotMatch(managed, /mount\(Chat/)
+    }
+})
+
 test('K14 bg adapter explicitly follows existing Chat ownership without touching delivery', () => {
-    const chatUnits = bg.units.filter((unit) =>
-        unit.file === 'src/lib/ChatScreens/Chat.svelte',
+    const units181 = bg.units.filter((unit) =>
+        unit.targetVersions?.pocketrisu?.includes('1.8.1')
+    )
+    const units190 = bg.units.filter((unit) =>
+        unit.targetVersions?.pocketrisu?.includes('1.9.0')
+    )
+    const chatUnits = units181.filter((unit) =>
+        unit.file === 'src/lib/ChatScreens/Chat.svelte'
     )
     assert.equal(chatUnits.length, 5)
     for (const unit of chatUnits) {
@@ -137,7 +183,7 @@ test('K14 bg adapter explicitly follows existing Chat ownership without touching
             'bg-preserve:hook:chat-themed-risu-control-touch-events',
         ])
     }
-    const defaultChatUnit = bg.units.find((unit) =>
+    const defaultChatUnit = units181.find((unit) =>
         unit.file === 'src/lib/ChatScreens/DefaultChatScreen.svelte',
     )
     assert.ok(defaultChatUnit)
@@ -148,6 +194,24 @@ test('K14 bg adapter explicitly follows existing Chat ownership without touching
         ),
         true,
     )
+
+    const chatUnits190 = units190.filter((unit) =>
+        unit.file === 'src/lib/ChatScreens/Chat.svelte'
+    )
+    assert.equal(chatUnits190.length, 4)
+    for (const unit of chatUnits190) {
+        assert.deepEqual(unit.after, [
+            'bg-preserve:hook:chat-risu-control-touch-import',
+            'bg-preserve:hook:chat-risu-control-touch-bridge',
+            'bg-preserve:hook:chat-standard-risu-control-touch-events',
+            'bg-preserve:hook:chat-themed-risu-control-touch-events',
+        ])
+    }
+    const defaultChatUnit190 = units190.find((unit) =>
+        unit.file === 'src/lib/ChatScreens/DefaultChatScreen.svelte'
+    )
+    assert.ok(defaultChatUnit190)
+    assert.equal(defaultChatUnit190.after.length, 15)
 })
 
 test('K14 adapter payloads participate in ETags and retain pinned attribution', () => {

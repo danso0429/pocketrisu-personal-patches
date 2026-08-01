@@ -7,9 +7,9 @@
 > **Exact target:** official PocketRisu `v1.9.0` /
 > `85a65f3137b45c8de4a8d21a9887be213b1ac3fc`
 >
-> **Immediate next feature:** adapt K14 streaming render stability to native
-> 1.9 rendering. The BG/lazy owner graph, K19 native AssetViewer delta, and
-> K13 robust SSE parser are qualified; K12 remains last.
+> **Immediate next feature:** adapt K16 navigation, hotkeys, pointer cleanup,
+> and opt-in mobile Back behavior. The BG/lazy owner graph and K19, K13, K14
+> Kei children are qualified; K12 remains last.
 
 This document records the complete local work boundary from the beginning of
 the Kei selection effort through the 1.9 pivot and live-update preparation.
