@@ -74,7 +74,7 @@ It is a review surface, not proof of a semantic conflict.
 | `startup-cache` | 6 | 4 | Qualified on exact 1.9.0; conditional startup-cache delta retained |
 | `preset-integrity` | 3 | 1 | All six anchors exact; active `-1` preset policy conflicts with new ID helper |
 | `persona-organizer` | 11 | 5 | Refused at the server gallery-assets anchor |
-| `character-organizer` | 5 | 1 | Planned structurally; semantic review required |
+| `character-organizer` | 5 | 1 | Qualified on exact 1.9.0; native drag/file-drop and AssetViewer behavior preserved |
 | `character-import-ux` | 10 | 2 | Refused at the snapshot/import guard anchor |
 | `personal-settings` | 12 | 4 | Planned structurally; semantic review required |
 | `parser-hardening` | 9 | 1 | Qualified on exact 1.9.0; parser-only delta retained |
@@ -240,6 +240,10 @@ Only observed results may move 1.9.0 from `reviewing` to `verified`.
   parser defects, focused parser suite, full toolchain combination, and both
   exact round trips are recorded in
   `docs/POCKETRISU-1.9-PARSER-HARDENING-VALIDATION.md`.
+- `character-organizer`: qualified for exact 1.9.0. Its retained organizer
+  outcome, native drag/file-drop and AssetViewer preservation, focused target
+  gates, and exact round trip are recorded in
+  `docs/POCKETRISU-1.9-CHARACTER-ORGANIZER-VALIDATION.md`.
 - Other pack requalification and every later executable step remain pending.
 
 ## Post-audit operational handoff

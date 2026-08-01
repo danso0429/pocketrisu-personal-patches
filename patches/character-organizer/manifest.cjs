@@ -11,6 +11,12 @@ module.exports = {
     id: 'character-organizer',
     title: 'Character organizer',
     version: '0.1.0',
+    targets: {
+        pocketrisu: {
+            verified: ['1.8.1', '1.9.0'],
+            reviewing: [],
+        },
+    },
     userSelectable: true,
     presetDefaults: ['features'],
     units: [

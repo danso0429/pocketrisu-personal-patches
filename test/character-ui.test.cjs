@@ -40,6 +40,16 @@ test('character organizer is an independent hamburger capability', () => {
     )
 })
 
+test('character organizer is qualified only for reviewed exact PocketRisu targets', () => {
+    assert.deepEqual(manifest.targets, {
+        pocketrisu: {
+            verified: ['1.8.1', '1.9.0'],
+            reviewing: [],
+        },
+    })
+    assert.equal(manifest.targets.pocketrisu.verified.includes('1.9.1'), false)
+})
+
 test('character and folder arrangement uses a paginated four-by-four non-drag grid', () => {
     assert.match(screen, /const PAGE_SIZE = 16/)
     assert.match(screen, /displayItems\.slice\(pageIndex \* PAGE_SIZE, \(pageIndex \+ 1\) \* PAGE_SIZE\)/)
