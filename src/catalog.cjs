@@ -82,6 +82,9 @@ function loadCatalog(repositoryRoot = path.resolve(__dirname, '..')) {
         require(path.join(repositoryRoot, 'patches/kei-fullscreen-image-viewer-core/manifest.cjs')),
         require(path.join(repositoryRoot, 'patches/kei-prompt-role-compat-core/manifest.cjs')),
         require(path.join(repositoryRoot, 'patches/kei-text-theme-normalization-core/manifest.cjs')),
+        require(path.join(repositoryRoot, 'patches/kei-backup-restore-safety-core/manifest.cjs')),
+        require(path.join(repositoryRoot, 'patches/kei-backup-restore-safety-standard-adapter/manifest.cjs')),
+        require(path.join(repositoryRoot, 'patches/kei-backup-restore-safety-lazy-adapter/manifest.cjs')),
         require(path.join(repositoryRoot, 'patches/pocketrisu-kei/manifest.cjs')),
     ].map((pack) => ({
         targets: DEFAULT_TARGETS,

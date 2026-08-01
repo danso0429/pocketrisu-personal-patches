@@ -9,7 +9,7 @@ const { resolveSelection } = require('../src/resolver.cjs')
 
 test('PocketRisu Kei remains a unit-free universal-only meta pack', () => {
     assert.equal(manifest.id, 'pocketrisu-kei')
-    assert.equal(manifest.version, '0.11.0')
+    assert.equal(manifest.version, '0.12.0')
     assert.equal(manifest.userSelectable, true)
     assert.deepEqual(manifest.targets, {
         pocketrisu: {
@@ -27,6 +27,7 @@ test('PocketRisu Kei remains a unit-free universal-only meta pack', () => {
         'kei-translation-tools-core',
         'kei-prompt-role-compat-core',
         'kei-text-theme-normalization-core',
+        'kei-backup-restore-safety-core',
     ])
     assert.deepEqual(manifest.units, [])
     assert.equal(Object.hasOwn(manifest, 'presetDefaults'), false)
@@ -40,6 +41,8 @@ test('PocketRisu Kei remains a unit-free universal-only meta pack', () => {
 
     const resolution = resolveSelection(catalog, [manifest.id])
     assert.deepEqual(resolution.resolvedIds, [
+        'kei-backup-restore-safety-core',
+        'kei-backup-restore-safety-standard-adapter',
         'kei-chat-render-base-adapter',
         'kei-chat-render-core',
         'kei-fullscreen-image-viewer-core',
@@ -58,6 +61,7 @@ test('PocketRisu Kei remains a unit-free universal-only meta pack', () => {
         manifest.id,
     ])
     assert.deepEqual(resolution.dependencyAdded, [
+        'kei-backup-restore-safety-core',
         'kei-chat-render-core',
         'kei-fullscreen-image-viewer-core',
         'kei-hypa-tools-core',
@@ -69,6 +73,7 @@ test('PocketRisu Kei remains a unit-free universal-only meta pack', () => {
         'kei-translation-tools-core',
     ])
     assert.deepEqual(resolution.autoAdded, [
+        'kei-backup-restore-safety-standard-adapter',
         'kei-chat-render-base-adapter',
         'kei-hypa-tools-base-adapter',
         'kei-mobile-navigation-base-adapter',
@@ -99,6 +104,8 @@ test('PocketRisu Kei can require hidden children without exposing them directly'
 
     const resolution = resolveSelection(futureCatalog, [manifest.id])
     assert.deepEqual(resolution.resolvedIds, [
+        'kei-backup-restore-safety-core',
+        'kei-backup-restore-safety-standard-adapter',
         'kei-chat-render-base-adapter',
         'kei-chat-render-core',
         child.id,
@@ -118,6 +125,7 @@ test('PocketRisu Kei can require hidden children without exposing them directly'
         manifest.id,
     ])
     assert.deepEqual(resolution.dependencyAdded, [
+        'kei-backup-restore-safety-core',
         'kei-chat-render-core',
         child.id,
         'kei-fullscreen-image-viewer-core',
@@ -141,6 +149,9 @@ test('PocketRisu Kei adds only its child units to every existing unit graph', ()
         .filter((pack) => pack.userSelectable !== false && pack.id !== manifest.id)
         .map((pack) => pack.id)
     const keiPackIds = new Set([
+        'kei-backup-restore-safety-core',
+        'kei-backup-restore-safety-standard-adapter',
+        'kei-backup-restore-safety-lazy-adapter',
         'kei-chat-render-core',
         'kei-chat-render-base-adapter',
         'kei-chat-render-bg-adapter',
