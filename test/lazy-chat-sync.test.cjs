@@ -16,9 +16,22 @@ function payload(relative) {
     )
 }
 
+function payload190(relative) {
+    return fs.readFileSync(
+        path.join(repositoryRoot, 'patches/lazy-chat-sync/files-1.9', relative),
+        'utf8',
+    )
+}
+
 test('lazy chat pack includes CAS, WAL, reconciliation, and safe hydration boundaries', () => {
     assert.equal(lazyManifest.id, 'lazy-chat-sync')
-    assert.equal(lazyManifest.version, '0.1.6')
+    assert.equal(lazyManifest.version, '0.2.0')
+    assert.deepEqual(lazyManifest.targets, {
+        pocketrisu: {
+            verified: ['1.8.1', '1.9.0'],
+            reviewing: [],
+        },
+    })
     assert.match(payload('server/node/server.cjs'), /chatWriteJournal/)
     assert.match(payload('server/node/server.cjs'), /\/api\/chat-content\/:chaId\/:chatIndex\/patch/)
     assert.match(payload('server/node/server.cjs'), /validateStrippedDatabaseTransition/)
@@ -27,6 +40,10 @@ test('lazy chat pack includes CAS, WAL, reconciliation, and safe hydration bound
     assert.match(payload('server/node/chatWriteJournal.cjs'), /DEFAULT_MAX_AWAITING_RECORDS = 128/)
     assert.match(payload('src/ts/storage/nodeStorage.ts'), /x-chat-base-revision/)
     assert.match(payload('src/ts/storage/nodeStorage.ts'), /ChatSaveIntent/)
+    assert.match(
+        payload('src/ts/storage/chatStorage.ts'),
+        /intent: ChatSaveIntent = 'update'/,
+    )
     assert.match(payload('src/ts/globalApi.svelte.ts'), /classifyChatSaveIntent/)
     assert.match(payload('src/ts/globalApi.svelte.ts'), /assignMissingChatIdsToNewCharacters/)
     const importedCharacterSave = payload('src/ts/globalApi.svelte.ts').slice(
@@ -59,6 +76,59 @@ test('lazy chat pack includes CAS, WAL, reconciliation, and safe hydration bound
     )
     assert.ok(missingPayloadNotice)
     assert.match(missingPayloadNotice.content, /Your draft was kept/)
+})
+
+test('PocketRisu 1.9 replacements retain native runtime owners and lazy-chat contracts', () => {
+    const server = payload190('server/node/server.cjs')
+    const bootstrap = payload190('src/ts/bootstrap.ts')
+    const globalApi = payload190('src/ts/globalApi.svelte.ts')
+    const pluginApi = payload190('src/ts/plugins/apiV3/v3.svelte.ts')
+    const autoStorage = payload190('src/ts/storage/autoStorage.ts')
+    const chatStorage = payload190('src/ts/storage/chatStorage.ts')
+    const nodeStorage = payload190('src/ts/storage/nodeStorage.ts')
+
+    assert.match(server, /normalizeForwardHeaders/)
+    assert.match(server, /chatWriteJournal/)
+    assert.match(server, /buildSettingsOnlyPlan/)
+    assert.match(server, /kvDelPrefix\('coldstorage\/'\)/)
+    assert.match(server, /kvDelPrefix\(CHAT_WRITE_JOURNAL_PREFIX\)/)
+    assert.match(bootstrap, /initModelJobRecovery\(\)/)
+    assert.match(bootstrap, /loadDatabaseForStartup\(\)/)
+    assert.match(globalApi, /createRequestLogScope/)
+    assert.match(globalApi, /mergeThreeWayValue/)
+    assert.match(pluginApi, /endAllGenerations\(\)/)
+    assert.match(pluginApi, /getCurrentCharacterForPlugin/)
+    assert.match(pluginApi, /content: string \| ReadableStream<string>/)
+    assert.match(autoStorage, /settingsBackupEstimate/)
+    assert.match(autoStorage, /getWriterLockState/)
+    assert.match(chatStorage, /full\.isStreaming = false/)
+    assert.match(chatStorage, /intent: ChatSaveIntent = 'update'/)
+    assert.match(nodeStorage, /x-user-active/)
+    assert.match(nodeStorage, /settingsBackupEstimate/)
+    assert.match(nodeStorage, /x-chat-base-revision/)
+
+    const versioned = lazyManifest.units.filter((unit) =>
+        unit.targetVersions && [
+            'server/node/server.cjs',
+            'src/ts/bootstrap.ts',
+            'src/ts/globalApi.svelte.ts',
+            'src/ts/plugins/apiV3/v3.svelte.ts',
+            'src/ts/storage/autoStorage.ts',
+            'src/ts/storage/chatStorage.ts',
+            'src/ts/storage/nodeStorage.ts',
+        ].includes(unit.file)
+    )
+    assert.equal(versioned.length, 14)
+    for (const file of new Set(versioned.map((unit) => unit.file))) {
+        const variants = versioned.filter((unit) => unit.file === file)
+        assert.deepEqual(
+            variants.map((unit) => unit.targetVersions),
+            [
+                { pocketrisu: ['1.8.1'] },
+                { pocketrisu: ['1.9.0'] },
+            ],
+        )
+    }
 })
 
 test('startup probe accepts either valid browser cache without joining stalled backends', () => {

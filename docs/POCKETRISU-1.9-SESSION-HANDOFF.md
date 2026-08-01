@@ -7,8 +7,9 @@
 > **Exact target:** official PocketRisu `v1.9.0` /
 > `85a65f3137b45c8de4a8d21a9887be213b1ac3fc`
 >
-> **Immediate next feature:** `lazy-chat-sync` 1.9 rebase, then combined
-> `character-import-ux` qualification. Do not resume with Kei or K12 first.
+> **Immediate next feature:** request-class generation-authority table, then
+> `bg-preserve` and `lazy-chat-bg-adapter` redesign. Do not resume with a Kei
+> child or K12 before that owner graph is usable.
 
 This document records the complete local work boundary from the beginning of
 the Kei selection effort through the 1.9 pivot and live-update preparation.
@@ -239,17 +240,18 @@ The exact-1.9 target boundary, `toolchain-hardening`, `startup-cache`,
 asset-only `bg-preserve-storage-base` adapter is also qualified without
 promoting its parent BG pack. `persona-organizer` is qualified with a
 target-scoped 1.9 server asset walker that preserves native embedded-module
-and settings-only export semantics. The local `character-import-ux` backup
-guard overlap is adapted, but its full graph still waits on `lazy-chat-sync`.
-Resume storage/import-owner rebase in this order:
+and settings-only export semantics. `lazy-chat-sync` and its dependent
+`character-import-ux` graph are now qualified with target-scoped full
+replacements, native 1.9 recovery/logging/lock/backup preservation, combined
+target gates, ordinary exact round trip, L2.5, and the exhaustive exact-1.8
+gate. Resume owner integration in this order:
 
-1. Rebase `lazy-chat-sync`, then return to combined `character-import-ux`
-   qualification. Preserve native 1.9 model jobs, boot recovery, request
-   logging, the session/writer lock, storage headers, and settings-only backup.
-2. Write and test the request-class ownership table before touching
+1. Write and test the request-class ownership table before touching
    `bg-preserve` or `lazy-chat-bg-adapter`. Assign exactly one owner for
    ordinary bg-eligible sends, client-only/programmatic sends, helpers, stream
    transport, terminal persistence/claim, cancellation, and boot recovery.
+2. Rebase `bg-preserve` and then its lazy adapter against that table without
+   weakening result/claim/ACK, cancellation, or no-resurrection contracts.
 3. Rebase K19, K13, K14, K16, K15, and K11 as separate focused commits. Remove
    only behavior proven equivalent in official 1.9; preserve missing outcomes
    and each existing owner contract.

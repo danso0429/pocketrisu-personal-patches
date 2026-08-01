@@ -5,20 +5,28 @@ const path = require('node:path')
 
 const anchorsRoot = path.join(__dirname, 'anchors')
 const filesRoot = path.join(__dirname, 'files')
+const anchors190Root = path.join(__dirname, 'anchors-1.9')
+const files190Root = path.join(__dirname, 'files-1.9')
 const read = (root, relative) => fs.readFileSync(path.join(root, relative), 'utf8')
 
-const replacedFiles = [
+const versionedReplacedFiles = [
     'server/node/server.cjs',
     'src/ts/bootstrap.ts',
     'src/ts/globalApi.svelte.ts',
     'src/ts/plugins/apiV3/v3.svelte.ts',
     'src/ts/storage/autoStorage.ts',
-    'src/ts/storage/chatStorage.test.ts',
     'src/ts/storage/chatStorage.ts',
     'src/ts/storage/nodeStorage.ts',
+]
+
+const unchangedReplacedFiles = [
+    'src/ts/storage/chatStorage.test.ts',
     'src/ts/storage/risuSave.ts',
     'src/ts/storage/risuSavePatcher.test.ts',
 ]
+
+const pocketRisu181 = { pocketrisu: ['1.8.1'] }
+const pocketRisu190 = { pocketrisu: ['1.9.0'] }
 
 const ownedFiles = [
     'server/node/chatDelta.cjs',
@@ -45,18 +53,42 @@ function unitId(relative) {
 module.exports = {
     id: 'lazy-chat-sync',
     title: 'Lazy chat synchronization and startup cache',
-    version: '0.1.6',
+    version: '0.2.0',
+    targets: {
+        pocketrisu: {
+            verified: ['1.8.1', '1.9.0'],
+            reviewing: [],
+        },
+    },
     userSelectable: true,
     presetDefaults: ['features'],
     supersedes: ['startup-cache'],
     units: [
-        ...replacedFiles.map((relative) => ({
+        ...unchangedReplacedFiles.map((relative) => ({
             id: `lazy-chat-sync:replace:${unitId(relative)}`,
             file: relative,
             type: 'replace',
             anchor: read(anchorsRoot, relative),
             managed: read(filesRoot, relative),
         })),
+        ...versionedReplacedFiles.flatMap((relative) => [
+            {
+                id: `lazy-chat-sync:replace:${unitId(relative)}`,
+                file: relative,
+                type: 'replace',
+                anchor: read(anchorsRoot, relative),
+                managed: read(filesRoot, relative),
+                targetVersions: pocketRisu181,
+            },
+            {
+                id: `lazy-chat-sync:replace:${unitId(relative)}:1.9`,
+                file: relative,
+                type: 'replace',
+                anchor: read(anchors190Root, relative),
+                managed: read(files190Root, relative),
+                targetVersions: pocketRisu190,
+            },
+        ]),
         ...ownedFiles.map((relative) => ({
             id: `lazy-chat-sync:owned:${unitId(relative)}`,
             file: relative,

@@ -17,6 +17,12 @@ const manifest = require('../patches/character-import-ux/manifest.cjs')
 test('character import UX is a separate lazy-chat-dependent feature pack', () => {
     assert.equal(manifest.id, 'character-import-ux')
     assert.equal(manifest.version, '0.1.2')
+    assert.deepEqual(manifest.targets, {
+        pocketrisu: {
+            verified: ['1.8.1', '1.9.0'],
+            reviewing: [],
+        },
+    })
     assert.equal(manifest.userSelectable, true)
     assert.deepEqual(manifest.presetDefaults, ['features'])
     assert.deepEqual(manifest.requires, ['lazy-chat-sync'])

@@ -34,7 +34,10 @@ module.exports = {
             managed: '/* BG-PRESERVE:START asset-upload-retry-import */\nimport { retryAssetUpload } from "./assetUploadRetry"\n/* BG-PRESERVE:END */\n',
             markerNeedle: 'asset-upload-retry-import',
             anchorPolicy: 'first',
-            requires: ['lazy-chat-sync:replace:src:ts:storage:nodeStorage-ts'],
+            after: [
+                'lazy-chat-sync:replace:src:ts:storage:nodeStorage-ts',
+                'lazy-chat-sync:replace:src:ts:storage:nodeStorage-ts:1.9',
+            ],
         },
         {
             id: 'lazy-chat-bg-adapter:adaptive-asset-upload-retry',
@@ -111,10 +114,13 @@ module.exports = {
             anchor: 'import { isHydrating, saveChatToServer, ensureChatHydrated, chatToStub, classifyChat, convertStubsToPlaceholders } from "./storage/chatStorage";\n',
             content: 'import { completeBgDurableSave } from "./bgDurableSaveBarrier";\n',
             requires: [
-                'lazy-chat-sync:replace:src:ts:globalApi-svelte-ts',
                 'bg-preserve:hook:globalapi-durable-save-api',
             ],
-            after: bgGlobalApiUnits,
+            after: [
+                ...bgGlobalApiUnits,
+                'lazy-chat-sync:replace:src:ts:globalApi-svelte-ts',
+                'lazy-chat-sync:replace:src:ts:globalApi-svelte-ts:1.9',
+            ],
         },
         {
             id: 'lazy-chat-bg-adapter:durable-flush',
@@ -127,11 +133,12 @@ module.exports = {
         )
 `,
             requires: [
-                'lazy-chat-sync:replace:src:ts:globalApi-svelte-ts',
                 'bg-preserve:hook:globalapi-durable-save-impl',
             ],
             after: [
                 ...bgGlobalApiUnits,
+                'lazy-chat-sync:replace:src:ts:globalApi-svelte-ts',
+                'lazy-chat-sync:replace:src:ts:globalApi-svelte-ts:1.9',
                 'lazy-chat-bg-adapter:global-import',
             ],
         },

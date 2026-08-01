@@ -69,13 +69,13 @@ It is a review surface, not proof of a semantic conflict.
 | --- | ---: | ---: | --- |
 | `bg-preserve` | 85 | 22 | Refused: changed/multiple anchors and duplicate generation authority |
 | `bg-preserve-storage-base` | 1 | 1 | Qualified on exact 1.9.0 as an asset-only conditional adapter; parent BG remains reviewing |
-| `lazy-chat-sync` | 27 | 9 | Refused: seven full-file replacement anchors changed |
+| `lazy-chat-sync` | 27 | 9 | Qualified with seven mutually exclusive 1.8/1.9 full replacements; native model-job, recovery, logging, lock, and backup behavior retained |
 | `lazy-chat-bg-adapter` | 4 | 2 | Four parent-dependent anchors unavailable until both owners are rebased |
 | `startup-cache` | 6 | 4 | Qualified on exact 1.9.0; conditional startup-cache delta retained |
 | `preset-integrity` | 3 | 1 | All six anchors exact; active `-1` preset policy conflicts with new ID helper |
 | `persona-organizer` | 11 | 5 | Qualified with a target-scoped 1.9 server asset walker; native embedded-module and settings-only semantics preserved |
 | `character-organizer` | 5 | 1 | Qualified on exact 1.9.0; native drag/file-drop and AssetViewer behavior preserved |
-| `character-import-ux` | 10 | 2 | Local 1.9 backup/snapshot anchor adapted; full qualification waits on `lazy-chat-sync` |
+| `character-import-ux` | 10 | 2 | Qualified with a version-neutral backup guard and the target-qualified lazy save parent |
 | `personal-settings` | 14 | 6 | Qualified on exact 1.9.0 with two 1.9-only native Settings Search units |
 | `parser-hardening` | 9 | 1 | Qualified on exact 1.9.0; parser-only delta retained |
 | `toolchain-hardening` | 3 | 1 | Qualified on exact 1.9.0; test setup and dependency-only delta retained |
@@ -86,17 +86,17 @@ as upstream collisions.
 
 ### Definite composition hotspots
 
-- `lazy-chat-sync` currently replaces `server.cjs`, bootstrap, global API,
-  API-v3, auto storage, chat storage, and node storage forms from 1.8.1. A
-  rebase must retain native model-job routes, boot recovery, request logging,
-  session/writer locking, and new storage headers.
+- `lazy-chat-sync` uses exact-target full replacements for `server.cjs`,
+  bootstrap, global API, API-v3, auto storage, chat storage, and node storage.
+  The qualified 1.9 forms retain native model-job routes, boot recovery,
+  request logging, session/writer locking, and new storage headers.
 - Native job recovery calls `saveChatToServer(chaId, index, chatId, chat)`.
-  The lazy owner requires an additional `ChatSaveIntent`; recovered-message
-  persistence therefore needs an explicit adapter rather than an omitted
-  argument or a permissive default.
+  The lazy owner defaults the omitted `ChatSaveIntent` to its existing
+  fail-closed `update` intent on both targets. Recovery can persist an
+  existing chat but cannot use the omission to recreate one.
 - `startup-cache` does not textually consume the new job-recovery bootstrap
-  call, but its full startup flow still needs combined hydration/recovery
-  ordering tests.
+  call. The qualified lazy integration retains both startup initializers, and
+  their cache, hydration, and native recovery tests pass in one target graph.
 - The new `setActiveBotPresetById(undefined)` deliberately stores `-1`.
   `preset-integrity` normalizes negative selection to `0`; the two policies
   cannot be composed by anchor success alone.
@@ -156,8 +156,10 @@ single owner for each request class:
 5. terminal result persistence and claim;
 6. cancel and boot recovery.
 
-Until that table is implemented and tested, `bg-preserve`, `lazy-chat-sync`,
-and their adapter are blocked from 1.9 qualification. The catalog's existing
+`lazy-chat-sync` is separately qualified as the chat storage/hydration owner;
+it adds no competing top-level generation transport or recovery authority.
+Until the table is implemented and tested, `bg-preserve` and the lazy/BG
+adapter remain blocked from 1.9 qualification. The catalog's existing
 whole-pipeline bg ownership is not silently transferred to native model jobs.
 
 ## Request-log and usage policy correction
@@ -260,10 +262,17 @@ Only observed results may move 1.9.0 from `reviewing` to `verified`.
   Dual-target planning, focused/full gates, exact round trips, the exhaustive
   1.8 combination result, and runtime audit are recorded in
   `docs/POCKETRISU-1.9-PERSONA-ORGANIZER-VALIDATION.md`.
-- `character-import-ux`: its local System Backup guard now composes on both
-  1.8 and 1.9 without coupling to the new settings-only backup import. The
-  complete 1.9 graph remains under review at the parent `lazy-chat-sync`
-  server replacement. The partial boundary is recorded in
+- `lazy-chat-sync`: qualified for exact 1.9.0 with seven target-scoped full
+  replacements. The three-way integrations preserve native model jobs,
+  recovery, request logging, locks, settings backup, and storage behavior
+  while retaining lazy hydration, CAS, journals, and save intent. Full and
+  focused target gates, ordinary exact round trip, the exhaustive 1.8 gate,
+  and runtime audit are recorded in
+  `docs/POCKETRISU-1.9-LAZY-CHAT-SYNC-VALIDATION.md`.
+- `character-import-ux`: qualified for exact 1.9.0 with a version-neutral
+  System Backup guard and the qualified lazy save parent. Its combined target
+  gates, exact round trip, runtime audit, and remaining iPhone scenario are
+  recorded in
   `docs/POCKETRISU-1.9-CHARACTER-IMPORT-UX-ADAPTER-VALIDATION.md`.
 - Other pack requalification and every later executable step remain pending.
 

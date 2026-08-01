@@ -11,6 +11,12 @@ module.exports = {
     id: 'character-import-ux',
     title: 'Non-blocking character import',
     version: '0.1.2',
+    targets: {
+        pocketrisu: {
+            verified: ['1.8.1', '1.9.0'],
+            reviewing: [],
+        },
+    },
     userSelectable: true,
     presetDefaults: ['features'],
     requires: ['lazy-chat-sync'],
@@ -58,7 +64,10 @@ module.exports = {
             requires: [
                 'character-import-ux:state',
                 'character-import-ux:charx-progress-callback',
+            ],
+            after: [
                 'lazy-chat-sync:replace:src:ts:globalApi-svelte-ts',
+                'lazy-chat-sync:replace:src:ts:globalApi-svelte-ts:1.9',
             ],
         },
         {

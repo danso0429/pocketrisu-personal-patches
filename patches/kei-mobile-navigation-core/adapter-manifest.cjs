@@ -10,7 +10,10 @@ function createMobileNavigationAdapterManifest({
     const marker = (name) =>
         `POCKETRISU-PATCH:kei-mobile-navigation:${adapter}:${name}`
     const bootstrapAfter = lazyChat
-        ? ['lazy-chat-sync:replace:src:ts:bootstrap-ts']
+        ? [
+            'lazy-chat-sync:replace:src:ts:bootstrap-ts',
+            'lazy-chat-sync:replace:src:ts:bootstrap-ts:1.9',
+        ]
         : ['startup-cache:bootstrap']
 
     return {

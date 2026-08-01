@@ -197,6 +197,7 @@ test('K16 bootstrap ordering follows startup-cache or lazy replacement', () => {
     for (const unit of lazyBootstrap) {
         assert.deepEqual(unit.after, [
             'lazy-chat-sync:replace:src:ts:bootstrap-ts',
+            'lazy-chat-sync:replace:src:ts:bootstrap-ts:1.9',
         ])
     }
 })
