@@ -466,6 +466,7 @@
             imageGallery: [],
             personaPrompt: "",
             note: "",
+            folderId: activeFolderId ?? undefined,
         })
         changeUserPersona(DBState.db.personas.length - 1)
         void requestImmediateSave()
@@ -473,7 +474,7 @@
 
     async function importPersonaFromDialog(): Promise<void> {
         addPersonaDialogOpen = false
-        await importUserPersona()
+        await importUserPersona(activeFolderId ?? undefined)
         void requestImmediateSave()
     }
 
@@ -872,7 +873,7 @@
             <TextAreaInput className="mt-2 mb-4" autocomplete="off" bind:value={DBState.db.personaPrompt} placeholder={`Put the description of this persona here.\nExample: [<user> is a 20 year old girl.]`} />
             <div class="flex gap-2 mt-4 max-w-full flex-wrap">
                 <Button onclick={openPersonaExportDialog}>{language.export}</Button>
-                <Button onclick={importUserPersona}>{language.import}</Button>
+                <Button onclick={() => importUserPersona()}>{language.import}</Button>
 
                 <Button styled="danger" onclick={async () => {
                     if (DBState.db.personas.length === 1) return

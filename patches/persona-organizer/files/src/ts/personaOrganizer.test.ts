@@ -4,9 +4,15 @@ import {
     applyPersonaDeletion,
     buildPersonaDeletionPlan,
     buildPersonaGroups,
+    filterPersonaPicker,
     flattenPersonaGroups,
     movePersonaWithinGroup,
+    PERSONA_PICKER_SCOPE_ALL,
+    PERSONA_PICKER_SCOPE_UNFILED,
+    personaPickerFolderIdFromScope,
+    personaPickerFolderScope,
     reorderPersonaList,
+    resolvePersonaFolderId,
     unfilePersonaFolder,
 } from "./personaOrganizer"
 
@@ -20,6 +26,61 @@ const folders: RisuPersonaFolder[] = [
 ]
 
 describe("persona organizer", () => {
+    it("searches picker names and notes case-insensitively while preserving original indices", () => {
+        const input = [
+            { ...persona("first"), name: "Alpha", note: "Quiet Scout" },
+            { ...persona("second"), name: "Beta", note: "LOUD MAGE" },
+            { ...persona("third"), name: "Gamma", note: "" },
+        ]
+        expect(filterPersonaPicker(input, folders, "  loud  ", PERSONA_PICKER_SCOPE_ALL))
+            .toMatchObject([{ persona: { id: "second" }, index: 1 }])
+        expect(filterPersonaPicker(input, folders, "ALP", PERSONA_PICKER_SCOPE_ALL))
+            .toMatchObject([{ persona: { id: "first" }, index: 0 }])
+        expect(filterPersonaPicker(input, folders, "   ", PERSONA_PICKER_SCOPE_ALL)
+            .map((entry) => entry.index)).toEqual([0, 1, 2])
+    })
+
+    it("filters valid folders without renumbering canonical persona indices", () => {
+        const input = [
+            persona("unfiled"),
+            persona("one-a", "f1"),
+            persona("two", "f2"),
+            persona("one-b", "f1"),
+        ]
+        expect(filterPersonaPicker(input, folders, "", personaPickerFolderScope("f1"))
+            .map((entry) => [entry.persona.id, entry.index])).toEqual([
+                ["one-a", 1],
+                ["one-b", 3],
+            ])
+        expect(filterPersonaPicker(input, folders, "", personaPickerFolderScope("f2"))
+            .map((entry) => entry.index)).toEqual([2])
+    })
+
+    it("treats absent and orphaned folder references as unfiled", () => {
+        const input = [persona("none"), persona("orphan", "missing"), persona("filed", "f1")]
+        expect(filterPersonaPicker(input, folders, "", PERSONA_PICKER_SCOPE_UNFILED)
+            .map((entry) => entry.persona.id)).toEqual(["none", "orphan"])
+    })
+
+    it("falls back to all for an invalid picker scope and never drops personas", () => {
+        const input = [persona("a"), persona("b", "f1"), persona("c", "missing")]
+        expect(filterPersonaPicker(input, folders, "", personaPickerFolderScope("deleted"))
+            .map((entry) => entry.index)).toEqual([0, 1, 2])
+        expect(filterPersonaPicker(input, folders, "", "legacy-untagged")
+            .map((entry) => entry.index)).toEqual([0, 1, 2])
+    })
+
+    it("resolves folder assignment only through a current canonical folder", () => {
+        expect(resolvePersonaFolderId(folders, "f1")).toBe("f1")
+        expect(resolvePersonaFolderId(folders, "missing")).toBeUndefined()
+        expect(resolvePersonaFolderId(folders, null)).toBeUndefined()
+        const colliding = [{ id: PERSONA_PICKER_SCOPE_ALL, name: "Sentinel-shaped" }]
+        const scope = personaPickerFolderScope(PERSONA_PICKER_SCOPE_ALL)
+        expect(scope).toBe("folder:scope:all")
+        expect(personaPickerFolderIdFromScope(colliding, scope)).toBe(PERSONA_PICKER_SCOPE_ALL)
+        expect(personaPickerFolderIdFromScope(colliding, PERSONA_PICKER_SCOPE_ALL)).toBeUndefined()
+    })
+
     it("groups invalid folder references as unfiled without dropping personas", () => {
         const input = [persona("a"), persona("b", "missing"), persona("c", "f1")]
         const groups = buildPersonaGroups(input, folders)

@@ -8,13 +8,24 @@ const replacementPath = path.join(
     'files/src/lib/Setting/Pages/PersonaSettings.svelte',
 )
 const originalPath = path.join(__dirname, 'anchors/PersonaSettings.svelte')
+const pickerReplacementPath = path.join(
+    __dirname,
+    'files/src/lib/Setting/listedPersona.svelte',
+)
+const pickerOriginalPath = path.join(__dirname, 'anchors/listedPersona.svelte')
+const pickerOriginal = fs.readFileSync(pickerOriginalPath, 'utf8')
+    .replace(
+        'import { language } from "../../lang";\n\n',
+        'import { language } from "../../lang";\n    \n',
+    )
+    .replace(/\n$/, '')
 const pocketRisu181 = { pocketrisu: ['1.8.1'] }
 const pocketRisu190 = { pocketrisu: ['1.9.0'] }
 
 module.exports = {
     id: 'persona-organizer',
     title: 'Persona organizer',
-    version: '0.10.0',
+    version: '0.11.0',
     targets: {
         pocketrisu: {
             verified: ['1.8.1', '1.9.0'],
@@ -156,7 +167,9 @@ module.exports = {
             type: 'insert',
             where: 'after',
             anchor: 'import { v4 } from "uuid"\n',
-            content: 'import { normalizePersonaImageGallery } from "./personaImages"\n',
+            content: `import { normalizePersonaImageGallery } from "./personaImages"
+import { resolvePersonaFolderId } from "./personaOrganizer"
+`,
         },
         {
             id: 'persona-organizer:single-image-gallery-sync',
@@ -191,6 +204,92 @@ module.exports = {
             where: 'after',
             anchor: '    const pr = db.personas[id]\n',
             content: '    normalizePersonaImageGallery(pr)\n',
+            requires: ['persona-organizer:persona-helper-import'],
+        },
+        {
+            id: 'persona-organizer:import-folder-preservation',
+            file: 'src/ts/persona.ts',
+            type: 'replace',
+            anchor: `export async function importUserPersona() {
+    try {
+        const v = await selectSingleFile(['png'])
+        if (!v) {
+            return
+        }
+        const readGenerator = PngChunk.readGenerator(v.data)
+        let decoded: string | undefined;
+
+        for await (const chunk of readGenerator) {
+            if (chunk && !(chunk instanceof AppendableBuffer) && chunk.key === 'persona') {
+                decoded = chunk.value
+                break
+            }
+        }
+
+        if (!decoded) {
+            alertError(language.errors.noData)
+            return
+        }
+        const data: PersonaCard = JSON.parse(Buffer.from(decoded, 'base64').toString('utf-8'))
+        if (data.name && data.personaPrompt) {
+            let db = getDatabase()
+            db.personas.push({
+                name: data.name,
+                icon: await saveImage(await reencodeImage(v.data)),
+                personaPrompt: data.personaPrompt,
+                note: data.note,
+                id: v4()
+            })
+            notifySuccess(language.successImport)
+        } else {
+            alertError(language.errors.noData)
+        }
+    } catch (error) {
+        alertError(error)
+        return
+    }
+}`,
+            content: `export async function importUserPersona(folderId?: string) {
+    try {
+        const v = await selectSingleFile(['png'])
+        if (!v) return null
+        const readGenerator = PngChunk.readGenerator(v.data)
+        let decoded: string | undefined
+
+        for await (const chunk of readGenerator) {
+            if (chunk && !(chunk instanceof AppendableBuffer) && chunk.key === 'persona') {
+                decoded = chunk.value
+                break
+            }
+        }
+
+        if (!decoded) {
+            alertError(language.errors.noData)
+            return null
+        }
+        const data: PersonaCard = JSON.parse(Buffer.from(decoded, 'base64').toString('utf-8'))
+        if (!data.name || !data.personaPrompt) {
+            alertError(language.errors.noData)
+            return null
+        }
+
+        const icon = await saveImage(await reencodeImage(v.data))
+        const db = getDatabase()
+        const importedIndex = db.personas.push({
+            name: data.name,
+            icon,
+            personaPrompt: data.personaPrompt,
+            note: data.note,
+            id: v4(),
+            folderId: resolvePersonaFolderId(db.personaFolders ?? [], folderId),
+        }) - 1
+        notifySuccess(language.successImport)
+        return importedIndex
+    } catch (error) {
+        alertError(error)
+        return null
+    }
+}`,
             requires: ['persona-organizer:persona-helper-import'],
         },
         {
@@ -362,12 +461,25 @@ module.exports = {
 `,
         },
         {
+            id: 'persona-organizer:picker-page',
+            file: 'src/lib/Setting/listedPersona.svelte',
+            type: 'replace',
+            anchor: pickerOriginal,
+            managed: fs.readFileSync(pickerReplacementPath, 'utf8'),
+            markerNeedle: 'POCKETRISU-PATCH:persona-organizer-picker:START',
+            requires: [
+                'persona-organizer:logic',
+                'persona-organizer:import-folder-preservation',
+            ],
+        },
+        {
             id: 'persona-organizer:settings-page',
             file: 'src/lib/Setting/Pages/PersonaSettings.svelte',
             type: 'replace',
             anchor: fs.readFileSync(originalPath, 'utf8'),
             managed: fs.readFileSync(replacementPath, 'utf8'),
             markerNeedle: 'POCKETRISU-PATCH:persona-organizer:START',
+            requires: ['persona-organizer:import-folder-preservation'],
         },
     ],
 }

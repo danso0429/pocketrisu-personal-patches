@@ -20,6 +20,63 @@ export interface PersonaDeletionPlan {
     remainingCount: number
 }
 
+export interface PersonaPickerEntry {
+    persona: RisuPersona
+    index: number
+}
+
+export const PERSONA_PICKER_SCOPE_ALL = "scope:all"
+export const PERSONA_PICKER_SCOPE_UNFILED = "scope:unfiled"
+const PERSONA_PICKER_FOLDER_PREFIX = "folder:"
+
+export function personaPickerFolderScope(folderId: string): string {
+    return PERSONA_PICKER_FOLDER_PREFIX + folderId
+}
+
+export function resolvePersonaFolderId(
+    folders: RisuPersonaFolder[],
+    folderId: string | null | undefined,
+): string | undefined {
+    if (!folderId) return undefined
+    return folders.some((folder) => folder.id === folderId) ? folderId : undefined
+}
+
+export function personaPickerFolderIdFromScope(
+    folders: RisuPersonaFolder[],
+    scope: string,
+): string | undefined {
+    if (!scope.startsWith(PERSONA_PICKER_FOLDER_PREFIX)) return undefined
+    return resolvePersonaFolderId(folders, scope.slice(PERSONA_PICKER_FOLDER_PREFIX.length))
+}
+
+export function filterPersonaPicker(
+    personas: RisuPersona[],
+    folders: RisuPersonaFolder[],
+    query: string,
+    scope: string,
+): PersonaPickerEntry[] {
+    const normalizedQuery = query.trim().toLowerCase()
+    const validFolderIds = new Set(folders.map((folder) => folder.id))
+    const selectedFolderId = personaPickerFolderIdFromScope(folders, scope)
+    const validScope = scope === PERSONA_PICKER_SCOPE_ALL
+        || scope === PERSONA_PICKER_SCOPE_UNFILED
+        || selectedFolderId !== undefined
+    const effectiveScope = validScope ? scope : PERSONA_PICKER_SCOPE_ALL
+
+    return personas.flatMap((persona, index) => {
+        const inScope = effectiveScope === PERSONA_PICKER_SCOPE_ALL
+            || (effectiveScope === PERSONA_PICKER_SCOPE_UNFILED
+                ? !persona.folderId || !validFolderIds.has(persona.folderId)
+                : persona.folderId === selectedFolderId)
+        if (!inScope) return []
+        if (normalizedQuery) {
+            const searchable = `${persona.name ?? ""}\n${persona.note ?? ""}`.toLowerCase()
+            if (!searchable.includes(normalizedQuery)) return []
+        }
+        return [{ persona, index }]
+    })
+}
+
 export function buildPersonaGroups(
     personas: RisuPersona[],
     folders: RisuPersonaFolder[],

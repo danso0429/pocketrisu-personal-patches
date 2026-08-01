@@ -9,6 +9,14 @@ const source = fs.readFileSync(path.join(
     __dirname,
     '../patches/persona-organizer/files/src/lib/Setting/Pages/PersonaSettings.svelte',
 ), 'utf8')
+const pickerSource = fs.readFileSync(path.join(
+    __dirname,
+    '../patches/persona-organizer/files/src/lib/Setting/listedPersona.svelte',
+), 'utf8')
+const logicSource = fs.readFileSync(path.join(
+    __dirname,
+    '../patches/persona-organizer/files/src/ts/personaOrganizer.ts',
+), 'utf8')
 const manifest = require('../patches/persona-organizer/manifest.cjs')
 
 test('persona arrange uses explicit one-slot controls and contains no drag surface', () => {
@@ -42,7 +50,7 @@ test('folder images use shared asset storage and can return to the default icon'
         (unit) => unit.id === 'persona-organizer:folder-interface',
     )
 
-    assert.equal(manifest.version, '0.10.0')
+    assert.equal(manifest.version, '0.11.0')
     assert.deepEqual(manifest.targets, {
         pocketrisu: {
             verified: ['1.8.1', '1.9.0'],
@@ -126,23 +134,57 @@ test('the persona plus menu is local, closable, and preserves create and import 
     assert.match(source, /let addPersonaDialogOpen = \$state\(false\)/)
     assert.match(source, /<BaseRoundedButton onClick=\{\(\) => addPersonaDialogOpen = true\}>/)
     assert.match(source, /<ShDialog[\s\S]*bind:open=\{addPersonaDialogOpen\}[\s\S]*closable=\{true\}[\s\S]*Close[\s\S]*<\/ShDialog>/)
-    assert.match(source, /function createPersona\(\): void \{[\s\S]*name: "New Persona"/)
-    assert.match(source, /async function importPersonaFromDialog\(\): Promise<void> \{[\s\S]*await importUserPersona\(\)/)
+    assert.match(source, /function createPersona\(\): void \{[\s\S]*name: "New Persona"[\s\S]*folderId: activeFolderId \?\? undefined/)
+    assert.match(source, /async function importPersonaFromDialog\(\): Promise<void> \{[\s\S]*await importUserPersona\(activeFolderId \?\? undefined\)/)
     assert.doesNotMatch(source, /alertSelect/)
 })
 
-test('persona organizer targets the settings editor and leaves the selection popup original', () => {
+test('persona organizer owns exactly the settings editor and native selection popup', () => {
     const replacementUnits = manifest.units.filter(
         (unit) => unit.type === 'replace' && unit.file.endsWith('.svelte'),
     )
     assert.deepEqual(
         replacementUnits.map((unit) => unit.file),
-        ['src/lib/Setting/Pages/PersonaSettings.svelte'],
+        [
+            'src/lib/Setting/listedPersona.svelte',
+            'src/lib/Setting/Pages/PersonaSettings.svelte',
+        ],
     )
-    assert.doesNotMatch(
-        replacementUnits.map((unit) => unit.file).join('\n'),
-        /listedPersona\.svelte/,
+})
+
+test('persona picker searches and filters canonical entries without renumbering selection', () => {
+    assert.match(pickerSource, /filterPersonaPicker\(/)
+    assert.match(pickerSource, /bind:value=\{query\}/)
+    assert.match(pickerSource, /bind:value=\{pickerScope\}/)
+    assert.match(pickerSource, /PERSONA_PICKER_SCOPE_UNFILED/)
+    assert.match(pickerSource, /personaPickerFolderScope\(folder\.id\)/)
+    assert.match(pickerSource, /onclick=\{\(\) => selectPersona\(entry\.index\)\}/)
+    assert.match(pickerSource, /if \(onSelect\) onSelect\(index\)[\s\S]*else changeUserPersona\(index\)[\s\S]*close\(\)/)
+    assert.match(logicSource, /return \[\{ persona, index \}\]/)
+})
+
+test('picker and settings create or import only into a still-valid selected folder', () => {
+    const importUnit = manifest.units.find(
+        (unit) => unit.id === 'persona-organizer:import-folder-preservation',
     )
+    assert.ok(importUnit)
+    assert.match(pickerSource, /folderId: selectedFolderId/)
+    assert.match(pickerSource, /importUserPersona\(selectedFolderId\)/)
+    assert.match(pickerSource, /saveUserPersona\(\)[\s\S]*selectPersona\(index\)/)
+    assert.match(importUnit.content, /resolvePersonaFolderId\(db\.personaFolders \?\? \[\], folderId\)/)
+    assert.match(importUnit.content, /const icon = await saveImage\(await reencodeImage\(v\.data\)\)[\s\S]*const db = getDatabase\(\)/)
+    assert.match(importUnit.content, /const importedIndex = db\.personas\.push\([\s\S]*\) - 1/)
+    assert.match(importUnit.content, /return importedIndex/)
+    assert.match(importUnit.content, /if \(!v\) return null/)
+    assert.match(importUnit.content, /catch \(error\)[\s\S]*return null/)
+    assert.match(logicSource, /scope === PERSONA_PICKER_SCOPE_UNFILED/)
+    assert.match(logicSource, /!persona\.folderId \|\| !validFolderIds\.has\(persona\.folderId\)/)
+})
+
+test('K22 picker scope does not add persona duplication or a parallel identity schema', () => {
+    const owned = `${pickerSource}\n${logicSource}\n${source}`
+    assert.doesNotMatch(owned, /duplicatePersona|clonePersona|copyPersona/)
+    assert.doesNotMatch(owned, /personaPickerId|pickerPersonaId/)
 })
 
 test('existing persona editor behavior remains available', () => {
@@ -269,6 +311,7 @@ test('persona and folder image references survive cleanup, replacement, and part
 test('persona organizer does not replace the database or plugin array', () => {
     const owned = [
         source,
+        pickerSource,
         ...manifest.units.flatMap((candidate) => [
             candidate.content ?? '',
             candidate.managed ?? '',
