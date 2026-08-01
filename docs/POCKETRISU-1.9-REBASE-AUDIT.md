@@ -70,7 +70,7 @@ It is a review surface, not proof of a semantic conflict.
 | `bg-preserve` | 85 | 22 | Qualified with a target-scoped 1.9 authority adapter; ordinary eligible sends retain whole-pipeline BG ownership while native jobs remain available on client-owned paths |
 | `bg-preserve-storage-base` | 1 | 1 | Qualified on exact 1.9.0 as an asset-only conditional adapter and parent dependency |
 | `lazy-chat-sync` | 27 | 9 | Qualified with seven mutually exclusive 1.8/1.9 full replacements; native model-job, recovery, logging, lock, and backup behavior retained |
-| `lazy-chat-bg-adapter` | 4 | 2 | Four parent-dependent anchors unavailable until both owners are rebased |
+| `lazy-chat-bg-adapter` | 4 | 2 | Qualified with both parents active; strict chat save plus root DB flush is the BG ACK barrier |
 | `startup-cache` | 6 | 4 | Qualified on exact 1.9.0; conditional startup-cache delta retained |
 | `preset-integrity` | 3 | 1 | All six anchors exact; active `-1` preset policy conflicts with new ID helper |
 | `persona-organizer` | 11 | 5 | Qualified with a target-scoped 1.9 server asset walker; native embedded-module and settings-only semantics preserved |
@@ -278,6 +278,11 @@ Only observed results may move 1.9.0 from `reviewing` to `verified`.
   focused target gates, ordinary exact round trip, the exhaustive 1.8 gate,
   and runtime audit are recorded in
   `docs/POCKETRISU-1.9-LAZY-CHAT-SYNC-VALIDATION.md`.
+- `lazy-chat-bg-adapter`: qualified for exact 1.9.0 with both parent owners
+  active. It adds no third owner: BG ACK follows strict lazy chat save and root
+  DB flush, while asset retry stays asset-scoped. Full/focused gates, exact
+  round trip, runtime audit, and remaining L3 are recorded in
+  `docs/POCKETRISU-1.9-LAZY-CHAT-BG-ADAPTER-VALIDATION.md`.
 - `character-import-ux`: qualified for exact 1.9.0 with a version-neutral
   System Backup guard and the qualified lazy save parent. Its combined target
   gates, exact round trip, runtime audit, and remaining iPhone scenario are

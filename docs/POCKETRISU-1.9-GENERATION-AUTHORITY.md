@@ -193,5 +193,6 @@ a blocking caller resolving before its reply is the unsafe signal.
   every exact apply/revert round trip.
 - The patcher suite passed 30/30 tests.
 
-The next composition boundary is `lazy-chat-bg-adapter`; it must be validated
-with both owners active before any Kei child is admitted.
+`lazy-chat-bg-adapter` is now separately qualified with both owners active;
+its receipt is `docs/POCKETRISU-1.9-LAZY-CHAT-BG-ADAPTER-VALIDATION.md`. The
+next admission boundary is K19 fullscreen viewer.

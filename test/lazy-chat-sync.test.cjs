@@ -143,10 +143,33 @@ test('startup probe accepts either valid browser cache without joining stalled b
 
 test('BG adapter preserves semantic revisions and adds only the durable flush barrier', () => {
     assert.deepEqual(bgAdapter.requires, ['bg-preserve', 'lazy-chat-sync'])
+    assert.deepEqual(bgAdapter.autoWhen, { all: ['bg-preserve', 'lazy-chat-sync'] })
+    assert.deepEqual(bgAdapter.targets, {
+        pocketrisu: {
+            verified: ['1.8.1', '1.9.0'],
+            reviewing: [],
+        },
+    })
     const flush = bgAdapter.units.find((unit) =>
         unit.id === 'lazy-chat-bg-adapter:durable-flush'
     )
     assert.ok(flush)
     assert.match(flush.content, /forageStorage\.flushDatabase\(\)/)
     assert.doesNotMatch(flush.content, /baseChatRevision|x-chat-base-revision/)
+    assert.deepEqual(flush.requires, [
+        'bg-preserve:hook:globalapi-durable-save-impl',
+    ])
+    assert.ok(flush.after.includes('lazy-chat-sync:replace:src:ts:globalApi-svelte-ts:1.9'))
+
+    const retry = bgAdapter.units.find((unit) =>
+        unit.id === 'lazy-chat-bg-adapter:adaptive-asset-upload-retry'
+    )
+    const detail = bgAdapter.units.find((unit) =>
+        unit.id === 'lazy-chat-bg-adapter:asset-upload-error-detail'
+    )
+    assert.ok(retry)
+    assert.ok(detail)
+    assert.match(retry.managed, /key\.startsWith\('assets\/'\)/)
+    assert.match(retry.managed, /: await upload\(\)/)
+    assert.match(detail.managed, /data\?\.detail \|\| data\?\.error/)
 })

@@ -7,9 +7,9 @@
 > **Exact target:** official PocketRisu `v1.9.0` /
 > `85a65f3137b45c8de4a8d21a9887be213b1ac3fc`
 >
-> **Immediate next feature:** qualify `lazy-chat-bg-adapter` against the now
-> qualified request-class generation-authority graph. Do not resume with a Kei
-> child or K12 before that combined owner graph is usable.
+> **Immediate next feature:** rebase K19 fullscreen viewer as the first Kei
+> child. The request-class BG/lazy owner graph is now qualified; K12 remains
+> last.
 
 This document records the complete local work boundary from the beginning of
 the Kei selection effort through the 1.9 pivot and live-update preparation.
@@ -247,10 +247,9 @@ replacements, native 1.9 recovery/logging/lock/backup preservation, combined
 target gates, ordinary exact round trip, L2.5, and the exhaustive exact-1.8
 gate. Resume owner integration in this order:
 
-1. Retain the qualified request-class table and target-scoped `bg-preserve`
-   graph. Qualify `lazy-chat-bg-adapter` with both parent owners active without
-   weakening result/claim/ACK, cancellation, hydration, or no-resurrection
-   contracts.
+1. Retain the qualified request-class table and combined BG/lazy adapter graph
+   without weakening result/claim/ACK, cancellation, hydration, or
+   no-resurrection contracts.
 2. Rebase K19, K13, K14, K16, K15, and K11 as separate focused commits. Remove
    only behavior proven equivalent in official 1.9; preserve missing outcomes
    and each existing owner contract.

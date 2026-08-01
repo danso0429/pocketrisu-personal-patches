@@ -299,10 +299,9 @@ silent concurrent overwrite is the unsafe signal.
 
 ## Remaining gates and publication state
 
-The next executable step is the request-class generation-authority table and
-the corresponding native-job/BG adapter design. `bg-preserve`, the lazy/BG
-adapter, all Kei children on 1.9, K12, aggregate review, and consolidated
-per-feature iPhone L3 remain pending.
+The request-class generation-authority table, `bg-preserve`, and the lazy/BG
+adapter are now qualified in their own receipts. All Kei children on 1.9,
+K12, aggregate review, and consolidated per-feature iPhone L3 remain pending.
 
 No push, tag, release, installer rebuild, live PocketRisu apply, data
 migration, PocketRisu restart, or cutover was performed.
