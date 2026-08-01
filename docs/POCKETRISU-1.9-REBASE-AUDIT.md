@@ -75,7 +75,7 @@ It is a review surface, not proof of a semantic conflict.
 | `character-import-ux` | 10 | 2 | Refused at the snapshot/import guard anchor |
 | `personal-settings` | 12 | 4 | Planned structurally; semantic review required |
 | `parser-hardening` | 9 | 1 | Planned structurally; semantic review required |
-| `toolchain-hardening` | 3 | 1 | Planned structurally; package/test contract review required |
+| `toolchain-hardening` | 3 | 1 | Qualified on exact 1.9.0; test setup and dependency-only delta retained |
 
 The path counts were recomputed from every manifest unit's `file` field and
 the complete official changed-path set. Owned new files were not mislabeled
@@ -226,7 +226,10 @@ Only observed results may move 1.9.0 from `reviewing` to `verified`.
   `reviewing`, ordinary apply still rejects it, and unlisted releases remain
   outside the maintainer gate. Evidence is in
   `docs/POCKETRISU-1.9-TARGET-BOUNDARY-VALIDATION.md`.
-- Pack requalification and every later executable step remain pending.
+- `toolchain-hardening`: qualified for exact 1.9.0 without changing runtime
+  source. Its single-pack stage, zero-change reapply, and exact revert evidence
+  is in `docs/POCKETRISU-1.9-TOOLCHAIN-HARDENING-VALIDATION.md`.
+- Other pack requalification and every later executable step remain pending.
 
 ## Review method and limitations
 

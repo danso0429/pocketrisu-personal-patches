@@ -15,6 +15,16 @@ test('toolchain hardening is independently versioned and included by hardening a
     assert.equal(resolveProfile('all', catalog).defaults.includes(manifest.id), true)
 })
 
+test('toolchain hardening is qualified only for reviewed exact PocketRisu targets', () => {
+    assert.deepEqual(manifest.targets, {
+        pocketrisu: {
+            verified: ['1.8.1', '1.9.0'],
+            reviewing: [],
+        },
+    })
+    assert.equal(manifest.targets.pocketrisu.verified.includes('1.9.1'), false)
+})
+
 test('toolchain hardening ETag covers exact setup and dependency content', () => {
     const original = packEtag(manifest)
     const changed = {
