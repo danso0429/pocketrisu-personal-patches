@@ -7,9 +7,9 @@
 > **Exact target:** official PocketRisu `v1.9.0` /
 > `85a65f3137b45c8de4a8d21a9887be213b1ac3fc`
 >
-> **Immediate next feature:** request-class generation-authority table, then
-> `bg-preserve` and `lazy-chat-bg-adapter` redesign. Do not resume with a Kei
-> child or K12 before that owner graph is usable.
+> **Immediate next feature:** qualify `lazy-chat-bg-adapter` against the now
+> qualified request-class generation-authority graph. Do not resume with a Kei
+> child or K12 before that combined owner graph is usable.
 
 This document records the complete local work boundary from the beginning of
 the Kei selection effort through the 1.9 pivot and live-update preparation.
@@ -237,8 +237,9 @@ before editing anything.
 The exact-1.9 target boundary, `toolchain-hardening`, `startup-cache`,
 `parser-hardening`, `character-organizer`, and the version-aware
 `personal-settings` Search adaptation are locally qualified. The conditional
-asset-only `bg-preserve-storage-base` adapter is also qualified without
-promoting its parent BG pack. `persona-organizer` is qualified with a
+asset-only `bg-preserve-storage-base` adapter and its parent `bg-preserve`
+graph are qualified with one owner per request class and no browser setting
+override. `persona-organizer` is qualified with a
 target-scoped 1.9 server asset walker that preserves native embedded-module
 and settings-only export semantics. `lazy-chat-sync` and its dependent
 `character-import-ux` graph are now qualified with target-scoped full
@@ -246,19 +247,17 @@ replacements, native 1.9 recovery/logging/lock/backup preservation, combined
 target gates, ordinary exact round trip, L2.5, and the exhaustive exact-1.8
 gate. Resume owner integration in this order:
 
-1. Write and test the request-class ownership table before touching
-   `bg-preserve` or `lazy-chat-bg-adapter`. Assign exactly one owner for
-   ordinary bg-eligible sends, client-only/programmatic sends, helpers, stream
-   transport, terminal persistence/claim, cancellation, and boot recovery.
-2. Rebase `bg-preserve` and then its lazy adapter against that table without
-   weakening result/claim/ACK, cancellation, or no-resurrection contracts.
-3. Rebase K19, K13, K14, K16, K15, and K11 as separate focused commits. Remove
+1. Retain the qualified request-class table and target-scoped `bg-preserve`
+   graph. Qualify `lazy-chat-bg-adapter` with both parent owners active without
+   weakening result/claim/ACK, cancellation, hydration, or no-resurrection
+   contracts.
+2. Rebase K19, K13, K14, K16, K15, and K11 as separate focused commits. Remove
    only behavior proven equivalent in official 1.9; preserve missing outcomes
    and each existing owner contract.
-4. Port the preserved staged K12 last. Remove the duplicate cache-key fix,
+3. Port the preserved staged K12 last. Remove the duplicate cache-key fix,
    adapt its four changed runtime anchors, and repeat identity/CAS/cancel/
    import/export/cleanup gates.
-5. Re-evaluate future and policy rows, including unresolved K27/K28, only
+4. Re-evaluate future and policy rows, including unresolved K27/K28, only
    after the owner graph is usable.
 
 For every numbered implementation, keep a feature-local receipt and commit.

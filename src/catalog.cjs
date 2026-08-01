@@ -1,6 +1,5 @@
 'use strict'
 
-const fs = require('node:fs')
 const path = require('node:path')
 
 const DEFAULT_TARGETS = Object.freeze({
@@ -50,7 +49,7 @@ function validateProfileMetadata(catalog) {
 
 function loadCatalog(repositoryRoot = path.resolve(__dirname, '..')) {
     const catalog = [
-        JSON.parse(fs.readFileSync(path.join(repositoryRoot, 'patches/bg-preserve.json'), 'utf8')),
+        require(path.join(repositoryRoot, 'patches/bg-preserve/manifest.cjs')),
         require(path.join(repositoryRoot, 'patches/bg-preserve-storage-base/manifest.cjs')),
         require(path.join(repositoryRoot, 'patches/startup-cache/manifest.cjs')),
         require(path.join(repositoryRoot, 'patches/lazy-chat-sync/manifest.cjs')),

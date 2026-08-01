@@ -191,9 +191,9 @@ Pause new catalog admission while the official 1.9 target is requalified.
 Start from the `codex/pocketrisu-1.9-rebase` branch HEAD containing the
 session handoff and feature-local qualification receipts. Preserve the
 separate staged K12 worktree. `lazy-chat-sync` and combined
-`character-import-ux` qualification are complete. The exact next executable
-work is the request-class generation-authority table followed by
-`bg-preserve` and `lazy-chat-bg-adapter`, not a Kei child. Follow
+`character-import-ux` qualification are complete. The request-class authority
+table and target-scoped `bg-preserve` qualification are also complete. The
+exact next executable work is `lazy-chat-bg-adapter`, not a Kei child. Follow
 `docs/POCKETRISU-1.9-SESSION-HANDOFF.md` and
 `docs/POCKETRISU-1.9-REBASE-AUDIT.md` in this order:
 
@@ -206,8 +206,8 @@ work is the request-class generation-authority table followed by
 3. retain the completed dual-target `lazy-chat-sync` and
    `character-import-ux` qualification and its full/focused/round-trip/audit
    receipts;
-4. resolve native-job versus bg-preserve authority, then rebase BG and its
-   lazy adapter without adding a second request-class owner;
+4. retain the qualified native-job/BG authority split and qualify the lazy/BG
+   adapter without adding a second request-class owner;
 5. adapt K19, K13, K14, K16, K15, and K11 as separate deltas;
 6. port the preserved staged K12 implementation;
 7. re-evaluate future and policy catalog rows against the new baseline;

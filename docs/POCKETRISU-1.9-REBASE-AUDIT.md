@@ -67,8 +67,8 @@ It is a review surface, not proof of a semantic conflict.
 
 | Pack | Managed paths | Paths changed by 1.9.0 | Structural result on pristine 1.9.0 |
 | --- | ---: | ---: | --- |
-| `bg-preserve` | 85 | 22 | Refused: changed/multiple anchors and duplicate generation authority |
-| `bg-preserve-storage-base` | 1 | 1 | Qualified on exact 1.9.0 as an asset-only conditional adapter; parent BG remains reviewing |
+| `bg-preserve` | 85 | 22 | Qualified with a target-scoped 1.9 authority adapter; ordinary eligible sends retain whole-pipeline BG ownership while native jobs remain available on client-owned paths |
+| `bg-preserve-storage-base` | 1 | 1 | Qualified on exact 1.9.0 as an asset-only conditional adapter and parent dependency |
 | `lazy-chat-sync` | 27 | 9 | Qualified with seven mutually exclusive 1.8/1.9 full replacements; native model-job, recovery, logging, lock, and backup behavior retained |
 | `lazy-chat-bg-adapter` | 4 | 2 | Four parent-dependent anchors unavailable until both owners are rebased |
 | `startup-cache` | 6 | 4 | Qualified on exact 1.9.0; conditional startup-cache delta retained |
@@ -158,9 +158,11 @@ single owner for each request class:
 
 `lazy-chat-sync` is separately qualified as the chat storage/hydration owner;
 it adds no competing top-level generation transport or recovery authority.
-Until the table is implemented and tested, `bg-preserve` and the lazy/BG
-adapter remain blocked from 1.9 qualification. The catalog's existing
-whole-pipeline bg ownership is not silently transferred to native model jobs.
+The table is implemented and `bg-preserve` is qualified with exactly one
+owner per request class. The browser setting remains unchanged; only the
+detached server clone disables nested native jobs. The lazy/BG adapter remains
+the next combined-owner qualification boundary. Evidence is in
+`docs/POCKETRISU-1.9-GENERATION-AUTHORITY.md`.
 
 ## Request-log and usage policy correction
 
@@ -253,9 +255,16 @@ Only observed results may move 1.9.0 from `reviewing` to `verified`.
   `docs/POCKETRISU-1.9-PERSONAL-SETTINGS-VALIDATION.md`.
 - `bg-preserve-storage-base`: qualified for exact 1.9.0 as a conditional
   asset-only retry/error adapter. Native database/chat/model-job storage paths
-  bypass its branch, and the parent BG pack remains under review. Its exact
+  bypass its branch, and the qualified parent BG graph consumes it. Its exact
   target gates, round trip, and runtime audit are recorded in
   `docs/POCKETRISU-1.9-BG-PRESERVE-STORAGE-BASE-VALIDATION.md`.
+- `bg-preserve`: qualified for exact 1.9.0 with target-scoped native busy,
+  abort, cache, composer, tokenizer, and fetch adapters. Ordinary eligible
+  sends redirect before native generation/pending registration; client-owned
+  sends preserve native model jobs, and only the detached server clone
+  disables nested jobs. Full/focused target gates, exact ordinary round trip,
+  the 2,048/2,048 exact-1.8 exhaustive gate, and runtime audit are recorded in
+  `docs/POCKETRISU-1.9-GENERATION-AUTHORITY.md`.
 - `persona-organizer`: qualified for exact 1.9.0 with mutually exclusive 1.8
   and 1.9 server asset walkers. The 1.9 adapter keeps native embedded-module
   and settings-only export semantics while adding gallery/folder references.
