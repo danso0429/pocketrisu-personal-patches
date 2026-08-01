@@ -2,7 +2,13 @@ import { describe, expect, it } from 'vitest'
 import journalPackage from './chatWriteJournal.cjs'
 import deltaPackage from './chatDelta.cjs'
 
-const { createChatWriteJournal } = journalPackage as {
+const { commitSnapshotRestore, createChatWriteJournal } = journalPackage as {
+    commitSnapshotRestore: (options: {
+        runTransaction: (operation: () => void) => void
+        restoreDatabase: () => void
+        discardJournal: () => void
+        resetJournalMemory: () => void
+    }) => void
     createChatWriteJournal: (options: any) => {
         prefix: string
         stage: (chaId: string, chatId: string, chat: any, options: { awaitingMetadata: boolean }) => Promise<void>
@@ -58,6 +64,44 @@ function databaseWithChats(chats: any[]) {
 }
 
 describe('durable chat write journal', () => {
+    it('commits snapshot swap and journal discard as one failure-atomic transition', () => {
+        const values = new Map<string, string>([
+            ['database', 'current'],
+            ['journal', 'acknowledged'],
+        ])
+        const runTransaction = (operation: () => void) => {
+            const before = new Map(values)
+            try { operation() }
+            catch (error) {
+                values.clear()
+                for (const [key, value] of before) values.set(key, value)
+                throw error
+            }
+        }
+        let resets = 0
+
+        expect(() => commitSnapshotRestore({
+            runTransaction,
+            restoreDatabase: () => values.set('database', 'selected'),
+            discardJournal: () => { throw new Error('journal delete failed') },
+            resetJournalMemory: () => { resets += 1 },
+        })).toThrow('journal delete failed')
+        expect(values).toEqual(new Map([
+            ['database', 'current'],
+            ['journal', 'acknowledged'],
+        ]))
+        expect(resets).toBe(0)
+
+        commitSnapshotRestore({
+            runTransaction,
+            restoreDatabase: () => values.set('database', 'selected'),
+            discardJournal: () => { values.delete('journal') },
+            resetJournalMemory: () => { resets += 1 },
+        })
+        expect(values).toEqual(new Map([['database', 'selected']]))
+        expect(resets).toBe(1)
+    })
+
     it('preserves an ACKed new chat across a stub-less flush and process restart', async () => {
         const { journal, kv } = makeHarness()
         await journal.stage('char-1', 'chat-new', chat(), { awaitingMetadata: true })

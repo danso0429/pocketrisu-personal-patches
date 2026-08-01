@@ -92,6 +92,20 @@ test('PocketRisu 1.9 replacements retain native runtime owners and lazy-chat con
     assert.match(server, /buildSettingsOnlyPlan/)
     assert.match(server, /kvDelPrefix\('coldstorage\/'\)/)
     assert.match(server, /kvDelPrefix\(CHAT_WRITE_JOURNAL_PREFIX\)/)
+    const snapshotRestore = server.slice(
+        server.indexOf("app.post('/api/db/snapshots/restore'"),
+        server.indexOf('// ── Boot-time backup reminder'),
+    )
+    assert.match(snapshotRestore, /commitSnapshotRestore\(\{/)
+    assert.match(snapshotRestore, /runTransaction: \(operation\) => sqliteDb\.transaction\(operation\)\(\)/)
+    assert.match(
+        snapshotRestore,
+        /kvCopyValue\(key, DB_BLOB_KEY\);[\s\S]*discardJournal: \(\) => kvDelPrefix\(CHAT_WRITE_JOURNAL_PREFIX\)/,
+    )
+    assert.match(
+        snapshotRestore,
+        /discardJournal: \(\) => kvDelPrefix\(CHAT_WRITE_JOURNAL_PREFIX\)[\s\S]*resetJournalMemory: \(\) => chatWriteJournal\.resetMemory\(\)/,
+    )
     assert.match(bootstrap, /initModelJobRecovery\(\)/)
     assert.match(bootstrap, /loadDatabaseForStartup\(\)/)
     assert.match(globalApi, /createRequestLogScope/)

@@ -44,6 +44,7 @@ const {
 } = require('./chatDelta.cjs');
 const {
     DEFAULT_PREFIX: CHAT_WRITE_JOURNAL_PREFIX,
+    commitSnapshotRestore,
     createChatWriteJournal,
 } = require('./chatWriteJournal.cjs');
 const { spawn, execSync } = require('child_process');
@@ -6021,10 +6022,18 @@ app.post('/api/db/snapshots/restore', async (req, res, next) => {
             // /api/db/optimize. Without this, an in-flight save could land
             // after kvCopyValue and overwrite the restored snapshot.
             await flushPendingDb();
-            kvDelPrefix(CHAT_WRITE_JOURNAL_PREFIX);
-            chatWriteJournal.resetMemory();
-            kvCopyValue(key, DB_BLOB_KEY);
-            invalidateDbCache();
+            // The restored DB and removal of newer journal rows are one durable
+            // transition. If either write fails, SQLite rolls both back; the
+            // invalidated cache then reloads the still-current database.
+            commitSnapshotRestore({
+                runTransaction: (operation) => sqliteDb.transaction(operation)(),
+                restoreDatabase: () => {
+                    kvCopyValue(key, DB_BLOB_KEY);
+                    invalidateDbCache();
+                },
+                discardJournal: () => kvDelPrefix(CHAT_WRITE_JOURNAL_PREFIX),
+                resetJournalMemory: () => chatWriteJournal.resetMemory(),
+            });
             // Snapshot may pre-date the remote-block migration. Clear the marker
             // so migrateRemoteBlocksIfNeeded re-evaluates against the restored
             // bytes instead of skipping based on the prior post-migration state.

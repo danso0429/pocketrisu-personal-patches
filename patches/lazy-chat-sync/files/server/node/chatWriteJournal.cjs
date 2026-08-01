@@ -19,6 +19,21 @@ function hasChatMetadata(database, chaId, chatId) {
         && character.chats.some((chat) => chat?.id === chatId);
 }
 
+function commitSnapshotRestore({
+    runTransaction,
+    restoreDatabase,
+    discardJournal,
+    resetJournalMemory,
+}) {
+    runTransaction(() => {
+        restoreDatabase()
+        discardJournal()
+    })
+    // Reset only after the durable transaction commits. On rollback the
+    // in-memory owner remains aligned with the still-present journal rows.
+    resetJournalMemory()
+}
+
 /**
  * A small durable write-ahead journal for chat payloads.
  *
@@ -224,6 +239,7 @@ module.exports = {
     DEFAULT_MAX_AWAITING_BYTES,
     DEFAULT_MAX_AWAITING_RECORDS,
     DEFAULT_PREFIX,
+    commitSnapshotRestore,
     createChatWriteJournal,
     hasChatMetadata,
 };
