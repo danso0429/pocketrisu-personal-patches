@@ -499,6 +499,47 @@ function restoreJournal(root, journalPath = DEFAULT_JOURNAL_PATH) {
     return { recovered: true, transactionId: journal.transactionId }
 }
 
+function validateUnitTargetVersions(pack, unit) {
+    if (unit.targetVersions === undefined) return
+    if (
+        !unit.targetVersions
+        || typeof unit.targetVersions !== 'object'
+        || Array.isArray(unit.targetVersions)
+        || Object.keys(unit.targetVersions).length === 0
+    ) {
+        throw new PatchManagerError(
+            'INVALID_PACK',
+            `${pack.id}: ${unit.id}.targetVersions must map package names to exact versions`,
+        )
+    }
+    for (const [packageName, versions] of Object.entries(unit.targetVersions)) {
+        if (
+            !packageName
+            || !Array.isArray(versions)
+            || versions.length === 0
+            || versions.some((version) => typeof version !== 'string' || !version)
+            || new Set(versions).size !== versions.length
+        ) {
+            throw new PatchManagerError(
+                'INVALID_PACK',
+                `${pack.id}: ${unit.id}.targetVersions.${packageName} must contain unique exact versions`,
+            )
+        }
+        const declared = new Set([
+            ...(pack.targets?.[packageName]?.verified ?? []),
+            ...(pack.targets?.[packageName]?.reviewing ?? []),
+        ])
+        const undeclared = versions.filter((version) => !declared.has(version))
+        if (undeclared.length > 0) {
+            throw new PatchManagerError(
+                'INVALID_PACK',
+                `${pack.id}: ${unit.id} scopes units to undeclared target versions`,
+                { packageName, versions: undeclared },
+            )
+        }
+    }
+}
+
 function validatePack(pack) {
     if (!pack || typeof pack !== 'object' || typeof pack.id !== 'string' || !pack.id) {
         throw new PatchManagerError('INVALID_PACK', 'Every pack requires an id')
@@ -510,6 +551,7 @@ function validatePack(pack) {
         throw new PatchManagerError('INVALID_PACK', `${pack.id}: units must be an array`)
     }
     for (const unit of pack.units) {
+        validateUnitTargetVersions(pack, unit)
         if (
             unit.mode !== undefined
             && (!Number.isInteger(unit.mode) || unit.mode < 0 || unit.mode > 0o7777)
@@ -528,9 +570,17 @@ function selectPacks(catalog, packIds) {
     return resolution.packs
 }
 
-function flattenUnits(packs) {
+function unitMatchesTarget(unit, target) {
+    if (unit.targetVersions === undefined) return true
+    const versions = unit.targetVersions[target?.packageName]
+    return Array.isArray(versions) && versions.includes(target?.packageVersion)
+}
+
+function flattenUnits(packs, target) {
     return packs.flatMap((pack) =>
-        pack.units.map((unit) => ({ ...unit, pack: pack.id, packVersion: pack.version }))
+        pack.units
+            .filter((unit) => unitMatchesTarget(unit, target))
+            .map((unit) => ({ ...unit, pack: pack.id, packVersion: pack.version }))
     )
 }
 
@@ -645,7 +695,8 @@ function planTransition({
     const resolution = resolveSelection(catalog, packIds)
     const packs = resolution.packs
     for (const pack of packs) validatePack(pack)
-    const units = flattenUnits(packs)
+    const target = readTargetIdentity(root)
+    const units = flattenUnits(packs, target)
     const paths = new Set([
         ...units.map((unit) => unit.file),
         ...(previous?.units ?? []).map((unit) => unit.file),
@@ -657,7 +708,7 @@ function planTransition({
     const nextState = makeState(profile, packs, units, result, baselines, currentModes, {
         packEtagCache,
         resolution,
-        target: readTargetIdentity(root),
+        target,
     })
     const changes = []
 
@@ -728,6 +779,7 @@ function planTransition({
 
     return {
         profile,
+        target,
         intent: persistedIntent,
         resolution: {
             requested: resolution.requested,
@@ -771,6 +823,14 @@ function validateTransitionPreconditions(root, transition) {
             beforeMode: change.beforeMode,
         }))
     const stale = []
+    const actualTarget = transition.target === undefined ? null : readTargetIdentity(root)
+    if (transition.target !== undefined && !sameStateValue(actualTarget, transition.target)) {
+        stale.push({
+            path: 'package.json',
+            expectedTarget: transition.target,
+            actualTarget,
+        })
+    }
     for (const expected of preconditions) {
         const actual = readOptionalText(root, expected.path)
         const actualMode = readOptionalMode(root, expected.path)
@@ -876,6 +936,10 @@ function applyTransition({
 function status({ root, statePath = DEFAULT_STATE_PATH }) {
     const state = loadState(root, statePath)
     if (!state) return { status: 'clean', packs: [], files: [] }
+    const currentTarget = readTargetIdentity(root)
+    const targetStatus = state.target === undefined
+        ? 'unknown'
+        : (sameStateValue(state.target, currentTarget) ? 'current' : 'drifted')
     const files = Object.entries(state.files).map(([file, expected]) => {
         const content = readOptionalText(root, file)
         const actualHash = content === null ? null : sha256(content)
@@ -892,10 +956,15 @@ function status({ root, statePath = DEFAULT_STATE_PATH }) {
         }
     })
     return {
-        status: files.every((file) => file.status === 'current') ? 'current' : 'drifted',
+        status: targetStatus !== 'drifted'
+            && files.every((file) => file.status === 'current')
+            ? 'current'
+            : 'drifted',
         stateFormat: state.format,
         profile: state.profile,
         target: state.target ?? null,
+        currentTarget,
+        targetStatus,
         selection: state.selection ?? null,
         packs: state.packs,
         files,
@@ -927,5 +996,6 @@ module.exports = {
     selectPacks,
     stableStringify,
     status,
+    unitMatchesTarget,
     withRootLock,
 }

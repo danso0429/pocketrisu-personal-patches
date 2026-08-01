@@ -509,6 +509,15 @@ Cross-file semantic requirements cannot be inferred from text transforms.
 Those belong in explicit manifest `requires`/`before`/`after` contracts and
 tests.
 
+Units shared by every declared target omit `targetVersions`. A unit that is
+valid only on exact upstream releases declares a package-to-version mapping,
+for example `targetVersions: { pocketrisu: ['1.9.0'] }`. Every scoped version
+must already be listed under that pack's `verified` or `reviewing` targets.
+The manager removes non-matching units before collision analysis, path reads,
+composition, and state encoding; a target change makes existing status
+`drifted`, and a target change between plan and apply refuses the transaction
+before a journal or patch file is written.
+
 ## Conflict reports inside RisuAI
 
 Every refused transition still writes private Markdown and JSON reports under

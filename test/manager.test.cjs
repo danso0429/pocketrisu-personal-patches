@@ -251,6 +251,203 @@ test('intent and applied state are committed in the same transition', () => with
     assert.equal(read(root, 'src/shared.ts'), 'const value = BASE\n')
 }))
 
+const targetScopedPack = {
+    id: 'target-scoped',
+    version: '1',
+    targets: {
+        pocketrisu: {
+            verified: ['1.8.1'],
+            reviewing: ['1.9.0'],
+        },
+    },
+    units: [
+        {
+            id: 'target-scoped:common',
+            file: 'src/common.ts',
+            type: 'owned',
+            content: 'common\n',
+        },
+        {
+            id: 'target-scoped:search-1.9',
+            file: 'src/search-1.9.ts',
+            type: 'insert',
+            where: 'after',
+            anchor: 'BASE\n',
+            content: 'search\n',
+            targetVersions: {
+                pocketrisu: ['1.9.0'],
+            },
+        },
+    ],
+}
+
+test('target-scoped units stay out of older target plans and state', () =>
+    withRoot((root) => {
+        write(root, 'package.json', JSON.stringify({ name: 'pocketrisu', version: '1.8.1' }))
+        const apply = planTransition({
+            root,
+            catalog: [targetScopedPack],
+            packIds: ['target-scoped'],
+            profile: 'custom',
+        })
+        assert.deepEqual(apply.order, ['target-scoped:common'])
+        assert.deepEqual(apply.state.units.map((unit) => unit.id), ['target-scoped:common'])
+        assert.equal(
+            apply.changes.some((change) => change.path === 'src/search-1.9.ts'),
+            false,
+        )
+        applyTransition({ root, transition: apply })
+        assert.equal(read(root, 'src/common.ts'), 'common\n')
+        assert.equal(fs.existsSync(path.join(root, 'src/search-1.9.ts')), false)
+
+        const revert = planTransition({
+            root,
+            catalog: [targetScopedPack],
+            packIds: [],
+            profile: 'custom',
+        })
+        applyTransition({ root, transition: revert })
+        assert.equal(fs.existsSync(path.join(root, 'src/common.ts')), false)
+        assert.equal(status({ root }).status, 'clean')
+    }))
+
+test('target-scoped units apply and revert only on their exact target', () =>
+    withRoot((root) => {
+        write(root, 'package.json', JSON.stringify({ name: 'pocketrisu', version: '1.9.0' }))
+        write(root, 'src/search-1.9.ts', 'BASE\n')
+        const apply = planTransition({
+            root,
+            catalog: [targetScopedPack],
+            packIds: ['target-scoped'],
+            profile: 'custom',
+        })
+        assert.deepEqual(apply.order, [
+            'target-scoped:common',
+            'target-scoped:search-1.9',
+        ])
+        applyTransition({ root, transition: apply })
+        assert.match(
+            read(root, 'src/search-1.9.ts'),
+            /POCKETRISU-PATCH:target-scoped:search-1\.9:START[\s\S]*search/,
+        )
+        assert.equal(status({ root }).status, 'current')
+
+        const repeated = planTransition({
+            root,
+            catalog: [targetScopedPack],
+            packIds: ['target-scoped'],
+            profile: 'custom',
+        })
+        assert.deepEqual(repeated.changes, [])
+
+        const revert = planTransition({
+            root,
+            catalog: [targetScopedPack],
+            packIds: [],
+            profile: 'custom',
+        })
+        applyTransition({ root, transition: revert })
+        assert.equal(read(root, 'src/search-1.9.ts'), 'BASE\n')
+        assert.equal(fs.existsSync(path.join(root, 'src/common.ts')), false)
+        assert.equal(status({ root }).status, 'clean')
+    }))
+
+test('target drift is reported and a new plan recomposes the exact target units', () =>
+    withRoot((root) => {
+        write(root, 'package.json', JSON.stringify({ name: 'pocketrisu', version: '1.8.1' }))
+        const initial = planTransition({
+            root,
+            catalog: [targetScopedPack],
+            packIds: ['target-scoped'],
+            profile: 'custom',
+        })
+        applyTransition({ root, transition: initial })
+
+        write(root, 'package.json', JSON.stringify({ name: 'pocketrisu', version: '1.9.0' }))
+        write(root, 'src/search-1.9.ts', 'BASE\n')
+        const drifted = status({ root })
+        assert.equal(drifted.status, 'drifted')
+        assert.equal(drifted.targetStatus, 'drifted')
+        assert.equal(drifted.target.packageVersion, '1.8.1')
+        assert.equal(drifted.currentTarget.packageVersion, '1.9.0')
+
+        const update = planTransition({
+            root,
+            catalog: [targetScopedPack],
+            packIds: ['target-scoped'],
+            profile: 'custom',
+        })
+        assert.deepEqual(update.order, [
+            'target-scoped:common',
+            'target-scoped:search-1.9',
+        ])
+        applyTransition({ root, transition: update })
+        assert.equal(status({ root }).targetStatus, 'current')
+
+        const revert = planTransition({
+            root,
+            catalog: [targetScopedPack],
+            packIds: [],
+            profile: 'custom',
+        })
+        applyTransition({ root, transition: revert })
+        assert.equal(read(root, 'src/search-1.9.ts'), 'BASE\n')
+        assert.equal(fs.existsSync(path.join(root, 'src/common.ts')), false)
+    }))
+
+test('target changes make a planned transition stale before any patch write', () =>
+    withRoot((root) => {
+        write(root, 'package.json', JSON.stringify({ name: 'pocketrisu', version: '1.9.0' }))
+        write(root, 'src/search-1.9.ts', 'BASE\n')
+        const transition = planTransition({
+            root,
+            catalog: [targetScopedPack],
+            packIds: ['target-scoped'],
+            profile: 'custom',
+        })
+
+        write(root, 'package.json', JSON.stringify({ name: 'pocketrisu', version: '1.8.1' }))
+        assert.throws(
+            () => applyTransition({ root, transition }),
+            (error) => error.code === 'STALE_TRANSITION'
+                && error.details.stale.some((entry) =>
+                    entry.path === 'package.json'
+                    && entry.expectedTarget.packageVersion === '1.9.0'
+                    && entry.actualTarget.packageVersion === '1.8.1'
+                ),
+        )
+        assert.equal(read(root, 'src/search-1.9.ts'), 'BASE\n')
+        assert.equal(fs.existsSync(path.join(root, 'src/common.ts')), false)
+        assert.equal(fs.existsSync(path.join(root, DEFAULT_JOURNAL_PATH)), false)
+        assert.equal(loadState(root), null)
+    }))
+
+test('target-scoped units cannot opt into undeclared or malformed versions', () =>
+    withRoot((root) => {
+        write(root, 'package.json', JSON.stringify({ name: 'pocketrisu', version: '1.9.0' }))
+        for (const targetVersions of [
+            { pocketrisu: ['1.9.1'] },
+            { pocketrisu: [] },
+            { pocketrisu: ['1.9.0', '1.9.0'] },
+        ]) {
+            assert.throws(
+                () => planTransition({
+                    root,
+                    catalog: [{
+                        ...targetScopedPack,
+                        units: [{
+                            ...targetScopedPack.units[1],
+                            targetVersions,
+                        }],
+                    }],
+                    packIds: ['target-scoped'],
+                    profile: 'custom',
+                }),
+                (error) => error.code === 'INVALID_PACK',
+            )
+        }
+    }))
+
 test('format-1 applied state is upgraded without rewriting unchanged source', () => withRoot((root) => {
     write(root, 'src/unrelated.ts', 'U\n')
     write(root, 'src/shared.ts', 'const value = BASE\n')
