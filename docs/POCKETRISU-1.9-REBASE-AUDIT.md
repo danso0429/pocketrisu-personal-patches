@@ -73,7 +73,7 @@ It is a review surface, not proof of a semantic conflict.
 | `lazy-chat-bg-adapter` | 4 | 2 | Four parent-dependent anchors unavailable until both owners are rebased |
 | `startup-cache` | 6 | 4 | Qualified on exact 1.9.0; conditional startup-cache delta retained |
 | `preset-integrity` | 3 | 1 | All six anchors exact; active `-1` preset policy conflicts with new ID helper |
-| `persona-organizer` | 11 | 5 | Refused at the server gallery-assets anchor |
+| `persona-organizer` | 11 | 5 | Qualified with a target-scoped 1.9 server asset walker; native embedded-module and settings-only semantics preserved |
 | `character-organizer` | 5 | 1 | Qualified on exact 1.9.0; native drag/file-drop and AssetViewer behavior preserved |
 | `character-import-ux` | 10 | 2 | Refused at the snapshot/import guard anchor |
 | `personal-settings` | 14 | 6 | Qualified on exact 1.9.0 with two 1.9-only native Settings Search units |
@@ -254,6 +254,12 @@ Only observed results may move 1.9.0 from `reviewing` to `verified`.
   bypass its branch, and the parent BG pack remains under review. Its exact
   target gates, round trip, and runtime audit are recorded in
   `docs/POCKETRISU-1.9-BG-PRESERVE-STORAGE-BASE-VALIDATION.md`.
+- `persona-organizer`: qualified for exact 1.9.0 with mutually exclusive 1.8
+  and 1.9 server asset walkers. The 1.9 adapter keeps native embedded-module
+  and settings-only export semantics while adding gallery/folder references.
+  Dual-target planning, focused/full gates, exact round trips, the exhaustive
+  1.8 combination result, and runtime audit are recorded in
+  `docs/POCKETRISU-1.9-PERSONA-ORGANIZER-VALIDATION.md`.
 - Other pack requalification and every later executable step remain pending.
 
 ## Post-audit operational handoff

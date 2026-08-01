@@ -8,11 +8,19 @@ const replacementPath = path.join(
     'files/src/lib/Setting/Pages/PersonaSettings.svelte',
 )
 const originalPath = path.join(__dirname, 'anchors/PersonaSettings.svelte')
+const pocketRisu181 = { pocketrisu: ['1.8.1'] }
+const pocketRisu190 = { pocketrisu: ['1.9.0'] }
 
 module.exports = {
     id: 'persona-organizer',
     title: 'Persona organizer',
-    version: '0.9.0',
+    version: '0.10.0',
+    targets: {
+        pocketrisu: {
+            verified: ['1.8.1', '1.9.0'],
+            reviewing: [],
+        },
+    },
     userSelectable: true,
     presetDefaults: ['features'],
     units: [
@@ -279,6 +287,37 @@ module.exports = {
 
 `,
             after: ['bg-preserve:hook:server-cjs-register-routes'],
+            targetVersions: pocketRisu181,
+        },
+        {
+            id: 'persona-organizer:server-gallery-assets-1.9',
+            file: 'server/node/server.cjs',
+            type: 'replace',
+            anchor: `    if (Array.isArray(dbObj.personas)) {
+        for (const p of dbObj.personas) {
+            add(p?.icon);
+            const embedded = p?.embeddedModule;
+            if (includeModuleAssets && Array.isArray(embedded?.assets)) for (const a of embedded.assets) add(a?.[1]);
+            add(embedded?.icon);
+        }
+    }`,
+            content: `    if (Array.isArray(dbObj.personas)) {
+        for (const p of dbObj.personas) {
+            add(p?.icon);
+            if (Array.isArray(p?.imageGallery)) {
+                for (const image of p.imageGallery) add(image);
+            }
+            const embedded = p?.embeddedModule;
+            if (includeModuleAssets && Array.isArray(embedded?.assets)) for (const a of embedded.assets) add(a?.[1]);
+            add(embedded?.icon);
+        }
+    }
+    if (Array.isArray(dbObj.personaFolders)) {
+        for (const folder of dbObj.personaFolders) add(folder?.icon);
+    }
+`,
+            after: ['bg-preserve:hook:server-cjs-register-routes'],
+            targetVersions: pocketRisu190,
         },
         {
             id: 'persona-organizer:backup-gallery-assets',

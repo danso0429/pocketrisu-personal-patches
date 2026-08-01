@@ -191,7 +191,7 @@ Pause new catalog admission while the official 1.9 target is requalified.
 Start from the `codex/pocketrisu-1.9-rebase` branch HEAD containing the
 session handoff and feature-local qualification receipts. Preserve the
 separate staged K12 worktree. The exact next executable pack is
-`persona-organizer`, not a Kei child. Follow
+`character-import-ux`, not a Kei child. Follow
 `docs/POCKETRISU-1.9-SESSION-HANDOFF.md` and
 `docs/POCKETRISU-1.9-REBASE-AUDIT.md` in this order:
 
@@ -199,8 +199,10 @@ separate staged K12 worktree. The exact next executable pack is
 2. retain the completed localized qualifications for `toolchain-hardening`,
    `startup-cache`, `parser-hardening`, `character-organizer`, and the
    version-aware `personal-settings`, plus the conditional asset-only
-   `bg-preserve-storage-base` adapter;
-3. rebase storage/import owners starting with `persona-organizer`;
+   `bg-preserve-storage-base` adapter and the target-scoped
+   `persona-organizer` server adapter;
+3. rebase storage/import owners starting with `character-import-ux`, then
+   `lazy-chat-sync`;
 4. resolve native-job versus bg-preserve authority before composing either;
 5. adapt K19, K13, K14, K16, K15, and K11 as separate deltas;
 6. port the preserved staged K12 implementation;

@@ -42,7 +42,13 @@ test('folder images use shared asset storage and can return to the default icon'
         (unit) => unit.id === 'persona-organizer:folder-interface',
     )
 
-    assert.equal(manifest.version, '0.9.0')
+    assert.equal(manifest.version, '0.10.0')
+    assert.deepEqual(manifest.targets, {
+        pocketrisu: {
+            verified: ['1.8.1', '1.9.0'],
+            reviewing: [],
+        },
+    })
     assert.match(normalization.content, /typeof folder\.icon !== 'string'\) folder\.icon = ''/)
     assert.match(folderInterface.content, /icon\?:string/)
     assert.match(source, /import \{ saveImage \} from "src\/ts\/storage\/database\.svelte"/)
@@ -240,14 +246,35 @@ test('persona PNG export chooses a gallery image without changing the active ima
 
 test('persona and folder image references survive cleanup, replacement, and partial backup', () => {
     const unit = (id) => manifest.units.find((candidate) => candidate.id === id)
+    const server181 = unit('persona-organizer:server-gallery-assets')
+    const server190 = unit('persona-organizer:server-gallery-assets-1.9')
 
     assert.match(unit('persona-organizer:uncleanable-gallery-assets').content, /v\.imageGallery/)
     assert.match(unit('persona-organizer:uncleanable-folder-assets').content, /db\.personaFolders/)
     assert.match(unit('persona-organizer:replace-gallery-assets').content, /persona\.icon = replaceData\(persona\.icon\)/)
     assert.match(unit('persona-organizer:replace-gallery-assets').content, /persona\.imageGallery = persona\.imageGallery\.map/)
     assert.match(unit('persona-organizer:replace-gallery-assets').content, /folder\.icon = replaceData/)
-    assert.match(unit('persona-organizer:server-gallery-assets').content, /persona\?\.imageGallery/)
-    assert.match(unit('persona-organizer:server-gallery-assets').content, /dbObj\.personaFolders/)
+    assert.match(server181.content, /persona\?\.imageGallery/)
+    assert.match(server181.content, /dbObj\.personaFolders/)
+    assert.deepEqual(server181.targetVersions, { pocketrisu: ['1.8.1'] })
+    assert.match(server190.content, /p\?\.imageGallery/)
+    assert.match(server190.content, /dbObj\.personaFolders/)
+    assert.match(server190.content, /p\?\.embeddedModule/)
+    assert.match(server190.content, /includeModuleAssets/)
+    assert.deepEqual(server190.targetVersions, { pocketrisu: ['1.9.0'] })
     assert.match(unit('persona-organizer:backup-gallery-assets').content, /persona\.imageGallery/)
     assert.match(unit('persona-organizer:backup-gallery-assets').content, /folder\.icon/)
+})
+
+test('persona organizer does not replace the database or plugin array', () => {
+    const owned = [
+        source,
+        ...manifest.units.flatMap((candidate) => [
+            candidate.content ?? '',
+            candidate.managed ?? '',
+        ]),
+    ].join('\n')
+
+    assert.doesNotMatch(owned, /setDatabase(?:Lite)?\(/)
+    assert.doesNotMatch(owned, /Database\.plugins|DBState\.db\.plugins/)
 })
