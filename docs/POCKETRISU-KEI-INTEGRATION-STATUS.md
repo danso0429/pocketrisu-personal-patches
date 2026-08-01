@@ -92,11 +92,11 @@ implemented progress.
 
 ## Current review and publication boundary
 
-1. Keep the foundation, existing-pack qualifications, K19, verifier, K13,
-   K14, K16, K15, K11, K12, and documentation
-   commits available for review without pushing, tagging, releasing, or
-   modifying the live PocketRisu tree.
-2. Resolve any review finding in its own feature or infrastructure commit.
+1. Keep the reviewed foundation, existing-pack qualifications, K19, verifier,
+   K13, K14, K16, K15, K11, K12, aggregate, and documentation commits local
+   without pushing, tagging, releasing, or modifying the live PocketRisu tree.
+2. Resolve any L3 finding in its own feature or infrastructure commit and
+   rerun the affected focused and aggregate gates.
 3. The user chose one consolidated iPhone L3 session after all planned local
    integrations. That session must still perform and record each feature's
    concrete scenario separately; batching the session does not merge or waive
@@ -213,12 +213,10 @@ target, exact-revert, and deterministic-installer gates are recorded in
 K12 worktree and do not add deferred catalog children while closing the
 current candidate.
 
-1. Review the aggregate diff and receipts, resolving a finding in its owning
-   feature or infrastructure commit.
-2. Run the already-defined consolidated iPhone session while recording K19,
+1. Run the already-defined consolidated iPhone session while recording K19,
    K13, K14, K16, K15, K11, and K12 results separately.
-3. Rerun focused and aggregate gates affected by any review or L3 fix.
-4. Only after review and L3 decide publication, push/tag/release, or a
+2. Rerun focused and aggregate gates affected by any L3 fix.
+3. Only after L3 decide publication, push/tag/release, or a
    separately authorized live apply and PocketRisu restart.
 
 K12 remains a separate feature and keeps its complete translation identity,

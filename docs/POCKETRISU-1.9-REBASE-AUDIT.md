@@ -331,8 +331,10 @@ Only observed results may move 1.9.0 from `reviewing` to `verified`.
   `docs/POCKETRISU-1.9-AGGREGATE-VALIDATION.md`. The ordinary gate observed
   2,048/2,048 raw selections, 1,024 normalized graphs, 204 managed paths, a
   maximum of 475 units, passing round trips, the complete `--all` target
-  checks/build, exact tracked revert, and deterministic installers. Review and
-  the consolidated feature-by-feature iPhone L3 still block publication.
+  checks/build, exact tracked revert, and deterministic installers. The
+  subsequent aggregate review found no actionable issue in the inspected
+  exact-1.9 boundary. Consolidated feature-by-feature iPhone L3 remains the
+  next publication gate.
 
 ## Post-audit operational handoff
 

@@ -237,14 +237,46 @@ four-ordered-collision plan. Both embedded `pocketrisu-kei` 0.9.0 with ETag
   explicit future decisions. The aggregate preserves official 1.9 behavior
   and does not imply that those privacy/retention choices were made.
 
+## Final aggregate review
+
+The final review covered the 29 commits and 117 changed paths from the
+preserved `081a32b` boundary through installer commit `782c6ab`. Large exact
+1.9 anchor and replacement snapshots were reviewed through their semantic
+owners and validation receipts rather than being treated as ordinary hand
+edits.
+
+- The loaded catalog contained 32 packs, 11 user-selectable packs, zero packs
+  still reviewing 1.9.0, and zero packs missing explicit 1.9.0 verification.
+  The conservative global default still leaves 1.9.0 review-only for a future
+  manifest that does not declare its own targets.
+- The meta pack remained unit-free and required only the seven admitted
+  children. Direct hidden-child requests, opposite adapters, unresolved
+  collisions, and undeclared target-scoped versions remain rejected by the
+  manager/resolver tests.
+- The four ordered collisions matched their declared single-owner composition
+  contracts. The maximum applied graph, complete target suite, diagnostics,
+  build, exact revert, and exhaustive selection gate exercised that order.
+- Added TODO/placeholder-style matches were inspected. They were native search
+  placeholder attributes and the intentional lazy-chat database placeholder
+  state with fail-closed tests, not unfinished implementation placeholders.
+- The K12 third-party attribution paths were checked against the frozen Kei
+  revision. The generated installers contained no user path, tailnet/IP,
+  email, TOTP, or embedded credential value; generic runtime `password`
+  variables came from PocketRisu's existing input/server paths.
+- The final source rebuild left the worktree clean, and source and embedded
+  installer plans retained the same verified 475-unit graph and Kei ETag.
+
+No actionable source, ownership, documentation, or generated-artifact finding
+remained in this inspected exact-1.9 boundary. This is not evidence for the
+unobserved iOS/provider interactions below or for an arbitrary future
+PocketRisu version.
+
 ## Remaining gates
 
-1. Review the aggregate diff and the receipt claims against the exact target.
-2. Run the consolidated iPhone L3 while recording every child scenario
+1. Run the consolidated iPhone L3 while recording every child scenario
    separately.
-3. Resolve any finding in the owning feature or infrastructure commit, then
+2. Resolve any L3 finding in the owning feature or infrastructure commit, then
    rerun the affected focused gate and the aggregate gates required by the
    change.
-4. Only after review and L3 decide whether to commit the final generated
-   artifacts for publication, push, tag, release, or authorize a separate
-   live candidate apply/restart.
+3. Only after L3 decide whether to publish, push, tag, release, or authorize a
+   separate live candidate apply/restart.

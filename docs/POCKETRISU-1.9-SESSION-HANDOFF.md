@@ -7,16 +7,17 @@
 > **Exact target:** official PocketRisu `v1.9.0` /
 > `85a65f3137b45c8de4a8d21a9887be213b1ac3fc`
 >
-> **Immediate next gate:** review the qualified aggregate and run the
-> consolidated feature-by-feature iPhone L3. The exact-1.9 aggregate target,
+> **Immediate next gate:** run the consolidated feature-by-feature iPhone L3.
+> The aggregate review found no actionable issue in the inspected exact-1.9
+> boundary, and the aggregate target,
 > raw-selection, L2.5, exact-revert, and deterministic-installer gates are
 > recorded in `docs/POCKETRISU-1.9-AGGREGATE-VALIDATION.md`.
 
 This document records the complete local work boundary from the beginning of
 the Kei selection effort through the 1.9 pivot and aggregate qualification.
 The current patcher and Kei pack are exact-target source/automation qualified,
-but not publication-qualified until review and consolidated L3. The live
-installation remains pristine 1.9 without the candidate.
+but not publication-qualified until consolidated L3. The live installation
+remains pristine 1.9 without the candidate.
 
 ## Non-negotiable target and review boundary
 
@@ -261,8 +262,8 @@ active-only settings controls. Close the current candidate in this order:
 3. Retain the recorded keep/drop/defer decisions for future and policy rows;
    do not turn K03, K26, K27, or K28 into incidental aggregate fixes.
 4. Retain the completed aggregate exact-1.9 target, L2.5, raw-selection,
-   exact-revert, and deterministic-installer receipt. The remaining gates are
-   aggregate review and the consolidated feature-by-feature iPhone L3.
+   exact-revert, deterministic-installer, and final-review receipt. The
+   remaining gate is the consolidated feature-by-feature iPhone L3.
 
 Keep each feature-local receipt and commit. A review or L3 correction must
 remain in its owning feature or infrastructure boundary and rerun the focused
