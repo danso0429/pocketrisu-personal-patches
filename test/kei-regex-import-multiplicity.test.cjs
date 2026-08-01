@@ -28,7 +28,7 @@ function unit(id) {
 
 test('K23-F01 versions the existing BG regex owner without a new pack or schema', () => {
     assert.equal(manifest.id, 'bg-preserve')
-    assert.equal(manifest.version, 'v1.0.1-patcher.2')
+    assert.match(manifest.version, /^v1\.0\.1-patcher\.\d+$/)
 
     const merge181 = unit('bg-preserve:hook:regex-import-merge')
     const merge190 = unit('bg-preserve:hook:regex-import-merge:1.9')

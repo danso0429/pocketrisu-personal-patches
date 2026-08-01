@@ -63,6 +63,79 @@ function adaptUniversalUnit(unit) {
     return unit
 }
 
+function adaptBgRequestLogging190(unit) {
+    let content = replaceExact(
+        unit.content,
+        "const { diffGlobalVariables } = require('./bgOrchestrationGlobalVariables.cjs')\n",
+        "const { diffGlobalVariables } = require('./bgOrchestrationGlobalVariables.cjs')\nconst { deliverBgRequestLog, parseBgRequestLogBatch } = require('./bgRequestLogBridge.cjs')\n",
+        `${unit.id}: native request-log bridge import`,
+    )
+    content = replaceExact(
+        content,
+        'function loadBundle() {\n',
+        'function loadBundle(requestLogs) {\n',
+        `${unit.id}: request-log owner load`,
+    )
+    content = replaceExact(
+        content,
+        '    patchFetch()\n',
+        '    patchFetch(requestLogs)\n',
+        `${unit.id}: request-log owner fetch patch`,
+    )
+    content = replaceExact(
+        content,
+        'function patchFetch() {\n',
+        'function patchFetch(requestLogs) {\n',
+        `${unit.id}: request-log owner fetch argument`,
+    )
+    content = replaceExact(
+        content,
+        "      // S3: risu session-auth refresh. createAuth() (nodeStorage.ts) needs *a* token to build\n",
+        `      // Native 1.9 request logging is client-posted. Inside the server bundle that relative
+      // URL has no HTTP origin, so hand the unchanged batch to the already-open native owner.
+      // Its normalizer remains the sole authority for masking, field caps, byte rotation, and
+      // the content-free usage row. The logger itself is best-effort, and this bridge never throws.
+      if (u === '/api/request-logs') {
+        const requestLogBatch = parseBgRequestLogBatch(a[0])
+        if (requestLogBatch) return deliverBgRequestLog(requestLogs, requestLogBatch)
+      }
+      // S3: risu session-auth refresh. createAuth() (nodeStorage.ts) needs *a* token to build
+`,
+        `${unit.id}: request-log relative route`,
+    )
+    content = replaceExact(
+        content,
+        '    const bg = await loadBundle()\n',
+        '    const bg = await loadBundle(deps.requestLogs)\n',
+        `${unit.id}: request-log owner preview load`,
+    )
+    content = replaceExact(
+        content,
+        "              { getDbCache, DB_HEX_KEY, kvSet, kvGet }, selectedCharId, selectedChatId, currentChat, 'full',\n",
+        "              { getDbCache, DB_HEX_KEY, kvSet, kvGet, requestLogs: deps.requestLogs }, selectedCharId, selectedChatId, currentChat, 'full',\n",
+        `${unit.id}: detached request-log owner`,
+    )
+    content = replaceExact(
+        content,
+        "            const result = await runServerPreview({ getDbCache, DB_HEX_KEY, kvSet }, selectedCharId, selectedChatId, currentChat, 'full')\n",
+        "            const result = await runServerPreview({ getDbCache, DB_HEX_KEY, kvSet, requestLogs: deps.requestLogs }, selectedCharId, selectedChatId, currentChat, 'full')\n",
+        `${unit.id}: full-preview request-log owner`,
+    )
+    content = replaceExact(
+        content,
+        "            const reply = await runServerPreview({ getDbCache, DB_HEX_KEY }, selectedCharId, selectedChatId, currentChat, 'llm')\n",
+        "            const reply = await runServerPreview({ getDbCache, DB_HEX_KEY, requestLogs: deps.requestLogs }, selectedCharId, selectedChatId, currentChat, 'llm')\n",
+        `${unit.id}: llm-preview request-log owner`,
+    )
+    content = replaceExact(
+        content,
+        "            const serverFormated = await runServerPreview({ getDbCache, DB_HEX_KEY }, selectedCharId, selectedChatId, currentChat, 'assemble')\n",
+        "            const serverFormated = await runServerPreview({ getDbCache, DB_HEX_KEY, requestLogs: deps.requestLogs }, selectedCharId, selectedChatId, currentChat, 'assemble')\n",
+        `${unit.id}: assemble-preview request-log owner`,
+    )
+    return content
+}
+
 const regexImportMerge190 = `            /* BG-PRESERVE:START regex-import-merge */
             // Preserve execution multiplicity while retaining the canonical types[] schema.
             // Equal-key rows may share one canonical object only when none of their directions
@@ -105,6 +178,24 @@ const regexImportMerge190 = `            /* BG-PRESERVE:START regex-import-merge
 `
 
 const variant190 = new Map([
+    ['bg-preserve:owned:server/node/bgOrchestrator.cjs', (unit) => ({
+        ...unit,
+        id: `${unit.id}:1.9`,
+        content: adaptBgRequestLogging190(unit),
+        requires: ['bg-preserve:owned:server/node/bgRequestLogBridge.cjs:1.9'],
+        targetVersions: pocketRisu190,
+    })],
+    ['bg-preserve:hook:server-cjs-register-routes', (unit) => ({
+        ...unit,
+        id: `${unit.id}:1.9`,
+        managed: replaceExact(
+            unit.managed,
+            "require('./bgOrchestrator.cjs')(app, Object.assign({ sessionAuthMiddleware, ensureChatStore, getDbCache: () => dbCache, getFullChatStore: () => fullChatStore, DB_HEX_KEY }, require('./db.cjs')));",
+            "require('./bgOrchestrator.cjs')(app, Object.assign({ sessionAuthMiddleware, ensureChatStore, getDbCache: () => dbCache, getFullChatStore: () => fullChatStore, DB_HEX_KEY, requestLogs }, require('./db.cjs')));",
+            `${unit.id}: native request-log owner registration`,
+        ),
+        targetVersions: pocketRisu190,
+    })],
     ['bg-preserve:hook:regex-import-merge', (unit) => ({
         ...unit,
         id: `${unit.id}:1.9`,
@@ -272,6 +363,24 @@ const units = base.units.flatMap((rawUnit) => {
 
 units.push(
     {
+        id: 'bg-preserve:owned:server/node/bgRequestLogBridge.cjs:1.9',
+        file: 'server/node/bgRequestLogBridge.cjs',
+        type: 'owned',
+        content: owned('server/node/bgRequestLogBridge.cjs'),
+        targetVersions: pocketRisu190,
+    },
+    {
+        id: 'bg-preserve:owned:server/node/bgRequestLogBridge.test.ts:1.9',
+        file: 'server/node/bgRequestLogBridge.test.ts',
+        type: 'owned',
+        content: owned('server/node/bgRequestLogBridge.test.ts'),
+        requires: [
+            'bg-preserve:owned:server/node/bgRequestLogBridge.cjs:1.9',
+            'bg-preserve:owned:server/node/bgOrchestrator.cjs:1.9',
+        ],
+        targetVersions: pocketRisu190,
+    },
+    {
         id: 'bg-preserve:hook:index-unified-generation-busy-import:1.9',
         file: 'src/ts/process/generationState.ts',
         type: 'insert',
@@ -301,7 +410,7 @@ units.push(
 
 module.exports = {
     ...base,
-    version: 'v1.0.1-patcher.2',
+    version: 'v1.0.1-patcher.3',
     source: 'bg-preserve-install.cjs + PocketRisu 1.9 authority adapter',
     targets: {
         pocketrisu: {

@@ -145,8 +145,8 @@ select the top-level policy explicitly.
 | K24 | Remote-only chat/folder filtering | V | T | Part of `kei-multidevice-sync`, not the umbrella. It requires an explicit trust/exposure policy and must not infer “remote” solely from a Cloudflare hostname in environments using another tunnel or tailnet. |
 | K25 | WebSocket multi-device database synchronization and self-echo suppression | V | T, possible later M | Initially a separate `kei-multidevice-sync` pack. It must preserve unsaved local edits through versioned merge/rebase or produce an explicit conflict; remote `setDatabase()` must not silently discard pending local state. If adopted as the universal storage protocol later, merge a qualified major version into `lazy-chat-sync` instead of stacking two writers. |
 | K26 | Manual snapshots, boot-time automatic backups, missing-asset recovery, and management UI | V | U, A | `kei-backup-tools-core` plus standard-storage, lazy-storage, and character-import lease adapters. Preserve existing v1.8.1 backup/import/snapshot behavior. Restore requires confirmation, a pre-restore backup, strict storage flush, and exact failure reporting. |
-| K27 | Persistent request logs | V | T, X as-is | A redesigned `kei-request-logs` may be optional. Default to redacted metadata, bounded rows/days/bytes, and paginated reads. Full headers, bodies, and responses are excluded by default. Do not port Kei's unbounded `save/request-logs.db` behavior or unbounded GET-all endpoint. |
-| K28 | Usage tracking, token/cache/reasoning/service-tier fields, gateway cost, and price estimation | V | T | `kei-usage-insights`, content-free by contract, with bounded retention and pagination. Pricing lookup is optional and may compose with K07, but usage accounting must continue working without the network catalog. Accounting failure must never fail generation. |
+| K27 | Persistent request logs | V | M for K27-F01; T, X as-is for remaining policy | Audit-admitted K27-F01 extends `bg-preserve` only: the server bundle's existing native log POST is delivered to official 1.9's already-open `requestLogs` owner. Its toggle, masking, body caps, 256 MiB rotation, pagination, and schema remain canonical. Platform metadata and per-row deletion stay excluded; a future safer content/retention policy remains a separate explicit pack. |
+| K28 | Usage tracking, token/cache/reasoning/service-tier fields, gateway cost, and price estimation | V | M for U03 through K27-F01; T for remaining policy | K27-F01 also lets the native owner's content-free usage transaction observe BG requests. Rich cache/service-tier/gateway/pricing dimensions, independent enablement, retention, and pagination remain future `kei-usage-insights` scope. Accounting failure must never fail generation. |
 | K29 | Revenant server-side generation | V | M, X direct port | Do not create `kei-revenant`. Mine only demonstrably missing improvements into `bg-preserve`, whose operation-keyed result/claim/ACK, whole-pipeline cancellation, reconnect, cold recovery, and delivery contracts remain canonical. |
 | K30 | Data-restore server refactor and legacy restore paths | V | X, U only through K26 | Do not replace current migration/import behavior as a structural cleanup. Reuse a narrowly needed helper only within K26 after proving round-trip compatibility with existing RisuAI and PocketRisu backups. |
 | K31 | Consolidated UI/settings structures, Kei sticker/branding, and legacy-code deletion | S | X | No direct integration. Deletion and branding are not functional dependencies. Minimal required UI pieces remain governed by K02. |
@@ -165,7 +165,7 @@ exact-1.9 aggregate, these later decisions control admission:
 | K23 | Direct port remains excluded. Audit-admitted K23-F01 preserves same-direction import multiplicity inside `bg-preserve`'s canonical `types[]` owner; R05-R07 are not reimplemented. |
 | K29 | Direct Revenant port remains excluded; qualified `bg-preserve` generation authority stays canonical. |
 | K26 | Combined port dropped because exact 1.9 owns snapshots and backup/restore. Only separately admitted missing-asset or schedule outcomes may return later. |
-| K27/K28 | Deferred explicit policy packs, never hidden umbrella behavior. Exact 1.9 request bodies are bounded/cursor-paginated/masked but default on; usage is content-free and failure-isolated but unbounded/unpaginated and coupled to the log toggle. |
+| K27/K28 | Audit-admitted K27-F01 closes only BG delivery L02/U03 inside the existing `bg-preserve` and native request-log owners. Exact 1.9 request bodies remain bounded/cursor-paginated/masked but default on; usage remains content-free and failure-isolated but unbounded/unpaginated and coupled to the log toggle. Platform/delete, rich accounting, independent usage, and safer privacy/retention policy remain deferred explicit features. |
 
 The evidence and exact source anchors are in
 `docs/POCKETRISU-1.9-CATALOG-COMPLETION-DECISIONS.md`. The seven original
@@ -382,8 +382,10 @@ estimate.
    before aggregate qualification; do not create placeholder children.
 6. Keep K20/K22/K23/K29 under their existing authorities. Admit a later
    independently specified missing outcome only through its own gates.
-7. Design and qualify K05–K09, K24/K25, K27, and K28 as separate top-level
-   policy packs. None blocks the current umbrella.
+7. Design and qualify K05–K09 and K24/K25 as separate top-level policy packs.
+   For K27/K28, keep only audited BG delivery K27-F01 inside `bg-preserve`;
+   design every remaining privacy, retention, platform, deletion, rich
+   accounting, and independent-usage outcome as a separate explicit feature.
 
 The `pocketrisu-kei` meta pack gains a child only after that child's individual
 release gate. A partially implemented child is never hidden behind the meta

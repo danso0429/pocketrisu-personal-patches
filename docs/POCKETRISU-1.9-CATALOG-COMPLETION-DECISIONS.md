@@ -31,8 +31,8 @@ owners.
 | K22 persona picker/list expansion | Defer missing presentation controls to `persona-organizer` | `persona-organizer` remains the folder/order/normalization/import-export owner. No concrete missing outcome requires a new runtime unit for the current aggregate. |
 | K23 regex/lorebook rewrite | Keep only audited K23-F01 in `bg-preserve`; exclude the direct port | The canonical `types[]` row already provides grouped edit/delete/reorder, but the old import bucket collapsed equal same-direction records and lost an execution. K23-F01 merges only disjoint mode sets and starts a separate canonical row on any overlap. It adds no identity or multi-object grouping schema; regex search and lorebook features remain deferred. |
 | K26 backup tools | Drop the combined direct port; defer only distinct additions | Exact 1.9 creates bounded database snapshots on successful persistence, exposes count/byte limits and atomic server restore, provides full server and settings-only backup paths, and offers a boot-time full-backup prompt. Kei's manual schedule and selective missing-asset restore remain distinct, but must be split into future owner-local additions rather than duplicate the qualified storage/import system. |
-| K27 request logs | Keep as a future explicit policy pack only | Exact 1.9 already bounds body storage to 256 MiB, caps individual fields, masks credential patterns, retains at least 50 recent rows, and cursor-paginates list reads. It nevertheless defaults to content capture. A future policy adapter may choose metadata-only defaults or expiry; it is not an umbrella child. |
-| K28 usage insights | Keep as a future explicit policy pack only | Exact 1.9 already records content-free, failure-isolated LLM usage, but the rows are unbounded/unpaginated and writes are coupled to the body-log toggle. Retention, pagination, and decoupling require an explicit policy decision; they do not block the current umbrella. |
+| K27 request logs | Keep only audited K27-F01 in `bg-preserve`; defer policy/UI differences | Exact 1.9 already bounds body storage to 256 MiB, caps individual fields, masks credential patterns, retains at least 50 recent rows, and cursor-paginates list reads. K27-F01 connects the BG server bundle's native log POST to that same owner. Platform metadata, per-row deletion, metadata-only defaults, and expiry remain separate explicit decisions. |
+| K28 usage insights | Close only BG delivery U03 through K27-F01; defer rich/independent policy | The same native transaction records content-free, failure-isolated LLM usage for BG calls after K27-F01. Usage rows remain unbounded/unpaginated and coupled to the body-log toggle. Rich dimensions, retention, pagination, and decoupling remain explicit future policy and do not enter this correction. |
 | K29 Revenant | Exclude the direct port | The qualified `bg-preserve` owner already supplies operation-keyed result/claim/ACK, whole-pipeline cancellation, reconnect, cold recovery, and no-resurrection. No measured missing result justifies a second server-generation authority. |
 
 K05-K09 and K24-K25 remain separate opt-in provider/network/storage-policy
@@ -100,6 +100,12 @@ the original seven children or the K04/K17 compatibility corrections.
   tables. Request rows rotate by byte budget; usage rows explicitly do not.
 - `requestLogEnabled` defaults on and gates both content logging and usage.
   List reads omit bodies unless requested and support an ID cursor/limit.
+- K27-F01 does not add another logger. In exact 1.9, `bg-preserve` intercepts
+  only the server bundle's otherwise-unroutable relative `/api/request-logs`
+  POST and hands its unchanged batch to the already-open native
+  `requestLogs.addRequestLogBatch` owner. The native toggle still prevents the
+  POST at its source; native normalization and the single request/usage
+  transaction remain authoritative.
 - These observations correct the old shorthand that all 1.9 request logging
   is unbounded. They do not resolve the default-content or usage-retention
   policy choices.
