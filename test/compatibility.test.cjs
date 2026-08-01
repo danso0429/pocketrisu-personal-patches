@@ -72,7 +72,7 @@ test('only the private maintainer gate may stage an explicitly reviewing target'
         assert.doesNotThrow(() => assertTargetReviewable(result))
     }))
 
-test('official PocketRisu 1.9.0 separates explicitly verified and reviewing packs', () =>
+test('official PocketRisu 1.9.0 catalog is explicitly verified', () =>
     withRoot('1.9.0', (root) => {
         const catalog = loadCatalog()
         const expectedVerified = catalog
@@ -82,7 +82,8 @@ test('official PocketRisu 1.9.0 separates explicitly verified and reviewing pack
             .filter((entry) => entry.targets.pocketrisu.reviewing.includes('1.9.0'))
             .map((entry) => entry.id)
         const result = evaluateTargetCompatibility(root, catalog)
-        assert.equal(result.status, 'under-review')
+        assert.deepEqual(expectedReviewing, [])
+        assert.equal(result.status, 'verified')
         assert.deepEqual(
             result.verifiedPacks.map((entry) => entry.id),
             expectedVerified,
@@ -92,11 +93,7 @@ test('official PocketRisu 1.9.0 separates explicitly verified and reviewing pack
             expectedReviewing,
         )
         assert.deepEqual(result.reviewRequiredPacks, [])
-        assert.throws(
-            () => assertTargetVerified(result),
-            (error) => error.code === 'TARGET_REVIEW_REQUIRED'
-                && error.details.packs.length === expectedReviewing.length,
-        )
+        assert.doesNotThrow(() => assertTargetVerified(result))
         assert.doesNotThrow(() => assertTargetReviewable(result))
     }))
 

@@ -9,8 +9,14 @@ const { resolveSelection } = require('../src/resolver.cjs')
 
 test('PocketRisu Kei remains a unit-free universal-only meta pack', () => {
     assert.equal(manifest.id, 'pocketrisu-kei')
-    assert.equal(manifest.version, '0.8.0')
+    assert.equal(manifest.version, '0.9.0')
     assert.equal(manifest.userSelectable, true)
+    assert.deepEqual(manifest.targets, {
+        pocketrisu: {
+            verified: ['1.8.1', '1.9.0'],
+            reviewing: [],
+        },
+    })
     assert.deepEqual(manifest.requires, [
         'kei-fullscreen-image-viewer-core',
         'kei-stream-parser-core',
