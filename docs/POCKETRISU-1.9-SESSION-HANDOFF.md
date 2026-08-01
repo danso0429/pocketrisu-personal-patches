@@ -7,9 +7,9 @@
 > **Exact target:** official PocketRisu `v1.9.0` /
 > `85a65f3137b45c8de4a8d21a9887be213b1ac3fc`
 >
-> **Immediate next gate:** record the remaining future/policy row decisions,
-> then qualify the aggregate exact-1.9 graph, run the full raw-selection
-> verifier, and rebuild deterministic installers. The existing
+> **Immediate next gate:** qualify the aggregate exact-1.9 graph, run the full
+> raw-selection verifier, and rebuild deterministic installers. The
+> future/policy row decisions are recorded, the existing
 > `preset-integrity` conflict is resolved, and the BG/lazy owner graph plus
 > K19, K13, K14, K16, K15, K11, K12 Kei children have feature-local exact-1.9
 > receipts.
@@ -260,8 +260,8 @@ active-only settings controls. Resume owner integration in this order:
    ownership while retaining the missing manual/frontier outcomes. K12
    preserves native request logging and cache-key behavior while retaining
    its identity/CAS/cancel/import/export/cleanup outcomes.
-3. Record final keep/drop/defer decisions for the future and policy rows,
-   including native 1.9 overlap and unresolved K27/K28.
+3. Retain the recorded keep/drop/defer decisions for future and policy rows;
+   do not turn K03, K26, K27, or K28 into incidental aggregate fixes.
 4. Run the aggregate exact-1.9 target, L2.5, raw-selection, deterministic
    installer, and review gates without applying the candidate live.
 

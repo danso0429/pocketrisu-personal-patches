@@ -217,11 +217,12 @@ iPhone L3 remains a later release gate and does not merge child evidence.
 6. **K12:** port the preserved staged implementation onto the qualified 1.9
    owners, remove duplicate cache-key correction, and repeat its CAS/cancel/
    cleanup gates.
-7. **Future catalog rows:** re-evaluate K03/K04 and K26 before implementation.
-   Prompt roles and settings-only export are now upstream baseline behavior;
-   preset folders and snapshot/restore contracts are still distinct.
-8. **Policy rows:** decide K27/K28 defaults and retention without making them
-   hidden umbrella behavior.
+7. **Future catalog rows:** the 1.9 completion decision defers distinct K03,
+   drops the K04 direct port, and drops combined K26 while leaving only
+   separately admitted owner-local additions as future work.
+8. **Policy rows:** K27/K28 remain explicit future policy packs. Native 1.9
+   logging/usage is the baseline; no hidden umbrella default changes privacy
+   or retention.
 9. **Qualification:** run patcher tests, focused apply/reapply/current/revert,
    target tests/check/build, existing-owner combinations, L2.5, and the full
    raw-selection combination gate from
@@ -322,6 +323,10 @@ Only observed results may move 1.9.0 from `reviewing` to `verified`.
   explicit deletion, and cancellation. Its dual-target plans, base/lazy+BG
   gates, exact round trips, runtime audit, and remaining interaction scenarios
   are recorded in `docs/POCKETRISU-1.9-KEI-K12-VALIDATION.md`.
+- Future/merge/policy rows: exact 1.9 keep/drop/defer decisions are recorded
+  in `docs/POCKETRISU-1.9-CATALOG-COMPLETION-DECISIONS.md`. They add no
+  placeholder child and no second preset, backup, organizer, regex,
+  generation, request-log, or usage owner to the current aggregate.
 - Aggregate qualification remains pending.
 
 ## Post-audit operational handoff

@@ -151,6 +151,25 @@ select the top-level policy explicitly.
 | K30 | Data-restore server refactor and legacy restore paths | V | X, U only through K26 | Do not replace current migration/import behavior as a structural cleanup. Reuse a narrowly needed helper only within K26 after proving round-trip compatibility with existing RisuAI and PocketRisu backups. |
 | K31 | Consolidated UI/settings structures, Kei sticker/branding, and legacy-code deletion | S | X | No direct integration. Deletion and branding are not functional dependencies. Minimal required UI pieces remain governed by K02. |
 
+## PocketRisu 1.9 completion overlay
+
+The frozen table above remains the source-comparison record. For the current
+exact-1.9 aggregate, these later decisions control admission:
+
+| Rows | Current aggregate decision |
+| --- | --- |
+| K03 | Distinct but deferred future child; preset folders were never admitted before the target pivot. |
+| K04 | Direct port dropped because exact 1.9 owns prompt-role normalization and UI; `preset-integrity` retains active-selection invariants. |
+| K20/K22 | No parallel character/persona organization schema; missing presentation outcomes remain future owner-local changes. |
+| K23/K29 | Direct ports excluded; qualified `bg-preserve` schema and generation authorities remain canonical. |
+| K26 | Combined port dropped because exact 1.9 owns snapshots and backup/restore. Only separately admitted missing-asset or schedule outcomes may return later. |
+| K27/K28 | Deferred explicit policy packs, never hidden umbrella behavior. Exact 1.9 request bodies are bounded/cursor-paginated/masked but default on; usage is content-free and failure-isolated but unbounded/unpaginated and coupled to the log toggle. |
+
+The evidence and exact source anchors are in
+`docs/POCKETRISU-1.9-CATALOG-COMPLETION-DECISIONS.md`. These decisions let the
+seven already-admitted Kei children enter aggregate qualification without
+claiming deferred rows as implemented.
+
 ## Existing-authority merge ledger
 
 The following decisions are based on state and policy ownership, not file
@@ -352,12 +371,12 @@ estimate.
    with base and existing-owner graphs.
 4. Admit state-editing features K15 partial edit, K11 Hypa tools, and K12
    translation tools one at a time.
-5. Admit K03/K04 preset behavior and K26 backup tools after their preservation
-   contracts pass combined tests.
-6. Merge K20/K22/K23/K29 improvements into their existing authorities as
-   independently versioned changes.
+5. Against PocketRisu 1.9, record K03/K04/K26 as native, dropped, or deferred
+   before aggregate qualification; do not create placeholder children.
+6. Keep K20/K22/K23/K29 under their existing authorities. Admit a later
+   independently specified missing outcome only through its own gates.
 7. Design and qualify K05–K09, K24/K25, K27, and K28 as separate top-level
-   policy packs. None blocks the umbrella.
+   policy packs. None blocks the current umbrella.
 
 The `pocketrisu-kei` meta pack gains a child only after that child's individual
 release gate. A partially implemented child is never hidden behind the meta
