@@ -10,7 +10,7 @@ const read = (root, relative) => fs.readFileSync(path.join(root, relative), 'utf
 module.exports = {
     id: 'character-import-ux',
     title: 'Non-blocking character import',
-    version: '0.1.1',
+    version: '0.1.2',
     userSelectable: true,
     presetDefaults: ['features'],
     requires: ['lazy-chat-sync'],
@@ -127,7 +127,7 @@ module.exports = {
             file: 'src/lib/Setting/Pages/SystemBackup.svelte',
             type: 'insert',
             where: 'after',
-            anchor: `    import { LoadLocalBackup, SaveLocalBackup, SaveServerBackup } from 'src/ts/drive/backuplocal'
+            anchor: `    import { language } from 'src/lang'
 `,
             content: `    import { allowDuringCharacterImport } from 'src/ts/characterImportState'
 `,

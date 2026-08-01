@@ -7,8 +7,8 @@
 > **Exact target:** official PocketRisu `v1.9.0` /
 > `85a65f3137b45c8de4a8d21a9887be213b1ac3fc`
 >
-> **Immediate next feature:** `character-import-ux` 1.9 rebase and semantic
-> qualification. Do not resume with Kei or K12 first.
+> **Immediate next feature:** `lazy-chat-sync` 1.9 rebase, then combined
+> `character-import-ux` qualification. Do not resume with Kei or K12 first.
 
 This document records the complete local work boundary from the beginning of
 the Kei selection effort through the 1.9 pivot and live-update preparation.
@@ -239,11 +239,12 @@ The exact-1.9 target boundary, `toolchain-hardening`, `startup-cache`,
 asset-only `bg-preserve-storage-base` adapter is also qualified without
 promoting its parent BG pack. `persona-organizer` is qualified with a
 target-scoped 1.9 server asset walker that preserves native embedded-module
-and settings-only export semantics. Resume storage/import-owner rebase in this
-order:
+and settings-only export semantics. The local `character-import-ux` backup
+guard overlap is adapted, but its full graph still waits on `lazy-chat-sync`.
+Resume storage/import-owner rebase in this order:
 
-1. Rebase `character-import-ux`, and then `lazy-chat-sync`. Preserve native
-   1.9 model jobs, boot recovery, request
+1. Rebase `lazy-chat-sync`, then return to combined `character-import-ux`
+   qualification. Preserve native 1.9 model jobs, boot recovery, request
    logging, the session/writer lock, storage headers, and settings-only backup.
 2. Write and test the request-class ownership table before touching
    `bg-preserve` or `lazy-chat-bg-adapter`. Assign exactly one owner for

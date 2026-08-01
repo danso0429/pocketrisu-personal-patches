@@ -4,6 +4,7 @@ const test = require('node:test')
 const assert = require('node:assert/strict')
 const fs = require('node:fs')
 const path = require('node:path')
+const { applyUnit, revertUnit } = require('../src/compose.cjs')
 
 const patchRoot = path.join(__dirname, '../patches/character-import-ux')
 const read = (relative) => fs.readFileSync(path.join(patchRoot, relative), 'utf8')
@@ -15,11 +16,49 @@ const manifest = require('../patches/character-import-ux/manifest.cjs')
 
 test('character import UX is a separate lazy-chat-dependent feature pack', () => {
     assert.equal(manifest.id, 'character-import-ux')
+    assert.equal(manifest.version, '0.1.2')
     assert.equal(manifest.userSelectable, true)
     assert.deepEqual(manifest.presetDefaults, ['features'])
     assert.deepEqual(manifest.requires, ['lazy-chat-sync'])
     assert.notEqual(source, anchor)
     assert.doesNotMatch(source, /setDatabaseLite\(\{ ?plugins|setDatabase\(\{ ?plugins/)
+})
+
+test('snapshot guard applies and reverts across PocketRisu 1.8 and 1.9 import lists', () => {
+    const importUnit = manifest.units.find(
+        (candidate) => candidate.id === 'character-import-ux:snapshot-guard-import',
+    )
+    const restoreUnit = manifest.units.find(
+        (candidate) => candidate.id === 'character-import-ux:snapshot-restore-guard',
+    )
+    assert.ok(importUnit)
+    assert.ok(restoreUnit)
+    assert.equal(importUnit.anchor, "    import { language } from 'src/lang'\n")
+    assert.match(importUnit.content, /allowDuringCharacterImport/)
+    assert.doesNotMatch(importUnit.anchor, /SaveLocalBackup|SaveSettingsOnlyBackup/)
+
+    const baselines = [
+        `    import { language } from 'src/lang'
+    import { LoadLocalBackup, SaveLocalBackup, SaveServerBackup } from 'src/ts/drive/backuplocal'
+
+    async function restoreSnapshot(snap: Snapshot) {
+`,
+        `    import { language } from 'src/lang'
+    import { LoadLocalBackup, SaveLocalBackup, SaveSettingsOnlyBackup, SaveServerBackup } from 'src/ts/drive/backuplocal'
+
+    async function restoreSnapshot(snap: Snapshot) {
+`,
+    ]
+    for (const baseline of baselines) {
+        const withImport = applyUnit(baseline, importUnit)
+        const applied = applyUnit(withImport, restoreUnit)
+        assert.match(applied, /allowDuringCharacterImport\('Snapshot restore'\)/)
+        assert.equal((applied.match(/allowDuringCharacterImport/g) ?? []).length, 2)
+        assert.equal(
+            revertUnit(revertUnit(applied, restoreUnit), importUnit),
+            baseline,
+        )
+    }
 })
 
 test('ordinary imports use one reactive toast body and server-confirmed success', () => {

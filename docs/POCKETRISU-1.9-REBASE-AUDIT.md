@@ -75,7 +75,7 @@ It is a review surface, not proof of a semantic conflict.
 | `preset-integrity` | 3 | 1 | All six anchors exact; active `-1` preset policy conflicts with new ID helper |
 | `persona-organizer` | 11 | 5 | Qualified with a target-scoped 1.9 server asset walker; native embedded-module and settings-only semantics preserved |
 | `character-organizer` | 5 | 1 | Qualified on exact 1.9.0; native drag/file-drop and AssetViewer behavior preserved |
-| `character-import-ux` | 10 | 2 | Refused at the snapshot/import guard anchor |
+| `character-import-ux` | 10 | 2 | Local 1.9 backup/snapshot anchor adapted; full qualification waits on `lazy-chat-sync` |
 | `personal-settings` | 14 | 6 | Qualified on exact 1.9.0 with two 1.9-only native Settings Search units |
 | `parser-hardening` | 9 | 1 | Qualified on exact 1.9.0; parser-only delta retained |
 | `toolchain-hardening` | 3 | 1 | Qualified on exact 1.9.0; test setup and dependency-only delta retained |
@@ -260,6 +260,11 @@ Only observed results may move 1.9.0 from `reviewing` to `verified`.
   Dual-target planning, focused/full gates, exact round trips, the exhaustive
   1.8 combination result, and runtime audit are recorded in
   `docs/POCKETRISU-1.9-PERSONA-ORGANIZER-VALIDATION.md`.
+- `character-import-ux`: its local System Backup guard now composes on both
+  1.8 and 1.9 without coupling to the new settings-only backup import. The
+  complete 1.9 graph remains under review at the parent `lazy-chat-sync`
+  server replacement. The partial boundary is recorded in
+  `docs/POCKETRISU-1.9-CHARACTER-IMPORT-UX-ADAPTER-VALIDATION.md`.
 - Other pack requalification and every later executable step remain pending.
 
 ## Post-audit operational handoff
