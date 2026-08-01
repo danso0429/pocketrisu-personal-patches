@@ -10,6 +10,12 @@ module.exports = {
     id: 'parser-hardening',
     title: 'Parser hardening',
     version: '0.1.0',
+    targets: {
+        pocketrisu: {
+            verified: ['1.8.1', '1.9.0'],
+            reviewing: [],
+        },
+    },
     userSelectable: true,
     presetDefaults: ['hardening'],
     units: [

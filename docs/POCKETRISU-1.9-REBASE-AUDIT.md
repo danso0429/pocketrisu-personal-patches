@@ -74,7 +74,7 @@ It is a review surface, not proof of a semantic conflict.
 | `character-organizer` | 5 | 1 | Planned structurally; semantic review required |
 | `character-import-ux` | 10 | 2 | Refused at the snapshot/import guard anchor |
 | `personal-settings` | 12 | 4 | Planned structurally; semantic review required |
-| `parser-hardening` | 9 | 1 | Planned structurally; semantic review required |
+| `parser-hardening` | 9 | 1 | Qualified on exact 1.9.0; parser-only delta retained |
 | `toolchain-hardening` | 3 | 1 | Qualified on exact 1.9.0; test setup and dependency-only delta retained |
 
 The path counts were recomputed from every manifest unit's `file` field and
@@ -233,6 +233,10 @@ Only observed results may move 1.9.0 from `reviewing` to `verified`.
   baseline comparison, focused and combined gates, zero-change reapply, and
   exact revert evidence is in
   `docs/POCKETRISU-1.9-STARTUP-CACHE-VALIDATION.md`.
+- `parser-hardening`: qualified for exact 1.9.0. Its unchanged upstream
+  parser defects, focused parser suite, full toolchain combination, and both
+  exact round trips are recorded in
+  `docs/POCKETRISU-1.9-PARSER-HARDENING-VALIDATION.md`.
 - Other pack requalification and every later executable step remain pending.
 
 ## Review method and limitations

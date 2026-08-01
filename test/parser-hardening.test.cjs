@@ -15,6 +15,16 @@ test('parser hardening is independently versioned and included by hardening and 
     assert.equal(resolveProfile('all', catalog).defaults.includes(manifest.id), true)
 })
 
+test('parser hardening is qualified only for reviewed exact PocketRisu targets', () => {
+    assert.deepEqual(manifest.targets, {
+        pocketrisu: {
+            verified: ['1.8.1', '1.9.0'],
+            reviewing: [],
+        },
+    })
+    assert.equal(manifest.targets.pocketrisu.verified.includes('1.9.1'), false)
+})
+
 test('parser hardening pack ETag covers its exact managed content', () => {
     const original = packEtag(manifest)
     const changed = {
