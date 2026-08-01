@@ -327,7 +327,12 @@ Only observed results may move 1.9.0 from `reviewing` to `verified`.
   in `docs/POCKETRISU-1.9-CATALOG-COMPLETION-DECISIONS.md`. They add no
   placeholder child and no second preset, backup, organizer, regex,
   generation, request-log, or usage owner to the current aggregate.
-- Aggregate qualification remains pending.
+- Aggregate exact-1.9 qualification is recorded in
+  `docs/POCKETRISU-1.9-AGGREGATE-VALIDATION.md`. The ordinary gate observed
+  2,048/2,048 raw selections, 1,024 normalized graphs, 204 managed paths, a
+  maximum of 475 units, passing round trips, the complete `--all` target
+  checks/build, exact tracked revert, and deterministic installers. Review and
+  the consolidated feature-by-feature iPhone L3 still block publication.
 
 ## Post-audit operational handoff
 

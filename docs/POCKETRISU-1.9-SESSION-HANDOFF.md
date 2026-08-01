@@ -7,17 +7,16 @@
 > **Exact target:** official PocketRisu `v1.9.0` /
 > `85a65f3137b45c8de4a8d21a9887be213b1ac3fc`
 >
-> **Immediate next gate:** qualify the aggregate exact-1.9 graph, run the full
-> raw-selection verifier, and rebuild deterministic installers. The
-> future/policy row decisions are recorded, the existing
-> `preset-integrity` conflict is resolved, and the BG/lazy owner graph plus
-> K19, K13, K14, K16, K15, K11, K12 Kei children have feature-local exact-1.9
-> receipts.
+> **Immediate next gate:** review the qualified aggregate and run the
+> consolidated feature-by-feature iPhone L3. The exact-1.9 aggregate target,
+> raw-selection, L2.5, exact-revert, and deterministic-installer gates are
+> recorded in `docs/POCKETRISU-1.9-AGGREGATE-VALIDATION.md`.
 
 This document records the complete local work boundary from the beginning of
-the Kei selection effort through the 1.9 pivot and live-update preparation.
-It is a handoff, not a declaration that the aggregate patcher, Kei pack, or
-live installation is qualified for PocketRisu 1.9.
+the Kei selection effort through the 1.9 pivot and aggregate qualification.
+The current patcher and Kei pack are exact-target source/automation qualified,
+but not publication-qualified until review and consolidated L3. The live
+installation remains pristine 1.9 without the candidate.
 
 ## Non-negotiable target and review boundary
 
@@ -120,17 +119,16 @@ the staged K12 bytes.
 | `eca26f0` | Added the 1.9-only native Settings Search adapter for `personal-settings` while preserving its 1.8 graph. |
 
 The exact commit sequence through the current branch HEAD remains authoritative
-in `git log`; do not resume from the historical `88ddfe5` boundary. The
-conditional `bg-preserve-storage-base` adapter was subsequently qualified as
-an asset-only 1.9 delta while its parent remained reviewing. Patcher tests
-observed after that qualification were 29/29. Exact 1.9 remains `reviewing`,
-not globally `verified`; later packs remain under review.
+in `git log`; do not resume from the historical `88ddfe5` boundary. Every
+current pack and admitted Kei child was subsequently qualified on exact 1.9,
+and the aggregate ordinary gate now reports the catalog verified. Unlisted
+versions such as 1.9.1 remain rejected.
 
-The generated `dist/` installers were last rebuilt in `b815d51`. They do not
-yet contain the later source-manifest qualifications, target-scoped manager,
-or 1.9 adapters. Do not use or publish the current generated installers as a
-HEAD-equivalent 1.9 artifact. Rebuild them reproducibly and record
-deterministic hashes before any installer or delivery claim.
+The generated `dist/` installers now include the target-scoped manifests and
+1.9 adapters. Two builds produced identical hashes, and both fixed/all and
+generic/all embedded plans matched the 475-unit source plan. Exact hashes and
+sizes are in `docs/POCKETRISU-1.9-AGGREGATE-VALIDATION.md`. They remain local
+review artifacts and have not been published.
 
 ## Live-installation operation performed in this session
 
@@ -250,7 +248,7 @@ replacements, native 1.9 recovery/logging/lock/backup preservation, combined
 target gates, ordinary exact round trip, L2.5, and the exhaustive exact-1.8
 gate. `preset-integrity` is also qualified with separate 1.8 and 1.9 units;
 the 1.9 path preserves the native `-1` no-active sentinel and guards
-active-only settings controls. Resume owner integration in this order:
+active-only settings controls. Close the current candidate in this order:
 
 1. Retain the qualified request-class table and combined BG/lazy adapter graph
    without weakening result/claim/ACK, cancellation, hydration, or
@@ -262,14 +260,14 @@ active-only settings controls. Resume owner integration in this order:
    its identity/CAS/cancel/import/export/cleanup outcomes.
 3. Retain the recorded keep/drop/defer decisions for future and policy rows;
    do not turn K03, K26, K27, or K28 into incidental aggregate fixes.
-4. Run the aggregate exact-1.9 target, L2.5, raw-selection, deterministic
-   installer, and review gates without applying the candidate live.
+4. Retain the completed aggregate exact-1.9 target, L2.5, raw-selection,
+   exact-revert, and deterministic-installer receipt. The remaining gates are
+   aggregate review and the consolidated feature-by-feature iPhone L3.
 
-For every numbered implementation, keep a feature-local receipt and commit.
-Run target-focused tests and exact round trips before advancing; run L2.5 for
-runtime effects; and run the complete raw-selection combination gate before
-any aggregate `verified` declaration. A consolidated future iPhone L3 session
-still records each child's concrete scenario separately.
+Keep each feature-local receipt and commit. A review or L3 correction must
+remain in its owning feature or infrastructure boundary and rerun the focused
+and aggregate gates affected by that correction. The consolidated future
+iPhone L3 session still records each child's concrete scenario separately.
 
 ## Live candidate boundary after the base cutover
 

@@ -39,9 +39,12 @@ candidate is preserved rather than mutated in place.
 
 The exact overlap, semantic classification, generation-authority conflict,
 privacy-policy correction, and ordered rebase plan are in the 1.9 audit.
-The exact review-only target boundary is implemented and recorded in
-`docs/POCKETRISU-1.9-TARGET-BOUNDARY-VALIDATION.md`; no pack is thereby
-qualified on 1.9.0.
+The original review-only target boundary is recorded in
+`docs/POCKETRISU-1.9-TARGET-BOUNDARY-VALIDATION.md`. After every pack and Kei
+child was qualified, the aggregate ordinary target gate promoted the current
+exact-1.9 catalog to verified; the aggregate evidence is in
+`docs/POCKETRISU-1.9-AGGREGATE-VALIDATION.md`. Unlisted later PocketRisu
+versions remain rejected.
 
 ## Current branch boundary
 
@@ -75,10 +78,10 @@ official 1.9 base and is not a candidate publication or patch qualification.
 | Catalog admission step | Current state | Evidence / remaining boundary |
 | --- | --- | --- |
 | 1. Empty meta pack and resolver/catalog foundation | Candidate complete | `docs/POCKETRISU-KEI-FOUNDATION-VALIDATION.md`; review remains before publication |
-| 2. Minimal K02 primitives required by K19, then K19 | Implementation and automated gates complete | PocketRisu 1.8.1 already supplied the Svelte/icon primitives needed by the focused K19 port, so no K02 child was added. K19 evidence is in `docs/POCKETRISU-KEI-K19-VALIDATION.md`. HQ review and the concrete iPhone gate remain, so this step is not publication-qualified. |
+| 2. Minimal K02 primitives required by K19, then K19 | Exact-1.9 implementation and aggregate automated gates complete | PocketRisu 1.8.1 already supplied the Svelte/icon primitives needed by the original focused port, so no K02 child was added. The 1.9 delta reuses native AssetViewer ownership and adds accessibility only. Evidence is in `docs/POCKETRISU-KEI-K19-VALIDATION.md` and `docs/POCKETRISU-1.9-KEI-K19-VALIDATION.md`. Review and the concrete iPhone gate remain, so this step is not publication-qualified. |
 | Detour: exhaustive verifier performance | Complete as local infrastructure | `docs/COMBINATION-VERIFIER-OPTIMIZATION-VALIDATION.md`; this does not advance an admission step |
-| 3. K13 stream parser, K14 render stability, K16 navigation/hotkeys | Exact-1.9 implementation and automated gates recorded | Each feature has an isolated core/adapters, 1.9 receipt, L2.5 audit, base/composed target tests and builds, dual-target planning, and exact revert evidence. See `docs/POCKETRISU-1.9-KEI-K13-VALIDATION.md`, `docs/POCKETRISU-1.9-KEI-K14-VALIDATION.md`, and `docs/POCKETRISU-1.9-KEI-K16-VALIDATION.md`. The aggregate raw-selection gate, HQ review, and each consolidated L3 scenario remain, so this step is not publication-qualified. |
-| 4. K15 partial edit, K11 Hypa tools, K12 translation tools | All three exact-1.9 implementations and feature-local automated gates recorded | Exact-1.9 evidence is in `docs/POCKETRISU-1.9-KEI-K15-VALIDATION.md`, `docs/POCKETRISU-1.9-KEI-K11-VALIDATION.md`, and `docs/POCKETRISU-1.9-KEI-K12-VALIDATION.md`. Aggregate combination, review, installer, and L3 gates remain. |
+| 3. K13 stream parser, K14 render stability, K16 navigation/hotkeys | Exact-1.9 implementation and aggregate automated gates recorded | Each feature has an isolated core/adapters, 1.9 receipt, L2.5 audit, base/composed target tests and builds, dual-target planning, exact revert evidence, and coverage in the passing aggregate gate. See `docs/POCKETRISU-1.9-KEI-K13-VALIDATION.md`, `docs/POCKETRISU-1.9-KEI-K14-VALIDATION.md`, and `docs/POCKETRISU-1.9-KEI-K16-VALIDATION.md`. Review and each consolidated L3 scenario remain, so this step is not publication-qualified. |
+| 4. K15 partial edit, K11 Hypa tools, K12 translation tools | All three exact-1.9 implementations and aggregate automated gates recorded | Exact-1.9 evidence is in `docs/POCKETRISU-1.9-KEI-K15-VALIDATION.md`, `docs/POCKETRISU-1.9-KEI-K11-VALIDATION.md`, and `docs/POCKETRISU-1.9-KEI-K12-VALIDATION.md`. Aggregate combination, target, L2.5, and deterministic-installer gates passed; review and L3 remain. |
 | 5. K03/K04 preset behavior and K26 backup tools | Exact-1.9 decisions recorded; no child added | K04 direct port and combined K26 port are dropped in favor of native owners; distinct K03 and owner-local K26 additions are deferred future features. `preset-integrity` is exact-1.9-qualified. Evidence: `docs/POCKETRISU-1.9-CATALOG-COMPLETION-DECISIONS.md`. |
 | 6. K20/K22/K23/K29 existing-authority merges | Decisions recorded; no current runtime delta | Character/persona presentation remains future owner-local work; K23/K29 direct ports are excluded. No parallel order/schema/orchestration authority is introduced. |
 | 7. K05–K09, K24/K25, K27, K28 policy packs | Explicitly deferred outside the umbrella | Separate opt-in provider/network/privacy/retention packs; none blocks the current aggregate. Exact 1.9 log/usage behavior is recorded without silently choosing a new policy. |
@@ -98,10 +101,15 @@ implemented progress.
    integrations. That session must still perform and record each feature's
    concrete scenario separately; batching the session does not merge or waive
    child gates. For K19 it includes:
-   - open a character's additional image;
-   - navigate previous and next across sparse available assets;
-   - close the viewer;
-   - confirm existing add, delete, and excluded-asset behavior is unchanged.
+   - open the native viewer from character and module assets, verify search
+     and image filtering, and inspect dialog/search/thumbnail labels with
+     VoiceOver;
+   - open a middle image, swipe exactly one image each way, then use both
+     arrow buttons and verify name/count/label alignment;
+   - exercise boundaries, both close controls, rotation, focus return, and
+     the 44-pixel targets;
+   - confirm existing add, delete, rename, and excluded-asset behavior is
+     unchanged.
    For K13 it includes:
    - use a classic OpenAI-compatible model with streaming enabled and observe
      a visibly multi-paragraph/emoji response through completion;
@@ -185,10 +193,10 @@ implemented progress.
    - exercise the largest cache with keyboard, scrolling, rotation,
      clipboard, cancellation, and explicit confirmations. Provider-specific
      DeepLX/Bergamot paths are recorded as not exercised when unavailable.
-4. Record the observed L3 result. For K19, do not claim swipe navigation: its
-   focused viewer provides touch-sized previous/next and close controls plus
-   keyboard navigation. K16's separate whole-view swipe scenario is the one
-   listed above.
+4. Record the observed L3 result. For K19 on exact 1.9, exercise the native
+   AssetViewer's one-image scroll-snap swipe and arrow controls together with
+   the K19 accessibility labels and 44-pixel close targets. K16's separate
+   whole-view swipe scenario remains a different interaction owner.
 
 The deferred K19 mobile gate does not block source audit or separately
 committed local implementation of the next catalog child. Review and the
@@ -197,48 +205,21 @@ publication of the aggregate candidate. A future live candidate apply and
 any restart it needs remain separate explicit-authorization boundaries; the
 already completed pristine 1.9 base restart does not authorize either.
 
-## Next implementation sequence
+## Next review and L3 sequence
 
-Pause new catalog admission while the official 1.9 target is requalified.
-Start from the `codex/pocketrisu-1.9-rebase` branch HEAD containing the
-session handoff and feature-local qualification receipts. Preserve the
-separate staged K12 worktree. `lazy-chat-sync` and combined
-`character-import-ux` qualification are complete. The request-class authority
-table, target-scoped `bg-preserve`, and combined lazy/BG adapter qualification
-and the K19 native AssetViewer accessibility delta are also complete. K13's
-unchanged replayable SSE core and dual graph adapters are qualified on exact
-1.9.0, K14 is qualified as a focused delta over native streaming render
-optimization, K16 retains only the navigation/hotkey outcomes missing from
-the native shortcut and unload owners, and K15 preserves upstream optimized
-stream suppression while replacing the per-message controller with its
-shared identity-guarded manager. K11 retains native preview/search and adds
-only the manual frontier workflow. K12 preserves official request logging,
-the native original-text cache-key outcome, K14's exact render boundary, and
-K15's CAS while adding its cache-management/cancellation outcomes. Existing
-`preset-integrity` now preserves the native no-active sentinel on exact 1.9.
-The future/policy row decisions are recorded; the exact next work is aggregate
-graph qualification.
-Follow
-`docs/POCKETRISU-1.9-SESSION-HANDOFF.md` and
-`docs/POCKETRISU-1.9-REBASE-AUDIT.md` in this order:
+The exact-1.9 implementation, aggregate graph, L2.5, raw-selection, maximum
+target, exact-revert, and deterministic-installer gates are recorded in
+`docs/POCKETRISU-1.9-AGGREGATE-VALIDATION.md`. Preserve the separate staged
+K12 worktree and do not add deferred catalog children while closing the
+current candidate.
 
-1. use the completed review-only exact 1.9 target boundary;
-2. retain the completed localized qualifications for `toolchain-hardening`,
-   `startup-cache`, `parser-hardening`, `character-organizer`, and the
-   version-aware `personal-settings`, plus the conditional asset-only
-   `bg-preserve-storage-base` adapter and the target-scoped
-   `persona-organizer` server adapter;
-3. retain the completed dual-target `lazy-chat-sync` and
-   `character-import-ux` qualification and its full/focused/round-trip/audit
-   receipts;
-4. retain the qualified native-job/BG authority split and combined lazy/BG
-   adapter without adding a second request-class owner;
-5. retain the qualified K19, K13, K14, K16, K15, K11, and K12 deltas;
-6. retain the completed exact-1.9 K12 implementation and feature receipt;
-7. retain the exact-1.9 `preset-integrity` qualification and the recorded
-   keep/drop/defer decisions for future and policy catalog rows;
-8. run aggregate target gates, L2.5, and exhaustive raw-selection combination
-   verification before any `verified` declaration.
+1. Review the aggregate diff and receipts, resolving a finding in its owning
+   feature or infrastructure commit.
+2. Run the already-defined consolidated iPhone session while recording K19,
+   K13, K14, K16, K15, K11, and K12 results separately.
+3. Rerun focused and aggregate gates affected by any review or L3 fix.
+4. Only after review and L3 decide publication, push/tag/release, or a
+   separately authorized live apply and PocketRisu restart.
 
 K12 remains a separate feature and keeps its complete translation identity,
 cancellation, explicit destructive-action, storage-owner, and bg-delivery

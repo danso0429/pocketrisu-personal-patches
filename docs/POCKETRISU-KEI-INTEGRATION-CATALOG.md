@@ -170,6 +170,11 @@ The evidence and exact source anchors are in
 seven already-admitted Kei children enter aggregate qualification without
 claiming deferred rows as implemented.
 
+That exact-1.9 aggregate qualification subsequently passed and is recorded in
+`docs/POCKETRISU-1.9-AGGREGATE-VALIDATION.md`. This result advances the
+existing admitted children; it does not change any deferred disposition in
+this catalog.
+
 ## Existing-authority merge ledger
 
 The following decisions are based on state and policy ownership, not file
