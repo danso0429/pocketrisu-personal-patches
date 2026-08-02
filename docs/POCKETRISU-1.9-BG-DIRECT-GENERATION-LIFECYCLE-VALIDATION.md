@@ -4,8 +4,9 @@
 
 PocketRisu 1.9 `bg-preserve` version `v1.0.1-patcher.6` closes the native
 per-chat generation lifecycle for every BG-owned direct `sendChat()` caller.
-The correction is local and automatically qualified; it has not been applied
-to the live PocketRisu tree.
+The correction is automatically qualified, committed in `5d10edb`, pushed on
+`codex/pocketrisu-1.9-rebase`, and live-admitted in the 542-unit `all` graph.
+Its two-consecutive-send physical re-L3 remains pending.
 
 The user-visible finding was a completed response followed by a gray stage-0
 generation indicator that never stopped. A later Send tap was blocked, and a
@@ -118,6 +119,52 @@ The canonical builder generated these local artifacts:
 | `pocketrisu-hardening.cjs` | 5,091,585 | `8e709060e1a5c76fa5da6c884955dc4c18087bc17336e90d42450e76a32b221e` |
 | `pocketrisu-all.cjs` | 5,091,579 | `128f3dd53095311df06da7ed223d821d22654916ed6dbd941ccfc41f22230e3a` |
 
+## Live admission and runtime smoke
+
+At 2026-08-02 18:32 KST, the pushed branch HEAD was `82d4878`. Immediately
+before stop, PM2 reported active requests 0. Read-only database checks observed
+main/aux running jobs 0, unclaimed terminal main jobs 0, `pending_sends` 0,
+result payload rows 0, and seven operation-state rows, all already
+`delivered`. SQLite `quick_check` was `ok`.
+
+The new installer plan reported compatibility `verified`, 28 packs, 542 units,
+five ordered collisions, and six changed paths. PM2 was stopped before apply.
+The transactional apply exited 0. The stopped target then produced these
+observations:
+
+- frozen install: 109 packages reused, zero downloaded, exit 0;
+- client tests: 129 files / 1,536 tests passed;
+- server tests: 9 files / 163 tests passed;
+- Svelte diagnostics: 0 errors / 0 warnings;
+- production build: 7,857 modules transformed, exit 0;
+- BG bundle: 8,397,297 bytes, SHA-256
+  `c94f51deeddd4726e145fd0c1d1a696f22c0f42b5f91d371f3a0f1cd2039cd85`,
+  with four `sendChatWithDirectLifecycle` markers and load check
+  `sendChat=function`;
+- production prune: exit 0, followed by successful `express`,
+  `better-sqlite3`, and `msgpackr` resolution; and
+- repeated plan: 28 packs / 542 units / five collisions, zero changed paths,
+  and all 218 transaction-managed source paths skipped.
+
+After restart, PM2 reported PocketRisu 1.9.0 online at PID 3485101, zero
+unstable restarts, and zero active requests. Root and the rebuilt main asset
+both returned HTTP 200. Served and local `index-D8034-nj.js` were each
+1,999,173 bytes with SHA-256
+`5e01dca445aa6bbdb3ae24e5b824d911321fae8d8a79de0d33108af97d388fb6`.
+Both unauthenticated BG status routes returned 401. The PM2 error log remained
+exactly 112,042,726 bytes.
+
+Post-restart SQLite `quick_check` remained `ok`; active/unclaimed jobs and
+pending sends remained zero; the same seven delivered operation states and
+zero result payloads remained. `save/risuai.db`, `save/model-jobs.db`, and
+`backups/` retained their observed inode/size values
+`786453/2710347776`, `872636/4096`, and `788086/4096`. No nested `save/save`
+appeared. The preserved K12 worktree remained at `081a32b` with index-listing
+SHA-256 `632b6d3285e85650be19efe5c4f6c70a3af56fdec683fc9a5a182505118704b3`
+and cached binary-diff SHA-256
+`916440ab240e0f7541844f0082ce53d1d5f516d08ea1bdfc79a55149d7ca66a9`.
+No paid request or physical L3 was performed during admission.
+
 ## L2.5 runtime audit
 
 ### Phase 1 — flat discovery
@@ -152,19 +199,20 @@ The canonical builder generated these local artifacts:
   declared import order. Repeated plan is empty and every raw selection
   round-trips.
 - **Build boundary — production and bundle load.** Browser compilation and
-  server-bundle export load both completed. Localhost-listening server tests
-  remain an environment-blocked rerun, not a claimed pass.
+  server-bundle export load both completed. The earlier restricted-sandbox
+  localhost block remains recorded, and the unchanged live-host suite later
+  passed all 9 server files / 163 tests.
 
 ### Phase 3 — triage
 
-- **Q3, fixed locally:** direct BG callers now close native keyed lifecycle
+- **Q3, fixed and live-admitted:** direct BG callers now close native keyed lifecycle
   state instead of writing only the public compatibility store.
 - **Q1, no duplicate authority:** native generation state and pending sends
   remain the only owners; BG adds a wrapper, not a second map or schema.
 - **Q3, preserved exclusions:** G06 remains append-only and blocked as
   documented; no provider-specific branch or excluded atom was generalized.
-- **Q4, pending live admission and re-L3:** after a separately authorized live
-  apply/restart and client reload, two consecutive ordinary generations in the
+- **Q4, pending physical re-L3:** after a client reload, two consecutive ordinary generations in the
   same chat must start without poll-delay fallback, and each terminal response
-  must remove its circle and leave Send immediately available. No live apply,
-  restart, paid request, push, tag, or release is part of this receipt.
+  must remove its circle and leave Send immediately available. Live admission
+  does not infer this device result; no paid request, tag, or release was part
+  of the admission.

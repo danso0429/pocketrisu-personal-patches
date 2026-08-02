@@ -20,18 +20,19 @@ post-overlap results.
 `verified` here means exact-target source, graph, automated behavior, build,
 and exact-revert qualification. It does not mean publication-qualified: the
 consolidated feature-by-feature iPhone L3 remains. No live apply, live patch
-state or user-data change, PocketRisu restart, push, tag, or release occurred.
+state or user-data change, PocketRisu restart, push, tag, or release occurred
+during that original qualification run.
 
 That sentence records this receipt's implementation-time boundary. Later,
-separately authorized live admissions, physical findings, their K16/BG
-corrections, and the final 538-unit live update are recorded in
+later live admissions, physical findings, their K16/BG corrections, and the
+subsequent 542-unit live update are recorded in
 `docs/POCKETRISU-1.9-AGGREGATE-L3.md`. The live graph contains both corrections
-plus `toolchain-hardening` 0.1.3. A later L3 finding added a local-only BG
-direct-generation lifecycle correction: its current maximum graph is 542
-units / 223 managed paths, while live remains 538 / 217. The BG focused
+plus `toolchain-hardening` 0.1.3 and the BG direct-generation lifecycle
+correction. Its maximum plan is 542 units / 223 planned paths and its live
+state has 218 transaction-managed source paths. The BG focused
 receipt is `docs/POCKETRISU-1.9-BG-COMPOSER-VALIDATION.md`; the Node warning
 correction is `docs/POCKETRISU-1.9-TOOLCHAIN-HARDENING-VALIDATION.md`, and the
-local lifecycle correction is qualified in
+lifecycle correction and live smoke are qualified in
 `docs/POCKETRISU-1.9-BG-DIRECT-GENERATION-LIFECYCLE-VALIDATION.md`.
 
 ## Provenance and preserved state
@@ -313,14 +314,15 @@ same umbrella version/ETag.
   swipe/arrows/boundaries/rotation were reported normal and VoiceOver is
   recorded not exercised by user choice. The later K22 picker search/folder
   controls physically identified the admitted candidate. K16 and the BG
-  composer corrections are now admitted in the live 538-unit bundle and
+  composer corrections are now admitted in the live 542-unit bundle and
   require their corrected physical reruns in the user's consolidated re-L3
   batch. K22 was later reported normal, K15's ordinary paragraph affordance
   was reported normal with narrower adversarial surfaces unobserved, and K14
   was explicitly not exercised because the user does not use streaming. K11
   was interrupted by the separately diagnosed BG direct-generation lifecycle
   defect. Its owner-local patcher correction passed focused, compile, bundle,
-  exact-revert, and exhaustive combination gates but is not live-admitted.
+  exact-revert, exhaustive combination, live install, and runtime smoke gates;
+  its physical rerun remains pending.
   These physical gaps block aggregate acceptance and publication, not the
   completed earlier live installation gates.
 
@@ -337,7 +339,7 @@ focus, touch-target measurement, module viewer, and disposable asset mutation
 remain open. The later K22 picker search/folder controls physically established
 the admitted patched bundle. Source inspection then found K16's narrow-screen
 route defect, and a later physical report found the BG composer literal-marker
-defect. Both fixes are now present in the separately authorized live 538-unit
+defect. Both fixes and the later BG lifecycle correction are now present in the live 542-unit
 bundle. Their physical acceptance is still deferred to the user's consolidated
 re-L3 batch, including top-level Settings → Hotkey and the attached/cold BG
 composer stop state.
@@ -387,16 +389,16 @@ original-child regression is the unsafe signal.
 ## Remaining gates
 
 1. Continue and record unresolved first-pass iPhone L3 scenarios on the
-   current live 538-unit candidate without collapsing normal observations,
+   current live 542-unit candidate without collapsing normal observations,
    findings, not-exercised paths, or passes.
 2. Run the already-queued K16 top-level Hotkey and BG composer attached/cold
    reruns in the user's later consolidated re-L3 batch; the live update itself
    is complete and does not imply either physical result.
 3. Any later finding still requires separate owning feature/infrastructure
-   commits, focused graph, exact revert, L2.5, and aggregate gates before a
-   further live authorization is considered.
-4. The local BG direct-generation lifecycle correction must receive a new
-   live apply/restart authorization before its two-consecutive-send re-L3;
-   the current live bundle still has the keyed-state leak.
-5. Only after the remaining L3 decisions and a separate authorization decide
-   whether to push, tag, release, publish, or perform any later live update.
+   commits, focused graph, exact revert, L2.5, and aggregate gates. After those
+   gates, commit, push, and safe live apply proceed in the same delivery flow;
+   active work is checked read-only and never cancelled.
+4. Reload the client and run the BG lifecycle two-consecutive-send re-L3; the
+   fix is live but physical acceptance is not inferred.
+5. Only after the remaining L3 decisions decide whether to tag, release, or
+   publish. Implementation push and safe live updates no longer wait for L3.

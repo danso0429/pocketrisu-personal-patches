@@ -13,13 +13,14 @@
 > correction (`a043d98`) and BG composer correction (`838ac27`) were qualified
 > in the 538-unit graph. `toolchain-hardening` 0.1.3 then removed Node's
 > repeated localStorage warning without a process flag. The user separately
-> authorized the combined live update at `53512ab`; PocketRisu now runs the
-> corrected 28-pack / 538-unit / 217-source-path graph. Automated live gates
-> passed. K16 and BG composer physical reruns remain for the later consolidated
+> authorized the combined live update at `53512ab`; that 538-unit graph passed
+> its live gates and was later advanced to the corrected 28-pack / 542-unit /
+> 218-source-path graph. K16 and BG composer physical reruns remain for the later consolidated
 > re-L3 batch. K22 was later reported normal, K15 has a limited ordinary
 > partial-edit observation, and K14 was not exercised. K11 exposed a distinct
-> BG direct-generation lifecycle defect. Its local 542-unit / 223-path
-> correction is qualified but not live-admitted.
+> BG direct-generation lifecycle defect. Its 542-unit / 223-planned-path /
+> 218-source-path correction is qualified, pushed, and live-admitted; its
+> two-consecutive-send physical re-L3 remains pending.
 > The candidate-admission and result ledger is
 > `docs/POCKETRISU-1.9-AGGREGATE-L3.md`. The overlap-equivalence audit,
 > user-authorized bounded implementation, aggregate target, raw-selection,
@@ -31,8 +32,8 @@ This document records the complete local work boundary from the beginning of
 the Kei selection effort through the 1.9 pivot and aggregate qualification.
 The current patcher and Kei pack are exact-target source/automation qualified,
 but not publication-qualified until consolidated L3. The live installation
-carries the explicitly authorized corrected aggregate `all` candidate; no
-candidate was pushed, tagged, or released.
+carries the corrected aggregate `all` candidate. The active 1.9 branch is
+pushed; no candidate is tagged or released.
 
 ## Non-negotiable target and review boundary
 
@@ -45,8 +46,10 @@ candidate was pushed, tagged, or released.
 - Keep implementation commits separated by feature or infrastructure
   concern. Do not combine a target upgrade, an ownership redesign, and a Kei
   child in one commit.
-- Do not push, tag, release, apply a candidate live, or restart PocketRisu
-  before review and the applicable gates.
+- After the applicable automatic gates, keep small feature/infrastructure
+  commits, push, and safely live-apply/build/restart in one delivery flow.
+  Check active PocketRisu work read-only before restart and wait without
+  cancellation when nonzero. Stable tag/release remain gated by review/L3.
 - For every changed pack, retain observed evidence for first apply, current
   status, zero-change reapply, relevant combinations, and exact byte/mode/
   symlink revert.
@@ -239,8 +242,8 @@ only that operational boundary: the aggregate `all` candidate is now applied
 for L3, with format-2 `all` state and intent. That live state was first the
 537-unit pre-correction candidate and was then advanced under separate
 authorization to the K16/BG/toolchain-corrected 538-unit candidate. The newer
-542-unit BG direct-generation lifecycle correction has not been applied or
-restarted. The old 1.8.1 application source remains a local rollback
+542-unit BG direct-generation lifecycle correction was later applied, built,
+and restarted after its branch push and automatic gates. The old 1.8.1 application source remains a local rollback
 tree without `save/` or `backups/`; user data remains only in the live 1.9
 tree. See the aggregate L3 receipt for the later preflight, apply, build,
 restart, asset, error-log, inode/size, and physical observations.
@@ -307,16 +310,15 @@ active-only settings controls. Close the current candidate in this order:
    `docs/POCKETRISU-1.9-AGGREGATE-L3.md`. K19 swipe/arrows/boundaries/rotation
    were reported normal and VoiceOver is explicitly not exercised by user
    choice. K22 controls established the patched bundle; the BG composer marker
-   was a separate finding. Both queued fixes are now present in live 538.
+   was a separate finding. Both queued fixes remain present in live 542.
    Record their later physical reruns separately in the consolidated re-L3
    batch. Keep K29 G09 separate and do not relabel blocked G06 as implemented.
-8. Retain the local BG direct-generation lifecycle correction and receipt.
+8. Retain the live-admitted BG direct-generation lifecycle correction and receipt.
    It extends native PocketRisu 1.9 `generationStates`/`pendingSends` owners
    for server and browser direct callers, leaves G06 and provider routing
    unchanged, and passed a 542-unit maximum graph with 2,048 exact round trips.
-   It is not present in the live 538-unit candidate; any apply/restart requires
-   a new authorization and its two-consecutive-send physical rerun belongs in
-   the consolidated affected-row re-L3 batch.
+   It is present in the live 542-unit candidate. Its two-consecutive-send
+   physical rerun belongs in the consolidated affected-row re-L3 batch.
 
 Keep each feature-local receipt and commit. A queued review or L3 correction
 must remain in its owning feature or infrastructure boundary and rerun the
@@ -327,17 +329,22 @@ child's concrete scenario separately.
 
 ## Live candidate boundary after the base cutover
 
-The official 1.9 base cutover is complete and was not repeated. The user later
-authorized both the first aggregate admission and the corrected 538-unit
-update. On the latter, active and unclaimed work were zero; retained nonzero
+The official 1.9 base cutover is complete and was not repeated. The live graph
+was advanced through the first aggregate admission, the corrected 538-unit
+update, and the 542-unit direct-lifecycle update. On the 538-unit update,
+active and unclaimed work were zero; retained nonzero
 rows were one done/claimed pending marker and three delivered BG states with
 zero result payloads. PM2 was stopped before apply. The live target passed
 install/test/check/build/BG/prune gates with zero Node localStorage warnings,
-and the restarted main asset matched the local build. See
-`docs/POCKETRISU-1.9-AGGREGATE-L3.md` for exact observations. Any subsequent
-apply/restart is a new authorization boundary. Keep `save/` and `backups/`
-outside source replacement and never directory-swap the installation while
-its process can recreate paths.
+and the restarted main asset matched the local build. On the 542-unit update,
+active/unclaimed/pending work and result payloads were zero, seven durable
+states were already delivered, all client/server/check/build/BG/prune gates
+passed, the served asset matched local bytes, and the error log did not grow.
+See `docs/POCKETRISU-1.9-AGGREGATE-L3.md` for exact observations. Subsequent
+validated fixes proceed through push and safe live delivery without a separate
+restart approval; active work is checked and never cancelled. Keep `save/`
+and `backups/` outside source replacement and never directory-swap the
+installation while its process can recreate paths.
 
 ## Files to preserve
 
@@ -349,13 +356,13 @@ its process can recreate paths.
   contains an untracked catalog copy. Do not absorb, overwrite, or delete it
   as incidental cleanup.
 
-No branch in this handoff has been pushed, tagged, or released. The 1.9 `all`
-candidate was applied under separate L3 authorization. K19 swipe, arrows,
+The active 1.9 branch is pushed; neither candidate is tagged or released. The
+1.9 `all` candidate is live. K19 swipe, arrows,
 boundaries, and rotation were reported normal; VoiceOver was not exercised.
 The later K22 controls established the patched bundle. The K16 route and BG
 composer defects are fixed, automatically qualified, and live-admitted, but
 their corrected physical acceptance and the other open L3 rows remain open.
 K22 was later reported normal, K15 has a limited ordinary-affordance pass, and
 K14 is explicitly not exercised. K11 stopped at the separately diagnosed BG
-direct-generation lifecycle defect; its local correction is qualified but not
-live-admitted.
+direct-generation lifecycle defect; its correction is live-admitted and its
+physical rerun remains pending.

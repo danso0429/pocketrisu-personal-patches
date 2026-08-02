@@ -27,13 +27,14 @@
 > Source inspection found a K16 mobile Hotkey route defect, and a later report
 > found that the BG composer rendered its ownership marker literally.
 > K16 and the BG composer are fixed, automatically requalified, and now
-> admitted together with `toolchain-hardening` 0.1.3 in the live 538-unit
+> admitted together with `toolchain-hardening` 0.1.3 in the live 542-unit
 > candidate. The live install/restart gates passed; their physical re-L3 is
 > still pending. K22 was later reported normal; K15's ordinary paragraph
 > partial-edit affordance was normal; K14 was explicitly not exercised by user
 > choice. K11 was interrupted by a distinct BG direct-generation lifecycle
 > defect. Its patcher correction is automatically qualified at a 542-unit
-> maximum graph but is not live-admitted. Admission, findings, and per-feature observations are tracked in
+> maximum graph, pushed, and live-admitted; its physical re-L3 is pending.
+> Admission, findings, and per-feature observations are tracked in
 > `docs/POCKETRISU-1.9-AGGREGATE-L3.md`.
 > The user chose to keep remaining and corrected physical checks in a later
 > consolidated affected-row re-L3 session rather than request them during the
@@ -54,10 +55,11 @@ candidate is preserved rather than mutated in place.
   uncommitted bytes.
 - The 1.9 branch requalifies existing packs and admitted Kei children before
   any new catalog child is implemented.
-- Neither candidate branch has been pushed, tagged, or released. After the
-  pristine official 1.9.0 base cutover, the user separately authorized the
-  requalified `all` candidate and its restart for aggregate L3. The live tree
-  now reports 28 current packs, 538 units, and 217 managed source paths. Its
+- The active 1.9 branch is pushed at `82d4878`; neither candidate has been
+  tagged or released, and the preserved K12 branch remains untouched. After
+  the pristine official 1.9.0 base cutover, the requalified `all` candidate
+  and later fixes were safely applied. The live tree now reports 28 current
+  packs, 542 units, and 218 transaction-managed source paths. Its
   admission gates and first partial device observations are recorded in
   `docs/POCKETRISU-1.9-AGGREGATE-L3.md`.
 
@@ -115,16 +117,19 @@ boundaries on the active 1.9 branch:
 | `7ef0e92` / `2049deb` | Node incomplete/throwing webstorage fallback and generated installers |
 | `d9182db` / `f1d407e` | Descriptor-only probe correction and generated installers |
 | `7fce915` / `53512ab` | Final getter-free test-storage install and canonical installers |
+| `5d10edb` | BG direct-generation keyed lifecycle ownership and adversarial receipt |
+| `ade082f` | Deterministic installers containing the direct lifecycle correction |
+| `82d4878` | Pre-admission L3/status documentation; pushed branch boundary |
 
 The catalog custody, verification procedure, and this status are kept in a
 separate documentation commit. Its hash is read from history rather than
 embedded in this file, which would create a self-referential commit hash.
 
-The candidate branch has not been pushed, tagged, or released. The generated
-`all` candidate was first admitted at `11302c5`, then the user separately
-authorized the K16/BG/toolchain-corrected update from `53512ab`. Live
-PocketRisu now reports 28 packs, 538 units, and 217 source paths. This is not a
-publication or release qualification.
+The active candidate branch is pushed at `82d4878` but is not tagged or
+released. The generated `all` candidate was first admitted at `11302c5`, then
+advanced through the K16/BG/toolchain correction and the direct-lifecycle
+correction. Live PocketRisu now reports 28 packs, 542 units, and 218 source
+paths. This is not a publication or release qualification.
 
 ## Admission-order position
 
@@ -147,10 +152,10 @@ implemented progress.
 
 ## Current review and publication boundary
 
-1. Keep the reviewed foundation, existing-pack qualifications, admitted Kei
-   children, bounded post-overlap owner extensions, aggregate, and
-   documentation commits local without pushing, tagging, or releasing. Do not
-   perform another live apply or restart without a new explicit authorization.
+1. Keep feature/infrastructure commits separated for exact revert, then push
+   and safely live-apply validated fixes in the same delivery flow. Before a
+   PocketRisu restart, check active work read-only; if nonzero, wait without
+   cancellation. Stable tag and release remain gated by consolidated L3.
 2. During the remaining first-pass L3, stop and record an affected scenario
    when a finding appears, but continue unrelated rows. After the first pass,
    resolve all queued findings in separate owning feature or infrastructure
@@ -265,13 +270,14 @@ implemented progress.
    it. K16's separate whole-view swipe scenario remains a different
    interaction owner.
 
-The source audit, approved local implementation, corrected 538-unit automated
-aggregate gates, and separately authorized corrected live apply/restart are
+The source audit, approved implementation, corrected 542-unit automated
+aggregate gates, and corrected live apply/restart are
 complete. K16 and BG composer are live-admitted but remain pending physical
-re-L3. The later BG direct-generation lifecycle correction is local-only at
-542 units / 223 managed paths and requires a new live authorization. Review
-and unresolved or not-exercised L3 surfaces continue to block
-push, tag, release, and publication.
+re-L3. The later BG direct-generation lifecycle correction is also
+live-admitted at 542 units / 223 planned paths / 218 transaction-managed
+source paths. Review and unresolved or not-exercised L3 surfaces continue to
+block stable tag, release, and publication, but not implementation push or
+safe live delivery.
 
 ## Next review and L3 sequence
 
@@ -283,23 +289,23 @@ K12 worktree and do not add deferred catalog children while closing the
 current candidate.
 
 1. Continue the already-defined first-pass iPhone session on the current live
-   538-unit candidate while recording every feature scenario separately. Keep
+   542-unit candidate while recording every feature scenario separately. Keep
    K19 VoiceOver and K14 streaming as not exercised unless the user chooses to
    revisit them. K22 is reported normal; K15's ordinary affordance is limited
    pass only. Keep the existing K29 G09 cold-reroll path separate and do not
    present blocked G06 as tested.
 2. Run the K16 top-level Hotkey and BG composer attached/cold reruns with the
    later consolidated affected-row re-L3 batch, retaining individual results.
-3. Retain the automatically qualified BG direct-generation lifecycle fix and
-   its receipt. Before further K11/consecutive-generation L3, obtain a new
-   live apply/restart authorization and then verify two same-chat ordinary
-   sends conclude without delayed fallback or a retained stage-zero circle.
+3. Reload the client, then verify two same-chat ordinary sends conclude
+   without delayed fallback or a retained stage-zero circle before resuming
+   K11. The fix is already live; this remains a physical re-L3, not an inferred
+   pass.
 4. Queue any new finding with exact trigger/state/caller evidence. A later fix
    still requires feature-local commits and focused/aggregate gates.
-5. Any later live apply or restart remains a new explicit authorization
-   boundary; the corrected update recorded here grants no continuing authority.
-6. Only after L3 decide publication, push, tag, or release. Any later live
-   apply or PocketRisu restart remains a new authorization boundary.
+5. Later validated fixes proceed through commit, push, safe live apply/build,
+   restart, and runtime smoke in one flow. Active work is never cancelled;
+   destructive user-data operations still require explicit authorization.
+6. Only after L3 decide stable tag, release, or publication.
 
 K12 remains a separate feature and keeps its complete translation identity,
 cancellation, explicit destructive-action, storage-owner, and bg-delivery
