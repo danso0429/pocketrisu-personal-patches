@@ -4,6 +4,11 @@ const assert = require('node:assert/strict')
 const test = require('node:test')
 
 const manifest = require('../patches/bg-preserve/manifest.cjs')
+const {
+    PatchCompositionError,
+    applyUnit,
+    revertUnit,
+} = require('../src/compose.cjs')
 const { unitMatchesTarget } = require('../src/manager.cjs')
 
 const target181 = { packageName: 'pocketrisu', packageVersion: '1.8.1' }
@@ -29,7 +34,7 @@ function owned(file) {
 
 test('BG pack keeps exact 1.8 support and verifies its target-scoped 1.9 graph', () => {
     assert.equal(manifest.id, 'bg-preserve')
-    assert.equal(manifest.version, 'v1.0.1-patcher.4')
+    assert.equal(manifest.version, 'v1.0.1-patcher.5')
     assert.deepEqual(manifest.targets, {
         pocketrisu: {
             verified: ['1.8.1', '1.9.0'],
@@ -101,8 +106,46 @@ test('1.9 cache and composer adapters retain native target contracts', () => {
     assert.match(cache.managed, /fetchImpl: makeProxiedFetch\(arg\.chatId\)/)
 
     const composer = unit('bg-preserve:hook:defaultchatscreen-composer-orchestrating-gate:1.9')
-    assert.match(composer.anchor, /currentChatGenerating \|\| doingChatInputTranslate/)
+    assert.equal(
+        composer.anchor,
+        '                {#if currentChatGenerating || doingChatInputTranslate',
+    )
+    assert.equal(composer.where, 'after')
+    assert.equal(composer.anchorPolicy, 'first')
+    assert.equal(composer.anchor.endsWith('}'), false)
     assert.match(composer.managed, /\$orchestrating/)
+
+    const baseline = `${composer.anchor}}\n                    <button />\n`
+    const applied = applyUnit(baseline, composer)
+    assert.equal(
+        applied,
+        `${composer.anchor}${composer.managed}}\n                    <button />\n`,
+    )
+    assert.match(
+        applied,
+        /\{#if currentChatGenerating \|\| doingChatInputTranslate\/\* BG-PRESERVE:START orch-composer \*\/ \|\| \$orchestrating\/\* BG-PRESERVE:END \*\/\}/,
+    )
+    assert.doesNotMatch(
+        applied,
+        /\}\s*\/\* BG-PRESERVE:START orch-composer \*\//,
+    )
+    assert.equal(applyUnit(applied, composer), applied)
+    assert.equal(revertUnit(applied, composer), baseline)
+    const duplicateAnchor = applyUnit(`${baseline}${baseline}`, composer)
+    assert.equal(
+        (duplicateAnchor.match(/BG-PRESERVE:START orch-composer/g) ?? []).length,
+        1,
+    )
+    assert.equal(revertUnit(duplicateAnchor, composer), `${baseline}${baseline}`)
+    assert.throws(
+        () => applyUnit(
+            applied.replace('$orchestrating', '$orchestratingBroken'),
+            composer,
+        ),
+        (error) =>
+            error instanceof PatchCompositionError
+            && error.code === 'MARKER_DRIFT',
+    )
 
     const fetchImpl = unit('bg-preserve:hook:globalapi-fetch-impl-register:1.9')
     assert.match(fetchImpl.anchor, /FetchNativeArgs/)

@@ -682,7 +682,10 @@ export const doingChat = unifiedDoingChat
     ['bg-preserve:hook:defaultchatscreen-composer-orchestrating-gate', (unit) => ({
         ...unit,
         id: `${unit.id}:1.9`,
-        anchor: '                {#if currentChatGenerating || doingChatInputTranslate}',
+        // Keep the closing Svelte directive brace outside the anchor. This unit
+        // inserts `after`, so including `}` would render the managed expression
+        // as literal composer text instead of extending the condition.
+        anchor: '                {#if currentChatGenerating || doingChatInputTranslate',
         targetVersions: pocketRisu190,
     })],
     ['bg-preserve:hook:request-cache-authority-gate', (unit) => ({
@@ -875,7 +878,7 @@ units.push(
 
 module.exports = {
     ...base,
-    version: 'v1.0.1-patcher.4',
+    version: 'v1.0.1-patcher.5',
     source: 'bg-preserve-install.cjs + PocketRisu 1.9 authority adapter',
     targets: {
         pocketrisu: {
