@@ -309,6 +309,12 @@ const {
 function adaptBgOrchestrateRetention190(unit) {
     let content = replaceExact(
         unit.content,
+        "import { chatProcessStage, doingChat, sendChat } from './process/index.svelte'\n",
+        "import { chatProcessStage, doingChat, sendChatWithDirectLifecycle } from './process/index.svelte'\n",
+        `${unit.id}: direct-send lifecycle owner import`,
+    )
+    content = replaceExact(
+        content,
         "} from './bgOrchestrationPending'\n",
         "} from './bgOrchestrationPending'\nimport { orchestrationRetentionFailureMessage } from './bgOrchestrationRetentionState'\n",
         `${unit.id}: retention terminal-state import`,
@@ -370,6 +376,76 @@ function adaptBgOrchestrateRetention190(unit) {
         '    // can still ACK/merge the paid result until the normal 30-minute marker/result TTL expires.\n',
         '    // can still ACK/merge the paid result during the bounded server/browser retention window.\n',
         `${unit.id}: bounded recovery comment`,
+    )
+    content = replaceExact(
+        content,
+        "                () => sendChat(-1, { ...arg, bgOrchFallback: true }),\n",
+        "                () => sendChatWithDirectLifecycle(key.chatId, -1, { ...arg, bgOrchFallback: true }),\n",
+        `${unit.id}: browser fallback direct-send lifecycle`,
+    )
+    content = replaceExact(
+        content,
+        `                () => {
+                    // Direct fallback bypasses DefaultChatScreen.sendChatMain(), whose final
+                    // \`$doingChat = false\` normally releases the composer. Always mirror that
+                    // cleanup here, including rejected/throwing fallback generations.
+                    doingChat.set(false)
+                    chatProcessStage.set(0)
+                },
+`,
+        `                () => {
+                    // sendChatWithDirectLifecycle owns the exact per-chat generation entry,
+                    // pending-send tombstone, and stage cleanup. This outer fallback lifecycle
+                    // owns only error isolation and the completion epilogue.
+                },
+`,
+        `${unit.id}: remove store-only fallback cleanup`,
+    )
+    return content
+}
+
+function adaptBgDirectGenerationLifecycle190(content, unitId) {
+    content = replaceExact(
+        content,
+        `        // Run the WHOLE pipeline like the client (chatProcessIndex -1; char/chat come from the
+        // selectedCharID store + chatPage we set, NOT this arg). The bundle's localStorage stub
+        // returns null → no re-delegation. Reset doingChat first (-1 early-returns if a prior preview
+        // left it true). A throw is caught here; we read the chat back below regardless so an
+        // already-pushed main reply isn't lost.
+`,
+        `        // Run the WHOLE pipeline like the client (chatProcessIndex -1; char/chat come from the
+        // selectedCharID store + chatPage we set, NOT this arg). The bundle's localStorage stub
+        // returns null, so there is no re-delegation. The direct-call lifecycle wrapper below owns
+        // the exact native per-chat entry; a public doingChat write is not a substitute for it.
+        // A throw is caught here; we read the chat back below regardless so an already-pushed main
+        // reply is not lost.
+`,
+        `${unitId}: direct-send lifecycle comment`,
+    )
+    content = replaceExact(
+        content,
+        `        idx.doingChat.set(false)
+        try { await runWithOrchestrationAbort(() => idx.sendChat(-1, { signal: llmAbort.signal })) }
+`,
+        `        try {
+          await runWithOrchestrationAbort(() =>
+            idx.sendChatWithDirectLifecycle(selectedChatId, -1, { signal: llmAbort.signal })
+          )
+        }
+`,
+        `${unitId}: full direct-send lifecycle`,
+    )
+    content = replaceExact(
+        content,
+        "          await runWithOrchestrationAbort(() => idx.sendChat(charIdx, { previewLLM: true, signal: llmAbort.signal }))\n",
+        "          await runWithOrchestrationAbort(() => idx.sendChatWithDirectLifecycle(selectedChatId, charIdx, { previewLLM: true, signal: llmAbort.signal }))\n",
+        `${unitId}: llm-preview direct-send lifecycle`,
+    )
+    content = replaceExact(
+        content,
+        "          await idx.sendChat(charIdx, { preview: true })\n",
+        "          await idx.sendChatWithDirectLifecycle(selectedChatId, charIdx, { preview: true })\n",
+        `${unitId}: assemble-preview direct-send lifecycle`,
     )
     return content
 }
@@ -532,10 +608,14 @@ const variant190 = new Map([
     ['bg-preserve:owned:server/node/bgOrchestrator.cjs', (unit) => ({
         ...unit,
         id: `${unit.id}:1.9`,
-        content: adaptBgRetention190(adaptBgRequestLogging190(unit), unit.id),
+        content: adaptBgDirectGenerationLifecycle190(
+            adaptBgRetention190(adaptBgRequestLogging190(unit), unit.id),
+            unit.id,
+        ),
         requires: [
             'bg-preserve:owned:server/node/bgRequestLogBridge.cjs:1.9',
             'bg-preserve:owned:server/node/bgOrchestrationResultRetention.cjs:1.9',
+            'bg-preserve:hook:index-direct-send-lifecycle-wrapper:1.9',
         ],
         targetVersions: pocketRisu190,
     })],
@@ -611,7 +691,10 @@ test('clock rollback cannot evict a newly admitted marker behind future timestam
         ...unit,
         id: `${unit.id}:1.9`,
         content: adaptBgOrchestrateRetention190(unit),
-        requires: ['bg-preserve:owned:src/ts/bgOrchestrationRetentionState.ts:1.9'],
+        requires: [
+            'bg-preserve:owned:src/ts/bgOrchestrationRetentionState.ts:1.9',
+            'bg-preserve:hook:index-direct-send-lifecycle-wrapper:1.9',
+        ],
         targetVersions: pocketRisu190,
     })],
     ['bg-preserve:hook:server-cjs-register-routes', (unit) => ({
@@ -867,6 +950,89 @@ units.push(
         targetVersions: pocketRisu190,
     },
     {
+        id: 'bg-preserve:hook:generation-state-direct-lifecycle:1.9',
+        file: 'src/ts/process/generationState.ts',
+        type: 'insert',
+        where: 'after',
+        anchor: `export function chatGenKey(chatId: string | undefined): string {
+    return chatId ?? 'nochat'
+}
+`,
+        content: `// Direct sendChat callers bypass DefaultChatScreen's lifecycle wrapper. Acquire
+// only a currently idle chat, then release exactly the entry that this synchronous call
+// creates. A blocked direct call never resets another generation's state or global stage.
+export async function runDirectGenerationLifecycle<T>(
+    chatId: string | undefined,
+    run: () => Promise<T>,
+    onFinish?: () => void,
+): Promise<T | false> {
+    const chatKey = chatGenKey(chatId)
+    if (isChatGenerating(chatKey)) return false
+    try {
+        return await run()
+    } finally {
+        endGeneration(chatKey)
+        chatProcessStage.set(0)
+        onFinish?.()
+    }
+}
+`,
+        requires: ['bg-preserve:hook:index-unified-generation-busy:1.9'],
+        targetVersions: pocketRisu190,
+    },
+    {
+        id: 'bg-preserve:hook:index-direct-send-lifecycle-import:1.9',
+        file: 'src/ts/process/index.svelte.ts',
+        type: 'insert',
+        where: 'after',
+        anchor: 'import { chatGenKey, chatProcessStage, endGeneration, isChatGenerating, setGenerationStage, startGeneration } from "./generationState";\n',
+        content: 'import { runDirectGenerationLifecycle } from "./generationState";\n',
+        after: ['bg-preserve:hook:index-register-gen-context-abort-import:1.9'],
+        targetVersions: pocketRisu190,
+    },
+    {
+        id: 'bg-preserve:hook:index-direct-send-lifecycle-wrapper:1.9',
+        file: 'src/ts/process/index.svelte.ts',
+        type: 'insert',
+        where: 'before',
+        anchor: 'export async function sendChat(chatProcessIndex = -1,arg:{\n',
+        content: `// Direct orchestration callers do not pass through DefaultChatScreen.sendChatMain().
+// Reuse the native per-chat generation and pending-send owners, and keep the direct caller's
+// cleanup exact even when sendChat rejects or returns through an early terminal path.
+export async function sendChatWithDirectLifecycle(
+    chatId: string | undefined,
+    chatProcessIndex: number,
+    arg: Parameters<typeof sendChat>[1] = {},
+): Promise<boolean> {
+    const result = await runDirectGenerationLifecycle(
+        chatId,
+        () => sendChat(chatProcessIndex, arg),
+        () => {
+            // The server bundle disables pending-send registration in its cloned DB. Avoid a
+            // relative browser-route DELETE there; browser fallback mirrors the native UI owner.
+            const serverBundle = (globalThis as { __bgOrch?: unknown }).__bgOrch
+            if (chatId && !serverBundle) clearPendingSend(chatId)
+        },
+    )
+    return result === false ? false : result
+}
+
+`,
+        requires: [
+            'bg-preserve:hook:index-direct-send-lifecycle-import:1.9',
+            'bg-preserve:hook:generation-state-direct-lifecycle:1.9',
+        ],
+        targetVersions: pocketRisu190,
+    },
+    {
+        id: 'bg-preserve:owned:src/ts/process/directGenerationLifecycle.test.ts:1.9',
+        file: 'src/ts/process/directGenerationLifecycle.test.ts',
+        type: 'owned',
+        content: owned('src/ts/process/directGenerationLifecycle.test.ts'),
+        requires: ['bg-preserve:hook:generation-state-direct-lifecycle:1.9'],
+        targetVersions: pocketRisu190,
+    },
+    {
         id: 'bg-preserve:owned:src/ts/process/regexImportMultiplicity.test.ts:1.9',
         file: 'src/ts/process/regexImportMultiplicity.test.ts',
         type: 'owned',
@@ -878,7 +1044,7 @@ units.push(
 
 module.exports = {
     ...base,
-    version: 'v1.0.1-patcher.5',
+    version: 'v1.0.1-patcher.6',
     source: 'bg-preserve-install.cjs + PocketRisu 1.9 authority adapter',
     targets: {
         pocketrisu: {

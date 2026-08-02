@@ -34,7 +34,7 @@ function owned(file) {
 
 test('BG pack keeps exact 1.8 support and verifies its target-scoped 1.9 graph', () => {
     assert.equal(manifest.id, 'bg-preserve')
-    assert.equal(manifest.version, 'v1.0.1-patcher.5')
+    assert.equal(manifest.version, 'v1.0.1-patcher.6')
     assert.deepEqual(manifest.targets, {
         pocketrisu: {
             verified: ['1.8.1', '1.9.0'],
@@ -70,6 +70,45 @@ test('1.9 native generation state delegates only its client lease to BG busy sta
     const guard = unit('bg-preserve:hook:index-unified-busy-entry-guard')
     assert.match(guard.managed, /get\(unifiedDoingChat\)/)
     assert.doesNotMatch(guard.managed, /get\(doingChat\)/)
+})
+
+test('direct browser and server sendChat callers close the exact native lifecycle', () => {
+    const lifecycle = unit('bg-preserve:hook:generation-state-direct-lifecycle:1.9')
+    const lifecycleImport = unit('bg-preserve:hook:index-direct-send-lifecycle-import:1.9')
+    const lifecycleWrapper = unit('bg-preserve:hook:index-direct-send-lifecycle-wrapper:1.9')
+    const lifecycleTest = unit('bg-preserve:owned:src/ts/process/directGenerationLifecycle.test.ts:1.9')
+    const browser = unit('bg-preserve:owned:src/ts/bgOrchestrate.ts:1.9').content
+    const server = unit('bg-preserve:owned:server/node/bgOrchestrator.cjs:1.9').content
+
+    assert.match(lifecycle.content, /if \(isChatGenerating\(chatKey\)\) return false/)
+    assert.match(lifecycle.content, /endGeneration\(chatKey\)/)
+    assert.match(lifecycle.content, /chatProcessStage\.set\(0\)/)
+    assert.match(lifecycleWrapper.content, /sendChatWithDirectLifecycle/)
+    assert.match(lifecycleWrapper.content, /clearPendingSend\(chatId\)/)
+    assert.deepEqual(lifecycleImport.after, [
+        'bg-preserve:hook:index-register-gen-context-abort-import:1.9',
+    ])
+    assert.deepEqual(lifecycleWrapper.requires, [lifecycleImport.id, lifecycle.id])
+    assert.deepEqual(lifecycleTest.requires, [lifecycle.id])
+    assert.match(lifecycleTest.content, /preserving another background owner/)
+    assert.match(lifecycleTest.content, /does not run or reset cleanup/)
+
+    assert.match(browser, /sendChatWithDirectLifecycle\(key\.chatId, -1/)
+    assert.doesNotMatch(browser, /\(\) => sendChat\(-1, \{ \.\.\.arg, bgOrchFallback: true \}\)/)
+    assert.match(server, /sendChatWithDirectLifecycle\(selectedChatId, -1/)
+    assert.match(server, /sendChatWithDirectLifecycle\(selectedChatId, charIdx, \{ previewLLM: true/)
+    assert.match(server, /sendChatWithDirectLifecycle\(selectedChatId, charIdx, \{ preview: true \}\)/)
+    assert.doesNotMatch(server, /idx\.doingChat\.set\(false\)/)
+
+    const stateBaseline = `${lifecycle.anchor}\nexport function syncDoingChat(): void {}\n`
+    const stateApplied = applyUnit(stateBaseline, lifecycle)
+    assert.equal(applyUnit(stateApplied, lifecycle), stateApplied)
+    assert.equal(revertUnit(stateApplied, lifecycle), stateBaseline)
+
+    const indexBaseline = `${lifecycleWrapper.anchor}    return false\n}\n`
+    const indexApplied = applyUnit(indexBaseline, lifecycleWrapper)
+    assert.equal(applyUnit(indexApplied, lifecycleWrapper), indexApplied)
+    assert.equal(revertUnit(indexApplied, lifecycleWrapper), indexBaseline)
 })
 
 test('1.9 context registration occurs after token resolution and binds native per-chat abort', () => {

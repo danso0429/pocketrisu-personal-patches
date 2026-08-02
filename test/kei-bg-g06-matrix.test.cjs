@@ -43,7 +43,10 @@ test('current exact-1.9 BG request and materializer remain ordinary append only'
     const startBody = client.slice(start, end)
 
     assert.doesNotMatch(startBody, /operationKind|continueTarget|rerollTarget|savedSwipes|trailingComments/)
-    assert.match(server, /idx\.sendChat\(-1, \{ signal: llmAbort\.signal \}\)/)
+    assert.match(
+        server,
+        /idx\.sendChatWithDirectLifecycle\(selectedChatId, -1, \{ signal: llmAbort\.signal \}\)/,
+    )
     assert.match(server, /const hasMainReply = baselineMsgs >= 0 && resultMsgs > baselineMsgs/)
     assert.match(client, /newMsgs > baselineMsgs/)
 })
