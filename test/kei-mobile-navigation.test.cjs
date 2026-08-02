@@ -9,6 +9,11 @@ const core = require('../patches/kei-mobile-navigation-core/manifest.cjs')
 const base = require('../patches/kei-mobile-navigation-base-adapter/manifest.cjs')
 const lazy = require('../patches/kei-mobile-navigation-lazy-adapter/manifest.cjs')
 const { loadCatalog } = require('../src/catalog.cjs')
+const {
+    PatchCompositionError,
+    applyUnit,
+    revertUnit,
+} = require('../src/compose.cjs')
 const { packEtag } = require('../src/manager.cjs')
 const { resolveSelection } = require('../src/resolver.cjs')
 
@@ -27,6 +32,8 @@ test('K16 keeps its core and base/lazy adapters internal', () => {
     assert.equal(core.userSelectable, false)
     assert.equal(base.userSelectable, false)
     assert.equal(lazy.userSelectable, false)
+    assert.equal(base.version, '0.2.1')
+    assert.equal(lazy.version, '0.2.1')
     for (const pack of [core, base, lazy]) {
         assert.deepEqual(pack.targets, {
             pocketrisu: {
@@ -90,6 +97,7 @@ test('K16 owns four isolated files and hooks only focused navigation hosts', () 
         'src/lang/help.ko.ts',
         'src/lang/ko.ts',
         'src/lib/Setting/Pages/HotkeySettings.svelte',
+        'src/lib/Setting/Settings.svelte',
         'src/lib/UI/GUI/TextAreaInput.svelte',
         'src/main.ts',
         'src/ts/bootstrap.ts',
@@ -173,7 +181,9 @@ test('K16 adapters preserve existing hotkeys and harden pointer cleanup', () => 
             unit.targetVersions?.pocketrisu?.includes('1.9.0')
         )
         assert.equal(units181.length, 37)
-        assert.equal(units190.length, 35)
+        assert.equal(units190.length, 36)
+        assert.equal(new Set(units181.map((unit) => unit.file)).size, 11)
+        assert.equal(new Set(units190.map((unit) => unit.file)).size, 12)
         assert.equal(
             adapter.units.every((unit) =>
                 unit.targetVersions?.pocketrisu?.length === 1
@@ -231,6 +241,72 @@ test('K16 adapters preserve existing hotkeys and harden pointer cleanup', () => 
             managed181,
             /built-in page-exit confirmation remains unchanged/,
         )
+    }
+})
+
+test('K16 1.9 exposes the native Hotkey page on narrow screens', () => {
+    for (const adapter of [base, lazy]) {
+        const routeUnits181 = adapter.units.filter((unit) =>
+            unit.file === 'src/lib/Setting/Settings.svelte'
+            && unit.targetVersions?.pocketrisu?.includes('1.8.1')
+        )
+        const routeUnits190 = adapter.units.filter((unit) =>
+            unit.file === 'src/lib/Setting/Settings.svelte'
+            && unit.targetVersions?.pocketrisu?.includes('1.9.0')
+        )
+
+        assert.equal(routeUnits181.length, 0)
+        assert.equal(routeUnits190.length, 1)
+
+        const [route] = routeUnits190
+        assert.match(
+            route.anchor,
+            /SettingsMenuIndex === 15 && window\.innerWidth >= 768/,
+        )
+        assert.match(route.managed, /SettingsMenuIndex === 15}/)
+        assert.doesNotMatch(route.managed, /window\.innerWidth/)
+        assert.match(
+            route.markerNeedle,
+            /settings-hotkey-mobile-route/,
+        )
+        assert.equal(route.anchorPolicy, undefined)
+        assert.deepEqual(route.after, ['personal-settings:settings-render'])
+        assert.deepEqual(route.requires, [
+            `${adapter.id}:hotkey-settings-enabled-close:1.9`,
+        ])
+
+        const baseline = `before\n${route.anchor}after\n`
+        const applied = applyUnit(baseline, route)
+        assert.equal(applyUnit(applied, route), applied)
+        assert.equal(revertUnit(applied, route), baseline)
+        assert.throws(
+            () => applyUnit(`${route.anchor}${route.anchor}`, route),
+            (error) =>
+                error instanceof PatchCompositionError
+                && error.code === 'ANCHOR_COUNT',
+        )
+        assert.throws(
+            () => applyUnit(
+                applied.replace(
+                    'SettingsMenuIndex === 15}',
+                    'SettingsMenuIndex === 14}',
+                ),
+                route,
+            ),
+            (error) =>
+                error instanceof PatchCompositionError
+                && error.code === 'MARKER_DRIFT',
+        )
+
+        const hotkeyPageUnits = adapter.units.filter((unit) =>
+            unit.file === 'src/lib/Setting/Pages/HotkeySettings.svelte'
+            && unit.targetVersions?.pocketrisu?.includes('1.9.0')
+        )
+        const hotkeyPageContract = hotkeyPageUnits
+            .map((unit) => `${unit.anchor ?? ''}\n${unitText(unit)}`)
+            .join('\n')
+        assert.match(hotkeyPageContract, /DBState\.db\.enableHotkeys/)
+        assert.match(hotkeyPageContract, /window\.innerWidth < 768/)
     }
 })
 

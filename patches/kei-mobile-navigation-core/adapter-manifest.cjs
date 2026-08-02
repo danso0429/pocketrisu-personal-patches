@@ -949,6 +949,19 @@ import {
         content: `        "disableMobileBackNavigation": "모바일에서 실수로 뒤로 가지 않도록 같은 페이지의 방문 기록 보호를 추가합니다. PocketRisu의 기본 페이지 이탈 확인은 그대로 유지됩니다.",
 `,
     }
+    const settingsHotkeyMobileRoute190 = {
+        id: `${prefix}settings-hotkey-mobile-route`,
+        file: 'src/lib/Setting/Settings.svelte',
+        type: 'replace',
+        anchor: `                        {:else if $SettingsMenuIndex === 15 && window.innerWidth >= 768}
+`,
+        managed: `                        <!-- ${marker('settings-hotkey-mobile-route')} -->
+                        {:else if $SettingsMenuIndex === 15}
+`,
+        markerNeedle: marker('settings-hotkey-mobile-route'),
+        after: ['personal-settings:settings-render'],
+        requires: [`${prefix}hotkey-settings-enabled-close`],
+    }
     const replaced190 = new Set([
         `${prefix}hotkey-store-imports`,
         `${prefix}hotkey-model-select`,
@@ -969,6 +982,7 @@ import {
         languageKoMobileBack190,
         helpEnMobileBack190,
         helpKoMobileBack190,
+        settingsHotkeyMobileRoute190,
     ]
     const units190Ids = new Set(units190Source.map((unit) => unit.id))
     const units190 = units190Source.map((unit) => ({
@@ -986,7 +1000,7 @@ import {
     return {
         id,
         title,
-        version: '0.2.0',
+        version: '0.2.1',
         userSelectable: false,
         targets: {
             pocketrisu: {
