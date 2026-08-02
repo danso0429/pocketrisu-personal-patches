@@ -44,7 +44,7 @@ function executeManagedSetup(localStorageDescriptor) {
 test('toolchain hardening is independently versioned and included by hardening and all', () => {
     const catalog = loadCatalog()
     assert.equal(manifest.id, 'toolchain-hardening')
-    assert.equal(manifest.version, '0.1.2')
+    assert.equal(manifest.version, '0.1.3')
     assert.equal(resolveProfile('hardening', catalog).defaults.includes(manifest.id), true)
     assert.equal(resolveProfile('features', catalog).defaults.includes(manifest.id), false)
     assert.equal(resolveProfile('all', catalog).defaults.includes(manifest.id), true)
@@ -87,6 +87,8 @@ test('toolchain hardening keeps runtime source out of scope', () => {
     assert.match(setup.managed, /Object\.getOwnPropertyDescriptor\(globalThis, 'localStorage'\)/)
     assert.match(setup.managed, /typeof descriptor\.value\?\.clear === 'function'/)
     assert.doesNotMatch(setup.managed, /globalThis\.localStorage/)
+    assert.doesNotMatch(setup.managed, /vi\.stubGlobal\('localStorage'/)
+    assert.match(setup.managed, /Object\.defineProperty\(globalThis, 'localStorage'/)
     assert.match(setup.managed, /new Storage\(\)/)
 
     const managedLock = manifest.units
@@ -105,7 +107,7 @@ test('toolchain hardening replaces Node 25 incomplete web storage', () => {
     })
 
     assert.equal(sandbox.localStorage instanceof TestStorage, true)
-    assert.equal(stubbedGlobals.filter((name) => name === 'localStorage').length, 1)
+    assert.equal(stubbedGlobals.includes('localStorage'), false)
 })
 
 test('toolchain hardening replaces Node 26 throwing web storage access', () => {
@@ -119,7 +121,7 @@ test('toolchain hardening replaces Node 26 throwing web storage access', () => {
     })
 
     assert.equal(sandbox.localStorage instanceof TestStorage, true)
-    assert.equal(stubbedGlobals.filter((name) => name === 'localStorage').length, 1)
+    assert.equal(stubbedGlobals.includes('localStorage'), false)
     assert.equal(getterCalls, 0)
 })
 

@@ -16,5 +16,10 @@ function hasUsableLocalStorage() {
 }
 
 if (!hasUsableLocalStorage()) {
-  vi.stubGlobal('localStorage', new Storage())
+  Object.defineProperty(globalThis, 'localStorage', {
+    configurable: true,
+    enumerable: true,
+    value: new Storage(),
+    writable: true,
+  })
 }
