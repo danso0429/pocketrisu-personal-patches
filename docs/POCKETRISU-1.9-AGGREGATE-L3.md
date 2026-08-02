@@ -311,6 +311,41 @@ literal-marker observation remains the historical physical finding; attached
 and cold-return stop-state behavior plus cancellation still require the later
 consolidated BG composer re-L3.
 
+## K22-session chat-save interruption
+
+While the user continued the K22 physical sequence, the client displayed
+`Failed to save 1 chat` and retained the gray stage-zero generation indicator
+after an already-rendered response. The affected K22 sequence stopped at that
+point. This is not classified as a K22 persona-picker failure.
+
+Read-only production evidence established the following boundary:
+
+- the latest paid main response completed with upstream HTTP 200, was claimed
+  exactly once, and its distinct active-chat payload is present in the
+  canonical database;
+- `pending_sends` was zero, the chat-write journal contained no new record for
+  the incident, and SQLite `quick_check` returned `ok`;
+- client telemetry identified two different, older chat identities as the
+  failed save targets rather than the response chat;
+- the served sourcemap maps the first failure site to
+  `NodeStorage.saveChatContentSerialized()`'s unconfirmed full-write network
+  path and the repeated dominant site to its HTTP 409/412 CAS-conflict path;
+- one older target produced 50 failed-save events from 06:58:19 through
+  07:36:24 UTC, while the second appeared three times; and
+- no further `Failed to save ... chat` event was recorded after 07:36:24 UTC
+  at the read-only observation boundary.
+
+The paid response is therefore durably present, while the rejected local
+snapshots remain deliberately uncommitted. The unresolved infrastructure
+finding is that a deterministic chat CAS conflict remains in the ordinary
+dirty tracker, repeatedly retries, obscures the actual conflict behind an
+aggregate error, and can leave the per-chat stage-zero indicator visible.
+The rejected request body is intentionally not logged, so this receipt does
+not infer which earlier local mutation first diverged. The deferred fix must
+preserve real remote edits, isolate a conflicted chat from unrelated saves,
+retain an explicit local-data recovery surface, and clear generation UI on
+every conclude path; it must not turn 409/412 into an unconditional overwrite.
+
 ## Deferred fix and re-L3 batch policy
 
 The user chose the following workflow because the Kei candidate has many
@@ -327,7 +362,9 @@ independent L3 scenarios:
   owner-present/absent graphs, exact revert, and L2.5 remain separate;
 - the corrected integration/deployment cycle is now complete; and
 - run the queued K16 and BG composer re-L3 scenarios later with any other
-  affected rows while retaining separate result records.
+  affected rows while retaining separate result records; and
+- treat the K22-session chat-save interruption as a lazy-chat storage-owner
+  fix/re-L3 item, not as evidence that K22 search/folder behavior failed.
 
 A finding that indicates immediate user-data, paid-result, or active-work risk
 still stops use of that affected path; batching does not authorize continuing
@@ -342,11 +379,11 @@ one row does not imply another row passed.
 | ID | User-visible scenario | Authority | Status | Observed result |
 | --- | --- | --- | --- | --- |
 | Bootstrap | Fully close and reopen the PocketRisu PWA; confirm a current-candidate screen such as top-level Settings → Hotkey or the Language translation-cache panel is present before attributing later behavior to this bundle. | This receipt | PASS — K22 PATCH MARKER OBSERVED | The former Accessibility → Hotkeys instruction was invalid, but the later chat Quick Menu → Persona picker showed and exercised K22-owned search plus Folder/Unfiled controls that do not exist in official 1.9. This physically identifies the loaded admitted candidate; it does not imply unrelated feature rows passed. |
-| K19 | Native Asset Viewer image-only filtering, search, one-step swipe/arrows, boundaries, VoiceOver labels/focus return, rotation, touch targets, module viewer, and unchanged disposable asset mutation. | `docs/POCKETRISU-1.9-KEI-K19-VALIDATION.md` | LIMITED NORMAL OBSERVATION / VOICEOVER NOT EXERCISED | Swipe, arrows, both boundaries, and rotation were reported normal. VoiceOver was intentionally skipped by user choice. Filtering/search, focus, touch-target measurement, module viewer, and disposable asset mutation remain unobserved; the later K22 marker resolves bundle identity but does not infer those K19 surfaces passed. |
+| K19 | Native Asset Viewer image-only filtering, search, one-step swipe/arrows, boundaries, VoiceOver labels/focus return, rotation, touch targets, module viewer, and unchanged disposable asset mutation. | `docs/POCKETRISU-1.9-KEI-K19-VALIDATION.md` | LIMITED PASS / NON-IMAGE FIXTURE UNAVAILABLE / VOICEOVER NOT EXERCISED | The user reported the no-image state and image module normal. Swipe, arrows, both boundaries, and rotation were also reported normal. No character with a non-image asset was available, so non-image filtering could not be exercised; VoiceOver was intentionally skipped. Focus return, touch-target measurement, and disposable asset mutation remain unobserved. The K22 marker resolves bundle identity but does not infer those open K19 surfaces passed. |
 | BG composer | While server orchestration owns the current chat, the composer shows the native stop state without rendering patch source text; the stop/send conditional follows `$orchestrating` across attached and cold return states. | `docs/POCKETRISU-1.9-BG-COMPOSER-VALIDATION.md` | LIVE CORRECTION ADMITTED / RE-L3 PENDING | The user observed the literal `orch-composer` marker in the earlier 537-unit bundle. The owner-local correction passed focused, maximum, exhaustive, generated-installer, exact-revert, L2.5, and live install/runtime gates and is now in the 538-unit bundle. Server generation/result failure is not inferred; corrected attached/cold stop state and cancellation remain pending physical re-L3. |
 | K29-F05 | Leave one paid ordinary BG result unconsumed across an overnight mobile absence; return to one materialization and exact ACK cleanup without a duplicate or missing paid response. | `docs/POCKETRISU-1.9-KEI-K29-RETENTION-VALIDATION.md` | PENDING | — |
 | K29 G09 | Background, kill/reload, and return during the existing qualified cold reroll; exactly one intended existing message/swipe is overwritten and no duplicate is appended. | `docs/POCKETRISU-1.9-AGGREGATE-VALIDATION.md` | PENDING | — |
-| K22 | Persona picker name/note search, Folder/Unfiled filters, ordinary and PersonaBind identity, selected-folder disposable create/import, cold persistence, stale-folder fallback, cancel, and invalid-file behavior. | `docs/POCKETRISU-1.9-KEI-K22-PICKER-VALIDATION.md` | PARTIAL PASS — ORDINARY PICKER | After distinguishing the separate chat Quick Menu → Persona picker from the full Settings → Persona organizer, the user exercised the instructed ordinary-picker sequence on iPhone and reported its controls, name/note search, Folder/Unfiled filtering, selection close, and selected-row state on reopening all normal. PersonaBind identity, disposable create/import and cold persistence, stale-folder fallback, cancel, and invalid-file behavior remain pending. |
+| K22 | Persona picker name/note search, Folder/Unfiled filters, ordinary and PersonaBind identity, selected-folder disposable create/import, cold persistence, stale-folder fallback, cancel, and invalid-file behavior. | `docs/POCKETRISU-1.9-KEI-K22-PICKER-VALIDATION.md` | PARTIAL PASS — ORDINARY PICKER / CONTINUATION PAUSED BY STORAGE FINDING | After distinguishing the separate chat Quick Menu → Persona picker from the full Settings → Persona organizer, the user exercised the instructed ordinary-picker sequence on iPhone and reported its controls, name/note search, Folder/Unfiled filtering, selection close, and selected-row state on reopening all normal. The continuation stopped when an unrelated older-chat CAS retry surfaced during the session; no K22 failure is inferred. PersonaBind identity, disposable create/import and cold persistence, stale-folder fallback, cancel, and invalid-file behavior remain pending. |
 | K26 | On a separately prepared disposable backup target only, cover local-file, server-file, and snapshot restore, fresh timestamped snapshot, forced failure stop, one-use same-target retry, and wrong-target/replay refusal. | `docs/POCKETRISU-1.9-KEI-K26-RESTORE-VALIDATION.md` plus aggregate receipt | PENDING / DISPOSABLE TARGET REQUIRED | — |
 | K27 | With native request logging enabled, one BG request produces one masked native request row and one content-free usage row; disabled logging produces neither while generation still completes. | `docs/POCKETRISU-1.9-KEI-K27-BG-LOGGING-VALIDATION.md` plus aggregate receipt | PENDING | — |
 | K13 | Real classic OpenAI-compatible and Gemini/Vertex provider streams remain complete and ordered across emoji/reasoning/tool/signature content and background return. | `docs/POCKETRISU-1.9-KEI-K13-VALIDATION.md` | PENDING | — |
