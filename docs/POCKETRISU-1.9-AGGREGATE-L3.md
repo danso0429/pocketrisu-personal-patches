@@ -6,7 +6,7 @@
 > `1fe0402b060b947c031abb7da6980dc1ac2795f2`
 >
 > **Corrected live update source:** `codex/pocketrisu-1.9-rebase` at
-> `53512ab361892b932004c7580b916ecd009fa288`
+> `fd608907f662a98126509c7a1780257dabb313a9`
 >
 > **Exact target:** official PocketRisu 1.9.0 / PocketRisu commit
 > `85a65f3137b45c8de4a8d21a9887be213b1ac3fc`
@@ -19,11 +19,13 @@
 > admitted together with the Node test-storage correction in the live 538-unit
 > candidate. The live update/restart gates passed. K16 and BG composer physical
 > re-L3 remain deferred to the user's later consolidated re-L3 batch. K22 was
-> later reported normal, K15 has a limited ordinary-affordance pass, and K14
-> was not exercised by user choice. K11 was interrupted by a separate BG
-> direct-generation lifecycle defect. Its patcher correction is qualified,
-> pushed, and live-admitted in the 542-unit / 218-source-path graph; its
-> two-consecutive-send physical re-L3 remains pending.
+> later reported normal, K15 has a limited ordinary-affordance pass, K14 was
+> not exercised by user choice, and K27 was reported normal. K11 first exposed
+> a BG direct-generation lifecycle defect. After the retained gray indicator
+> was fixed, the user still observed a pre-indicator delay plus visible K11
+> ownership wrappers. Both follow-up corrections are qualified, pushed, and
+> live-admitted in the 542-unit / 218-source-path graph. Their physical re-L3
+> remains pending.
 
 ## Authority and boundaries
 
@@ -404,6 +406,52 @@ The error log grew by zero bytes. Database and backup inode/size observations,
 and the same seven delivered states were preserved. No paid request or
 physical re-L3 was performed during this admission.
 
+## 542-unit marker/preparation follow-up
+
+The user later confirmed that the retained gray circle was gone, but observed
+two remaining findings:
+
+- Send still waited before the native active indicator appeared; and
+- K11 rendered literal `header-manual-button` ownership start/end text, with
+  the same wrapper pattern appearing in more than one UI position.
+
+Source inspection separated the owners. BG orchestration did not acquire a
+native generation entry until after input processing and its durable-save
+barrier. Separately, two K11 and two preset units used generic JavaScript
+comment wrappers around Svelte markup. The detailed controls and L2.5 evidence
+are in
+`docs/POCKETRISU-1.9-BG-DIRECT-GENERATION-LIFECYCLE-VALIDATION.md` and
+`docs/POCKETRISU-1.9-SVELTE-MARKER-SAFETY-VALIDATION.md`.
+
+The marker infrastructure/adapter correction is `1d53f58`; the BG keyed
+preparation-lifecycle correction is `dc82721`; canonical installers are
+`fd60890`. All three commits were pushed before live apply. The patcher suite
+passed 38/38 files. Disposable aggregate apply/replan/exact revert passed.
+The exhaustive verifier passed 2,048/2,048 raw selections, 1,024 normalized
+graphs, maximum 542 units, 223 planned paths, and all round trips with one
+worker. Two canonical builder runs produced identical installer hashes.
+
+Preflight observed active/queued/unclaimed/pending work and result payloads
+zero, nine operation states all delivered, and `quick_check=ok`. The exact
+plan selected 28 packs / 542 units / five ordered collisions and six source
+changes plus existing patch state. PM2 was stopped before transactional apply.
+Frozen install reused 109 packages with zero downloads. Client 129 files /
+1,537 tests and server 9 files / 163 tests passed; diagnostics were 0/0; the
+production build transformed 7,857 modules; no production `.js` contained a
+`POCKETRISU-PATCH:` string; the BG bundle built and load-checked; production
+prune and all three runtime dependency resolutions passed. Replan reported
+zero changes and 218 current transaction-managed source paths.
+
+After restart, PocketRisu 1.9.0 was online at PID 3509259 with zero unstable
+restarts and zero active requests. Root and main asset returned HTTP 200;
+served/local `index-Wn8GBpq6.js` matched at 1,998,555 bytes and SHA-256
+`eeb28d0b62bd2d149cd965e2adc9e867d3baa7a806cd5bbab7f715a016e5fe36`.
+The unauthenticated BG status request returned 401 and the error log grew by
+zero bytes. Database/backup inode and size observations, zero active/result
+work, nine delivered states, and `quick_check=ok` were preserved. The K12 HEAD
+and two index hashes also remained exact. No paid request, destructive
+user-data operation, physical re-L3, tag, or release was part of this update.
+
 ## Deferred fix and re-L3 batch policy
 
 The user chose the following workflow because the Kei candidate has many
@@ -418,15 +466,16 @@ independent L3 scenarios:
   infrastructure boundaries. “One batch” means one integration cycle, not one
   mixed commit: feature-local commits, receipts, focused adversarial gates,
   owner-present/absent graphs, exact revert, and L2.5 remain separate;
-- the earlier K16/BG-composer integration/deployment cycle and the newer BG
-  direct-generation lifecycle live admission are complete; and
+- the earlier K16/BG-composer integration/deployment cycle and both BG
+  direct-generation lifecycle admissions are complete; and
 - run the queued K16 and BG composer re-L3 scenarios later with any other
   affected rows while retaining separate result records; and
 - treat the K22-session chat-save interruption as a lazy-chat storage-owner
   fix/re-L3 item, not as evidence that K22 search/folder behavior failed.
 - reload the client before rerunning the blocked consecutive-generation/K11
-  path so the browser uses the 542-unit bundle; admission does not itself
-  clear the physical re-L3 row.
+  path so the browser uses the latest 542-unit bundle. Confirm both immediate
+  native preparation feedback and absence of visible ownership text;
+  admission does not itself clear either physical re-L3 row.
 
 A finding that indicates immediate user-data, paid-result, or active-work risk
 still stops use of that affected path; batching does not authorize continuing
@@ -447,12 +496,12 @@ one row does not imply another row passed.
 | K29 G09 | Background, kill/reload, and return during the existing qualified cold reroll; exactly one intended existing message/swipe is overwritten and no duplicate is appended. | `docs/POCKETRISU-1.9-AGGREGATE-VALIDATION.md` | PENDING | — |
 | K22 | Persona picker name/note search, Folder/Unfiled filters, ordinary and PersonaBind identity, selected-folder disposable create/import, cold persistence, stale-folder fallback, cancel, and invalid-file behavior. | `docs/POCKETRISU-1.9-KEI-K22-PICKER-VALIDATION.md` | PASS — USER REPORTED BATCH NORMAL | After the earlier ordinary-picker observation and unrelated save interruption, the user resumed the consolidated batch and reported the K22 item normal. This closes the instructed K22 batch as observed; the separate BG lifecycle finding below does not relabel K22 as its owner. |
 | K26 | On a separately prepared disposable backup target only, cover local-file, server-file, and snapshot restore, fresh timestamped snapshot, forced failure stop, one-use same-target retry, and wrong-target/replay refusal. | `docs/POCKETRISU-1.9-KEI-K26-RESTORE-VALIDATION.md` plus aggregate receipt | PENDING / DISPOSABLE TARGET REQUIRED | — |
-| K27 | With native request logging enabled, one BG request produces one masked native request row and one content-free usage row; disabled logging produces neither while generation still completes. | `docs/POCKETRISU-1.9-KEI-K27-BG-LOGGING-VALIDATION.md` plus aggregate receipt | PENDING | — |
+| K27 | With native request logging enabled, one BG request produces one masked native request row and one content-free usage row; disabled logging produces neither while generation still completes. | `docs/POCKETRISU-1.9-KEI-K27-BG-LOGGING-VALIDATION.md` plus aggregate receipt | PASS — USER REPORTED NORMAL | The user reported the instructed K27 batch normal. This closes the device scenario at that reported scope; it does not add rich accounting, an independent usage policy, or a new privacy policy. |
 | K13 | Real classic OpenAI-compatible and Gemini/Vertex provider streams remain complete and ordered across emoji/reasoning/tool/signature content and background return. | `docs/POCKETRISU-1.9-KEI-K13-VALIDATION.md` | PENDING | — |
 | K14 | Balanced/Strong/Off streaming display, scroll anchoring, final render, translation gating, metadata, and BG return. | `docs/POCKETRISU-1.9-KEI-K14-VALIDATION.md` | NOT EXERCISED — USER DOES NOT USE STREAMING | The user explicitly skipped this row because streaming is not used. This is not recorded as a pass. |
 | K16 | Hotkey master/bindings, protected-start gesture exclusion and cancellation, character-list boundaries, and opt-in single mobile Back stop/removal. | `docs/POCKETRISU-1.9-KEI-K16-VALIDATION.md` | LIVE CORRECTION ADMITTED / RE-L3 PENDING | The instructed Accessibility path had no Hotkey item, and official 1.9's outer width guard made the actual top-level page unreachable on iPhone. The owner-local fix passed focused and aggregate gates and remains present in the current 542-unit bundle. Top-level Hotkey and the remaining K16 scenarios still require physical observation. |
 | K15 | Original and translated partial edit, exact/multiple/unmappable ranges, stale-identity refusal, active-swipe ownership, lifecycle/UI stress, and disable cleanup. | `docs/POCKETRISU-1.9-KEI-K15-VALIDATION.md` | LIMITED PASS — ORDINARY PARAGRAPH AFFORDANCE | The user reported the batch item normal and described tapping one paragraph, then seeing its edit button at that paragraph's upper-left. That is the ordinary K15 partial-edit affordance. Translated, multiple/unmappable, stale-identity, swipe-owner, and stress surfaces were not separately distinguished, so they are not inferred passed. |
-| K11 | Native Hypa behavior plus manual prefix/frontier, preview/reroll/cancel/apply, stale refusal, CBS/editprocess, supported BG return, and persistence. | `docs/POCKETRISU-1.9-KEI-K11-VALIDATION.md` | INTERRUPTED / LIVE FIX ADMITTED / RE-L3 PENDING | The user reached this row after an earlier generation but the gray stage-zero circle remained, blocked the next request, and delayed later indicator appearance. K11 behavior was not exercised; the BG lifecycle owner is now corrected in the live 542-unit bundle, but the two-consecutive-send and K11 physical reruns remain pending. |
+| K11 | Native Hypa behavior plus manual prefix/frontier, preview/reroll/cancel/apply, stale refusal, CBS/editprocess, supported BG return, and persistence. | `docs/POCKETRISU-1.9-KEI-K11-VALIDATION.md` | INTERRUPTED TWICE / LIVE CORRECTIONS ADMITTED / RE-L3 PENDING | The first attempt was blocked by the retained gray stage-zero generation owner. After that was corrected, the gray owner disappeared but Send still had a pre-indicator delay, and K11 showed literal ownership wrapper text. The keyed preparation owner and marker-safe Svelte blocks are now live in the latest 542-unit bundle. Reload, two consecutive sends, absence of marker text, and all K11 behavior remain pending physical observation. |
 | K12 | Translation-cache panel search/reveal/copy/edit/CAS/delete, cancel and unused scan, late-result cancellation, configured BG route, K14 composition, and available-provider/UI stress. | `docs/POCKETRISU-1.9-KEI-K12-VALIDATION.md` | PENDING | — |
 
 ## Result recording rules

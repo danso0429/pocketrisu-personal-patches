@@ -240,3 +240,17 @@ receipt qualifies a local patcher-owner version only. It does not authorize or
 claim generated-installer publication, push, tag, release, live apply, or
 restart. Final aggregate review and the consolidated iPhone L3 remain later
 gates.
+
+## Later aggregate observation
+
+During the 2026-08-02 aggregate iPhone batch, the user reported K27 normal.
+The aggregate ledger therefore records the instructed enabled/disabled native
+logging scenario as a device PASS at that reported scope. This observation
+does not broaden K27 into platform metadata, per-row delete, rich accounting,
+an independent usage/retention policy, or a new privacy policy.
+
+The candidate, including the later unrelated marker/preparation corrections,
+is now committed, pushed, rebuilt, and live-admitted. The original paragraph
+above remains the historical boundary of this feature's automatic
+qualification; exact live evidence is in
+`docs/POCKETRISU-1.9-AGGREGATE-L3.md`.

@@ -16,11 +16,14 @@
 > authorized the combined live update at `53512ab`; that 538-unit graph passed
 > its live gates and was later advanced to the corrected 28-pack / 542-unit /
 > 218-source-path graph. K16 and BG composer physical reruns remain for the later consolidated
-> re-L3 batch. K22 was later reported normal, K15 has a limited ordinary
-> partial-edit observation, and K14 was not exercised. K11 exposed a distinct
-> BG direct-generation lifecycle defect. Its 542-unit / 223-planned-path /
-> 218-source-path correction is qualified, pushed, and live-admitted; its
-> two-consecutive-send physical re-L3 remains pending.
+> re-L3 batch. K22 and K27 were later reported normal, K15 has a limited
+> ordinary partial-edit observation, and K14 was not exercised. K11 exposed a
+> distinct BG direct-generation lifecycle defect. After its retained gray
+> indicator was fixed, the user still observed a pre-indicator delay and
+> visible K11 ownership wrappers. The keyed preparation and Svelte marker
+> corrections are qualified, pushed at functional/generated boundary
+> `fd60890`, and live-admitted in the unchanged 542-unit / 223-planned-path /
+> 218-source-path graph. Their physical re-L3 remains pending.
 > The candidate-admission and result ledger is
 > `docs/POCKETRISU-1.9-AGGREGATE-L3.md`. The overlap-equivalence audit,
 > user-authorized bounded implementation, aggregate target, raw-selection,
@@ -319,6 +322,14 @@ active-only settings controls. Close the current candidate in this order:
    unchanged, and passed a 542-unit maximum graph with 2,048 exact round trips.
    It is present in the live 542-unit candidate. Its two-consecutive-send
    physical rerun belongs in the consolidated affected-row re-L3 batch.
+9. Retain `1d53f58`, `dc82721`, and generated boundary `fd60890`. The first
+   converts the four audited Svelte markup units to exact HTML-comment managed
+   blocks and makes future likely-markup generic wrappers fail closed. The
+   second acquires the native keyed owner before durable save and releases
+   only its exact operation ID across failure, abort, handoff, and unexpected
+   exceptions. Their receipts are the marker-safety and BG lifecycle
+   validation documents. Reload, immediate indicator, no marker text, and
+   K11 behavior remain device observations rather than inferred passes.
 
 Keep each feature-local receipt and commit. A queued review or L3 correction
 must remain in its owning feature or infrastructure boundary and rerun the
@@ -331,7 +342,8 @@ child's concrete scenario separately.
 
 The official 1.9 base cutover is complete and was not repeated. The live graph
 was advanced through the first aggregate admission, the corrected 538-unit
-update, and the 542-unit direct-lifecycle update. On the 538-unit update,
+update, the 542-unit direct-caller update, and the latest marker/preparation
+update that retains the same unit count. On the 538-unit update,
 active and unclaimed work were zero; retained nonzero
 rows were one done/claimed pending marker and three delivered BG states with
 zero result payloads. PM2 was stopped before apply. The live target passed
@@ -340,6 +352,10 @@ and the restarted main asset matched the local build. On the 542-unit update,
 active/unclaimed/pending work and result payloads were zero, seven durable
 states were already delivered, all client/server/check/build/BG/prune gates
 passed, the served asset matched local bytes, and the error log did not grow.
+On the latest update those work/result counts again remained zero, nine
+durable states were delivered, client 129/1,537 and server 9/163 passed,
+diagnostics were 0/0, the 7,857-module build and marker-free compiled scan
+passed, served/local bytes matched, and DB/backup/K12 preservation gates held.
 See `docs/POCKETRISU-1.9-AGGREGATE-L3.md` for exact observations. Subsequent
 validated fixes proceed through push and safe live delivery without a separate
 restart approval; active work is checked and never cancelled. Keep `save/`
@@ -362,7 +378,8 @@ boundaries, and rotation were reported normal; VoiceOver was not exercised.
 The later K22 controls established the patched bundle. The K16 route and BG
 composer defects are fixed, automatically qualified, and live-admitted, but
 their corrected physical acceptance and the other open L3 rows remain open.
-K22 was later reported normal, K15 has a limited ordinary-affordance pass, and
-K14 is explicitly not exercised. K11 stopped at the separately diagnosed BG
-direct-generation lifecycle defect; its correction is live-admitted and its
-physical rerun remains pending.
+K22 and K27 were later reported normal, K15 has a limited ordinary-affordance
+pass, and K14 is explicitly not exercised. K11 stopped first at the separately
+diagnosed BG direct-generation lifecycle defect and then at pre-indicator
+delay/visible marker findings. Both lifecycle corrections and the cross-pack
+marker correction are live-admitted; their physical reruns remain pending.

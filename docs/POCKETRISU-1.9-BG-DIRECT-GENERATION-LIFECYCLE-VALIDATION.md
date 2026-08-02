@@ -2,11 +2,13 @@
 
 ## Result
 
-PocketRisu 1.9 `bg-preserve` version `v1.0.1-patcher.6` closes the native
-per-chat generation lifecycle for every BG-owned direct `sendChat()` caller.
-The correction is automatically qualified, committed in `5d10edb`, pushed on
-`codex/pocketrisu-1.9-rebase`, and live-admitted in the 542-unit `all` graph.
-Its two-consecutive-send physical re-L3 remains pending.
+PocketRisu 1.9 `bg-preserve` version `v1.0.1-patcher.7` now owns both sides of
+the native per-chat lifecycle used by BG orchestration: version `.6` closes
+every BG-owned direct `sendChat()` caller, while `.7` exposes the earlier
+durable-save/server-start preparation interval through the same native keyed
+generation owner. The two corrections are committed in `5d10edb` and
+`dc82721`; canonical installers are in `fd60890`. They were pushed and
+live-admitted in the 542-unit `all` graph. Physical re-L3 remains pending.
 
 The user-visible finding was a completed response followed by a gray stage-0
 generation indicator that never stopped. A later Send tap was blocked, and a
@@ -15,6 +17,13 @@ paid-response-loss finding. Read-only runtime evidence showed one auxiliary
 and one main provider request completed with HTTP 200, the response was present
 in the canonical chat, and `pending_sends` was zero.
 
+After `.6` was live, the user reported that the retained gray indicator was
+gone but a Send tap still waited before any active indicator appeared. Source
+inspection placed that remaining delay before server ownership: chat input
+processing and the durable-save barrier ran before the browser had registered
+any native generation entry. Version `.7` acquires that entry before the
+durable save and hands it to the existing server-orchestration busy owner.
+
 ## Purpose, trigger, state/result, and preserved contract
 
 | Surface | Contract |
@@ -22,6 +31,7 @@ in the canonical chat, and `pending_sends` was zero.
 | Purpose | End the exact PocketRisu 1.9 `generationStates` entry created by a direct BG-owned `sendChat()` call. |
 | Trigger | Server full/LLM/assemble execution and the browser fallback after a server terminal result contains no new main reply. |
 | State/result | An idle target chat is acquired before the direct call. Success, early terminal return, or rejection ends only that chat key, resets the shared stage to zero, and lets native busy state rederive from surviving entries. A pre-owned chat returns `false` without invoking the call or cleanup. |
+| Preparation state/result | The operation ID owns the exact chat key and stage 1 before durable save. Save failure, abort, and unexpected failure release only that operation ID. On successful POST, server orchestration becomes observable before the preparation entry is released. |
 | Browser cleanup | The existing `pendingSends` owner clears the exact chat tombstone. The server clone keeps native server-side jobs disabled and does not issue the browser-route cleanup. |
 | Preservation | Other chats' live/background entries, BG operation/result/claim/ACK state, request-log/usage owners, provider selection, custom/local endpoints, blocking callers, cancellation signals, browser completion sound, swipe targets, and exact-once materialization remain in their existing owners. |
 | Exclusions | No new database, identity schema, state machine, provider allowlist, G06 operation kind, G07/G08/G12 generalization, or server-restart partial materialization is added. |
@@ -108,7 +118,7 @@ import shared an anchor. The manifest now orders the lifecycle import after the
 abort import; focused tests and the complete combination verifier observed the
 resolved graph.
 
-## Generated installers
+## Generated installers for the direct-caller correction
 
 The canonical builder generated these local artifacts:
 
@@ -165,6 +175,45 @@ and cached binary-diff SHA-256
 `916440ab240e0f7541844f0082ce53d1d5f516d08ea1bdfc79a55149d7ca66a9`.
 No paid request or physical L3 was performed during admission.
 
+## Preparation-indicator follow-up and second live admission
+
+The `.7` follow-up extends only `src/ts/bgOrchestrate.ts` and the native
+`src/ts/process/generationState.ts` owner. `endGenerationIfOwned(chatKey,
+generationId)` refuses to clear a replacement owner. The four release paths
+are durable-save failure, inherited-signal abort, successful server-busy
+handoff, and unexpected outer failure. It removes the preparation path's
+store-only `doingChat` writes; direct callers remain on the `.6` wrapper.
+
+Focused static/adversarial contracts and the applied runtime test passed, and
+the patcher suite passed 38/38 files. A disposable aggregate target applied
+542 units, replanned with zero changes, and compared equal to its baseline
+after exact revert. The complete verifier passed 2,048/2,048 raw selections,
+1,024 normalized graphs, 223 managed paths, maximum 542 units, and all round
+trips with one worker.
+
+Canonical installers were deterministic across two builder runs. The `all`
+installer was 5,094,115 bytes with SHA-256
+`32ae593398b17fbf69d013718c8a251be9b2b77e3439e16bb609d09250e77432`.
+The other installer sizes and hashes are recorded in
+`docs/POCKETRISU-1.9-SVELTE-MARKER-SAFETY-VALIDATION.md` because the same
+generated commit contains both independently owned corrections.
+
+At 2026-08-02 20:25 KST, preflight observed active/queued/unclaimed/pending
+work and result payloads all zero, `quick_check=ok`, and nine durable operation
+states all `delivered`. PM2 was stopped before the transactional six-source
+plus one-state-path apply. Client 129 files / 1,537 tests and server 9 files /
+163 tests passed; diagnostics were 0/0; the build transformed 7,857 modules;
+the BG bundle load check exposed both direct lifecycle functions; production
+prune and dependency resolution passed; and live replan had zero changes.
+
+After restart, PocketRisu 1.9.0 was online at PID 3509259 with zero unstable
+restarts and zero active requests. Root/main asset HTTP, served/local byte
+identity, database/backup inode and size preservation, zero error-log growth,
+zero active/result work, nine delivered states, `quick_check=ok`, and the
+preserved K12 hashes all passed. No paid request or physical re-L3 was part of
+the admission. The live/installer evidence is shared with the marker-safety
+receipt cited above.
+
 ## L2.5 runtime audit
 
 ### Phase 1 — flat discovery
@@ -212,7 +261,8 @@ No paid request or physical L3 was performed during admission.
 - **Q3, preserved exclusions:** G06 remains append-only and blocked as
   documented; no provider-specific branch or excluded atom was generalized.
 - **Q4, pending physical re-L3:** after a client reload, two consecutive ordinary generations in the
-  same chat must start without poll-delay fallback, and each terminal response
+  same chat must show the native active indicator without the former
+  pre-indicator durable-save gap or poll-delay fallback. Each terminal response
   must remove its circle and leave Send immediately available. Live admission
   does not infer this device result; no paid request, tag, or release was part
   of the admission.

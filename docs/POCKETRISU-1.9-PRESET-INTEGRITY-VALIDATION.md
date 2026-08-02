@@ -10,9 +10,10 @@ Date: 2026-08-01 KST
 `botPresetsId === -1` no-active sentinel while continuing to repair malformed
 persisted indices and empty preset arrays.
 
-No live tree was modified, no PocketRisu process was restarted, and no user
-preset or database was used as a fixture. No push, tag, release, or installer
-rebuild was performed.
+The original qualification did not modify a live tree or use a user preset or
+database as a fixture. A later aggregate UI-marker correction was separately
+committed, pushed, rebuilt, and safely live-admitted as described below. No
+tag, release, or destructive preset fixture was used.
 
 ## Official 1.9 conflict and adaptation
 
@@ -46,7 +47,7 @@ name-field guard. No 1.9 unit is eligible for an exact-1.8.1 plan.
 
 | Pack | Version | Exact target units | Managed source paths | SHA-256 ETag |
 | --- | --- | ---: | ---: | --- |
-| `preset-integrity` | `0.2.0` | 1.8.1: 7; 1.9.0: 8 | 3 | `5cb47c412c02dccfbc2e748ee16332435a809af360aaaf635ed70454b05404a2` |
+| `preset-integrity` | `0.2.1` | 1.8.1: 7; 1.9.0: 8 | 3 | `35ce8058b2ec4c7b0ab29115dd8bf4e3d36e79e0d421c483a31ef548ef8dfa51` |
 
 The exact-1.9 focused plan selected `preset-integrity` and
 `toolchain-hardening`, reported verified compatibility, selected 15 units in
@@ -134,6 +135,17 @@ runtime source files and owns one focused test file.
 
 ## Remaining interaction and publication boundary
 
+After aggregate K11 exposed visible ownership wrappers, the complete manifest
+audit found the same markup-context defect in `prompt-body-start:1.9` and
+`prompt-body-end:1.9`. Commit `1d53f58` converts those units to exact managed
+Svelte blocks with HTML comments and advances the pack to `0.2.1`; it does not
+change normalization, the native `-1` sentinel, or preset UI behavior. The
+manager-level guard, focused/full tests, 542-unit exhaustive verifier,
+disposable exact revert, live tests/diagnostics/build, and zero-marker compiled
+scan passed. Commit `fd60890` contains the canonical installer, and
+`docs/POCKETRISU-1.9-SVELTE-MARKER-SAFETY-VALIDATION.md` records the complete
+evidence and live admission.
+
 The consolidated iPhone session should still select and switch presets,
 open Settings → Prompt Preset, rename the active preset, exercise duplicate,
 export, import, and delete with disposable data, and confirm the Manage
@@ -141,6 +153,6 @@ control can recover the screen after no active preset is shown through a safe
 test fixture. A real user database must not be corrupted merely to create the
 fixture.
 
-Aggregate graph qualification, the full raw-selection verifier,
-deterministic installer rebuild, review, and the applicable per-feature L3
-observations remain separate publication gates.
+The aggregate graph, raw-selection verifier, deterministic installer rebuild,
+and safe live admission are now recorded. Review and the applicable
+per-feature L3 observations remain separate publication gates.

@@ -23,13 +23,14 @@ consolidated feature-by-feature iPhone L3 remains. No live apply, live patch
 state or user-data change, PocketRisu restart, push, tag, or release occurred
 during that original qualification run.
 
-That sentence records this receipt's implementation-time boundary. Later,
-later live admissions, physical findings, their K16/BG corrections, and the
-subsequent 542-unit live update are recorded in
+That sentence records this receipt's implementation-time boundary. Later live
+admissions, physical findings, their K16/BG corrections, and both subsequent
+542-unit live updates are recorded in
 `docs/POCKETRISU-1.9-AGGREGATE-L3.md`. The live graph contains both corrections
 plus `toolchain-hardening` 0.1.3 and the BG direct-generation lifecycle
-correction. Its maximum plan is 542 units / 223 planned paths and its live
-state has 218 transaction-managed source paths. The BG focused
+corrections plus the cross-pack Svelte marker guard. Its maximum plan is 542
+units / 223 planned paths and its live state has 218 transaction-managed
+source paths. The BG focused
 receipt is `docs/POCKETRISU-1.9-BG-COMPOSER-VALIDATION.md`; the Node warning
 correction is `docs/POCKETRISU-1.9-TOOLCHAIN-HARDENING-VALIDATION.md`, and the
 lifecycle correction and live smoke are qualified in
@@ -320,11 +321,40 @@ same umbrella version/ETag.
   was reported normal with narrower adversarial surfaces unobserved, and K14
   was explicitly not exercised because the user does not use streaming. K11
   was interrupted by the separately diagnosed BG direct-generation lifecycle
-  defect. Its owner-local patcher correction passed focused, compile, bundle,
-  exact-revert, exhaustive combination, live install, and runtime smoke gates;
-  its physical rerun remains pending.
+  defect. The user later confirmed its retained gray indicator was gone, then
+  reported a remaining pre-indicator delay and literal K11 ownership wrappers.
+  The keyed preparation owner and marker-safe Svelte corrections passed their
+  focused, compile, bundle, exact-revert, exhaustive combination, live install,
+  and runtime smoke gates; their physical rerun remains pending. K27 was
+  separately reported normal.
   These physical gaps block aggregate acceptance and publication, not the
   completed earlier live installation gates.
+
+## Post-L3 542-unit requalification addendum
+
+Commits `1d53f58` and `dc82721` preserve the existing maximum unit count while
+changing six aggregate source/test paths: four rendered-markup units move to
+exact Svelte managed blocks, and BG preparation acquires/releases the existing
+native keyed generation owner. Commit `fd60890` is the deterministic generated
+installer boundary. No catalog child, provider route, result schema, storage
+owner, or state machine was added.
+
+The post-correction patcher suite passed 38/38 files. A disposable target
+applied the maximum graph, replanned with zero changes, and compared equal to
+its baseline after exact revert. The complete combination verifier passed
+2,048/2,048 raw selections, 1,024 normalized graphs, 223 managed paths,
+maximum 542 units, and all round trips. The canonical installer builder was
+deterministic across two runs.
+
+The safe live update passed client 129 files / 1,537 tests, server 9 files /
+163 tests, Svelte diagnostics 0/0, a 7,857-module production build, BG bundle
+build/load, marker-free compiled JavaScript scan, production prune, runtime
+dependency resolution, and zero-change 542-unit replan. Served/local main
+asset bytes matched after restart. Active/result work, DB/backup identity,
+`quick_check`, error-log size, and preserved K12 hashes remained within their
+recorded contracts. Exact values and L2.5 are in
+`docs/POCKETRISU-1.9-SVELTE-MARKER-SAFETY-VALIDATION.md` and
+`docs/POCKETRISU-1.9-BG-DIRECT-GENERATION-LIFECYCLE-VALIDATION.md`.
 
 ## Future consolidated iPhone L3
 
@@ -369,10 +399,8 @@ composer stop state.
    Force one snapshot failure, verify restore stops, then explicitly confirm
    the one-use same-target retry and verify wrong-target/replayed approval is
    refused. Do not use existing user backups as destructive fixtures.
-6. **K27 BG native logging.** With request logging enabled, issue one
-   disposable BG request and verify one masked native request row plus one
-   content-free usage row. Disable the toggle, issue another request, and
-   verify neither row is added while generation still completes.
+6. **K27 BG native logging.** The instructed device batch was reported normal
+   and is recorded closed in the aggregate L3 receipt.
 7. **Existing children.** Execute the concrete K13 provider stream, K16
    hotkey/back gesture, remaining K15 adversarial partial-edit surfaces, K11
    Hypa manual summary after the BG lifecycle correction is live-admitted, and
@@ -398,7 +426,9 @@ original-child regression is the unsafe signal.
    commits, focused graph, exact revert, L2.5, and aggregate gates. After those
    gates, commit, push, and safe live apply proceed in the same delivery flow;
    active work is checked read-only and never cancelled.
-4. Reload the client and run the BG lifecycle two-consecutive-send re-L3; the
-   fix is live but physical acceptance is not inferred.
+4. Reload the client and run the BG lifecycle two-consecutive-send re-L3;
+   confirm immediate preparation feedback, no retained gray circle, and no
+   visible K11/preset ownership text before resuming K11. The fixes are live
+   but physical acceptance is not inferred.
 5. Only after the remaining L3 decisions decide whether to tag, release, or
    publish. Implementation push and safe live updates no longer wait for L3.

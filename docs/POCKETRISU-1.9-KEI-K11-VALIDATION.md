@@ -48,7 +48,7 @@ recorded in `docs/POCKETRISU-KEI-K11-VALIDATION.md`.
 
 - The common core is version `0.2.0`, contains four isolated-file units, and
   verifies exact 1.8.1 and 1.9.0.
-- Each base/BG adapter is version `0.2.0`. It contains 20 historical 1.8.1
+- Each base/BG adapter is version `0.2.1`. It contains 20 historical 1.8.1
   units and 18 exact-1.9 units; every adapter unit is scoped to exactly one
   target version.
 - The two-unit 1.9 reduction removes K11's old summary-item import/call
@@ -91,6 +91,30 @@ recorded in `docs/POCKETRISU-KEI-K11-VALIDATION.md`.
 
 The exhaustive aggregate selection gate remains deferred until K12 is
 rebased. No aggregate result is inferred from these focused graphs.
+
+## Aggregate L3 marker finding and remediation
+
+During the later aggregate iPhone session, K11 did not reach its manual-tools
+behavioral checks. The modal rendered the adapter's `header-manual-button`
+ownership start/end strings as visible text, and the user reported that the
+same pattern was not isolated to one marker. Applied-source inspection found
+that K11's `header-manual-button` and `modal-panel-close` units inserted Svelte
+markup through generic JavaScript-style wrappers.
+
+Commit `1d53f58` changes only those two adapter units to exact Svelte managed
+blocks with HTML comments and advances the adapter to `0.2.1`. The manager now
+rejects future likely-markup `.svelte` units that omit an exact managed block.
+K11 selection, generation, persistence, provider, and storage ownership are
+unchanged. The correction passed focused contracts, the 38-file patcher suite,
+the 542-unit exhaustive verifier, disposable apply/replan/exact revert, full
+live client/server tests, diagnostics, build, and a compiled production scan
+with zero `POCKETRISU-PATCH:` strings. The canonical installer is in
+`fd60890`; the complete receipt is
+`docs/POCKETRISU-1.9-SVELTE-MARKER-SAFETY-VALIDATION.md`.
+
+The correction is live. K11 remains physical re-L3 pending: client reload,
+absence of visible ownership text, and the concrete manual Hypa workflow below
+must still be observed. No K11 behavior is inferred from automated admission.
 
 ## L2.5 runtime audit
 
@@ -215,4 +239,7 @@ Sparse selection, silent restart from an orphaned frontier, stale apply,
 duplicate preprocessing/request, native search/reroll regression, more than
 one summary mutation, or a Revenant/new-chat result is the unsafe signal.
 
-No live apply, restart, push, tag, release, or installer rebuild was performed.
+The original K11 qualification above did not perform a live mutation. The
+later marker-safety correction was committed, pushed, rebuilt, safely
+live-applied, and restarted as recorded in its separate receipt. No tag,
+release, paid request, or physical K11 re-L3 was performed during that update.

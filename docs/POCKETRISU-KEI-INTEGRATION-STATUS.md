@@ -31,9 +31,12 @@
 > candidate. The live install/restart gates passed; their physical re-L3 is
 > still pending. K22 was later reported normal; K15's ordinary paragraph
 > partial-edit affordance was normal; K14 was explicitly not exercised by user
-> choice. K11 was interrupted by a distinct BG direct-generation lifecycle
-> defect. Its patcher correction is automatically qualified at a 542-unit
-> maximum graph, pushed, and live-admitted; its physical re-L3 is pending.
+> choice, and K27 was reported normal. K11 was interrupted by a distinct BG
+> direct-generation lifecycle defect. After its retained gray indicator was
+> fixed, the user still observed a pre-indicator delay and visible K11
+> ownership wrappers. The keyed preparation and marker-safety corrections are
+> automatically qualified at a 542-unit maximum graph, pushed, and
+> live-admitted; their physical re-L3 is pending.
 > Admission, findings, and per-feature observations are tracked in
 > `docs/POCKETRISU-1.9-AGGREGATE-L3.md`.
 > The user chose to keep remaining and corrected physical checks in a later
@@ -55,7 +58,7 @@ candidate is preserved rather than mutated in place.
   uncommitted bytes.
 - The 1.9 branch requalifies existing packs and admitted Kei children before
   any new catalog child is implemented.
-- The active 1.9 branch is pushed at `82d4878`; neither candidate has been
+- The active 1.9 functional/generated boundary is pushed at `fd60890`; neither candidate has been
   tagged or released, and the preserved K12 branch remains untouched. After
   the pristine official 1.9.0 base cutover, the requalified `all` candidate
   and later fixes were safely applied. The live tree now reports 28 current
@@ -120,12 +123,15 @@ boundaries on the active 1.9 branch:
 | `5d10edb` | BG direct-generation keyed lifecycle ownership and adversarial receipt |
 | `ade082f` | Deterministic installers containing the direct lifecycle correction |
 | `82d4878` | Pre-admission L3/status documentation; pushed branch boundary |
+| `1d53f58` | Marker-safe exact Svelte managed blocks for K11/preset plus fail-closed manager guard |
+| `dc82721` | BG keyed preparation lifecycle and exact owner-matched release |
+| `fd60890` | Deterministic installers containing both independently owned corrections |
 
 The catalog custody, verification procedure, and this status are kept in a
 separate documentation commit. Its hash is read from history rather than
 embedded in this file, which would create a self-referential commit hash.
 
-The active candidate branch is pushed at `82d4878` but is not tagged or
+The active candidate functional/generated boundary is pushed at `fd60890` but is not tagged or
 released. The generated `all` candidate was first admitted at `11302c5`, then
 advanced through the K16/BG/toolchain correction and the direct-lifecycle
 correction. Live PocketRisu now reports 28 packs, 542 units, and 218 source
@@ -271,13 +277,13 @@ implemented progress.
    interaction owner.
 
 The source audit, approved implementation, corrected 542-unit automated
-aggregate gates, and corrected live apply/restart are
-complete. K16 and BG composer are live-admitted but remain pending physical
-re-L3. The later BG direct-generation lifecycle correction is also
-live-admitted at 542 units / 223 planned paths / 218 transaction-managed
-source paths. Review and unresolved or not-exercised L3 surfaces continue to
-block stable tag, release, and publication, but not implementation push or
-safe live delivery.
+aggregate gates, and latest live apply/restart are complete. K16 and BG
+composer are live-admitted but remain pending physical re-L3. Both BG
+direct-generation lifecycle corrections and the cross-pack Svelte marker
+safety correction are live-admitted at 542 units / 223 planned paths / 218
+transaction-managed source paths. K27 was reported normal. Review and
+unresolved or not-exercised L3 surfaces continue to block stable tag, release,
+and publication, but not implementation push or safe live delivery.
 
 ## Next review and L3 sequence
 
@@ -296,10 +302,11 @@ current candidate.
    present blocked G06 as tested.
 2. Run the K16 top-level Hotkey and BG composer attached/cold reruns with the
    later consolidated affected-row re-L3 batch, retaining individual results.
-3. Reload the client, then verify two same-chat ordinary sends conclude
-   without delayed fallback or a retained stage-zero circle before resuming
-   K11. The fix is already live; this remains a physical re-L3, not an inferred
-   pass.
+3. Reload the client, then verify two same-chat ordinary sends show immediate
+   native preparation feedback and conclude without delayed fallback or a
+   retained stage-zero circle. Open K11 and Prompt Preset and confirm no
+   ownership marker text before resuming K11. The fixes are already live;
+   these remain physical re-L3 observations, not inferred passes.
 4. Queue any new finding with exact trigger/state/caller evidence. A later fix
    still requires feature-local commits and focused/aggregate gates.
 5. Later validated fixes proceed through commit, push, safe live apply/build,
