@@ -44,7 +44,7 @@ function executeManagedSetup(localStorageDescriptor) {
 test('toolchain hardening is independently versioned and included by hardening and all', () => {
     const catalog = loadCatalog()
     assert.equal(manifest.id, 'toolchain-hardening')
-    assert.equal(manifest.version, '0.1.1')
+    assert.equal(manifest.version, '0.1.2')
     assert.equal(resolveProfile('hardening', catalog).defaults.includes(manifest.id), true)
     assert.equal(resolveProfile('features', catalog).defaults.includes(manifest.id), false)
     assert.equal(resolveProfile('all', catalog).defaults.includes(manifest.id), true)
@@ -84,8 +84,9 @@ test('toolchain hardening keeps runtime source out of scope', () => {
         unit.id === 'toolchain-hardening:vitest-storage')
     assert.match(setup.managed, /import \{ Storage \} from 'happy-dom'/)
     assert.match(setup.managed, /function hasUsableLocalStorage\(\)/)
-    assert.match(setup.managed, /typeof globalThis\.localStorage\?\.clear === 'function'/)
-    assert.match(setup.managed, /catch \{/)
+    assert.match(setup.managed, /Object\.getOwnPropertyDescriptor\(globalThis, 'localStorage'\)/)
+    assert.match(setup.managed, /typeof descriptor\.value\?\.clear === 'function'/)
+    assert.doesNotMatch(setup.managed, /globalThis\.localStorage/)
     assert.match(setup.managed, /new Storage\(\)/)
 
     const managedLock = manifest.units
@@ -108,15 +109,18 @@ test('toolchain hardening replaces Node 25 incomplete web storage', () => {
 })
 
 test('toolchain hardening replaces Node 26 throwing web storage access', () => {
+    let getterCalls = 0
     const { sandbox, stubbedGlobals, TestStorage } = executeManagedSetup({
         configurable: true,
         get() {
+            getterCalls += 1
             throw new Error('localStorage requires a file')
         },
     })
 
     assert.equal(sandbox.localStorage instanceof TestStorage, true)
     assert.equal(stubbedGlobals.filter((name) => name === 'localStorage').length, 1)
+    assert.equal(getterCalls, 0)
 })
 
 test('toolchain hardening preserves an already usable storage owner', () => {

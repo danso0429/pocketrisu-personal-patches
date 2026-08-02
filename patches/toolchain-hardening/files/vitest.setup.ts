@@ -7,11 +7,12 @@ vi.mock(import('katex'), () => ({}))
 vi.stubGlobal('safeStructuredClone', (v: unknown) => JSON.parse(JSON.stringify(v)))
 
 function hasUsableLocalStorage() {
-  try {
-    return typeof globalThis.localStorage?.clear === 'function'
-  } catch {
-    return false
-  }
+  const descriptor = Object.getOwnPropertyDescriptor(globalThis, 'localStorage')
+  return Boolean(
+    descriptor
+    && 'value' in descriptor
+    && typeof descriptor.value?.clear === 'function',
+  )
 }
 
 if (!hasUsableLocalStorage()) {
