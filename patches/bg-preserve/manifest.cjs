@@ -315,6 +315,14 @@ function adaptBgOrchestrateRetention190(unit) {
     )
     content = replaceExact(
         content,
+        "import { chatProcessStage, doingChat, sendChatWithDirectLifecycle } from './process/index.svelte'\n",
+        `import { chatProcessStage, doingChat, sendChatWithDirectLifecycle } from './process/index.svelte'
+import { chatGenKey, endGenerationIfOwned, startGeneration } from './process/generationState'
+`,
+        `${unit.id}: preparation lifecycle owner import`,
+    )
+    content = replaceExact(
+        content,
         "} from './bgOrchestrationPending'\n",
         "} from './bgOrchestrationPending'\nimport { orchestrationRetentionFailureMessage } from './bgOrchestrationRetentionState'\n",
         `${unit.id}: retention terminal-state import`,
@@ -400,6 +408,95 @@ function adaptBgOrchestrateRetention190(unit) {
                 },
 `,
         `${unit.id}: remove store-only fallback cleanup`,
+    )
+    content = replaceExact(
+        content,
+        `): Promise<OrchestrateOutcome> {
+    try {
+`,
+        `): Promise<OrchestrateOutcome> {
+    let preparationOwner: { chatKey: string, generationId: string } | null = null
+    const releasePreparationOwner = () => {
+        if (!preparationOwner) return false
+        const released = endGenerationIfOwned(
+            preparationOwner.chatKey,
+            preparationOwner.generationId,
+        )
+        preparationOwner = null
+        return released
+    }
+    try {
+`,
+        `${unit.id}: preparation owner release boundary`,
+    )
+    content = replaceExact(
+        content,
+        `        doingChat.set(true)
+        chatProcessStage.set(1) // show the top-bar immediately (assembly); polls refine the stage
+        const charId = char.chaId, chatId = chat.id
+`,
+        `        const charId = char.chaId, chatId = chat.id
+        const operationId = v4()
+        const preparationKey = chatGenKey(chatId)
+        preparationOwner = { chatKey: preparationKey, generationId: operationId }
+        startGeneration(preparationKey, operationId)
+        chatProcessStage.set(1) // keyed owner makes the current-chat spinner visible immediately
+`,
+        `${unit.id}: keyed preparation owner acquisition`,
+    )
+    content = replaceExact(
+        content,
+        `        } catch (error) {
+            doingChat.set(false)
+            chatProcessStage.set(0)
+`,
+        `        } catch (error) {
+            releasePreparationOwner()
+            chatProcessStage.set(0)
+`,
+        `${unit.id}: failed preparation release`,
+    )
+    content = replaceExact(
+        content,
+        `        if (arg?.signal?.aborted) {
+            doingChat.set(false)
+            chatProcessStage.set(0)
+            return { handled: true, result: false }
+        }
+
+        const operationId = v4()
+`,
+        `        if (arg?.signal?.aborted) {
+            releasePreparationOwner()
+            chatProcessStage.set(0)
+            return { handled: true, result: false }
+        }
+
+`,
+        `${unit.id}: aborted preparation release`,
+    )
+    content = replaceExact(
+        content,
+        `        setServerGenerationBusy(true)
+        doingChat.set(false)
+        const startBody = JSON.stringify({
+`,
+        `        setServerGenerationBusy(true)
+        releasePreparationOwner()
+        const startBody = JSON.stringify({
+`,
+        `${unit.id}: exact preparation-to-server handoff`,
+    )
+    content = replaceExact(
+        content,
+        `    } catch (e) {
+        console.error('[bg-orch] error', e)
+`,
+        `    } catch (e) {
+        releasePreparationOwner()
+        console.error('[bg-orch] error', e)
+`,
+        `${unit.id}: unexpected preparation release`,
     )
     return content
 }
@@ -976,6 +1073,14 @@ export async function runDirectGenerationLifecycle<T>(
         onFinish?.()
     }
 }
+
+// A preparation owner may hand off to a server lease while unrelated async work continues.
+// Release only the exact generation this caller acquired; never tear down a replacement owner.
+export function endGenerationIfOwned(chatKey: string, generationId: string): boolean {
+    if (get(generationStates).get(chatKey)?.generationId !== generationId) return false
+    endGeneration(chatKey)
+    return true
+}
 `,
         requires: ['bg-preserve:hook:index-unified-generation-busy:1.9'],
         targetVersions: pocketRisu190,
@@ -1044,7 +1149,7 @@ export async function sendChatWithDirectLifecycle(
 
 module.exports = {
     ...base,
-    version: 'v1.0.1-patcher.6',
+    version: 'v1.0.1-patcher.7',
     source: 'bg-preserve-install.cjs + PocketRisu 1.9 authority adapter',
     targets: {
         pocketrisu: {

@@ -34,7 +34,7 @@ function owned(file) {
 
 test('BG pack keeps exact 1.8 support and verifies its target-scoped 1.9 graph', () => {
     assert.equal(manifest.id, 'bg-preserve')
-    assert.equal(manifest.version, 'v1.0.1-patcher.6')
+    assert.equal(manifest.version, 'v1.0.1-patcher.7')
     assert.deepEqual(manifest.targets, {
         pocketrisu: {
             verified: ['1.8.1', '1.9.0'],
@@ -83,6 +83,7 @@ test('direct browser and server sendChat callers close the exact native lifecycl
     assert.match(lifecycle.content, /if \(isChatGenerating\(chatKey\)\) return false/)
     assert.match(lifecycle.content, /endGeneration\(chatKey\)/)
     assert.match(lifecycle.content, /chatProcessStage\.set\(0\)/)
+    assert.match(lifecycle.content, /endGenerationIfOwned/)
     assert.match(lifecycleWrapper.content, /sendChatWithDirectLifecycle/)
     assert.match(lifecycleWrapper.content, /clearPendingSend\(chatId\)/)
     assert.deepEqual(lifecycleImport.after, [
@@ -92,6 +93,7 @@ test('direct browser and server sendChat callers close the exact native lifecycl
     assert.deepEqual(lifecycleTest.requires, [lifecycle.id])
     assert.match(lifecycleTest.content, /preserving another background owner/)
     assert.match(lifecycleTest.content, /does not run or reset cleanup/)
+    assert.match(lifecycleTest.content, /releases only the exact preparation owner/)
 
     assert.match(browser, /sendChatWithDirectLifecycle\(key\.chatId, -1/)
     assert.doesNotMatch(browser, /\(\) => sendChat\(-1, \{ \.\.\.arg, bgOrchFallback: true \}\)/)
@@ -99,6 +101,17 @@ test('direct browser and server sendChat callers close the exact native lifecycl
     assert.match(server, /sendChatWithDirectLifecycle\(selectedChatId, charIdx, \{ previewLLM: true/)
     assert.match(server, /sendChatWithDirectLifecycle\(selectedChatId, charIdx, \{ preview: true \}\)/)
     assert.doesNotMatch(server, /idx\.doingChat\.set\(false\)/)
+
+    assert.match(browser, /startGeneration\(preparationKey, operationId\)/)
+    assert.match(browser, /endGenerationIfOwned\(/)
+    assert.equal((browser.match(/releasePreparationOwner\(\)/g) || []).length, 4)
+    const handoffStart = browser.indexOf('setServerGenerationBusy(true)', browser.indexOf('writePendingMarker('))
+    const handoffRelease = browser.indexOf('releasePreparationOwner()', handoffStart)
+    assert.ok(handoffStart >= 0 && handoffRelease > handoffStart)
+    assert.doesNotMatch(
+        browser.slice(browser.indexOf('export async function runServerOrchestratedChat(')),
+        /doingChat\.set\((?:true|false)\)/,
+    )
 
     const stateBaseline = `${lifecycle.anchor}\nexport function syncDoingChat(): void {}\n`
     const stateApplied = applyUnit(stateBaseline, lifecycle)

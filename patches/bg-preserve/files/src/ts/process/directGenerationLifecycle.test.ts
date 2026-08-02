@@ -3,6 +3,7 @@ import { get } from 'svelte/store'
 import {
     chatProcessStage,
     doingChat,
+    endGenerationIfOwned,
     generationStates,
     runDirectGenerationLifecycle,
     setGenerationStage,
@@ -64,5 +65,18 @@ describe('direct sendChat generation lifecycle', () => {
         expect(get(generationStates).get('direct-chat')?.generationId).toBe('existing-1')
         expect(get(doingChat)).toBe(true)
         expect(get(chatProcessStage)).toBe(3)
+    })
+
+    it('releases only the exact preparation owner during server handoff', () => {
+        startGeneration('direct-chat', 'preparation-1')
+        expect(get(doingChat)).toBe(true)
+
+        expect(endGenerationIfOwned('direct-chat', 'different-owner')).toBe(false)
+        expect(get(generationStates).get('direct-chat')?.generationId).toBe('preparation-1')
+        expect(get(doingChat)).toBe(true)
+
+        expect(endGenerationIfOwned('direct-chat', 'preparation-1')).toBe(true)
+        expect(get(generationStates).has('direct-chat')).toBe(false)
+        expect(get(doingChat)).toBe(false)
     })
 })
