@@ -25,10 +25,14 @@ state or user-data change, PocketRisu restart, push, tag, or release occurred.
 That sentence records this receipt's implementation-time boundary. Later,
 separately authorized live admissions, physical findings, their K16/BG
 corrections, and the final 538-unit live update are recorded in
-`docs/POCKETRISU-1.9-AGGREGATE-L3.md`. The current local and live graph now
-contains both corrections plus `toolchain-hardening` 0.1.3. The BG focused
+`docs/POCKETRISU-1.9-AGGREGATE-L3.md`. The live graph contains both corrections
+plus `toolchain-hardening` 0.1.3. A later L3 finding added a local-only BG
+direct-generation lifecycle correction: its current maximum graph is 542
+units / 223 managed paths, while live remains 538 / 217. The BG focused
 receipt is `docs/POCKETRISU-1.9-BG-COMPOSER-VALIDATION.md`; the Node warning
-correction is `docs/POCKETRISU-1.9-TOOLCHAIN-HARDENING-VALIDATION.md`.
+correction is `docs/POCKETRISU-1.9-TOOLCHAIN-HARDENING-VALIDATION.md`, and the
+local lifecycle correction is qualified in
+`docs/POCKETRISU-1.9-BG-DIRECT-GENERATION-LIFECYCLE-VALIDATION.md`.
 
 ## Provenance and preserved state
 
@@ -311,8 +315,14 @@ same umbrella version/ETag.
   controls physically identified the admitted candidate. K16 and the BG
   composer corrections are now admitted in the live 538-unit bundle and
   require their corrected physical reruns in the user's consolidated re-L3
-  batch. These physical gaps block aggregate acceptance and publication, not
-  the local or live installation gates.
+  batch. K22 was later reported normal, K15's ordinary paragraph affordance
+  was reported normal with narrower adversarial surfaces unobserved, and K14
+  was explicitly not exercised because the user does not use streaming. K11
+  was interrupted by the separately diagnosed BG direct-generation lifecycle
+  defect. Its owner-local patcher correction passed focused, compile, bundle,
+  exact-revert, and exhaustive combination gates but is not live-admitted.
+  These physical gaps block aggregate acceptance and publication, not the
+  completed earlier live installation gates.
 
 ## Future consolidated iPhone L3
 
@@ -349,11 +359,8 @@ composer stop state.
    verify exactly one overwrite at the intended existing message/swipe target,
    with zero appended duplicate. This does not claim the blocked standard
    non-Gemini G06 path.
-4. **K22 picker.** Search once by persona name and once by note; use Folder and
-   Unfiled scopes; select through ordinary and PersonaBind callers; create and
-   import disposable personas into a folder; cold-start and verify membership.
-   Delete a disposable selected folder before a stale picker action and verify
-   create/import falls back to Unfiled without hiding or reindexing personas.
+4. **K22 picker.** The consolidated batch was reported normal and is recorded
+   closed in the aggregate L3 receipt.
 5. **K26 restore safety.** On a disposable backup target only, walk local-file,
    server-file, and snapshot restore through both original confirmations and
    verify a newly timestamped snapshot exists before each destructive write.
@@ -364,11 +371,13 @@ composer stop state.
    disposable BG request and verify one masked native request row plus one
    content-free usage row. Disable the toggle, issue another request, and
    verify neither row is added while generation still completes.
-7. **Existing children.** Execute the concrete K13 provider stream, K14
-   background render/scroll, K16 hotkey/back gesture, K15 partial edit, K11
-   Hypa manual summary, and K12 translation/cache cancellation scenarios from
-   their individual 1.9 receipts. A combined session does not merge or omit
-   their separate observations.
+7. **Existing children.** Execute the concrete K13 provider stream, K16
+   hotkey/back gesture, remaining K15 adversarial partial-edit surfaces, K11
+   Hypa manual summary after the BG lifecycle correction is live-admitted, and
+   K12 translation/cache cancellation scenarios from their individual 1.9
+   receipts. K14 remains explicitly not exercised unless the user later
+   chooses to test streaming. A combined session does not merge or omit their
+   separate observations.
 
 Wrong viewer movement/focus, missing or duplicate materialization, wrong
 reroll target, lost persona/binding, restore without a fresh snapshot,
@@ -386,5 +395,8 @@ original-child regression is the unsafe signal.
 3. Any later finding still requires separate owning feature/infrastructure
    commits, focused graph, exact revert, L2.5, and aggregate gates before a
    further live authorization is considered.
-4. Only after the remaining L3 decisions and a separate authorization decide
+4. The local BG direct-generation lifecycle correction must receive a new
+   live apply/restart authorization before its two-consecutive-send re-L3;
+   the current live bundle still has the keyed-state leak.
+5. Only after the remaining L3 decisions and a separate authorization decide
    whether to push, tag, release, publish, or perform any later live update.

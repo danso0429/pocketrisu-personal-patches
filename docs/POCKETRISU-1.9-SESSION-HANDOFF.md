@@ -16,7 +16,10 @@
 > authorized the combined live update at `53512ab`; PocketRisu now runs the
 > corrected 28-pack / 538-unit / 217-source-path graph. Automated live gates
 > passed. K16 and BG composer physical reruns remain for the later consolidated
-> re-L3 batch.
+> re-L3 batch. K22 was later reported normal, K15 has a limited ordinary
+> partial-edit observation, and K14 was not exercised. K11 exposed a distinct
+> BG direct-generation lifecycle defect. Its local 542-unit / 223-path
+> correction is qualified but not live-admitted.
 > The candidate-admission and result ledger is
 > `docs/POCKETRISU-1.9-AGGREGATE-L3.md`. The overlap-equivalence audit,
 > user-authorized bounded implementation, aggregate target, raw-selection,
@@ -233,9 +236,11 @@ The second cutover used the following observed sequence:
 At the end of the base-cutover operation, the live tree was pristine official
 PocketRisu 1.9.0 with no candidate. A later explicit authorization superseded
 only that operational boundary: the aggregate `all` candidate is now applied
-for L3, with format-2 `all` state and intent. That live state is the 537-unit
-pre-correction candidate; the later K16 538-unit correction has not been
-applied or restarted. The old 1.8.1 application source remains a local rollback
+for L3, with format-2 `all` state and intent. That live state was first the
+537-unit pre-correction candidate and was then advanced under separate
+authorization to the K16/BG/toolchain-corrected 538-unit candidate. The newer
+542-unit BG direct-generation lifecycle correction has not been applied or
+restarted. The old 1.8.1 application source remains a local rollback
 tree without `save/` or `backups/`; user data remains only in the live 1.9
 tree. See the aggregate L3 receipt for the later preflight, apply, build,
 restart, asset, error-log, inode/size, and physical observations.
@@ -305,6 +310,13 @@ active-only settings controls. Close the current candidate in this order:
    was a separate finding. Both queued fixes are now present in live 538.
    Record their later physical reruns separately in the consolidated re-L3
    batch. Keep K29 G09 separate and do not relabel blocked G06 as implemented.
+8. Retain the local BG direct-generation lifecycle correction and receipt.
+   It extends native PocketRisu 1.9 `generationStates`/`pendingSends` owners
+   for server and browser direct callers, leaves G06 and provider routing
+   unchanged, and passed a 542-unit maximum graph with 2,048 exact round trips.
+   It is not present in the live 538-unit candidate; any apply/restart requires
+   a new authorization and its two-consecutive-send physical rerun belongs in
+   the consolidated affected-row re-L3 batch.
 
 Keep each feature-local receipt and commit. A queued review or L3 correction
 must remain in its owning feature or infrastructure boundary and rerun the
@@ -343,3 +355,7 @@ boundaries, and rotation were reported normal; VoiceOver was not exercised.
 The later K22 controls established the patched bundle. The K16 route and BG
 composer defects are fixed, automatically qualified, and live-admitted, but
 their corrected physical acceptance and the other open L3 rows remain open.
+K22 was later reported normal, K15 has a limited ordinary-affordance pass, and
+K14 is explicitly not exercised. K11 stopped at the separately diagnosed BG
+direct-generation lifecycle defect; its local correction is qualified but not
+live-admitted.

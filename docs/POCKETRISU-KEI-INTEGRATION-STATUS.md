@@ -29,7 +29,11 @@
 > K16 and the BG composer are fixed, automatically requalified, and now
 > admitted together with `toolchain-hardening` 0.1.3 in the live 538-unit
 > candidate. The live install/restart gates passed; their physical re-L3 is
-> still pending. Admission, findings, and per-feature observations are tracked in
+> still pending. K22 was later reported normal; K15's ordinary paragraph
+> partial-edit affordance was normal; K14 was explicitly not exercised by user
+> choice. K11 was interrupted by a distinct BG direct-generation lifecycle
+> defect. Its patcher correction is automatically qualified at a 542-unit
+> maximum graph but is not live-admitted. Admission, findings, and per-feature observations are tracked in
 > `docs/POCKETRISU-1.9-AGGREGATE-L3.md`.
 > The user chose to keep remaining and corrected physical checks in a later
 > consolidated affected-row re-L3 session rather than request them during the
@@ -53,7 +57,7 @@ candidate is preserved rather than mutated in place.
 - Neither candidate branch has been pushed, tagged, or released. After the
   pristine official 1.9.0 base cutover, the user separately authorized the
   requalified `all` candidate and its restart for aggregate L3. The live tree
-  now reports 28 current packs, 537 units, and 217 managed source paths. Its
+  now reports 28 current packs, 538 units, and 217 managed source paths. Its
   admission gates and first partial device observations are recorded in
   `docs/POCKETRISU-1.9-AGGREGATE-L3.md`.
 
@@ -264,7 +268,9 @@ implemented progress.
 The source audit, approved local implementation, corrected 538-unit automated
 aggregate gates, and separately authorized corrected live apply/restart are
 complete. K16 and BG composer are live-admitted but remain pending physical
-re-L3. Review and unresolved or not-exercised L3 surfaces continue to block
+re-L3. The later BG direct-generation lifecycle correction is local-only at
+542 units / 223 managed paths and requires a new live authorization. Review
+and unresolved or not-exercised L3 surfaces continue to block
 push, tag, release, and publication.
 
 ## Next review and L3 sequence
@@ -278,16 +284,21 @@ current candidate.
 
 1. Continue the already-defined first-pass iPhone session on the current live
    538-unit candidate while recording every feature scenario separately. Keep
-   K19 VoiceOver as not exercised unless the user chooses to revisit it, and
-   keep the existing K29 G09 cold-reroll path separate. Do not present blocked
-   G06 as tested.
+   K19 VoiceOver and K14 streaming as not exercised unless the user chooses to
+   revisit them. K22 is reported normal; K15's ordinary affordance is limited
+   pass only. Keep the existing K29 G09 cold-reroll path separate and do not
+   present blocked G06 as tested.
 2. Run the K16 top-level Hotkey and BG composer attached/cold reruns with the
    later consolidated affected-row re-L3 batch, retaining individual results.
-3. Queue any new finding with exact trigger/state/caller evidence. A later fix
+3. Retain the automatically qualified BG direct-generation lifecycle fix and
+   its receipt. Before further K11/consecutive-generation L3, obtain a new
+   live apply/restart authorization and then verify two same-chat ordinary
+   sends conclude without delayed fallback or a retained stage-zero circle.
+4. Queue any new finding with exact trigger/state/caller evidence. A later fix
    still requires feature-local commits and focused/aggregate gates.
-4. Any later live apply or restart remains a new explicit authorization
+5. Any later live apply or restart remains a new explicit authorization
    boundary; the corrected update recorded here grants no continuing authority.
-5. Only after L3 decide publication, push, tag, or release. Any later live
+6. Only after L3 decide publication, push, tag, or release. Any later live
    apply or PocketRisu restart remains a new authorization boundary.
 
 K12 remains a separate feature and keeps its complete translation identity,
