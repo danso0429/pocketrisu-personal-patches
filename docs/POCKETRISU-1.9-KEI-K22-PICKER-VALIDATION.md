@@ -262,5 +262,19 @@ selection after cancel/error, or lost persistence is the unsafe signal. These
 steps use disposable records and do not authorize changes to existing user
 personas or live PocketRisu during this session.
 
+### Aggregate observation recorded 2026-08-02 KST
+
+On the admitted live 537-unit aggregate candidate, the user first opened the
+full Settings → Persona organizer and correctly found no picker search there.
+After the route was clarified as chat composer menu → Quick Menu → Persona,
+the separate picker was located. The user then reported the instructed
+ordinary-picker sequence normal: the search and folder controls were present,
+name and note search worked, Folder/Unfiled filtering worked, selecting the
+target closed the picker, and reopening reflected the selected row.
+
+This closes only item 1 above. PersonaBind identity, disposable selected-folder
+create/import and cold persistence, stale-folder fallback, import cancellation,
+and invalid-file behavior remain unobserved and are not inferred passed.
+
 No live apply, live patch-state change, user-data change, restart, push, tag,
 release, or preserved-K12 index mutation was performed.
