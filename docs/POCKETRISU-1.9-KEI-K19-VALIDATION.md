@@ -108,10 +108,11 @@ all Kei children and K12 are rebased; no aggregate result is inferred here.
   and rotation were reported normal during the session. VoiceOver was
   intentionally not exercised by user choice. Filtering/search, focus return,
   physical touch-target reachability, module viewer, and disposable asset
-  mutation remain unobserved rather than inferred passed. Although the live
-  server carried the admitted candidate, those exercised controls are native
-  1.9 behavior and the instructed bundle marker was invalid, so this
-  observation alone does not identify the PWA bundle.
+  mutation remain unobserved rather than inferred passed. Those exercised
+  controls are native 1.9 behavior and the instructed marker was invalid, so
+  the first observation alone did not identify the PWA bundle. A later K22
+  search/folder-picker observation supplied a patch-only physical marker; it
+  resolves bundle identity without changing the K19 result scope.
 
 ## Physical L3 observation status
 
@@ -121,9 +122,9 @@ candidate L3 pass:
 - observed normal: one-step swipe, arrow navigation, first/last boundaries,
   and portrait/landscape rotation;
 - not exercised by user choice: VoiceOver labels; and
-- still open: physical bundle marker, image-only filtering/search, focus
-  containment/return, physical close-target reachability, module-viewer
-  behavior, and unchanged disposable character-asset mutation.
+- still open: image-only filtering/search, focus containment/return, physical
+  close-target reachability, module-viewer behavior, and unchanged disposable
+  character-asset mutation.
 
 VoiceOver remains an explicitly recorded residual risk. It is not silently
 converted to a pass or repeatedly requested; a later publication decision can
@@ -150,6 +151,7 @@ close, or changed asset mutation is the unsafe signal.
 
 The initial K19 qualification performed no live apply or restart. A later
 authorized aggregate candidate was applied for L3 and produced the partial
-physical observation above, but the invalid bundle marker prevents promoting
-it to a candidate pass. K19 itself received no L3 code change or installer
-rebuild. No push, tag, release, or publication occurred.
+physical observation above. The later K22 marker confirms the candidate bundle,
+but the remaining unobserved K19 surfaces still prevent promoting K19 to a
+pass. K19 itself received no L3 code change or installer rebuild. No push, tag,
+release, or publication occurred.

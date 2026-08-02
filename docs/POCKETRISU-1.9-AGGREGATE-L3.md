@@ -9,9 +9,10 @@
 > `85a65f3137b45c8de4a8d21a9887be213b1ac3fc`
 >
 > **State:** live aggregate candidate admitted; the first physical iPhone
-> observations are recorded below. K19 has limited normal observations while
-> its physical bundle marker remains unresolved; VoiceOver was intentionally
-> not exercised. The K16 route defect identified by source inspection is fixed
+> observations are recorded below. The patched K22 search/folder picker has
+> now supplied a physical loaded-bundle marker. K19 retains limited normal
+> observations and VoiceOver was intentionally not exercised. The K16 route
+> defect identified by source inspection is fixed
 > and qualified only in the local 538-unit candidate. The live tree remains on
 > the pre-correction 537-unit candidate. The user chose to finish the remaining
 > first-pass L3 observations before batching fixes, one live update/restart,
@@ -139,7 +140,12 @@ rotation were observed normal. Asset filtering/search, module-viewer behavior,
 disposable asset mutation, and VoiceOver/focus were not part of that
 observation and are not inferred passed. The exercised swipe/arrow controls are
 native 1.9 behavior, so they do not independently prove which patched PWA
-bundle was loaded.
+bundle was loaded. A later observation did: the user opened the separate chat
+Quick Menu → Persona picker and exercised its patched search and
+Folder/Unfiled controls. Those controls are K22-owned and absent from official
+1.9, so they establish that the iPhone had loaded the admitted aggregate
+candidate. This resolves bootstrap identity without promoting the still-open
+K19 surfaces.
 
 Source inspection established two distinct K16 issues:
 
@@ -200,8 +206,8 @@ one row does not imply another row passed.
 
 | ID | User-visible scenario | Authority | Status | Observed result |
 | --- | --- | --- | --- | --- |
-| Bootstrap | Fully close and reopen the PocketRisu PWA; confirm a current-candidate screen such as top-level Settings → Hotkey or the Language translation-cache panel is present before attributing later behavior to this bundle. | This receipt | PENDING / INSTRUCTION CORRECTED | The former Accessibility → Hotkeys marker was invalid, and the exercised viewer controls are native 1.9 behavior rather than a bundle marker. The server served the admitted asset, but the physical loaded-bundle marker remains unresolved until the corrected candidate is admitted and observed. |
-| K19 | Native Asset Viewer image-only filtering, search, one-step swipe/arrows, boundaries, VoiceOver labels/focus return, rotation, touch targets, module viewer, and unchanged disposable asset mutation. | `docs/POCKETRISU-1.9-KEI-K19-VALIDATION.md` | LIMITED NORMAL OBSERVATION / BOOTSTRAP PENDING / VOICEOVER NOT EXERCISED | Swipe, arrows, both boundaries, and rotation were reported normal. VoiceOver was intentionally skipped by user choice. Filtering/search, focus, touch-target measurement, module viewer, and disposable asset mutation remain unobserved; the native controls alone do not identify the loaded patch bundle. |
+| Bootstrap | Fully close and reopen the PocketRisu PWA; confirm a current-candidate screen such as top-level Settings → Hotkey or the Language translation-cache panel is present before attributing later behavior to this bundle. | This receipt | PASS — K22 PATCH MARKER OBSERVED | The former Accessibility → Hotkeys instruction was invalid, but the later chat Quick Menu → Persona picker showed and exercised K22-owned search plus Folder/Unfiled controls that do not exist in official 1.9. This physically identifies the loaded admitted candidate; it does not imply unrelated feature rows passed. |
+| K19 | Native Asset Viewer image-only filtering, search, one-step swipe/arrows, boundaries, VoiceOver labels/focus return, rotation, touch targets, module viewer, and unchanged disposable asset mutation. | `docs/POCKETRISU-1.9-KEI-K19-VALIDATION.md` | LIMITED NORMAL OBSERVATION / VOICEOVER NOT EXERCISED | Swipe, arrows, both boundaries, and rotation were reported normal. VoiceOver was intentionally skipped by user choice. Filtering/search, focus, touch-target measurement, module viewer, and disposable asset mutation remain unobserved; the later K22 marker resolves bundle identity but does not infer those K19 surfaces passed. |
 | K29-F05 | Leave one paid ordinary BG result unconsumed across an overnight mobile absence; return to one materialization and exact ACK cleanup without a duplicate or missing paid response. | `docs/POCKETRISU-1.9-KEI-K29-RETENTION-VALIDATION.md` | PENDING | — |
 | K29 G09 | Background, kill/reload, and return during the existing qualified cold reroll; exactly one intended existing message/swipe is overwritten and no duplicate is appended. | `docs/POCKETRISU-1.9-AGGREGATE-VALIDATION.md` | PENDING | — |
 | K22 | Persona picker name/note search, Folder/Unfiled filters, ordinary and PersonaBind identity, selected-folder disposable create/import, cold persistence, stale-folder fallback, cancel, and invalid-file behavior. | `docs/POCKETRISU-1.9-KEI-K22-PICKER-VALIDATION.md` | PARTIAL PASS — ORDINARY PICKER | After distinguishing the separate chat Quick Menu → Persona picker from the full Settings → Persona organizer, the user exercised the instructed ordinary-picker sequence on iPhone and reported its controls, name/note search, Folder/Unfiled filtering, selection close, and selected-row state on reopening all normal. PersonaBind identity, disposable create/import and cold persistence, stale-folder fallback, cancel, and invalid-file behavior remain pending. |

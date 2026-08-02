@@ -272,6 +272,10 @@ ordinary-picker sequence normal: the search and folder controls were present,
 name and note search worked, Folder/Unfiled filtering worked, selecting the
 target closed the picker, and reopening reflected the selected row.
 
+Because official 1.9's picker lacks those K22-owned search and folder controls,
+this observation also supplies the aggregate physical loaded-bundle marker
+that the earlier native-viewer interaction could not establish.
+
 This closes only item 1 above. PersonaBind identity, disposable selected-folder
 create/import and cold persistence, stale-folder fallback, import cancellation,
 and invalid-file behavior remain unobserved and are not inferred passed.
