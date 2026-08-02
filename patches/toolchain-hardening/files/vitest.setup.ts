@@ -6,6 +6,14 @@ vi.mock(import('katex'), () => ({}))
 
 vi.stubGlobal('safeStructuredClone', (v: unknown) => JSON.parse(JSON.stringify(v)))
 
-if (typeof globalThis.localStorage?.clear !== 'function') {
+function hasUsableLocalStorage() {
+  try {
+    return typeof globalThis.localStorage?.clear === 'function'
+  } catch {
+    return false
+  }
+}
+
+if (!hasUsableLocalStorage()) {
   vi.stubGlobal('localStorage', new Storage())
 }

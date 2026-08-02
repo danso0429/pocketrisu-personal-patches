@@ -2,14 +2,49 @@
 
 const test = require('node:test')
 const assert = require('node:assert/strict')
+const vm = require('node:vm')
 const manifest = require('../patches/toolchain-hardening/manifest.cjs')
 const { loadCatalog, resolveProfile } = require('../src/catalog.cjs')
+const { applyUnit, revertUnit } = require('../src/compose.cjs')
 const { packEtag } = require('../src/manager.cjs')
+
+function executeManagedSetup(localStorageDescriptor) {
+    const setup = manifest.units.find((unit) =>
+        unit.id === 'toolchain-hardening:vitest-storage')
+    const stubbedGlobals = []
+    class TestStorage {
+        clear() {}
+    }
+    const sandbox = {
+        Storage: TestStorage,
+        vi: {
+            mock() {},
+            stubGlobal(name, value) {
+                stubbedGlobals.push(name)
+                Object.defineProperty(sandbox, name, {
+                    configurable: true,
+                    enumerable: true,
+                    value,
+                    writable: true,
+                })
+            },
+        },
+    }
+    Object.defineProperty(sandbox, 'localStorage', localStorageDescriptor)
+
+    const executable = setup.managed
+        .replace(/^import .*$/gm, '')
+        .replace(/^vi\.mock\(import\('katex'\), \(\) => \(\{\}\)\)\s*$/m, '')
+        .replace('(v: unknown)', '(v)')
+    vm.runInNewContext(executable, sandbox)
+
+    return { sandbox, stubbedGlobals, TestStorage }
+}
 
 test('toolchain hardening is independently versioned and included by hardening and all', () => {
     const catalog = loadCatalog()
     assert.equal(manifest.id, 'toolchain-hardening')
-    assert.equal(manifest.version, '0.1.0')
+    assert.equal(manifest.version, '0.1.1')
     assert.equal(resolveProfile('hardening', catalog).defaults.includes(manifest.id), true)
     assert.equal(resolveProfile('features', catalog).defaults.includes(manifest.id), false)
     assert.equal(resolveProfile('all', catalog).defaults.includes(manifest.id), true)
@@ -48,7 +83,9 @@ test('toolchain hardening keeps runtime source out of scope', () => {
     const setup = manifest.units.find((unit) =>
         unit.id === 'toolchain-hardening:vitest-storage')
     assert.match(setup.managed, /import \{ Storage \} from 'happy-dom'/)
-    assert.match(setup.managed, /typeof globalThis\.localStorage\?\.clear !== 'function'/)
+    assert.match(setup.managed, /function hasUsableLocalStorage\(\)/)
+    assert.match(setup.managed, /typeof globalThis\.localStorage\?\.clear === 'function'/)
+    assert.match(setup.managed, /catch \{/)
     assert.match(setup.managed, /new Storage\(\)/)
 
     const managedLock = manifest.units
@@ -57,4 +94,48 @@ test('toolchain hardening keeps runtime source out of scope', () => {
         .join('\n')
     assert.doesNotMatch(managedLock, /1\.32\.0/)
     assert.match(managedLock, /lightningcss(?:@|: )1\.33\.0/)
+})
+
+test('toolchain hardening replaces Node 25 incomplete web storage', () => {
+    const { sandbox, stubbedGlobals, TestStorage } = executeManagedSetup({
+        configurable: true,
+        value: {},
+        writable: true,
+    })
+
+    assert.equal(sandbox.localStorage instanceof TestStorage, true)
+    assert.equal(stubbedGlobals.filter((name) => name === 'localStorage').length, 1)
+})
+
+test('toolchain hardening replaces Node 26 throwing web storage access', () => {
+    const { sandbox, stubbedGlobals, TestStorage } = executeManagedSetup({
+        configurable: true,
+        get() {
+            throw new Error('localStorage requires a file')
+        },
+    })
+
+    assert.equal(sandbox.localStorage instanceof TestStorage, true)
+    assert.equal(stubbedGlobals.filter((name) => name === 'localStorage').length, 1)
+})
+
+test('toolchain hardening preserves an already usable storage owner', () => {
+    const existing = { clear() {} }
+    const { sandbox, stubbedGlobals } = executeManagedSetup({
+        configurable: true,
+        value: existing,
+        writable: true,
+    })
+
+    assert.equal(sandbox.localStorage, existing)
+    assert.equal(stubbedGlobals.includes('localStorage'), false)
+})
+
+test('toolchain hardening storage replacement has an exact revert surface', () => {
+    const setup = manifest.units.find((unit) =>
+        unit.id === 'toolchain-hardening:vitest-storage')
+    const applied = applyUnit(setup.anchor, setup)
+
+    assert.equal(applied, setup.managed)
+    assert.equal(revertUnit(applied, setup), setup.anchor)
 })
