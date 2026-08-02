@@ -10,7 +10,7 @@ const manifest = require('../patches/preset-integrity/manifest.cjs')
 
 test('preset integrity is a separate default pack with load, save, and UI guards', () => {
     assert.equal(manifest.id, 'preset-integrity')
-    assert.equal(manifest.version, '0.2.0')
+    assert.equal(manifest.version, '0.2.1')
     assert.deepEqual(manifest.targets.pocketrisu, {
         verified: ['1.8.1', '1.9.0'],
         reviewing: [],
@@ -96,4 +96,13 @@ test('PocketRisu 1.9 adapter preserves the no-active sentinel and guards active-
         manifest.units.some((unit) => unit.id === 'preset-integrity:prompt-body-end:1.9'),
         true,
     )
+    for (const id of [
+        'preset-integrity:prompt-body-start:1.9',
+        'preset-integrity:prompt-body-end:1.9',
+    ]) {
+        const unit = manifest.units.find((candidate) => candidate.id === id)
+        assert.equal(typeof unit.managed, 'string')
+        assert.equal(unit.content, undefined)
+        assert.match(unit.managed, /<!-- POCKETRISU-PATCH:/)
+    }
 })

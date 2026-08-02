@@ -399,7 +399,7 @@ export async function getNextSummarizationTarget(
         onParseAndSelectSummaries={handleBulkEditParseAndSelectSummaries}
       />
 `,
-                content: `      {/if}
+                managed: `      {/if}
       <!-- ${marker('modal-panel-close')} -->
 `,
                 markerNeedle: marker('modal-panel-close'),
@@ -462,7 +462,7 @@ export async function getNextSummarizationTarget(
                 where: 'before',
                 anchor: `    <!-- Open Search Button -->
 `,
-                content: `    <!-- ${marker('header-manual-button')}:START -->
+                managed: `    <!-- ${marker('header-manual-button')}:START -->
     <button
       class="p-2 transition-colors disabled:cursor-not-allowed disabled:opacity-50 {manualSummaryMode
         ? 'text-blue-400 hover:text-blue-300'
@@ -748,7 +748,7 @@ export async function getNextSummarizationTarget(
     return {
         id,
         title,
-        version: '0.2.0',
+        version: '0.2.1',
         userSelectable: false,
         targets: {
             pocketrisu: {

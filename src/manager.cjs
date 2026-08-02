@@ -553,6 +553,19 @@ function validatePack(pack) {
     for (const unit of pack.units) {
         validateUnitTargetVersions(pack, unit)
         if (
+            typeof unit.file === 'string'
+            && unit.file.endsWith('.svelte')
+            && unit.type !== 'owned'
+            && typeof unit.managed !== 'string'
+            && typeof unit.content === 'string'
+            && /^(?:<!--|<\/?[A-Za-z]|\{[#:/@])/.test(unit.content.trimStart())
+        ) {
+            throw new PatchManagerError(
+                'INVALID_PACK',
+                `${pack.id}: ${unit.id} inserts Svelte markup and must declare exact managed text`,
+            )
+        }
+        if (
             unit.mode !== undefined
             && (!Number.isInteger(unit.mode) || unit.mode < 0 || unit.mode > 0o7777)
         ) {

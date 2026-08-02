@@ -178,7 +178,10 @@ const units190 = [
         type: 'insert',
         where: 'before',
         anchor: '<div class="flex flex-col gap-4">\n',
-        content: '{#if activePreset}\n',
+        managed: `<!-- POCKETRISU-PATCH:preset-integrity:prompt-body-start:1.9 -->
+{#if activePreset}
+`,
+        markerNeedle: 'POCKETRISU-PATCH:preset-integrity:prompt-body-start:1.9',
         requires: ['preset-integrity:prompt-active-preset:1.9'],
         targetVersions: pocketRisu190,
     },
@@ -194,7 +197,10 @@ const units190 = [
     </div>
 </div>
 `,
-        content: '{/if}\n',
+        managed: `{/if}
+<!-- POCKETRISU-PATCH:preset-integrity:prompt-body-end:1.9 -->
+`,
+        markerNeedle: 'POCKETRISU-PATCH:preset-integrity:prompt-body-end:1.9',
         requires: ['preset-integrity:prompt-body-start:1.9'],
         targetVersions: pocketRisu190,
     },
@@ -211,7 +217,7 @@ const units190 = [
 module.exports = {
     id: 'preset-integrity',
     title: 'Prompt preset integrity',
-    version: '0.2.0',
+    version: '0.2.1',
     targets: {
         pocketrisu: {
             verified: ['1.8.1', '1.9.0'],

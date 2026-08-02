@@ -448,6 +448,62 @@ test('target-scoped units cannot opt into undeclared or malformed versions', () 
         }
     }))
 
+test('Svelte markup insertions require exact managed text instead of executable wrappers', () =>
+    withRoot((root) => {
+        write(root, 'src/example.svelte', '<div>anchor</div>\n')
+        const unsafe = {
+            id: 'unsafe-svelte-markup',
+            version: '1',
+            units: [{
+                id: 'unsafe-svelte-markup:block',
+                file: 'src/example.svelte',
+                type: 'insert',
+                where: 'before',
+                anchor: '<div>anchor</div>\n',
+                content: '{#if enabled}\n',
+            }],
+        }
+        assert.throws(
+            () => planTransition({
+                root,
+                catalog: [unsafe],
+                packIds: [unsafe.id],
+                profile: 'custom',
+            }),
+            (error) => error.code === 'INVALID_PACK'
+                && /must declare exact managed text/.test(error.message),
+        )
+        assert.equal(read(root, 'src/example.svelte'), '<div>anchor</div>\n')
+
+        const safe = {
+            ...unsafe,
+            id: 'safe-svelte-markup',
+            units: [{
+                ...unsafe.units[0],
+                id: 'safe-svelte-markup:block',
+                managed: '<!-- safe-svelte-markup:block -->\n{#if enabled}\n',
+                markerNeedle: 'safe-svelte-markup:block',
+                content: undefined,
+            }],
+        }
+        const apply = planTransition({
+            root,
+            catalog: [safe],
+            packIds: [safe.id],
+            profile: 'custom',
+        })
+        applyTransition({ root, transition: apply })
+        assert.match(read(root, 'src/example.svelte'), /<!-- safe-svelte-markup:block -->/)
+        const revert = planTransition({
+            root,
+            catalog: [safe],
+            packIds: [],
+            profile: 'custom',
+        })
+        applyTransition({ root, transition: revert })
+        assert.equal(read(root, 'src/example.svelte'), '<div>anchor</div>\n')
+    }))
+
 test('format-1 applied state is upgraded without rewriting unchanged source', () => withRoot((root) => {
     write(root, 'src/unrelated.ts', 'U\n')
     write(root, 'src/shared.ts', 'const value = BASE\n')

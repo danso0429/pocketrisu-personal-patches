@@ -48,6 +48,8 @@ test('K11 keeps one internal core and exactly one base/bg adapter', () => {
     ])
     assert.deepEqual(bg.conflicts, ['kei-hypa-tools-base-adapter'])
     assert.equal(meta.requires.includes(core.id), true)
+    assert.equal(base.version, '0.2.1')
+    assert.equal(bg.version, '0.2.1')
 
     const catalog = loadCatalog()
     const absent = resolveSelection(catalog, ['bg-preserve'])
@@ -117,6 +119,12 @@ test('K11 owns only its deterministic selection and manual panel code', () => {
             /export async function processRegexScript/,
         )
         assert.match(managed190, /processMessageForPreview\(/)
+        for (const suffix of ['modal-panel-close:1.9', 'header-manual-button:1.9']) {
+            const unit = units190.find((candidate) => candidate.id.endsWith(suffix))
+            assert.equal(typeof unit.managed, 'string')
+            assert.equal(unit.content, undefined)
+            assert.match(unit.managed, /<!-- POCKETRISU-PATCH:/)
+        }
     }
 })
 
