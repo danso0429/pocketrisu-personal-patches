@@ -1,6 +1,6 @@
 # PocketRisu Kei integration status and next plan
 
-> **Status date:** 2026-08-01 KST
+> **Status date:** 2026-08-02 KST
 >
 > **Planning authority:** `docs/POCKETRISU-KEI-INTEGRATION-CATALOG.md`
 >
@@ -14,6 +14,14 @@
 >
 > **Session handoff and exact resume point:**
 > `docs/POCKETRISU-1.9-SESSION-HANDOFF.md`.
+>
+> **Post-overlap authority and result:**
+> `docs/POCKETRISU-KEI-OVERLAP-AUDIT.md`,
+> `docs/POCKETRISU-KEI-OVERLAP-IMPLEMENTATION-LEDGER.md`, and
+> `docs/POCKETRISU-1.9-AGGREGATE-VALIDATION.md`.
+>
+> **Next gate:** consolidated feature-by-feature iPhone L3. It is documented
+> but is not requested during the implementation session.
 
 This file records progress against the catalog. It does not change a catalog
 disposition or preservation contract.
@@ -65,6 +73,25 @@ history.
 | `f79c00f` | K15 shared partial-message editing and translation-cache identity guards | Implemented and automatically validated; review and consolidated iPhone selection/edit gate remain |
 | `5090a81` | K11 HypaMemory manual summarization, frontier integrity, and CBS/next-target corrections | Implemented and automatically validated; review and consolidated iPhone HypaMemory gate remain |
 
+The post-overlap implementation then added these local feature/infrastructure
+boundaries on the active 1.9 branch:
+
+| Commit | Boundary |
+| --- | --- |
+| `4275ea4` | Frozen overlap-equivalence instruction, master report, and eight receipts |
+| `bc87789` | Feature/owner/pack/test/receipt/commit implementation ledger |
+| `2ad4b1f` | K04-F01 frozen typed-role compatibility |
+| `2280c9e` | K17-F01 invalid text-theme normalization |
+| `fbecfdf` | K23-F01 regex import multiplicity |
+| `f859700` | K27-F01 native BG request-log/usage delivery |
+| `28d62d2` | Lazy snapshot-restore journal atomicity infrastructure |
+| `a71fb9d` | K26-F02 fresh pre-restore snapshot safety |
+| `6234617` | K29-F05 bounded overnight result retention |
+| `7304adc` | K29-F02 G06 provider/request-class blocker; no runtime unit |
+| `4e7578e` | K22-F01 P04-P06 folder-aware persona picker |
+| `01b0492` | Post-overlap catalog, ledger, and aggregate requalification receipts |
+| `a95af28` | Deterministic post-overlap generated installers |
+
 The catalog custody, verification procedure, and this status are kept in a
 separate documentation commit. Its hash is read from history rather than
 embedded in this file, which would create a self-referential commit hash.
@@ -82,19 +109,22 @@ official 1.9 base and is not a candidate publication or patch qualification.
 | Detour: exhaustive verifier performance | Complete as local infrastructure | `docs/COMBINATION-VERIFIER-OPTIMIZATION-VALIDATION.md`; this does not advance an admission step |
 | 3. K13 stream parser, K14 render stability, K16 navigation/hotkeys | Exact-1.9 implementation and aggregate automated gates recorded | Each feature has an isolated core/adapters, 1.9 receipt, L2.5 audit, base/composed target tests and builds, dual-target planning, exact revert evidence, and coverage in the passing aggregate gate. See `docs/POCKETRISU-1.9-KEI-K13-VALIDATION.md`, `docs/POCKETRISU-1.9-KEI-K14-VALIDATION.md`, and `docs/POCKETRISU-1.9-KEI-K16-VALIDATION.md`. Review and each consolidated L3 scenario remain, so this step is not publication-qualified. |
 | 4. K15 partial edit, K11 Hypa tools, K12 translation tools | All three exact-1.9 implementations and aggregate automated gates recorded | Exact-1.9 evidence is in `docs/POCKETRISU-1.9-KEI-K15-VALIDATION.md`, `docs/POCKETRISU-1.9-KEI-K11-VALIDATION.md`, and `docs/POCKETRISU-1.9-KEI-K12-VALIDATION.md`. Aggregate combination, target, L2.5, and deterministic-installer gates passed; review and L3 remain. |
-| 5. K03/K04 preset behavior and K26 backup tools | Exact-1.9 decisions recorded; no child added | K04 direct port and combined K26 port are dropped in favor of native owners; distinct K03 and owner-local K26 additions are deferred future features. `preset-integrity` is exact-1.9-qualified. Evidence: `docs/POCKETRISU-1.9-CATALOG-COMPLETION-DECISIONS.md`. |
-| 6. K20/K22/K23/K29 existing-authority merges | Decisions recorded; no current runtime delta | Character/persona presentation remains future owner-local work; K23/K29 direct ports are excluded. No parallel order/schema/orchestration authority is introduced. |
-| 7. K05–K09, K24/K25, K27, K28 policy packs | Explicitly deferred outside the umbrella | Separate opt-in provider/network/privacy/retention packs; none blocks the current aggregate. Exact 1.9 log/usage behavior is recorded without silently choosing a new policy. |
+| 5. K03/K04 preset behavior and K26 backup tools | Bounded K04-F01 and K26-F02 admitted and qualified | K04 adds only one-way frozen `.role` compatibility under native `.role2`; K26 requires a fresh pre-restore snapshot through exactly one standard/lazy owner adapter. Broad ports and K03 remain excluded/deferred. |
+| 6. K20/K22/K23/K29 existing-authority merges | Bounded K22 P04-P06, K23-F01, and K29-F05 admitted and qualified | Existing persona, regex `types[]`, and BG result/claim/ACK authorities were extended without parallel schemas. K20, K22 P07, broad K23, and direct Revenant remain excluded/deferred; G06 is documented blocked with no runtime unit. |
+| 7. K05–K09, K24/K25, K27, K28 policy packs | K27-F01 delivery only admitted; policy packs remain deferred | BG calls now reach the native request-log/usage owner. Provider/network/storage-policy packs, richer accounting, independent usage policy, and new privacy policy remain separate opt-in work. |
 
-K19, K13, K14, K16, K15, K11, and K12 are the Kei feature implementations presently in the candidate.
+K19, K13, K14, K16, K15, K11, K12, K04-F01, K17-F01, K26-F02,
+K23-F01, K27-F01, K29-F05, and K22-F01 P04-P06 are the bounded Kei outcomes
+presently in the candidate. K29-F02 G06 has a blocker receipt and no runtime.
 Excluded/deferred rows and policy-pack designs are catalog decisions, not
 implemented progress.
 
 ## Current review and publication boundary
 
-1. Keep the reviewed foundation, existing-pack qualifications, K19, verifier,
-   K13, K14, K16, K15, K11, K12, aggregate, and documentation commits local
-   without pushing, tagging, releasing, or modifying the live PocketRisu tree.
+1. Keep the reviewed foundation, existing-pack qualifications, admitted Kei
+   children, bounded post-overlap owner extensions, aggregate, and
+   documentation commits local without pushing, tagging, releasing, or
+   modifying the live PocketRisu tree.
 2. Resolve any L3 finding in its own feature or infrastructure commit and
    rerun the affected focused and aggregate gates.
 3. The user chose one consolidated iPhone L3 session after all planned local
@@ -198,26 +228,28 @@ implemented progress.
    the K19 accessibility labels and 44-pixel close targets. K16's separate
    whole-view swipe scenario remains a different interaction owner.
 
-The deferred K19 mobile gate does not block source audit or separately
-committed local implementation of the next catalog child. Review and the
-consolidated per-feature L3 results continue to block push, tag, release, and
-publication of the aggregate candidate. A future live candidate apply and
-any restart it needs remain separate explicit-authorization boundaries; the
-already completed pristine 1.9 base restart does not authorize either.
+The source audit, approved local implementation, and automated aggregate gates
+are complete. Review and the consolidated per-feature L3 results continue to
+block push, tag, release, and publication of the aggregate candidate. A future
+live candidate apply and any restart it needs remain separate
+explicit-authorization boundaries; the already completed pristine 1.9 base
+restart does not authorize either.
 
 ## Next review and L3 sequence
 
-The exact-1.9 implementation, aggregate graph, L2.5, raw-selection, maximum
-target, exact-revert, and deterministic-installer gates are recorded in
-`docs/POCKETRISU-1.9-AGGREGATE-VALIDATION.md`. Preserve the separate staged
+The overlap-equivalence audit and its user-authorized implementation are
+complete. The fresh exact-1.9 aggregate graph, L2.5, raw-selection,
+maximum-target, exact-revert, and deterministic-installer gates are recorded
+in `docs/POCKETRISU-1.9-AGGREGATE-VALIDATION.md`. Preserve the separate staged
 K12 worktree and do not add deferred catalog children while closing the
 current candidate.
 
-1. Run the already-defined consolidated iPhone session while recording K19,
-   K13, K14, K16, K15, K11, and K12 results separately.
+1. Run the already-defined consolidated iPhone session while recording every
+   feature scenario separately, including K19 swipe/VoiceOver and the existing
+   K29 G09 cold-reroll presentation path. Do not present blocked G06 as tested.
 2. Rerun focused and aggregate gates affected by any L3 fix.
-3. Only after L3 decide publication, push/tag/release, or a
-   separately authorized live apply and PocketRisu restart.
+3. Only after L3 decide publication, push/tag/release, or a separately
+   authorized live apply and PocketRisu restart.
 
 K12 remains a separate feature and keeps its complete translation identity,
 cancellation, explicit destructive-action, storage-owner, and bg-delivery

@@ -1,17 +1,18 @@
 # PocketRisu 1.9 / Kei integration session handoff
 
-> **Handoff date:** 2026-08-01 KST
+> **Handoff date:** 2026-08-02 KST
 >
 > **Next patcher branch:** `codex/pocketrisu-1.9-rebase`
 >
 > **Exact target:** official PocketRisu `v1.9.0` /
 > `85a65f3137b45c8de4a8d21a9887be213b1ac3fc`
 >
-> **Immediate next gate:** run the consolidated feature-by-feature iPhone L3.
-> The aggregate review found no actionable issue in the inspected exact-1.9
-> boundary, and the aggregate target,
-> raw-selection, L2.5, exact-revert, and deterministic-installer gates are
-> recorded in `docs/POCKETRISU-1.9-AGGREGATE-VALIDATION.md`.
+> **Immediate next gate:** run the consolidated feature-by-feature iPhone L3
+> in a later, separately authorized session. The overlap-equivalence audit,
+> user-authorized bounded implementation, aggregate target, raw-selection,
+> L2.5, exact-revert, and deterministic-installer gates are recorded in the
+> audit, implementation ledger, feature receipts, and
+> `docs/POCKETRISU-1.9-AGGREGATE-VALIDATION.md`.
 
 This document records the complete local work boundary from the beginning of
 the Kei selection effort through the 1.9 pivot and aggregate qualification.
@@ -125,11 +126,12 @@ current pack and admitted Kei child was subsequently qualified on exact 1.9,
 and the aggregate ordinary gate now reports the catalog verified. Unlisted
 versions such as 1.9.1 remain rejected.
 
-The generated `dist/` installers now include the target-scoped manifests and
-1.9 adapters. Two builds produced identical hashes, and both fixed/all and
-generic/all embedded plans matched the 475-unit source plan. Exact hashes and
-sizes are in `docs/POCKETRISU-1.9-AGGREGATE-VALIDATION.md`. They remain local
-review artifacts and have not been published.
+The generated `dist/` installers now include the post-overlap manifests,
+payloads, and exact-1.9 adapters. Two builds produced identical hashes, and
+source/all, fixed/all, and generic/all plans matched at 28 resolved packs, 537
+units, five ordered collisions, and 219 planned paths. Exact hashes and sizes
+are in `docs/POCKETRISU-1.9-AGGREGATE-VALIDATION.md`. They remain local review
+artifacts and have not been published.
 
 ## Live-installation operation performed in this session
 
@@ -236,6 +238,13 @@ integration status, the 1.9 audit, the catalog, and the combination-verification
 instructions. Confirm all worktree heads and the preserved staged K12 index
 before editing anything.
 
+The read-only overlap-equivalence audit is complete. Its master report and
+eight receipts remain the classification authority, and
+`docs/POCKETRISU-KEI-OVERLAP-IMPLEMENTATION-LEDGER.md` records the bounded
+implementation admitted by the user. K29-F02 G06 remains blocked with no
+runtime unit; all other approved items reached feature-local commits and the
+fresh aggregate gate.
+
 The exact-1.9 target boundary, `toolchain-hardening`, `startup-cache`,
 `parser-hardening`, `character-organizer`, and the version-aware
 `personal-settings` Search adaptation are locally qualified. The conditional
@@ -259,11 +268,16 @@ active-only settings controls. Close the current candidate in this order:
    ownership while retaining the missing manual/frontier outcomes. K12
    preserves native request logging and cache-key behavior while retaining
    its identity/CAS/cancel/import/export/cleanup outcomes.
-3. Retain the recorded keep/drop/defer decisions for future and policy rows;
-   do not turn K03, K26, K27, or K28 into incidental aggregate fixes.
-4. Retain the completed aggregate exact-1.9 target, L2.5, raw-selection,
-   exact-revert, deterministic-installer, and final-review receipt. The
-   remaining gate is the consolidated feature-by-feature iPhone L3.
+3. Retain the bounded K04-F01, K17-F01, K23-F01, K26-F02, K27-F01,
+   K29-F05, and K22-F01 P04-P06 outcomes in their audited owners. Keep K03,
+   broad K26/K27/K28 policy work, and every explicit exclusion out of
+   incidental aggregate fixes.
+4. Retain the completed post-overlap aggregate exact-1.9 target, L2.5,
+   raw-selection, exact-revert, deterministic-installer, and runtime-audit
+   receipt.
+5. Run the consolidated feature-by-feature iPhone L3 in a later authorized
+   session. Keep K19 swipe/VoiceOver and the existing K29 G09 cold-reroll path
+   as observation items; do not relabel blocked G06 as implemented.
 
 Keep each feature-local receipt and commit. A review or L3 correction must
 remain in its owning feature or infrastructure boundary and rerun the focused
