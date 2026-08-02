@@ -12,9 +12,10 @@
 > top-level K16 Hotkey page could not mount on narrow screens. The owner-local
 > correction (`a043d98`) and deterministic installers (`815673e`) are
 > qualified locally at 538 units, but live
-> PocketRisu remains on the admitted pre-correction 537-unit graph. Obtain new
-> explicit apply/restart authorization, admit the corrected candidate, and
-> rerun the focused top-level Settings → Hotkey check before continuing K16.
+> PocketRisu remains on the admitted pre-correction 537-unit graph. Do not
+> apply/restart for K16 yet: finish the other first-pass L3 rows, collect all
+> findings, then integrate feature-local fixes into one later candidate and
+> run one authorized live update/restart plus all affected re-L3 rows.
 > The candidate-admission and result ledger is
 > `docs/POCKETRISU-1.9-AGGREGATE-L3.md`. The overlap-equivalence audit,
 > user-authorized bounded implementation, aggregate target, raw-selection,
@@ -293,18 +294,22 @@ active-only settings controls. Close the current candidate in this order:
    refresh in `815673e`. It removes only official 1.9's outer width guard;
    native route 15, the persisted toggle, inner small-screen notice, desktop
    binding table, and exact 1.8 graph remain under their existing owners.
-6. Continue the consolidated feature-by-feature iPhone L3 in
+6. Continue the consolidated feature-by-feature first-pass iPhone L3 in
    `docs/POCKETRISU-1.9-AGGREGATE-L3.md`. K19 swipe/arrows/boundaries/rotation
    were reported normal but the invalid bundle marker prevents a candidate
-   pass; VoiceOver is explicitly not exercised by user choice. Apply/restart
-   the corrected candidate only under new authorization, rerun top-level
-   Settings → Hotkey, keep K29 G09 separate, and do not relabel blocked G06 as
-   implemented.
+   pass; VoiceOver is explicitly not exercised by user choice. Keep live on
+   537 units while recording the remaining rows and queue findings. After the
+   first pass, retain separate owning commits/receipts but combine all fixes
+   into one qualified candidate, one authorized live update/restart, and one
+   affected-row re-L3 batch. Keep K29 G09 separate and do not relabel blocked
+   G06 as implemented.
 
-Keep each feature-local receipt and commit. A review or L3 correction must
-remain in its owning feature or infrastructure boundary and rerun the focused
-and aggregate gates affected by that correction. The consolidated future
-iPhone L3 session still records each child's concrete scenario separately.
+Keep each feature-local receipt and commit. A queued review or L3 correction
+must remain in its owning feature or infrastructure boundary and rerun the
+focused and aggregate gates affected by that correction. The user's batching
+choice combines the integration/deployment/re-L3 cycle, not commit or receipt
+ownership. The consolidated future iPhone L3 session still records each
+child's concrete scenario separately.
 
 ## Live candidate boundary after the base cutover
 

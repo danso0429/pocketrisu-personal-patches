@@ -288,8 +288,9 @@ same umbrella version/ETag.
   swipe/arrows/boundaries/rotation were reported normal, but the invalid
   bundle marker prevents promoting them to a candidate pass; VoiceOver is
   recorded not exercised by user choice. K16 requires a corrected live-bundle
-  rerun. These physical gaps block aggregate acceptance and publication, not
-  the local commits.
+  rerun, now queued with any later findings for one aggregate fix/re-L3 cycle.
+  These physical gaps block aggregate acceptance and publication, not the
+  local commits.
 
 ## Future consolidated iPhone L3
 
@@ -304,8 +305,10 @@ focus, touch-target measurement, module viewer, and disposable asset mutation
 remain open. The exercised viewer controls are native 1.9 behavior, so the
 invalid marker leaves physical bundle identity unresolved. That report
 prompted source inspection, which found K16's narrow-screen route defect. The
-local fix must be admitted under separate live authorization before repeating
-the focused top-level Settings → Hotkey check.
+local fix is retained for the user-selected aggregate fix/re-L3 batch. It is
+not admitted immediately; after the remaining first-pass L3 observations and
+any resulting feature-local fixes, one separately authorized updated candidate
+will carry all affected rechecks, including top-level Settings → Hotkey.
 
 1. **K19 remaining viewer and optional VoiceOver residual.** Swipe, arrows,
    boundaries, and rotation were reported normal but are not yet a marked
@@ -352,13 +355,17 @@ original-child regression is the unsafe signal.
 
 ## Remaining gates
 
-1. Continue and record the unresolved consolidated iPhone L3 scenarios above
-   and the individual child receipts without collapsing partial, not
-   exercised, and passed results.
-2. After separate authorization, apply the corrected 538-unit candidate,
-   restart PocketRisu, and rerun K16 at top-level Settings → Hotkey. The local
-   finding is already resolved in its owning feature commit and its affected
-   automated gates have been rerun.
-3. Only after the remaining L3 decisions and a separate authorization decide
-   whether to push, tag, release, publish, or perform a later live
-   apply/restart beyond the focused K16 correction above.
+1. Continue and record the unresolved first-pass iPhone L3 scenarios on the
+   current live 537-unit candidate, without collapsing normal observations,
+   findings, not-exercised paths, or passes. Stop only a scenario affected by
+   its finding; unrelated rows may continue.
+2. After the first pass, implement all queued findings in separate owning
+   feature/infrastructure commits and receipts. Run each affected focused
+   graph, exact revert, and L2.5 gate, then regenerate one aggregate candidate
+   and rerun the applicable combination and maximum-target gates.
+3. Under one new explicit authorization, apply that aggregate candidate,
+   restart PocketRisu once, verify the served asset, and run all queued re-L3
+   rows together—including K16 top-level Settings → Hotkey—while recording
+   their results separately.
+4. Only after the remaining L3 decisions and a separate authorization decide
+   whether to push, tag, release, publish, or perform any later live update.

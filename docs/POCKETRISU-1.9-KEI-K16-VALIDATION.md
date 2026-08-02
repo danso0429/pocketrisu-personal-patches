@@ -225,11 +225,12 @@ not reused as post-correction graph counts.
 - **Q4, pending device observation:** physical iPhone/PWA Back gestures,
   Safari controls, pointer cancellation, virtual keyboard interaction, and
   hardware-keyboard shortcuts remain for consolidated L3.
-- **Q4, pending corrected-bundle observation:** the current live candidate is
-  the pre-correction 537-unit build. After a separately authorized apply and
-  restart, iPhone must show the master switch and small-screen notice at the
-  top-level Settings → Hotkey route. No physical pass is inferred from the
-  local render/build gates.
+- **Q4, queued for the aggregate corrected-bundle re-L3 batch:** the current
+  live candidate is the pre-correction 537-unit build. The user chose to finish
+  other first-pass L3 rows and collect findings before one later authorized
+  aggregate apply/restart. On that candidate, iPhone must show the master
+  switch and small-screen notice at the top-level Settings → Hotkey route. No
+  physical pass is inferred from the local render/build gates.
 
 ## Concrete iPhone L3
 
@@ -261,5 +262,6 @@ The initial qualification performed no live apply or restart. A later
 authorized aggregate candidate was applied for L3. The user's missing-menu
 report then triggered the source inspection that identified the route defect.
 This correction rebuilt local installers but has not been applied to the live
-PocketRisu tree and did not restart it. No push, tag, release, or publication
+PocketRisu tree and did not restart it. It is retained as the first item in the
+user-selected aggregate fix/re-L3 batch. No push, tag, release, or publication
 occurred.

@@ -29,6 +29,9 @@
 > live PocketRisu remains on the pre-correction 537-unit candidate. Admission,
 > findings, and per-feature observations are tracked in
 > `docs/POCKETRISU-1.9-AGGREGATE-L3.md`.
+> The user chose to finish the remaining first-pass L3 rows on that live
+> candidate, collect findings, then batch feature-local fixes into one later
+> live update/restart and one consolidated affected-row re-L3 session.
 
 This file records progress against the catalog. It does not change a catalog
 disposition or preservation contract.
@@ -137,8 +140,11 @@ implemented progress.
    children, bounded post-overlap owner extensions, aggregate, and
    documentation commits local without pushing, tagging, or releasing. Do not
    perform another live apply or restart without a new explicit authorization.
-2. Resolve any L3 finding in its own feature or infrastructure commit and
-   rerun the affected focused and aggregate gates.
+2. During the remaining first-pass L3, stop and record an affected scenario
+   when a finding appears, but continue unrelated rows. After the first pass,
+   resolve all queued findings in separate owning feature or infrastructure
+   commits and rerun their affected focused and aggregate gates as one
+   integration cycle.
 3. The user chose one consolidated iPhone L3 session after all planned local
    integrations. That session must still perform and record each feature's
    concrete scenario separately; batching the session does not merge child
@@ -261,17 +267,22 @@ in `docs/POCKETRISU-1.9-AGGREGATE-VALIDATION.md`. Preserve the separate staged
 K12 worktree and do not add deferred catalog children while closing the
 current candidate.
 
-1. Obtain a new explicit authorization before applying the corrected 538-unit
-   candidate and restarting PocketRisu, then rerun only the focused top-level
-   Settings → Hotkey visibility check before continuing K16.
-2. Continue the already-defined iPhone session while recording every feature
-   scenario separately. Keep K19 VoiceOver as not exercised unless the user
-   chooses to revisit it, and keep the existing K29 G09 cold-reroll path
-   separate. Do not present blocked G06 as tested.
-3. Rerun focused and aggregate gates for any later L3 fix. The current K16 fix
-   already passed those gates.
-4. Only after L3 decide publication, push, tag, or release. Any additional
-   live apply or PocketRisu restart remains a new authorization boundary.
+1. Continue the already-defined first-pass iPhone session on the current live
+   537-unit candidate while recording every feature scenario separately. Keep
+   K19 VoiceOver as not exercised unless the user chooses to revisit it, and
+   keep the existing K29 G09 cold-reroll path separate. Do not present blocked
+   G06 as tested.
+2. Queue each new finding with its exact trigger/state/caller evidence. Do not
+   apply the existing K16 correction or restart PocketRisu between first-pass
+   scenarios; stop only an unsafe affected path.
+3. After the first pass, implement queued fixes in feature-local commits,
+   rerun their focused/adversarial/owner-graph/exact-revert/L2.5 gates, rebuild
+   installers once, and close the aggregate combination and target gates.
+4. Request one explicit authorization for the resulting aggregate live apply
+   and restart, then perform all affected re-L3 scenarios together while
+   keeping individual result rows.
+5. Only after L3 decide publication, push, tag, or release. Any later live
+   apply or PocketRisu restart remains a new authorization boundary.
 
 K12 remains a separate feature and keeps its complete translation identity,
 cancellation, explicit destructive-action, storage-owner, and bg-delivery

@@ -13,7 +13,9 @@
 > its physical bundle marker remains unresolved; VoiceOver was intentionally
 > not exercised. The K16 route defect identified by source inspection is fixed
 > and qualified only in the local 538-unit candidate. The live tree remains on
-> the pre-correction 537-unit candidate.
+> the pre-correction 537-unit candidate. The user chose to finish the remaining
+> first-pass L3 observations before batching fixes, one live update/restart,
+> and all affected re-L3 scenarios.
 
 ## Authority and boundaries
 
@@ -157,13 +159,38 @@ normalized graphs round-tripped, and source/fixed/generic maximum plans all at
 28 packs, 538 units, five ordered collisions, and 219 planned paths. Exact
 details and the L2.5 audit are in the K16 receipt.
 
-This correction has not been applied to live PocketRisu. It requires a new
-explicit live apply/restart authorization and then one focused physical rerun
-at top-level Settings → Hotkey (설정 → 단축키). The missing live control is not
+This correction has not been applied to live PocketRisu. It is the first item
+in the deferred aggregate fix/re-L3 batch rather than an immediate restart
+request. When that later batch candidate is admitted, its affected K16 check
+is top-level Settings → Hotkey (설정 → 단축키). The missing live control is not
 attributed to cache or user error. A post-correction read-only inspection still
 found live state format 2 with profile `all`, 28 packs, 537 units, and 217
 managed files; live `Settings.svelte` still contains the official
 `window.innerWidth >= 768` route guard and no K16 route marker.
+
+## Deferred fix and re-L3 batch policy
+
+The user chose the following workflow because the Kei candidate has many
+independent L3 scenarios:
+
+- continue the first-pass L3 ledger on the current live 537-unit candidate for
+  scenarios that are not blocked by a known finding;
+- when a new finding appears, stop only that affected scenario, preserve its
+  exact observation and caller/state boundary, and queue it rather than
+  interrupting the first pass for an immediate live update;
+- after the first pass, implement queued findings in their owning feature or
+  infrastructure boundaries. “One batch” means one integration cycle, not one
+  mixed commit: feature-local commits, receipts, focused adversarial gates,
+  owner-present/absent graphs, exact revert, and L2.5 remain separate;
+- after all queued fixes pass their affected gates, regenerate installers once
+  through the canonical builder, run the aggregate combination/target gates,
+  and request one explicit live apply/restart authorization; and
+- on that single updated candidate, run all queued re-L3 scenarios together
+  while retaining separate result rows.
+
+A finding that indicates immediate user-data, paid-result, or active-work risk
+still stops use of that affected path; batching does not authorize continuing
+an unsafe scenario or mutating live data.
 
 ## Physical L3 result ledger
 
@@ -182,7 +209,7 @@ one row does not imply another row passed.
 | K27 | With native request logging enabled, one BG request produces one masked native request row and one content-free usage row; disabled logging produces neither while generation still completes. | `docs/POCKETRISU-1.9-KEI-K27-BG-LOGGING-VALIDATION.md` plus aggregate receipt | PENDING | — |
 | K13 | Real classic OpenAI-compatible and Gemini/Vertex provider streams remain complete and ordered across emoji/reasoning/tool/signature content and background return. | `docs/POCKETRISU-1.9-KEI-K13-VALIDATION.md` | PENDING | — |
 | K14 | Balanced/Strong/Off streaming display, scroll anchoring, final render, translation gating, metadata, and BG return. | `docs/POCKETRISU-1.9-KEI-K14-VALIDATION.md` | PENDING | — |
-| K16 | Hotkey master/bindings, protected-start gesture exclusion and cancellation, character-list boundaries, and opt-in single mobile Back stop/removal. | `docs/POCKETRISU-1.9-KEI-K16-VALIDATION.md` | FINDING FIXED LOCALLY / LIVE RERUN REQUIRED | The instructed Accessibility path had no Hotkey item, and official 1.9's outer width guard made the actual top-level page unreachable on iPhone. The owner-local fix passed automated gates but is not in the live bundle. No other K16 sub-scenario is inferred passed from this finding report. |
+| K16 | Hotkey master/bindings, protected-start gesture exclusion and cancellation, character-list boundaries, and opt-in single mobile Back stop/removal. | `docs/POCKETRISU-1.9-KEI-K16-VALIDATION.md` | FINDING FIXED LOCALLY / QUEUED FOR AGGREGATE RE-L3 BATCH | The instructed Accessibility path had no Hotkey item, and official 1.9's outer width guard made the actual top-level page unreachable on iPhone. The owner-local fix passed automated gates but is not in the live bundle. No other K16 sub-scenario is inferred passed from this finding report. |
 | K15 | Original and translated partial edit, exact/multiple/unmappable ranges, stale-identity refusal, active-swipe ownership, lifecycle/UI stress, and disable cleanup. | `docs/POCKETRISU-1.9-KEI-K15-VALIDATION.md` | PENDING | — |
 | K11 | Native Hypa behavior plus manual prefix/frontier, preview/reroll/cancel/apply, stale refusal, CBS/editprocess, supported BG return, and persistence. | `docs/POCKETRISU-1.9-KEI-K11-VALIDATION.md` | PENDING | — |
 | K12 | Translation-cache panel search/reveal/copy/edit/CAS/delete, cancel and unused scan, late-result cancellation, configured BG route, K14 composition, and available-provider/UI stress. | `docs/POCKETRISU-1.9-KEI-K12-VALIDATION.md` | PENDING | — |
@@ -200,8 +227,10 @@ one row does not imply another row passed.
 - Do not run K26 destructive restore against this live user-data tree. Its
   row remains pending until a separate disposable target is prepared and
   verified.
-- If a finding appears, stop that scenario, preserve the exact state needed
-  to diagnose it, and fix it in the owning feature/infrastructure commit
-  before rerunning the affected focused and aggregate gates.
+- If a finding appears, stop that affected scenario and preserve the exact
+  state needed to diagnose it. Queue the finding for the deferred fix batch;
+  unrelated L3 rows may continue. Later fixes still use separate owning
+  feature/infrastructure commits and rerun their affected focused and
+  aggregate gates before the one batched live update.
 - No push, tag, release, or publication decision occurs until every required
   row is resolved or explicitly recorded as not exercised/blocking.
