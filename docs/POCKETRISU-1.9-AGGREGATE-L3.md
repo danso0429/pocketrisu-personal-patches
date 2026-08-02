@@ -14,9 +14,12 @@
 > observations and VoiceOver was intentionally not exercised. The K16 route
 > defect identified by source inspection is fixed
 > and qualified only in the local 538-unit candidate. The live tree remains on
-> the pre-correction 537-unit candidate. The user chose to finish the remaining
-> first-pass L3 observations before batching fixes, one live update/restart,
-> and all affected re-L3 scenarios.
+> the pre-correction 537-unit candidate. A separate live BG composer finding
+> now records that the `orch-composer` source marker is rendered literally and
+> its `$orchestrating` gate is outside the Svelte condition. That correction is
+> also deferred. The user chose to finish the remaining first-pass L3
+> observations before batching fixes, one live update/restart, and all affected
+> re-L3 scenarios.
 
 ## Authority and boundaries
 
@@ -174,6 +177,49 @@ found live state format 2 with profile `all`, 28 packs, 537 units, and 217
 managed files; live `Settings.svelte` still contains the official
 `window.innerWidth >= 768` route guard and no K16 route marker.
 
+## BG composer literal-marker finding
+
+The user observed the following patch ownership marker as literal text beside
+the chat composer controls:
+
+```text
+/* BG-PRESERVE:START orch-composer */ || $orchestrating/* BG-PRESERVE:END */
+```
+
+This is a real 1.9 adapter defect, not intentional UI, cached user text, or a
+supported diagnostic mode. Read-only inspection found the exact live source
+form:
+
+```svelte
+{#if currentChatGenerating || doingChatInputTranslate}/* BG-PRESERVE:START orch-composer */ || $orchestrating/* BG-PRESERVE:END */
+```
+
+The base unit inserts its managed expression `after` an anchor that ends before
+the Svelte directive closes. The 1.9 adapter changed that anchor to include the
+closing `}`, so the same managed fragment was inserted after the condition as a
+valid literal text node. The production build therefore succeeded and compiled
+that marker into `dist/assets/index-LGezkoIX.js` instead of rejecting the
+source.
+
+The directly established effects are that the marker is visible and
+`$orchestrating` does not participate in the composer stop/send conditional.
+The ordinary client generation and translation terms still participate. Other
+BG send/reroll/abort guards remain separately present in their owners, so this
+finding is not promoted to a claim that server generation or result retention
+itself failed. The detached/cold composer presentation and its stop affordance
+remain unqualified until correction and re-L3.
+
+The existing 1.9 adapter test checked only that the anchor contained the two
+native terms and that the managed fragment contained `$orchestrating`. It did
+not apply both fragments and assert the final Svelte directive shape or the
+absence of a rendered marker text node. The deferred owner-local correction is
+therefore bounded to the 1.9 composer adapter plus an applied-output regression
+test. It must place the managed expression before `}`, preserve the native
+`currentChatGenerating` and `doingChatInputTranslate` terms, retain exact
+revert, and rerun the BG focused graph, 1.9 target, combination, generated
+installer, and L2.5 gates. No live file or patch state was changed while this
+finding was recorded.
+
 ## Deferred fix and re-L3 batch policy
 
 The user chose the following workflow because the Kei candidate has many
@@ -208,6 +254,7 @@ one row does not imply another row passed.
 | --- | --- | --- | --- | --- |
 | Bootstrap | Fully close and reopen the PocketRisu PWA; confirm a current-candidate screen such as top-level Settings → Hotkey or the Language translation-cache panel is present before attributing later behavior to this bundle. | This receipt | PASS — K22 PATCH MARKER OBSERVED | The former Accessibility → Hotkeys instruction was invalid, but the later chat Quick Menu → Persona picker showed and exercised K22-owned search plus Folder/Unfiled controls that do not exist in official 1.9. This physically identifies the loaded admitted candidate; it does not imply unrelated feature rows passed. |
 | K19 | Native Asset Viewer image-only filtering, search, one-step swipe/arrows, boundaries, VoiceOver labels/focus return, rotation, touch targets, module viewer, and unchanged disposable asset mutation. | `docs/POCKETRISU-1.9-KEI-K19-VALIDATION.md` | LIMITED NORMAL OBSERVATION / VOICEOVER NOT EXERCISED | Swipe, arrows, both boundaries, and rotation were reported normal. VoiceOver was intentionally skipped by user choice. Filtering/search, focus, touch-target measurement, module viewer, and disposable asset mutation remain unobserved; the later K22 marker resolves bundle identity but does not infer those K19 surfaces passed. |
+| BG composer | While server orchestration owns the current chat, the composer shows the native stop state without rendering patch source text; the stop/send conditional follows `$orchestrating` across attached and cold return states. | This receipt plus `docs/POCKETRISU-1.9-AGGREGATE-VALIDATION.md` | FINDING / QUEUED FOR AGGREGATE FIX AND RE-L3 | The user observed the literal `orch-composer` marker. Live source inspection established that the 1.9 adapter inserted `$orchestrating` after the closing Svelte directive brace, so it is rendered as text and is not part of the composer conditional. Server generation/result failure is not inferred; detached/cold composer state and stop affordance remain unqualified. |
 | K29-F05 | Leave one paid ordinary BG result unconsumed across an overnight mobile absence; return to one materialization and exact ACK cleanup without a duplicate or missing paid response. | `docs/POCKETRISU-1.9-KEI-K29-RETENTION-VALIDATION.md` | PENDING | — |
 | K29 G09 | Background, kill/reload, and return during the existing qualified cold reroll; exactly one intended existing message/swipe is overwritten and no duplicate is appended. | `docs/POCKETRISU-1.9-AGGREGATE-VALIDATION.md` | PENDING | — |
 | K22 | Persona picker name/note search, Folder/Unfiled filters, ordinary and PersonaBind identity, selected-folder disposable create/import, cold persistence, stale-folder fallback, cancel, and invalid-file behavior. | `docs/POCKETRISU-1.9-KEI-K22-PICKER-VALIDATION.md` | PARTIAL PASS — ORDINARY PICKER | After distinguishing the separate chat Quick Menu → Persona picker from the full Settings → Persona organizer, the user exercised the instructed ordinary-picker sequence on iPhone and reported its controls, name/note search, Folder/Unfiled filtering, selection close, and selected-row state on reopening all normal. PersonaBind identity, disposable create/import and cold persistence, stale-folder fallback, cancel, and invalid-file behavior remain pending. |
