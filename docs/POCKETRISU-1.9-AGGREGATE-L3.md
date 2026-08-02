@@ -5,6 +5,9 @@
 > **Admitted live candidate source:** `codex/pocketrisu-1.9-rebase` at
 > `1fe0402b060b947c031abb7da6980dc1ac2795f2`
 >
+> **Corrected live update source:** `codex/pocketrisu-1.9-rebase` at
+> `53512ab361892b932004c7580b916ecd009fa288`
+>
 > **Exact target:** official PocketRisu 1.9.0 / PocketRisu commit
 > `85a65f3137b45c8de4a8d21a9887be213b1ac3fc`
 >
@@ -12,15 +15,11 @@
 > observations are recorded below. The patched K22 search/folder picker has
 > now supplied a physical loaded-bundle marker. K19 retains limited normal
 > observations and VoiceOver was intentionally not exercised. The K16 route
-> defect identified by source inspection is fixed
-> and qualified only in the local 538-unit candidate. The live tree remains on
-> the pre-correction 537-unit candidate. A separate live BG composer finding
-> now records that the `orch-composer` source marker is rendered literally and
-> its `$orchestrating` gate is outside the Svelte condition. That correction is
-> now implemented and qualified only in the local 538-unit candidate. Its live
-> update remains deferred. The user chose to finish the remaining first-pass
-> L3 observations before batching one live update/restart and all affected
-> re-L3 scenarios.
+> and BG composer defects were fixed, automatically qualified, and then
+> admitted together with the Node test-storage correction in the live 538-unit
+> candidate. The live update/restart gates passed. K16 and BG composer physical
+> re-L3 remain deferred to the user's later consolidated re-L3 batch; the live
+> update itself does not imply those device results.
 
 ## Authority and boundaries
 
@@ -30,10 +29,11 @@ separately authorized live candidate admission and each physical L3 result.
 It does not rewrite the earlier aggregate receipt's historical observation
 that no live mutation occurred while that receipt was produced.
 
-The user explicitly authorized the live candidate apply and the required
-PocketRisu restart for this L3 session. That authorization does not include a
-push, tag, release, publication, another restart, or destructive use of
-existing user backups/personas/cache as test fixtures.
+The user explicitly authorized the initial live candidate and later the
+corrected aggregate apply plus required PocketRisu restart. Both operations
+are recorded below. That authorization does not include a push, tag, release,
+publication, another restart, or destructive use of existing user
+backups/personas/cache as test fixtures.
 
 K29-F02 G06 remains blocked and has no runtime unit. This L3 may exercise the
 existing G09 cold-reroll path, but must not present standard non-Gemini G06,
@@ -134,6 +134,88 @@ and its cached binary-diff SHA-256 remained
 `916440ab240e0f7541844f0082ce53d1d5f516d08ea1bdfc79a55149d7ca66a9`.
 It was not modified, unstaged, rebased, or amended.
 
+## Corrected 538-unit live update
+
+The user separately authorized combining the K16 route correction, BG composer
+condition correction, and Node test-storage correction with live admission.
+No push, tag, release, paid request, user-data cleanup, or physical L3 was part
+of this operation.
+
+### Preflight and semantic work boundary
+
+Immediately before stop, PM2 reported PocketRisu 1.9.0 online, zero unstable
+restarts, and zero active requests. Read-only database observations were:
+
+- active main jobs: 0; active auxiliary jobs: 0;
+- unclaimed terminal main jobs: 0;
+- `pending_sends`: 1, linked to exactly one `done` + `claimed` main job;
+- BG result payload rows: 0;
+- BG operation-state rows: three, all `delivered`;
+- SQLite `quick_check`: `ok`; and
+- no nested `save/save` directory.
+
+The nonzero rows were terminal/ACK records rather than active or unconsumed
+paid work. They were not deleted, claimed, rewritten, or used as a reason to
+infer an L3 pass; both databases remained the same durable owners across the
+restart.
+
+The final generated-installer plan reported compatibility `verified`, 28
+packs, 538 units, five ordered collisions, and exactly four changed paths:
+`DefaultChatScreen.svelte`, `Settings.svelte`, `vitest.setup.ts`, and patch
+state. PM2 was stopped before the apply.
+
+### Apply, automated gates, and idempotency
+
+The universal installer applied those four paths transactionally. Live state
+then reported format 2, profile `all`, PocketRisu 1.9.0, 28 packs, 538 units,
+and 217 transaction-managed source paths. Source inspection observed the
+composer expression inside the Svelte condition, the K16 Hotkey mobile route,
+and the getter-free Vitest storage setup. The old malformed composer form was
+absent.
+
+Observed gates on the stopped live target were:
+
+- frozen install: 109 packages reused, zero downloaded, exit 0;
+- client tests: 128 files and 1,533 tests passed;
+- server tests: 9 files and 163 tests passed;
+- captured Node `localstorage-file` warnings: 0;
+- Svelte diagnostics: 0 errors and 0 warnings;
+- production build: 7,857 transformed modules, exit 0;
+- BG bundle: 8,396,586 bytes, `sendChat=function` load check passed;
+- production prune: exit 0; and
+- post-prune `express` and `better-sqlite3` resolution: passed.
+
+The existing localhost:3000 mock `ECONNREFUSED` reports and existing build
+warnings remained visible; the complete commands exited 0. Executable browser
+JavaScript contained no literal `orch-composer` marker. The sourcemap retained
+the source ownership comment, which is not an executable UI text node.
+
+A repeated live plan reported 28 packs, 538 units, five collisions, zero
+changed paths, and all 217 source paths skipped.
+
+### Restart, served bytes, and preservation
+
+The rebuilt main asset was `index-IoCFPxUO.js`, 1,999,206 bytes, SHA-256
+`767724bd240549434152f8235f8d7a57c89960e0e8ae4f45163a0d84069dd6b9`.
+After restart, PM2 reported PocketRisu 1.9.0 online at PID 3423309, zero
+unstable restarts, and zero active requests. Root HTTP returned 200 with 3,502
+bytes. The served main asset returned 200 and was byte-identical to the local
+build at that SHA-256. Both current unauthenticated BG status routes returned
+401 as expected.
+
+The PM2 error log remained exactly 112,033,886 bytes before and after restart.
+`save/risuai.db` remained inode 786453 / 2,710,347,776 bytes,
+`save/model-jobs.db` remained inode 872636 / 4,096 bytes, and `backups/`
+remained inode 788086 / 4,096 bytes. Post-restart SQLite `quick_check` was
+`ok`; active and unclaimed work remained zero; the same one done/claimed
+pending marker and three delivered BG state rows remained preserved.
+
+The preserved K12 worktree still matched HEAD
+`081a32ba4ae27c8f25f1719ef90406504a490928`, index-listing SHA-256
+`632b6d3285e85650be19efe5c4f6c70a3af56fdec683fc9a5a182505118704b3`,
+and cached binary-diff SHA-256
+`916440ab240e0f7541844f0082ce53d1d5f516d08ea1bdfc79a55149d7ca66a9`.
+
 ## First physical observation and K16 correction
 
 The user reported that Hotkeys were not visible under Accessibility, chose not
@@ -169,14 +251,10 @@ normalized graphs round-tripped, and source/fixed/generic maximum plans all at
 28 packs, 538 units, five ordered collisions, and 219 planned paths. Exact
 details and the L2.5 audit are in the K16 receipt.
 
-This correction has not been applied to live PocketRisu. It is the first item
-in the deferred aggregate fix/re-L3 batch rather than an immediate restart
-request. When that later batch candidate is admitted, its affected K16 check
-is top-level Settings → Hotkey (설정 → 단축키). The missing live control is not
-attributed to cache or user error. A post-correction read-only inspection still
-found live state format 2 with profile `all`, 28 packs, 537 units, and 217
-managed files; live `Settings.svelte` still contains the official
-`window.innerWidth >= 768` route guard and no K16 route marker.
+This correction is now present in live PocketRisu. Its affected physical check
+remains top-level Settings → Hotkey (설정 → 단축키) in the user's later
+consolidated re-L3 batch. Admission and automated gates do not infer that the
+iPhone has loaded or passed the corrected control.
 
 ## BG composer literal-marker finding and local correction
 
@@ -228,17 +306,17 @@ collisions, and 217 transaction-managed source paths. Client 1,533, server
 revert, deterministic installer, and L2.5 gates passed with the exact observed
 details in `docs/POCKETRISU-1.9-BG-COMPOSER-VALIDATION.md`.
 
-This correction has not been applied to live PocketRisu. The live composer
-finding remains the physical result for the current 537-unit bundle, while the
-corrected local candidate requires one later BG composer re-L3 after a new
-explicit aggregate apply/restart authorization.
+This correction is now present in the live 538-unit bundle. The earlier
+literal-marker observation remains the historical physical finding; attached
+and cold-return stop-state behavior plus cancellation still require the later
+consolidated BG composer re-L3.
 
 ## Deferred fix and re-L3 batch policy
 
 The user chose the following workflow because the Kei candidate has many
 independent L3 scenarios:
 
-- continue the first-pass L3 ledger on the current live 537-unit candidate for
+- continue the first-pass L3 ledger on the current live 538-unit candidate for
   scenarios that are not blocked by a known finding;
 - when a new finding appears, stop only that affected scenario, preserve its
   exact observation and caller/state boundary, and queue it rather than
@@ -247,11 +325,9 @@ independent L3 scenarios:
   infrastructure boundaries. “One batch” means one integration cycle, not one
   mixed commit: feature-local commits, receipts, focused adversarial gates,
   owner-present/absent graphs, exact revert, and L2.5 remain separate;
-- after all queued fixes pass their affected gates, regenerate installers once
-  through the canonical builder, run the aggregate combination/target gates,
-  and request one explicit live apply/restart authorization; and
-- on that single updated candidate, run all queued re-L3 scenarios together
-  while retaining separate result rows.
+- the corrected integration/deployment cycle is now complete; and
+- run the queued K16 and BG composer re-L3 scenarios later with any other
+  affected rows while retaining separate result records.
 
 A finding that indicates immediate user-data, paid-result, or active-work risk
 still stops use of that affected path; batching does not authorize continuing
@@ -267,7 +343,7 @@ one row does not imply another row passed.
 | --- | --- | --- | --- | --- |
 | Bootstrap | Fully close and reopen the PocketRisu PWA; confirm a current-candidate screen such as top-level Settings → Hotkey or the Language translation-cache panel is present before attributing later behavior to this bundle. | This receipt | PASS — K22 PATCH MARKER OBSERVED | The former Accessibility → Hotkeys instruction was invalid, but the later chat Quick Menu → Persona picker showed and exercised K22-owned search plus Folder/Unfiled controls that do not exist in official 1.9. This physically identifies the loaded admitted candidate; it does not imply unrelated feature rows passed. |
 | K19 | Native Asset Viewer image-only filtering, search, one-step swipe/arrows, boundaries, VoiceOver labels/focus return, rotation, touch targets, module viewer, and unchanged disposable asset mutation. | `docs/POCKETRISU-1.9-KEI-K19-VALIDATION.md` | LIMITED NORMAL OBSERVATION / VOICEOVER NOT EXERCISED | Swipe, arrows, both boundaries, and rotation were reported normal. VoiceOver was intentionally skipped by user choice. Filtering/search, focus, touch-target measurement, module viewer, and disposable asset mutation remain unobserved; the later K22 marker resolves bundle identity but does not infer those K19 surfaces passed. |
-| BG composer | While server orchestration owns the current chat, the composer shows the native stop state without rendering patch source text; the stop/send conditional follows `$orchestrating` across attached and cold return states. | `docs/POCKETRISU-1.9-BG-COMPOSER-VALIDATION.md` | FINDING FIXED LOCALLY / QUEUED FOR AGGREGATE RE-L3 BATCH | The user observed the literal `orch-composer` marker. Live source inspection established that the 1.9 adapter inserted `$orchestrating` after the closing Svelte directive brace. The owner-local correction passed focused, maximum, exhaustive, generated-installer, exact-revert, and L2.5 gates but is not in the live bundle. Server generation/result failure is not inferred; the corrected attached/cold stop state and cancellation remain pending re-L3. |
+| BG composer | While server orchestration owns the current chat, the composer shows the native stop state without rendering patch source text; the stop/send conditional follows `$orchestrating` across attached and cold return states. | `docs/POCKETRISU-1.9-BG-COMPOSER-VALIDATION.md` | LIVE CORRECTION ADMITTED / RE-L3 PENDING | The user observed the literal `orch-composer` marker in the earlier 537-unit bundle. The owner-local correction passed focused, maximum, exhaustive, generated-installer, exact-revert, L2.5, and live install/runtime gates and is now in the 538-unit bundle. Server generation/result failure is not inferred; corrected attached/cold stop state and cancellation remain pending physical re-L3. |
 | K29-F05 | Leave one paid ordinary BG result unconsumed across an overnight mobile absence; return to one materialization and exact ACK cleanup without a duplicate or missing paid response. | `docs/POCKETRISU-1.9-KEI-K29-RETENTION-VALIDATION.md` | PENDING | — |
 | K29 G09 | Background, kill/reload, and return during the existing qualified cold reroll; exactly one intended existing message/swipe is overwritten and no duplicate is appended. | `docs/POCKETRISU-1.9-AGGREGATE-VALIDATION.md` | PENDING | — |
 | K22 | Persona picker name/note search, Folder/Unfiled filters, ordinary and PersonaBind identity, selected-folder disposable create/import, cold persistence, stale-folder fallback, cancel, and invalid-file behavior. | `docs/POCKETRISU-1.9-KEI-K22-PICKER-VALIDATION.md` | PARTIAL PASS — ORDINARY PICKER | After distinguishing the separate chat Quick Menu → Persona picker from the full Settings → Persona organizer, the user exercised the instructed ordinary-picker sequence on iPhone and reported its controls, name/note search, Folder/Unfiled filtering, selection close, and selected-row state on reopening all normal. PersonaBind identity, disposable create/import and cold persistence, stale-folder fallback, cancel, and invalid-file behavior remain pending. |
@@ -275,7 +351,7 @@ one row does not imply another row passed.
 | K27 | With native request logging enabled, one BG request produces one masked native request row and one content-free usage row; disabled logging produces neither while generation still completes. | `docs/POCKETRISU-1.9-KEI-K27-BG-LOGGING-VALIDATION.md` plus aggregate receipt | PENDING | — |
 | K13 | Real classic OpenAI-compatible and Gemini/Vertex provider streams remain complete and ordered across emoji/reasoning/tool/signature content and background return. | `docs/POCKETRISU-1.9-KEI-K13-VALIDATION.md` | PENDING | — |
 | K14 | Balanced/Strong/Off streaming display, scroll anchoring, final render, translation gating, metadata, and BG return. | `docs/POCKETRISU-1.9-KEI-K14-VALIDATION.md` | PENDING | — |
-| K16 | Hotkey master/bindings, protected-start gesture exclusion and cancellation, character-list boundaries, and opt-in single mobile Back stop/removal. | `docs/POCKETRISU-1.9-KEI-K16-VALIDATION.md` | FINDING FIXED LOCALLY / QUEUED FOR AGGREGATE RE-L3 BATCH | The instructed Accessibility path had no Hotkey item, and official 1.9's outer width guard made the actual top-level page unreachable on iPhone. The owner-local fix passed automated gates but is not in the live bundle. No other K16 sub-scenario is inferred passed from this finding report. |
+| K16 | Hotkey master/bindings, protected-start gesture exclusion and cancellation, character-list boundaries, and opt-in single mobile Back stop/removal. | `docs/POCKETRISU-1.9-KEI-K16-VALIDATION.md` | LIVE CORRECTION ADMITTED / RE-L3 PENDING | The instructed Accessibility path had no Hotkey item, and official 1.9's outer width guard made the actual top-level page unreachable on iPhone. The owner-local fix passed focused and aggregate gates and is now in the live 538-unit bundle. Top-level Hotkey and the remaining K16 scenarios still require physical observation. |
 | K15 | Original and translated partial edit, exact/multiple/unmappable ranges, stale-identity refusal, active-swipe ownership, lifecycle/UI stress, and disable cleanup. | `docs/POCKETRISU-1.9-KEI-K15-VALIDATION.md` | PENDING | — |
 | K11 | Native Hypa behavior plus manual prefix/frontier, preview/reroll/cancel/apply, stale refusal, CBS/editprocess, supported BG return, and persistence. | `docs/POCKETRISU-1.9-KEI-K11-VALIDATION.md` | PENDING | — |
 | K12 | Translation-cache panel search/reveal/copy/edit/CAS/delete, cancel and unused scan, late-result cancellation, configured BG route, K14 composition, and available-provider/UI stress. | `docs/POCKETRISU-1.9-KEI-K12-VALIDATION.md` | PENDING | — |

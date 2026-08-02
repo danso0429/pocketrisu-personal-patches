@@ -10,15 +10,13 @@
 > **Immediate next gate:** the first physical report found no Hotkeys at the
 > instructed Accessibility path; follow-up source inspection found the actual
 > top-level K16 Hotkey page could not mount on narrow screens. The owner-local
-> correction (`a043d98`) and deterministic installers (`815673e`) are
-> qualified locally at 538 units. A later report found the BG composer source
-> marker rendered literally; its owner-local correction (`838ac27`) and final
-> deterministic installers (`eda6eb9`) are also qualified in that same graph.
-> Live PocketRisu remains on the admitted pre-correction 537-unit graph. Do not
-> apply/restart for either correction yet: finish the other first-pass L3 rows,
-> collect all findings, then integrate feature-local fixes into one later
-> candidate and run one authorized live update/restart plus all affected re-L3
-> rows.
+> correction (`a043d98`) and BG composer correction (`838ac27`) were qualified
+> in the 538-unit graph. `toolchain-hardening` 0.1.3 then removed Node's
+> repeated localStorage warning without a process flag. The user separately
+> authorized the combined live update at `53512ab`; PocketRisu now runs the
+> corrected 28-pack / 538-unit / 217-source-path graph. Automated live gates
+> passed. K16 and BG composer physical reruns remain for the later consolidated
+> re-L3 batch.
 > The candidate-admission and result ledger is
 > `docs/POCKETRISU-1.9-AGGREGATE-L3.md`. The overlap-equivalence audit,
 > user-authorized bounded implementation, aggregate target, raw-selection,
@@ -30,9 +28,8 @@ This document records the complete local work boundary from the beginning of
 the Kei selection effort through the 1.9 pivot and aggregate qualification.
 The current patcher and Kei pack are exact-target source/automation qualified,
 but not publication-qualified until consolidated L3. The live installation
-carries the explicitly authorized pre-correction aggregate `all` candidate;
-the corrected candidate exists only on the local branch and in local
-generated installers.
+carries the explicitly authorized corrected aggregate `all` candidate; no
+candidate was pushed, tagged, or released.
 
 ## Non-negotiable target and review boundary
 
@@ -305,12 +302,9 @@ active-only settings controls. Close the current candidate in this order:
    `docs/POCKETRISU-1.9-AGGREGATE-L3.md`. K19 swipe/arrows/boundaries/rotation
    were reported normal and VoiceOver is explicitly not exercised by user
    choice. K22 controls established the patched bundle; the BG composer marker
-   is a separate finding fixed only in the local candidate. Keep live on 537
-   units while recording the remaining rows and queue findings. After the
-   first pass, retain separate owning commits/receipts but combine all fixes
-   into one qualified candidate, one authorized live update/restart, and one
-   affected-row re-L3 batch. Keep K29 G09 separate and do not relabel blocked
-   G06 as implemented.
+   was a separate finding. Both queued fixes are now present in live 538.
+   Record their later physical reruns separately in the consolidated re-L3
+   batch. Keep K29 G09 separate and do not relabel blocked G06 as implemented.
 
 Keep each feature-local receipt and commit. A queued review or L3 correction
 must remain in its owning feature or infrastructure boundary and rerun the
@@ -322,15 +316,16 @@ child's concrete scenario separately.
 ## Live candidate boundary after the base cutover
 
 The official 1.9 base cutover is complete and was not repeated. The user later
-authorized applying the requalified `all` graph and restarting PocketRisu for
-aggregate L3. Preflight found zero active/native/durable work, PM2 was stopped
-before apply, the live target passed its install/test/check/build gates, and
-the restarted main asset matched the local build. See
-`docs/POCKETRISU-1.9-AGGREGATE-L3.md` for exact observations. The live graph is
-still the pre-correction 537-unit candidate; local HEAD resolves 538 units.
-Any subsequent apply/restart is a new authorization boundary. Keep `save/` and
-`backups/` outside source replacement and never directory-swap the
-installation while its process can recreate paths.
+authorized both the first aggregate admission and the corrected 538-unit
+update. On the latter, active and unclaimed work were zero; retained nonzero
+rows were one done/claimed pending marker and three delivered BG states with
+zero result payloads. PM2 was stopped before apply. The live target passed
+install/test/check/build/BG/prune gates with zero Node localStorage warnings,
+and the restarted main asset matched the local build. See
+`docs/POCKETRISU-1.9-AGGREGATE-L3.md` for exact observations. Any subsequent
+apply/restart is a new authorization boundary. Keep `save/` and `backups/`
+outside source replacement and never directory-swap the installation while
+its process can recreate paths.
 
 ## Files to preserve
 
@@ -346,5 +341,5 @@ No branch in this handoff has been pushed, tagged, or released. The 1.9 `all`
 candidate was applied under separate L3 authorization. K19 swipe, arrows,
 boundaries, and rotation were reported normal; VoiceOver was not exercised.
 The later K22 controls established the patched bundle. The K16 route and BG
-composer defects are fixed and automatically qualified only in the local
-candidate, so aggregate physical acceptance remains open.
+composer defects are fixed, automatically qualified, and live-admitted, but
+their corrected physical acceptance and the other open L3 rows remain open.

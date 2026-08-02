@@ -18,9 +18,9 @@ request, timer, or privacy policy. The pack version advances from
 the changed managed bytes current.
 
 No live source, live patch state, process, user data, paid request, or preserved
-K12 index was changed during this correction. Live PocketRisu remains on the
-pre-correction 537-unit candidate until a separately authorized aggregate
-apply and restart.
+K12 index was changed during the local correction phase. A later separately
+authorized aggregate apply and restart admitted it in the live 538-unit graph;
+that admission is recorded below and does not imply physical re-L3.
 
 ## Purpose, trigger, state, and result
 
@@ -116,8 +116,11 @@ focused graph and produced the corrected directive. Observed gates were:
 - repeated apply: 187 units, zero collisions, zero changed paths, all 94
   managed source paths skipped.
 
-The Node 25 flag changed only the test process environment; no target or
-patcher file was modified to obtain the passing rerun. Empty-selection revert
+The Node 25 flag changed only the diagnostic test process environment. The
+later `toolchain-hardening` 0.1.3 correction removed the need for that flag by
+installing happy-dom storage without reading Node's native accessor. Its exact
+receipt is `docs/POCKETRISU-1.9-TOOLCHAIN-HARDENING-VALIDATION.md`.
+Empty-selection revert
 changed the managed source paths plus patch state/intent. The target's tracked
 diff returned to zero and the official two-term composer directive returned.
 The two untracked BG bundle build products remained outside patch ownership and
@@ -139,7 +142,7 @@ The complete exact-1.9 verifier observed:
 }
 ```
 
-The measured verifier total was 863,449.79 ms. Cache observations were
+The final post-toolchain verifier total was 880,039.29 ms. Cache observations were
 composition bypasses 2,050, hits/misses/stores 2,047/2,047/2,047; pair-cache
 entries 2,143 with 550,945 hits; pack-ETag hits/misses 58,819/61; and
 state-encoding hits/misses 2,047/2,047.
@@ -152,6 +155,7 @@ maximum gates were:
 
 - client 128 files / 1,533 tests passed;
 - server 9 files / 163 tests passed;
+- captured `localstorage-file` warnings: zero;
 - Svelte diagnostics 0 errors / 0 warnings;
 - production build 7,857 modules, exit 0;
 - main asset `index-D8mk-Vj1.js`, 1,999,206 bytes, SHA-256
@@ -177,10 +181,10 @@ passed `node --check`:
 
 | Installer | Bytes | SHA-256 |
 | --- | ---: | --- |
-| `pocketrisu-patcher.cjs` | 5,085,150 | `7a97d24c3717040054c89ca80a4ca5b2019f69de3ab7ce555c4ab5326e8f64b2` |
-| `pocketrisu-features.cjs` | 5,085,156 | `b3a16b2e9c8461dd9c7022ecc16dd113659958a42bbf57d9bb0eaec7f8ea9477` |
-| `pocketrisu-hardening.cjs` | 5,085,157 | `6db33b756390f3f872e8d16fb8413f93cff1f79fb0426e6b8db3b87cb2f41d2f` |
-| `pocketrisu-all.cjs` | 5,085,151 | `a6d6e675f904706b71cfbba7453260afb60cf1c70a623a0ff12527051eda2a3b` |
+| `pocketrisu-patcher.cjs` | 5,085,479 | `1354bf1421dbcee72699689e9f008f7a3cb67df9f6e3208b8e5bc2d2766f1c9f` |
+| `pocketrisu-features.cjs` | 5,085,485 | `6e510ab64319fb596bcb148b55079e61ce0bda2355b755e4e39983c0d57a6a2d` |
+| `pocketrisu-hardening.cjs` | 5,085,486 | `c4ad2185c3369fe1e5856d0eb48d1d01be0dc508b7309c5037fe0829c76f0a42` |
+| `pocketrisu-all.cjs` | 5,085,480 | `bf32c893a2dd2695a0c17a7d557d4a44aeab69fa02c2d8eafdfa37da4ae1547b` |
 
 ## L2.5 runtime audit
 
@@ -212,31 +216,46 @@ passed `node --check`:
 - **Failure surfaces — adversarial tests.** Outside-brace placement, marker
   drift, idempotency, exact revert, and inherited first-anchor behavior are now
   exercised on the final composed output.
-- **Runtime boundary — prepared, not inferred.** Build output establishes that
-  no marker text node is compiled. Physical iPhone attached/cold stop-button
-  state and cancellation still require the updated live bundle.
+- **Runtime boundary — admitted, not physically inferred.** The corrected
+  source and executable bundle are now live and the served asset matches the
+  local build. Physical iPhone attached/cold stop-button state and cancellation
+  still require re-L3.
 
 ### Phase 3 — triage
 
 - **Q3, fixed locally:** the 1.9 adapter had placed its managed expression
   after the Svelte directive. The owner-local correction and final-output test
   close that implementation defect.
-- **Q3, test-environment observation:** Node 25's incomplete experimental
-  global webstorage caused the first target test failure. Disabling only that
-  process-global feature restored the target's happy-dom owner and all tests
-  passed without source changes.
-- **Q4, pending physical re-L3:** after a separately authorized aggregate live
-  apply/restart, verify that no marker text appears, ordinary attached BG work
-  keeps the stop button, cold/detached orchestration keeps the same stop state,
-  and Stop cancels the owned operation without resurrection or duplicate
-  materialization.
+- **Q3, test-environment correction:** Node 25's native webstorage accessor
+  caused the first target failure and repeated warnings. Toolchain 0.1.3 now
+  preserves the happy-dom owner without a process flag; focused, maximum, and
+  live suites observed zero `localstorage-file` warnings.
+- **Q4, pending physical re-L3:** on the admitted live bundle, verify that no
+  marker text appears, ordinary attached BG work keeps the stop button,
+  cold/detached orchestration keeps the same stop state, and Stop cancels the
+  owned operation without resurrection or duplicate materialization.
 
 ## Commits and remaining gate
 
 - feature and focused tests: `838ac27`;
-- canonical generated installers: `eda6eb9`.
+- first canonical generated installers: `eda6eb9`;
+- final getter-free canonical installers: `53512ab`.
 
-This local correction is not a live pass. It joins the aggregate update
-candidate and remains pending one physical BG composer re-L3 after explicit
-live apply/restart authorization. Push, tag, release, and publication remain
-out of scope.
+## Live admission
+
+The separately authorized live update stopped PM2 before applying exactly four
+changed paths across the aggregate graph. Live state advanced from 537 to 538
+units while retaining 28 packs and 217 source paths. The corrected composer
+line was present, the malformed line absent, executable browser JavaScript had
+zero literal composer markers, and a repeated plan changed zero paths.
+
+The stopped live target passed client 128/1,533, server 9/163, diagnostics 0/0,
+production build, BG load check, and production prune. After restart the served
+main asset was byte-identical to the local build, active requests were zero,
+the PM2 error log grew by zero bytes, SQLite `quick_check` was `ok`, and
+database/backup inode and size observations were unchanged. No paid request or
+physical composer scenario was run.
+
+The correction is therefore live-admitted but not a physical live pass. One
+BG composer re-L3 remains in the later consolidated device batch. Push, tag,
+release, and publication remain out of scope.

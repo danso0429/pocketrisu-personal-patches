@@ -22,14 +22,13 @@ and exact-revert qualification. It does not mean publication-qualified: the
 consolidated feature-by-feature iPhone L3 remains. No live apply, live patch
 state or user-data change, PocketRisu restart, push, tag, or release occurred.
 
-That sentence records this receipt's implementation-time boundary. A later,
-separately authorized live candidate admission, first physical results, and
-the resulting K16 correction are recorded in
-`docs/POCKETRISU-1.9-AGGREGATE-L3.md`. The live candidate still has the
-pre-correction 537-unit graph; this receipt's current local authority is the
-qualified 538-unit graph with both the K16 narrow-screen route correction and
-the BG composer condition correction. The latter's focused receipt is
-`docs/POCKETRISU-1.9-BG-COMPOSER-VALIDATION.md`.
+That sentence records this receipt's implementation-time boundary. Later,
+separately authorized live admissions, physical findings, their K16/BG
+corrections, and the final 538-unit live update are recorded in
+`docs/POCKETRISU-1.9-AGGREGATE-L3.md`. The current local and live graph now
+contains both corrections plus `toolchain-hardening` 0.1.3. The BG focused
+receipt is `docs/POCKETRISU-1.9-BG-COMPOSER-VALIDATION.md`; the Node warning
+correction is `docs/POCKETRISU-1.9-TOOLCHAIN-HARDENING-VALIDATION.md`.
 
 ## Provenance and preserved state
 
@@ -107,7 +106,7 @@ Every reachable selection completed first plan/apply, current status,
 zero-change repeated plan, empty-selection revert, and managed byte/mode
 snapshot comparison.
 
-The post-BG-composer-correction run completed in 863,449.79 ms with two
+The final post-toolchain-correction run completed in 880,039.29 ms with two
 workers. Recorded
 cache diagnostics were composition bypasses 2,050, hits 2,047, misses/stores
 2,047; pair-cache entries 2,143, hits 550,945, misses 2,143; pack-ETag hits
@@ -125,6 +124,7 @@ Observed gates on the applied maximum graph:
 
 - client tests: 128 files and 1,533 tests passed;
 - server tests: 9 files and 163 tests passed;
+- `localstorage-file` warnings in the captured test stderr: 0;
 - Svelte diagnostics: 0 errors and 0 warnings;
 - production frontend build: 7,857 modules transformed, exit 0; and
 - BG orchestration bundle: 8,200 KB with exit 0 and
@@ -167,10 +167,10 @@ all four files passed `node --check`:
 
 | Installer | Bytes | SHA-256 |
 | --- | ---: | --- |
-| `pocketrisu-patcher.cjs` | 5,085,150 | `7a97d24c3717040054c89ca80a4ca5b2019f69de3ab7ce555c4ab5326e8f64b2` |
-| `pocketrisu-features.cjs` | 5,085,156 | `b3a16b2e9c8461dd9c7022ecc16dd113659958a42bbf57d9bb0eaec7f8ea9477` |
-| `pocketrisu-hardening.cjs` | 5,085,157 | `6db33b756390f3f872e8d16fb8413f93cff1f79fb0426e6b8db3b87cb2f41d2f` |
-| `pocketrisu-all.cjs` | 5,085,151 | `a6d6e675f904706b71cfbba7453260afb60cf1c70a623a0ff12527051eda2a3b` |
+| `pocketrisu-patcher.cjs` | 5,085,479 | `1354bf1421dbcee72699689e9f008f7a3cb67df9f6e3208b8e5bc2d2766f1c9f` |
+| `pocketrisu-features.cjs` | 5,085,485 | `6e510ab64319fb596bcb148b55079e61ce0bda2355b755e4e39983c0d57a6a2d` |
+| `pocketrisu-hardening.cjs` | 5,085,486 | `c4ad2185c3369fe1e5856d0eb48d1d01be0dc508b7309c5037fe0829c76f0a42` |
+| `pocketrisu-all.cjs` | 5,085,480 | `bf32c893a2dd2695a0c17a7d557d4a44aeab69fa02c2d8eafdfa37da4ae1547b` |
 
 Source CLI `--all`, fixed-profile `pocketrisu-all.cjs`, and generic
 `pocketrisu-patcher.cjs --all` each returned compatibility `verified`, 28
@@ -309,9 +309,10 @@ same umbrella version/ETag.
   swipe/arrows/boundaries/rotation were reported normal and VoiceOver is
   recorded not exercised by user choice. The later K22 picker search/folder
   controls physically identified the admitted candidate. K16 and the BG
-  composer require corrected live-bundle reruns, now queued with any later
-  findings for one aggregate apply/restart and re-L3 cycle. These physical gaps
-  block aggregate acceptance and publication, not the local commits.
+  composer corrections are now admitted in the live 538-unit bundle and
+  require their corrected physical reruns in the user's consolidated re-L3
+  batch. These physical gaps block aggregate acceptance and publication, not
+  the local or live installation gates.
 
 ## Future consolidated iPhone L3
 
@@ -326,12 +327,10 @@ focus, touch-target measurement, module viewer, and disposable asset mutation
 remain open. The later K22 picker search/folder controls physically established
 the admitted patched bundle. Source inspection then found K16's narrow-screen
 route defect, and a later physical report found the BG composer literal-marker
-defect. Both local fixes are retained for the user-selected aggregate
-fix/re-L3 batch. They are not admitted immediately; after the remaining
-first-pass L3 observations and any resulting feature-local fixes, one
-separately authorized updated candidate will carry all affected rechecks,
-including top-level Settings → Hotkey and the attached/cold BG composer stop
-state.
+defect. Both fixes are now present in the separately authorized live 538-unit
+bundle. Their physical acceptance is still deferred to the user's consolidated
+re-L3 batch, including top-level Settings → Hotkey and the attached/cold BG
+composer stop state.
 
 1. **K19 remaining viewer and optional VoiceOver residual.** Swipe, arrows,
    boundaries, and rotation were reported normal but are not yet a marked
@@ -378,17 +377,14 @@ original-child regression is the unsafe signal.
 
 ## Remaining gates
 
-1. Continue and record the unresolved first-pass iPhone L3 scenarios on the
-   current live 537-unit candidate, without collapsing normal observations,
-   findings, not-exercised paths, or passes. Stop only a scenario affected by
-   its finding; unrelated rows may continue.
-2. After the first pass, implement all queued findings in separate owning
-   feature/infrastructure commits and receipts. K16 and the BG composer are now
-   implemented and qualified locally; any later findings retain the same
-   focused graph, exact revert, and L2.5 gates before one aggregate candidate.
-3. Under one new explicit authorization, apply that aggregate candidate,
-   restart PocketRisu once, verify the served asset, and run all queued re-L3
-   rows together—including K16 top-level Settings → Hotkey—while recording
-   their results separately.
+1. Continue and record unresolved first-pass iPhone L3 scenarios on the
+   current live 538-unit candidate without collapsing normal observations,
+   findings, not-exercised paths, or passes.
+2. Run the already-queued K16 top-level Hotkey and BG composer attached/cold
+   reruns in the user's later consolidated re-L3 batch; the live update itself
+   is complete and does not imply either physical result.
+3. Any later finding still requires separate owning feature/infrastructure
+   commits, focused graph, exact revert, L2.5, and aggregate gates before a
+   further live authorization is considered.
 4. Only after the remaining L3 decisions and a separate authorization decide
    whether to push, tag, release, publish, or perform any later live update.
