@@ -22,6 +22,10 @@ and exact-revert qualification. It does not mean publication-qualified: the
 consolidated feature-by-feature iPhone L3 remains. No live apply, live patch
 state or user-data change, PocketRisu restart, push, tag, or release occurred.
 
+That sentence records this receipt's implementation-time boundary. A later,
+separately authorized live candidate admission and the still-pending physical
+results are recorded in `docs/POCKETRISU-1.9-AGGREGATE-L3.md`.
+
 ## Provenance and preserved state
 
 - The exact official source archive SHA-256 remains
@@ -255,9 +259,10 @@ same umbrella version/ETag.
 
 ## Future consolidated iPhone L3
 
-Do not request or execute these scenarios during this implementation session.
-Run them later on a separately authorized aggregate candidate while recording
-each feature result independently.
+The separately authorized aggregate-candidate session has now started. Record
+its admission and each feature result independently in
+`docs/POCKETRISU-1.9-AGGREGATE-L3.md`; the scenarios below remain the acceptance
+authority until their observed rows close.
 
 1. **K19 viewer swipe and VoiceOver.** Open a middle image, swipe once in each
    direction and verify exactly one image movement; at each boundary verify no

@@ -7,8 +7,10 @@
 > **Exact target:** official PocketRisu `v1.9.0` /
 > `85a65f3137b45c8de4a8d21a9887be213b1ac3fc`
 >
-> **Immediate next gate:** run the consolidated feature-by-feature iPhone L3
-> in a later, separately authorized session. The overlap-equivalence audit,
+> **Immediate next gate:** continue the consolidated feature-by-feature iPhone
+> L3 now in progress on the separately authorized live candidate. The
+> candidate-admission and result ledger is
+> `docs/POCKETRISU-1.9-AGGREGATE-L3.md`. The overlap-equivalence audit,
 > user-authorized bounded implementation, aggregate target, raw-selection,
 > L2.5, exact-revert, and deterministic-installer gates are recorded in the
 > audit, implementation ledger, feature receipts, and
@@ -18,7 +20,7 @@ This document records the complete local work boundary from the beginning of
 the Kei selection effort through the 1.9 pivot and aggregate qualification.
 The current patcher and Kei pack are exact-target source/automation qualified,
 but not publication-qualified until consolidated L3. The live installation
-remains pristine 1.9 without the candidate.
+now carries the explicitly authorized aggregate `all` candidate for that L3.
 
 ## Non-negotiable target and review boundary
 
@@ -219,11 +221,13 @@ The second cutover used the following observed sequence:
    inodes were unchanged, `quick_check` remained `ok`, the KV count remained
    10,878, durable BG rows remained 0, and no nested save directory appeared.
 
-The current live base is therefore pristine official PocketRisu 1.9.0 with
-no patcher candidate applied. Patch state is absent and the preserved intent
-still requests an empty custom pack set. The old 1.8.1 application source is
-retained as a local rollback tree without `save/` or `backups/`; user data
-remains only in the live 1.9 tree.
+At the end of the base-cutover operation, the live tree was pristine official
+PocketRisu 1.9.0 with no candidate. A later explicit authorization superseded
+only that operational boundary: the aggregate `all` candidate is now applied
+for L3, with format-2 `all` state and intent. The old 1.8.1 application source
+remains a local rollback tree without `save/` or `backups/`; user data remains
+only in the live 1.9 tree. See the aggregate L3 receipt for the later preflight,
+apply, build, restart, asset, error-log, and inode/size observations.
 
 The staging tree was consumed by the successful live rename. The rollback and
 recovery snapshots are disposable local artifacts, not repository evidence.
@@ -275,9 +279,10 @@ active-only settings controls. Close the current candidate in this order:
 4. Retain the completed post-overlap aggregate exact-1.9 target, L2.5,
    raw-selection, exact-revert, deterministic-installer, and runtime-audit
    receipt.
-5. Run the consolidated feature-by-feature iPhone L3 in a later authorized
-   session. Keep K19 swipe/VoiceOver and the existing K29 G09 cold-reroll path
-   as observation items; do not relabel blocked G06 as implemented.
+5. Continue the consolidated feature-by-feature iPhone L3 in
+   `docs/POCKETRISU-1.9-AGGREGATE-L3.md`. Keep K19 swipe/VoiceOver and the
+   existing K29 G09 cold-reroll path as separate observation items; do not
+   relabel blocked G06 as implemented.
 
 Keep each feature-local receipt and commit. A review or L3 correction must
 remain in its owning feature or infrastructure boundary and rerun the focused
@@ -286,12 +291,15 @@ iPhone L3 session still records each child's concrete scenario separately.
 
 ## Live candidate boundary after the base cutover
 
-The official 1.9 base cutover is complete; do not repeat it merely because
-patcher work resumes. Applying a requalified pack graph to this live base is a
-separate explicit-authorization boundary. Recheck active requests and durable
-BG work before any future apply/restart and keep `save/` and `backups/`
-outside source replacement. Never directory-swap the installation while its
-process can recreate paths.
+The official 1.9 base cutover is complete and was not repeated. The user later
+authorized applying the requalified `all` graph and restarting PocketRisu for
+aggregate L3. Preflight found zero active/native/durable work, PM2 was stopped
+before apply, the live target passed its install/test/check/build gates, and
+the restarted main asset matched the local build. See
+`docs/POCKETRISU-1.9-AGGREGATE-L3.md` for exact observations. Any subsequent
+apply/restart is a new authorization boundary. Keep `save/` and `backups/`
+outside source replacement and never directory-swap the installation while
+its process can recreate paths.
 
 ## Files to preserve
 
@@ -303,5 +311,6 @@ process can recreate paths.
   contains an untracked catalog copy. Do not absorb, overwrite, or delete it
   as incidental cleanup.
 
-No branch in this handoff has been pushed, tagged, released, or applied as a
-1.9 patch candidate. No iPhone L3 has been performed for the aggregate.
+No branch in this handoff has been pushed, tagged, or released. The 1.9 `all`
+candidate is now applied under separate L3 authorization, but no physical
+iPhone scenario has yet been recorded as passed.

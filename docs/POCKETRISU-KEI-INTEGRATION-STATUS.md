@@ -20,8 +20,10 @@
 > `docs/POCKETRISU-KEI-OVERLAP-IMPLEMENTATION-LEDGER.md`, and
 > `docs/POCKETRISU-1.9-AGGREGATE-VALIDATION.md`.
 >
-> **Next gate:** consolidated feature-by-feature iPhone L3. It is documented
-> but is not requested during the implementation session.
+> **Current gate:** consolidated feature-by-feature iPhone L3 is in progress
+> on the explicitly authorized live aggregate candidate. Admission evidence
+> and per-feature observations are tracked in
+> `docs/POCKETRISU-1.9-AGGREGATE-L3.md`.
 
 This file records progress against the catalog. It does not change a catalog
 disposition or preservation contract.
@@ -38,12 +40,12 @@ candidate is preserved rather than mutated in place.
   uncommitted bytes.
 - The 1.9 branch requalifies existing packs and admitted Kei children before
   any new catalog child is implemented.
-- Neither candidate branch has been pushed, tagged, released, or applied
-  live. Separately, the old live 1.8.1 patch graph was reverted and the live
-  base was upgraded and restarted on pristine official 1.9.0 after explicit
-  authorization. No requalified pack or Kei candidate is installed. The
-  interrupted first attempt, recovery, and successful stopped-process cutover
-  are recorded in the session handoff.
+- Neither candidate branch has been pushed, tagged, or released. After the
+  pristine official 1.9.0 base cutover, the user separately authorized the
+  requalified `all` candidate and its restart for aggregate L3. The live tree
+  now reports 28 current packs and 217 managed source paths; its admission
+  gates and still-pending device observations are recorded in
+  `docs/POCKETRISU-1.9-AGGREGATE-L3.md`.
 
 The exact overlap, semantic classification, generation-authority conflict,
 privacy-policy correction, and ordered rebase plan are in the 1.9 audit.
@@ -96,9 +98,10 @@ The catalog custody, verification procedure, and this status are kept in a
 separate documentation commit. Its hash is read from history rather than
 embedded in this file, which would create a self-referential commit hash.
 
-The candidate branch has not been pushed, tagged, released, or applied to the
-live PocketRisu tree. The live process restart installed only the pristine
-official 1.9 base and is not a candidate publication or patch qualification.
+The candidate branch has not been pushed, tagged, or released. Its generated
+`all` candidate is installed on the live PocketRisu tree solely for the
+explicitly authorized aggregate L3; that operational admission is not a
+publication or release qualification.
 
 ## Admission-order position
 
@@ -229,11 +232,9 @@ implemented progress.
    whole-view swipe scenario remains a different interaction owner.
 
 The source audit, approved local implementation, and automated aggregate gates
-are complete. Review and the consolidated per-feature L3 results continue to
-block push, tag, release, and publication of the aggregate candidate. A future
-live candidate apply and any restart it needs remain separate
-explicit-authorization boundaries; the already completed pristine 1.9 base
-restart does not authorize either.
+are complete. The separately authorized live candidate apply/restart is also
+recorded. Review and the consolidated per-feature L3 results continue to block
+push, tag, release, and publication of the aggregate candidate.
 
 ## Next review and L3 sequence
 
@@ -248,8 +249,8 @@ current candidate.
    feature scenario separately, including K19 swipe/VoiceOver and the existing
    K29 G09 cold-reroll presentation path. Do not present blocked G06 as tested.
 2. Rerun focused and aggregate gates affected by any L3 fix.
-3. Only after L3 decide publication, push/tag/release, or a separately
-   authorized live apply and PocketRisu restart.
+3. Only after L3 decide publication, push, tag, or release. Any additional
+   live apply or PocketRisu restart remains a new authorization boundary.
 
 K12 remains a separate feature and keeps its complete translation identity,
 cancellation, explicit destructive-action, storage-owner, and bg-delivery
