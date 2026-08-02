@@ -11,11 +11,14 @@
 > instructed Accessibility path; follow-up source inspection found the actual
 > top-level K16 Hotkey page could not mount on narrow screens. The owner-local
 > correction (`a043d98`) and deterministic installers (`815673e`) are
-> qualified locally at 538 units, but live
-> PocketRisu remains on the admitted pre-correction 537-unit graph. Do not
-> apply/restart for K16 yet: finish the other first-pass L3 rows, collect all
-> findings, then integrate feature-local fixes into one later candidate and
-> run one authorized live update/restart plus all affected re-L3 rows.
+> qualified locally at 538 units. A later report found the BG composer source
+> marker rendered literally; its owner-local correction (`838ac27`) and final
+> deterministic installers (`eda6eb9`) are also qualified in that same graph.
+> Live PocketRisu remains on the admitted pre-correction 537-unit graph. Do not
+> apply/restart for either correction yet: finish the other first-pass L3 rows,
+> collect all findings, then integrate feature-local fixes into one later
+> candidate and run one authorized live update/restart plus all affected re-L3
+> rows.
 > The candidate-admission and result ledger is
 > `docs/POCKETRISU-1.9-AGGREGATE-L3.md`. The overlap-equivalence audit,
 > user-authorized bounded implementation, aggregate target, raw-selection,
@@ -294,11 +297,16 @@ active-only settings controls. Close the current candidate in this order:
    refresh in `815673e`. It removes only official 1.9's outer width guard;
    native route 15, the persisted toggle, inner small-screen notice, desktop
    binding table, and exact 1.8 graph remain under their existing owners.
-6. Continue the consolidated feature-by-feature first-pass iPhone L3 in
+6. Retain the BG composer correction in `838ac27` and final generated-installer
+   refresh in `eda6eb9`. It moves only the existing `$orchestrating` expression
+   inside the 1.9 Svelte condition, preserves both native terms and all other
+   BG owners, and adds final composed-output/exact-revert regression coverage.
+7. Continue the consolidated feature-by-feature first-pass iPhone L3 in
    `docs/POCKETRISU-1.9-AGGREGATE-L3.md`. K19 swipe/arrows/boundaries/rotation
-   were reported normal but the invalid bundle marker prevents a candidate
-   pass; VoiceOver is explicitly not exercised by user choice. Keep live on
-   537 units while recording the remaining rows and queue findings. After the
+   were reported normal and VoiceOver is explicitly not exercised by user
+   choice. K22 controls established the patched bundle; the BG composer marker
+   is a separate finding fixed only in the local candidate. Keep live on 537
+   units while recording the remaining rows and queue findings. After the
    first pass, retain separate owning commits/receipts but combine all fixes
    into one qualified candidate, one authorized live update/restart, and one
    affected-row re-L3 batch. Keep K29 G09 separate and do not relabel blocked
@@ -336,8 +344,7 @@ installation while its process can recreate paths.
 
 No branch in this handoff has been pushed, tagged, or released. The 1.9 `all`
 candidate was applied under separate L3 authorization. K19 swipe, arrows,
-boundaries, and rotation were reported normal, but the invalid bundle marker
-prevents a candidate pass; VoiceOver was not exercised. The K16 route defect
-identified by the subsequent source inspection is fixed and automatically
-qualified only in the local candidate, so aggregate physical acceptance
-remains open.
+boundaries, and rotation were reported normal; VoiceOver was not exercised.
+The later K22 controls established the patched bundle. The K16 route and BG
+composer defects are fixed and automatically qualified only in the local
+candidate, so aggregate physical acceptance remains open.

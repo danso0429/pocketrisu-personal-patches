@@ -22,10 +22,12 @@
 >
 > **Current gate:** consolidated feature-by-feature iPhone L3 is in progress.
 > The first observation reported K19 swipe/arrows/boundaries/rotation normal,
-> but the invalid bundle marker prevents a candidate pass. VoiceOver was
-> intentionally not exercised. The report also prompted the source inspection
-> that found a K16 mobile Hotkey route defect.
+> and VoiceOver was intentionally not exercised. The later K22 picker
+> search/folder controls physically established the admitted patched bundle.
+> Source inspection found a K16 mobile Hotkey route defect, and a later report
+> found that the BG composer rendered its ownership marker literally.
 > K16 is fixed and automatically requalified in the local 538-unit candidate;
+> the BG composer is also fixed and requalified in that same local graph;
 > live PocketRisu remains on the pre-correction 537-unit candidate. Admission,
 > findings, and per-feature observations are tracked in
 > `docs/POCKETRISU-1.9-AGGREGATE-L3.md`.
@@ -104,6 +106,8 @@ boundaries on the active 1.9 branch:
 | `11302c5` | Separately authorized live-candidate admission receipt and physical L3 ledger |
 | `a043d98` | K16 1.9 top-level mobile Hotkey route correction and adversarial tests |
 | `815673e` | Deterministic installers containing the K16 route correction |
+| `838ac27` | BG composer 1.9 condition-placement correction and applied-output tests |
+| `eda6eb9` | Deterministic installers containing both local L3 corrections |
 
 The catalog custody, verification procedure, and this status are kept in a
 separate documentation commit. Its hash is read from history rather than
@@ -112,8 +116,8 @@ embedded in this file, which would create a self-referential commit hash.
 The candidate branch has not been pushed, tagged, or released. The generated
 `all` candidate admitted at `11302c5` is installed on the live PocketRisu tree
 solely for the explicitly authorized aggregate L3. The branch now has a newer
-K16-corrected generated candidate that has not been applied live. Neither
-state is a publication or release qualification.
+K16- and BG-composer-corrected generated candidate that has not been applied
+live. Neither state is a publication or release qualification.
 
 ## Admission-order position
 
@@ -149,8 +153,10 @@ implemented progress.
    integrations. That session must still perform and record each feature's
    concrete scenario separately; batching the session does not merge child
    gates. K19 swipe, arrows, boundaries, and rotation were reported normal,
-   but remain limited observations because the bundle marker was invalid;
-   VoiceOver is recorded not exercised by user choice. Its still-open scope
+   and remain limited observations; VoiceOver is recorded not exercised by
+   user choice. The later K22 picker controls established the patched bundle,
+   while the BG composer marker is a separate queued re-L3 finding. K19's
+   still-open scope
    includes:
    - open the native viewer from character and module assets, verify search
      and image filtering; inspect dialog/search/thumbnail labels with
@@ -255,8 +261,9 @@ implemented progress.
 The source audit, approved local implementation, and corrected 538-unit
 automated aggregate gates are complete. The separately authorized live
 candidate apply/restart is also recorded, but that live tree is still the
-pre-correction 537-unit graph. Review and the unresolved or not-exercised L3
-surfaces continue to block push, tag, release, and publication.
+pre-correction 537-unit graph. K16 and BG composer corrections are qualified
+only in the local graph. Review and the unresolved or not-exercised L3 surfaces
+continue to block push, tag, release, and publication.
 
 ## Next review and L3 sequence
 

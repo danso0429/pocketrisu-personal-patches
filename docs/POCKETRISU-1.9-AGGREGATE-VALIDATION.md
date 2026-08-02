@@ -27,7 +27,9 @@ separately authorized live candidate admission, first physical results, and
 the resulting K16 correction are recorded in
 `docs/POCKETRISU-1.9-AGGREGATE-L3.md`. The live candidate still has the
 pre-correction 537-unit graph; this receipt's current local authority is the
-qualified 538-unit graph.
+qualified 538-unit graph with both the K16 narrow-screen route correction and
+the BG composer condition correction. The latter's focused receipt is
+`docs/POCKETRISU-1.9-BG-COMPOSER-VALIDATION.md`.
 
 ## Provenance and preserved state
 
@@ -105,7 +107,8 @@ Every reachable selection completed first plan/apply, current status,
 zero-change repeated plan, empty-selection revert, and managed byte/mode
 snapshot comparison.
 
-The post-K16-correction run completed in 873,623 ms with two workers. Recorded
+The post-BG-composer-correction run completed in 863,449.79 ms with two
+workers. Recorded
 cache diagnostics were composition bypasses 2,050, hits 2,047, misses/stores
 2,047; pair-cache entries 2,143, hits 550,945, misses 2,143; pack-ETag hits
 58,819, misses 61; and state-encoding hits/misses 2,047/2,047.
@@ -124,10 +127,13 @@ Observed gates on the applied maximum graph:
 - server tests: 9 files and 163 tests passed;
 - Svelte diagnostics: 0 errors and 0 warnings;
 - production frontend build: 7,857 modules transformed, exit 0; and
-- BG orchestration bundle: the pre-correction aggregate builder evidence was
-  8,200 KB with exit 0 and `sendChat=function`. The K16 correction changes one
-  client Settings route and no BG/server unit, so no new BG bundle result is
-  claimed for that focused rerun.
+- BG orchestration bundle: 8,200 KB with exit 0 and
+  `sendChat=function` load check.
+
+The generated main asset was `index-D8mk-Vj1.js`, 1,999,206 bytes, SHA-256
+`28c58db88c45497b2255eaa814accbaf8876d78ca977e73ff1d8ef9586808e2d`.
+No generated browser JavaScript asset contained the literal `orch-composer`
+ownership marker.
 
 The first combined server run inside the restricted sandbox exited 1: two
 socket-owning files could not `listen` on `127.0.0.1` (`EPERM`) and timed out.
@@ -161,10 +167,10 @@ all four files passed `node --check`:
 
 | Installer | Bytes | SHA-256 |
 | --- | ---: | --- |
-| `pocketrisu-patcher.cjs` | 5,085,151 | `b29b4785e17012f7714645f510bd494ae4faa50de9be8b87e5b8982ee4ab7d77` |
-| `pocketrisu-features.cjs` | 5,085,157 | `10992e2420f66c41e7942539fea557dc5d4020942ec36bc8a2f0a22a1d13fce2` |
-| `pocketrisu-hardening.cjs` | 5,085,158 | `97ab764c0e47ea8f99988cfa76615818ac279c1ef1bc2ec8c5dd296c8d0a19c2` |
-| `pocketrisu-all.cjs` | 5,085,152 | `0108d9ed15ca9a97a25421a2e50deffca0c1921aadc64ebf6bd1046a3551b3bb` |
+| `pocketrisu-patcher.cjs` | 5,085,150 | `7a97d24c3717040054c89ca80a4ca5b2019f69de3ab7ce555c4ab5326e8f64b2` |
+| `pocketrisu-features.cjs` | 5,085,156 | `b3a16b2e9c8461dd9c7022ecc16dd113659958a42bbf57d9bb0eaec7f8ea9477` |
+| `pocketrisu-hardening.cjs` | 5,085,157 | `6db33b756390f3f872e8d16fb8413f93cff1f79fb0426e6b8db3b87cb2f41d2f` |
+| `pocketrisu-all.cjs` | 5,085,151 | `a6d6e675f904706b71cfbba7453260afb60cf1c70a623a0ff12527051eda2a3b` |
 
 Source CLI `--all`, fixed-profile `pocketrisu-all.cjs`, and generic
 `pocketrisu-patcher.cjs --all` each returned compatibility `verified`, 28
@@ -198,6 +204,9 @@ same umbrella version/ETag.
 - K16 top-level Hotkey route, settings-search route 15, narrow-screen component
   mount, persisted master toggle, inner small-screen notice, desktop binding
   table, exact anchor/marker, and Personal Settings same-file composition;
+- BG composer native generation/translation terms, `$orchestrating` placement,
+  stop/send branch, server-cancel owner, compiled text nodes, first-anchor
+  behavior, pack ETag, and exact revert;
 - existing K19/K13/K14/K16/K15/K11/K12 child behavior and lazy/BG/storage
   composition;
 - timers, listeners, controllers, sockets, requests, database rows, retained
@@ -213,8 +222,8 @@ same umbrella version/ETag.
 - **Same-file ownership — plan plus target gates.** Only the five declared
   ordered collisions appeared. The maximum applied graph passed client/server
   tests, diagnostics, the post-correction frontend build, current status,
-  idempotency, and exact managed-path comparison after revert; unchanged BG
-  ownership retains the separately recorded pre-correction builder evidence.
+  idempotency, exact managed-path comparison after revert, and a fresh BG
+  bundle build/load check.
 - **K04/K17/K23 — focused tests plus native-owner read.** Native role/theme and
   canonical regex schemas remain the write authorities. Unsupported aliases,
   invalid themes, and overlapping import directions were tested at their
@@ -253,6 +262,13 @@ same umbrella version/ETag.
   exclusivity, and Personal Settings composition remain. Duplicate anchors and
   marker drift fail closed; no new state, listener, timer, request, or schema
   was added.
+- **BG composer — applied output, compiler, and break tests.** The former 1.9
+  anchor included the closing Svelte brace, so its `after` insertion became a
+  literal text node. The corrected anchor closes only after `$orchestrating`.
+  Applied-output tests cover outside-brace placement, the two native terms,
+  idempotency, first-anchor behavior, marker drift, and exact revert; fresh
+  focused and maximum builds compiled zero assets containing the literal
+  marker. No BG state/result/cancel owner was duplicated.
 - **Destructive and plugin boundaries — negative search.** The delta adds no
   `setDatabase({plugins})`, `setDatabaseLite({plugins})`, whole-plugin-array
   replacement, unconfirmed destructive restore, persona duplicate, or new
@@ -277,20 +293,25 @@ same umbrella version/ETag.
   route guard prevented the component from mounting. The local owner-scoped
   correction passed focused, maximum, exhaustive, generated-installer,
   idempotency, and exact-revert gates.
+- **Q3, fixed after the later physical report and source inspection:** the
+  exact-1.9 BG composer adapter placed `$orchestrating` after the directive
+  brace. The owner-local correction passed applied-output, focused, maximum,
+  exhaustive, generated-installer, compiled-asset, idempotency, exact-revert,
+  and L2.5 gates.
 - **Q3, deliberately blocked:** K29 G06 has no safe owner-local composition in
   the current request/result schema. Its exact callers and missing operation
   contract are recorded; the other approved features continued.
 - **Q3, resolved by observed gates:** graph exclusivity, ordered composition,
   focused/complete tests, diagnostics, the post-correction frontend build,
-  unchanged BG builder ownership, current/reapply, exact revert, exhaustive
+  fresh BG builder load, current/reapply, exact revert, exhaustive
   combinations, and deterministic installers.
 - **Q4, consolidated iPhone L3:** the concrete scenarios below remain. K19
-  swipe/arrows/boundaries/rotation were reported normal, but the invalid
-  bundle marker prevents promoting them to a candidate pass; VoiceOver is
-  recorded not exercised by user choice. K16 requires a corrected live-bundle
-  rerun, now queued with any later findings for one aggregate fix/re-L3 cycle.
-  These physical gaps block aggregate acceptance and publication, not the
-  local commits.
+  swipe/arrows/boundaries/rotation were reported normal and VoiceOver is
+  recorded not exercised by user choice. The later K22 picker search/folder
+  controls physically identified the admitted candidate. K16 and the BG
+  composer require corrected live-bundle reruns, now queued with any later
+  findings for one aggregate apply/restart and re-L3 cycle. These physical gaps
+  block aggregate acceptance and publication, not the local commits.
 
 ## Future consolidated iPhone L3
 
@@ -302,13 +323,15 @@ authority until their observed rows close.
 The first observation reported K19 swipe, arrows, both boundaries, and
 rotation normal. VoiceOver was intentionally not exercised; filtering/search,
 focus, touch-target measurement, module viewer, and disposable asset mutation
-remain open. The exercised viewer controls are native 1.9 behavior, so the
-invalid marker leaves physical bundle identity unresolved. That report
-prompted source inspection, which found K16's narrow-screen route defect. The
-local fix is retained for the user-selected aggregate fix/re-L3 batch. It is
-not admitted immediately; after the remaining first-pass L3 observations and
-any resulting feature-local fixes, one separately authorized updated candidate
-will carry all affected rechecks, including top-level Settings → Hotkey.
+remain open. The later K22 picker search/folder controls physically established
+the admitted patched bundle. Source inspection then found K16's narrow-screen
+route defect, and a later physical report found the BG composer literal-marker
+defect. Both local fixes are retained for the user-selected aggregate
+fix/re-L3 batch. They are not admitted immediately; after the remaining
+first-pass L3 observations and any resulting feature-local fixes, one
+separately authorized updated candidate will carry all affected rechecks,
+including top-level Settings → Hotkey and the attached/cold BG composer stop
+state.
 
 1. **K19 remaining viewer and optional VoiceOver residual.** Swipe, arrows,
    boundaries, and rotation were reported normal but are not yet a marked
@@ -360,9 +383,9 @@ original-child regression is the unsafe signal.
    findings, not-exercised paths, or passes. Stop only a scenario affected by
    its finding; unrelated rows may continue.
 2. After the first pass, implement all queued findings in separate owning
-   feature/infrastructure commits and receipts. Run each affected focused
-   graph, exact revert, and L2.5 gate, then regenerate one aggregate candidate
-   and rerun the applicable combination and maximum-target gates.
+   feature/infrastructure commits and receipts. K16 and the BG composer are now
+   implemented and qualified locally; any later findings retain the same
+   focused graph, exact revert, and L2.5 gates before one aggregate candidate.
 3. Under one new explicit authorization, apply that aggregate candidate,
    restart PocketRisu once, verify the served asset, and run all queued re-L3
    rows together—including K16 top-level Settings → Hotkey—while recording
