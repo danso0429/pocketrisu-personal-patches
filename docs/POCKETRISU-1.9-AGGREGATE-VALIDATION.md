@@ -23,15 +23,20 @@ consolidated feature-by-feature iPhone L3 remains. No live apply, live patch
 state or user-data change, PocketRisu restart, push, tag, or release occurred.
 
 That sentence records this receipt's implementation-time boundary. A later,
-separately authorized live candidate admission and the still-pending physical
-results are recorded in `docs/POCKETRISU-1.9-AGGREGATE-L3.md`.
+separately authorized live candidate admission, first physical results, and
+the resulting K16 correction are recorded in
+`docs/POCKETRISU-1.9-AGGREGATE-L3.md`. The live candidate still has the
+pre-correction 537-unit graph; this receipt's current local authority is the
+qualified 538-unit graph.
 
 ## Provenance and preserved state
 
 - The exact official source archive SHA-256 remains
   `cba5851498a398fbe5f416573712465d24eb4b90d9ed0a3d7708f03f330bda69`.
-- All target work used disposable copies or the proved-pristine exact source.
-  The live PocketRisu tree remained on its existing pristine 1.9.0 state.
+- During the original aggregate qualification recorded by this provenance
+  section, all target work used disposable copies or the proved-pristine exact
+  source, and the live PocketRisu tree remained on pristine 1.9.0. The later
+  authorized live candidate is recorded separately in the L3 receipt.
 - The preserved K12 worktree stayed at
   `081a32ba4ae27c8f25f1719ef90406504a490928`. Its index listing SHA-256 stayed
   `632b6d3285e85650be19efe5c4f6c70a3af56fdec683fc9a5a182505118704b3`
@@ -59,9 +64,9 @@ evidence remain in each feature receipt and the implementation ledger.
 
 | Graph | Compatibility | Resolved packs | Units | Ordered collisions | Planned paths | Source paths |
 | --- | --- | ---: | ---: | ---: | ---: | ---: |
-| `pocketrisu-kei,toolchain-hardening` | verified | 19 | 228 | 0 | 73 | 71 |
-| `pocketrisu-kei,lazy-chat-sync,bg-preserve,toolchain-hardening` | verified | 22 | 447 | 3 | 180 | 178 |
-| `--all` | verified | 28 | 537 | 5 | 219 | 217 |
+| `pocketrisu-kei,toolchain-hardening` | verified | 19 | 229 | 0 | 74 | 72 |
+| `pocketrisu-kei,lazy-chat-sync,bg-preserve,toolchain-hardening` | verified | 22 | 448 | 3 | 181 | 179 |
+| `--all` | verified | 28 | 538 | 5 | 219 | 217 |
 
 The three composed collisions preserve the declared lazy-before-BG order on
 `globalApi.svelte.ts`, `server.cjs`, and plugin chat access. The maximum graph
@@ -90,7 +95,7 @@ The complete exact-1.9 catalog produced this observed result:
   "verifiedSelections": 2048,
   "normalizedGraphs": 1024,
   "managedPaths": 222,
-  "maximumResolvedUnits": 537,
+  "maximumResolvedUnits": 538,
   "roundTrips": "passed",
   "workers": 2
 }
@@ -99,6 +104,11 @@ The complete exact-1.9 catalog produced this observed result:
 Every reachable selection completed first plan/apply, current status,
 zero-change repeated plan, empty-selection revert, and managed byte/mode
 snapshot comparison.
+
+The post-K16-correction run completed in 873,623 ms with two workers. Recorded
+cache diagnostics were composition bypasses 2,050, hits 2,047, misses/stores
+2,047; pair-cache entries 2,143, hits 550,945, misses 2,143; pack-ETag hits
+58,819, misses 61; and state-encoding hits/misses 2,047/2,047.
 
 ## Maximum-target automated gates
 
@@ -114,8 +124,10 @@ Observed gates on the applied maximum graph:
 - server tests: 9 files and 163 tests passed;
 - Svelte diagnostics: 0 errors and 0 warnings;
 - production frontend build: 7,857 modules transformed, exit 0; and
-- BG orchestration bundle: 8,200 KB, builder exit 0, `sendChat=function` load
-  check passed.
+- BG orchestration bundle: the pre-correction aggregate builder evidence was
+  8,200 KB with exit 0 and `sendChat=function`. The K16 correction changes one
+  client Settings route and no BG/server unit, so no new BG bundle result is
+  claimed for that focused rerun.
 
 The first combined server run inside the restricted sandbox exited 1: two
 socket-owning files could not `listen` on `127.0.0.1` (`EPERM`) and timed out.
@@ -123,14 +135,14 @@ The server suite was rerun unchanged with localhost permission and produced the
 9-file/163-test passing result above. The sandbox failure is recorded as an
 environment restriction, not omitted or relabelled as a code pass.
 
-Source patcher tests passed 38/38 after the final K22 payload. Feature receipts
-add their focused adversarial counts and baseline reproductions; the aggregate
-numbers above are the fresh maximum-graph observations.
+Source patcher tests passed 38/38 after the K16 route correction. Feature
+receipts add their focused adversarial counts and baseline reproductions; the
+aggregate numbers above are the fresh maximum-graph observations.
 
 ## Status, idempotency, and exact revert
 
 After maximum apply, status reported `current` for 28 packs and all 217
-transaction-managed source paths. A repeated `--all` plan retained 537 units
+transaction-managed source paths. A repeated `--all` plan retained 538 units
 and five collisions, changed zero paths, and skipped all 217. Reapply likewise
 changed zero paths.
 
@@ -149,14 +161,14 @@ all four files passed `node --check`:
 
 | Installer | Bytes | SHA-256 |
 | --- | ---: | --- |
-| `pocketrisu-patcher.cjs` | 5,083,789 | `b00001943284a4c8af6c288c2ca94d111ad61a06417fe5ecd5451ea19e6dbcbd` |
-| `pocketrisu-features.cjs` | 5,083,795 | `a80914f806ae37299afaaedd4a4fca49ca18f7e6aae10c7c4b4252ce2be39b08` |
-| `pocketrisu-hardening.cjs` | 5,083,796 | `bc0b358cfbf95e9e23c8c374b37b2927aba81ae4289c7aa614178039dafee631` |
-| `pocketrisu-all.cjs` | 5,083,790 | `640c8f94faf832474f75c7c5cb10c1c99268a9ae3de584c74b09fa0b25e99dca` |
+| `pocketrisu-patcher.cjs` | 5,085,151 | `b29b4785e17012f7714645f510bd494ae4faa50de9be8b87e5b8982ee4ab7d77` |
+| `pocketrisu-features.cjs` | 5,085,157 | `10992e2420f66c41e7942539fea557dc5d4020942ec36bc8a2f0a22a1d13fce2` |
+| `pocketrisu-hardening.cjs` | 5,085,158 | `97ab764c0e47ea8f99988cfa76615818ac279c1ef1bc2ec8c5dd296c8d0a19c2` |
+| `pocketrisu-all.cjs` | 5,085,152 | `0108d9ed15ca9a97a25421a2e50deffca0c1921aadc64ebf6bd1046a3551b3bb` |
 
 Source CLI `--all`, fixed-profile `pocketrisu-all.cjs`, and generic
 `pocketrisu-patcher.cjs --all` each returned compatibility `verified`, 28
-resolved packs, 537 units, five ordered collisions, 219 planned paths, and the
+resolved packs, 538 units, five ordered collisions, 219 planned paths, and the
 same umbrella version/ETag.
 
 ## L2.5 aggregate runtime audit
@@ -183,6 +195,9 @@ same umbrella version/ETag.
 - picker search, folder scope, Unfiled/orphan fallback, canonical indices,
   async import DB refresh, PersonaBind callback, save, normalization,
   referential cleanup, and asset cleanup;
+- K16 top-level Hotkey route, settings-search route 15, narrow-screen component
+  mount, persisted master toggle, inner small-screen notice, desktop binding
+  table, exact anchor/marker, and Personal Settings same-file composition;
 - existing K19/K13/K14/K16/K15/K11/K12 child behavior and lazy/BG/storage
   composition;
 - timers, listeners, controllers, sockets, requests, database rows, retained
@@ -193,12 +208,13 @@ same umbrella version/ETag.
 ### Phase 2 — external-anchor resolution
 
 - **Target and graph — measured.** Source and generated installers agreed on
-  exact 1.9 verification and the 537-unit maximum graph. The exhaustive gate
+  exact 1.9 verification and the 538-unit maximum graph. The exhaustive gate
   round-tripped all 2,048 raw selections and 1,024 normalized graphs.
 - **Same-file ownership — plan plus target gates.** Only the five declared
   ordered collisions appeared. The maximum applied graph passed client/server
-  tests, diagnostics, both builds, current status, idempotency, and exact
-  managed-path comparison after revert.
+  tests, diagnostics, the post-correction frontend build, current status,
+  idempotency, and exact managed-path comparison after revert; unchanged BG
+  ownership retains the separately recorded pre-correction builder evidence.
 - **K04/K17/K23 — focused tests plus native-owner read.** Native role/theme and
   canonical regex schemas remain the write authorities. Unsupported aliases,
   invalid themes, and overlapping import directions were tested at their
@@ -229,6 +245,14 @@ same umbrella version/ETag.
   canonical indices and share ordinary/PersonaBind selection. Independent
   review found and closed a stale-DB/index race across async asset work. The
   final picker adds no second identity/schema or broad database/plugin write.
+- **K16 route — native owner read, applied target, and break tests.** Official
+  1.9 exposes Hotkey as top-level route 15 but formerly gated its component at
+  768 pixels, making K16's inner toggle unreachable on iPhone. The 1.9-only
+  unit removes only that outer condition. The persisted native toggle, inner
+  narrow-screen notice, desktop table guard, 1.8 exclusion, base/lazy adapter
+  exclusivity, and Personal Settings composition remain. Duplicate anchors and
+  marker drift fail closed; no new state, listener, timer, request, or schema
+  was added.
 - **Destructive and plugin boundaries — negative search.** The delta adds no
   `setDatabase({plugins})`, `setDatabaseLite({plugins})`, whole-plugin-array
   replacement, unconfirmed destructive restore, persona duplicate, or new
@@ -248,14 +272,24 @@ same umbrella version/ETag.
   non-atomicity; BG request-log in-process delivery; regex same-direction
   multiplicity; invalid theme/legacy role normalization; and result retention
   bounds.
+- **Q3, fixed after the first physical report and source inspection:** K16's
+  top-level Hotkey page was unreachable on narrow screens because the native
+  route guard prevented the component from mounting. The local owner-scoped
+  correction passed focused, maximum, exhaustive, generated-installer,
+  idempotency, and exact-revert gates.
 - **Q3, deliberately blocked:** K29 G06 has no safe owner-local composition in
   the current request/result schema. Its exact callers and missing operation
   contract are recorded; the other approved features continued.
 - **Q3, resolved by observed gates:** graph exclusivity, ordered composition,
-  focused/complete tests, diagnostics, frontend/BG builds, current/reapply,
-  exact revert, exhaustive combinations, and deterministic installers.
-- **Q4, consolidated iPhone L3:** the concrete scenarios below remain. They
-  block aggregate acceptance and publication, not these local commits.
+  focused/complete tests, diagnostics, the post-correction frontend build,
+  unchanged BG builder ownership, current/reapply, exact revert, exhaustive
+  combinations, and deterministic installers.
+- **Q4, consolidated iPhone L3:** the concrete scenarios below remain. K19
+  swipe/arrows/boundaries/rotation were reported normal, but the invalid
+  bundle marker prevents promoting them to a candidate pass; VoiceOver is
+  recorded not exercised by user choice. K16 requires a corrected live-bundle
+  rerun. These physical gaps block aggregate acceptance and publication, not
+  the local commits.
 
 ## Future consolidated iPhone L3
 
@@ -264,10 +298,23 @@ its admission and each feature result independently in
 `docs/POCKETRISU-1.9-AGGREGATE-L3.md`; the scenarios below remain the acceptance
 authority until their observed rows close.
 
-1. **K19 viewer swipe and VoiceOver.** Open a middle image, swipe once in each
-   direction and verify exactly one image movement; at each boundary verify no
-   drift. With VoiceOver, verify image/count, previous/next, and close labels,
-   44-pixel controls, modal focus containment, and focus return to the opener.
+The first observation reported K19 swipe, arrows, both boundaries, and
+rotation normal. VoiceOver was intentionally not exercised; filtering/search,
+focus, touch-target measurement, module viewer, and disposable asset mutation
+remain open. The exercised viewer controls are native 1.9 behavior, so the
+invalid marker leaves physical bundle identity unresolved. That report
+prompted source inspection, which found K16's narrow-screen route defect. The
+local fix must be admitted under separate live authorization before repeating
+the focused top-level Settings → Hotkey check.
+
+1. **K19 remaining viewer and optional VoiceOver residual.** Swipe, arrows,
+   boundaries, and rotation were reported normal but are not yet a marked
+   candidate pass. Still verify
+   image-only filtering/search, name/count alignment, both close targets,
+   module-viewer behavior, modal focus containment/return, and unchanged
+   disposable asset mutation. Only if the user later chooses to revisit
+   VoiceOver, verify image/count, previous/next, and close labels; otherwise
+   retain the explicit not-exercised status.
 2. **K29 bounded overnight ordinary result.** Start a paid ordinary BG
    generation, leave the PWA absent overnight without consuming the result,
    return to the same chat, and verify one completion, one materialization,
@@ -305,9 +352,13 @@ original-child regression is the unsafe signal.
 
 ## Remaining gates
 
-1. Run and record the consolidated iPhone L3 scenarios above and the individual
-   child receipts without collapsing their results.
-2. Resolve any finding in its owning feature/infrastructure commit and rerun
-   the affected focused and aggregate gates.
-3. Only after L3 and a separate authorization decide whether to push, tag,
-   release, apply to live PocketRisu, or restart it.
+1. Continue and record the unresolved consolidated iPhone L3 scenarios above
+   and the individual child receipts without collapsing partial, not
+   exercised, and passed results.
+2. After separate authorization, apply the corrected 538-unit candidate,
+   restart PocketRisu, and rerun K16 at top-level Settings → Hotkey. The local
+   finding is already resolved in its owning feature commit and its affected
+   automated gates have been rerun.
+3. Only after the remaining L3 decisions and a separate authorization decide
+   whether to push, tag, release, publish, or perform a later live
+   apply/restart beyond the focused K16 correction above.

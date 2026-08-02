@@ -20,9 +20,14 @@
 > `docs/POCKETRISU-KEI-OVERLAP-IMPLEMENTATION-LEDGER.md`, and
 > `docs/POCKETRISU-1.9-AGGREGATE-VALIDATION.md`.
 >
-> **Current gate:** consolidated feature-by-feature iPhone L3 is in progress
-> on the explicitly authorized live aggregate candidate. Admission evidence
-> and per-feature observations are tracked in
+> **Current gate:** consolidated feature-by-feature iPhone L3 is in progress.
+> The first observation reported K19 swipe/arrows/boundaries/rotation normal,
+> but the invalid bundle marker prevents a candidate pass. VoiceOver was
+> intentionally not exercised. The report also prompted the source inspection
+> that found a K16 mobile Hotkey route defect.
+> K16 is fixed and automatically requalified in the local 538-unit candidate;
+> live PocketRisu remains on the pre-correction 537-unit candidate. Admission,
+> findings, and per-feature observations are tracked in
 > `docs/POCKETRISU-1.9-AGGREGATE-L3.md`.
 
 This file records progress against the catalog. It does not change a catalog
@@ -43,8 +48,8 @@ candidate is preserved rather than mutated in place.
 - Neither candidate branch has been pushed, tagged, or released. After the
   pristine official 1.9.0 base cutover, the user separately authorized the
   requalified `all` candidate and its restart for aggregate L3. The live tree
-  now reports 28 current packs and 217 managed source paths; its admission
-  gates and still-pending device observations are recorded in
+  now reports 28 current packs, 537 units, and 217 managed source paths. Its
+  admission gates and first partial device observations are recorded in
   `docs/POCKETRISU-1.9-AGGREGATE-L3.md`.
 
 The exact overlap, semantic classification, generation-authority conflict,
@@ -93,15 +98,19 @@ boundaries on the active 1.9 branch:
 | `4e7578e` | K22-F01 P04-P06 folder-aware persona picker |
 | `01b0492` | Post-overlap catalog, ledger, and aggregate requalification receipts |
 | `a95af28` | Deterministic post-overlap generated installers |
+| `11302c5` | Separately authorized live-candidate admission receipt and physical L3 ledger |
+| `a043d98` | K16 1.9 top-level mobile Hotkey route correction and adversarial tests |
+| `815673e` | Deterministic installers containing the K16 route correction |
 
 The catalog custody, verification procedure, and this status are kept in a
 separate documentation commit. Its hash is read from history rather than
 embedded in this file, which would create a self-referential commit hash.
 
-The candidate branch has not been pushed, tagged, or released. Its generated
-`all` candidate is installed on the live PocketRisu tree solely for the
-explicitly authorized aggregate L3; that operational admission is not a
-publication or release qualification.
+The candidate branch has not been pushed, tagged, or released. The generated
+`all` candidate admitted at `11302c5` is installed on the live PocketRisu tree
+solely for the explicitly authorized aggregate L3. The branch now has a newer
+K16-corrected generated candidate that has not been applied live. Neither
+state is a publication or release qualification.
 
 ## Admission-order position
 
@@ -110,7 +119,7 @@ publication or release qualification.
 | 1. Empty meta pack and resolver/catalog foundation | Candidate complete | `docs/POCKETRISU-KEI-FOUNDATION-VALIDATION.md`; review remains before publication |
 | 2. Minimal K02 primitives required by K19, then K19 | Exact-1.9 implementation and aggregate automated gates complete | PocketRisu 1.8.1 already supplied the Svelte/icon primitives needed by the original focused port, so no K02 child was added. The 1.9 delta reuses native AssetViewer ownership and adds accessibility only. Evidence is in `docs/POCKETRISU-KEI-K19-VALIDATION.md` and `docs/POCKETRISU-1.9-KEI-K19-VALIDATION.md`. Review and the concrete iPhone gate remain, so this step is not publication-qualified. |
 | Detour: exhaustive verifier performance | Complete as local infrastructure | `docs/COMBINATION-VERIFIER-OPTIMIZATION-VALIDATION.md`; this does not advance an admission step |
-| 3. K13 stream parser, K14 render stability, K16 navigation/hotkeys | Exact-1.9 implementation and aggregate automated gates recorded | Each feature has an isolated core/adapters, 1.9 receipt, L2.5 audit, base/composed target tests and builds, dual-target planning, exact revert evidence, and coverage in the passing aggregate gate. See `docs/POCKETRISU-1.9-KEI-K13-VALIDATION.md`, `docs/POCKETRISU-1.9-KEI-K14-VALIDATION.md`, and `docs/POCKETRISU-1.9-KEI-K16-VALIDATION.md`. Review and each consolidated L3 scenario remain, so this step is not publication-qualified. |
+| 3. K13 stream parser, K14 render stability, K16 navigation/hotkeys | Exact-1.9 implementation and aggregate automated gates recorded; K16 L3 correction locally requalified | Each feature has an isolated core/adapters, 1.9 receipt, L2.5 audit, base/composed target tests and builds, dual-target planning, exact revert evidence, and coverage in the passing aggregate gate. K16's first device report prompted source inspection, which found the native outer route guard made its actual top-level Hotkey page unreachable on iPhone; `a043d98` removes only that guard and the 538-unit aggregate gates passed. See `docs/POCKETRISU-1.9-KEI-K13-VALIDATION.md`, `docs/POCKETRISU-1.9-KEI-K14-VALIDATION.md`, and `docs/POCKETRISU-1.9-KEI-K16-VALIDATION.md`. The corrected live rerun and remaining consolidated scenarios are not publication-qualified. |
 | 4. K15 partial edit, K11 Hypa tools, K12 translation tools | All three exact-1.9 implementations and aggregate automated gates recorded | Exact-1.9 evidence is in `docs/POCKETRISU-1.9-KEI-K15-VALIDATION.md`, `docs/POCKETRISU-1.9-KEI-K11-VALIDATION.md`, and `docs/POCKETRISU-1.9-KEI-K12-VALIDATION.md`. Aggregate combination, target, L2.5, and deterministic-installer gates passed; review and L3 remain. |
 | 5. K03/K04 preset behavior and K26 backup tools | Bounded K04-F01 and K26-F02 admitted and qualified | K04 adds only one-way frozen `.role` compatibility under native `.role2`; K26 requires a fresh pre-restore snapshot through exactly one standard/lazy owner adapter. Broad ports and K03 remain excluded/deferred. |
 | 6. K20/K22/K23/K29 existing-authority merges | Bounded K22 P04-P06, K23-F01, and K29-F05 admitted and qualified | Existing persona, regex `types[]`, and BG result/claim/ACK authorities were extended without parallel schemas. K20, K22 P07, broad K23, and direct Revenant remain excluded/deferred; G06 is documented blocked with no runtime unit. |
@@ -126,21 +135,23 @@ implemented progress.
 
 1. Keep the reviewed foundation, existing-pack qualifications, admitted Kei
    children, bounded post-overlap owner extensions, aggregate, and
-   documentation commits local without pushing, tagging, releasing, or
-   modifying the live PocketRisu tree.
+   documentation commits local without pushing, tagging, or releasing. Do not
+   perform another live apply or restart without a new explicit authorization.
 2. Resolve any L3 finding in its own feature or infrastructure commit and
    rerun the affected focused and aggregate gates.
 3. The user chose one consolidated iPhone L3 session after all planned local
    integrations. That session must still perform and record each feature's
-   concrete scenario separately; batching the session does not merge or waive
-   child gates. For K19 it includes:
+   concrete scenario separately; batching the session does not merge child
+   gates. K19 swipe, arrows, boundaries, and rotation were reported normal,
+   but remain limited observations because the bundle marker was invalid;
+   VoiceOver is recorded not exercised by user choice. Its still-open scope
+   includes:
    - open the native viewer from character and module assets, verify search
-     and image filtering, and inspect dialog/search/thumbnail labels with
-     VoiceOver;
-   - open a middle image, swipe exactly one image each way, then use both
-     arrow buttons and verify name/count/label alignment;
-   - exercise boundaries, both close controls, rotation, focus return, and
-     the 44-pixel targets;
+     and image filtering; inspect dialog/search/thumbnail labels with
+     VoiceOver only if the user later chooses to revisit that not-exercised
+     surface;
+   - verify name/count alignment after navigation, both close controls, focus
+     return, and physical reachability of the 44-pixel targets;
    - confirm existing add, delete, rename, and excluded-asset behavior is
      unchanged.
    For K13 it includes:
@@ -163,8 +174,9 @@ implemented progress.
    - background and return during a separate bg-preserve generation, then
      confirm one final reply and cleared streaming/busy UI.
    For K16 it includes:
-   - open Settings → Accessibility → Hotkeys and confirm the enabled master
-     switch plus the existing iPhone small-screen notice;
+   - after admitting the corrected bundle, open the top-level Settings →
+     Hotkey page (설정 → 단축키) and confirm the enabled master switch plus the
+     existing iPhone small-screen notice;
    - with a hardware keyboard if available, exercise Ctrl+M, Ctrl+[ / Ctrl+],
      and Ctrl+X, then turn the master switch off and confirm configured
      shortcuts, triple-touch quick menu, popup editor, and Ctrl-drag no
@@ -226,15 +238,19 @@ implemented progress.
    - exercise the largest cache with keyboard, scrolling, rotation,
      clipboard, cancellation, and explicit confirmations. Provider-specific
      DeepLX/Bergamot paths are recorded as not exercised when unavailable.
-4. Record the observed L3 result. For K19 on exact 1.9, exercise the native
-   AssetViewer's one-image scroll-snap swipe and arrow controls together with
-   the K19 accessibility labels and 44-pixel close targets. K16's separate
-   whole-view swipe scenario remains a different interaction owner.
+4. Record every observed L3 result at its actual scope. K19's native
+   one-image scroll-snap swipe, arrows, boundaries, and rotation were reported
+   normal but are not yet a marked candidate pass. Filtering/search, focus,
+   touch-target reachability, module viewer, and disposable mutation remain
+   open; VoiceOver remains not exercised unless the user chooses to revisit
+   it. K16's separate whole-view swipe scenario remains a different
+   interaction owner.
 
-The source audit, approved local implementation, and automated aggregate gates
-are complete. The separately authorized live candidate apply/restart is also
-recorded. Review and the consolidated per-feature L3 results continue to block
-push, tag, release, and publication of the aggregate candidate.
+The source audit, approved local implementation, and corrected 538-unit
+automated aggregate gates are complete. The separately authorized live
+candidate apply/restart is also recorded, but that live tree is still the
+pre-correction 537-unit graph. Review and the unresolved or not-exercised L3
+surfaces continue to block push, tag, release, and publication.
 
 ## Next review and L3 sequence
 
@@ -245,11 +261,16 @@ in `docs/POCKETRISU-1.9-AGGREGATE-VALIDATION.md`. Preserve the separate staged
 K12 worktree and do not add deferred catalog children while closing the
 current candidate.
 
-1. Run the already-defined consolidated iPhone session while recording every
-   feature scenario separately, including K19 swipe/VoiceOver and the existing
-   K29 G09 cold-reroll presentation path. Do not present blocked G06 as tested.
-2. Rerun focused and aggregate gates affected by any L3 fix.
-3. Only after L3 decide publication, push, tag, or release. Any additional
+1. Obtain a new explicit authorization before applying the corrected 538-unit
+   candidate and restarting PocketRisu, then rerun only the focused top-level
+   Settings → Hotkey visibility check before continuing K16.
+2. Continue the already-defined iPhone session while recording every feature
+   scenario separately. Keep K19 VoiceOver as not exercised unless the user
+   chooses to revisit it, and keep the existing K29 G09 cold-reroll path
+   separate. Do not present blocked G06 as tested.
+3. Rerun focused and aggregate gates for any later L3 fix. The current K16 fix
+   already passed those gates.
+4. Only after L3 decide publication, push, tag, or release. Any additional
    live apply or PocketRisu restart remains a new authorization boundary.
 
 K12 remains a separate feature and keeps its complete translation identity,

@@ -104,19 +104,43 @@ all Kei children and K12 are rebased; no aggregate result is inferred here.
 - **Q4, upstream prepared surface:** async URL/rAF teardown behavior has no
   K19 regression signal and remains a review trigger only if stale thumbnails
   or teardown errors appear.
-- **Q4, pending user-visible gate:** VoiceOver labeling, focus return, native
-  swipe, rotation, and touch reachability remain for consolidated iPhone L3.
+- **Q4, partially observed:** native swipe, arrow navigation, both boundaries,
+  and rotation were reported normal during the session. VoiceOver was
+  intentionally not exercised by user choice. Filtering/search, focus return,
+  physical touch-target reachability, module viewer, and disposable asset
+  mutation remain unobserved rather than inferred passed. Although the live
+  server carried the admitted candidate, those exercised controls are native
+  1.9 behavior and the instructed bundle marker was invalid, so this
+  observation alone does not identify the PWA bundle.
 
-## Concrete iPhone L3
+## Physical L3 observation status
+
+The first aggregate iPhone report is a limited normal observation, not yet a
+candidate L3 pass:
+
+- observed normal: one-step swipe, arrow navigation, first/last boundaries,
+  and portrait/landscape rotation;
+- not exercised by user choice: VoiceOver labels; and
+- still open: physical bundle marker, image-only filtering/search, focus
+  containment/return, physical close-target reachability, module-viewer
+  behavior, and unchanged disposable character-asset mutation.
+
+VoiceOver remains an explicitly recorded residual risk. It is not silently
+converted to a pass or repeatedly requested; a later publication decision can
+accept the not-exercised status if the user does not choose to revisit it.
+
+## Concrete iPhone L3 authority
 
 1. From a character with image and non-image additional assets, open the
-   native Asset Viewer. Confirm only images appear, search filters them, and
-   VoiceOver identifies the dialog, search, thumbnails, and close control.
-2. Open a middle image, swipe exactly one image left and right, then use both
-   arrow buttons. Confirm the displayed name/count and VoiceOver destination
-   label follow the same image without double-stepping.
-3. Test the first and last image boundaries, both close controls, portrait/
-   landscape rotation, and one-handed reachability of the 44-pixel targets.
+   native Asset Viewer. Confirm only images appear and search filters them.
+   Only if the user later chooses to revisit VoiceOver, confirm it identifies
+   the dialog, search, thumbnails, and close control.
+2. The middle-image swipe, arrows, and both boundaries were reported normal.
+   Still confirm the displayed name/count follows the same image
+   without double-stepping; check the VoiceOver destination label only if that
+   surface is revisited.
+3. Rotation was reported normal. Test both close controls, focus return,
+   and one-handed reachability of the 44-pixel targets.
 4. Repeat from a module asset viewer, then add/delete/rename a disposable
    character asset and confirm the existing editor behavior is unchanged.
 
@@ -124,4 +148,8 @@ A duplicate step, non-image thumbnail, stale character/module gallery,
 unlabeled control, unreachable close action, lost background focus after
 close, or changed asset mutation is the unsafe signal.
 
-No live apply, restart, push, tag, release, or installer rebuild was performed.
+The initial K19 qualification performed no live apply or restart. A later
+authorized aggregate candidate was applied for L3 and produced the partial
+physical observation above, but the invalid bundle marker prevents promoting
+it to a candidate pass. K19 itself received no L3 code change or installer
+rebuild. No push, tag, release, or publication occurred.

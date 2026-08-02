@@ -161,7 +161,7 @@ exact-1.9 aggregate, these later decisions control admission:
 | K03 | Distinct but deferred future child; preset folders were never admitted before the target pivot. |
 | K04 | Broad direct port remains dropped. Audit-admitted K04-F01 adds one-way frozen typed `.role` compatibility inside the native `.role2` normalizer; native `.role2` wins, lorebook is excluded, and `preset-integrity` retains active-selection invariants. |
 | K17 | Broad styling remains excluded. Audit-admitted K17-F01 is the hidden exact-1.9 `kei-text-theme-normalization-core`; it admits only the three native values and falls back to `standard` at load, preset activation, and runtime CSS without changing API-v3. |
-| K19 | Existing viewer child remains unchanged; iPhone swipe, VoiceOver, and focus return remain aggregate L3 rather than a new implementation. |
+| K19 | Existing viewer child remains unchanged. The first aggregate L3 reported swipe/arrows/boundaries/rotation normal, but its invalid bundle marker prevents a candidate pass; VoiceOver was intentionally not exercised, and the remaining viewer/focus surfaces stay open rather than becoming a new implementation. |
 | K20 | No parallel character schema; character search/recent/view variants remain future owner-local changes. |
 | K22 | Audit-admitted P04-P06 now live inside `persona-organizer`: name/note search, Folder/Unfiled filter, canonical indices, and selected-folder create/import. P07 duplicate and any parallel identity/schema remain excluded. |
 | K23 | Direct port remains excluded. Audit-admitted K23-F01 preserves same-direction import multiplicity inside `bg-preserve`'s canonical `types[]` owner; R05-R07 are not reimplemented. |
@@ -176,7 +176,7 @@ K29-F05, and K22 stay owner-local in packs already selected by the final
 graph. This structure does not claim deferred rows as implemented.
 
 That exact-1.9 aggregate qualification subsequently passed: 2,048/2,048 raw
-selections, 1,024 normalized graphs, 222 managed paths, a 537-unit maximum
+selections, 1,024 normalized graphs, 222 managed paths, a 538-unit maximum
 graph, complete target gates, exact revert, and deterministic installers. The
 observations are recorded in
 `docs/POCKETRISU-1.9-AGGREGATE-VALIDATION.md`. This result advances the

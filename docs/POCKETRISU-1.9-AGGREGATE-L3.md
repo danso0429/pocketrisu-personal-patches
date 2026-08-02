@@ -2,14 +2,18 @@
 
 > **Started:** 2026-08-02 KST
 >
-> **Candidate source:** `codex/pocketrisu-1.9-rebase` at
+> **Admitted live candidate source:** `codex/pocketrisu-1.9-rebase` at
 > `1fe0402b060b947c031abb7da6980dc1ac2795f2`
 >
 > **Exact target:** official PocketRisu 1.9.0 / PocketRisu commit
 > `85a65f3137b45c8de4a8d21a9887be213b1ac3fc`
 >
-> **State:** live aggregate candidate admitted; physical iPhone observations
-> are pending and no L3 result is claimed yet.
+> **State:** live aggregate candidate admitted; the first physical iPhone
+> observations are recorded below. K19 has limited normal observations while
+> its physical bundle marker remains unresolved; VoiceOver was intentionally
+> not exercised. The K16 route defect identified by source inspection is fixed
+> and qualified only in the local 538-unit candidate. The live tree remains on
+> the pre-correction 537-unit candidate.
 
 ## Authority and boundaries
 
@@ -123,6 +127,44 @@ and its cached binary-diff SHA-256 remained
 `916440ab240e0f7541844f0082ce53d1d5f516d08ea1bdfc79a55149d7ca66a9`.
 It was not modified, unstaged, rebased, or amended.
 
+## First physical observation and K16 correction
+
+The user reported that Hotkeys were not visible under Accessibility, chose not
+to exercise VoiceOver because it is not part of their practical use, and
+reported the remaining exercised viewer interactions as normal. The result is
+recorded narrowly: swipe, arrow navigation, both image boundaries, and
+rotation were observed normal. Asset filtering/search, module-viewer behavior,
+disposable asset mutation, and VoiceOver/focus were not part of that
+observation and are not inferred passed. The exercised swipe/arrow controls are
+native 1.9 behavior, so they do not independently prove which patched PWA
+bundle was loaded.
+
+Source inspection established two distinct K16 issues:
+
+- the L3 instruction was wrong because Hotkey is a top-level Settings menu,
+  not an Accessibility submenu; and
+- official 1.9 routed that menu to index 15 but mounted `HotkeySettings` only
+  when `window.innerWidth >= 768`, so K16's master switch and the native
+  small-screen notice were unreachable on iPhone.
+
+The local K16 correction is commit `a043d98`; generated installers were
+refreshed separately in `815673e`. The 1.9-only unit removes only the outer
+route guard. The component's inner `< 768` notice and desktop-only binding
+table remain unchanged. Fresh observed gates include source patcher 38/38,
+client 128 files / 1,533 tests, server 9 files / 163 tests, diagnostics 0/0,
+production build at 7,857 modules, all 2,048 combination selections and 1,024
+normalized graphs round-tripped, and source/fixed/generic maximum plans all at
+28 packs, 538 units, five ordered collisions, and 219 planned paths. Exact
+details and the L2.5 audit are in the K16 receipt.
+
+This correction has not been applied to live PocketRisu. It requires a new
+explicit live apply/restart authorization and then one focused physical rerun
+at top-level Settings → Hotkey (설정 → 단축키). The missing live control is not
+attributed to cache or user error. A post-correction read-only inspection still
+found live state format 2 with profile `all`, 28 packs, 537 units, and 217
+managed files; live `Settings.svelte` still contains the official
+`window.innerWidth >= 768` route guard and no K16 route marker.
+
 ## Physical L3 result ledger
 
 `PENDING` means no user observation has been supplied. Each row closes only
@@ -131,8 +173,8 @@ one row does not imply another row passed.
 
 | ID | User-visible scenario | Authority | Status | Observed result |
 | --- | --- | --- | --- | --- |
-| Bootstrap | Fully close and reopen the PocketRisu PWA; confirm a current-candidate screen such as Settings → Accessibility → Hotkeys or the Language translation-cache panel is present before attributing later behavior to this bundle. | This receipt | PENDING | — |
-| K19 | Native Asset Viewer image-only filtering, search, one-step swipe/arrows, boundaries, VoiceOver labels/focus return, rotation, touch targets, module viewer, and unchanged disposable asset mutation. | `docs/POCKETRISU-1.9-KEI-K19-VALIDATION.md` | PENDING | — |
+| Bootstrap | Fully close and reopen the PocketRisu PWA; confirm a current-candidate screen such as top-level Settings → Hotkey or the Language translation-cache panel is present before attributing later behavior to this bundle. | This receipt | PENDING / INSTRUCTION CORRECTED | The former Accessibility → Hotkeys marker was invalid, and the exercised viewer controls are native 1.9 behavior rather than a bundle marker. The server served the admitted asset, but the physical loaded-bundle marker remains unresolved until the corrected candidate is admitted and observed. |
+| K19 | Native Asset Viewer image-only filtering, search, one-step swipe/arrows, boundaries, VoiceOver labels/focus return, rotation, touch targets, module viewer, and unchanged disposable asset mutation. | `docs/POCKETRISU-1.9-KEI-K19-VALIDATION.md` | LIMITED NORMAL OBSERVATION / BOOTSTRAP PENDING / VOICEOVER NOT EXERCISED | Swipe, arrows, both boundaries, and rotation were reported normal. VoiceOver was intentionally skipped by user choice. Filtering/search, focus, touch-target measurement, module viewer, and disposable asset mutation remain unobserved; the native controls alone do not identify the loaded patch bundle. |
 | K29-F05 | Leave one paid ordinary BG result unconsumed across an overnight mobile absence; return to one materialization and exact ACK cleanup without a duplicate or missing paid response. | `docs/POCKETRISU-1.9-KEI-K29-RETENTION-VALIDATION.md` | PENDING | — |
 | K29 G09 | Background, kill/reload, and return during the existing qualified cold reroll; exactly one intended existing message/swipe is overwritten and no duplicate is appended. | `docs/POCKETRISU-1.9-AGGREGATE-VALIDATION.md` | PENDING | — |
 | K22 | Persona picker name/note search, Folder/Unfiled filters, ordinary and PersonaBind identity, selected-folder disposable create/import, cold persistence, stale-folder fallback, cancel, and invalid-file behavior. | `docs/POCKETRISU-1.9-KEI-K22-PICKER-VALIDATION.md` | PENDING | — |
@@ -140,7 +182,7 @@ one row does not imply another row passed.
 | K27 | With native request logging enabled, one BG request produces one masked native request row and one content-free usage row; disabled logging produces neither while generation still completes. | `docs/POCKETRISU-1.9-KEI-K27-BG-LOGGING-VALIDATION.md` plus aggregate receipt | PENDING | — |
 | K13 | Real classic OpenAI-compatible and Gemini/Vertex provider streams remain complete and ordered across emoji/reasoning/tool/signature content and background return. | `docs/POCKETRISU-1.9-KEI-K13-VALIDATION.md` | PENDING | — |
 | K14 | Balanced/Strong/Off streaming display, scroll anchoring, final render, translation gating, metadata, and BG return. | `docs/POCKETRISU-1.9-KEI-K14-VALIDATION.md` | PENDING | — |
-| K16 | Hotkey master/bindings, protected-start gesture exclusion and cancellation, character-list boundaries, and opt-in single mobile Back stop/removal. | `docs/POCKETRISU-1.9-KEI-K16-VALIDATION.md` | PENDING | — |
+| K16 | Hotkey master/bindings, protected-start gesture exclusion and cancellation, character-list boundaries, and opt-in single mobile Back stop/removal. | `docs/POCKETRISU-1.9-KEI-K16-VALIDATION.md` | FINDING FIXED LOCALLY / LIVE RERUN REQUIRED | The instructed Accessibility path had no Hotkey item, and official 1.9's outer width guard made the actual top-level page unreachable on iPhone. The owner-local fix passed automated gates but is not in the live bundle. No other K16 sub-scenario is inferred passed from this finding report. |
 | K15 | Original and translated partial edit, exact/multiple/unmappable ranges, stale-identity refusal, active-swipe ownership, lifecycle/UI stress, and disable cleanup. | `docs/POCKETRISU-1.9-KEI-K15-VALIDATION.md` | PENDING | — |
 | K11 | Native Hypa behavior plus manual prefix/frontier, preview/reroll/cancel/apply, stale refusal, CBS/editprocess, supported BG return, and persistence. | `docs/POCKETRISU-1.9-KEI-K11-VALIDATION.md` | PENDING | — |
 | K12 | Translation-cache panel search/reveal/copy/edit/CAS/delete, cancel and unused scan, late-result cancellation, configured BG route, K14 composition, and available-provider/UI stress. | `docs/POCKETRISU-1.9-KEI-K12-VALIDATION.md` | PENDING | — |
@@ -149,7 +191,9 @@ one row does not imply another row passed.
 
 - Record the exact screen, action, and observed result, including any unsafe
   signal. Do not infer a pass from silence or from another row.
-- Record unavailable providers or hardware as not exercised, not passed.
+- Record unavailable providers, unavailable hardware, or intentionally skipped
+  scenarios as not exercised, not passed. A later publication decision may
+  explicitly accept that residual risk; silence does not convert it to a pass.
 - Do not use existing user backups, existing user personas, or real cache
   entries as destructive fixtures. Disposable additions are named and
   removed only through normal UI after their own observation is captured.

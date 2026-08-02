@@ -7,9 +7,15 @@
 > **Exact target:** official PocketRisu `v1.9.0` /
 > `85a65f3137b45c8de4a8d21a9887be213b1ac3fc`
 >
-> **Immediate next gate:** continue the consolidated feature-by-feature iPhone
-> L3 now in progress on the separately authorized live candidate. The
-> candidate-admission and result ledger is
+> **Immediate next gate:** the first physical report found no Hotkeys at the
+> instructed Accessibility path; follow-up source inspection found the actual
+> top-level K16 Hotkey page could not mount on narrow screens. The owner-local
+> correction (`a043d98`) and deterministic installers (`815673e`) are
+> qualified locally at 538 units, but live
+> PocketRisu remains on the admitted pre-correction 537-unit graph. Obtain new
+> explicit apply/restart authorization, admit the corrected candidate, and
+> rerun the focused top-level Settings → Hotkey check before continuing K16.
+> The candidate-admission and result ledger is
 > `docs/POCKETRISU-1.9-AGGREGATE-L3.md`. The overlap-equivalence audit,
 > user-authorized bounded implementation, aggregate target, raw-selection,
 > L2.5, exact-revert, and deterministic-installer gates are recorded in the
@@ -20,7 +26,9 @@ This document records the complete local work boundary from the beginning of
 the Kei selection effort through the 1.9 pivot and aggregate qualification.
 The current patcher and Kei pack are exact-target source/automation qualified,
 but not publication-qualified until consolidated L3. The live installation
-now carries the explicitly authorized aggregate `all` candidate for that L3.
+carries the explicitly authorized pre-correction aggregate `all` candidate;
+the corrected candidate exists only on the local branch and in local
+generated installers.
 
 ## Non-negotiable target and review boundary
 
@@ -130,7 +138,7 @@ versions such as 1.9.1 remain rejected.
 
 The generated `dist/` installers now include the post-overlap manifests,
 payloads, and exact-1.9 adapters. Two builds produced identical hashes, and
-source/all, fixed/all, and generic/all plans matched at 28 resolved packs, 537
+source/all, fixed/all, and generic/all plans matched at 28 resolved packs, 538
 units, five ordered collisions, and 219 planned paths. Exact hashes and sizes
 are in `docs/POCKETRISU-1.9-AGGREGATE-VALIDATION.md`. They remain local review
 artifacts and have not been published.
@@ -224,10 +232,12 @@ The second cutover used the following observed sequence:
 At the end of the base-cutover operation, the live tree was pristine official
 PocketRisu 1.9.0 with no candidate. A later explicit authorization superseded
 only that operational boundary: the aggregate `all` candidate is now applied
-for L3, with format-2 `all` state and intent. The old 1.8.1 application source
-remains a local rollback tree without `save/` or `backups/`; user data remains
-only in the live 1.9 tree. See the aggregate L3 receipt for the later preflight,
-apply, build, restart, asset, error-log, and inode/size observations.
+for L3, with format-2 `all` state and intent. That live state is the 537-unit
+pre-correction candidate; the later K16 538-unit correction has not been
+applied or restarted. The old 1.8.1 application source remains a local rollback
+tree without `save/` or `backups/`; user data remains only in the live 1.9
+tree. See the aggregate L3 receipt for the later preflight, apply, build,
+restart, asset, error-log, inode/size, and physical observations.
 
 The staging tree was consumed by the successful live rename. The rollback and
 recovery snapshots are disposable local artifacts, not repository evidence.
@@ -279,10 +289,17 @@ active-only settings controls. Close the current candidate in this order:
 4. Retain the completed post-overlap aggregate exact-1.9 target, L2.5,
    raw-selection, exact-revert, deterministic-installer, and runtime-audit
    receipt.
-5. Continue the consolidated feature-by-feature iPhone L3 in
-   `docs/POCKETRISU-1.9-AGGREGATE-L3.md`. Keep K19 swipe/VoiceOver and the
-   existing K29 G09 cold-reroll path as separate observation items; do not
-   relabel blocked G06 as implemented.
+5. Retain the K16 mobile-route correction in `a043d98` and generated-installer
+   refresh in `815673e`. It removes only official 1.9's outer width guard;
+   native route 15, the persisted toggle, inner small-screen notice, desktop
+   binding table, and exact 1.8 graph remain under their existing owners.
+6. Continue the consolidated feature-by-feature iPhone L3 in
+   `docs/POCKETRISU-1.9-AGGREGATE-L3.md`. K19 swipe/arrows/boundaries/rotation
+   were reported normal but the invalid bundle marker prevents a candidate
+   pass; VoiceOver is explicitly not exercised by user choice. Apply/restart
+   the corrected candidate only under new authorization, rerun top-level
+   Settings → Hotkey, keep K29 G09 separate, and do not relabel blocked G06 as
+   implemented.
 
 Keep each feature-local receipt and commit. A review or L3 correction must
 remain in its owning feature or infrastructure boundary and rerun the focused
@@ -296,10 +313,11 @@ authorized applying the requalified `all` graph and restarting PocketRisu for
 aggregate L3. Preflight found zero active/native/durable work, PM2 was stopped
 before apply, the live target passed its install/test/check/build gates, and
 the restarted main asset matched the local build. See
-`docs/POCKETRISU-1.9-AGGREGATE-L3.md` for exact observations. Any subsequent
-apply/restart is a new authorization boundary. Keep `save/` and `backups/`
-outside source replacement and never directory-swap the installation while
-its process can recreate paths.
+`docs/POCKETRISU-1.9-AGGREGATE-L3.md` for exact observations. The live graph is
+still the pre-correction 537-unit candidate; local HEAD resolves 538 units.
+Any subsequent apply/restart is a new authorization boundary. Keep `save/` and
+`backups/` outside source replacement and never directory-swap the
+installation while its process can recreate paths.
 
 ## Files to preserve
 
@@ -312,5 +330,9 @@ its process can recreate paths.
   as incidental cleanup.
 
 No branch in this handoff has been pushed, tagged, or released. The 1.9 `all`
-candidate is now applied under separate L3 authorization, but no physical
-iPhone scenario has yet been recorded as passed.
+candidate was applied under separate L3 authorization. K19 swipe, arrows,
+boundaries, and rotation were reported normal, but the invalid bundle marker
+prevents a candidate pass; VoiceOver was not exercised. The K16 route defect
+identified by the subsequent source inspection is fixed and automatically
+qualified only in the local candidate, so aggregate physical acceptance
+remains open.

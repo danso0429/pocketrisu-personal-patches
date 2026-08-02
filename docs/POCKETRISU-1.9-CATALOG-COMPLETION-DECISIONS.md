@@ -187,7 +187,7 @@ the original children or the bounded audit corrections above.
 
 The post-audit aggregate requalification passed through the feature receipts:
 2,048/2,048 raw selections, 1,024 normalized graphs, 222 managed paths, a
-537-unit maximum graph, complete target tests/builds, exact revert, and
+538-unit maximum graph, complete target tests/builds, exact revert, and
 deterministic generated installers. The current observations are recorded in
 `docs/POCKETRISU-1.9-AGGREGATE-VALIDATION.md`. The older `2991355` aggregate
 receipt is baseline evidence, not proof for these later corrections. Rows
