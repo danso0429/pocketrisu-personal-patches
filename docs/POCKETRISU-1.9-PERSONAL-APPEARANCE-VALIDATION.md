@@ -381,15 +381,46 @@ Both database checks remained `ok`, all work counters remained zero, and all
 98 retained operation states remained `delivered`.
 
 The full client run revealed a test-harness side effect: adding the stylesheet
-link to happy-dom's global document starts a real Google Fonts request, which
-is aborted during teardown even though all 15 appearance tests pass. A first
-attempt to use `createHTMLDocument()` did not isolate the resource loader and
-was removed from source, generated installers, and live state. The final live
-tree therefore matches the pushed commit and has no uncommitted workaround.
-A minimal non-network `Document.head` adapter is the proposed test-only
-structural fix; it remains unimplemented pending the required approval after
-two failed isolation assumptions. This does not change the production font
-loader, whose selected-font request is intentional.
+link to happy-dom's global document started a real Google Fonts request, which
+was aborted during teardown even though all 15 appearance tests passed. A
+first attempt to use `createHTMLDocument()` did not isolate the shared resource
+loader and was removed from source, generated installers, and live state.
+
+After the user approved the structural test-only follow-up, commits `a7b2922`
+and `b7d99bf` were pushed on 2026-08-09 KST. The test now creates real detached
+`HTMLLinkElement` instances but supplies a minimal `Document.head` double whose
+`querySelector()` and `append()` operate only on an in-memory array. The test
+also asserts that the link remains disconnected. This retains de-duplication,
+event, URL, and loaded-dataset coverage without invoking happy-dom's browsing
+context or changing the production font loader.
+
+The final isolated candidate passed all 15 appearance tests outside the
+sandbox with no stylesheet request, AbortError, or NetworkError.
+Svelte/TypeScript diagnostics reported 0 errors and 0 warnings, the patcher
+suite passed 38/38,
+two installer builds had identical SHA-256 values, and the applied candidate
+re-plan changed zero files.
+
+Immediately before the live stop, active model jobs, deliverable unclaimed
+main jobs, pending sends, and result payloads were all zero. All 103 operation
+states were `delivered`, both SQLite `quick_check` results were `ok`, and PM2
+reported zero active requests. The live plan changed only
+`src/ts/personalSettings/appearance.test.ts` and patch state. After apply, the
+live tree passed the same 15/15 test without network teardown output,
+Svelte/TypeScript diagnostics remained 0/0, the production build transformed
+7,862 modules, and re-plan changed zero files. The main asset remained
+`/assets/index-BI9wIPiW.js` with the exact pre-change SHA-256
+`efb14bef5c9b144b79f57fe7bb4bc683cf1fe9f8ffac1902aecd7ff16eb48cb2`.
+The 109 development packages were pruned again before restart.
+
+After restart PocketRisu 1.9.0 was online at PID 4024169 with zero unstable
+restarts and zero active requests. Root returned HTTP 200, served and local
+main-asset hashes matched, and the PM2 error log retained its exact inode,
+size, and modification time. Both database checks remained `ok`; active,
+unclaimed, pending, and result counts remained zero; and all 103 retained
+operation states remained `delivered`. No runtime source, CSS, custom CSS,
+appearance setting, paid generation, stable tag, or release changed in this
+test-harness follow-up.
 
 No custom-CSS write, appearance-setting write, paid generation, stable tag,
 or release was part of this admission. Client reload, conditional preview
