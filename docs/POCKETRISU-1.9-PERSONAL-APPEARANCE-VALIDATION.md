@@ -329,6 +329,73 @@ Pre-live automated evidence:
   artifacts; and
 - applied-candidate re-plan reported zero changed files.
 
+### Experimental.13 live admission
+
+At 2026-08-09 02:55 KST, implementation, documentation, and generated-installer
+commits `bcc04c6`, `0503dee`, and `7f26adb` were pushed on
+`codex/pocketrisu-appearance`. The live plan selected 28 packs with six ordered
+overlaps and changed only the two language files, appearance logic/test,
+settings data, appearance page, appearance stylesheet, and patch state.
+
+The initial read-only preflight and the immediate pre-stop recheck both found
+running model jobs, deliverable unclaimed main jobs, pending sends,
+orchestration result payloads, and non-terminal operation states at zero. The
+98 durable operation states were all `delivered`, and both SQLite
+`quick_check` results were `ok`. A normal database save landed between the
+first snapshot and process stop, so the earlier full-database fingerprint is
+not claimed as the stop boundary. The stopped boundary was revision
+`1786210885907`, 19,339,161 logical bytes, SHA-256
+`3f90766797cd9561cc46a8cf003d8aa1e0b26474afa194f402e4c27fe53bb8d7`.
+That exact revision, length, and fingerprint remained after the final restart.
+
+The user-owned fields relevant to this change stayed exact across both
+snapshots and the final restart: `customCSS` remained empty with SHA-256
+`e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855`,
+and the canonical appearance object retained SHA-256
+`d77ec3e6b0744a596f90a48683025837daac7a6b86a63904a3c92373511f0ebb`.
+
+The stopped live tree observed:
+
+- frozen install reused 109 packages and downloaded none;
+- client suite: 130/130 files and 1,554/1,554 tests passed;
+- server suite: 9/9 files and 163/163 tests passed;
+- Svelte diagnostics: 0 errors and 0 warnings;
+- production build: 7,862 modules transformed;
+- BG bundle: 8,410,575 bytes, SHA-256
+  `d84abb35de0b92cc2138f48e45773c0aa577ec26a406884525bcd854baec0347`,
+  with `sendChat=function` load check;
+- built JavaScript/CSS retained all four new labels, conditional preview,
+  on-demand loader, and all seven exact font tokens;
+- re-plan changed zero files and all 28 packs/234 managed paths were current;
+  and
+- production prune removed the 109 development packages while `express`,
+  `better-sqlite3`, and `msgpackr` remained resolvable.
+
+After restart PocketRisu 1.9.0 was online with zero unstable restarts. Root and
+main asset returned HTTP 200. Served/local `/assets/index-BI9wIPiW.js` both
+measured 2,014,408 bytes and SHA-256
+`efb14bef5c9b144b79f57fe7bb4bc683cf1fe9f8ffac1902aecd7ff16eb48cb2`;
+the bytes matched exactly. The unauthenticated BG cache-status route returned
+401. The PM2 error log retained its exact inode, size, and modification time.
+Both database checks remained `ok`, all work counters remained zero, and all
+98 retained operation states remained `delivered`.
+
+The full client run revealed a test-harness side effect: adding the stylesheet
+link to happy-dom's global document starts a real Google Fonts request, which
+is aborted during teardown even though all 15 appearance tests pass. A first
+attempt to use `createHTMLDocument()` did not isolate the resource loader and
+was removed from source, generated installers, and live state. The final live
+tree therefore matches the pushed commit and has no uncommitted workaround.
+A minimal non-network `Document.head` adapter is the proposed test-only
+structural fix; it remains unimplemented pending the required approval after
+two failed isolation assumptions. This does not change the production font
+loader, whose selected-font request is intentional.
+
+No custom-CSS write, appearance-setting write, paid generation, stable tag,
+or release was part of this admission. Client reload, conditional preview
+placement, visual font comparison, mixed-script fallback, code monospace, and
+Safe Mode restoration remain the physical user-visible L3 boundary.
+
 ## Automated evidence recorded before live admission
 
 - focused patcher test: `test/personal-settings.test.cjs` passed;
@@ -346,8 +413,7 @@ anchor when bg-preserve was selected. The final unit is explicitly ordered
 after the bg-preserve import owner, and the complete exhaustive run above is
 the post-correction result.
 
-Live admission, asset/readback smoke checks, and physical iPhone behavior are
-recorded only after they are observed.
+Physical iPhone behavior is recorded only after it is observed.
 
 ## Final rolling-all candidate
 
