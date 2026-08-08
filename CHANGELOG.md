@@ -2,6 +2,43 @@
 
 ## Unreleased
 
+## 0.2.0-experimental.10
+
+- Add a PocketRisu 1.9-only `Personal → CSS appearance` sub-tab with a master
+  switch and typed controls for chat typography, composer presentation,
+  sidebar decoration, declarative setting-row spacing, and jailbreak-control
+  visibility. The existing import-navigation setting remains the first tab.
+- Store choices in version-1 structured personal settings. Read normalization
+  is non-mutating; leaf writes preserve unknown personal-root,
+  appearance-root, and feature-group fields; malformed or future schemas are
+  preserved and fail closed.
+- Resolve active features to one stable whitespace-tokenized
+  `data-pocketrisu-css` root attribute. Bootstrap applies the initial state
+  before the loaded screen, the app runtime keeps it synchronized, and Safe
+  Mode removes all effective tokens while retaining saved choices.
+- Add unlayered, PocketRisu Standard-scoped static CSS after the base Standard
+  sheet and before user custom CSS. Paperlogy affects message prose only,
+  code keeps monospace behavior, Korean prose gains long-token fallback, and
+  block-code wrapping never hides overflow.
+- Render the normal Send action and jailbreak-toggle visibility from the same
+  effective resolver. Resend, active-generation stop/loading behavior, and
+  the stored jailbreak value remain unchanged.
+- Register the appearance sub-tab with native 1.9 Settings Search and connect
+  setting-row labels/help to switch and select controls with stable accessible
+  identifiers.
+- Keep every appearance patch unit scoped exactly to PocketRisu 1.9.0. The
+  existing 1.8.1 Personal Settings pack receives no appearance adapter or
+  appearance source path.
+- Leave the live/user `customCSS` value untouched. Replacing it remains a
+  separate, explicitly approved migration with byte/hash/revision backup and
+  exact restore verification.
+- Pass all 38 patcher test files and exact-1.9 exhaustive verification across
+  2,048 raw selections and 1,024 normalized graphs. The final rolling-all
+  candidate resolves 587 units and 234 managed paths, passes 130 frontend
+  files/1,545 tests, 9 server files/163 tests, Svelte 0/0 diagnostics, a
+  7,862-module production build, and an 8,464,290-byte BG bundle load check.
+  Repeated apply changes no file and revert restores every tracked byte.
+
 ## 0.2.0-experimental.9
 
 - Import bg-preserve `v1.0.1`, including direct iOS touch-end dispatch for

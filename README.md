@@ -2,7 +2,7 @@
 
 Private, composable patch delivery for PocketRisu NodeOnly. The current
 stable release is `v0.1.7`, and its manifests target PocketRisu `v1.8.1`.
-The current development checkpoint is `v0.2.0-experimental.9`.
+The current development checkpoint is `v0.2.0-experimental.10`.
 
 ## Universal installer and compatibility presets
 
@@ -37,6 +37,7 @@ not separate implementations.
 
 | Release | What changed |
 | --- | --- |
+| `v0.2.0-experimental.10` | Adds PocketRisu 1.9-only Personal → CSS appearance controls backed by a versioned, unknown-field-preserving settings schema, one Safe-Mode-aware root token attribute, scoped static CSS, render-time send/jailbreak behavior, searchable sub-tab routing, and accessible declarative setting rows. Existing custom CSS remains user-owned and is not migrated automatically. |
 | `v0.2.0-experimental.9` | Imports bg-preserve v1.0.1 so iOS-rendered module controls dispatch directly and server module selection follows each installed database snapshot, while the composition importer excludes three standalone storage hooks already owned by the lazy/standard adapters. |
 | `v0.2.0-experimental.8` | Splits Personal settings into a small composition manifest, shared core, and setting-owned modules so future toggles can be added independently while retaining the existing public entry point, patch unit IDs, storage contract, and import behavior. |
 | `v0.2.0-experimental.7` | Adds a built-in Personal settings page directly after System and a persisted opt-in toggle that keeps the import-start screen after local card, character-package, and Realm imports without changing import durability or the default navigation behavior. |
@@ -133,6 +134,30 @@ cache-status 401, BG bundle freshness/load, and the post-restart error-log
 window passed. The user then passed the iPhone L3 for one-tap GigaTrans
 request status without scroll activation and for automatic translation
 surviving background/return. Provider 429 policy remains unchanged.
+
+The `v0.2.0-experimental.10` checkpoint adds a PocketRisu 1.9-only Personal
+appearance child tab without adding a 1.8 adapter. It stores typed choices in
+a version-1, unknown-field-preserving personal namespace and resolves their
+effective state through one root token attribute. Safe Mode and non-Standard
+themes remove the attribute without changing saved values. Static unlayered
+CSS remains before the runtime user custom-CSS element, while Send and
+jailbreak visibility use the same effective resolver at render time.
+
+All 38 patcher test files pass. The exact-1.9 exhaustive verifier passes 2,048
+raw selections as 1,024 normalized graphs. The final 587-unit, 234-path
+rolling-all candidate passes 130 frontend files with 1,545 tests, 9 server
+files with 163 tests, Svelte diagnostics at 0/0, a 7,862-module production
+build, and an 8,464,290-byte BG bundle load check. Its repeated apply changes
+no file, and exact revert restores all tracked bytes. A restricted run first
+blocked two localhost-binding server files with `listen EPERM`; the unchanged
+server suite passed with local socket permission. The build retains existing
+CSS Highlight, large-chunk, and dynamic-import warnings.
+
+The four jsDelivr WOFF2 endpoints used for the optional Paperlogy/Galmuri
+declarations returned HTTP 206 with `font/woff2`. This is a documented runtime
+network dependency; the text-only patch payload does not redistribute the font
+binaries. Existing user `customCSS` is not migrated or cleared by this
+checkpoint.
 
 The `v0.2.0-experimental.3` checkpoint passes 17 patcher test files containing
 118 top-level test declarations. All 256 raw selections of the eight
