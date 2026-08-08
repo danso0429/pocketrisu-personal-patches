@@ -144,6 +144,65 @@ four AWS/Smithy diagnostics. Neither candidate was admitted. The recorded
 passing receipt comes from a fresh baseline whose frozen dependency tree was
 reconstructed from the lockfile.
 
+## Experimental.11 live admission
+
+At 2026-08-08 19:36 KST, commits `07c20c7` and `5dd009e` were already pushed
+on `codex/pocketrisu-appearance`. Immediately before stopping PocketRisu,
+read-only checks observed:
+
+- running model jobs 0, deliverable unclaimed main jobs 0, pending sends 0,
+  and stored orchestration result payloads 0;
+- 122 durable operation states, all `delivered`;
+- both SQLite `quick_check` results `ok`;
+- database revision `1786182442923`, logical database size 19,526,728 bytes,
+  and storage fingerprint
+  `988a59c9a328ed24b7fbba60b6bbcbff658e5321785cb6707814e1c50984429e`;
+- `customCSS` 19,579 bytes with SHA-256
+  `a167939818d387cf49c7ed239f591eaa60e4aa7abed697264a674610015a7948`;
+  and
+- an existing appearance object with canonical SHA-256
+  `5054cc8f255eedac926c9b258448658cc144dbc9e37a4c2f70caea059264ab64`.
+
+The zero-work check was repeated immediately before PM2 stop. Transactional
+apply then changed the nine expected language, help, appearance logic/test,
+settings-data, Svelte, and CSS source files plus patch state. It did not write
+the user database or custom CSS. The stopped live tree observed:
+
+- frozen install reused 109 packages and downloaded none;
+- frontend: 130 files and 1,549 tests passed;
+- server: 9 files and 163 tests passed;
+- Svelte diagnostics: 0 errors and 0 warnings;
+- production build: 7,862 modules transformed and exit 0;
+- BG bundle: 8,411,822 bytes, SHA-256
+  `dd08f08cef797f063a667888e5b0dac6b3bbef4595d6446c014789a7e3313396`,
+  with `sendChat=function` load check;
+- generated-installer re-plan: 28 resolved packs, six explicitly ordered
+  overlaps, and zero changed files; and
+- patch status: `current`, 28 packs, and 234 managed paths.
+
+Production prune removed the 109 development packages while `express`,
+`better-sqlite3`, and `msgpackr` remained resolvable. After restart,
+PocketRisu 1.9.0 was online at PID 3970439 with zero unstable restarts and zero
+active requests. Root HTTP returned 200. Served and local
+`/assets/index-MZkyTypy.js` both measured 2,012,333 bytes with SHA-256
+`6430e082f74a3d844ed91627ab4d08cc6204b9c8c28916cc48da0eccba1c2ec7`.
+The served stylesheet retained the Google Fonts import and all three font
+tokens, and the unauthenticated BG cache-status route returned 401.
+
+The official Noto CSS request returned HTTP 200, 190,295 bytes, 248
+`@font-face` declarations, and both requested family names in the live
+environment. The PM2 error log retained its exact pre-stop inode, size, and
+modification time. Post-restart database revision, logical size, storage
+fingerprint, database and model-job DB inode/size, appearance hash, and
+custom-CSS bytes/hash were unchanged. Both SQLite checks remained `ok`; active,
+unclaimed, pending, and result work remained zero; and all 122 retained durable
+states remained `delivered`.
+
+No custom-CSS migration, font-choice write, paid request, physical device
+action, stable tag, or release was part of this admission. Visual selection,
+load-status display, mixed-script rendering, monospace preservation, and Safe
+Mode restoration remain the physical L3 boundary.
+
 ## Automated evidence recorded before live admission
 
 - focused patcher test: `test/personal-settings.test.cjs` passed;
