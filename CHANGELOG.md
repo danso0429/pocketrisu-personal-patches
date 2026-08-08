@@ -12,6 +12,11 @@
   where they are required as selectable option labels.
 - Keep actual chat typography, font-load status, Safe Mode behavior, and the
   code/keyboard monospace reset unchanged.
+- Pass all 38 patcher tests, 2,048/2,048 exact-1.9 selections as 1,024 graphs,
+  focused 10/10 appearance tests, Svelte 0/0 diagnostics, and the 7,862-module
+  production build. The stopped live tree repeats its full 130/1,549 client
+  and 9/163 server tests, restarts with the corrected served CSS, and preserves
+  the observed database, empty custom CSS, and appearance settings exactly.
 
 ## 0.2.0-experimental.11
 

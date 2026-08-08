@@ -220,6 +220,58 @@ help with a generic behavior description. Font option labels, the Font Loading
 API status, actual chat selectors, code monospace reset, storage schema, and
 Safe Mode resolver remain unchanged.
 
+### Follow-up live admission
+
+At 2026-08-09 02:07 KST, implementation commit `8876c98` and generated
+installer commit `77ad138` were already pushed. Patcher tests passed 38/38,
+and the exact-1.9 verifier passed 2,048/2,048 raw selections as 1,024 graphs
+with two workers. In a separate 1.9 `all` candidate, focused appearance tests
+passed 10/10, Svelte diagnostics were 0/0, the production build transformed
+7,862 modules, the built CSS retained the preview-descendant selector, the
+font-specific note was absent, and both language help entries contained only
+the generic behavior description. All four installers produced identical
+SHA-256 values across two consecutive builds.
+
+Immediately before live stop, read-only checks observed running jobs,
+deliverable unclaimed main jobs, pending sends, and result payloads all 0;
+both SQLite `quick_check` results `ok`; and 93 durable operation states all
+`delivered`. The current live user state at that time was:
+
+- database revision `1786207259272`, logical size 19,308,754 bytes, and
+  storage fingerprint
+  `501f718a582fcfde0ac24500821919370c1d8e531e0a6f818ac220dd007d4a6f`;
+- empty `customCSS`, SHA-256
+  `e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855`;
+  and
+- appearance canonical SHA-256
+  `5054cc8f255eedac926c9b258448658cc144dbc9e37a4c2f70caea059264ab64`.
+
+The installer plan selected 28 packs with six ordered overlaps and changed
+only four language/help files, the appearance page, the appearance stylesheet,
+and patch state. PM2 was stopped only after the zero-work check was repeated.
+The stopped live tree then passed 130 client files/1,549 tests, 9 server
+files/163 tests, Svelte 0/0 diagnostics, and a 7,862-module production build.
+The 8,410,607-byte BG bundle had SHA-256
+`50c0b4fc2ac4786901c4a849d07783f9be52818851cdc2785c5b52c691df371b`
+and passed its `sendChat=function` load check. Re-plan changed zero files, and
+all 28 packs/234 managed paths reported `current`.
+
+After production prune and restart, PocketRisu 1.9.0 was online at PID 3996976
+with zero unstable restarts and zero active requests. Root HTTP returned 200.
+Served/local `/assets/index-Lh0wxyAb.js` both measured 2,012,223 bytes with
+SHA-256
+`20bbde6b364c940dd9572d0294a5a1dd6a52dfc8477f341caf3762ff79ad61a2`.
+The served `/assets/index-CgqxQ0Ny.css` contained the preview-descendant rule,
+and the unauthenticated BG route returned 401. The PM2 error log retained its
+pre-restart inode, size, and modification time.
+
+Post-restart database revision, logical size, storage fingerprint, DB
+inode/size, empty custom-CSS bytes/hash, and appearance hash matched the
+pre-stop values exactly. Both SQLite checks remained `ok`; running,
+deliverable, pending, and result work remained zero; and all 93 operation
+states remained `delivered`. Physical visual comparison after a client reload
+remains the user-visible L3 boundary.
+
 ## Automated evidence recorded before live admission
 
 - focused patcher test: `test/personal-settings.test.cjs` passed;

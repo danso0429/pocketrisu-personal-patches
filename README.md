@@ -160,6 +160,13 @@ follow-up removes product-specific examples from the setting help and removes
 the font-specific note under the preview; selectable option labels and
 font-load status remain.
 
+The follow-up passes all 38 patcher tests and the complete 2,048-selection
+exact-1.9 graph. Its clean 1.9 candidate passes the focused appearance tests,
+Svelte 0/0 diagnostics, and production build. The same seven-path transition
+was then admitted to the stopped live target, whose full 130/1,549 client and
+9/163 server suites, build, zero-change re-plan, HTTP asset readback, and
+database/custom-CSS/settings preservation checks passed.
+
 The source patcher passes all 38 test files. The exact-1.9 verifier passes all
 2,048 raw selections as 1,024 normalized graphs across 239 catalog-managed
 paths with a maximum of 587 resolved units and exact round trips. A clean
