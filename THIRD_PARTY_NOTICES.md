@@ -16,6 +16,26 @@ Local changes add iOS-independent cache probing, startup observability, and a
 bg-preserve durable-save adapter. BG semantic merge revisions remain separate
 from the PR's exact transport revisions.
 
+## Optional web fonts
+
+The PocketRisu 1.9 Personal appearance stylesheet declares optional web-font
+faces and loads their WOFF2 files at runtime from jsDelivr. No font binary is
+copied into or redistributed by this repository.
+
+- Paperlogy: https://www.sandollcloud.com/free-font/21071/Paperlogy
+  (SIL Open Font License 1.1; the appearance switch uses regular, semibold,
+  and bold weights only).
+- Galmuri14: https://quiple.dev/font/galmuri
+  (SIL Open Font License 1.1; declared so an existing app-level custom-font
+  choice can continue resolving after a separately approved custom-CSS
+  migration).
+
+The runtime CDN is an external availability and privacy dependency. The four
+configured WOFF2 URLs returned partial-content responses with the expected
+`font/woff2` type during the 2026-08-08 qualification. A later self-hosted
+font bundle would require a binary-aware patch payload format and is not part
+of this checkpoint.
+
 ## PocketRisu Kei
 
 The optional fullscreen image viewer, robust OpenAI and Google SSE stream
