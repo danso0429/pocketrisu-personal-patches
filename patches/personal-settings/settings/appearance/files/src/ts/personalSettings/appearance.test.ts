@@ -14,6 +14,34 @@ function db(value: Record<string, unknown> = {}): Database {
     return { theme: '', ...value } as unknown as Database
 }
 
+function disconnectedFontDocument(): {
+    targetDocument: Document
+    links: HTMLLinkElement[]
+} {
+    const links: HTMLLinkElement[] = []
+    const head = {
+        querySelector<T extends Element>(selector: string): T | null {
+            return (links.find((link) => link.matches(selector)) ?? null) as unknown as T | null
+        },
+        append(...nodes: (Node | string)[]) {
+            for (const node of nodes) {
+                if (typeof node === 'string' || !(node instanceof HTMLLinkElement)) {
+                    throw new TypeError('Expected a stylesheet link')
+                }
+                if (!links.includes(node)) links.push(node)
+            }
+        },
+    }
+
+    return {
+        targetDocument: {
+            createElement: document.createElement.bind(document),
+            head,
+        } as unknown as Document,
+        links,
+    }
+}
+
 describe('personal appearance storage', () => {
     test('reads missing and invalid enum values without mutating the database', () => {
         const value = db({
@@ -67,21 +95,19 @@ describe('personal appearance storage', () => {
     })
 
     test('loads an optional stylesheet once and reports its browser result', async () => {
-        document.head.querySelectorAll('[data-pocketrisu-font-stylesheet]').forEach((node) => node.remove())
+        const { targetDocument, links } = disconnectedFontDocument()
 
-        const first = ensurePersonalChatFontStylesheet('gowun-dodum', document)
-        const second = ensurePersonalChatFontStylesheet('gowun-dodum', document)
-        const links = document.head.querySelectorAll<HTMLLinkElement>(
-            'link[data-pocketrisu-font-stylesheet="gowun-dodum"]',
-        )
+        const first = ensurePersonalChatFontStylesheet('gowun-dodum', targetDocument)
+        const second = ensurePersonalChatFontStylesheet('gowun-dodum', targetDocument)
         expect(links).toHaveLength(1)
+        expect(links[0].isConnected).toBe(false)
         expect(second).toBe(first)
         expect(links[0].href).toContain('fonts.googleapis.com/css2?family=Gowun+Dodum')
 
         links[0].dispatchEvent(new Event('load'))
         await expect(first).resolves.toBe(true)
         expect(links[0].dataset.pocketrisuFontLoaded).toBe('true')
-        await expect(ensurePersonalChatFontStylesheet('paperlogy', document)).resolves.toBe(true)
+        await expect(ensurePersonalChatFontStylesheet('paperlogy', targetDocument)).resolves.toBe(true)
     })
 
     test('creates version 1 on first write and preserves unknown fields at every level', () => {
