@@ -58,7 +58,7 @@ function replacementText(candidate) {
 
 test('personal settings is an independent rolling feature pack', () => {
     assert.equal(manifest.id, 'personal-settings')
-    assert.equal(manifest.version, '0.4.0')
+    assert.equal(manifest.version, '0.4.1')
     assert.deepEqual(manifest.targets, {
         pocketrisu: {
             verified: ['1.8.1', '1.9.0'],
@@ -132,6 +132,12 @@ test('appearance settings use typed accessors and render in a searchable child t
     assert.match(appearanceSection, /faces\.length > 0 \? 'ready' : 'failed'/)
     assert.match(appearanceSection, /lang="zh-Hans"/)
     assert.match(appearanceSection, /lang="zh-Hant"/)
+    assert.doesNotMatch(appearanceSection, /personalAppearanceFontPreviewNote/)
+
+    const helpEnglish = unit('personal-settings:appearance-help-en-1.9')
+    const helpKorean = unit('personal-settings:appearance-help-ko-1.9')
+    assert.doesNotMatch(helpEnglish.content, /Paperlogy|Noto/)
+    assert.doesNotMatch(helpKorean.content, /Paperlogy|Noto/)
 
     const pageTabs = unit('personal-settings:appearance-page-tabs-1.9')
     assert.match(pageTabs.managed, /personalSettingsAppearanceTab/)
@@ -179,6 +185,7 @@ test('static appearance CSS is unlayered, token-gated, and leaves user CSS last'
     assert.match(appearanceCss, /font-family: var\(--personal-chat-font-family\)/)
     assert.match(appearanceCss, /\.chattext :where\(\*\)/)
     assert.match(appearanceCss, /\.personal-font-preview__sample/)
+    assert.match(appearanceCss, /\.personal-font-preview__sample :where\(\*\)/)
     assert.match(appearanceCss, /\.default-chat-screen\.nodeonly-standard/)
     assert.match(appearanceCss, /\.chattext pre > code/)
     assert.doesNotMatch(appearanceCss, /overflow-x:\s*hidden/)

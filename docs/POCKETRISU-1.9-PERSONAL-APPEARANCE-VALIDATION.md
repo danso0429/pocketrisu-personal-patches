@@ -203,6 +203,23 @@ action, stable tag, or release was part of this admission. Visual selection,
 load-status display, mixed-script rendering, monospace preservation, and Safe
 Mode restoration remain the physical L3 boundary.
 
+## Experimental.12 preview follow-up
+
+The first live preview rule assigned the selected family only to
+`.personal-font-preview__sample`. PocketRisu's base stylesheet assigns
+`font-family: var(--risu-font-family)` to `*`, so every language span inside
+the sample had its own explicit app-font value and did not inherit the family
+from the parent. This explains why the chat changed while the preview did not:
+the chat consumer already included descendants, but the preview consumer did
+not.
+
+The follow-up gates both the preview root and
+`.personal-font-preview__sample :where(*)` under the same effective font token.
+It also removes the product-specific preview note and replaces the chat-font
+help with a generic behavior description. Font option labels, the Font Loading
+API status, actual chat selectors, code monospace reset, storage schema, and
+Safe Mode resolver remain unchanged.
+
 ## Automated evidence recorded before live admission
 
 - focused patcher test: `test/personal-settings.test.cjs` passed;

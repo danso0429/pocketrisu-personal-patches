@@ -2,6 +2,17 @@
 
 ## Unreleased
 
+## 0.2.0-experimental.12
+
+- Apply the selected chat font to every multilingual-preview child instead of
+  only its parent. PocketRisu's global `*` font declaration otherwise assigns
+  the app font directly to each language span and prevents inheritance.
+- Remove font-product examples from the chat-font help text and remove the
+  font-specific note below the multilingual preview. Font names remain only
+  where they are required as selectable option labels.
+- Keep actual chat typography, font-load status, Safe Mode behavior, and the
+  code/keyboard monospace reset unchanged.
+
 ## 0.2.0-experimental.11
 
 - Add `Noto Sans KR` and `Noto Serif KR` to the PocketRisu 1.9 chat-font enum

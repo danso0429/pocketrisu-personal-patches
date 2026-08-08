@@ -109,9 +109,6 @@
             <span lang="zh-Hant">繁體中文</span>
             <span lang="fr">Français été cœur</span>
         </p>
-        <p class="mt-1 text-xs text-textcolor2">
-            {language.personalAppearanceFontPreviewNote}
-        </p>
     </section>
 
     <p class="mt-3 text-xs text-textcolor2" aria-live="polite">

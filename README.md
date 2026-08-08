@@ -2,7 +2,7 @@
 
 Private, composable patch delivery for PocketRisu NodeOnly. The current
 stable release is `v0.1.7`, and its manifests target PocketRisu `v1.8.1`.
-The current development checkpoint is `v0.2.0-experimental.11`.
+The current development checkpoint is `v0.2.0-experimental.12`.
 
 ## Universal installer and compatibility presets
 
@@ -37,6 +37,7 @@ not separate implementations.
 
 | Release | What changed |
 | --- | --- |
+| `v0.2.0-experimental.12` | Applies the selected chat font to each multilingual-preview child so PocketRisu's global element font cannot mask it, and removes product-specific examples from the font help and preview note. Actual chat typography and monospace preservation remain unchanged. |
 | `v0.2.0-experimental.11` | Extends the 1.9 Personal appearance font selector with Noto Sans KR and Noto Serif KR, adds a multilingual preview with real font-load status, and applies selected fonts through message descendants so the existing broad user-CSS font rule cannot mask them. Code keeps its monospace stack and user custom CSS remains untouched. |
 | `v0.2.0-experimental.10` | Adds PocketRisu 1.9-only Personal → CSS appearance controls backed by a versioned, unknown-field-preserving settings schema, one Safe-Mode-aware root token attribute, scoped static CSS, render-time send/jailbreak behavior, searchable sub-tab routing, and accessible declarative setting rows. Existing custom CSS remains user-owned and is not migrated automatically. |
 | `v0.2.0-experimental.9` | Imports bg-preserve v1.0.1 so iOS-rendered module controls dispatch directly and server module selection follows each installed database snapshot, while the composition importer excludes three standalone storage hooks already owned by the lazy/standard adapters. |
@@ -150,6 +151,14 @@ existing user CSS explicitly assigns an important font to every `.risu-chat`
 descendant; changing only the `.chattext` parent would leave most rendered
 prose on that older explicit value. The existing custom-CSS bytes remain
 user-owned and are not rewritten.
+
+The `v0.2.0-experimental.12` follow-up applies the selected family to the
+preview's language spans as well as its outer sample element. PocketRisu's
+global `*` rule gives each span an explicit app font, so changing only the
+parent could not affect the rendered sample through inheritance. The same
+follow-up removes product-specific examples from the setting help and removes
+the font-specific note under the preview; selectable option labels and
+font-load status remain.
 
 The source patcher passes all 38 test files. The exact-1.9 verifier passes all
 2,048 raw selections as 1,024 normalized graphs across 239 catalog-managed

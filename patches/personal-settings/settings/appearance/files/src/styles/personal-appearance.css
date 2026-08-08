@@ -64,7 +64,12 @@ html:is(
   [data-pocketrisu-css~="chat-font-paperlogy"],
   [data-pocketrisu-css~="chat-font-noto-sans-kr"],
   [data-pocketrisu-css~="chat-font-noto-serif-kr"]
-) .personal-font-preview__sample {
+) .personal-font-preview__sample,
+html:is(
+  [data-pocketrisu-css~="chat-font-paperlogy"],
+  [data-pocketrisu-css~="chat-font-noto-sans-kr"],
+  [data-pocketrisu-css~="chat-font-noto-serif-kr"]
+) .personal-font-preview__sample :where(*) {
   font-family: var(--personal-chat-font-family) !important;
 }
 
