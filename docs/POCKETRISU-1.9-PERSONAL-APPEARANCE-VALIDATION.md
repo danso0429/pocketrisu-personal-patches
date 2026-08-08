@@ -272,6 +272,63 @@ deliverable, pending, and result work remained zero; and all 93 operation
 states remained `delivered`. Physical visual comparison after a client reload
 remains the user-visible L3 boundary.
 
+## Experimental.13 on-demand font extension
+
+The typed chat-font enum gains four mutually exclusive values without changing
+appearance schema version 1:
+
+```text
+ibm-plex-sans-kr → chat-font-ibm-plex-sans-kr
+gowun-dodum      → chat-font-gowun-dodum
+gowun-batang     → chat-font-gowun-batang
+hahmlet          → chat-font-hahmlet
+```
+
+IBM Plex Sans KR and Gowun Dodum fall back through Noto Sans KR. Gowun Batang
+and Hahmlet fall back through Noto Serif KR. This preserves the selected
+family where it has a glyph while retaining the already qualified CJK and
+Latin coverage for Japanese, Simplified/Traditional Chinese, and French
+sample text.
+
+Loading every new Google Fonts stylesheet up front would add a large number of
+unicode-range rules. The measured mobile CSS responses were 421,741 bytes / 658
+`@font-face` rules for all seven IBM Plex weights, 58,941 / 95 for Gowun Dodum,
+119,018 / 190 for Gowun Batang, and 56,505 / 92 for Hahmlet. Restricting IBM
+Plex to 400/600/700 reduced its CSS response to 180,572 bytes / 282 rules. The
+runtime therefore creates one tagged stylesheet link only when a new family is
+selected, reuses the same promise and link within the document, and removes a
+failed link so a later selection can retry. Built-in app font, Paperlogy, and
+the already imported Noto choices do not create another link.
+
+The preview remains multilingual but its visible name is now the generic
+`Font preview` / `폰트 미리보기`. The setting registry remains one complete
+array for Settings Search, while the appearance page renders two explicit
+groups around the preview. `Use app font` omits the preview. Any non-app saved
+selection renders it immediately below Chat font, even when the master switch
+or Safe Mode temporarily pauses the visual effect, so the existing inactive
+status remains observable.
+
+Pre-live automated evidence:
+
+- patcher suite: 38/38 test files passed;
+- exact-1.9 combination verifier: 2,048/2,048 raw selections, 1,024
+  normalized graphs, exact round trips passed with two workers;
+- isolated appearance logic: 15/15 tests passed, including optional-link
+  de-duplication and load completion;
+- clean rolling-all client suite: 130/130 files and 1,554/1,554 tests passed;
+- clean rolling-all server suite: 9/9 files and 163/163 tests passed after the
+  unchanged suite was rerun with local socket permission; the restricted run
+  had failed only at `listen 127.0.0.1` with `EPERM`;
+- isolated Svelte diagnostics: 0 errors and 0 warnings;
+- isolated production build: 7,862 modules transformed;
+- built JavaScript retained all four labels, the conditional preview, and the
+  on-demand loader; and
+- built CSS retained all seven exact chat-font tokens, the descendant preview
+  consumer, and the monospace reset;
+- repeated installer builds produced identical SHA-256 values for all four
+  artifacts; and
+- applied-candidate re-plan reported zero changed files.
+
 ## Automated evidence recorded before live admission
 
 - focused patcher test: `test/personal-settings.test.cjs` passed;

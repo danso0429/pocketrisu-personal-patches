@@ -2,6 +2,26 @@
 
 ## Unreleased
 
+## 0.2.0-experimental.13
+
+- Add IBM Plex Sans KR, Gowun Dodum, Gowun Batang, and Hahmlet as four
+  additional chat-font choices without changing the version-1 appearance
+  storage shape or turning fonts into separate booleans.
+- Load each newly added Google Fonts stylesheet only after that face becomes
+  the effective selection. Repeated runtime synchronization reuses one
+  document-scoped request, failed links are removable/retryable, and Noto
+  remains the CJK/Latin fallback for glyphs absent from a selected face.
+- Keep the multilingual sample text but rename its heading to `Font preview` /
+  `폰트 미리보기`. Hide the preview for the app-font choice and render it
+  immediately below the Chat font row for every non-app selection.
+- Preserve Safe Mode, Standard-theme scoping, code monospace, user custom CSS,
+  and unknown-field-preserving settings writes.
+- Pass all 38 patcher test files, 2,048 exact-1.9 raw selections as 1,024
+  normalized graphs, 130 client files/1,554 tests, 9 server files/163 tests,
+  Svelte 0/0 diagnostics, and the 7,862-module production build. Two installer
+  builds produce identical hashes and the applied candidate re-plans with zero
+  changed files.
+
 ## 0.2.0-experimental.12
 
 - Apply the selected chat font to every multilingual-preview child instead of

@@ -2,7 +2,7 @@
 
 Private, composable patch delivery for PocketRisu NodeOnly. The current
 stable release is `v0.1.7`, and its manifests target PocketRisu `v1.8.1`.
-The current development checkpoint is `v0.2.0-experimental.12`.
+The current development checkpoint is `v0.2.0-experimental.13`.
 
 ## Universal installer and compatibility presets
 
@@ -37,6 +37,7 @@ not separate implementations.
 
 | Release | What changed |
 | --- | --- |
+| `v0.2.0-experimental.13` | Adds IBM Plex Sans KR, Gowun Dodum, Gowun Batang, and Hahmlet as on-demand chat-font choices. The preview is now named Font preview, stays hidden for the app-font selection, and appears immediately below Chat font for any other choice. |
 | `v0.2.0-experimental.12` | Applies the selected chat font to each multilingual-preview child so PocketRisu's global element font cannot mask it, and removes product-specific examples from the font help and preview note. Actual chat typography and monospace preservation remain unchanged. |
 | `v0.2.0-experimental.11` | Extends the 1.9 Personal appearance font selector with Noto Sans KR and Noto Serif KR, adds a multilingual preview with real font-load status, and applies selected fonts through message descendants so the existing broad user-CSS font rule cannot mask them. Code keeps its monospace stack and user custom CSS remains untouched. |
 | `v0.2.0-experimental.10` | Adds PocketRisu 1.9-only Personal → CSS appearance controls backed by a versioned, unknown-field-preserving settings schema, one Safe-Mode-aware root token attribute, scoped static CSS, render-time send/jailbreak behavior, searchable sub-tab routing, and accessible declarative setting rows. Existing custom CSS remains user-owned and is not migrated automatically. |
@@ -166,6 +167,21 @@ Svelte 0/0 diagnostics, and production build. The same seven-path transition
 was then admitted to the stopped live target, whose full 130/1,549 client and
 9/163 server suites, build, zero-change re-plan, HTTP asset readback, and
 database/custom-CSS/settings preservation checks passed.
+
+The `v0.2.0-experimental.13` checkpoint adds four visually distinct Korean
+families: IBM Plex Sans KR and Gowun Dodum as sans-serif choices, plus Gowun
+Batang and Hahmlet as serif choices. These values extend the existing typed
+enum, so only one chat font can be selected and no new boolean collection is
+created. Their Google Fonts stylesheets are inserted once per browser document
+only when selected; Noto Sans KR or Noto Serif KR remains later in each stack
+for Japanese, Chinese, French, and other unsupported glyphs.
+
+The same checkpoint moves the preview between the Chat font row and the
+remaining appearance settings. It is omitted when `Use app font` is selected
+and shown for every non-app choice, including while the master switch or Safe
+Mode temporarily pauses the saved font. The preview title is the generic
+`Font preview` / `폰트 미리보기`; the multilingual sample text and explicit
+language tags remain available for visual comparison.
 
 The source patcher passes all 38 test files. The exact-1.9 verifier passes all
 2,048 raw selections as 1,024 normalized graphs across 239 catalog-managed

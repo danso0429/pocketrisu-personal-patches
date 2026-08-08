@@ -18,11 +18,13 @@ from the PR's exact transport revisions.
 
 ## Optional web fonts
 
-The PocketRisu 1.9 Personal appearance stylesheet declares optional web-font
-faces. Paperlogy and Galmuri14 load from jsDelivr; Noto Sans KR and Noto Serif
+The PocketRisu 1.9 Personal appearance feature declares optional web-font
+faces. Paperlogy and Galmuri14 load from jsDelivr. Noto Sans KR and Noto Serif
 KR load as unicode-range WOFF2 subsets through the official Google Fonts CSS
-API and `fonts.gstatic.com`. No font binary is copied into or redistributed by
-this repository.
+API and `fonts.gstatic.com`. IBM Plex Sans KR, Gowun Dodum, Gowun Batang, and
+Hahmlet use the same Google Fonts service, but their stylesheet links are
+created only after the user selects that face. No font binary is copied into
+or redistributed by this repository.
 
 - Paperlogy: https://www.sandollcloud.com/free-font/21071/Paperlogy
   (SIL Open Font License 1.1; the appearance switch uses regular, semibold,
@@ -36,13 +38,26 @@ this repository.
   (SIL Open Font License 1.1; the selectable KR instances cover CJK and Latin
   scripts while using Korean glyph forms by default when text has no language
   tag).
+- IBM Plex Sans KR: https://github.com/google/fonts/tree/main/ofl/ibmplexsanskr
+  (SIL Open Font License 1.1; the selector requests regular, semibold, and bold
+  weights).
+- Gowun Dodum: https://github.com/google/fonts/tree/main/ofl/gowundodum
+  (SIL Open Font License 1.1; the selector requests its regular face).
+- Gowun Batang: https://github.com/google/fonts/tree/main/ofl/gowunbatang
+  (SIL Open Font License 1.1; the selector requests regular and bold faces).
+- Hahmlet: https://github.com/google/fonts/tree/main/ofl/hahmlet
+  (SIL Open Font License 1.1; the selector requests its variable weight
+  range).
 
 The runtime CDNs are external availability and privacy dependencies. The four
 configured jsDelivr WOFF2 URLs returned partial-content responses with the
 expected `font/woff2` type during the 2026-08-08 qualification. The combined
 Google Fonts request returned mobile unicode-range WOFF2 CSS for both Noto
-families. A later self-hosted font bundle would require a binary-aware patch
-payload format and is not part of this checkpoint.
+families. The four additional families were also checked through their
+official Google Fonts CSS responses; keeping them on demand avoids adding all
+of those rules to the initial stylesheet. A later self-hosted font bundle
+would require a binary-aware patch payload format and is not part of this
+checkpoint.
 
 ## PocketRisu Kei
 
