@@ -1,6 +1,7 @@
 import { describe, expect, test } from 'vitest'
 import type { Database } from 'src/ts/storage/database.svelte'
 import {
+    getPersonalChatFontFamily,
     PERSONAL_APPEARANCE_ATTRIBUTE,
     readPersonalAppearance,
     resolvePersonalAppearanceTokens,
@@ -29,7 +30,35 @@ describe('personal appearance storage', () => {
             enabled: false,
             chat: { font: 'app', alignment: 'left' },
         })
+        expect(setPersonalAppearanceValue(value, 'chat.font', 'future-font')).toBe(false)
         expect(JSON.stringify(value)).toBe(before)
+    })
+
+    test.each([
+        ['paperlogy', 'Paperlogy', 'chat-font-paperlogy'],
+        ['noto-sans-kr', 'Noto Sans KR', 'chat-font-noto-sans-kr'],
+        ['noto-serif-kr', 'Noto Serif KR', 'chat-font-noto-serif-kr'],
+    ] as const)('normalizes and resolves the supported %s font', (font, family, token) => {
+        const value = db({
+            pocketRisuPersonalSettings: {
+                appearance: { version: 1, enabled: true, chat: { font } },
+            },
+        })
+
+        expect(readPersonalAppearance(value).chat.font).toBe(font)
+        expect(getPersonalChatFontFamily(font)).toBe(family)
+        expect(resolvePersonalAppearanceTokens(value, false)).toEqual([token])
+    })
+
+    test('keeps the app font free of a font family and root token', () => {
+        const value = db({
+            pocketRisuPersonalSettings: {
+                appearance: { version: 1, enabled: true, chat: { font: 'app' } },
+            },
+        })
+
+        expect(getPersonalChatFontFamily('app')).toBeNull()
+        expect(resolvePersonalAppearanceTokens(value, false)).toEqual([])
     })
 
     test('creates version 1 on first write and preserves unknown fields at every level', () => {

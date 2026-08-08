@@ -38,11 +38,22 @@ export const personalAppearanceSettingsItems: SettingItem[] = [
         type: 'select',
         labelKey: 'personalAppearanceChatFont',
         helpKey: 'personalAppearanceChatFont',
-        keywords: ['font', 'paperlogy', '페이퍼로지', '채팅 폰트'],
+        keywords: [
+            'font',
+            'paperlogy',
+            'noto sans',
+            'noto serif',
+            '페이퍼로지',
+            '노토',
+            '채팅 폰트',
+            '다국어',
+        ],
         options: {
             selectOptions: [
                 { value: 'app', labelKey: 'personalAppearanceOptionAppFont' },
                 { value: 'paperlogy', label: 'Paperlogy' },
+                { value: 'noto-sans-kr', labelKey: 'personalAppearanceOptionNotoSansKr' },
+                { value: 'noto-serif-kr', labelKey: 'personalAppearanceOptionNotoSerifKr' },
             ],
         },
         ...common('chat.font'),

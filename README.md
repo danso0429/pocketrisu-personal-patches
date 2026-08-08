@@ -2,7 +2,7 @@
 
 Private, composable patch delivery for PocketRisu NodeOnly. The current
 stable release is `v0.1.7`, and its manifests target PocketRisu `v1.8.1`.
-The current development checkpoint is `v0.2.0-experimental.10`.
+The current development checkpoint is `v0.2.0-experimental.11`.
 
 ## Universal installer and compatibility presets
 
@@ -37,6 +37,7 @@ not separate implementations.
 
 | Release | What changed |
 | --- | --- |
+| `v0.2.0-experimental.11` | Extends the 1.9 Personal appearance font selector with Noto Sans KR and Noto Serif KR, adds a multilingual preview with real font-load status, and applies selected fonts through message descendants so the existing broad user-CSS font rule cannot mask them. Code keeps its monospace stack and user custom CSS remains untouched. |
 | `v0.2.0-experimental.10` | Adds PocketRisu 1.9-only Personal → CSS appearance controls backed by a versioned, unknown-field-preserving settings schema, one Safe-Mode-aware root token attribute, scoped static CSS, render-time send/jailbreak behavior, searchable sub-tab routing, and accessible declarative setting rows. Existing custom CSS remains user-owned and is not migrated automatically. |
 | `v0.2.0-experimental.9` | Imports bg-preserve v1.0.1 so iOS-rendered module controls dispatch directly and server module selection follows each installed database snapshot, while the composition importer excludes three standalone storage hooks already owned by the lazy/standard adapters. |
 | `v0.2.0-experimental.8` | Splits Personal settings into a small composition manifest, shared core, and setting-owned modules so future toggles can be added independently while retaining the existing public entry point, patch unit IDs, storage contract, and import behavior. |
@@ -134,6 +135,30 @@ cache-status 401, BG bundle freshness/load, and the post-restart error-log
 window passed. The user then passed the iPhone L3 for one-tap GigaTrans
 request status without scroll activation and for automatic translation
 surviving background/return. Provider 429 policy remains unchanged.
+
+The `v0.2.0-experimental.11` checkpoint keeps that storage and activation
+contract while extending the chat-font enum with Noto Sans KR and Noto Serif
+KR. Both Noto choices cover the Korean, Japanese, Chinese, Latin, and extended
+Latin scripts represented in the settings preview. Chat messages do not carry
+per-language tags, so shared Han characters use Korean glyph forms by default.
+The preview uses explicit language tags for its samples and reports whether
+the selected face was actually found by `document.fonts`.
+
+Font consumers now include message descendants before restoring
+`pre`/`code`/`kbd`/`samp` to the monospace stack. This is required because the
+existing user CSS explicitly assigns an important font to every `.risu-chat`
+descendant; changing only the `.chattext` parent would leave most rendered
+prose on that older explicit value. The existing custom-CSS bytes remain
+user-owned and are not rewritten.
+
+The source patcher passes all 38 test files. The exact-1.9 verifier passes all
+2,048 raw selections as 1,024 normalized graphs across 239 catalog-managed
+paths with a maximum of 587 resolved units and exact round trips. A clean
+rolling-all staging candidate passes 130 frontend files with 1,549 tests, 9
+server files with 163 tests, Svelte diagnostics at 0/0, the production build,
+and the BG bundle build/load check. The generated installer then reports the
+same 28-pack candidate current across its 234 active managed paths with no
+changed file.
 
 The `v0.2.0-experimental.10` checkpoint adds a PocketRisu 1.9-only Personal
 appearance child tab without adding a 1.8 adapter. It stores typed choices in

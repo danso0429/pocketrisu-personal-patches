@@ -53,8 +53,8 @@ label and help-description IDs for accessible naming.
 
 The features are deliberately split at behavior boundaries:
 
-- Paperlogy applies to message prose, while pre/code/kbd/samp preserve a
-  monospace stack;
+- Paperlogy, Noto Sans KR, or Noto Serif KR applies to the message root and
+  descendants, while pre/code/kbd/samp preserve a monospace stack;
 - centered prose leaves lists, quotes, code, and tables left aligned;
 - Korean keep-all includes a long-token fallback and excludes code;
 - narrow-screen wrapping targets `pre > code` without hiding overflow;
@@ -76,16 +76,73 @@ the cascade.
 ## Web-font boundary
 
 The current text-only patch payload format cannot carry binary WOFF2 assets.
-This checkpoint therefore declares three Paperlogy weights and Galmuri14 from
-jsDelivr. All four exact URLs returned HTTP 206 with `font/woff2` during the
-2026-08-08 check. This adds a runtime network dependency; a self-hosted variant
-requires a separately designed binary-aware payload path.
+The stylesheet declares three Paperlogy weights and Galmuri14 from jsDelivr,
+and imports Noto Sans KR plus Noto Serif KR from the official Google Fonts CSS
+API. The combined mobile request returned HTTP 200, 191,659 bytes, 248
+unicode-range variable WOFF2 declarations, and both expected family names on
+2026-08-08. The font binaries remain external runtime dependencies; a
+self-hosted variant requires a separately designed binary-aware payload path.
 
-Paperlogy and Galmuri are documented under SIL OFL 1.1 in
+Paperlogy, Galmuri, and Noto CJK are documented under SIL OFL 1.1 in
 `THIRD_PARTY_NOTICES.md`. Paperlogy is a new opt-in look because the previous
 custom-CSS `@ font-face` spelling was invalid; it is not claimed as a visual
 migration of the live computed style. Galmuri14 is declared so the current
 app-level font name remains resolvable after a later custom-CSS migration.
+The Noto KR instances cover the previewed CJK and Latin scripts but use Korean
+forms for shared Han characters when the rendered chat has no language tag.
+
+## Experimental.11 multilingual font extension
+
+The font choice remains one typed enum leaf, not one boolean per face. The
+resolver maps each non-app value to exactly one mutually exclusive root token:
+
+```text
+paperlogy      → chat-font-paperlogy
+noto-sans-kr   → chat-font-noto-sans-kr
+noto-serif-kr  → chat-font-noto-serif-kr
+```
+
+This extends schema version 1 without a migration. The getter recognizes the
+new values, invalid future values normalize to `app` in memory, and the setter
+still refuses invalid values without rewriting their stored bytes. Existing
+`app` and `paperlogy` values retain their meanings.
+
+The settings page renders Korean, English, Japanese, Simplified Chinese,
+Traditional Chinese, and French samples with explicit `lang` attributes. It
+uses `document.fonts.load()` to distinguish app font, temporarily inactive,
+loading, loaded, failed fallback, and unsupported status rather than asking
+the user to infer loading from subtle glyph differences.
+
+The live custom CSS has an important `.risu-chat *` font declaration. A
+font-family only on `.chattext` cannot override the explicit values on its
+rendered paragraphs and inline descendants. The consumer therefore includes
+`.chattext :where(*)`, then a later, more specific important rule restores
+`pre`, `code`, `kbd`, and `samp` to the monospace stack. The custom-CSS source
+itself remains unchanged and keeps final author override authority.
+
+Automated evidence before live admission:
+
+- patcher source tests: 38/38 files passed;
+- exact-1.9 combination verifier: 2,048/2,048 raw selections, 1,024
+  normalized graphs, 239 catalog-managed paths, maximum 587 resolved units,
+  exact round trips passed with two workers;
+- clean rolling-all staging client: 130 files and 1,549 tests passed;
+- clean rolling-all staging server: 9 files and 163 tests passed;
+- Svelte diagnostics: 0 errors and 0 warnings;
+- production build: passed with the expected external Noto import and all
+  three font tokens retained in the output CSS;
+- BG bundle: 8,412,182 bytes, SHA-256
+  `79bf8507271da12d0d54cedeb01112ec3a7a11b5771fa59cfbadd899fcff0021`,
+  and `sendChat=function` load check passed; and
+- generated installer re-plan: 28 resolved packs, six explicitly ordered
+  overlaps, zero changed files, 234/234 active managed paths current.
+
+Two discarded staging candidates exposed environment setup failures rather
+than source failures. A symlinked dependency tree first refused non-TTY
+replacement, and a copied tree retained stale absolute links that produced
+four AWS/Smithy diagnostics. Neither candidate was admitted. The recorded
+passing receipt comes from a fresh baseline whose frozen dependency tree was
+reconstructed from the lockfile.
 
 ## Automated evidence recorded before live admission
 

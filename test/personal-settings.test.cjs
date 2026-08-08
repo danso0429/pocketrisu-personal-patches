@@ -58,7 +58,7 @@ function replacementText(candidate) {
 
 test('personal settings is an independent rolling feature pack', () => {
     assert.equal(manifest.id, 'personal-settings')
-    assert.equal(manifest.version, '0.3.0')
+    assert.equal(manifest.version, '0.4.0')
     assert.deepEqual(manifest.targets, {
         pocketrisu: {
             verified: ['1.8.1', '1.9.0'],
@@ -125,6 +125,13 @@ test('appearance settings use typed accessors and render in a searchable child t
     assert.doesNotMatch(appearanceSettingsData, /bindPath:/)
     assert.match(appearanceSettingsData, /syncPersonalAppearance\(ctx\.db, get\(SafeModeStore\)\)/)
     assert.equal((appearanceSettingsData.match(/id: 'personal\.appearance\./g) ?? []).length, 12)
+    assert.match(appearanceSettingsData, /value: 'noto-sans-kr'/)
+    assert.match(appearanceSettingsData, /value: 'noto-serif-kr'/)
+    assert.match(appearanceSection, /personal-font-preview__sample/)
+    assert.match(appearanceSection, /document\.fonts/)
+    assert.match(appearanceSection, /faces\.length > 0 \? 'ready' : 'failed'/)
+    assert.match(appearanceSection, /lang="zh-Hans"/)
+    assert.match(appearanceSection, /lang="zh-Hant"/)
 
     const pageTabs = unit('personal-settings:appearance-page-tabs-1.9')
     assert.match(pageTabs.managed, /personalSettingsAppearanceTab/)
@@ -163,7 +170,15 @@ test('static appearance CSS is unlayered, token-gated, and leaves user CSS last'
     assert.doesNotMatch(appearanceCss, /@layer/)
     assert.match(appearanceCss, /font-family: "Paperlogy"/)
     assert.match(appearanceCss, /font-family: "Galmuri14"/)
+    assert.match(appearanceCss, /fonts\.googleapis\.com\/css2\?family=Noto\+Sans\+KR/)
     assert.match(appearanceCss, /data-pocketrisu-css~="chat-font-paperlogy"/)
+    assert.match(appearanceCss, /data-pocketrisu-css~="chat-font-noto-sans-kr"/)
+    assert.match(appearanceCss, /data-pocketrisu-css~="chat-font-noto-serif-kr"/)
+    assert.match(appearanceCss, /--personal-chat-font-family: "Noto Sans KR"/)
+    assert.match(appearanceCss, /--personal-chat-font-family: "Noto Serif KR"/)
+    assert.match(appearanceCss, /font-family: var\(--personal-chat-font-family\)/)
+    assert.match(appearanceCss, /\.chattext :where\(\*\)/)
+    assert.match(appearanceCss, /\.personal-font-preview__sample/)
     assert.match(appearanceCss, /\.default-chat-screen\.nodeonly-standard/)
     assert.match(appearanceCss, /\.chattext pre > code/)
     assert.doesNotMatch(appearanceCss, /overflow-x:\s*hidden/)

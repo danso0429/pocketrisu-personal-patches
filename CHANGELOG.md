@@ -2,6 +2,34 @@
 
 ## Unreleased
 
+## 0.2.0-experimental.11
+
+- Add `Noto Sans KR` and `Noto Serif KR` to the PocketRisu 1.9 chat-font enum
+  while keeping app font and Paperlogy values backward compatible inside the
+  existing appearance schema version 1.
+- Add a multilingual settings preview with Korean, English, Japanese,
+  Simplified Chinese, Traditional Chinese, and French samples. Report app,
+  paused, loading, loaded, failed-fallback, and unavailable states from the
+  browser Font Loading API.
+- Resolve one token per selected font rather than modeling font choices as
+  booleans. Safe Mode, the master switch, unknown future schemas, and
+  non-Standard themes continue removing every effective font token without
+  rewriting saved values.
+- Apply the selected font to message descendants as well as the `.chattext`
+  root, then restore code-related elements to the monospace stack. This keeps
+  the existing broad important user-CSS font declaration from masking most of
+  the selected chat face without changing the user-owned CSS itself.
+- Load Noto as variable, unicode-range WOFF2 subsets through the official
+  Google Fonts CSS endpoint. Document the SIL OFL 1.1 source, Korean default
+  Han glyph forms, runtime availability/privacy dependency, and the reason a
+  self-hosted binary pack remains a separate patcher-format change.
+- Pass all 38 patcher test files and all 2,048 exact-1.9 raw selections as
+  1,024 normalized graphs across 239 catalog paths with exact round trips. A
+  clean rolling-all staging candidate passes 130 frontend files/1,549 tests,
+  9 server files/163 tests, Svelte 0/0 diagnostics, production build, and BG
+  bundle build/load. The generated installer re-plan changes no file across
+  the 234 active managed paths.
+
 ## 0.2.0-experimental.10
 
 - Add a PocketRisu 1.9-only `Personal → CSS appearance` sub-tab with a master

@@ -1,3 +1,5 @@
+@import url("https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@100..900&family=Noto+Serif+KR:wght@200..900&display=swap");
+
 /* Personal appearance features are inert unless their exact root token exists.
  * This sheet is intentionally unlayered. User customCSS is injected later and
  * remains the final author-level override. */
@@ -36,12 +38,41 @@
   font-display: swap;
 }
 
-html[data-pocketrisu-css~="chat-font-paperlogy"]
-  .default-chat-screen.nodeonly-standard .risu-chat[data-chat-index] .chattext {
-  font-family: "Paperlogy", sans-serif !important;
+html[data-pocketrisu-css~="chat-font-paperlogy"] {
+  --personal-chat-font-family: "Paperlogy", sans-serif;
 }
 
-html[data-pocketrisu-css~="chat-font-paperlogy"]
+html[data-pocketrisu-css~="chat-font-noto-sans-kr"] {
+  --personal-chat-font-family: "Noto Sans KR", sans-serif;
+}
+
+html[data-pocketrisu-css~="chat-font-noto-serif-kr"] {
+  --personal-chat-font-family: "Noto Serif KR", serif;
+}
+
+html:is(
+  [data-pocketrisu-css~="chat-font-paperlogy"],
+  [data-pocketrisu-css~="chat-font-noto-sans-kr"],
+  [data-pocketrisu-css~="chat-font-noto-serif-kr"]
+) .default-chat-screen.nodeonly-standard .risu-chat[data-chat-index] .chattext,
+html:is(
+  [data-pocketrisu-css~="chat-font-paperlogy"],
+  [data-pocketrisu-css~="chat-font-noto-sans-kr"],
+  [data-pocketrisu-css~="chat-font-noto-serif-kr"]
+) .default-chat-screen.nodeonly-standard .risu-chat[data-chat-index] .chattext :where(*),
+html:is(
+  [data-pocketrisu-css~="chat-font-paperlogy"],
+  [data-pocketrisu-css~="chat-font-noto-sans-kr"],
+  [data-pocketrisu-css~="chat-font-noto-serif-kr"]
+) .personal-font-preview__sample {
+  font-family: var(--personal-chat-font-family) !important;
+}
+
+html:is(
+  [data-pocketrisu-css~="chat-font-paperlogy"],
+  [data-pocketrisu-css~="chat-font-noto-sans-kr"],
+  [data-pocketrisu-css~="chat-font-noto-serif-kr"]
+)
   .default-chat-screen.nodeonly-standard .risu-chat[data-chat-index] .chattext
   :is(pre, code, kbd, samp) {
   font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", monospace !important;

@@ -4,7 +4,11 @@ export const PERSONAL_APPEARANCE_SCHEMA_VERSION = 1 as const
 export const PERSONAL_APPEARANCE_ATTRIBUTE = 'data-pocketrisu-css'
 
 export type PersonalAppearanceSchemaStatus = 'empty' | 'supported' | 'unsupported'
-export type PersonalChatFont = 'app' | 'paperlogy'
+export type PersonalChatFont =
+    | 'app'
+    | 'paperlogy'
+    | 'noto-sans-kr'
+    | 'noto-serif-kr'
 export type PersonalChatAlignment = 'left' | 'center'
 
 export interface NormalizedPersonalAppearance {
@@ -97,7 +101,14 @@ function readBoolean(value: unknown): boolean {
 }
 
 function readChatFont(value: unknown): PersonalChatFont {
-    return value === 'paperlogy' ? 'paperlogy' : 'app'
+    switch (value) {
+        case 'paperlogy':
+        case 'noto-sans-kr':
+        case 'noto-serif-kr':
+            return value
+        default:
+            return 'app'
+    }
 }
 
 function readChatAlignment(value: unknown): PersonalChatAlignment {
@@ -190,7 +201,12 @@ export function getPersonalAppearanceValue(
 }
 
 function validLeafValue(path: PersonalAppearanceLeafPath, value: unknown): boolean {
-    if (path === 'chat.font') return value === 'app' || value === 'paperlogy'
+    if (path === 'chat.font') {
+        return value === 'app'
+            || value === 'paperlogy'
+            || value === 'noto-sans-kr'
+            || value === 'noto-serif-kr'
+    }
     if (path === 'chat.alignment') return value === 'left' || value === 'center'
     return typeof value === 'boolean'
 }
@@ -246,28 +262,60 @@ export function setPersonalAppearanceValue(
     return true
 }
 
-const featureTokens: ReadonlyArray<readonly [PersonalAppearanceFeature, string]> = [
-    ['chat.font', 'chat-font-paperlogy'],
-    ['chat.alignment', 'chat-align-center'],
-    ['chat.keepKoreanWords', 'chat-keep-korean-words'],
-    ['chat.wrapCodeBlocks', 'chat-wrap-code-blocks'],
-    ['composer.minimal', 'composer-minimal'],
-    ['composer.textSendIcon', 'composer-text-send-icon'],
-    ['sidebar.compact', 'sidebar-compact'],
-    ['sidebar.avatarBorder', 'sidebar-avatar-border'],
-    ['sidebar.panelDividers', 'sidebar-panel-dividers'],
-    ['settings.compactControls', 'settings-compact-controls'],
-    ['visibility.hideJailbreakToggle', 'visibility-hide-jailbreak-toggle'],
+const featureOrder: readonly PersonalAppearanceFeature[] = [
+    'chat.font',
+    'chat.alignment',
+    'chat.keepKoreanWords',
+    'chat.wrapCodeBlocks',
+    'composer.minimal',
+    'composer.textSendIcon',
+    'sidebar.compact',
+    'sidebar.avatarBorder',
+    'sidebar.panelDividers',
+    'settings.compactControls',
+    'visibility.hideJailbreakToggle',
 ]
 
-function featureSelected(
+const chatFontTokens: Readonly<Record<Exclude<PersonalChatFont, 'app'>, string>> = {
+    paperlogy: 'chat-font-paperlogy',
+    'noto-sans-kr': 'chat-font-noto-sans-kr',
+    'noto-serif-kr': 'chat-font-noto-serif-kr',
+}
+
+const chatFontFamilies: Readonly<Record<Exclude<PersonalChatFont, 'app'>, string>> = {
+    paperlogy: 'Paperlogy',
+    'noto-sans-kr': 'Noto Sans KR',
+    'noto-serif-kr': 'Noto Serif KR',
+}
+
+export function getPersonalChatFontFamily(font: PersonalChatFont): string | null {
+    return font === 'app' ? null : chatFontFamilies[font]
+}
+
+function resolveFeatureToken(
     appearance: NormalizedPersonalAppearance,
     feature: PersonalAppearanceFeature,
-): boolean {
+): string | null {
     const value = getPersonalAppearanceValueFromNormalized(appearance, feature)
-    if (feature === 'chat.font') return value === 'paperlogy'
-    if (feature === 'chat.alignment') return value === 'center'
-    return value === true
+    if (feature === 'chat.font') {
+        const font = value as PersonalChatFont
+        return font === 'app' ? null : chatFontTokens[font]
+    }
+    if (feature === 'chat.alignment') {
+        return value === 'center' ? 'chat-align-center' : null
+    }
+    if (value !== true) return null
+    switch (feature) {
+        case 'chat.keepKoreanWords': return 'chat-keep-korean-words'
+        case 'chat.wrapCodeBlocks': return 'chat-wrap-code-blocks'
+        case 'composer.minimal': return 'composer-minimal'
+        case 'composer.textSendIcon': return 'composer-text-send-icon'
+        case 'sidebar.compact': return 'sidebar-compact'
+        case 'sidebar.avatarBorder': return 'sidebar-avatar-border'
+        case 'sidebar.panelDividers': return 'sidebar-panel-dividers'
+        case 'settings.compactControls': return 'settings-compact-controls'
+        case 'visibility.hideJailbreakToggle': return 'visibility-hide-jailbreak-toggle'
+    }
 }
 
 function getPersonalAppearanceValueFromNormalized(
@@ -301,9 +349,9 @@ export function resolvePersonalAppearanceTokens(db: Database, safeMode: boolean)
     ) {
         return []
     }
-    return featureTokens
-        .filter(([feature]) => featureSelected(appearance, feature))
-        .map(([, token]) => token)
+    return featureOrder
+        .map((feature) => resolveFeatureToken(appearance, feature))
+        .filter((token): token is string => token !== null)
 }
 
 export function isPersonalAppearanceFeatureEffective(
@@ -311,8 +359,9 @@ export function isPersonalAppearanceFeatureEffective(
     safeMode: boolean,
     feature: PersonalAppearanceFeature,
 ): boolean {
-    const token = featureTokens.find(([candidate]) => candidate === feature)?.[1]
-    return token !== undefined && resolvePersonalAppearanceTokens(db, safeMode).includes(token)
+    const appearance = readPersonalAppearance(db)
+    const token = resolveFeatureToken(appearance, feature)
+    return token !== null && resolvePersonalAppearanceTokens(db, safeMode).includes(token)
 }
 
 export function syncPersonalAppearance(
