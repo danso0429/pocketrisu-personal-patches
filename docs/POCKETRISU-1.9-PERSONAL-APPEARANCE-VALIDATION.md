@@ -138,6 +138,60 @@ externalized browser module, plugin-timing, dynamic-import, and large-chunk
 warnings. They did not stop the build. The appearance stylesheet introduced
 no new diagnostic or build failure.
 
+## Live admission
+
+At 2026-08-08 17:14 KST, the pushed implementation boundary was commits
+`000b06b`, `426e9ec`, and `a558d57`. Immediately before the stop, read-only
+checks observed:
+
+- PM2 online at PocketRisu 1.9.0, PID 3509259, zero unstable restarts, and zero
+  active requests;
+- queued/running model jobs 0, deliverable unclaimed main jobs 0, pending sends
+  0, and result payloads 0;
+- 138 durable operation states, all `delivered`;
+- both SQLite `quick_check` results `ok`;
+- database revision `1786174842182`;
+- `customCSS` 19,579 bytes with SHA-256
+  `a167939818d387cf49c7ed239f591eaa60e4aa7abed697264a674610015a7948`;
+- Standard theme and app font `custom/Galmuri14`; and
+- no existing personal appearance object.
+
+The exact live plan reported 28 packs, 587 units, six ordered overlaps, 25
+appearance-owned or appearance-hook source changes, and patch state. PM2 was
+stopped before transactional apply. The stopped live tree then observed:
+
+- frozen install: 109 packages reused, zero downloaded;
+- frontend: 130 files and 1,545 tests passed;
+- server: 9 files and 163 tests passed;
+- Svelte diagnostics: 0 errors and 0 warnings;
+- production build: 7,862 modules transformed;
+- BG bundle: 8,409,224 bytes, SHA-256
+  `48297fd2ba0b52c57bcda1c9ea37c4b5ff7a2c98c954447e9e3bce2917ffe43c`,
+  with `sendChat=function` load check;
+- production JavaScript contained no patch ownership marker and the built CSS
+  and JavaScript contained the appearance token/UI payloads;
+- repeated plan: 28 packs, 587 units, six ordered overlaps, zero changed
+  files, and all 234 managed paths current; and
+- production prune removed the 109 development packages while `express`,
+  `better-sqlite3`, and `msgpackr` remained resolvable.
+
+After restart, PocketRisu 1.9.0 was online at PID 3947658 with zero unstable
+restarts and zero active requests. Root HTTP returned 200 with 3,512 bytes.
+Served/local `/assets/index-DOiiECqw.js` both measured 2,009,698 bytes and
+SHA-256
+`b2400d73e977c091f95fa22eba61fe8ecf96e91281dbe52e299c54383b5e0e23`.
+Both unauthenticated BG status routes returned 401. The PM2 error log retained
+its exact pre-stop size and modification time.
+
+Post-restart database revision, custom-CSS bytes/hash, theme, app-font fields,
+DB inode/size, backup inode/size, and both `quick_check` results remained
+unchanged. No appearance object was written. Active model jobs, pending sends,
+deliverable unclaimed main jobs, and result payloads remained zero. Retention
+reduced the already-delivered durable tombstones from 138 to 135 during
+restart; every remaining state was still `delivered` and no result payload was
+present. No paid request, physical device action, custom-CSS migration, stable
+tag, or release was part of admission.
+
 ## User-data migration gate
 
 The current live `customCSS` remains separate from this implementation. A

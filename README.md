@@ -159,6 +159,23 @@ network dependency; the text-only patch payload does not redistribute the font
 binaries. Existing user `customCSS` is not migrated or cleared by this
 checkpoint.
 
+The live rolling-all target was stopped only after active requests, queued or
+running model jobs, pending sends, deliverable unclaimed main jobs, and result
+payloads measured zero. The 587-unit apply changed 25 appearance-owned or
+appearance-hook source paths plus patch state. Frozen install reused 109
+packages with zero downloads; the full tests, diagnostics, production build,
+BG bundle load, production prune, runtime dependency resolution, and 234-path
+zero-change re-plan passed again on the live tree.
+
+After restart PocketRisu 1.9.0 is online with zero unstable restarts and active
+requests. Root and main asset return 200; served/local
+`index-DOiiECqw.js` are both 2,009,698 bytes with SHA-256
+`b2400d73e977c091f95fa22eba61fe8ecf96e91281dbe52e299c54383b5e0e23`.
+Both unauthenticated BG status routes retain their 401 gate and the error log
+did not grow. The database revision, original 19,579-byte custom-CSS SHA-256,
+Standard theme, and `custom/Galmuri14` font choice remained exact; no
+appearance value was written on the user's behalf.
+
 The `v0.2.0-experimental.3` checkpoint passes 17 patcher test files containing
 118 top-level test declarations. All 256 raw selections of the eight
 user-facing packs resolve to 192 graphs and pass apply, current-state re-plan,

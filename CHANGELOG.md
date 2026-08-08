@@ -38,6 +38,12 @@
   files/1,545 tests, 9 server files/163 tests, Svelte 0/0 diagnostics, a
   7,862-module production build, and an 8,464,290-byte BG bundle load check.
   Repeated apply changes no file and revert restores every tracked byte.
+- Admit the 587-unit graph to the stopped live PocketRisu 1.9 target after
+  active, pending, deliverable, and result work all measured zero. The live
+  tree repeats the 130/1,545 client, 9/163 server, Svelte 0/0, 7,862-module,
+  and BG load gates; restarts online with an exact served/local main-asset
+  hash; and retains the original 19,579-byte `customCSS` at the same database
+  revision and SHA-256.
 
 ## 0.2.0-experimental.9
 
