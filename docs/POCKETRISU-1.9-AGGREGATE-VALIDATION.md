@@ -316,8 +316,10 @@ same umbrella version/ETag.
   recorded not exercised by user choice. The later K22 picker search/folder
   controls physically identified the admitted candidate. K16 and the BG
   composer corrections are now admitted in the live 542-unit bundle and
-  require their corrected physical reruns in the user's consolidated re-L3
-  batch. K22 was later reported normal, K15's ordinary paragraph affordance
+  required their corrected physical reruns in the user's consolidated re-L3
+  batch. The user later clarified that the instructed BG direct-generation and
+  BG composer section was normal; K16 remains a partial route/text observation.
+  K22 was later reported normal, K15's ordinary paragraph affordance
   was reported normal with narrower adversarial surfaces unobserved, and K14
   was explicitly not exercised because the user does not use streaming. K11
   was interrupted by the separately diagnosed BG direct-generation lifecycle
@@ -325,7 +327,8 @@ same umbrella version/ETag.
   reported a remaining pre-indicator delay and literal K11 ownership wrappers.
   The keyed preparation owner and marker-safe Svelte corrections passed their
   focused, compile, bundle, exact-revert, exhaustive combination, live install,
-  and runtime smoke gates; their physical rerun remains pending. K27 was
+  and runtime smoke gates. Their BG physical rerun was later reported normal at
+  the instructed aggregate batch scope. K27 was
   separately reported normal.
   These physical gaps block aggregate acceptance and publication, not the
   completed earlier live installation gates.
@@ -364,28 +367,21 @@ its admission and each feature result independently in
 authority until their observed rows close.
 
 The first observation reported K19 swipe, arrows, both boundaries, and
-rotation normal. VoiceOver was intentionally not exercised; filtering/search,
-focus, touch-target measurement, module viewer, and disposable asset mutation
-remain open. The later K22 picker search/folder controls physically established
+rotation normal. The later available mobile residual batch was also reported
+normal, while non-image filtering remained unavailable and VoiceOver was
+intentionally not exercised. The later K22 picker search/folder controls physically established
 the admitted patched bundle. Source inspection then found K16's narrow-screen
 route defect, and a later physical report found the BG composer literal-marker
 defect. Both fixes and the later BG lifecycle correction are now present in the live 542-unit
-bundle. Their physical acceptance is still deferred to the user's consolidated
-re-L3 batch, including top-level Settings → Hotkey and the attached/cold BG
-composer stop state.
+bundle. The attached/cold BG composer and direct-generation section was later
+reported normal. K16 remains partial: its top-level master switch is visible,
+but its expected description/small-screen notice was not observed.
 
-1. **K19 remaining viewer and optional VoiceOver residual.** Swipe, arrows,
-   boundaries, and rotation were reported normal but are not yet a marked
-   candidate pass. Still verify
-   image-only filtering/search, name/count alignment, both close targets,
-   module-viewer behavior, modal focus containment/return, and unchanged
-   disposable asset mutation. Only if the user later chooses to revisit
-   VoiceOver, verify image/count, previous/next, and close labels; otherwise
-   retain the explicit not-exercised status.
-2. **K29 bounded overnight ordinary result.** Start a paid ordinary BG
-   generation, leave the PWA absent overnight without consuming the result,
-   return to the same chat, and verify one completion, one materialization,
-   and ACK cleanup with no duplicate or missing paid response.
+1. **K19 accepted observation boundary.** The available mobile residual batch
+   was reported normal. Retain non-image filtering as unavailable and VoiceOver
+   as intentionally not exercised rather than inferring them passed.
+2. **K29 bounded overnight ordinary result.** The user chose not to stage a
+   multi-hour absence. Retain this row as not exercised.
 3. **K29 existing G09 cold reroll.** Start the already qualified cold-reroll
    path, background then kill/reload the PWA, return to the same chat, and
    verify exactly one overwrite at the intended existing message/swipe target,
@@ -393,21 +389,16 @@ composer stop state.
    non-Gemini G06 path.
 4. **K22 picker.** The consolidated batch was reported normal and is recorded
    closed in the aggregate L3 receipt.
-5. **K26 restore safety.** On a disposable backup target only, walk local-file,
-   server-file, and snapshot restore through both original confirmations and
-   verify a newly timestamped snapshot exists before each destructive write.
-   Force one snapshot failure, verify restore stops, then explicitly confirm
-   the one-use same-target retry and verify wrong-target/replayed approval is
-   refused. Do not use existing user backups as destructive fixtures.
+5. **K26 restore safety.** No separate throwaway installation was prepared.
+   Retain this row as not exercised and never use the live user-data tree as
+   the destructive fixture.
 6. **K27 BG native logging.** The instructed device batch was reported normal
    and is recorded closed in the aggregate L3 receipt.
-7. **Existing children.** Execute the concrete K13 provider stream, K16
-   hotkey/back gesture, remaining K15 adversarial partial-edit surfaces, K11
-   Hypa manual summary after the BG lifecycle correction is live-admitted, and
-   K12 translation/cache cancellation scenarios from their individual 1.9
-   receipts. K14 remains explicitly not exercised unless the user later
-   chooses to test streaming. A combined session does not merge or omit their
-   separate observations.
+7. **Existing children.** K11, K13, and K14 remain not exercised by user
+   choice; K12 remains not exercised because another translation plugin owns
+   the user's workflow. K15's mobile batch was reported normal with desktop
+   pointer behavior not exercised. K16 still needs exact description/notice
+   clarification; its other scenarios are not inferred from route visibility.
 
 Wrong viewer movement/focus, missing or duplicate materialization, wrong
 reroll target, lost persona/binding, restore without a fresh snapshot,
@@ -419,16 +410,15 @@ original-child regression is the unsafe signal.
 1. Continue and record unresolved first-pass iPhone L3 scenarios on the
    current live 542-unit candidate without collapsing normal observations,
    findings, not-exercised paths, or passes.
-2. Run the already-queued K16 top-level Hotkey and BG composer attached/cold
-   reruns in the user's later consolidated re-L3 batch; the live update itself
-   is complete and does not imply either physical result.
+2. Retain the user-reported normal BG direct/composer section at its actual
+   batch scope. Clarify K16's exact missing description/notice and toggle state;
+   route visibility does not imply its other physical scenarios.
 3. Any later finding still requires separate owning feature/infrastructure
    commits, focused graph, exact revert, L2.5, and aggregate gates. After those
    gates, commit, push, and safe live apply proceed in the same delivery flow;
    active work is checked read-only and never cancelled.
-4. Reload the client and run the BG lifecycle two-consecutive-send re-L3;
-   confirm immediate preparation feedback, no retained gray circle, and no
-   visible K11/preset ownership text before resuming K11. The fixes are live
-   but physical acceptance is not inferred.
+4. The BG lifecycle two-consecutive-send rerun was reported normal. K11 remains
+   not exercised by user choice and Prompt Preset marker absence remains a
+   separate open observation; neither is inferred from the BG result.
 5. Only after the remaining L3 decisions decide whether to tag, release, or
    publish. Implementation push and safe live updates no longer wait for L3.

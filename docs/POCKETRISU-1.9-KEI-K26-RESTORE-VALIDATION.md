@@ -189,3 +189,9 @@ after `lazy-chat-bg-adapter:asset-upload-error-detail` at position 422.
 This receipt qualifies local feature/infrastructure commits only. Generated
 installer publication, push, tag, release, live apply, and restart remain
 unauthorized.
+
+No disposable target was prepared for aggregate L3. Here, “disposable target”
+means a separate throwaway PocketRisu installation containing only test data,
+so local/server/snapshot restore and forced failures cannot affect the live
+user database or backups. The live tree was not used and K26 remains not
+exercised.

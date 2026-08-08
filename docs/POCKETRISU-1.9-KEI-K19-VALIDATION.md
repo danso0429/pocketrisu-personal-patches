@@ -121,10 +121,11 @@ candidate L3 pass:
 
 - observed normal: one-step swipe, arrow navigation, first/last boundaries,
   and portrait/landscape rotation;
+- later user-reported normal as one available mobile residual batch: search,
+  name/count and close/module/disposable behavior presented in the aggregate
+  section, without separate per-subcase narration;
 - not exercised by user choice: VoiceOver labels; and
-- still open: image-only filtering/search, focus containment/return, physical
-  close-target reachability, module-viewer behavior, and unchanged disposable
-  character-asset mutation.
+- unavailable: non-image filtering because no such fixture was available.
 
 VoiceOver remains an explicitly recorded residual risk. It is not silently
 converted to a pass or repeatedly requested; a later publication decision can
@@ -150,8 +151,9 @@ unlabeled control, unreachable close action, lost background focus after
 close, or changed asset mutation is the unsafe signal.
 
 The initial K19 qualification performed no live apply or restart. A later
-authorized aggregate candidate was applied for L3 and produced the partial
-physical observation above. The later K22 marker confirms the candidate bundle,
-but the remaining unobserved K19 surfaces still prevent promoting K19 to a
-pass. K19 itself received no L3 code change or installer rebuild. No push, tag,
-release, or publication occurred.
+authorized aggregate candidate was applied for L3 and produced the physical
+observations above. The K22 marker confirms the candidate bundle. The
+non-image fixture and VoiceOver remain explicit unavailable/not-exercised
+limitations, and the batch wording is not expanded into more detailed claims.
+K19 itself received no L3 code change or installer rebuild. No tag, release,
+or publication occurred.

@@ -243,3 +243,9 @@ The original K11 qualification above did not perform a live mutation. The
 later marker-safety correction was committed, pushed, rebuilt, safely
 live-applied, and restarted as recorded in its separate receipt. No tag,
 release, paid request, or physical K11 re-L3 was performed during that update.
+
+The user later chose not to perform the full HypaMemory workflow because it is
+not practical in their current use, preferring to report a concrete problem if
+one appears during ordinary use. This is recorded as not exercised. It does
+not confirm marker absence or convert the earlier interrupted attempts and
+live corrections into a K11 pass.

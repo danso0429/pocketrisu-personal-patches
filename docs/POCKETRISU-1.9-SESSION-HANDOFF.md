@@ -1,6 +1,6 @@
 # PocketRisu 1.9 / Kei integration session handoff
 
-> **Handoff date:** 2026-08-02 KST
+> **Handoff date:** 2026-08-08 KST
 >
 > **Next patcher branch:** `codex/pocketrisu-1.9-rebase`
 >
@@ -15,15 +15,26 @@
 > repeated localStorage warning without a process flag. The user separately
 > authorized the combined live update at `53512ab`; that 538-unit graph passed
 > its live gates and was later advanced to the corrected 28-pack / 542-unit /
-> 218-source-path graph. K16 and BG composer physical reruns remain for the later consolidated
-> re-L3 batch. K22 and K27 were later reported normal, K15 has a limited
-> ordinary partial-edit observation, and K14 was not exercised. K11 exposed a
+> 218-source-path graph. A later partial K16 rerun reached the corrected page
+> and showed its master switch, but the expected description/small-screen
+> notice was not observed; exact text/toggle state and the other K16 scenarios
+> remain open. The user later clarified that the blank section-2 result was
+> accidental and reported BG direct generation plus BG composer normal. K22 and K27 were
+> reported normal. K15's mobile batch and K19's available mobile residual batch
+> were later reported normal, with their desktop/non-image/VoiceOver limits
+> retained. K14 was not exercised. K11 exposed a
 > distinct BG direct-generation lifecycle defect. After its retained gray
 > indicator was fixed, the user still observed a pre-indicator delay and
 > visible K11 ownership wrappers. The keyed preparation and Svelte marker
 > corrections are qualified, pushed at functional/generated boundary
 > `fd60890`, and live-admitted in the unchanged 542-unit / 223-planned-path /
-> 218-source-path graph. Their physical re-L3 remains pending.
+> 218-source-path graph. The BG direct/composer physical batch was later
+> reported normal; K11 and Prompt Preset marker absence were not inferred from
+> it. The user chose
+> not to exercise the full K11, K13, K14, K29-F05, or K26 paths in this session;
+> K12 was not exercised because a different translation plugin is used. The
+> built-in translator-disabled Language view showing only UI/translator
+> language is expected.
 > The candidate-admission and result ledger is
 > `docs/POCKETRISU-1.9-AGGREGATE-L3.md`. The overlap-equivalence audit,
 > user-authorized bounded implementation, aggregate target, raw-selection,
@@ -376,10 +387,17 @@ The active 1.9 branch is pushed; neither candidate is tagged or released. The
 1.9 `all` candidate is live. K19 swipe, arrows,
 boundaries, and rotation were reported normal; VoiceOver was not exercised.
 The later K22 controls established the patched bundle. The K16 route and BG
-composer defects are fixed, automatically qualified, and live-admitted, but
-their corrected physical acceptance and the other open L3 rows remain open.
-K22 and K27 were later reported normal, K15 has a limited ordinary-affordance
-pass, and K14 is explicitly not exercised. K11 stopped first at the separately
+composer defects are fixed, automatically qualified, and live-admitted. K16's
+master switch is now physically reachable, but the expected description and
+small-screen notice were not observed. BG direct generation and BG composer
+were later reported normal for the instructed section-2 batch. K22 and K27
+were reported normal. K15's mobile batch and K19's available residual mobile
+batch were reported normal with their stated limitations, and K14 is
+explicitly not exercised. K11 stopped first at the separately
 diagnosed BG direct-generation lifecycle defect and then at pre-indicator
 delay/visible marker findings. Both lifecycle corrections and the cross-pack
-marker correction are live-admitted; their physical reruns remain pending.
+marker correction are live-admitted. K11, K12, K13, K29-F05, and K26 are now
+explicitly not exercised in the user's current workflow; Prompt Preset marker
+absence, K16 clarification, and K29 G09 remain the open physical rows. The
+lazy-chat/CAS finding remains queued, with no new generic failed-save anchor
+after 07:36:24.323 UTC at the latest read-only check.

@@ -230,10 +230,11 @@ passed `node --check`:
   caused the first target failure and repeated warnings. Toolchain 0.1.3 now
   preserves the happy-dom owner without a process flag; focused, maximum, and
   live suites observed zero `localstorage-file` warnings.
-- **Q4, pending physical re-L3:** on the admitted live bundle, verify that no
-  marker text appears, ordinary attached BG work keeps the stop button,
-  cold/detached orchestration keeps the same stop state, and Stop cancels the
-  owned operation without resurrection or duplicate materialization.
+- **Q4, physically reported normal:** the user later clarified that the blank
+  aggregate section-2 result was accidental and reported the instructed BG
+  batch normal. This closes marker absence, ordinary attached and cold composer
+  state, and Stop/cancellation at that user-reported batch scope. It does not
+  generalize to an untested provider or excluded operation kind.
 
 ## Commits and remaining gate
 
@@ -256,6 +257,6 @@ the PM2 error log grew by zero bytes, SQLite `quick_check` was `ok`, and
 database/backup inode and size observations were unchanged. No paid request or
 physical composer scenario was run.
 
-The correction is therefore live-admitted but not a physical live pass. One
-BG composer re-L3 remains in the later consolidated device batch. Push, tag,
-release, and publication remain out of scope.
+The correction was live-admitted and the later aggregate section-2 device batch
+was reported normal. No additional composer code change followed that report;
+tag, release, and publication remain separate decisions.

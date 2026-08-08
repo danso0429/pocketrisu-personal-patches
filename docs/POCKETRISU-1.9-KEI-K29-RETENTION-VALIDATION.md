@@ -255,3 +255,10 @@ graph.
 
 This receipt qualifies a local feature commit only. Generated installer
 publication, push, tag, release, live apply, and restart remain unauthorized.
+
+The user later declined the multi-hour overnight physical scenario. In this
+receipt, an “unconsumed” result is a completed server result that the returning
+client has not yet claimed, materialized into the chat, and acknowledged. The
+48-hour retention path remains not exercised on a physical device; the user
+did not need to wait a fixed seven-hour minimum, but chose not to stage any
+overnight absence.

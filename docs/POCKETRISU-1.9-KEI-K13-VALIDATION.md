@@ -133,3 +133,7 @@ fragmentation tests remain the boundary-specific evidence while L3 checks the
 real provider and iOS lifecycle.
 
 No live apply, restart, push, tag, release, or installer rebuild was performed.
+
+The user later chose not to configure OpenAI-compatible or streaming provider
+paths solely for L3 because neither is used in ordinary operation. Real
+provider/mobile streaming remains explicitly not exercised rather than passed.

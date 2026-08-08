@@ -260,9 +260,9 @@ receipt cited above.
   remain the only owners; BG adds a wrapper, not a second map or schema.
 - **Q3, preserved exclusions:** G06 remains append-only and blocked as
   documented; no provider-specific branch or excluded atom was generalized.
-- **Q4, pending physical re-L3:** after a client reload, two consecutive ordinary generations in the
-  same chat must show the native active indicator without the former
-  pre-indicator durable-save gap or poll-delay fallback. Each terminal response
-  must remove its circle and leave Send immediately available. Live admission
-  does not infer this device result; no paid request, tag, or release was part
-  of the admission.
+- **Q4, physically reported normal:** the user later clarified that the blank
+  aggregate section-2 result was accidental and reported the instructed batch
+  normal. At that batch scope, two consecutive ordinary generations showed no
+  reported pre-indicator gap or poll-delay fallback, each terminal response
+  removed its circle, and Send reopened normally. This user report closes the
+  physical rerun without generalizing to excluded operation kinds or providers.

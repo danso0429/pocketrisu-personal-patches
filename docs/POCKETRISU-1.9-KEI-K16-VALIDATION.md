@@ -258,10 +258,26 @@ Duplicate shortcut execution, navigation from a protected control/modal,
 selection of a trashed/reserved character, more than one K16 Back stop, or a
 guard that rearms after disable is the unsafe signal.
 
+## Partial corrected-bundle physical observation
+
+The later aggregate rerun physically reached top-level Settings → Hotkey on
+iPhone and showed the K16 master activation toggle. The user did not observe
+any guidance. Applied live source contains two distinct text surfaces: the
+muted `enableHotkeysDesc` below the toggle, and the native red
+`screenTooSmall` branch while hotkeys are enabled below 768 CSS pixels. The
+desktop binding table is intentionally excluded on that narrow branch.
+
+This observation proves the corrected route mounts and is narrower than a
+K16 pass. The report did not distinguish whether the toggle was enabled, which
+of the two expected strings was absent, or the current CSS viewport width.
+Hardware-keyboard, gesture exclusion/cancellation, character boundaries, and
+mobile Back remain not exercised. A precise missing-text rerun is pending; no
+source correction is inferred from the partial report alone.
+
 The initial qualification performed no live apply or restart. A later
 authorized aggregate candidate was applied for L3. The user's missing-menu
 report then triggered the source inspection that identified the route defect.
-This correction rebuilt local installers but has not been applied to the live
-PocketRisu tree and did not restart it. It is retained as the first item in the
-user-selected aggregate fix/re-L3 batch. No push, tag, release, or publication
-occurred.
+The correction, generated installers, and later aggregate corrections were
+committed, pushed, safely live-applied, built, and restarted as recorded in the
+aggregate receipt. The partial observation above is against that live
+candidate. No tag, release, or publication occurred.

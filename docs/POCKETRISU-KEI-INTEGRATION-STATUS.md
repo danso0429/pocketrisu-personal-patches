@@ -1,6 +1,6 @@
 # PocketRisu Kei integration status and next plan
 
-> **Status date:** 2026-08-02 KST
+> **Status date:** 2026-08-08 KST
 >
 > **Planning authority:** `docs/POCKETRISU-KEI-INTEGRATION-CATALOG.md`
 >
@@ -28,15 +28,27 @@
 > found that the BG composer rendered its ownership marker literally.
 > K16 and the BG composer are fixed, automatically requalified, and now
 > admitted together with `toolchain-hardening` 0.1.3 in the live 542-unit
-> candidate. The live install/restart gates passed; their physical re-L3 is
-> still pending. K22 was later reported normal; K15's ordinary paragraph
-> partial-edit affordance was normal; K14 was explicitly not exercised by user
-> choice, and K27 was reported normal. K11 was interrupted by a distinct BG
+> candidate. The live install/restart gates passed. A later partial K16 rerun
+> reached its corrected top-level page and showed the master switch, but the
+> expected description/small-screen notice was not observed; exact text and
+> toggle state remain to be distinguished. The user later clarified that the
+> blank section-2 result was accidental and reported the corrected BG direct-
+> generation/BG composer batch normal.
+> K22 was later reported normal; K15's mobile batch and K19's available mobile
+> residual batch were reported normal, while desktop pointer behavior,
+> non-image filtering, and VoiceOver remain unexercised limitations. K14 was
+> explicitly not exercised by user choice, and K27 was reported normal. K11
+> was interrupted by a distinct BG
 > direct-generation lifecycle defect. After its retained gray indicator was
 > fixed, the user still observed a pre-indicator delay and visible K11
 > ownership wrappers. The keyed preparation and marker-safety corrections are
 > automatically qualified at a 542-unit maximum graph, pushed, and
-> live-admitted; their physical re-L3 is pending.
+> live-admitted. The BG preparation/composer rerun was reported normal; K11
+> marker absence remains not exercised. The user chose not to exercise
+> the full K11, K13, K14, K29-F05, or K26 scenarios in this session. K12 was
+> also not exercised because the user uses a different translation plugin;
+> seeing only UI Language and Translator Language is the expected built-in-
+> translator-disabled view.
 > Admission, findings, and per-feature observations are tracked in
 > `docs/POCKETRISU-1.9-AGGREGATE-L3.md`.
 > The user chose to keep remaining and corrected physical checks in a later
@@ -268,20 +280,18 @@ implemented progress.
    - exercise the largest cache with keyboard, scrolling, rotation,
      clipboard, cancellation, and explicit confirmations. Provider-specific
      DeepLX/Bergamot paths are recorded as not exercised when unavailable.
-4. Record every observed L3 result at its actual scope. K19's native
-   one-image scroll-snap swipe, arrows, boundaries, and rotation were reported
-   normal but are not yet a marked candidate pass. Filtering/search, focus,
-   touch-target reachability, module viewer, and disposable mutation remain
-   open; VoiceOver remains not exercised unless the user chooses to revisit
-   it. K16's separate whole-view swipe scenario remains a different
-   interaction owner.
+4. Record every observed L3 result at its actual scope. K19's later available
+   mobile residual batch was reported normal, while its unavailable non-image
+   fixture and intentionally skipped VoiceOver surface remain explicit. K16's
+   separate whole-view swipe scenario remains a different interaction owner.
 
 The source audit, approved implementation, corrected 542-unit automated
-aggregate gates, and latest live apply/restart are complete. K16 and BG
-composer are live-admitted but remain pending physical re-L3. Both BG
-direct-generation lifecycle corrections and the cross-pack Svelte marker
-safety correction are live-admitted at 542 units / 223 planned paths / 218
-transaction-managed source paths. K27 was reported normal. Review and
+aggregate gates, and latest live apply/restart are complete. K16 remains a
+partial route/text observation. BG composer and direct generation were
+reported normal at the instructed batch scope. Both lifecycle corrections and
+the cross-pack Svelte marker safety correction are live-admitted at 542 units /
+223 planned paths / 218 transaction-managed source paths. K27 was reported
+normal. Review and
 unresolved or not-exercised L3 surfaces continue to block stable tag, release,
 and publication, but not implementation push or safe live delivery.
 
@@ -294,25 +304,27 @@ in `docs/POCKETRISU-1.9-AGGREGATE-VALIDATION.md`. Preserve the separate staged
 K12 worktree and do not add deferred catalog children while closing the
 current candidate.
 
-1. Continue the already-defined first-pass iPhone session on the current live
-   542-unit candidate while recording every feature scenario separately. Keep
-   K19 VoiceOver and K14 streaming as not exercised unless the user chooses to
-   revisit them. K22 is reported normal; K15's ordinary affordance is limited
-   pass only. Keep the existing K29 G09 cold-reroll path separate and do not
-   present blocked G06 as tested.
-2. Run the K16 top-level Hotkey and BG composer attached/cold reruns with the
-   later consolidated affected-row re-L3 batch, retaining individual results.
-3. Reload the client, then verify two same-chat ordinary sends show immediate
-   native preparation feedback and conclude without delayed fallback or a
-   retained stage-zero circle. Open K11 and Prompt Preset and confirm no
-   ownership marker text before resuming K11. The fixes are already live;
-   these remain physical re-L3 observations, not inferred passes.
+1. Retain K19 VoiceOver/non-image filtering, K11, K12, K13, K14, K29-F05, and
+   K26 as their explicitly unavailable or not-exercised scopes unless the user
+   later chooses to revisit them. K15 is a normal mobile batch report with
+   desktop behavior not exercised; K22 and K27 are reported normal.
+2. Clarify K16 by enabling its top-level master switch and checking the exact
+   muted description plus red narrow-screen notice. The desktop binding table
+   is intentionally hidden on iPhone. Keep hardware-keyboard, gesture, and Back
+   scenarios separate rather than inferring them from route visibility.
+3. Retain the user-reported normal section-2 result for BG composer and the two
+   same-chat ordinary sends at its actual batch scope. Prompt Preset marker
+   absence remains separate; K11 marker/behavior stays not exercised by the
+   user's current decision.
 4. Queue any new finding with exact trigger/state/caller evidence. A later fix
    still requires feature-local commits and focused/aggregate gates.
 5. Later validated fixes proceed through commit, push, safe live apply/build,
    restart, and runtime smoke in one flow. Active work is never cancelled;
    destructive user-data operations still require explicit authorization.
-6. Only after L3 decide stable tag, release, or publication.
+6. Keep K29 G09 pending until its exact existing cold-reroll UI path is useful
+   to the user; do not present blocked G06 as tested.
+7. Only after the remaining L3/risk decisions decide stable tag, release, or
+   publication.
 
 K12 remains a separate feature and keeps its complete translation identity,
 cancellation, explicit destructive-action, storage-owner, and bg-delivery

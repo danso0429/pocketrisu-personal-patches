@@ -197,3 +197,17 @@ scenario:
 Review, the aggregate raw-selection gate, deterministic installer rebuild,
 and the consolidated feature-specific L3 observations remain separate
 publication gates.
+
+## Physical visibility observation
+
+The user opened Language settings and saw only UI Language and Translator
+Language. Applied-source inspection confirmed that this is the expected
+disabled-translator state rather than evidence that the K12 panel failed to
+mount: additional translator controls require a nonempty translator language,
+and `TranslationCachePanel` requires translator type `llm` (`Ax. Model`).
+
+The user uses another translation plugin rather than this built-in LLM
+translator and chose not to alter normal translation settings only for L3.
+K12 is therefore recorded as not exercised, not passed. No provider request,
+cache mutation, code change, live update, tag, release, or publication followed
+this observation.

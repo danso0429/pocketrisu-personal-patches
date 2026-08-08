@@ -212,4 +212,15 @@ translated edit, controls that survive disable/chat switch, duplicated
 manager actions, or loss of native optimized-stream suppression is the unsafe
 signal.
 
-No live apply, restart, push, tag, release, or installer rebuild was performed.
+## Partial physical observation
+
+The user later reported the instructed mobile section normal as one batch and
+does not use a computer. Desktop pointer-hover behavior is therefore not
+exercised. Because the report did not separately identify translated,
+multiple/unmappable, stale-identity, active-stream, and stress subcases, this
+receipt records a scoped mobile batch observation rather than expanding each
+subcase to an independent pass.
+
+The aggregate candidate containing K15 was previously committed, pushed, and
+safely live-admitted as recorded in the aggregate receipt. No K15 code change,
+tag, release, or publication followed this physical observation.
