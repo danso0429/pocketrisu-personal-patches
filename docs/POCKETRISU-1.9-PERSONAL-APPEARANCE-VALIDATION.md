@@ -423,9 +423,32 @@ appearance setting, paid generation, stable tag, or release changed in this
 test-harness follow-up.
 
 No custom-CSS write, appearance-setting write, paid generation, stable tag,
-or release was part of this admission. Client reload, conditional preview
-placement, visual font comparison, mixed-script fallback, code monospace, and
-Safe Mode restoration remain the physical user-visible L3 boundary.
+or release was part of this admission.
+
+## Physical L3 and checkpoint L4
+
+On 2026-08-09 KST, the user reported every instructed Personal appearance L3
+check normal after using the live PocketRisu 1.9 candidate:
+
+- selecting the app font hid the preview;
+- selecting a non-app font showed the generically titled `폰트 미리보기`
+  directly below the Chat font row;
+- the selected face was visibly applied in both the preview and actual chat;
+  and
+- code text retained its monospace presentation.
+
+This closes the user-visible L3 gate for the experimental.13 appearance
+checkpoint at the exact instructed scope. It does not infer results for the
+separate K11, K16, BG, retention, restore, accessibility, or other aggregate
+PocketRisu 1.9 rows. Safe Mode resolution, mixed-script fallback, failed-font
+fallback, and unknown-schema handling retain their automated and live
+admission evidence above but were not expanded into additional physical claims
+by this result.
+
+L4 keeps the overall version at `0.2.0-experimental.13`. The checkpoint remains
+experimental because unrelated aggregate L3/risk decisions are still open;
+this result does not authorize a stable `v0.2.0` release or merge the feature
+branch into `main`.
 
 ## Automated evidence recorded before live admission
 

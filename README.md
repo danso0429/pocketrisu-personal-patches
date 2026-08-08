@@ -192,6 +192,14 @@ and the BG bundle build/load check. The generated installer then reports the
 same 28-pack candidate current across its 234 active managed paths with no
 changed file.
 
+The user passed the instructed iPhone appearance L3: app font hides the
+preview, every non-app selection shows `폰트 미리보기` directly below Chat
+font, the selected face is visible in both preview and chat, and code remains
+monospace. A detached-head test double also keeps optional stylesheet-loader
+coverage from starting a real font request during Vitest teardown. This is an
+experimental.13 appearance checkpoint result; unrelated aggregate 1.9 L3 and
+risk decisions remain separate and still block stable `v0.2.0` publication.
+
 The `v0.2.0-experimental.10` checkpoint adds a PocketRisu 1.9-only Personal
 appearance child tab without adding a 1.8 adapter. It stores typed choices in
 a version-1, unknown-field-preserving personal namespace and resolves their

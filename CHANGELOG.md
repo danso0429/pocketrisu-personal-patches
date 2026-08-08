@@ -16,11 +16,19 @@
   immediately below the Chat font row for every non-app selection.
 - Preserve Safe Mode, Standard-theme scoping, code monospace, user custom CSS,
   and unknown-field-preserving settings writes.
+- Isolate the optional stylesheet-loader unit test with real detached link
+  elements and an in-memory `Document.head` double. The browser production
+  loader remains unchanged, while Vitest no longer starts and aborts a real
+  Google Fonts request during teardown.
 - Pass all 38 patcher test files, 2,048 exact-1.9 raw selections as 1,024
   normalized graphs, 130 client files/1,554 tests, 9 server files/163 tests,
   Svelte 0/0 diagnostics, and the 7,862-module production build. Two installer
   builds produce identical hashes and the applied candidate re-plans with zero
   changed files.
+- Pass the instructed user-visible appearance L3: app font hides the preview,
+  a non-app font shows `폰트 미리보기` immediately below Chat font, the
+  selected face reaches preview and chat, and code stays monospace. This scoped
+  result does not promote unrelated aggregate PocketRisu 1.9 L3 rows.
 
 ## 0.2.0-experimental.12
 
