@@ -1,6 +1,7 @@
 import { describe, expect, test } from 'vitest'
 import type { Database } from 'src/ts/storage/database.svelte'
 import {
+    ensurePersonalChatFontStylesheet,
     getPersonalChatFontFamily,
     PERSONAL_APPEARANCE_ATTRIBUTE,
     readPersonalAppearance,
@@ -38,6 +39,10 @@ describe('personal appearance storage', () => {
         ['paperlogy', 'Paperlogy', 'chat-font-paperlogy'],
         ['noto-sans-kr', 'Noto Sans KR', 'chat-font-noto-sans-kr'],
         ['noto-serif-kr', 'Noto Serif KR', 'chat-font-noto-serif-kr'],
+        ['ibm-plex-sans-kr', 'IBM Plex Sans KR', 'chat-font-ibm-plex-sans-kr'],
+        ['gowun-dodum', 'Gowun Dodum', 'chat-font-gowun-dodum'],
+        ['gowun-batang', 'Gowun Batang', 'chat-font-gowun-batang'],
+        ['hahmlet', 'Hahmlet', 'chat-font-hahmlet'],
     ] as const)('normalizes and resolves the supported %s font', (font, family, token) => {
         const value = db({
             pocketRisuPersonalSettings: {
@@ -59,6 +64,24 @@ describe('personal appearance storage', () => {
 
         expect(getPersonalChatFontFamily('app')).toBeNull()
         expect(resolvePersonalAppearanceTokens(value, false)).toEqual([])
+    })
+
+    test('loads an optional stylesheet once and reports its browser result', async () => {
+        document.head.querySelectorAll('[data-pocketrisu-font-stylesheet]').forEach((node) => node.remove())
+
+        const first = ensurePersonalChatFontStylesheet('gowun-dodum', document)
+        const second = ensurePersonalChatFontStylesheet('gowun-dodum', document)
+        const links = document.head.querySelectorAll<HTMLLinkElement>(
+            'link[data-pocketrisu-font-stylesheet="gowun-dodum"]',
+        )
+        expect(links).toHaveLength(1)
+        expect(second).toBe(first)
+        expect(links[0].href).toContain('fonts.googleapis.com/css2?family=Gowun+Dodum')
+
+        links[0].dispatchEvent(new Event('load'))
+        await expect(first).resolves.toBe(true)
+        expect(links[0].dataset.pocketrisuFontLoaded).toBe('true')
+        await expect(ensurePersonalChatFontStylesheet('paperlogy', document)).resolves.toBe(true)
     })
 
     test('creates version 1 on first write and preserves unknown fields at every level', () => {

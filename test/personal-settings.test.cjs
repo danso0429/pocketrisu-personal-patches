@@ -58,7 +58,7 @@ function replacementText(candidate) {
 
 test('personal settings is an independent rolling feature pack', () => {
     assert.equal(manifest.id, 'personal-settings')
-    assert.equal(manifest.version, '0.4.1')
+    assert.equal(manifest.version, '0.4.2')
     assert.deepEqual(manifest.targets, {
         pocketrisu: {
             verified: ['1.8.1', '1.9.0'],
@@ -119,6 +119,8 @@ test('PocketRisu 1.9 appearance storage is normalized, leaf-written, and future-
 })
 
 test('appearance settings use typed accessors and render in a searchable child tab', () => {
+    assert.match(appearanceSettingsData, /personalAppearanceFontSettingsItems: SettingItem\[\]/)
+    assert.match(appearanceSettingsData, /personalAppearanceOtherSettingsItems: SettingItem\[\]/)
     assert.match(appearanceSettingsData, /personalAppearanceSettingsItems: SettingItem\[\]/)
     assert.match(appearanceSettingsData, /getValue: \(db\) => getPersonalAppearanceValue/)
     assert.match(appearanceSettingsData, /setValue: \(db, value\)/)
@@ -127,12 +129,27 @@ test('appearance settings use typed accessors and render in a searchable child t
     assert.equal((appearanceSettingsData.match(/id: 'personal\.appearance\./g) ?? []).length, 12)
     assert.match(appearanceSettingsData, /value: 'noto-sans-kr'/)
     assert.match(appearanceSettingsData, /value: 'noto-serif-kr'/)
+    assert.match(appearanceSettingsData, /value: 'ibm-plex-sans-kr'/)
+    assert.match(appearanceSettingsData, /value: 'gowun-dodum'/)
+    assert.match(appearanceSettingsData, /value: 'gowun-batang'/)
+    assert.match(appearanceSettingsData, /value: 'hahmlet'/)
     assert.match(appearanceSection, /personal-font-preview__sample/)
+    assert.match(appearanceSection, /appearance\.chat\.font !== 'app'/)
+    assert.match(appearanceSection, /items=\{personalAppearanceFontSettingsItems\}/)
+    assert.match(appearanceSection, /items=\{personalAppearanceOtherSettingsItems\}/)
     assert.match(appearanceSection, /document\.fonts/)
+    assert.match(appearanceSection, /ensurePersonalChatFontStylesheet/)
     assert.match(appearanceSection, /faces\.length > 0 \? 'ready' : 'failed'/)
     assert.match(appearanceSection, /lang="zh-Hans"/)
     assert.match(appearanceSection, /lang="zh-Hant"/)
     assert.doesNotMatch(appearanceSection, /personalAppearanceFontPreviewNote/)
+
+    const languageEnglish = unit('personal-settings:appearance-language-en-1.9')
+    const languageKorean = unit('personal-settings:appearance-language-ko-1.9')
+    assert.match(languageEnglish.content, /personalAppearanceFontPreview: "Font preview"/)
+    assert.match(languageKorean.content, /personalAppearanceFontPreview: "폰트 미리보기"/)
+    assert.doesNotMatch(languageEnglish.content, /Multilingual font preview/)
+    assert.doesNotMatch(languageKorean.content, /다국어 폰트 미리보기/)
 
     const helpEnglish = unit('personal-settings:appearance-help-en-1.9')
     const helpKorean = unit('personal-settings:appearance-help-ko-1.9')
@@ -180,9 +197,14 @@ test('static appearance CSS is unlayered, token-gated, and leaves user CSS last'
     assert.match(appearanceCss, /data-pocketrisu-css~="chat-font-paperlogy"/)
     assert.match(appearanceCss, /data-pocketrisu-css~="chat-font-noto-sans-kr"/)
     assert.match(appearanceCss, /data-pocketrisu-css~="chat-font-noto-serif-kr"/)
+    assert.match(appearanceCss, /data-pocketrisu-css~="chat-font-ibm-plex-sans-kr"/)
+    assert.match(appearanceCss, /data-pocketrisu-css~="chat-font-gowun-dodum"/)
+    assert.match(appearanceCss, /data-pocketrisu-css~="chat-font-gowun-batang"/)
+    assert.match(appearanceCss, /data-pocketrisu-css~="chat-font-hahmlet"/)
     assert.match(appearanceCss, /--personal-chat-font-family: "Noto Sans KR"/)
     assert.match(appearanceCss, /--personal-chat-font-family: "Noto Serif KR"/)
     assert.match(appearanceCss, /font-family: var\(--personal-chat-font-family\)/)
+    assert.match(appearanceCss, /data-pocketrisu-css\*="chat-font-"/)
     assert.match(appearanceCss, /\.chattext :where\(\*\)/)
     assert.match(appearanceCss, /\.personal-font-preview__sample/)
     assert.match(appearanceCss, /\.personal-font-preview__sample :where\(\*\)/)

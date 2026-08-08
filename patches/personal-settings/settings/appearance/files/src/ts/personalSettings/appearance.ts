@@ -9,6 +9,10 @@ export type PersonalChatFont =
     | 'paperlogy'
     | 'noto-sans-kr'
     | 'noto-serif-kr'
+    | 'ibm-plex-sans-kr'
+    | 'gowun-dodum'
+    | 'gowun-batang'
+    | 'hahmlet'
 export type PersonalChatAlignment = 'left' | 'center'
 
 export interface NormalizedPersonalAppearance {
@@ -105,6 +109,10 @@ function readChatFont(value: unknown): PersonalChatFont {
         case 'paperlogy':
         case 'noto-sans-kr':
         case 'noto-serif-kr':
+        case 'ibm-plex-sans-kr':
+        case 'gowun-dodum':
+        case 'gowun-batang':
+        case 'hahmlet':
             return value
         default:
             return 'app'
@@ -206,6 +214,10 @@ function validLeafValue(path: PersonalAppearanceLeafPath, value: unknown): boole
             || value === 'paperlogy'
             || value === 'noto-sans-kr'
             || value === 'noto-serif-kr'
+            || value === 'ibm-plex-sans-kr'
+            || value === 'gowun-dodum'
+            || value === 'gowun-batang'
+            || value === 'hahmlet'
     }
     if (path === 'chat.alignment') return value === 'left' || value === 'center'
     return typeof value === 'boolean'
@@ -280,16 +292,87 @@ const chatFontTokens: Readonly<Record<Exclude<PersonalChatFont, 'app'>, string>>
     paperlogy: 'chat-font-paperlogy',
     'noto-sans-kr': 'chat-font-noto-sans-kr',
     'noto-serif-kr': 'chat-font-noto-serif-kr',
+    'ibm-plex-sans-kr': 'chat-font-ibm-plex-sans-kr',
+    'gowun-dodum': 'chat-font-gowun-dodum',
+    'gowun-batang': 'chat-font-gowun-batang',
+    hahmlet: 'chat-font-hahmlet',
 }
 
 const chatFontFamilies: Readonly<Record<Exclude<PersonalChatFont, 'app'>, string>> = {
     paperlogy: 'Paperlogy',
     'noto-sans-kr': 'Noto Sans KR',
     'noto-serif-kr': 'Noto Serif KR',
+    'ibm-plex-sans-kr': 'IBM Plex Sans KR',
+    'gowun-dodum': 'Gowun Dodum',
+    'gowun-batang': 'Gowun Batang',
+    hahmlet: 'Hahmlet',
 }
+
+const chatFontStylesheetUrls: Partial<Record<PersonalChatFont, string>> = {
+    'ibm-plex-sans-kr': 'https://fonts.googleapis.com/css2?family=IBM+Plex+Sans+KR:wght@400;600;700&display=swap',
+    'gowun-dodum': 'https://fonts.googleapis.com/css2?family=Gowun+Dodum&display=swap',
+    'gowun-batang': 'https://fonts.googleapis.com/css2?family=Gowun+Batang:wght@400;700&display=swap',
+    hahmlet: 'https://fonts.googleapis.com/css2?family=Hahmlet:wght@100..900&display=swap',
+}
+
+const stylesheetLoads = new WeakMap<Document, Map<PersonalChatFont, Promise<boolean>>>()
 
 export function getPersonalChatFontFamily(font: PersonalChatFont): string | null {
     return font === 'app' ? null : chatFontFamilies[font]
+}
+
+/** Loads optional web-font metadata only after that font is selected. */
+export function ensurePersonalChatFontStylesheet(
+    font: PersonalChatFont,
+    targetDocument: Document | null = typeof document === 'undefined' ? null : document,
+): Promise<boolean> {
+    const href = chatFontStylesheetUrls[font]
+    if (!href) return Promise.resolve(true)
+    if (!targetDocument) return Promise.resolve(false)
+
+    let loads = stylesheetLoads.get(targetDocument)
+    if (!loads) {
+        loads = new Map()
+        stylesheetLoads.set(targetDocument, loads)
+    }
+    const cached = loads.get(font)
+    if (cached) return cached
+
+    const selector = `link[data-pocketrisu-font-stylesheet="${font}"]`
+    let link = targetDocument.head.querySelector<HTMLLinkElement>(selector)
+    if (link?.dataset.pocketrisuFontLoaded === 'true' || link?.sheet) {
+        const ready = Promise.resolve(true)
+        loads.set(font, ready)
+        return ready
+    }
+    if (!link) {
+        link = targetDocument.createElement('link')
+        link.rel = 'stylesheet'
+        link.href = href
+        link.dataset.pocketrisuFontStylesheet = font
+    }
+
+    const pendingLink = link
+    const pending = new Promise<boolean>((resolve) => {
+        const finish = (loaded: boolean) => {
+            pendingLink.removeEventListener('load', onLoad)
+            pendingLink.removeEventListener('error', onError)
+            if (loaded) {
+                pendingLink.dataset.pocketrisuFontLoaded = 'true'
+            } else {
+                pendingLink.remove()
+                loads?.delete(font)
+            }
+            resolve(loaded)
+        }
+        const onLoad = () => finish(true)
+        const onError = () => finish(false)
+        pendingLink.addEventListener('load', onLoad, { once: true })
+        pendingLink.addEventListener('error', onError, { once: true })
+        if (!pendingLink.isConnected) targetDocument.head.append(pendingLink)
+    })
+    loads.set(font, pending)
+    return pending
 }
 
 function resolveFeatureToken(
@@ -379,6 +462,10 @@ export function syncPersonalAppearance(
     }
     if (root.getAttribute(PERSONAL_APPEARANCE_ATTRIBUTE) !== value) {
         root.setAttribute(PERSONAL_APPEARANCE_ATTRIBUTE, value)
+    }
+    const font = readPersonalAppearance(db).chat.font
+    if (font !== 'app' && value.split(' ').includes(chatFontTokens[font])) {
+        void ensurePersonalChatFontStylesheet(font, root.ownerDocument)
     }
     return value
 }

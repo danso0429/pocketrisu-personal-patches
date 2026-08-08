@@ -8,7 +8,7 @@ const searchUnits = require('./settings/search/units.cjs')
 module.exports = {
     id: 'personal-settings',
     title: 'Personal settings',
-    version: '0.4.1',
+    version: '0.4.2',
     targets: {
         pocketrisu: {
             verified: ['1.8.1', '1.9.0'],

@@ -2,8 +2,12 @@
     import SettingRenderer from 'src/lib/Setting/SettingRenderer.svelte'
     import { language } from 'src/lang'
     import { DBState, SafeModeStore } from 'src/ts/stores.svelte'
-    import { personalAppearanceSettingsItems } from 'src/ts/setting/personalAppearanceSettingsData'
     import {
+        personalAppearanceFontSettingsItems,
+        personalAppearanceOtherSettingsItems,
+    } from 'src/ts/setting/personalAppearanceSettingsData'
+    import {
+        ensurePersonalChatFontStylesheet,
         getPersonalChatFontFamily,
         isPersonalAppearanceFeatureEffective,
         readPersonalAppearance,
@@ -52,8 +56,10 @@
         }
 
         fontLoadStatus = 'loading'
-        void document.fonts
-            .load(`400 1.25rem "${family}"`, fontPreviewText)
+        void ensurePersonalChatFontStylesheet(font, document)
+            .then((stylesheetReady) => stylesheetReady
+                ? document.fonts.load(`400 1.25rem "${family}"`, fontPreviewText)
+                : [])
             .then((faces) => {
                 if (generation === fontLoadGeneration) {
                     fontLoadStatus = faces.length > 0 ? 'ready' : 'failed'
@@ -87,29 +93,35 @@
         </div>
     {/if}
 
-    <SettingRenderer items={personalAppearanceSettingsItems} layout="row" />
+    <SettingRenderer items={personalAppearanceFontSettingsItems} layout="row" />
 
-    <section
-        class="mt-3 rounded-md border border-darkborderc/70 bg-darkbg/20 p-3"
-        aria-labelledby="personal-font-preview-label"
-    >
-        <div class="flex flex-wrap items-center justify-between gap-2 text-xs">
-            <span id="personal-font-preview-label" class="font-semibold text-textcolor">
-                {language.personalAppearanceFontPreview}
-            </span>
-            <span class="text-textcolor2" role="status" aria-live="polite">
-                {fontStatusLabel(fontLoadStatus)}
-            </span>
-        </div>
-        <p class="personal-font-preview__sample mt-2 text-xl leading-relaxed text-textcolor">
-            <span lang="ko">가나다라마바사</span>
-            <span lang="en">ABC xyz</span>
-            <span lang="ja">日本語の文章</span>
-            <span lang="zh-Hans">简体中文</span>
-            <span lang="zh-Hant">繁體中文</span>
-            <span lang="fr">Français été cœur</span>
-        </p>
-    </section>
+    {#if appearance.chat.font !== 'app'}
+        <section
+            class="mt-3 rounded-md border border-darkborderc/70 bg-darkbg/20 p-3"
+            aria-labelledby="personal-font-preview-label"
+        >
+            <div class="flex flex-wrap items-center justify-between gap-2 text-xs">
+                <span id="personal-font-preview-label" class="font-semibold text-textcolor">
+                    {language.personalAppearanceFontPreview}
+                </span>
+                <span class="text-textcolor2" role="status" aria-live="polite">
+                    {fontStatusLabel(fontLoadStatus)}
+                </span>
+            </div>
+            <p class="personal-font-preview__sample mt-2 text-xl leading-relaxed text-textcolor">
+                <span lang="ko">가나다라마바사</span>
+                <span lang="en">ABC xyz</span>
+                <span lang="ja">日本語の文章</span>
+                <span lang="zh-Hans">简体中文</span>
+                <span lang="zh-Hant">繁體中文</span>
+                <span lang="fr">Français été cœur</span>
+            </p>
+        </section>
+    {/if}
+
+    <div class="mt-1">
+        <SettingRenderer items={personalAppearanceOtherSettingsItems} layout="row" />
+    </div>
 
     <p class="mt-3 text-xs text-textcolor2" aria-live="polite">
         {DBState.db.jailbreakToggle

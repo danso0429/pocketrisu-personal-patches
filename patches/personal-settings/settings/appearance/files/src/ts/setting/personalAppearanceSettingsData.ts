@@ -24,7 +24,7 @@ function common(
     }
 }
 
-export const personalAppearanceSettingsItems: SettingItem[] = [
+export const personalAppearanceFontSettingsItems: SettingItem[] = [
     {
         id: 'personal.appearance.enabled',
         type: 'check',
@@ -45,6 +45,10 @@ export const personalAppearanceSettingsItems: SettingItem[] = [
             'noto serif',
             '페이퍼로지',
             '노토',
+            'ibm plex',
+            '고운돋움',
+            '고운바탕',
+            '함렛',
             '채팅 폰트',
             '다국어',
         ],
@@ -54,10 +58,17 @@ export const personalAppearanceSettingsItems: SettingItem[] = [
                 { value: 'paperlogy', label: 'Paperlogy' },
                 { value: 'noto-sans-kr', labelKey: 'personalAppearanceOptionNotoSansKr' },
                 { value: 'noto-serif-kr', labelKey: 'personalAppearanceOptionNotoSerifKr' },
+                { value: 'ibm-plex-sans-kr', label: 'IBM Plex Sans KR' },
+                { value: 'gowun-dodum', label: 'Gowun Dodum' },
+                { value: 'gowun-batang', label: 'Gowun Batang' },
+                { value: 'hahmlet', label: 'Hahmlet' },
             ],
         },
         ...common('chat.font'),
     },
+]
+
+export const personalAppearanceOtherSettingsItems: SettingItem[] = [
     {
         id: 'personal.appearance.chatAlignment',
         type: 'select',
@@ -145,4 +156,9 @@ export const personalAppearanceSettingsItems: SettingItem[] = [
         keywords: ['jailbreak', 'toggle', 'hide', '탈옥', '숨기기'],
         ...common('visibility.hideJailbreakToggle'),
     },
+]
+
+export const personalAppearanceSettingsItems: SettingItem[] = [
+    ...personalAppearanceFontSettingsItems,
+    ...personalAppearanceOtherSettingsItems,
 ]

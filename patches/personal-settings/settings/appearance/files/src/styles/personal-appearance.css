@@ -50,34 +50,32 @@ html[data-pocketrisu-css~="chat-font-noto-serif-kr"] {
   --personal-chat-font-family: "Noto Serif KR", serif;
 }
 
-html:is(
-  [data-pocketrisu-css~="chat-font-paperlogy"],
-  [data-pocketrisu-css~="chat-font-noto-sans-kr"],
-  [data-pocketrisu-css~="chat-font-noto-serif-kr"]
-) .default-chat-screen.nodeonly-standard .risu-chat[data-chat-index] .chattext,
-html:is(
-  [data-pocketrisu-css~="chat-font-paperlogy"],
-  [data-pocketrisu-css~="chat-font-noto-sans-kr"],
-  [data-pocketrisu-css~="chat-font-noto-serif-kr"]
-) .default-chat-screen.nodeonly-standard .risu-chat[data-chat-index] .chattext :where(*),
-html:is(
-  [data-pocketrisu-css~="chat-font-paperlogy"],
-  [data-pocketrisu-css~="chat-font-noto-sans-kr"],
-  [data-pocketrisu-css~="chat-font-noto-serif-kr"]
-) .personal-font-preview__sample,
-html:is(
-  [data-pocketrisu-css~="chat-font-paperlogy"],
-  [data-pocketrisu-css~="chat-font-noto-sans-kr"],
-  [data-pocketrisu-css~="chat-font-noto-serif-kr"]
-) .personal-font-preview__sample :where(*) {
+html[data-pocketrisu-css~="chat-font-ibm-plex-sans-kr"] {
+  --personal-chat-font-family: "IBM Plex Sans KR", "Noto Sans KR", sans-serif;
+}
+
+html[data-pocketrisu-css~="chat-font-gowun-dodum"] {
+  --personal-chat-font-family: "Gowun Dodum", "Noto Sans KR", sans-serif;
+}
+
+html[data-pocketrisu-css~="chat-font-gowun-batang"] {
+  --personal-chat-font-family: "Gowun Batang", "Noto Serif KR", serif;
+}
+
+html[data-pocketrisu-css~="chat-font-hahmlet"] {
+  --personal-chat-font-family: "Hahmlet", "Noto Serif KR", serif;
+}
+
+html[data-pocketrisu-css*="chat-font-"]
+  .default-chat-screen.nodeonly-standard .risu-chat[data-chat-index] .chattext,
+html[data-pocketrisu-css*="chat-font-"]
+  .default-chat-screen.nodeonly-standard .risu-chat[data-chat-index] .chattext :where(*),
+html[data-pocketrisu-css*="chat-font-"] .personal-font-preview__sample,
+html[data-pocketrisu-css*="chat-font-"] .personal-font-preview__sample :where(*) {
   font-family: var(--personal-chat-font-family) !important;
 }
 
-html:is(
-  [data-pocketrisu-css~="chat-font-paperlogy"],
-  [data-pocketrisu-css~="chat-font-noto-sans-kr"],
-  [data-pocketrisu-css~="chat-font-noto-serif-kr"]
-)
+html[data-pocketrisu-css*="chat-font-"]
   .default-chat-screen.nodeonly-standard .risu-chat[data-chat-index] .chattext
   :is(pre, code, kbd, samp) {
   font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", monospace !important;
