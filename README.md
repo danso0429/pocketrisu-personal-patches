@@ -2,7 +2,7 @@
 
 Private, composable patch delivery for PocketRisu NodeOnly. The current
 stable release is `v0.1.7`, and its manifests target PocketRisu `v1.8.1`.
-The current development checkpoint is `v0.2.0-experimental.14`.
+The current development checkpoint is `v0.2.0-experimental.15`.
 
 ## Universal installer and compatibility presets
 
@@ -37,6 +37,7 @@ not separate implementations.
 
 | Release | What changed |
 | --- | --- |
+| `v0.2.0-experimental.15` | Adds a hidden exact-1.9 point-in-time backup source that pins one SQLite/WAL and verified filesystem epoch for native downloads, settings export/estimate, and server-file backup while retaining the selected standard or lazy storage owner. |
 | `v0.2.0-experimental.14` | Adds an exact-1.9 client/server build-stamp fence that refuses stale authoritative writes before body handling, reloads only clean tabs, and freezes dirty composer, draft, database, and generation state with recoverable unsent text. It retains the experimental.13 Personal appearance graph. |
 | `v0.2.0-experimental.13` | Adds IBM Plex Sans KR, Gowun Dodum, Gowun Batang, and Hahmlet as on-demand chat-font choices. The preview is now named Font preview, stays hidden for the app-font selection, and appears immediately below Chat font for any other choice. |
 | `v0.2.0-experimental.12` | Applies the selected chat font to each multilingual-preview child so PocketRisu's global element font cannot mask it, and removes product-specific examples from the font help and preview note. Actual chat typography and monospace preservation remain unchanged. |
@@ -179,6 +180,26 @@ Body-free live probes confirm that missing/stale writes stop at HTTP 426 with
 `not-committed`, while the exact current stamp reaches the existing request
 validation. Tabs opened before this first deployment still require one
 explicit reload because their old client bundle has no 426 recovery handler.
+
+The `v0.2.0-experimental.15` candidate adds the hidden exact-1.9
+`server-backup-snapshot-core` and selects exactly one standard/lazy adapter
+from the existing storage graph. Native full and settings downloads, settings
+size estimation, and server-file backup now read one pinned SQLite/WAL epoch
+and verified private filesystem copies. Capture holds the selected storage
+queue only while it flushes and fixes that source; archive transfer then runs
+outside the queue so ordinary writes retain their prior availability.
+
+The patcher passes 40/40 test files. All 4,096 raw selections of the twelve
+user-facing packs normalize to 2,048 graphs and pass exact byte/mode recovery
+across 259 catalog-managed paths with up to 669 units. The maximum graph passes
+132 client files / 1,564 tests, 12 server files / 176 tests, Svelte 0/0
+diagnostics, a 7,864-module production build, the build-stamp and BG-bundle
+checks, and an immediate zero-change re-plan. Missing databases or chunks,
+source drift, framing mismatches, capacity limits, disconnect cleanup, and
+maintenance during an active source fail closed. Detached backup jobs and the
+long-reader WAL-duration problem remain P3 work. All four generated `.15`
+installers are syntax-valid, and two consecutive builds produced identical
+sizes and SHA-256 values.
 
 The `v0.2.0-experimental.11` checkpoint keeps that storage and activation
 contract while extending the chat-font enum with Noto Sans KR and Noto Serif

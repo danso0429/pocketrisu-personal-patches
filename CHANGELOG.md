@@ -2,6 +2,35 @@
 
 ## Unreleased
 
+## 0.2.0-experimental.15
+
+- Add the hidden exact-PocketRisu-1.9 `server-backup-snapshot-core` plus exactly
+  one standard/lazy adapter without adding a user-facing selection bit or a
+  second storage authority.
+- Pin one read-only SQLite/WAL epoch and verified private filesystem copies for
+  full backup download, settings-only download and estimate, and server-file
+  backup. Release the storage queue after capture so archive transfer does not
+  block ordinary writes.
+- Reconstruct chunked values from the pinned reader and fail closed on a
+  missing database or chunk, source drift, frame/size mismatch, unsafe
+  aggregate size, capacity exhaustion, or disconnect. Clean every source and
+  partial server file on all completion paths.
+- Serialize inlay compression with source capture and return retryable HTTP 409
+  from manual optimize/checkpoint while an active reader prevents the requested
+  maintenance. Preserve their prior behavior after the source closes.
+- Keep the existing native archive format, routes, UI, standard/lazy storage
+  ownership, and live write availability. Leave detached spooling, restart
+  retry, retention, and long-reader WAL-duration control to P3.
+- Pass all 40 patcher test files and all 4,096 raw selections as 2,048
+  normalized graphs across 259 catalog-managed paths with up to 669 units,
+  including exact byte/mode round trips. Pass the maximum graph with 132 client
+  files / 1,564 tests, 12 server files / 176 tests, Svelte 0/0 diagnostics, a
+  7,864-module production build, build-stamp/BG-bundle checks, and a zero-change
+  re-plan.
+- Generate all four syntax-valid installers twice with identical byte sizes and
+  SHA-256 values. Keep live admission and the native backup/device scenarios as
+  separate gates.
+
 ## 0.2.0-experimental.14
 
 - Compose the already-live and scoped-L3-qualified `personal-settings 0.4.2`
