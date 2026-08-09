@@ -264,8 +264,65 @@ The first live admission must:
    application, preserve `save/` and `backups/`, rebuild client and BG bundle,
    restart, and confirm the emitted artifact before accepting writes;
 3. verify root/asset HTTP, served/local asset hash, process restart count,
-   error-log delta, 32-pack/607-unit current status, and zero-change re-plan;
+   error-log delta, 32-pack/652-unit current status, and zero-change re-plan;
 4. explicitly reload each already-open device tab once.
+
+### First live automatic admission
+
+At 2026-08-09 12:12 KST, the final `v0.2.0-experimental.14` installer and
+merge commit `8fc81b7` were already pushed. The final live plan resolved 32
+packs and 652 units with six ordered collisions. It changed exactly the 23
+unique source paths owned by the selected fence core, BG, Kei, and lazy
+adapters plus patch state. The 21 appearance-only paths from the rejected plan
+were absent.
+
+Immediately before stop, two consecutive read-only gates observed active
+model jobs, deliverable unclaimed main jobs, pending sends, and both BG result
+payload prefixes all at zero. Sixty-eight durable operation states were all
+`delivered`, both SQLite `quick_check` results were `ok`, and no nested
+`save/save` existed. PM2 was then stopped before applying source.
+
+The stopped live tree produced these observations:
+
+- frozen offline install restored 109/109 development packages with zero
+  downloads;
+- client suite: 132/132 files and 1,564/1,564 tests passed;
+- server suite: 10/10 files and 170/170 tests passed;
+- Svelte diagnostics: 0 errors and 0 warnings;
+- production build: 7,864 modules transformed and exit 0;
+- build identity: the artifact and server loader agreed on one safe
+  70-character stamp and exactly one JavaScript chunk contained it;
+- appearance retention: all seven font tokens and both Noto imports remained
+  in generated CSS;
+- BG bundle: 8,422,345 bytes, SHA-256
+  `5a0e26fc15dce741303479b4e54053fc35359d5c6ffe18a7ac3c7f017ce87149`,
+  with `sendChat=function` load check passed;
+- patch status: `current`, 32 packs, 248 active managed source paths, no
+  drift, and a zero-change re-plan; and
+- production prune removed the 109 development packages while `express`,
+  `better-sqlite3`, `msgpackr`, and `compression` remained resolvable.
+
+After restart, PocketRisu 1.9.0 was online at PID 4157367 with restart count
+6, zero unstable restarts, and zero active requests. Root, main asset, and
+`build-stamp.json` returned HTTP 200. Served and local
+`/assets/index-C-Ldqbkn.js` were both 2,015,104 bytes with SHA-256
+`c840bf1a39b18966cfe7f245cc7138b36857240be19c763121e614317122eb9c`.
+The authenticated BG status route retained its unauthenticated 401 response.
+The PM2 error log retained its exact inode, zero-byte size, and modification
+time.
+
+A body-free, unauthenticated live write probe returned HTTP 426,
+`CLIENT_UPGRADE_REQUIRED`, `not-committed`, and `Connection: close` for both
+missing and stale build headers. The exact current stamp passed the fence and
+reached the existing request validation, which returned HTTP 400. The main
+database, model-job database, and backup-directory inode, size, and
+modification time remained exact; both `quick_check` results remained `ok`;
+active, unclaimed, pending, and result work remained zero. Retention reduced
+the already-delivered operation tombstones from 68 to 58 during restart; all
+58 remaining states were `delivered`.
+
+The automatic live gate is complete. An already-open pre-fence tab still lacks
+the 426 recovery client and must be explicitly reloaded once before P2 starts.
 
 The next production build transition must then exercise these concrete cases:
 

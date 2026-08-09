@@ -171,6 +171,15 @@ build, the build-stamp and BG-bundle checks, a zero-change re-plan, and exact
 source revert. All appearance font tokens and Noto imports remain in the
 generated CSS.
 
+The same combined installer is live. It changed only the 23 fence-owned
+source paths plus patch state, repeated the full stopped-tree gates, re-planned
+with zero changes, and restarted with exact served/local asset bytes, an
+unchanged zero-byte error log, and unchanged database and backup metadata.
+Body-free live probes confirm that missing/stale writes stop at HTTP 426 with
+`not-committed`, while the exact current stamp reaches the existing request
+validation. Tabs opened before this first deployment still require one
+explicit reload because their old client bundle has no 426 recovery handler.
+
 The `v0.2.0-experimental.11` checkpoint keeps that storage and activation
 contract while extending the chat-font enum with Noto Sans KR and Noto Serif
 KR. Both Noto choices cover the Korean, Japanese, Chinese, Latin, and extended

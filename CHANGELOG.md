@@ -44,6 +44,12 @@
   a 7,864-module build, retained appearance CSS tokens/imports, and the BG
   bundle build/load check. Confirm a zero-change 32-pack re-plan and exact
   source revert.
+- Admit only the 23 fence-owned source paths plus patch state to the stopped
+  live target. Repeat the full tests, Svelte 0/0, production build, BG bundle,
+  production prune, zero-change re-plan, HTTP asset/build-stamp readback, and
+  database-preservation checks. Confirm missing/stale live writes return 426
+  and `not-committed`, while the exact stamp passes through to the existing
+  request validation. Keep the PM2 error log at zero bytes.
 - Keep live admission and cross-build device behavior as separate gates. Tabs
   opened before the first fence deployment require one explicit reload because
   those old bundles do not yet contain the HTTP 426 recovery handler. Keep
