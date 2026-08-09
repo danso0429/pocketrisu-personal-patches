@@ -143,7 +143,7 @@ test('PocketRisu Kei can require hidden children without exposing them directly'
     )
 })
 
-test('PocketRisu Kei adds only its child units to every existing unit graph', () => {
+test('PocketRisu Kei changes only its children and declared client-fence adapters', () => {
     const catalog = loadCatalog()
     const existingVisible = catalog
         .filter((pack) => pack.userSelectable !== false && pack.id !== manifest.id)
@@ -173,6 +173,10 @@ test('PocketRisu Kei adds only its child units to every existing unit graph', ()
         'kei-stream-parser-core',
         'kei-stream-parser-base-adapter',
         'kei-stream-parser-bg-adapter',
+        'client-build-fence-standard-adapter',
+        'client-build-fence-kei-adapter',
+        'client-build-fence-kei-standard-storage-adapter',
+        'client-build-fence-kei-lazy-storage-adapter',
         manifest.id,
     ])
 
@@ -181,6 +185,7 @@ test('PocketRisu Kei adds only its child units to every existing unit graph', ()
         const withoutKeiResolution = resolveSelection(catalog, selected)
         const withKeiResolution = resolveSelection(catalog, [...selected, manifest.id])
         const withoutKei = withoutKeiResolution.packs
+            .filter((pack) => !keiPackIds.has(pack.id))
             .flatMap((pack) => pack.units.map((unit) => unit.id))
         const withKei = withKeiResolution.packs
             .filter((pack) => !keiPackIds.has(pack.id))

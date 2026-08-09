@@ -51,6 +51,12 @@ function loadCatalog(repositoryRoot = path.resolve(__dirname, '..')) {
     const catalog = [
         require(path.join(repositoryRoot, 'patches/bg-preserve/manifest.cjs')),
         require(path.join(repositoryRoot, 'patches/bg-preserve-storage-base/manifest.cjs')),
+        require(path.join(repositoryRoot, 'patches/client-build-fence/manifest.cjs')),
+        require(path.join(repositoryRoot, 'patches/client-build-fence-bg-adapter/manifest.cjs')),
+        require(path.join(repositoryRoot, 'patches/client-build-fence-standard-adapter/manifest.cjs')),
+        require(path.join(repositoryRoot, 'patches/client-build-fence-kei-adapter/manifest.cjs')),
+        require(path.join(repositoryRoot, 'patches/client-build-fence-kei-standard-storage-adapter/manifest.cjs')),
+        require(path.join(repositoryRoot, 'patches/client-build-fence-kei-lazy-storage-adapter/manifest.cjs')),
         require(path.join(repositoryRoot, 'patches/startup-cache/manifest.cjs')),
         require(path.join(repositoryRoot, 'patches/lazy-chat-sync/manifest.cjs')),
         require(path.join(repositoryRoot, 'patches/lazy-chat-bg-adapter/manifest.cjs')),

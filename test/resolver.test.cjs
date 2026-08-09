@@ -5,12 +5,13 @@ const assert = require('node:assert/strict')
 const { loadCatalog } = require('../src/catalog.cjs')
 const { resolveSelection } = require('../src/resolver.cjs')
 
-test('catalog exposes eleven user packs and keeps integration packs internal', () => {
+test('catalog exposes twelve user packs and keeps integration packs internal', () => {
     const catalog = loadCatalog()
     assert.deepEqual(
         catalog.filter((pack) => pack.userSelectable !== false).map((pack) => pack.id),
         [
             'bg-preserve',
+            'client-build-fence',
             'startup-cache',
             'lazy-chat-sync',
             'persona-organizer',
@@ -27,6 +28,11 @@ test('catalog exposes eleven user packs and keeps integration packs internal', (
         catalog.filter((pack) => pack.userSelectable === false).map((pack) => pack.id),
         [
             'bg-preserve-storage-base',
+            'client-build-fence-bg-adapter',
+            'client-build-fence-standard-adapter',
+            'client-build-fence-kei-adapter',
+            'client-build-fence-kei-standard-storage-adapter',
+            'client-build-fence-kei-lazy-storage-adapter',
             'lazy-chat-bg-adapter',
             'kei-stream-parser-core',
             'kei-stream-parser-base-adapter',
