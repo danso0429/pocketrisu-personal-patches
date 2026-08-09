@@ -2,6 +2,44 @@
 
 ## Unreleased
 
+## 0.2.0-experimental.10
+
+- Add the exact-PocketRisu-1.9 `client-build-fence 0.1.0` pack. Each
+  production build emits a fresh random stamp into the client bundle and
+  `dist/build-stamp.json`; authoritative storage mutations require the same
+  `x-client-build` value before body handling.
+- Return HTTP 426 with an explicit `not-committed` outcome for missing or stale
+  writer stamps. Keep reads, generation starts, proxy requests, and the
+  payload-free database flush available across rolling deployments so active
+  work can finish without allowing stale destructive recovery transitions.
+  Validate artifact fields as bounded header-safe tokens and emit one startup
+  warning when the missing/invalid artifact disables the fence.
+- Reload a clean stale client once with a session loop guard. Freeze a client
+  with dirty database, composer, draft, or generation state, block document
+  and portal mutation surfaces including IME and pointer completion, and
+  expose only unsent composer/draft text in the bilingual recovery banner.
+  Reconcile the build advertised by the bootstrap session before the first
+  write instead of waiting for an HTTP 426.
+- Add hidden composition adapters for standard and lazy storage, Kei snapshot
+  restore safety, and bg-preserve acknowledgements, cancellation, result and
+  draft cleanup. Preserve one existing storage/generation owner in every
+  selection.
+- Pass all 39 patcher test files and all 4,096 raw selections as 2,048
+  normalized graphs across 237 managed paths with up to 607 units, including
+  zero-change re-plans and exact round trips. Pass the maximum PocketRisu graph
+  with 131 client files / 1,547 tests, 10 server files / 170 tests, Svelte
+  diagnostics at 0 errors and 0 warnings, and a 7,859-module production build.
+  Confirm one identical 70-character stamp in the artifact, client chunk, and
+  server loader.
+- Generate all four syntax-valid installers twice with identical sizes and
+  SHA-256 values. Confirm source, generic-installer, and fixed-all plans agree
+  at 32 packs, 607 units, five ordered collisions, and 233 planned paths.
+- Keep live admission and cross-build device behavior as separate gates. Tabs
+  opened before the first fence deployment require one explicit reload because
+  those old bundles do not yet contain the HTTP 426 recovery handler. Keep
+  operational log ingestion/deletion outside the authoritative user-data
+  fence.
+
 ## 0.2.0-experimental.9
 
 - Import bg-preserve `v1.0.1`, including direct iOS touch-end dispatch for

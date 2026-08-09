@@ -2,7 +2,7 @@
 
 Private, composable patch delivery for PocketRisu NodeOnly. The current
 stable release is `v0.1.7`, and its manifests target PocketRisu `v1.8.1`.
-The current development checkpoint is `v0.2.0-experimental.9`.
+The current development checkpoint is `v0.2.0-experimental.10`.
 
 ## Universal installer and compatibility presets
 
@@ -24,10 +24,10 @@ The older named artifacts remain preset wrappers:
   `persona-organizer`, `character-organizer`, `character-import-ux`,
   `personal-settings`, and `preset-integrity`.
   An existing bg-preserve installation remains an external layer.
-- `pocketrisu-hardening.cjs` manages `parser-hardening` and
-  `toolchain-hardening`.
+- `pocketrisu-hardening.cjs` manages the exact-1.9
+  `client-build-fence`, `parser-hardening`, and `toolchain-hardening` packs.
 - `pocketrisu-all.cjs` combines the feature packs, parser and toolchain
-  hardening,
+  hardening, the client build fence,
   bg-preserve `v1.0.1`, and the `lazy-chat-bg-adapter` durable-save barrier.
 
 All four artifacts are generated from the same engine and manifests. They are
@@ -37,6 +37,7 @@ not separate implementations.
 
 | Release | What changed |
 | --- | --- |
+| `v0.2.0-experimental.10` | Adds an exact-1.9 client/server build-stamp fence that refuses stale authoritative writes before body handling, reloads only clean tabs, and freezes dirty composer, draft, database, and generation state with recoverable unsent text. |
 | `v0.2.0-experimental.9` | Imports bg-preserve v1.0.1 so iOS-rendered module controls dispatch directly and server module selection follows each installed database snapshot, while the composition importer excludes three standalone storage hooks already owned by the lazy/standard adapters. |
 | `v0.2.0-experimental.8` | Splits Personal settings into a small composition manifest, shared core, and setting-owned modules so future toggles can be added independently while retaining the existing public entry point, patch unit IDs, storage contract, and import behavior. |
 | `v0.2.0-experimental.7` | Adds a built-in Personal settings page directly after System and a persisted opt-in toggle that keeps the import-start screen after local card, character-package, and Realm imports without changing import durability or the default navigation behavior. |
@@ -133,6 +134,28 @@ cache-status 401, BG bundle freshness/load, and the post-restart error-log
 window passed. The user then passed the iPhone L3 for one-tap GigaTrans
 request status without scroll activation and for automatic translation
 surviving background/return. Provider 429 policy remains unchanged.
+
+The `v0.2.0-experimental.10` candidate adds the exact-1.9
+`client-build-fence` pack and composition adapters for standard storage,
+Kei restore safety, lazy storage, and bg-preserve recovery. Every production
+build emits one random build stamp into both the client bundle and
+`dist/build-stamp.json`; authoritative server mutations require the matching
+`x-client-build` value before request-body handling. A clean stale tab reloads
+once. A tab with unsaved database, composer, draft, or generation state freezes
+all mutation surfaces and exposes only the unsent composer/draft text in a
+recovery banner.
+
+The patcher passes 39/39 test files. All 4,096 raw selections of the twelve
+user-facing packs normalize to 2,048 graphs and pass apply, zero-change
+re-plan, and exact round-trip recovery across 237 managed paths with up to 607
+resolved units. The applied maximum graph passes 131 client files / 1,547
+tests, 10 server files / 170 tests, Svelte diagnostics at 0 errors and 0
+warnings, and a 7,859-module production build. The emitted artifact, the one
+matching JavaScript chunk, and the server loader hold the same 70-character
+stamp. Two patcher builds produce byte-identical, syntax-valid installers, and
+source, generic, and fixed-all plans agree at 32 packs / 607 units / five
+ordered collisions / 233 planned paths. Live admission and the first
+cross-build device transition remain a separate gate.
 
 The `v0.2.0-experimental.3` checkpoint passes 17 patcher test files containing
 118 top-level test declarations. All 256 raw selections of the eight
@@ -402,6 +425,43 @@ The Thoughts scanner is shared by ChatML parsing and the main response path, so
 the two consumers cannot silently diverge. The pack owns focused regression
 tests and has its own SHA-256 ETag; its managed content, apply state, status,
 and revert scope remain independent from feature and bg-preserve packs.
+
+### Client build write fence
+
+The exact-PocketRisu-1.9 `client-build-fence` pack prevents an already-open
+client bundle from mutating a newly deployed server with stale serialization
+or recovery code:
+
+- every production build receives a fresh 256-bit random stamp, embedded in
+  the client bundle and emitted as `dist/build-stamp.json` for the server;
+- authoritative database, chat, asset, migration, backup, snapshot, and
+  recovery-finalization mutations send `x-client-build`; a missing or stale
+  value receives HTTP 426 with a definite `not-committed` outcome before body
+  parsing;
+- the bootstrap session advertises the server build, so an already-stale tab
+  enters the same clean-reload or dirty-recovery path before its first write;
+- reads, generation starts, proxy requests, and `/api/db/flush` remain
+  available across a rolling deployment. Existing work can finish, while its
+  destructive claim, acknowledgement, cancellation, or deletion is retained
+  until a matching client takes ownership;
+- a clean client reloads once, guarded against a stale-cache reload loop. A
+  dirty client freezes document and portal mutation surfaces, including IME,
+  keyboard, pointer, paste, drop, and form events, and shows a bilingual
+  recovery banner;
+- recovery text is limited to unsent composer and draft content. Stored form,
+  profile, credential, and plugin fields are not copied into the banner;
+- hidden adapters place the same fence around standard/Kei backup XHR paths,
+  lazy storage, bg-preserve result acknowledgements, draft deletion, and
+  orchestration cleanup without creating a second storage or generation owner.
+
+The build stamp is a compatibility token, not an authentication secret. If the
+server artifact is missing or invalid, the fence deliberately fails open so a
+recovery deployment cannot brick storage access and emits one startup warning.
+Operational `/api/logs` and `/api/request-logs` writes/deletes are deliberately
+outside the authoritative user-data fence. A tab opened before the first
+installation of this pack has no 426 handler and therefore requires one
+explicit reload after that first deployment; automatic clean/dirty transition
+behavior becomes observable from the next production build onward.
 
 ### Toolchain hardening
 
