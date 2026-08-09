@@ -6,7 +6,7 @@
 - Phase 5 user review: 2026-08-02 KST. The user accepted bounded overnight completed-result survival and the fresh-snapshot destructive-restore safeguard. This records policy only; it does not authorize implementation.
 - Audit authority: `docs/POCKETRISU-KEI-OVERLAP-AUDIT-INSTRUCTIONS.md` (597 lines, read completely before source work).
 - Patcher checkout: `codex/pocketrisu-1.9-rebase` at `2991355734cf56df91466f96873213dba6b9442d`.
-- Patcher remote: `origin=https://github.com/danso0429/pocketrisu-personal-patches.git`.
+- Patcher remote: the private canonical `origin`, verified at the audit boundary.
 - Patcher opening status: user-owned modifications in `docs/POCKETRISU-1.9-SESSION-HANDOFF.md` and `docs/POCKETRISU-KEI-INTEGRATION-STATUS.md`, plus the untracked audit instruction. No runtime, manifest, patch payload, or generated-installer change was present.
 - A, official PocketRisu 1.8.1: commit `63832a138c14cc7f11364cf7efdcb61950e7894c`, tree `5298d6f83bfd8131744adb65a46e6fe8f3feea8b`.
 - K, frozen PocketRisu Kei: commit `cc1d1b195babd887577ebf943d5e82f01f58135c`, tree `e3e848052757f86a33e6a083b28e477a8f8afabb`.

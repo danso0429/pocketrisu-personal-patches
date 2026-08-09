@@ -12,6 +12,7 @@ const coreUnits = require('../patches/personal-settings/core/units.cjs')
 const importNavigationUnits = require(
     '../patches/personal-settings/settings/import-navigation/units.cjs',
 )
+const appearanceUnits = require('../patches/personal-settings/settings/appearance/units.cjs')
 const searchUnits = require('../patches/personal-settings/settings/search/units.cjs')
 const logic = read('core/files/src/ts/personalSettings.ts')
 const logicTests = read('core/files/src/ts/personalSettings.test.ts')
@@ -26,6 +27,24 @@ const importNavigationTests = read(
 const importNavigationSection = read(
     'settings/import-navigation/files/src/lib/Setting/Pages/PersonalSettings/ImportNavigationSetting.svelte',
 )
+const appearanceLogic = read(
+    'settings/appearance/files/src/ts/personalSettings/appearance.ts',
+)
+const appearanceLogicTests = read(
+    'settings/appearance/files/src/ts/personalSettings/appearance.test.ts',
+)
+const appearanceSettingsData = read(
+    'settings/appearance/files/src/ts/setting/personalAppearanceSettingsData.ts',
+)
+const appearanceSection = read(
+    'settings/appearance/files/src/lib/Setting/Pages/PersonalSettings/AppearanceSettings.svelte',
+)
+const appearanceRuntime = read(
+    'settings/appearance/files/src/lib/Others/PersonalAppearanceRuntime.svelte',
+)
+const appearanceCss = read(
+    'settings/appearance/files/src/styles/personal-appearance.css',
+)
 
 function unit(id) {
     const result = manifest.units.find((candidate) => candidate.id === id)
@@ -39,7 +58,7 @@ function replacementText(candidate) {
 
 test('personal settings is an independent rolling feature pack', () => {
     assert.equal(manifest.id, 'personal-settings')
-    assert.equal(manifest.version, '0.2.0')
+    assert.equal(manifest.version, '0.4.2')
     assert.deepEqual(manifest.targets, {
         pocketrisu: {
             verified: ['1.8.1', '1.9.0'],
@@ -55,6 +74,7 @@ test('the root manifest only aggregates core and setting-owned units', () => {
     assert.deepEqual(manifest.units, [
         ...coreUnits,
         ...importNavigationUnits,
+        ...appearanceUnits,
         ...searchUnits,
     ])
     assert.equal(
@@ -74,6 +94,146 @@ test('the root manifest only aggregates core and setting-owned units', () => {
         candidate.targetVersions?.pocketrisu?.length === 1
         && candidate.targetVersions.pocketrisu[0] === '1.9.0'
     ))
+    assert.ok(appearanceUnits.length > 0)
+    assert.ok(appearanceUnits.every((candidate) =>
+        candidate.targetVersions?.pocketrisu?.length === 1
+        && candidate.targetVersions.pocketrisu[0] === '1.9.0'
+    ))
+})
+
+test('PocketRisu 1.9 appearance storage is normalized, leaf-written, and future-safe', () => {
+    assert.match(appearanceLogic, /PERSONAL_APPEARANCE_SCHEMA_VERSION = 1/)
+    assert.match(appearanceLogic, /schemaStatus: 'unsupported'/)
+    assert.match(appearanceLogic, /function readPersonalAppearance/)
+    assert.match(appearanceLogic, /function setPersonalAppearanceValue/)
+    assert.match(appearanceLogic, /\.\.\.personalRecord/)
+    assert.match(appearanceLogic, /\.\.\.appearanceRecord/)
+    assert.match(appearanceLogic, /\.\.\.\(\(currentGroup \?\? \{\}\) as UnknownRecord\)/)
+    assert.doesNotMatch(appearanceLogic, /setDatabase(?:Lite)?\s*\(/)
+
+    assert.match(appearanceLogicTests, /invalid enum values without mutating/)
+    assert.match(appearanceLogicTests, /preserves unknown fields at every level/)
+    assert.match(appearanceLogicTests, /unknown future schema/)
+    assert.match(appearanceLogicTests, /Safe Mode, master off, and unsupported themes/)
+    assert.match(appearanceLogicTests, /does not leave a root declaration behind/)
+})
+
+test('appearance settings use typed accessors and render in a searchable child tab', () => {
+    assert.match(appearanceSettingsData, /personalAppearanceFontSettingsItems: SettingItem\[\]/)
+    assert.match(appearanceSettingsData, /personalAppearanceOtherSettingsItems: SettingItem\[\]/)
+    assert.match(appearanceSettingsData, /personalAppearanceSettingsItems: SettingItem\[\]/)
+    assert.match(appearanceSettingsData, /getValue: \(db\) => getPersonalAppearanceValue/)
+    assert.match(appearanceSettingsData, /setValue: \(db, value\)/)
+    assert.doesNotMatch(appearanceSettingsData, /bindPath:/)
+    assert.match(appearanceSettingsData, /syncPersonalAppearance\(ctx\.db, get\(SafeModeStore\)\)/)
+    assert.equal((appearanceSettingsData.match(/id: 'personal\.appearance\./g) ?? []).length, 12)
+    assert.match(appearanceSettingsData, /value: 'noto-sans-kr'/)
+    assert.match(appearanceSettingsData, /value: 'noto-serif-kr'/)
+    assert.match(appearanceSettingsData, /value: 'ibm-plex-sans-kr'/)
+    assert.match(appearanceSettingsData, /value: 'gowun-dodum'/)
+    assert.match(appearanceSettingsData, /value: 'gowun-batang'/)
+    assert.match(appearanceSettingsData, /value: 'hahmlet'/)
+    assert.match(appearanceSection, /personal-font-preview__sample/)
+    assert.match(appearanceSection, /appearance\.chat\.font !== 'app'/)
+    assert.match(appearanceSection, /items=\{personalAppearanceFontSettingsItems\}/)
+    assert.match(appearanceSection, /items=\{personalAppearanceOtherSettingsItems\}/)
+    assert.match(appearanceSection, /document\.fonts/)
+    assert.match(appearanceSection, /ensurePersonalChatFontStylesheet/)
+    assert.match(appearanceSection, /faces\.length > 0 \? 'ready' : 'failed'/)
+    assert.match(appearanceSection, /lang="zh-Hans"/)
+    assert.match(appearanceSection, /lang="zh-Hant"/)
+    assert.doesNotMatch(appearanceSection, /personalAppearanceFontPreviewNote/)
+
+    const languageEnglish = unit('personal-settings:appearance-language-en-1.9')
+    const languageKorean = unit('personal-settings:appearance-language-ko-1.9')
+    assert.match(languageEnglish.content, /personalAppearanceFontPreview: "Font preview"/)
+    assert.match(languageKorean.content, /personalAppearanceFontPreview: "폰트 미리보기"/)
+    assert.doesNotMatch(languageEnglish.content, /Multilingual font preview/)
+    assert.doesNotMatch(languageKorean.content, /다국어 폰트 미리보기/)
+
+    const helpEnglish = unit('personal-settings:appearance-help-en-1.9')
+    const helpKorean = unit('personal-settings:appearance-help-ko-1.9')
+    assert.doesNotMatch(helpEnglish.content, /Paperlogy|Noto/)
+    assert.doesNotMatch(helpKorean.content, /Paperlogy|Noto/)
+
+    const pageTabs = unit('personal-settings:appearance-page-tabs-1.9')
+    assert.match(pageTabs.managed, /personalSettingsAppearanceTab/)
+    assert.match(pageTabs.managed, /\$PersonalSubmenuIndex === 1/)
+    assert.match(pageTabs.managed, /<AppearanceSettings \/>/)
+
+    const searchSource = unit('personal-settings:appearance-search-source-1.9')
+    const searchSubmenu = unit('personal-settings:appearance-search-submenu-1.9')
+    assert.match(searchSource.content, /personalAppearanceSettingsItems/)
+    assert.match(searchSource.content, /route: SettingsRoute\.Personal/)
+    assert.match(searchSource.content, /subTab: 1/)
+    assert.match(searchSubmenu.content, /PersonalSubmenuIndex/)
+})
+
+test('appearance runtime has a single token attribute and Safe Mode wins everywhere', () => {
+    assert.match(appearanceLogic, /PERSONAL_APPEARANCE_ATTRIBUTE = 'data-pocketrisu-css'/)
+    assert.match(appearanceLogic, /safeMode\n\s*\|\| theme !== ''/)
+    assert.match(appearanceLogic, /root\.removeAttribute\(PERSONAL_APPEARANCE_ATTRIBUTE\)/)
+    assert.match(appearanceRuntime, /\$effect/)
+    assert.match(appearanceRuntime, /syncPersonalAppearance\(DBState\.db, \$SafeModeStore\)/)
+
+    const bootstrap = unit('personal-settings:appearance-bootstrap-sync-1.9')
+    assert.match(bootstrap.content, /syncPersonalAppearance\(db, get\(SafeModeStore\)\)/)
+    const runtime = unit('personal-settings:appearance-app-runtime-1.9')
+    assert.match(runtime.managed, /<PersonalAppearanceRuntime \/>/)
+
+    const send = unit('personal-settings:appearance-send-icon-render-1.9')
+    assert.match(send.managed, /composer\.textSendIcon/)
+    assert.match(send.managed, /personal-send-glyph/)
+    const jailbreak = unit('personal-settings:appearance-jailbreak-render-second-1.9')
+    assert.match(jailbreak.managed, /visibility\.hideJailbreakToggle/)
+    assert.match(appearanceSection, /DBState\.db\.jailbreakToggle/)
+})
+
+test('static appearance CSS is unlayered, token-gated, and leaves user CSS last', () => {
+    assert.doesNotMatch(appearanceCss, /@layer/)
+    assert.match(appearanceCss, /font-family: "Paperlogy"/)
+    assert.match(appearanceCss, /font-family: "Galmuri14"/)
+    assert.match(appearanceCss, /fonts\.googleapis\.com\/css2\?family=Noto\+Sans\+KR/)
+    assert.match(appearanceCss, /data-pocketrisu-css~="chat-font-paperlogy"/)
+    assert.match(appearanceCss, /data-pocketrisu-css~="chat-font-noto-sans-kr"/)
+    assert.match(appearanceCss, /data-pocketrisu-css~="chat-font-noto-serif-kr"/)
+    assert.match(appearanceCss, /data-pocketrisu-css~="chat-font-ibm-plex-sans-kr"/)
+    assert.match(appearanceCss, /data-pocketrisu-css~="chat-font-gowun-dodum"/)
+    assert.match(appearanceCss, /data-pocketrisu-css~="chat-font-gowun-batang"/)
+    assert.match(appearanceCss, /data-pocketrisu-css~="chat-font-hahmlet"/)
+    assert.match(appearanceCss, /--personal-chat-font-family: "Noto Sans KR"/)
+    assert.match(appearanceCss, /--personal-chat-font-family: "Noto Serif KR"/)
+    assert.match(appearanceCss, /font-family: var\(--personal-chat-font-family\)/)
+    assert.match(appearanceCss, /data-pocketrisu-css\*="chat-font-"/)
+    assert.match(appearanceCss, /\.chattext :where\(\*\)/)
+    assert.match(appearanceCss, /\.personal-font-preview__sample/)
+    assert.match(appearanceCss, /\.personal-font-preview__sample :where\(\*\)/)
+    assert.match(appearanceCss, /\.default-chat-screen\.nodeonly-standard/)
+    assert.match(appearanceCss, /\.chattext pre > code/)
+    assert.doesNotMatch(appearanceCss, /overflow-x:\s*hidden/)
+    assert.match(appearanceCss, /\[data-risu-composer\]/)
+    assert.match(appearanceCss, /\[data-spacer-index\]::before/)
+
+    const link = unit('personal-settings:appearance-css-link-1.9')
+    assert.equal(
+        link.anchor,
+        '    <link rel="stylesheet" href="/src/styles/nodeonly-standard.css" />\n',
+    )
+    assert.match(link.managed, /personal-appearance\.css/)
+    assert.doesNotMatch(link.managed, /customcss/)
+})
+
+test('row switches and selects are connected to visible labels and help descriptions', () => {
+    const rowLabel = unit('personal-settings:appearance-a11y-row-label-1.9')
+    const rowDescription = unit('personal-settings:appearance-a11y-row-description-1.9')
+    const settingCheck = unit('personal-settings:appearance-a11y-setting-check-1.9')
+    const settingSelect = unit('personal-settings:appearance-a11y-setting-select-1.9')
+    assert.match(rowLabel.managed, /setting-\$\{item\.id\}-label/)
+    assert.match(rowDescription.managed, /setting-\$\{item\.id\}-description/)
+    assert.match(settingCheck.managed, /ariaLabelledby/)
+    assert.match(settingCheck.managed, /ariaDescribedby/)
+    assert.match(settingSelect.managed, /ariaLabelledby/)
+    assert.match(settingSelect.managed, /ariaDescribedby/)
 })
 
 test('PocketRisu 1.9 Settings Search indexes and tests the Personal page', () => {
@@ -196,6 +356,16 @@ test('personal settings never writes the database plugin array', () => {
         importNavigationLogic,
         importNavigationTests,
         importNavigationSection,
+        appearanceLogic,
+        appearanceLogicTests,
+        appearanceSettingsData,
+        appearanceSection,
+        appearanceRuntime,
+        appearanceCss,
+        ...appearanceUnits.flatMap((candidate) => [
+            candidate.content ?? '',
+            candidate.managed ?? '',
+        ]),
         ...searchUnits.flatMap((candidate) => [
             candidate.content ?? '',
             candidate.managed ?? '',

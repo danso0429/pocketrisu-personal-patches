@@ -1,0 +1,167 @@
+@import url("https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@100..900&family=Noto+Serif+KR:wght@200..900&display=swap");
+
+/* Personal appearance features are inert unless their exact root token exists.
+ * This sheet is intentionally unlayered. User customCSS is injected later and
+ * remains the final author-level override. */
+
+@font-face {
+  font-family: "Paperlogy";
+  src: url("https://cdn.jsdelivr.net/gh/projectnoonnu/2408-3@1.0/Paperlogy-4Regular.woff2") format("woff2");
+  font-weight: 400;
+  font-style: normal;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: "Paperlogy";
+  src: url("https://cdn.jsdelivr.net/gh/projectnoonnu/2408-3@1.0/Paperlogy-6SemiBold.woff2") format("woff2");
+  font-weight: 600;
+  font-style: normal;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: "Paperlogy";
+  src: url("https://cdn.jsdelivr.net/gh/projectnoonnu/2408-3@1.0/Paperlogy-7Bold.woff2") format("woff2");
+  font-weight: 700;
+  font-style: normal;
+  font-display: swap;
+}
+
+/* Galmuri14 is also registered here so the existing app-level custom font
+ * remains resolvable after the separately-approved customCSS migration. */
+@font-face {
+  font-family: "Galmuri14";
+  src: url("https://cdn.jsdelivr.net/gh/projectnoonnu/2506-1@1.0/Galmuri14.woff2") format("woff2");
+  font-weight: 400;
+  font-style: normal;
+  font-display: swap;
+}
+
+html[data-pocketrisu-css~="chat-font-paperlogy"] {
+  --personal-chat-font-family: "Paperlogy", sans-serif;
+}
+
+html[data-pocketrisu-css~="chat-font-noto-sans-kr"] {
+  --personal-chat-font-family: "Noto Sans KR", sans-serif;
+}
+
+html[data-pocketrisu-css~="chat-font-noto-serif-kr"] {
+  --personal-chat-font-family: "Noto Serif KR", serif;
+}
+
+html[data-pocketrisu-css~="chat-font-ibm-plex-sans-kr"] {
+  --personal-chat-font-family: "IBM Plex Sans KR", "Noto Sans KR", sans-serif;
+}
+
+html[data-pocketrisu-css~="chat-font-gowun-dodum"] {
+  --personal-chat-font-family: "Gowun Dodum", "Noto Sans KR", sans-serif;
+}
+
+html[data-pocketrisu-css~="chat-font-gowun-batang"] {
+  --personal-chat-font-family: "Gowun Batang", "Noto Serif KR", serif;
+}
+
+html[data-pocketrisu-css~="chat-font-hahmlet"] {
+  --personal-chat-font-family: "Hahmlet", "Noto Serif KR", serif;
+}
+
+html[data-pocketrisu-css*="chat-font-"]
+  .default-chat-screen.nodeonly-standard .risu-chat[data-chat-index] .chattext,
+html[data-pocketrisu-css*="chat-font-"]
+  .default-chat-screen.nodeonly-standard .risu-chat[data-chat-index] .chattext :where(*),
+html[data-pocketrisu-css*="chat-font-"] .personal-font-preview__sample,
+html[data-pocketrisu-css*="chat-font-"] .personal-font-preview__sample :where(*) {
+  font-family: var(--personal-chat-font-family) !important;
+}
+
+html[data-pocketrisu-css*="chat-font-"]
+  .default-chat-screen.nodeonly-standard .risu-chat[data-chat-index] .chattext
+  :is(pre, code, kbd, samp) {
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", monospace !important;
+}
+
+html[data-pocketrisu-css~="chat-align-center"]
+  .default-chat-screen.nodeonly-standard .risu-chat[data-chat-index] .chattext {
+  text-align: center;
+}
+
+html[data-pocketrisu-css~="chat-align-center"]
+  .default-chat-screen.nodeonly-standard .risu-chat[data-chat-index] .chattext
+  :is(ul, ol, blockquote, pre, table) {
+  text-align: left;
+}
+
+html[data-pocketrisu-css~="chat-keep-korean-words"]
+  .default-chat-screen.nodeonly-standard .risu-chat[data-chat-index] .chattext
+  :where(p, h1, h2, h3, h4, h5, h6, li, blockquote, figcaption) {
+  word-break: keep-all;
+  overflow-wrap: anywhere;
+}
+
+html[data-pocketrisu-css~="chat-wrap-code-blocks"]
+  .default-chat-screen.nodeonly-standard .risu-chat[data-chat-index] .chattext pre > code {
+  white-space: pre-wrap;
+  word-break: normal;
+  overflow-wrap: anywhere;
+}
+
+html[data-pocketrisu-css~="chat-wrap-code-blocks"]
+  .default-chat-screen.nodeonly-standard .risu-chat[data-chat-index] .chattext pre {
+  overflow-x: auto;
+}
+
+html[data-pocketrisu-css~="composer-minimal"]
+  .default-chat-screen.nodeonly-standard [data-risu-composer] {
+  gap: 0.125rem;
+  border-radius: 0.5rem;
+  background: transparent;
+  padding: 0.25rem;
+}
+
+html[data-pocketrisu-css~="composer-minimal"]
+  .default-chat-screen.nodeonly-standard [data-risu-composer] > button {
+  width: 2rem;
+  height: 2rem;
+  background: transparent;
+  opacity: 0.55;
+}
+
+html[data-pocketrisu-css~="composer-minimal"]
+  .default-chat-screen.nodeonly-standard [data-risu-composer] > button:hover,
+html[data-pocketrisu-css~="composer-minimal"]
+  .default-chat-screen.nodeonly-standard [data-risu-composer] > button:focus-visible {
+  opacity: 1;
+}
+
+html[data-pocketrisu-css~="sidebar-compact"] .rs-sidebar .character-list [data-spacer-index] {
+  position: relative;
+  height: 0.625rem;
+  min-height: 0.625rem;
+}
+
+html[data-pocketrisu-css~="sidebar-compact"] .rs-sidebar .character-list [data-spacer-index]::before {
+  content: "";
+  position: absolute;
+  inset: -0.1875rem 0;
+}
+
+html[data-pocketrisu-css~="sidebar-avatar-border"] .rs-sidebar .avatar {
+  border: 1px solid var(--risu-theme-borderc);
+  border-radius: 0.375rem;
+  box-sizing: border-box;
+}
+
+html[data-pocketrisu-css~="sidebar-panel-dividers"] :is(.rs-sidebar, .setting-area.risu-sidebar, .rs-setting-cont-3) {
+  border-right: 1px solid var(--risu-theme-borderc);
+}
+
+html[data-pocketrisu-css~="settings-compact-controls"] .rs-setting-cont-4 [data-setting-id] {
+  padding-block: 0.5rem;
+}
+
+.personal-send-glyph {
+  font-family: ui-sans-serif, system-ui, sans-serif;
+  font-size: 1rem;
+  line-height: 1;
+}

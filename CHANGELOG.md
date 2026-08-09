@@ -2,8 +2,11 @@
 
 ## Unreleased
 
-## 0.2.0-experimental.10
+## 0.2.0-experimental.14
 
+- Compose the already-live and scoped-L3-qualified `personal-settings 0.4.2`
+  appearance branch with the client build fence. Refuse the earlier installer
+  plan that would have removed or rewound 21 exact-current appearance paths.
 - Add the exact-PocketRisu-1.9 `client-build-fence 0.1.0` pack. Each
   production build emits a fresh random stamp into the client bundle and
   `dist/build-stamp.json`; authoritative storage mutations require the same
@@ -31,15 +34,135 @@
   diagnostics at 0 errors and 0 warnings, and a 7,859-module production build.
   Confirm one identical 70-character stamp in the artifact, client chunk, and
   server loader.
-- Generate all four syntax-valid installers twice with identical sizes and
-  SHA-256 values. Confirm source, generic-installer, and fixed-all plans agree
-  at 32 packs, 607 units, five ordered collisions, and 233 planned paths.
+- Before appearance composition, generate all four syntax-valid installers
+  twice with identical sizes and SHA-256 values. Confirm source,
+  generic-installer, and fixed-all plans agree at 32 packs, 607 units, five
+  ordered collisions, and 233 planned paths.
+- Pass the combined 4,096/4,096 selection gate as 2,048 normalized graphs
+  across 253 catalog paths and up to 652 units. Pass the applied maximum graph
+  with 132 client files / 1,564 tests, 10 server files / 170 tests, Svelte 0/0,
+  a 7,864-module build, retained appearance CSS tokens/imports, and the BG
+  bundle build/load check. Confirm a zero-change 32-pack re-plan and exact
+  source revert.
 - Keep live admission and cross-build device behavior as separate gates. Tabs
   opened before the first fence deployment require one explicit reload because
   those old bundles do not yet contain the HTTP 426 recovery handler. Keep
   operational log ingestion/deletion outside the authoritative user-data
   fence.
+## 0.2.0-experimental.13
 
+- Add IBM Plex Sans KR, Gowun Dodum, Gowun Batang, and Hahmlet as four
+  additional chat-font choices without changing the version-1 appearance
+  storage shape or turning fonts into separate booleans.
+- Load each newly added Google Fonts stylesheet only after that face becomes
+  the effective selection. Repeated runtime synchronization reuses one
+  document-scoped request, failed links are removable/retryable, and Noto
+  remains the CJK/Latin fallback for glyphs absent from a selected face.
+- Keep the multilingual sample text but rename its heading to `Font preview` /
+  `폰트 미리보기`. Hide the preview for the app-font choice and render it
+  immediately below the Chat font row for every non-app selection.
+- Preserve Safe Mode, Standard-theme scoping, code monospace, user custom CSS,
+  and unknown-field-preserving settings writes.
+- Isolate the optional stylesheet-loader unit test with real detached link
+  elements and an in-memory `Document.head` double. The browser production
+  loader remains unchanged, while Vitest no longer starts and aborts a real
+  Google Fonts request during teardown.
+- Pass all 38 patcher test files, 2,048 exact-1.9 raw selections as 1,024
+  normalized graphs, 130 client files/1,554 tests, 9 server files/163 tests,
+  Svelte 0/0 diagnostics, and the 7,862-module production build. Two installer
+  builds produce identical hashes and the applied candidate re-plans with zero
+  changed files.
+- Pass the instructed user-visible appearance L3: app font hides the preview,
+  a non-app font shows `폰트 미리보기` immediately below Chat font, the
+  selected face reaches preview and chat, and code stays monospace. This scoped
+  result does not promote unrelated aggregate PocketRisu 1.9 L3 rows.
+
+## 0.2.0-experimental.12
+
+- Apply the selected chat font to every multilingual-preview child instead of
+  only its parent. PocketRisu's global `*` font declaration otherwise assigns
+  the app font directly to each language span and prevents inheritance.
+- Remove font-product examples from the chat-font help text and remove the
+  font-specific note below the multilingual preview. Font names remain only
+  where they are required as selectable option labels.
+- Keep actual chat typography, font-load status, Safe Mode behavior, and the
+  code/keyboard monospace reset unchanged.
+- Pass all 38 patcher tests, 2,048/2,048 exact-1.9 selections as 1,024 graphs,
+  focused 10/10 appearance tests, Svelte 0/0 diagnostics, and the 7,862-module
+  production build. The stopped live tree repeats its full 130/1,549 client
+  and 9/163 server tests, restarts with the corrected served CSS, and preserves
+  the observed database, empty custom CSS, and appearance settings exactly.
+
+## 0.2.0-experimental.11
+
+- Add `Noto Sans KR` and `Noto Serif KR` to the PocketRisu 1.9 chat-font enum
+  while keeping app font and Paperlogy values backward compatible inside the
+  existing appearance schema version 1.
+- Add a multilingual settings preview with Korean, English, Japanese,
+  Simplified Chinese, Traditional Chinese, and French samples. Report app,
+  paused, loading, loaded, failed-fallback, and unavailable states from the
+  browser Font Loading API.
+- Resolve one token per selected font rather than modeling font choices as
+  booleans. Safe Mode, the master switch, unknown future schemas, and
+  non-Standard themes continue removing every effective font token without
+  rewriting saved values.
+- Apply the selected font to message descendants as well as the `.chattext`
+  root, then restore code-related elements to the monospace stack. This keeps
+  the existing broad important user-CSS font declaration from masking most of
+  the selected chat face without changing the user-owned CSS itself.
+- Load Noto as variable, unicode-range WOFF2 subsets through the official
+  Google Fonts CSS endpoint. Document the SIL OFL 1.1 source, Korean default
+  Han glyph forms, runtime availability/privacy dependency, and the reason a
+  self-hosted binary pack remains a separate patcher-format change.
+- Pass all 38 patcher test files and all 2,048 exact-1.9 raw selections as
+  1,024 normalized graphs across 239 catalog paths with exact round trips. A
+  clean rolling-all staging candidate passes 130 frontend files/1,549 tests,
+  9 server files/163 tests, Svelte 0/0 diagnostics, production build, and BG
+  bundle build/load. The generated installer re-plan changes no file across
+  the 234 active managed paths.
+
+## 0.2.0-experimental.10
+
+- Add a PocketRisu 1.9-only `Personal → CSS appearance` sub-tab with a master
+  switch and typed controls for chat typography, composer presentation,
+  sidebar decoration, declarative setting-row spacing, and jailbreak-control
+  visibility. The existing import-navigation setting remains the first tab.
+- Store choices in version-1 structured personal settings. Read normalization
+  is non-mutating; leaf writes preserve unknown personal-root,
+  appearance-root, and feature-group fields; malformed or future schemas are
+  preserved and fail closed.
+- Resolve active features to one stable whitespace-tokenized
+  `data-pocketrisu-css` root attribute. Bootstrap applies the initial state
+  before the loaded screen, the app runtime keeps it synchronized, and Safe
+  Mode removes all effective tokens while retaining saved choices.
+- Add unlayered, PocketRisu Standard-scoped static CSS after the base Standard
+  sheet and before user custom CSS. Paperlogy affects message prose only,
+  code keeps monospace behavior, Korean prose gains long-token fallback, and
+  block-code wrapping never hides overflow.
+- Render the normal Send action and jailbreak-toggle visibility from the same
+  effective resolver. Resend, active-generation stop/loading behavior, and
+  the stored jailbreak value remain unchanged.
+- Register the appearance sub-tab with native 1.9 Settings Search and connect
+  setting-row labels/help to switch and select controls with stable accessible
+  identifiers.
+- Keep every appearance patch unit scoped exactly to PocketRisu 1.9.0. The
+  existing 1.8.1 Personal Settings pack receives no appearance adapter or
+  appearance source path.
+- Leave the live/user `customCSS` value untouched. Replacing it remains a
+  separate, explicitly approved migration with byte/hash/revision backup and
+  exact restore verification.
+- Pass all 38 patcher test files and exact-1.9 exhaustive verification across
+  2,048 raw selections and 1,024 normalized graphs. The final rolling-all
+  candidate resolves 587 units and 234 managed paths, passes 130 frontend
+  files/1,545 tests, 9 server files/163 tests, Svelte 0/0 diagnostics, a
+  7,862-module production build, and an 8,464,290-byte BG bundle load check.
+  Repeated apply changes no file and revert restores every tracked byte.
+- Admit the 587-unit graph to the stopped live PocketRisu 1.9 target after
+  active, pending, deliverable, and result work all measured zero. The live
+  tree repeats the 130/1,545 client, 9/163 server, Svelte 0/0, 7,862-module,
+  and BG load gates; restarts online with an exact served/local main-asset
+  hash; and retains the original 19,579-byte `customCSS` at the same database
+  revision and SHA-256.
 ## 0.2.0-experimental.9
 
 - Import bg-preserve `v1.0.1`, including direct iOS touch-end dispatch for

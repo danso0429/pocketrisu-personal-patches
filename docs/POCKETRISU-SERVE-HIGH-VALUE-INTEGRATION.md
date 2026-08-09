@@ -19,7 +19,7 @@ and qualified independently before the next item starts.
 
 | Order | Candidate | Current decision | Why this order and value |
 | --- | --- | --- | --- |
-| P1 | Client/server build write fence | Automatically qualified; live admission pending | A rolling Oracle deployment can leave an old PWA tab writing with stale codecs or recovery rules. Rejecting that write before body handling protects every later storage feature and therefore comes first. |
+| P1 | Client/server build write fence | Automatically qualified in the combined appearance graph; live admission pending | A rolling Oracle deployment can leave an old PWA tab writing with stale codecs or recovery rules. Rejecting that write before body handling protects every later storage feature and therefore comes first. |
 | P2 | Point-in-time server backup source | Pending | Large SQLite-backed backups must be assembled from one pinned database/WAL and asset view. Without this, faster or detached backup execution can produce a logically mixed archive. |
 | P3 | Detached server backup job | Pending after P2 | Moving archive work out of the request lifetime improves reliability on mobile and lets Oracle disk/network throughput dominate, but only after the source snapshot is consistent. |
 | P4 | Server chat-history preservation | Pending after P3 | History can recover destructive edits and complements full backups, but it introduces retention and ownership rules; it should build on the already-qualified write and backup boundaries. |
@@ -42,6 +42,11 @@ cannot be trusted.
 
 Automatic evidence and the exact live/device gate are recorded in
 `docs/POCKETRISU-1.9-CLIENT-BUILD-FENCE-VALIDATION.md`.
+
+The first live plan correctly blocked admission of the pre-composition
+installer: it would have downgraded the already-live Personal appearance pack.
+The retained candidate merges that qualified branch, resolves 32 packs and
+652 units, and passes the full exact-1.9 selection and maximum-graph gates.
 
 ## Progress rule
 

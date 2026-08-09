@@ -166,6 +166,65 @@ The exhaustive gate's exact receipt was:
 }
 ```
 
+## Personal appearance composition qualification
+
+The first live-admission plan exposed a branch-composition hazard rather than
+a client-fence defect. Production already ran `personal-settings 0.4.2` from
+`codex/pocketrisu-appearance`, while the initial fence branch had diverged
+from `personal-settings 0.2.0`. The pre-composition installer would therefore
+have removed six appearance-owned files, restored ten appearance-hook targets
+to the official baseline, and rewritten five composite targets without their
+appearance units. All 21 live files exactly matched their recorded output
+hashes, so this was not drift and the pre-composition installer was not
+admitted.
+
+The appearance branch, including its automatic gates, live preservation
+receipts, and scoped iPhone L3, was merged into the fence branch as
+`v0.2.0-experimental.14`. On 2026-08-09 KST, the combined candidate produced
+the following observed results:
+
+- patcher suite: 39/39 test files passed;
+- exhaustive exact-1.9 gate: 4,096/4,096 raw selections, 2,048 normalized
+  graphs, 253 catalog-managed paths, maximum 652 units, four workers, and
+  exact apply/re-plan/status/revert byte-and-mode round trips passed;
+- maximum graph: 32 resolved packs, 652 units, six explicitly ordered
+  collisions, 250 transition files, and no skipped file on the pristine
+  target;
+- applied maximum graph: 132/132 client files with 1,564/1,564 tests and
+  10/10 server files with 170/170 tests passed;
+- `pnpm check`: 0 errors and 0 warnings;
+- production build: 7,864 modules transformed and completed with the existing
+  browser-externalization, dynamic-import, and large-chunk warnings;
+- build identity: a safe 70-character stamp, identical artifact and server
+  loader objects, and exactly one generated JavaScript chunk containing the
+  stamp;
+- appearance build retention: all seven chat-font tokens plus the Noto Sans
+  KR and Noto Serif KR stylesheet import remained in the generated CSS;
+- BG bundle: 8,422,561 bytes, SHA-256
+  `9b7a7b0294951074e04220ef6f25be41bb0bf932717caee2c9de364c9d51f4ed`,
+  with `sendChat=function` load check passed;
+- immediate re-plan: zero changed files, all 32 packs current across 248
+  active source paths, and no drift;
+- source, generic-installer, and fixed-all plans agreed at 32 packs, 652
+  units, six ordered collisions, and 250 transition files; and
+- exact revert changed the same 250 transaction files, removed patch state,
+  and restored the official tracked source. The retained custom intent and
+  separately generated BG bundle outputs are outside the managed source
+  transaction.
+
+Two consecutive installer generations were byte-identical and passed
+`node --check`:
+
+- patcher: 5,249,789 bytes, SHA-256
+  `4c8af7e63343e0c684cd118e972daee0725ba2fbd7edcb3117c2cc12da606b5d`;
+- features: 5,249,795 bytes, SHA-256
+  `caf59e7975ba4aafb4c3048961bfe6ee6fc80091a749f1d9307760b5e984cdb9`;
+- hardening: 5,249,796 bytes, SHA-256
+  `b6b6ec79f21b6146ef1780883ea03b375978505fd786e9b5860ca8ee85d99927`;
+  and
+- all: 5,249,790 bytes, SHA-256
+  `b9db8debdaa0b2973c456150dc99b9a73cb8dff3c1c39a61cbbc80c9083673ab`.
+
 ## Known limits
 
 - A tab opened before the first live installation does not contain the 426
