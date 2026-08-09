@@ -112,8 +112,9 @@ Every reachable selection completed first plan/apply, current status,
 zero-change repeated plan, empty-selection revert, and managed byte/mode
 snapshot comparison.
 
-The final post-toolchain-correction run completed in 880,039.29 ms with two
-workers. Recorded
+The final post-toolchain-correction run reported 880,039.29 ms of aggregate
+per-selection worker time with two workers. This was not a wall-clock elapsed
+measurement. Recorded
 cache diagnostics were composition bypasses 2,050, hits 2,047, misses/stores
 2,047; pair-cache entries 2,143, hits 550,945, misses 2,143; pack-ETag hits
 58,819, misses 61; and state-encoding hits/misses 2,047/2,047.

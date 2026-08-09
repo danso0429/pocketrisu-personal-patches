@@ -6,6 +6,11 @@
 > operational authority for exhaustive pack-combination verification. It is
 > not an implementation receipt and it is not the L2.5 runtime audit.
 
+The measured scaling, exact command inventory, verification limits, and
+not-yet-adopted policy alternatives are analyzed separately in
+`docs/PATCH-COMBINATION-VERIFICATION-COST-REVIEW.md`. That decision aid does
+not change this procedure.
+
 ## What this gate proves
 
 The combination verifier checks patch composition and transaction integrity
@@ -35,7 +40,7 @@ These gates answer different questions and neither substitutes for the other:
 
 | Gate | Question | Authority |
 | --- | --- | --- |
-| Patch combination verification | Do all selected pack graphs plan, apply, reapply without changes, report current state, and revert managed bytes/modes exactly? | This document and `scripts/verify-all-combinations.cjs` |
+| Patch combination verification | Do all selected pack graphs plan, apply, report current state, re-plan with zero changes, and revert managed bytes/modes exactly? | This document and `scripts/verify-all-combinations.cjs` |
 | L2.5 runtime audit | Which runtime call paths and external effects can the changed code reach, and how are those surfaces resolved and triaged? | The workspace-level `docs/runtime-audit-instructions.md` named by the encompassing `AGENTS.md` |
 
 A manifest, resolver, composition, manager, or managed-unit change normally
