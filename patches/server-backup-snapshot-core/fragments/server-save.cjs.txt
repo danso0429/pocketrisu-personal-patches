@@ -1,0 +1,199 @@
+/* __MARKER__:START */
+app.post('/api/backup/server/save', async (req, res, next) => {
+    if (!await checkAuth(req, res)) { return; }
+    if (!checkActiveSession(req, res)) return;
+
+    const abortTracker = createBackupSourceAbortTracker(req, res);
+    let backupSource = null;
+    let writeStream = null;
+    let writeFailure = null;
+    let tmpPath = null;
+    let finalPath = null;
+    let finalPublished = false;
+    let writeComplete = false;
+
+    try {
+        backupSource = await capturePointInTimeBackupSource({
+            includeInlays: true,
+            signal: abortTracker.signal,
+        });
+        await waitAtBackupSourceTestGate('server-save', abortTracker.signal);
+
+        const pinnedInlays = backupSource.filesystemEntries
+            .filter((entry) => entry.backupName.startsWith('inlay/'));
+        const pinnedSidecars = backupSource.filesystemEntries
+            .filter((entry) => entry.backupName.startsWith('inlay_sidecar/'));
+        const namespacedEntries = [
+            ...backupSource.snapshot.kvListWithSizes('assets/').map((entry) => ({
+                kind: 'kv',
+                key: entry.key,
+                backupName: path.basename(entry.key),
+                sortKey: entry.key,
+                size: entry.size,
+            })),
+            ...listColdStorageBackupEntries({
+                reader: backupSource.snapshot,
+                migrateLegacy: false,
+            }),
+            ...backupSource.snapshot.kvListWithSizes('inlay_meta/').map((entry) => ({
+                kind: 'kv',
+                key: entry.key,
+                backupName: entry.key,
+                sortKey: entry.key,
+                size: entry.size,
+            })),
+            ...pinnedInlays,
+            ...pinnedSidecars,
+        ];
+        const dbSize = backupSource.snapshot.kvSize('database/database.bin');
+        if (dbSize === null) {
+            throw new BackupSourceError(
+                'BACKUP_DATABASE_MISSING',
+                'database.bin is missing from the pinned backup source',
+                500,
+            );
+        }
+        const archiveEntries = [
+            ...namespacedEntries,
+            {
+                kind: 'kv',
+                key: 'database/database.bin',
+                backupName: 'database.risudat',
+                sortKey: 'database.risudat',
+                size: dbSize,
+            },
+        ];
+        const archiveBytes = totalBackupFramedSize(archiveEntries);
+        const totalEntries = archiveEntries.length;
+        const totalBytes = archiveEntries.reduce((sum, entry) => sum + entry.size, 0);
+
+        // Check the actual framed archive size against the destination volume.
+        // A missing statfs implementation remains non-fatal, matching the
+        // native fallback to the write-stream error path.
+        try {
+            const required = Math.ceil(archiveBytes * 1.05);
+            const statfs = await fs.statfs(backupsDir);
+            const free = statfs.bsize * statfs.bavail;
+            if (archiveBytes > 0 && free < required) {
+                res.status(400).json({
+                    error: 'Insufficient disk space (need ~'
+                        + (required / 1024 / 1024).toFixed(0)
+                        + ' MB, free '
+                        + (free / 1024 / 1024).toFixed(0)
+                        + ' MB)',
+                    code: 'insufficient_space',
+                    required,
+                    free,
+                });
+                return;
+            }
+        } catch (error) {
+            console.warn('[Backup] pre-flight disk check failed:', error?.message || error);
+        }
+
+        res.setHeader('content-type', 'application/x-ndjson');
+        res.flushHeaders();
+
+        const paths = allocatePointInTimeServerBackupPaths();
+        ({ tmpPath, finalPath } = paths);
+        const filename = paths.filename;
+        const { createWriteStream: createFsWriteStream } = require('fs');
+        writeStream = createFsWriteStream(tmpPath, { flags: 'wx' });
+        const recordWriteFailure = (error) => { writeFailure = error; };
+        writeStream.on('error', recordWriteFailure);
+
+        let bytesWritten = 0;
+        for (let index = 0; index < archiveEntries.length; index++) {
+            throwIfBackupSourceAborted(abortTracker.signal);
+            if (writeFailure) throw writeFailure;
+            const entry = archiveEntries[index];
+            const value = await readPointInTimeBackupEntry(
+                backupSource,
+                entry,
+                abortTracker.signal,
+            );
+            const ok = writeStream.write(encodeBackupEntry(entry.backupName, value));
+            if (!ok) await waitForBackupDrain(writeStream, abortTracker.signal);
+            if (writeFailure) throw writeFailure;
+            bytesWritten += value.length;
+            const written = index + 1;
+            if (written % 50 === 0 || written === totalEntries) {
+                res.write(JSON.stringify({
+                    type: 'progress',
+                    current: written,
+                    total: totalEntries,
+                    bytes: bytesWritten,
+                    totalBytes,
+                }) + '\n');
+            }
+        }
+
+        await finishBackupWritable(writeStream, abortTracker.signal);
+        writeStream.removeListener('error', recordWriteFailure);
+        if (writeFailure) throw writeFailure;
+        if (writeStream.bytesWritten !== archiveBytes) {
+            throw new BackupSourceError(
+                'BACKUP_ARCHIVE_SIZE_MISMATCH',
+                'Completed server backup size does not match its pinned plan',
+                500,
+            );
+        }
+        throwIfBackupSourceAborted(abortTracker.signal);
+
+        await fs.rename(tmpPath, finalPath);
+        tmpPath = null;
+        finalPublished = true;
+        const stat = await fs.stat(finalPath);
+        if (stat.size !== archiveBytes) {
+            throw new BackupSourceError(
+                'BACKUP_ARCHIVE_SIZE_MISMATCH',
+                'Published server backup size does not match its pinned plan',
+                500,
+            );
+        }
+        throwIfBackupSourceAborted(abortTracker.signal);
+
+        console.log(
+            '[Server Backup] Saved: '
+                + filename
+                + ' ('
+                + (stat.size / 1024 / 1024).toFixed(1)
+                + ' MB)',
+        );
+        res.write(JSON.stringify({
+            type: 'done',
+            ok: true,
+            filename,
+            size: stat.size,
+        }) + '\n');
+        res.end();
+        writeComplete = true;
+    } catch (error) {
+        // Wait for the file descriptor to close before the finally block
+        // unlinks a partial archive; Windows cannot unlink an open file.
+        await destroyBackupWritable(writeStream);
+        if (abortTracker.signal.aborted || error?.name === 'AbortError') return;
+        if (!res.headersSent) {
+            if (error instanceof BackupSourceError) {
+                res.status(error.statusCode || 500).json(backupSourceErrorPayload(error));
+            } else {
+                next(error);
+            }
+        } else if (!res.writableEnded) {
+            res.write(JSON.stringify({
+                type: 'error',
+                message: error?.message || 'server backup failed',
+                code: error?.code,
+            }) + '\n');
+            res.end();
+        }
+    } finally {
+        if (!writeComplete) {
+            if (tmpPath) await fs.unlink(tmpPath).catch(() => {});
+            if (finalPublished && finalPath) await fs.unlink(finalPath).catch(() => {});
+        }
+        await backupSource?.close();
+        abortTracker.cleanup();
+    }
+});
+/* __MARKER__:END */

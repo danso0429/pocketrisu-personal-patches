@@ -321,8 +321,11 @@ active, unclaimed, pending, and result work remained zero. Retention reduced
 the already-delivered operation tombstones from 68 to 58 during restart; all
 58 remaining states were `delivered`.
 
-The automatic live gate is complete. An already-open pre-fence tab still lacks
-the 426 recovery client and must be explicitly reloaded once before P2 starts.
+The automatic live gate is complete. On 2026-08-09 the user explicitly
+reloaded the already-open pre-fence client and reported the ordinary paths
+normal. That completes the one-time first-deployment reload gate and admits
+P2. It does not substitute for the clean/dirty cross-build scenarios below,
+which require a later production build transition.
 
 The next production build transition must then exercise these concrete cases:
 

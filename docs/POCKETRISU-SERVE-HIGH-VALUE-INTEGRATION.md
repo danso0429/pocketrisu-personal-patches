@@ -19,8 +19,8 @@ and qualified independently before the next item starts.
 
 | Order | Candidate | Current decision | Why this order and value |
 | --- | --- | --- | --- |
-| P1 | Client/server build write fence | Combined automatic and live admission passed; one explicit reload of pre-fence tabs pending | A rolling Oracle deployment can leave an old PWA tab writing with stale codecs or recovery rules. Rejecting that write before body handling protects every later storage feature and therefore comes first. |
-| P2 | Point-in-time server backup source | Pending | Large SQLite-backed backups must be assembled from one pinned database/WAL and asset view. Without this, faster or detached backup execution can produce a logically mixed archive. |
+| P1 | Client/server build write fence | Combined automatic/live admission and the one-time pre-fence tab reload passed | A rolling Oracle deployment can leave an old PWA tab writing with stale codecs or recovery rules. Rejecting that write before body handling protects every later storage feature and therefore comes first. |
+| P2 | Point-in-time server backup source | Automatic exact-1.9 qualification passed; generated/live admission pending | Large SQLite-backed backups must be assembled from one pinned database/WAL and asset view. Without this, faster or detached backup execution can produce a logically mixed archive. |
 | P3 | Detached server backup job | Pending after P2 | Moving archive work out of the request lifetime improves reliability on mobile and lets Oracle disk/network throughput dominate, but only after the source snapshot is consistent. |
 | P4 | Server chat-history preservation | Pending after P3 | History can recover destructive edits and complements full backups, but it introduces retention and ownership rules; it should build on the already-qualified write and backup boundaries. |
 | R1 | Plugin-storage repository externalization | Re-evaluate after P4 | The current 1.9 graph already has plugin-storage, lazy storage, BG, and migration owners. Externalization is valuable only if it reduces a measured boundary without adding a second source of truth or weakening whole-database backup/restore. |
@@ -48,14 +48,34 @@ installer: it would have downgraded the already-live Personal appearance pack.
 The retained candidate merges that qualified branch, resolves 32 packs and
 652 units, and passes the full exact-1.9 selection and maximum-graph gates.
 Its stopped-live tests, build, BG bundle, zero-change re-plan, HTTP readback,
-live 426 probe, database preservation, and restart checks also pass. P2 remains
-behind the one-time reload gate for tabs opened before this first deployment.
+live 426 probe, database preservation, and restart checks also pass. On
+2026-08-09 the user explicitly reloaded the pre-fence client and reported the
+ordinary paths normal, completing the one-time admission gate for P2.
+
+## P2 decision boundary
+
+P2 is implemented as the hidden exact-1.9
+`server-backup-snapshot-core` plus exactly one standard/lazy adapter. P1
+activates this boundary without adding a thirteenth visible pack, so the
+supported selection space remains 4,096 raw masks and 2,048 normalized graphs.
+
+The selected storage owner flushes pending state and pins a read-only SQLite
+WAL epoch plus verified private filesystem inlay copies under one storage-queue
+turn. Download framing and server-file writing then run outside the queue from
+that fixed source. Missing DB/chunks, source drift, size mismatch, disk/cap
+limits, client disconnect, and active-reader maintenance are fail-closed.
+Ordinary writes remain available during transfer; P3, not P2, owns detached
+spooling and the long-reader WAL-duration problem.
+
+The exact implementation, adversarial tests, exhaustive graph receipt, limits,
+and live/L3 boundary are recorded in
+`docs/POCKETRISU-1.9-SERVER-BACKUP-SNAPSHOT-VALIDATION.md`.
 
 ## Progress rule
 
-P2 does not start until P1 has a small functional commit, generated installer
+P2 started only after P1 had a small functional commit, generated installer
 commit, safe live admission, and first-deployment reload confirmation. The
-next production build created by P2 is also the first real opportunity to
+next production build created by P2 remains the first real opportunity to
 exercise P1's clean-versus-dirty cross-build transition, so that observation
 is retained as a P1 gate rather than silently counted as a P2 result.
 

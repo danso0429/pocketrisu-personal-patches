@@ -1,0 +1,217 @@
+/* __MARKER__:START */
+async function buildSettingsOnlyPlan({
+    includeModuleAssets = true,
+    reader = { kvGet, kvListWithSizes },
+} = {}) {
+    const raw = reader.kvGet('database/database.bin');
+    if (!raw) return null;
+
+    // Plain decodeRisuSave, not decodeDatabaseWithPersistentChatIds: that
+    // variant runs chat-id and cold-storage migrations and can persist. Both
+    // concern data we are about to drop anyway.
+    const trimmed = stripToSettingsOnly(await decodeRisuSave(raw));
+    const dbValue = Buffer.from(encodeRisuSaveLegacy(trimmed, 'compression'));
+
+    const withModules = buildUncleanableSet(trimmed);
+    const withoutModules = buildUncleanableSet(trimmed, { includeModuleAssets: false });
+    const keepNames = includeModuleAssets ? withModules : withoutModules;
+
+    let baseCount = 0, baseBytes = 0, moduleCount = 0, moduleBytes = 0;
+    for (const entry of reader.kvListWithSizes('assets/')) {
+        const name = path.basename(entry.key);
+        if (withoutModules.has(name)) {
+            baseCount++;
+            baseBytes += entry.size;
+        } else if (withModules.has(name)) {
+            moduleCount++;
+            moduleBytes += entry.size;
+        }
+    }
+
+    const modulesWithAssets = (trimmed.modules ?? [])
+        .filter((module) => Array.isArray(module?.assets) && module.assets.length > 0).length;
+
+    return {
+        trimmed,
+        dbValue,
+        keepNames,
+        breakdown: {
+            dbBytes: dbValue.length,
+            baseAssets: { count: baseCount, bytes: baseBytes },
+            moduleAssets: {
+                count: moduleCount,
+                bytes: moduleBytes,
+                moduleCount: modulesWithAssets,
+            },
+        },
+    };
+}
+
+// Size breakdown for the settings-only confirm dialog. Each request gets its
+// own coherent source. The later export request intentionally gets a newer,
+// independently coherent source rather than retaining a snapshot across UI
+// think time.
+app.get('/api/backup/export/settings-estimate', async (req, res, next) => {
+    if (!await checkAuth(req, res)) { return; }
+    const abortTracker = createBackupSourceAbortTracker(req, res);
+    let backupSource = null;
+    try {
+        backupSource = await capturePointInTimeBackupSource({
+            includeInlays: false,
+            signal: abortTracker.signal,
+        });
+        await waitAtBackupSourceTestGate('settings-estimate', abortTracker.signal);
+        const plan = await buildSettingsOnlyPlan({
+            includeModuleAssets: true,
+            reader: backupSource.snapshot,
+        });
+        if (!plan) {
+            throw new BackupSourceError(
+                'BACKUP_DATABASE_MISSING',
+                'database.bin is missing from the pinned backup source',
+                500,
+            );
+        }
+        res.json(plan.breakdown);
+    } catch (error) {
+        if (abortTracker.signal.aborted || error?.name === 'AbortError') return;
+        if (error instanceof BackupSourceError) {
+            res.status(error.statusCode || 500).json(backupSourceErrorPayload(error));
+        } else {
+            next(error);
+        }
+    } finally {
+        await backupSource?.close();
+        abortTracker.cleanup();
+    }
+});
+
+app.get('/api/backup/export', async (req, res, next) => {
+    if (!await checkAuth(req, res)) { return; }
+    const abortTracker = createBackupSourceAbortTracker(req, res);
+    let backupSource = null;
+    try {
+        // ?target=upstream excludes NodeOnly-only inlay namespaces (inlay/,
+        // inlay_sidecar/, inlay_meta/). Their entry names contain a slash,
+        // which upstream RisuAI's import treats as a path under assets/.
+        const target = req.query.target === 'upstream' ? 'upstream' : 'nodeonly';
+        // ?mode=settings drops characters, chats and inlay images.
+        const settingsOnly = req.query.mode === 'settings';
+        const includeModuleAssets = req.query.moduleAssets !== '0';
+        const skipInlay = settingsOnly || target === 'upstream';
+
+        backupSource = await capturePointInTimeBackupSource({
+            includeInlays: !skipInlay,
+            signal: abortTracker.signal,
+        });
+        await waitAtBackupSourceTestGate('export', abortTracker.signal);
+
+        let settingsDbValue = null;
+        let settingsAssetNames = null;
+        if (settingsOnly) {
+            const plan = await buildSettingsOnlyPlan({
+                includeModuleAssets,
+                reader: backupSource.snapshot,
+            });
+            if (!plan) {
+                throw new BackupSourceError(
+                    'BACKUP_DATABASE_MISSING',
+                    'database.bin is missing from the pinned backup source',
+                    500,
+                );
+            }
+            settingsDbValue = plan.dbValue;
+            settingsAssetNames = plan.keepNames;
+        }
+
+        const inlayMetaEntries = skipInlay
+            ? []
+            : backupSource.snapshot.kvListWithSizes('inlay_meta/').map((entry) => ({
+                kind: 'kv',
+                key: entry.key,
+                backupName: entry.key,
+                sortKey: entry.key,
+                size: entry.size,
+            }));
+        const namespacedEntries = [
+            ...backupSource.snapshot.kvListWithSizes('assets/')
+                .filter((entry) => (
+                    !settingsAssetNames
+                    || settingsAssetNames.has(path.basename(entry.key))
+                ))
+                .map((entry) => ({
+                    kind: 'kv',
+                    key: entry.key,
+                    backupName: path.basename(entry.key),
+                    sortKey: entry.key,
+                    size: entry.size,
+                })),
+            ...(settingsOnly ? [] : listColdStorageBackupEntries({
+                reader: backupSource.snapshot,
+                migrateLegacy: false,
+            })),
+            ...inlayMetaEntries,
+            ...backupSource.filesystemEntries,
+        ].sort((a, b) => a.sortKey.localeCompare(b.sortKey));
+
+        const dbSize = settingsOnly
+            ? settingsDbValue.length
+            : backupSource.snapshot.kvSize('database/database.bin');
+        if (dbSize === null) {
+            throw new BackupSourceError(
+                'BACKUP_DATABASE_MISSING',
+                'database.bin is missing from the pinned backup source',
+                500,
+            );
+        }
+        const databaseEntry = {
+            kind: settingsOnly ? 'buffer' : 'kv',
+            ...(settingsOnly
+                ? { buffer: settingsDbValue }
+                : { key: 'database/database.bin' }),
+            backupName: 'database.risudat',
+            sortKey: 'database.risudat',
+            size: dbSize,
+        };
+        const archiveEntries = [...namespacedEntries, databaseEntry];
+        const totalBytes = totalBackupFramedSize(archiveEntries);
+
+        const filenameBase = settingsOnly ? 'risu-settings' : 'risu-backup';
+        const filenameSuffix = settingsOnly ? '' : target === 'upstream' ? '-upstream' : '';
+        res.setHeader('content-type', 'application/octet-stream');
+        res.setHeader(
+            'content-disposition',
+            'attachment; filename=\"' + filenameBase + '-' + Date.now() + filenameSuffix + '.bin\"',
+        );
+        res.setHeader('content-length', totalBytes);
+        res.setHeader('x-risu-backup-assets', namespacedEntries.length);
+
+        for (const entry of archiveEntries) {
+            throwIfBackupSourceAborted(abortTracker.signal);
+            const value = await readPointInTimeBackupEntry(
+                backupSource,
+                entry,
+                abortTracker.signal,
+            );
+            const ok = res.write(encodeBackupEntry(entry.backupName, value));
+            if (!ok) await waitForBackupDrain(res, abortTracker.signal);
+        }
+        throwIfBackupSourceAborted(abortTracker.signal);
+        res.end();
+    } catch (error) {
+        if (abortTracker.signal.aborted || error?.name === 'AbortError') return;
+        if (!res.headersSent) {
+            if (error instanceof BackupSourceError) {
+                res.status(error.statusCode || 500).json(backupSourceErrorPayload(error));
+            } else {
+                next(error);
+            }
+        } else {
+            res.destroy(error);
+        }
+    } finally {
+        await backupSource?.close();
+        abortTracker.cleanup();
+    }
+});
+/* __MARKER__:END */

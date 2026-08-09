@@ -1,0 +1,67 @@
+/* __MARKER__:START */
+function readColdStorageJsonEntry(nameOrKey, options = {}) {
+    const {
+        migrateLegacy = false,
+        allowPlainJsonFallback = false,
+        reader = { kvGet },
+    } = options;
+    const canonicalKey = normalizeColdStorageStorageKey(nameOrKey);
+    const legacyBackupKey = `${canonicalKey}.json`;
+
+    let storageKey = canonicalKey;
+    let value = reader.kvGet(canonicalKey);
+    if (!value) {
+        storageKey = legacyBackupKey;
+        value = reader.kvGet(legacyBackupKey);
+    }
+    if (!value) {
+        return null;
+    }
+
+    const parsed = parseColdStorageJsonBuffer(value, storageKey, {
+        allowPlainJson: allowPlainJsonFallback || storageKey !== canonicalKey,
+    });
+
+    if (migrateLegacy && (storageKey !== canonicalKey || parsed.format !== 'gzip')) {
+        kvSet(canonicalKey, encodeColdStorageCanonicalBuffer(parsed.coldData));
+        if (storageKey !== canonicalKey) {
+            kvDel(storageKey);
+        }
+    }
+
+    return {
+        coldData: parsed.coldData,
+        storageKey,
+        canonicalKey,
+        format: parsed.format,
+    };
+}
+
+function listColdStorageBackupEntries({
+    reader = { kvGet, kvList },
+    migrateLegacy = true,
+} = {}) {
+    const canonicalKeys = Array.from(new Set(
+        reader.kvList('coldstorage/').map((key) => normalizeColdStorageStorageKey(key))
+    )).sort((a, b) => a.localeCompare(b));
+
+    return canonicalKeys.map((storageKey) => {
+        const entry = readColdStorageJsonEntry(storageKey, {
+            migrateLegacy,
+            allowPlainJsonFallback: true,
+            reader,
+        });
+        if (!entry) {
+            throw new Error(`[ColdStorage] missing cold storage entry while exporting: ${storageKey}`);
+        }
+        const plainJson = Buffer.from(JSON.stringify(entry.coldData), 'utf-8');
+        return {
+            kind: 'buffer',
+            buffer: plainJson,
+            backupName: toColdStorageBackupName(storageKey),
+            sortKey: toColdStorageBackupName(storageKey),
+            size: plainJson.length,
+        };
+    });
+}
+/* __MARKER__:END */

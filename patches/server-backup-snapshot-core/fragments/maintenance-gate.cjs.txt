@@ -1,0 +1,86 @@
+/* __MARKER__:START */
+app.post('/api/db/optimize', async (req, res, next) => {
+    if (!await checkAuth(req, res)) return;
+    if (!checkActiveSession(req, res)) return;
+    try {
+        const saveDir = path.join(process.cwd(), 'save');
+        const dbFilePath = path.join(saveDir, 'risuai.db');
+        const preDbSize = statSafe(dbFilePath)?.size ?? 0;
+
+        const { free } = await diskFreeStat(saveDir);
+        if (preDbSize > 0 && free != null && free < preDbSize * 1.2) {
+            return res.status(400).json({
+                error: 'Insufficient disk space for VACUUM',
+                required: Math.ceil(preDbSize * 1.2),
+                free,
+            });
+        }
+
+        const result = await queueStorageOperation(async () => {
+            // Check under the storage queue. A source capture cannot start
+            // between this check and the end of VACUUM.
+            const conflict = pointInTimeBackupMaintenanceConflict();
+            if (conflict) return conflict;
+            await flushPendingDb();
+            const t0 = Date.now();
+            // Reclaim chunks orphaned by edits/snapshot rotation before VACUUM, so
+            // their pages get compacted in the same pass. Serialized with saves by
+            // the surrounding queueStorageOperation.
+            let gcDeleted = 0;
+            try { gcDeleted = gcChunks(); } catch (e) { logger.warn('[Optimize] chunk gc failed:', e?.message || e); }
+            try { checkpointWal('TRUNCATE'); } catch (e) { logger.warn('[Optimize] checkpoint failed:', e?.message || e); }
+            sqliteDb.exec('VACUUM');
+            // VACUUM streams the whole DB through the WAL; without this checkpoint the
+            // -wal file stays inflated until the next 5-min background TRUNCATE.
+            try { checkpointWal('TRUNCATE'); } catch (e) { logger.warn('[Optimize] post-VACUUM checkpoint failed:', e?.message || e); }
+            const elapsed = Date.now() - t0;
+            const postDbSize = statSafe(dbFilePath)?.size ?? 0;
+            return {
+                ok: true,
+                elapsedMs: elapsed,
+                preDbSize,
+                postDbSize,
+                reclaimed: Math.max(0, preDbSize - postDbSize),
+                chunksReclaimed: gcDeleted,
+            };
+        });
+        if (result?.code === 'BACKUP_SOURCE_MAINTENANCE_BUSY') {
+            return res.status(409).json(result);
+        }
+        res.json(result);
+    } catch (err) { next(err); }
+});
+
+app.post('/api/db/wal-checkpoint', async (req, res, next) => {
+    if (!await checkAuth(req, res)) return;
+    if (!checkActiveSession(req, res)) return;
+    try {
+        const saveDir = path.join(process.cwd(), 'save');
+        const walFilePath = path.join(saveDir, 'risuai.db-wal');
+        const preWalSize = statSafe(walFilePath)?.size ?? 0;
+
+        const result = await queueStorageOperation(async () => {
+            // A TRUNCATE checkpoint cannot complete while the pinned reader
+            // owns its WAL epoch, so report the retryable conflict explicitly.
+            const conflict = pointInTimeBackupMaintenanceConflict();
+            if (conflict) return conflict;
+            await flushPendingDb();
+            const t0 = Date.now();
+            checkpointWal('TRUNCATE');
+            const elapsed = Date.now() - t0;
+            const postWalSize = statSafe(walFilePath)?.size ?? 0;
+            return {
+                ok: true,
+                elapsedMs: elapsed,
+                preWalSize,
+                postWalSize,
+                reclaimed: Math.max(0, preWalSize - postWalSize),
+            };
+        });
+        if (result?.code === 'BACKUP_SOURCE_MAINTENANCE_BUSY') {
+            return res.status(409).json(result);
+        }
+        res.json(result);
+    } catch (err) { next(err); }
+});
+/* __MARKER__:END */

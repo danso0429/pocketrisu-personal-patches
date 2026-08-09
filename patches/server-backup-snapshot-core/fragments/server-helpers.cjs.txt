@@ -1,0 +1,289 @@
+const backupSourcePinRoot = path.join(savePath, '.backup-source-pins');
+const backupSourceManager = createBackupSourceManager({
+    rootDir: backupSourcePinRoot,
+    maxActive: 2,
+});
+let lastPointInTimeBackupTimestamp = 0;
+
+function allocatePointInTimeServerBackupPaths() {
+    let timestamp = Math.max(Date.now(), lastPointInTimeBackupTimestamp + 1);
+    while (
+        existsSync(path.join(backupsDir, 'risu-backup-' + timestamp + '.bin'))
+        || existsSync(path.join(backupsDir, 'risu-backup-' + timestamp + '.bin.tmp'))
+    ) {
+        timestamp++;
+    }
+    lastPointInTimeBackupTimestamp = timestamp;
+    const filename = 'risu-backup-' + timestamp + '.bin';
+    const finalPath = path.join(backupsDir, filename);
+    return {
+        filename,
+        finalPath,
+        tmpPath: finalPath + '.tmp',
+    };
+}
+
+function abortBackupSourceCapture() {
+    const error = new Error('Backup source capture was cancelled');
+    error.name = 'AbortError';
+    throw error;
+}
+
+function createBackupSourceAbortTracker(req, res) {
+    const controller = new AbortController();
+    const abort = () => {
+        if (controller.signal.aborted || res.writableFinished) return;
+        const error = new Error('Backup request disconnected');
+        error.name = 'AbortError';
+        controller.abort(error);
+    };
+    req.once('aborted', abort);
+    req.socket?.once('close', abort);
+    req.socket?.once('error', abort);
+    res.once('error', abort);
+    res.once('close', abort);
+    return {
+        signal: controller.signal,
+        cleanup() {
+            req.removeListener('aborted', abort);
+            req.socket?.removeListener('close', abort);
+            req.socket?.removeListener('error', abort);
+            res.removeListener('error', abort);
+            res.removeListener('close', abort);
+        },
+    };
+}
+
+function backupSourceErrorPayload(error) {
+    return {
+        error: error?.message || 'Could not capture a point-in-time backup source',
+        code: error?.code || 'BACKUP_SOURCE_FAILED',
+        ...(error?.required === undefined ? {} : { required: error.required }),
+        ...(error?.available === undefined ? {} : { available: error.available }),
+        ...(error?.reserved === undefined ? {} : { reserved: error.reserved }),
+    };
+}
+
+function pointInTimeBackupMaintenanceConflict() {
+    const activeSources = backupSourceManager.activeCount();
+    if (activeSources === 0) return null;
+    return {
+        error: 'Database maintenance is unavailable while a point-in-time backup is active',
+        code: 'BACKUP_SOURCE_MAINTENANCE_BUSY',
+        retryable: true,
+        activeSources,
+    };
+}
+
+async function planBackupInlayFilesystemEntries() {
+    const entries = [];
+    for (const inlay of await listInlayFiles()) {
+        const sourceStat = await fs.stat(inlay.filePath);
+        entries.push({
+            kind: 'source-file',
+            sourcePath: inlay.filePath,
+            sourceStat,
+            backupName: `inlay/${inlay.id}.${inlay.ext}`,
+            sortKey: `inlay/${inlay.id}`,
+            size: sourceStat.size,
+        });
+        const sidecarPath = getInlaySidecarPath(inlay.id);
+        try {
+            const sidecarStat = await fs.stat(sidecarPath);
+            entries.push({
+                kind: 'source-file',
+                sourcePath: sidecarPath,
+                sourceStat: sidecarStat,
+                backupName: `inlay_sidecar/${inlay.id}`,
+                sortKey: `inlay_sidecar/${inlay.id}`,
+                size: sidecarStat.size,
+            });
+        } catch (error) {
+            if (error?.code !== 'ENOENT') throw error;
+        }
+    }
+    return entries;
+}
+
+async function capturePointInTimeBackupSource({ includeInlays, signal }) {
+    const shouldAbort = () => signal?.aborted === true;
+    return queueStorageOperation(async () => {
+        if (shouldAbort()) abortBackupSourceCapture();
+        // Reuse the existing import flag as a short capture/import mutex.
+        // Imports already refuse while it is set, and a capture refuses an
+        // import that began first. Release it after fixing the WAL epoch and
+        // completing private filesystem pins, not after archive transfer.
+        if (importInProgress) {
+            throw new BackupSourceError(
+                'BACKUP_SOURCE_IMPORT_BUSY',
+                'Another import is already in progress',
+                409,
+            );
+        }
+        importInProgress = true;
+        try {
+            return await backupSourceManager.acquire({
+                shouldAbort,
+                capture: async () => {
+                    await flushPendingDb();
+                    if (shouldAbort()) abortBackupSourceCapture();
+                    const snapshot = createKvSnapshot();
+                    try {
+                        const filesystemEntries = includeInlays
+                            ? await planBackupInlayFilesystemEntries()
+                            : [];
+                        if (shouldAbort()) abortBackupSourceCapture();
+                        return { snapshot, filesystemEntries };
+                    } catch (error) {
+                        snapshot.close();
+                        throw error;
+                    }
+                },
+            });
+        } finally {
+            importInProgress = false;
+        }
+    });
+}
+
+async function waitAtBackupSourceTestGate(kind, signal) {
+    if (process.env.NODE_ENV !== 'test') return;
+    const configured = String(process.env.POCKETRISU_TEST_BACKUP_SOURCE_GATE_DIR ?? '').trim();
+    if (!configured) return;
+    const gateDir = path.resolve(configured);
+    const holdPath = path.join(gateDir, `${kind}.hold`);
+    if (!existsSync(holdPath)) return;
+    await fs.writeFile(path.join(gateDir, `${kind}.entered`), 'source-pinned', 'utf-8');
+    const releasePath = path.join(gateDir, `${kind}.release`);
+    while (existsSync(holdPath) && !existsSync(releasePath)) {
+        if (signal?.aborted) abortBackupSourceCapture();
+        await new Promise((resolve) => setTimeout(resolve, 10));
+    }
+    if (signal?.aborted) abortBackupSourceCapture();
+}
+
+function throwIfBackupSourceAborted(signal) {
+    if (signal?.aborted) abortBackupSourceCapture();
+}
+
+function waitForBackupDrain(stream, signal) {
+    throwIfBackupSourceAborted(signal);
+    return new Promise((resolve, reject) => {
+        const cleanup = () => {
+            stream.removeListener('drain', onDrain);
+            stream.removeListener('error', onError);
+            signal?.removeEventListener('abort', onAbort);
+        };
+        const onDrain = () => {
+            cleanup();
+            resolve();
+        };
+        const onError = (error) => {
+            cleanup();
+            reject(error);
+        };
+        const onAbort = () => {
+            cleanup();
+            const error = new Error('Backup request disconnected');
+            error.name = 'AbortError';
+            reject(error);
+        };
+        stream.once('drain', onDrain);
+        stream.once('error', onError);
+        signal?.addEventListener('abort', onAbort, { once: true });
+    });
+}
+
+function finishBackupWritable(stream, signal) {
+    throwIfBackupSourceAborted(signal);
+    return new Promise((resolve, reject) => {
+        const cleanup = () => {
+            stream.removeListener('finish', onFinish);
+            stream.removeListener('error', onError);
+            signal?.removeEventListener('abort', onAbort);
+        };
+        const onFinish = () => {
+            cleanup();
+            resolve();
+        };
+        const onError = (error) => {
+            cleanup();
+            reject(error);
+        };
+        const onAbort = () => {
+            cleanup();
+            const error = new Error('Backup request disconnected');
+            error.name = 'AbortError';
+            reject(error);
+        };
+        stream.once('finish', onFinish);
+        stream.once('error', onError);
+        signal?.addEventListener('abort', onAbort, { once: true });
+        stream.end();
+    });
+}
+
+function destroyBackupWritable(stream) {
+    if (!stream || stream.closed) return Promise.resolve();
+    return new Promise((resolve) => {
+        stream.once('close', resolve);
+        stream.destroy();
+    });
+}
+
+function backupEntryFramedSize(entry) {
+    const nameBytes = Buffer.byteLength(entry.backupName, 'utf-8');
+    if (nameBytes > 0xffffffff || entry.size > 0xffffffff) {
+        throw new BackupSourceError(
+            'BACKUP_ENTRY_TOO_LARGE',
+            `Backup entry exceeds the 32-bit archive frame limit: ${entry.backupName}`,
+            413,
+        );
+    }
+    const framedSize = 8 + nameBytes + entry.size;
+    if (!Number.isSafeInteger(framedSize)) {
+        throw new BackupSourceError(
+            'BACKUP_SOURCE_TOO_LARGE',
+            'Backup archive exceeds the safe byte range',
+            413,
+        );
+    }
+    return framedSize;
+}
+
+function totalBackupFramedSize(entries) {
+    const total = entries.reduce((sum, entry) => sum + backupEntryFramedSize(entry), 0);
+    if (!Number.isSafeInteger(total)) {
+        throw new BackupSourceError(
+            'BACKUP_SOURCE_TOO_LARGE',
+            'Backup archive exceeds the safe byte range',
+            413,
+        );
+    }
+    return total;
+}
+
+async function readPointInTimeBackupEntry(source, entry, signal) {
+    throwIfBackupSourceAborted(signal);
+    let value;
+    if (entry.kind === 'kv') {
+        value = source.snapshot.kvGet(entry.key);
+    } else if (entry.kind === 'buffer') {
+        value = entry.buffer;
+    } else if (entry.kind === 'file') {
+        value = await fs.readFile(entry.sourcePath);
+    } else {
+        throw new Error(`Unsupported pinned backup entry kind: ${entry.kind}`);
+    }
+    throwIfBackupSourceAborted(signal);
+    if (value === null || value?.length !== entry.size) {
+        const actualSize = value === null ? 'missing' : value?.length;
+        throw new BackupSourceError(
+            'BACKUP_SOURCE_INCONSISTENT',
+            `Pinned backup entry is inconsistent: ${entry.backupName} `
+                + `(planned ${entry.size} bytes, found ${actualSize})`,
+            500,
+        );
+    }
+    return value;
+}
