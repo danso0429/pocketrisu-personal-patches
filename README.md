@@ -201,6 +201,16 @@ long-reader WAL-duration problem remain P3 work. All four generated `.15`
 installers are syntax-valid, and two consecutive builds produced identical
 sizes and SHA-256 values.
 
+The same `.15` installer is live after two zero-work preflight reads and a
+process-first stop. The stopped target repeated the 132/1,564 client,
+12/176 server, 6/6 P2 endpoint, Svelte 0/0, production-build, build-identity,
+BG-bundle, production-prune, 254-path current-status, and zero-change re-plan
+gates. Restart readback matched served/local main-asset bytes, retained exact
+database and backup metadata with both SQLite checks `ok`, left no private
+pin, and added no PM2 error-log bytes. A non-writing authenticated settings
+estimate returned 200 and released its source. Actual server-file backup,
+background/return, and P1 clean/dirty cross-build behavior remain device L3.
+
 The `v0.2.0-experimental.11` checkpoint keeps that storage and activation
 contract while extending the chat-font enum with Noto Sans KR and Noto Serif
 KR. Both Noto choices cover the Korean, Japanese, Chinese, Latin, and extended

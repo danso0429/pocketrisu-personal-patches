@@ -28,8 +28,14 @@
   7,864-module production build, build-stamp/BG-bundle checks, and a zero-change
   re-plan.
 - Generate all four syntax-valid installers twice with identical byte sizes and
-  SHA-256 values. Keep live admission and the native backup/device scenarios as
-  separate gates.
+  SHA-256 values.
+- Admit the generated `all` installer after two zero-work preflight reads and a
+  process-first stop. Repeat 132/1,564 client, 12/176 server, 6/6 live P2
+  endpoint, Svelte 0/0, production-build, build-identity, BG-bundle,
+  production-prune, 254-path current-status, zero-change re-plan, HTTP
+  served/local identity, SQLite-integrity, user-data preservation, and
+  pin-cleanup gates. Keep actual server-file backup and device background/
+  cross-build behavior as separate L3 observations.
 
 ## 0.2.0-experimental.14
 

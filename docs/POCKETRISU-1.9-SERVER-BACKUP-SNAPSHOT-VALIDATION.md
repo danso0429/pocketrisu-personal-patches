@@ -8,9 +8,9 @@
 > Pack boundary: hidden `server-backup-snapshot-core 0.1.0` plus exactly one
 > hidden standard/lazy storage adapter
 >
-> State: source, composition, exact-target automatic qualification, and
-> generated-installer qualification passed; live admission is recorded
-> separately below
+> State: source, composition, exact-target automatic qualification,
+> generated-installer qualification, and automatic live admission passed;
+> device observations are recorded separately below
 
 ## Purpose and ownership
 
@@ -213,6 +213,60 @@ rebuild the client and BG bundle, restart only with active/durable work at zero,
 and verify source status plus served/local asset identity. It must not create a
 large server backup automatically.
 
+### Observed automatic live admission
+
+At 2026-08-09 14:47 KST, functional commit `607b393` and generated-candidate
+commit `88d8822` were pushed before admission. Two consecutive read-only gates
+observed zero running model jobs, zero unclaimed terminal main jobs, zero
+pending sends, zero main/operation/aux result payloads, and 39 operation states
+all `delivered`. PM2 reported zero active requests and unstable restarts, both
+SQLite `quick_check` results were `ok`, and no nested `save/save` existed.
+
+The generated live plan was exact PocketRisu 1.9.0 compatible and resolved 34
+packs, 669 units, and six existing ordered collisions. It changed only the two
+P2 server helpers, their two tests, the endpoint compatibility test,
+`server.cjs`, `db.cjs`, and patch state. PM2 was stopped before those paths
+were applied; `save/` and `backups/` were not moved or replaced.
+
+The stopped live tree produced these observations:
+
+- frozen offline install restored 109/109 development packages with zero
+  downloads;
+- client suite: 132/132 files and 1,564/1,564 tests passed;
+- server suite: 12/12 files and 176/176 tests passed;
+- live P2 endpoint suite: 1/1 file and 6/6 tests passed;
+- `pnpm check`: 0 errors and 0 warnings;
+- production build: 7,864 modules transformed and exit 0;
+- build identity: artifact and server loader agreed on one 70-character stamp,
+  held by exactly one generated JavaScript chunk;
+- BG bundle: 8,422,345 bytes, SHA-256
+  `5a0e26fc15dce741303479b4e54053fc35359d5c6ffe18a7ac3c7f017ce87149`,
+  with `sendChat=function` load check passed;
+- patch status: `current`, all 254 transaction-managed source paths current,
+  and an immediate 34-pack re-plan with zero changed files; and
+- production prune removed the 109 development packages while `express`,
+  `better-sqlite3`, `msgpackr`, `compression`, and both P2 runtime modules
+  remained resolvable.
+
+After restart, PocketRisu 1.9.0 was online at PID 36564 with restart count 6,
+zero unstable restarts, and zero active requests. Root, main asset, and
+`build-stamp.json` returned HTTP 200. Served and local
+`/assets/index-IvkdBju6.js` were both 2,015,104 bytes with SHA-256
+`d3ae72290906519f92447c09cac7825592d57ffa0849b65f7a88fe66ef7c6e82`.
+Missing and stale writer stamps returned HTTP 426, `not-committed`, and
+`Connection: close`; the exact stamp reached existing request validation.
+
+The main DB, model-job DB, backup directory, and existing backup aggregate
+retained their exact pre-apply inode, size, and modification metadata. Both
+`quick_check` results remained `ok`; active, unclaimed, pending, and result
+work remained zero; all 39 operation states remained `delivered`; no nested
+save or private pin remained; and the existing PM2 error log gained zero
+bytes. An authenticated settings-estimate request returned HTTP 200 with the
+expected numeric breakdown and released its source with zero pin entries. No
+server backup file or restore was created for automatic admission.
+
+### Device gate
+
 After admission, the concrete user-visible checks are:
 
 1. create one server backup from Settings → System → Backup and confirm it
@@ -228,8 +282,7 @@ No restore is required against the live user database for P2 L3.
 
 ## Publication boundary
 
-Source, automatic qualification, and the deterministic versioned installer
-candidate are complete in this checkpoint. Live apply/restart, readback, and
-the device observations above remain separate delivery gates. Stable
-tag/release remains behind the aggregate feature review and combined iPhone
-L3.
+Source, automatic qualification, deterministic installer generation, safe
+live apply/restart, and automatic readback are complete. The device
+observations above remain open. Stable tag/release remains behind the aggregate
+feature review and combined iPhone L3.

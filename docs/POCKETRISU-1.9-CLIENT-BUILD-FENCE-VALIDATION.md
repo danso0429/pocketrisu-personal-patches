@@ -327,7 +327,14 @@ normal. That completes the one-time first-deployment reload gate and admits
 P2. It does not substitute for the clean/dirty cross-build scenarios below,
 which require a later production build transition.
 
-The next production build transition must then exercise these concrete cases:
+The P2 production build deployed at 2026-08-09 14:47 KST is now that next
+transition. Automatic missing/stale/exact writer probes passed again, but they
+do not prove browser dirty-state behavior. Any still-open pre-P2 tab can
+exercise the cases below. If no dirty tab was prepared before deployment, that
+case cannot be manufactured retroactively after the tab loads `.15` and remains
+for the next prepared build transition.
+
+The current or next prepared transition must exercise these concrete cases:
 
 - clean tab: after the server changes build, the next storage mutation reloads
   exactly once and the new tab continues saving;
