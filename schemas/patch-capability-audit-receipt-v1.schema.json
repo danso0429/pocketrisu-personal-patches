@@ -1,0 +1,52 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://example.invalid/patch-capability-audit-receipt-v1.schema.json",
+  "title": "Patch Capability Audit Receipt v1",
+  "type": "object",
+  "required": [
+    "schema",
+    "status",
+    "createdAt",
+    "governance",
+    "command",
+    "cohort",
+    "inventory",
+    "legacyAccess",
+    "targetCatalog",
+    "resolvedSelection",
+    "canonicalProtection",
+    "payloadSha256"
+  ],
+  "properties": {
+    "schema": { "const": "patch-capability-audit-receipt-v1" },
+    "status": { "enum": ["passed", "failed"] },
+    "createdAt": { "type": "string", "format": "date-time" },
+    "governance": { "type": "object" },
+    "command": { "type": "object" },
+    "cohort": { "type": "object" },
+    "inventory": { "type": "object" },
+    "legacyAccess": { "type": "object" },
+    "targetCatalog": {
+      "type": "object",
+      "required": ["contract", "graph"],
+      "properties": {
+        "contract": { "type": "object" },
+        "graph": { "type": "object" }
+      },
+      "additionalProperties": false
+    },
+    "resolvedSelection": {
+      "type": "object",
+      "required": ["observation", "contract", "graph"],
+      "properties": {
+        "observation": { "type": "object" },
+        "contract": { "type": "object" },
+        "graph": { "type": "object" }
+      },
+      "additionalProperties": false
+    },
+    "canonicalProtection": { "type": "object" },
+    "payloadSha256": { "type": "string", "pattern": "^[0-9a-f]{64}$" }
+  },
+  "additionalProperties": false
+}

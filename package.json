@@ -5,6 +5,7 @@
   "type": "commonjs",
   "scripts": {
     "build": "node scripts/build-installers.cjs",
+    "audit:capabilities": "node scripts/build-capability-audit.cjs",
     "inventory:effects": "node scripts/build-effect-inventory.cjs",
     "qualify": "node scripts/qualify-target.cjs",
     "test": "node --test test/*.test.cjs",
