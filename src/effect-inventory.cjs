@@ -468,12 +468,23 @@ function compileEffectInventory(catalog, {
     const issues = [
         ...packs.flatMap((pack) => [
             ...pack.unknownFields.map((field) => ({ packId: pack.id, kind: 'unknown-pack-field', field })),
-            ...pack.unsupportedValues.map((value) => ({ packId: pack.id, kind: 'unsupported-pack-value', ...value })),
+            ...pack.unsupportedValues.map((value) => ({
+                packId: pack.id,
+                kind: 'unsupported-pack-value',
+                location: value.location,
+                valueKind: value.kind,
+            })),
             ...pack.validationIssues.map((issue) => ({ packId: pack.id, kind: 'pack-validation', ...issue })),
         ]),
         ...units.flatMap((unit) => [
             ...unit.unknownFields.map((field) => ({ packId: unit.packId, unitId: unit.id, kind: 'unknown-unit-field', field })),
-            ...unit.unsupportedValues.map((value) => ({ packId: unit.packId, unitId: unit.id, kind: 'unsupported-unit-value', ...value })),
+            ...unit.unsupportedValues.map((value) => ({
+                packId: unit.packId,
+                unitId: unit.id,
+                kind: 'unsupported-unit-value',
+                location: value.location,
+                valueKind: value.kind,
+            })),
             ...unit.validationIssues.map((issue) => ({ packId: unit.packId, unitId: unit.id, kind: 'unit-validation', ...issue })),
         ]),
         ...generatedArtifacts
