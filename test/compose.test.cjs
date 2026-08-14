@@ -136,6 +136,26 @@ test('composition cache reuses only the exact non-empty units and baselines', ()
     )
 })
 
+test('composition cache preserves collision key order used by serialized state', () => {
+    const units = [
+        replace('a', 'x.ts', 'A\n', 'B\n'),
+        replace('b', 'x.ts', 'B\n', 'C\n'),
+    ]
+    const baselines = new Map([['x.ts', 'A\n']])
+    const uncached = compose(units, baselines)
+    const compositionCache = createCompositionCache()
+    compose(units, baselines, { compositionCache })
+    const cached = compose(units, baselines, { compositionCache })
+
+    assert.equal(JSON.stringify(cached.collisions), JSON.stringify(uncached.collisions))
+    assert.equal(JSON.stringify(cached.edges), JSON.stringify(uncached.edges))
+    cached.collisions[0].units.reverse()
+    cached.edges[0].reason = 'caller mutation'
+    const afterMutation = compose(units, baselines, { compositionCache })
+    assert.equal(JSON.stringify(afterMutation.collisions), JSON.stringify(uncached.collisions))
+    assert.equal(JSON.stringify(afterMutation.edges), JSON.stringify(uncached.edges))
+})
+
 test('composition cache does not retain failed plans', () => {
     const units = [
         { id: 'a', file: 'x.ts', type: 'owned', content: 'a' },
