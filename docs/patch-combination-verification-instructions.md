@@ -154,6 +154,24 @@ nonzero exit, empty or malformed output, incomplete raw-mask coverage, or
 noncanonical worker history. This wrapper adds provenance; it does not replace,
 reduce, resume, or alter the canonical Global Exhaustive route.
 
+For a Git target, target identity binds the application tree separately from
+commit, tracked/index status, staged and unstaged diff hashes, and the contents
+of `HEAD`, index, packed refs, shallow marker, and resolved HEAD ref. Directory
+and administrative-file mtimes under `.git` are recorded by neither identity
+and cannot create application-content drift. This does not weaken VCS binding:
+changing commit, index, relevant administrative contents, application paths,
+contents, modes, symlinks, or hardlink topology still changes the target root.
+
+The routine gate continues to allow a proved-pristine extracted archive. The
+evidence wrapper requires its independently obtained lowercase SHA-256:
+
+```bash
+--target-provenance sha256:0123456789abcdef...64-hex-characters-total...
+```
+
+The declared archive hash is bound into both pre-run and post-run roots. It is
+not computed from, or substituted by, the mutable target directory itself.
+
 Every execution receipt must use exactly one disposition: `current-active`,
 `historical`, `incomplete`, `invalid`, `superseded`, `diagnostic-only`, or
 `defect-reproduction`. Disposition describes evidence lifecycle and does not

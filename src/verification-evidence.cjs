@@ -29,6 +29,25 @@ function regularFileDescriptor(file) {
     }
 }
 
+function optionalPathDescriptor(file) {
+    let stat
+    try {
+        stat = fs.lstatSync(file)
+    } catch (error) {
+        if (error.code === 'ENOENT') return { type: 'missing' }
+        throw error
+    }
+    if (stat.isFile()) return regularFileDescriptor(file)
+    if (stat.isSymbolicLink()) {
+        return {
+            type: 'symlink',
+            mode: stat.mode & 0o7777,
+            target: fs.readlinkSync(file),
+        }
+    }
+    throw new Error(`Unsupported Git administrative path type: ${file}`)
+}
+
 function walkTree(root, relative, entries, inodeMembers, excludedRootEntries) {
     if (relative && excludedRootEntries.has(relative)) return
     const absolute = relative ? path.join(root, relative) : root
@@ -154,6 +173,34 @@ async function sourceGitIdentity(root) {
     }
 }
 
+async function gitAdministrativePath(root, logicalPath) {
+    const reported = await gitOutput(root, ['rev-parse', '--git-path', logicalPath])
+    return path.isAbsolute(reported) ? reported : path.resolve(root, reported)
+}
+
+async function targetGitIdentity(root) {
+    const workingTree = await sourceGitIdentity(root)
+    const symbolicHead = await gitOutput(root, ['rev-parse', '--symbolic-full-name', 'HEAD'])
+    const paths = {
+        HEAD: await gitAdministrativePath(root, 'HEAD'),
+        index: await gitAdministrativePath(root, 'index'),
+        packedRefs: await gitAdministrativePath(root, 'packed-refs'),
+        shallow: await gitAdministrativePath(root, 'shallow'),
+    }
+    if (symbolicHead.startsWith('refs/')) {
+        paths.resolvedHeadRef = await gitAdministrativePath(root, symbolicHead)
+    }
+    return {
+        kind: 'git',
+        ...workingTree,
+        symbolicHead,
+        administrativeFiles: Object.fromEntries(Object.entries(paths).map(
+            ([logicalName, absolute]) => [logicalName, optionalPathDescriptor(absolute)],
+        )),
+        mtimePolicy: 'Git directory and administrative-file mtimes are diagnostic, not identity',
+    }
+}
+
 async function sourceFreezeDescriptor(root) {
     const absoluteRoot = path.resolve(root)
     const corePaths = [
@@ -184,18 +231,34 @@ async function sourceFreezeDescriptor(root) {
     }
 }
 
-function targetFreezeDescriptor(root) {
+async function targetFreezeDescriptor(root, { targetProvenance = null } = {}) {
+    const absoluteRoot = path.resolve(root)
+    let provenance
+    if (fs.existsSync(path.join(absoluteRoot, '.git'))) {
+        provenance = await targetGitIdentity(absoluteRoot)
+    } else {
+        if (!/^sha256:[0-9a-f]{64}$/.test(targetProvenance ?? '')) {
+            throw new Error(
+                'Non-Git target requires --target-provenance sha256:<64 lowercase hex>',
+            )
+        }
+        provenance = {
+            kind: 'declared-archive',
+            sha256: targetProvenance.slice('sha256:'.length),
+        }
+    }
     return {
         schema: FREEZE_SCHEMA,
-        applicationTree: contentTreeDescriptor(root),
+        applicationTree: contentTreeDescriptor(absoluteRoot),
+        provenance,
     }
 }
 
-async function captureInputFreeze({ sourceRoot, targetRoot }) {
+async function captureInputFreeze({ sourceRoot, targetRoot, targetProvenance = null }) {
     return {
         schema: FREEZE_SCHEMA,
         source: await sourceFreezeDescriptor(sourceRoot),
-        target: targetFreezeDescriptor(targetRoot),
+        target: await targetFreezeDescriptor(targetRoot, { targetProvenance }),
     }
 }
 
@@ -363,6 +426,7 @@ module.exports = {
     runChild,
     sha256,
     sourceFreezeDescriptor,
+    targetGitIdentity,
     targetFreezeDescriptor,
     validateCanonicalResult,
     writeJsonAtomic,

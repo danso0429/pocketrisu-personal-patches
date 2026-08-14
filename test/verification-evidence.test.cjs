@@ -12,6 +12,7 @@ const {
     contentTreeDescriptor,
     parseCanonicalOutput,
     runChild,
+    targetFreezeDescriptor,
     validateCanonicalResult,
     writeJsonAtomic,
 } = require('../src/verification-evidence.cjs')
@@ -81,14 +82,15 @@ test('input freeze compares pre-run and post-run source and target roots', async
     await runGit(t, ['-C', sourceRoot, 'add', '.'])
     await runGit(t, ['-C', sourceRoot, 'commit', '-qm', 'fixture'])
 
-    const before = await captureInputFreeze({ sourceRoot, targetRoot })
+    const targetProvenance = `sha256:${'a'.repeat(64)}`
+    const before = await captureInputFreeze({ sourceRoot, targetRoot, targetProvenance })
     assert.deepEqual(compareInputFreeze(before, before), {
         sourceMatched: true,
         targetMatched: true,
         matched: true,
     })
     fs.writeFileSync(path.join(targetRoot, 'app.txt'), 'changed\n')
-    const after = await captureInputFreeze({ sourceRoot, targetRoot })
+    const after = await captureInputFreeze({ sourceRoot, targetRoot, targetProvenance })
     assert.deepEqual(compareInputFreeze(before, after), {
         sourceMatched: true,
         targetMatched: false,
@@ -152,4 +154,47 @@ test('evidence output is atomic and never overwrites an existing receipt', (t) =
         (error) => error.code === 'EEXIST',
     )
     assert.deepEqual(JSON.parse(fs.readFileSync(output, 'utf8')), { value: 'first' })
+})
+
+test('target identity ignores Git mtimes but binds commit, index, and application state', async (t) => {
+    const root = temporaryDirectory(t)
+    fs.writeFileSync(path.join(root, 'tracked.txt'), 'one\n')
+    await runGit(t, ['init', '-q', root])
+    await runGit(t, ['-C', root, 'config', 'user.name', 'test'])
+    await runGit(t, ['-C', root, 'config', 'user.email', 'test@example.invalid'])
+    await runGit(t, ['-C', root, 'add', 'tracked.txt'])
+    await runGit(t, ['-C', root, 'commit', '-qm', 'fixture'])
+
+    const baseline = await targetFreezeDescriptor(root)
+    const gitDirectory = path.join(root, '.git')
+    const shifted = new Date(Date.now() + 60_000)
+    fs.utimesSync(gitDirectory, shifted, shifted)
+    assert.deepEqual(await targetFreezeDescriptor(root), baseline)
+
+    await runGit(t, ['-C', root, 'update-index', '--assume-unchanged', 'tracked.txt'])
+    const indexChanged = await targetFreezeDescriptor(root)
+    assert.equal(indexChanged.applicationTree.rootSha256, baseline.applicationTree.rootSha256)
+    assert.notDeepEqual(indexChanged.provenance, baseline.provenance)
+    await runGit(t, ['-C', root, 'update-index', '--no-assume-unchanged', 'tracked.txt'])
+
+    fs.writeFileSync(path.join(root, 'tracked.txt'), 'two\n')
+    const applicationChanged = await targetFreezeDescriptor(root)
+    assert.notEqual(
+        applicationChanged.applicationTree.rootSha256,
+        baseline.applicationTree.rootSha256,
+    )
+    assert.notEqual(applicationChanged.provenance.status, baseline.provenance.status)
+})
+
+test('non-Git target requires independent declared archive provenance', async (t) => {
+    const root = temporaryDirectory(t)
+    fs.writeFileSync(path.join(root, 'file.txt'), 'archive\n')
+    await assert.rejects(() => targetFreezeDescriptor(root), /target-provenance/)
+    const descriptor = await targetFreezeDescriptor(root, {
+        targetProvenance: `sha256:${'b'.repeat(64)}`,
+    })
+    assert.deepEqual(descriptor.provenance, {
+        kind: 'declared-archive',
+        sha256: 'b'.repeat(64),
+    })
 })

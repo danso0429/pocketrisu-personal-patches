@@ -25,6 +25,7 @@ function parseArgs(argv) {
     let jobs = null
     let allowReviewing = false
     let disposition = 'current-active'
+    let targetProvenance = null
     for (let index = 2; index < argv.length; index += 1) {
         const argument = argv[index]
         if (argument === '--root') root = argv[++index]
@@ -36,6 +37,12 @@ function parseArgs(argv) {
                 throw new Error(
                     `--disposition must be one of: ${RECEIPT_DISPOSITIONS.join(', ')}`,
                 )
+            }
+        }
+        else if (argument === '--target-provenance') {
+            targetProvenance = argv[++index]
+            if (!/^sha256:[0-9a-f]{64}$/.test(targetProvenance ?? '')) {
+                throw new Error('--target-provenance requires sha256:<64 lowercase hex>')
             }
         }
         else if (argument === '--jobs') {
@@ -53,7 +60,7 @@ function parseArgs(argv) {
         throw new Error(
             'Usage: run-verification-evidence.cjs --root PRISTINE_POCKETRISU '
             + '--output RECEIPT.json [--jobs N] [--allow-reviewing] '
-            + '[--disposition VALUE]',
+            + '[--disposition VALUE] [--target-provenance sha256:HEX]',
         )
     }
     return {
@@ -62,6 +69,7 @@ function parseArgs(argv) {
         jobs,
         allowReviewing,
         disposition,
+        targetProvenance,
     }
 }
 
@@ -77,9 +85,17 @@ async function main(argv = process.argv) {
     if (options.jobs !== null) verifierArgs.push('--jobs', String(options.jobs))
     if (options.allowReviewing) verifierArgs.push('--allow-reviewing')
     const command = [process.execPath, verifier, ...verifierArgs]
-    const before = await captureInputFreeze({ sourceRoot, targetRoot: options.root })
+    const before = await captureInputFreeze({
+        sourceRoot,
+        targetRoot: options.root,
+        targetProvenance: options.targetProvenance,
+    })
     const execution = await runChild(command[0], command.slice(1), { cwd: sourceRoot })
-    const after = await captureInputFreeze({ sourceRoot, targetRoot: options.root })
+    const after = await captureInputFreeze({
+        sourceRoot,
+        targetRoot: options.root,
+        targetProvenance: options.targetProvenance,
+    })
     const stability = compareInputFreeze(before, after)
     const verifierResult = parseCanonicalOutput(execution.stdout)
     const verifierErrors = validateCanonicalResult(verifierResult)
@@ -99,6 +115,7 @@ async function main(argv = process.argv) {
         options: {
             jobs: options.jobs,
             allowReviewing: options.allowReviewing,
+            targetProvenance: options.targetProvenance,
         },
         before,
         after,
