@@ -30,6 +30,9 @@ const {
     createCompositionCache,
     createPairAnalysisCache,
 } = require('../src/compose.cjs')
+const {
+    CACHE_DIFFERENTIAL_SCOPE,
+} = require('../src/verification-evidence.cjs')
 
 function parseArgs(argv) {
     const options = {
@@ -443,6 +446,7 @@ async function main(argv = process.argv) {
                 ),
             },
             phases: ['initial-plan', 'repeated-plan', 'revert-plan'],
+            scope: CACHE_DIFFERENTIAL_SCOPE,
             comparisons: {
                 standardCaches: {
                     comparisons,

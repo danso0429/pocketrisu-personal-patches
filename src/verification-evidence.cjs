@@ -9,6 +9,18 @@ const { spawn } = require('node:child_process')
 const TREE_SCHEMA = 'patch-verification-content-tree-v1'
 const FREEZE_SCHEMA = 'patch-verification-input-freeze-v1'
 const MAX_CHILD_OUTPUT_BYTES = 64 * 1024 * 1024
+const CACHE_DIFFERENTIAL_SCOPE = Object.freeze({
+    schema: 'patch-verification-cache-differential-scope-v1',
+    independentTargetRoots: true,
+    modeOrderWithinPhase: Object.freeze(['uncached', 'cached']),
+    sharedWorkerContext: Object.freeze([
+        'worker thread',
+        'module graph',
+        'process and global state',
+    ]),
+    freshIsolated: false,
+    fallback: 'Global Exhaustive',
+})
 const SOURCE_CORE_PATHS = Object.freeze([
     'package.json',
     'docs/patch-combination-verification-instructions.md',
@@ -397,6 +409,9 @@ function validateCacheDifferentialResult(result) {
     if (result.roundTrips !== 'differential-passed' || result.result !== 'passed') {
         errors.push('cache differential did not report passed round trips')
     }
+    if (JSON.stringify(result.scope) !== JSON.stringify(CACHE_DIFFERENTIAL_SCOPE)) {
+        errors.push('cache differential scope is missing or overstated')
+    }
     const expectedPhases = ['initial-plan', 'repeated-plan', 'revert-plan']
     if (JSON.stringify(result.phases) !== JSON.stringify(expectedPhases)) {
         errors.push('cache differential phases are incomplete or reordered')
@@ -594,6 +609,7 @@ function writeJsonAtomic(file, value) {
 }
 
 module.exports = {
+    CACHE_DIFFERENTIAL_SCOPE,
     FREEZE_SCHEMA,
     MAX_CHILD_OUTPUT_BYTES,
     SOURCE_CORE_PATHS,

@@ -290,6 +290,12 @@ post-apply endpoints; and final restoration. A mismatch, missing comparison,
 non-stride worker history, source/target drift, or incomplete coverage fails
 closed and leaves Global Exhaustive as the required fallback.
 
+The two modes use independent complete target roots, but within each logical
+worker every phase runs `uncached` then `cached` in one worker thread and thus
+shares its module graph and process/global history. The result must state this
+scope mechanically with `freshIsolated: false`; this differential is neither a
+fresh-isolation proof nor permission to weaken the Global Exhaustive fallback.
+
 ## Failure and cleanup
 
 - A nonzero exit, incomplete coverage, changed repeated plan, unexpected

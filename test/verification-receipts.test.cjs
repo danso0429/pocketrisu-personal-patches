@@ -6,6 +6,7 @@ const os = require('node:os')
 const path = require('node:path')
 const test = require('node:test')
 const {
+    CACHE_DIFFERENTIAL_SCOPE,
     FREEZE_SCHEMA,
     TREE_SCHEMA,
     jsonSha256,
@@ -242,6 +243,7 @@ test('sealed cache differential receipt verifies all masks and phases', () => {
         workers: 2,
         workerHistory: canonicalResult().workerHistory,
         phases: ['initial-plan', 'repeated-plan', 'revert-plan'],
+        scope: CACHE_DIFFERENTIAL_SCOPE,
         comparisons: {
             standardCaches: {
                 comparisons: 12,

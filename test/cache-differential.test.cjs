@@ -8,6 +8,7 @@ const {
     typedString,
 } = require('../scripts/verify-cache-differential.cjs')
 const {
+    CACHE_DIFFERENTIAL_SCOPE,
     validateCacheDifferentialResult,
 } = require('../src/verification-evidence.cjs')
 
@@ -63,6 +64,7 @@ test('cache differential result requires canonical stride and all three phases',
             ],
         },
         phases: ['initial-plan', 'repeated-plan', 'revert-plan'],
+        scope: CACHE_DIFFERENTIAL_SCOPE,
         comparisons: {
             standardCaches: {
                 comparisons: 12,
@@ -77,6 +79,13 @@ test('cache differential result requires canonical stride and all three phases',
     assert.deepEqual(validateCacheDifferentialResult(result), [])
     assert.notDeepEqual(
         validateCacheDifferentialResult({ ...result, phases: ['initial-plan'] }),
+        [],
+    )
+    assert.notDeepEqual(
+        validateCacheDifferentialResult({
+            ...result,
+            scope: { ...CACHE_DIFFERENTIAL_SCOPE, freshIsolated: true },
+        }),
         [],
     )
 })
