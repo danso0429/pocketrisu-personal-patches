@@ -1,0 +1,49 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://example.invalid/patch-legacy-access-receipt-v1.schema.json",
+  "title": "Patch Legacy Access Receipt v1",
+  "type": "object",
+  "required": [
+    "schema",
+    "status",
+    "runtime",
+    "sourceRoot",
+    "catalog",
+    "permissions",
+    "accesses",
+    "violations",
+    "payloadSha256"
+  ],
+  "properties": {
+    "schema": { "const": "patch-legacy-access-receipt-v1" },
+    "status": { "enum": ["pass", "fail"] },
+    "runtime": { "type": "object" },
+    "sourceRoot": { "type": "string", "minLength": 1 },
+    "catalog": {
+      "type": "object",
+      "required": ["packCount", "unitCount", "catalogSha256"],
+      "properties": {
+        "packCount": { "type": "integer", "minimum": 0 },
+        "unitCount": { "type": "integer", "minimum": 0 },
+        "catalogSha256": { "type": "string", "pattern": "^[0-9a-f]{64}$" }
+      },
+      "additionalProperties": false
+    },
+    "permissions": { "type": "object" },
+    "accesses": {
+      "type": "object",
+      "required": ["callCount", "uniqueCount", "byOperation", "records", "recordsSha256"],
+      "properties": {
+        "callCount": { "type": "integer", "minimum": 0 },
+        "uniqueCount": { "type": "integer", "minimum": 0 },
+        "byOperation": { "type": "object" },
+        "records": { "type": "array" },
+        "recordsSha256": { "type": "string", "pattern": "^[0-9a-f]{64}$" }
+      },
+      "additionalProperties": false
+    },
+    "violations": { "type": "array" },
+    "payloadSha256": { "type": "string", "pattern": "^[0-9a-f]{64}$" }
+  },
+  "additionalProperties": false
+}
