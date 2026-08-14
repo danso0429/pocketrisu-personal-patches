@@ -257,6 +257,14 @@ function stableCacheValue(value) {
     )
 }
 
+function cloneCacheValue(value) {
+    if (Array.isArray(value)) return value.map(cloneCacheValue)
+    if (!value || typeof value !== 'object') return value
+    return Object.fromEntries(
+        Object.keys(value).map((key) => [key, cloneCacheValue(value[key])]),
+    )
+}
+
 function pairUnitCacheKey(unit) {
     return JSON.stringify(stableCacheValue(unit))
 }
@@ -311,8 +319,11 @@ function createCompositionCache() {
 function cloneCompositionPlan(plan) {
     return {
         order: [...plan.order],
-        collisions: stableCacheValue(plan.collisions),
-        edges: stableCacheValue(plan.edges),
+        // These values are embedded in the persisted state and serialized with
+        // JSON.stringify(), so a cache hit must preserve insertion order as well
+        // as values. Key sorting remains confined to cache-key construction.
+        collisions: cloneCacheValue(plan.collisions),
+        edges: cloneCacheValue(plan.edges),
         outputs: new Map(plan.outputs),
     }
 }
