@@ -305,10 +305,46 @@ function evaluateExecutionReceipt(receipt) {
     }
 }
 
-function buildReceiptRegistry(receiptFiles) {
+function dispositionOverrideMap(document) {
+    if (document === null) return new Map()
+    if (
+        document?.schema !== 'patch-verification-receipt-dispositions-v1'
+        || !Array.isArray(document.entries)
+    ) throw new Error('Receipt disposition override document is missing or incompatible')
+    const overrides = new Map()
+    for (const entry of document.entries) {
+        if (
+            !entry
+            || typeof entry !== 'object'
+            || JSON.stringify(Object.keys(entry).sort()) !== JSON.stringify([
+                'disposition',
+                'reason',
+                'receiptSha256',
+            ])
+            || !/^[0-9a-f]{64}$/.test(entry.receiptSha256 ?? '')
+            || !validateDisposition(entry.disposition)
+            || typeof entry.reason !== 'string'
+            || entry.reason.trim() === ''
+        ) throw new Error('Receipt disposition override entry is invalid')
+        if (overrides.has(entry.receiptSha256)) {
+            throw new Error(`Duplicate disposition override: ${entry.receiptSha256}`)
+        }
+        overrides.set(entry.receiptSha256, entry)
+    }
+    return overrides
+}
+
+function buildReceiptRegistry(receiptFiles, { dispositionOverrides = null } = {}) {
+    const overrides = dispositionOverrideMap(dispositionOverrides)
+    const observedHashes = new Set()
     const entries = receiptFiles.map((file) => {
         const absolute = path.resolve(file)
         const encoded = fs.readFileSync(absolute)
+        const receiptSha256 = sha256(encoded)
+        if (observedHashes.has(receiptSha256)) {
+            throw new Error(`Duplicate receipt content: ${receiptSha256}`)
+        }
+        observedHashes.add(receiptSha256)
         const receipt = JSON.parse(encoded)
         const evaluation = evaluateExecutionReceipt(receipt)
         if (!evaluation.receiptValid) {
@@ -317,22 +353,32 @@ function buildReceiptRegistry(receiptFiles) {
                 + evaluation.structuralErrors.join('; '),
             )
         }
+        const override = overrides.get(receiptSha256) ?? null
         return {
             file: absolute,
             bytes: encoded.length,
-            sha256: sha256(encoded),
+            sha256: receiptSha256,
             schema: receipt.schema,
-            disposition: receipt.disposition,
+            recordedDisposition: receipt.disposition,
+            disposition: override?.disposition ?? receipt.disposition,
+            dispositionSource: override === null ? 'execution-receipt' : 'registry-override',
+            dispositionReason: override?.reason ?? null,
             executionAccepted: evaluation.executionAccepted,
             receiptPayloadSha256: receipt.integrity.payloadSha256,
         }
     }).sort((left, right) => left.file < right.file ? -1 : left.file > right.file ? 1 : 0)
+    for (const receiptSha256 of overrides.keys()) {
+        if (!observedHashes.has(receiptSha256)) {
+            throw new Error(`Disposition override does not match a registered receipt: ${receiptSha256}`)
+        }
+    }
     const counts = Object.fromEntries(RECEIPT_DISPOSITIONS.map((value) => [value, 0]))
     for (const entry of entries) counts[entry.disposition] += 1
     return sealDocument({
-        schema: 'patch-verification-receipt-registry-v1',
+        schema: 'patch-verification-receipt-registry-v2',
         generatedAt: new Date().toISOString(),
         counts,
+        dispositionOverrides,
         entries,
     })
 }
@@ -342,6 +388,7 @@ module.exports = {
     RECEIPT_DISPOSITIONS,
     buildReceiptRegistry,
     canonicalJson,
+    dispositionOverrideMap,
     evaluateExecutionReceipt,
     sealDocument,
     validateDisposition,

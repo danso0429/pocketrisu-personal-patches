@@ -10,7 +10,8 @@
     "verify:combinations": "node scripts/verify-all-combinations.cjs",
     "verify:combinations:cache-differential": "node scripts/verify-cache-differential.cjs",
     "verify:combinations:evidence": "node scripts/run-verification-evidence.cjs",
-    "verify:combinations:receipt": "node scripts/verify-verification-receipt.cjs"
+    "verify:combinations:receipt": "node scripts/verify-verification-receipt.cjs",
+    "verify:combinations:receipt-registry": "node scripts/build-verification-receipt-registry.cjs"
   },
   "engines": {
     "node": ">=22"

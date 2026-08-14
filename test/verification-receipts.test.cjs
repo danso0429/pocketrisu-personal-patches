@@ -315,6 +315,42 @@ test('registry preserves receipt dispositions and hashes', (t) => {
     assert.equal(registry.counts['defect-reproduction'], 1)
     assert.equal(registry.entries[0].executionAccepted, true)
     assert.equal(registry.entries[1].executionAccepted, false)
+    assert.equal(registry.entries[0].dispositionSource, 'execution-receipt')
+})
+
+test('registry reclassifies immutable receipts by exact receipt hash', (t) => {
+    const root = fs.mkdtempSync(path.join(os.tmpdir(), 'patch-verification-registry-classify-'))
+    t.after(() => fs.rmSync(root, { recursive: true, force: true }))
+    const receiptFile = path.join(root, 'receipt.json')
+    writeJsonAtomic(receiptFile, executionReceipt())
+    const receiptSha256 = sha256(fs.readFileSync(receiptFile))
+    const dispositionOverrides = {
+        schema: 'patch-verification-receipt-dispositions-v1',
+        entries: [{
+            receiptSha256,
+            disposition: 'superseded',
+            reason: 'A later source cohort replaced this otherwise valid run.',
+        }],
+    }
+    const registry = buildReceiptRegistry([receiptFile], { dispositionOverrides })
+    assert.equal(verifyDocumentIntegrity(registry), true)
+    assert.equal(registry.counts.superseded, 1)
+    assert.equal(registry.entries[0].recordedDisposition, 'current-active')
+    assert.equal(registry.entries[0].disposition, 'superseded')
+    assert.equal(registry.entries[0].dispositionSource, 'registry-override')
+    assert.equal(registry.entries[0].executionAccepted, true)
+    assert.throws(
+        () => buildReceiptRegistry([receiptFile], {
+            dispositionOverrides: {
+                ...dispositionOverrides,
+                entries: [{
+                    ...dispositionOverrides.entries[0],
+                    receiptSha256: 'f'.repeat(64),
+                }],
+            },
+        }),
+        /does not match a registered receipt/,
+    )
 })
 
 test('unknown disposition is never registered as success', () => {

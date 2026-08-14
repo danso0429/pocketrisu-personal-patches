@@ -188,6 +188,35 @@ turn a failed execution into a pass. Unknown values fail closed. The default is
 `current-active`; use `--disposition VALUE` when another lifecycle state is
 already known.
 
+Because lifecycle classification can change after an immutable receipt is
+created, a registry may apply a hash-keyed classification document without
+rewriting that receipt. The override document has this exact shape:
+
+```json
+{
+  "schema": "patch-verification-receipt-dispositions-v1",
+  "entries": [{
+    "receiptSha256": "64-lowercase-hex-digits",
+    "disposition": "superseded",
+    "reason": "A later source cohort replaced this run."
+  }]
+}
+```
+
+Build the sealed registry with:
+
+```bash
+npm run verify:combinations:receipt-registry -- \
+  --output /separate/evidence/registry.json \
+  --classifications /separate/evidence/dispositions.json \
+  /separate/evidence/receipt-a.json /separate/evidence/receipt-b.json
+```
+
+Every override must match one registered receipt's exact file SHA-256. The
+registry preserves both the receipt-recorded and effective dispositions, the
+reason, and `executionAccepted`; reclassification can never turn a failed
+execution into a pass.
+
 Before accepting a receipt, run the standalone integrity and execution check:
 
 ```bash
