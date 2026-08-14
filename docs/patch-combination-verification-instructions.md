@@ -576,6 +576,80 @@ skip zero masks. Phase 7 can therefore qualify only a conservative global-only
 C0 scope. It cannot use synthetic timing to authorize a Local lane, weaken a
 stable-release rule, change policy or hide a differential mismatch.
 
+## Phase 8 conservative C0 policy
+
+C0 is now the canonical routing contract, but the current catalog has no
+production-admitted Local or Boundary class. C0 therefore makes no current
+mask reduction and does not change the routine command: every current pack is
+G and every current selection still requires blocking Global Exhaustive.
+
+The support contract is:
+
+| Tier | Meaning | Current C0 action |
+| --- | --- | --- |
+| L | Local Certified: sealed local effects, complete theorem premises, fresh local coverage and exact verified evidence | No current admissions; fall back to blocking Global Exhaustive. |
+| B | Boundary Certified: every L premise plus complete typed boundary classes | No current admissions; union and fall back to blocking Global Exhaustive. |
+| G | Global or legacy effect | Run blocking Global Exhaustive. |
+| U | Unsupported or unverifiable effect | Reject admission before mutation. |
+
+The operational lanes are mechanically fail closed:
+
+- **Local:** requires a separately recorded production admission. There are
+  currently zero, so a Local request becomes Extended and runs Global
+  Exhaustive.
+- **Extended:** runs blocking Global Exhaustive for G, wide, unknown-budget or
+  over-budget work.
+- **Core:** runs blocking Global Exhaustive for resolver, catalog loader,
+  compose, manager, status, transaction, revert, state schema/migration,
+  capability enforcer, hypergraph, certificate store/verifier, checker,
+  scheduler/history or policy changes.
+- **Audit:** runs blocking Global Exhaustive for periodic oracle and drift
+  checks.
+- **Emergency:** has no approved reduced route. It still runs blocking Global
+  Exhaustive until a separate policy approval says otherwise.
+
+Stable releases, disputes and inconsistent evidence always select Core and
+blocking Global Exhaustive. Correctness failure and a 60-second budget overrun
+remain distinct reasons; neither creates partial success. A synthetic or
+non-production timing sample cannot admit Local. The current Phase 7 result
+admits zero production Local classes.
+
+The explicit C0 entry is:
+
+```bash
+npm run verify:c0 -- \
+  --root /path/to/separate/pristine/PocketRisu \
+  --lane Core \
+  --json
+```
+
+`--change-category CATEGORY`, `--stable-release`, `--dispute` and
+`--inconsistent-evidence` add blocking reasons without weakening the selected
+gate. `--correctness passed|failed|unknown` and
+`--budget passed|exceeded|unknown` preserve the two result axes.
+`--decision-only` emits the sealed routing decision without launching a
+checker. `--unsupported` rejects admission and never launches a checker.
+
+On execution, `verify:c0` launches the same independent
+`scripts/verify-all-combinations.cjs`, captures child output through private
+temporary file descriptors, and accepts only no spawn/output error, no signal,
+zero exit, empty stderr, non-empty parseable output, exact raw-mask coverage,
+canonical stride worker history and passed round trips. Its output is a C0
+execution envelope; use the Phase 0 evidence wrapper when a frozen executable
+receipt is required.
+
+The unchanged independent default and rollback command is:
+
+```bash
+npm run verify:combinations -- \
+  --root /path/to/separate/pristine/PocketRisu \
+  --json
+```
+
+Rolling back C0 removes only the routing layer and invokes that command. C0
+does not migrate state, publish or reuse production certificates, delete
+evidence, alter generated installers, or remove any fallback.
+
 ## Failure and cleanup
 
 - A nonzero exit, incomplete coverage, changed repeated plan, unexpected
