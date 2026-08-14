@@ -27,6 +27,7 @@ const {
 
 function canonicalResult() {
     return {
+        visiblePacks: ['a', 'b'],
         rawSelections: 4,
         verifiedSelections: 4,
         roundTrips: 'passed',
@@ -140,6 +141,7 @@ test('sealed accepted receipt verifies independently', () => {
 test('sealed cache differential receipt verifies all masks and phases', () => {
     const result = {
         schema: 'patch-verification-cache-differential-v1',
+        visiblePacks: ['a', 'b'],
         rawSelections: 4,
         verifiedSelections: 4,
         workers: 2,

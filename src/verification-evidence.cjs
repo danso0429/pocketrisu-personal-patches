@@ -318,45 +318,65 @@ function parseCanonicalOutput(stdout) {
 function validateCanonicalResult(result) {
     const errors = []
     if (!result) return ['stdout is not one non-empty JSON object']
-    if (!Number.isSafeInteger(result.rawSelections) || result.rawSelections < 1) {
+    const rawSelectionsValid = Number.isSafeInteger(result.rawSelections)
+        && result.rawSelections > 0
+    if (!rawSelectionsValid) {
         errors.push('rawSelections is not a positive safe integer')
+    }
+    const visiblePacks = result.visiblePacks
+    const visiblePacksValid = Array.isArray(visiblePacks)
+        && visiblePacks.every((value) => typeof value === 'string' && value.length > 0)
+        && new Set(visiblePacks).size === visiblePacks.length
+        && JSON.stringify(visiblePacks) === JSON.stringify([...visiblePacks].sort())
+    if (!visiblePacksValid) {
+        errors.push('visiblePacks is not a sorted unique non-empty string array')
+    } else {
+        const declaredDomain = 2 ** visiblePacks.length
+        if (!Number.isSafeInteger(declaredDomain) || declaredDomain !== result.rawSelections) {
+            errors.push('rawSelections does not equal the visible-pack raw domain')
+        }
     }
     if (result.verifiedSelections !== result.rawSelections) {
         errors.push('verifiedSelections does not equal rawSelections')
     }
     if (result.roundTrips !== 'passed') errors.push('roundTrips is not passed')
+    const workersValid = Number.isSafeInteger(result.workers)
+        && result.workers > 0
+        && rawSelectionsValid
+        && result.workers <= result.rawSelections
+    if (!workersValid) errors.push('workers is not a valid effective worker count')
     const history = result.workerHistory
     if (
         !history
         || history.schema !== 'patch-combination-worker-history-v1'
         || history.schedule !== 'stride-v1'
         || !Array.isArray(history.workers)
+        || !workersValid
         || history.workers.length !== result.workers
     ) {
         errors.push('worker history metadata is missing or incompatible')
         return errors
     }
-    const observed = []
+    let observedMasks = 0
     for (let workerIndex = 0; workerIndex < history.workers.length; workerIndex += 1) {
         const worker = history.workers[workerIndex]
-        const expected = []
-        for (let mask = workerIndex; mask < result.rawSelections; mask += result.workers) {
-            expected.push(mask)
-        }
+        const expectedLength = workerIndex >= result.rawSelections
+            ? 0
+            : Math.floor((result.rawSelections - 1 - workerIndex) / result.workers) + 1
+        const orderedMasksValid = Array.isArray(worker.orderedMasks)
+            && worker.orderedMasks.length === expectedLength
+            && worker.orderedMasks.every((mask, step) =>
+                mask === workerIndex + (step * result.workers)
+            )
         if (
             worker.workerIndex !== workerIndex
-            || JSON.stringify(worker.orderedMasks) !== JSON.stringify(expected)
+            || !orderedMasksValid
         ) {
             errors.push(`worker ${workerIndex} does not match canonical stride history`)
         }
-        if (Array.isArray(worker.orderedMasks)) observed.push(...worker.orderedMasks)
+        if (Array.isArray(worker.orderedMasks)) observedMasks += worker.orderedMasks.length
     }
-    const sorted = observed.toSorted((left, right) => left - right)
-    const expectedDomain = Array.from(
-        { length: result.rawSelections ?? 0 },
-        (_, index) => index,
-    )
-    if (JSON.stringify(sorted) !== JSON.stringify(expectedDomain)) {
+    if (observedMasks !== result.rawSelections) {
         errors.push('worker histories do not cover every raw mask exactly once')
     }
     return errors
@@ -382,6 +402,7 @@ function validateCacheDifferentialResult(result) {
         errors.push('cache differential phases are incomplete or reordered')
     }
     const historyErrors = validateCanonicalResult({
+        visiblePacks: result.visiblePacks,
         rawSelections: result.rawSelections,
         verifiedSelections: result.verifiedSelections,
         roundTrips: 'passed',

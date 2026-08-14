@@ -226,6 +226,8 @@ Do not predict the result. After a zero exit code, record the observed JSON
 and confirm:
 
 - `rawSelections` equals `verifiedSelections`;
+- sorted unique `visiblePacks` mechanically implies exactly
+  `rawSelections = 2 ^ visiblePacks.length`;
 - `roundTrips` is `passed`;
 - target identity and compatibility are the reviewed values;
 - visible packs, managed path count, maximum resolved units, and effective

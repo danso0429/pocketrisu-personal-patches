@@ -50,6 +50,7 @@ test('cache comparison reports the exact mask and phase on mismatch', () => {
 test('cache differential result requires canonical stride and all three phases', () => {
     const result = {
         schema: 'patch-verification-cache-differential-v1',
+        visiblePacks: ['a', 'b'],
         rawSelections: 4,
         verifiedSelections: 4,
         workers: 2,

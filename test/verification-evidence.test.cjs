@@ -100,6 +100,7 @@ test('input freeze compares pre-run and post-run source and target roots', async
 
 test('canonical result validation requires exact raw coverage and worker history', () => {
     const result = {
+        visiblePacks: ['a', 'b'],
         rawSelections: 4,
         verifiedSelections: 4,
         roundTrips: 'passed',
@@ -118,6 +119,14 @@ test('canonical result validation requires exact raw coverage and worker history
     assert.match(
         validateCanonicalResult({ ...result, verifiedSelections: 3 }).join('\n'),
         /verifiedSelections/,
+    )
+    assert.match(
+        validateCanonicalResult({ ...result, rawSelections: 2, verifiedSelections: 2 }).join('\n'),
+        /visible-pack raw domain/,
+    )
+    assert.match(
+        validateCanonicalResult({ ...result, visiblePacks: ['b', 'a'] }).join('\n'),
+        /sorted unique/,
     )
     assert.match(
         validateCanonicalResult({
