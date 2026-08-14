@@ -16,6 +16,9 @@ const {
     sealDocument,
     verifyDocumentIntegrity,
 } = require('../src/verification-receipts.cjs')
+const {
+    RUNTIME_FIELD_POLICY,
+} = require('../src/verification-runtime.cjs')
 
 function canonicalResult() {
     return {
@@ -65,13 +68,35 @@ function executionReceipt({
         && completeExecution.signal === null
         && verifierErrors.length === 0
         && stability.matched
+    const runtimeEnvelope = {
+        schema: 'patch-verification-runtime-envelope-v1',
+        fieldPolicy: RUNTIME_FIELD_POLICY,
+        values: {
+            nodeVersion: 'v25.9.0',
+            platform: 'linux',
+            architecture: 'arm64',
+            filesystemType: '0xef53',
+            umask: 0o077,
+            locale: 'C.UTF-8',
+            timezone: 'UTC',
+            kernel: '6.17.0',
+            cpuCount: 2,
+            availableParallelism: 2,
+            mountNamespaceId: 'mnt:[1]',
+        },
+    }
     return sealDocument({
-        schema: 'patch-verification-execution-receipt-v1',
+        schema: 'patch-verification-execution-receipt-v2',
         disposition,
         execution: completeExecution,
         verifierResult: parsed,
         verifierErrors,
         stability,
+        runtime: {
+            before: runtimeEnvelope,
+            after: runtimeEnvelope,
+            comparison: { errors: [], differences: [], matched: true },
+        },
         accepted,
     })
 }

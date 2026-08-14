@@ -7,6 +7,9 @@ const {
     sha256,
     validateCanonicalResult,
 } = require('./verification-evidence.cjs')
+const {
+    compareRuntimeEnvelopes,
+} = require('./verification-runtime.cjs')
 
 const RECEIPT_DISPOSITIONS = Object.freeze([
     'current-active',
@@ -82,7 +85,7 @@ function validateDisposition(disposition) {
 function evaluateExecutionReceipt(receipt) {
     const structuralErrors = []
     const acceptanceErrors = []
-    if (receipt?.schema !== 'patch-verification-execution-receipt-v1') {
+    if (receipt?.schema !== 'patch-verification-execution-receipt-v2') {
         structuralErrors.push('unsupported execution receipt schema')
     }
     if (!validateDisposition(receipt?.disposition)) {
@@ -132,6 +135,18 @@ function evaluateExecutionReceipt(receipt) {
         !stability
         || stability.matched !== (stability.sourceMatched && stability.targetMatched)
     ) structuralErrors.push('stability summary is missing or inconsistent')
+    const recordedRuntime = receipt?.runtime
+    const runtimeComparison = compareRuntimeEnvelopes(
+        recordedRuntime?.before,
+        recordedRuntime?.after,
+    )
+    try {
+        if (canonicalJson(recordedRuntime?.comparison) !== canonicalJson(runtimeComparison)) {
+            structuralErrors.push('runtime comparison differs from recomputation')
+        }
+    } catch (error) {
+        structuralErrors.push(`runtime evidence is not canonicalizable: ${error.message}`)
+    }
 
     if (execution.spawnError !== null) acceptanceErrors.push('spawn error is present')
     if (execution.outputError !== null) acceptanceErrors.push('output capture failed')
@@ -141,6 +156,7 @@ function evaluateExecutionReceipt(receipt) {
     acceptanceErrors.push(...verifierErrors)
     if (!stability?.sourceMatched) acceptanceErrors.push('source pre/post root mismatch')
     if (!stability?.targetMatched) acceptanceErrors.push('target pre/post root mismatch')
+    acceptanceErrors.push(...runtimeComparison.errors)
     const calculatedAccepted = structuralErrors.length === 0 && acceptanceErrors.length === 0
     if (receipt?.accepted !== calculatedAccepted) {
         structuralErrors.push('recorded accepted flag contradicts receipt evidence')

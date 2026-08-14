@@ -190,6 +190,20 @@ coverage, worker history, pre/post stability, and the receipt payload hash. A
 valid negative receipt remains evidence but this command exits nonzero unless
 the recorded execution also passed every acceptance predicate.
 
+Runtime-envelope fields have explicit comparison classes:
+
+| Field | Class | Acceptance meaning |
+| --- | --- | --- |
+| `umask`, `availableParallelism` | semantic | A difference fails closed because file modes or default worker history can change. |
+| Node version, platform, architecture, filesystem type, locale | compatibility-critical | A difference requires requalification and fails pre/post stability. |
+| timezone, kernel, mount namespace ID | diagnostic | Differences are retained but an opaque identifier alone is not a semantic mismatch. |
+| physical CPU count | informational | Effective worker count and ordered worker history remain authoritative. |
+
+Unknown or missing fields fail closed. Diagnostic and informational fields are
+not ignored: their differences remain in the receipt, but they cannot block an
+otherwise identical run merely because an opaque namespace ID or host label
+changed.
+
 ## Acceptance and receipt
 
 Do not predict the result. After a zero exit code, record the observed JSON

@@ -18,6 +18,10 @@ const {
     sealDocument,
     validateDisposition,
 } = require('../src/verification-receipts.cjs')
+const {
+    compareRuntimeEnvelopes,
+    runtimeEnvelope,
+} = require('../src/verification-runtime.cjs')
 
 function parseArgs(argv) {
     let root = null
@@ -85,6 +89,7 @@ async function main(argv = process.argv) {
     if (options.jobs !== null) verifierArgs.push('--jobs', String(options.jobs))
     if (options.allowReviewing) verifierArgs.push('--allow-reviewing')
     const command = [process.execPath, verifier, ...verifierArgs]
+    const runtimeBefore = runtimeEnvelope({ root: options.root })
     const before = await captureInputFreeze({
         sourceRoot,
         targetRoot: options.root,
@@ -96,6 +101,8 @@ async function main(argv = process.argv) {
         targetRoot: options.root,
         targetProvenance: options.targetProvenance,
     })
+    const runtimeAfter = runtimeEnvelope({ root: options.root })
+    const runtimeComparison = compareRuntimeEnvelopes(runtimeBefore, runtimeAfter)
     const stability = compareInputFreeze(before, after)
     const verifierResult = parseCanonicalOutput(execution.stdout)
     const verifierErrors = validateCanonicalResult(verifierResult)
@@ -107,8 +114,9 @@ async function main(argv = process.argv) {
         && stdoutBytes > 0
         && verifierErrors.length === 0
         && stability.matched
+        && runtimeComparison.matched
     const receipt = sealDocument({
-        schema: 'patch-verification-execution-receipt-v1',
+        schema: 'patch-verification-execution-receipt-v2',
         disposition: options.disposition,
         timestamp: new Date().toISOString(),
         command,
@@ -120,6 +128,11 @@ async function main(argv = process.argv) {
         before,
         after,
         stability,
+        runtime: {
+            before: runtimeBefore,
+            after: runtimeAfter,
+            comparison: runtimeComparison,
+        },
         execution: {
             ...execution,
             stdoutBytes,
@@ -140,6 +153,7 @@ async function main(argv = process.argv) {
         spawnError: execution.spawnError,
         verifierErrors,
         stability,
+        runtimeComparison,
     })}\n`)
     if (!accepted) process.exitCode = 1
     return receipt
