@@ -1,0 +1,25 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://example.invalid/patch-s0p-projection-v1.schema.json",
+  "title": "Patch S0-P Read-only Projection v1",
+  "type": "object",
+  "required": [
+    "schema",
+    "canonical",
+    "readOnly",
+    "sourceState",
+    "globalConnectors",
+    "packRecords",
+    "projectionSha256"
+  ],
+  "properties": {
+    "schema": { "const": "patch-s0p-projection-v1" },
+    "canonical": { "const": false },
+    "readOnly": { "const": true },
+    "sourceState": { "type": "object" },
+    "globalConnectors": { "type": "object" },
+    "packRecords": { "type": "array" },
+    "projectionSha256": { "type": "string", "pattern": "^[0-9a-f]{64}$" }
+  },
+  "additionalProperties": false
+}

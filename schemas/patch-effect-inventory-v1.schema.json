@@ -1,0 +1,41 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://example.invalid/patch-effect-inventory-v1.schema.json",
+  "title": "Patch Effect Inventory v1",
+  "type": "object",
+  "required": [
+    "schema",
+    "catalog",
+    "packs",
+    "units",
+    "files",
+    "relations",
+    "ownership",
+    "ordering",
+    "state",
+    "symbols",
+    "targetViews",
+    "classifications",
+    "completeness",
+    "proofLimits",
+    "inventorySha256"
+  ],
+  "properties": {
+    "schema": { "const": "patch-effect-inventory-v1" },
+    "catalog": { "type": "object" },
+    "packs": { "type": "array" },
+    "units": { "type": "array" },
+    "files": { "type": "array" },
+    "relations": { "type": "object" },
+    "ownership": { "type": "object" },
+    "ordering": { "type": "object" },
+    "state": { "type": "object" },
+    "symbols": { "type": "object" },
+    "targetViews": { "type": "array" },
+    "classifications": { "type": "array" },
+    "completeness": { "type": "object" },
+    "proofLimits": { "type": "array", "items": { "type": "string" } },
+    "inventorySha256": { "type": "string", "pattern": "^[0-9a-f]{64}$" }
+  },
+  "additionalProperties": false
+}
