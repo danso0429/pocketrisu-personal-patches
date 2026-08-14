@@ -3,7 +3,10 @@
 const fs = require('node:fs')
 const os = require('node:os')
 
-const FIELD_DEFINITIONS = {
+const RUNTIME_SCHEMA_V1 = 'patch-verification-runtime-envelope-v1'
+const RUNTIME_SCHEMA_V2 = 'patch-verification-runtime-envelope-v2'
+
+const FIELD_DEFINITIONS_V1 = {
     nodeVersion: {
         classification: 'compatibility-critical',
         reason: 'Node engine behavior and supported APIs can change verification semantics.',
@@ -50,12 +53,66 @@ const FIELD_DEFINITIONS = {
     },
 }
 
-const RUNTIME_FIELD_POLICY = Object.freeze(Object.fromEntries(
-    Object.entries(FIELD_DEFINITIONS).map(([field, definition]) => [
+const FIELD_DEFINITIONS_V2 = {
+    ...FIELD_DEFINITIONS_V1,
+    temporaryDirectory: {
+        classification: 'compatibility-critical',
+        reason: 'Worker copies and verifier capture files execute beneath this directory.',
+    },
+    temporaryFilesystemType: {
+        classification: 'compatibility-critical',
+        reason: 'Worker copy mode, symlink, hardlink, and atomic-write behavior depends on it.',
+    },
+    nodeOptions: {
+        classification: 'compatibility-critical',
+        reason: 'Inherited Node options can alter child runtime and module behavior.',
+    },
+}
+
+function freezeFieldPolicy(definitions) {
+    return Object.freeze(Object.fromEntries(
+        Object.entries(definitions).map(([field, definition]) => [
         field,
         Object.freeze({ ...definition }),
-    ]),
-))
+        ]),
+    ))
+}
+
+const RUNTIME_FIELD_POLICY_V1 = freezeFieldPolicy(FIELD_DEFINITIONS_V1)
+const RUNTIME_FIELD_POLICY = freezeFieldPolicy(FIELD_DEFINITIONS_V2)
+const RUNTIME_FIELD_POLICIES = Object.freeze({
+    [RUNTIME_SCHEMA_V1]: RUNTIME_FIELD_POLICY_V1,
+    [RUNTIME_SCHEMA_V2]: RUNTIME_FIELD_POLICY,
+})
+
+const nonEmptyString = (value) => typeof value === 'string' && value.length > 0
+const nullableString = (value) => value === null || nonEmptyString(value)
+const positiveInteger = (value) => Number.isSafeInteger(value) && value > 0
+const canonicalDirectory = (value) => {
+    if (!nonEmptyString(value)) return false
+    try {
+        return fs.statSync(value).isDirectory() && fs.realpathSync(value) === value
+    } catch {
+        return false
+    }
+}
+const RUNTIME_VALUE_VALIDATORS = Object.freeze({
+    nodeVersion: (value) => nonEmptyString(value) && /^v\d/.test(value),
+    platform: nonEmptyString,
+    architecture: nonEmptyString,
+    filesystemType: (value) => typeof value === 'string' && /^0x[0-9a-f]+$/.test(value),
+    umask: (value) => Number.isSafeInteger(value) && value >= 0 && value <= 0o777,
+    locale: nonEmptyString,
+    timezone: nullableString,
+    kernel: nonEmptyString,
+    cpuCount: positiveInteger,
+    availableParallelism: positiveInteger,
+    mountNamespaceId: nullableString,
+    temporaryDirectory: canonicalDirectory,
+    temporaryFilesystemType: (value) =>
+        typeof value === 'string' && /^0x[0-9a-f]+$/.test(value),
+    nodeOptions: (value) => value === null || typeof value === 'string',
+})
 
 function filesystemType(root) {
     if (typeof fs.statfsSync !== 'function') return null
@@ -75,6 +132,7 @@ function mountNamespaceId() {
 }
 
 function runtimeEnvelope({ root }) {
+    const temporaryDirectory = fs.realpathSync(os.tmpdir())
     const values = {
         nodeVersion: process.version,
         platform: process.platform,
@@ -89,9 +147,12 @@ function runtimeEnvelope({ root }) {
             ? os.availableParallelism()
             : os.cpus().length,
         mountNamespaceId: mountNamespaceId(),
+        temporaryDirectory,
+        temporaryFilesystemType: filesystemType(temporaryDirectory),
+        nodeOptions: process.env.NODE_OPTIONS ?? null,
     }
     return {
-        schema: 'patch-verification-runtime-envelope-v1',
+        schema: RUNTIME_SCHEMA_V2,
         fieldPolicy: RUNTIME_FIELD_POLICY,
         values,
     }
@@ -101,23 +162,25 @@ function compareRuntimeEnvelopes(before, after) {
     const errors = []
     const differences = []
     const schemas = new Set([before?.schema, after?.schema])
+    const schema = schemas.size === 1 ? before?.schema : null
+    const expectedPolicy = RUNTIME_FIELD_POLICIES[schema] ?? null
+    if (schema === null || expectedPolicy === null) {
+        errors.push('runtime envelope schema mismatch or unsupported schema')
+        return { errors, differences, matched: false }
+    }
     if (
-        schemas.size !== 1
-        || !schemas.has('patch-verification-runtime-envelope-v1')
-    ) errors.push('runtime envelope schema mismatch')
-    if (
-        JSON.stringify(before?.fieldPolicy) !== JSON.stringify(RUNTIME_FIELD_POLICY)
-        || JSON.stringify(after?.fieldPolicy) !== JSON.stringify(RUNTIME_FIELD_POLICY)
+        JSON.stringify(before?.fieldPolicy) !== JSON.stringify(expectedPolicy)
+        || JSON.stringify(after?.fieldPolicy) !== JSON.stringify(expectedPolicy)
     ) errors.push('runtime field policy mismatch')
     const beforeValues = before?.values ?? {}
     const afterValues = after?.values ?? {}
-    const knownFields = Object.keys(RUNTIME_FIELD_POLICY)
+    const knownFields = Object.keys(expectedPolicy)
     const observedFields = new Set([
         ...Object.keys(beforeValues),
         ...Object.keys(afterValues),
     ])
     for (const field of observedFields) {
-        if (!Object.hasOwn(RUNTIME_FIELD_POLICY, field)) {
+        if (!Object.hasOwn(expectedPolicy, field)) {
             errors.push(`unknown runtime field: ${field}`)
         }
     }
@@ -126,8 +189,15 @@ function compareRuntimeEnvelopes(before, after) {
             errors.push(`missing runtime field: ${field}`)
             continue
         }
+        const validator = RUNTIME_VALUE_VALIDATORS[field]
+        if (!validator(beforeValues[field])) {
+            errors.push(`invalid before runtime field value: ${field}`)
+        }
+        if (!validator(afterValues[field])) {
+            errors.push(`invalid after runtime field value: ${field}`)
+        }
         if (JSON.stringify(beforeValues[field]) === JSON.stringify(afterValues[field])) continue
-        const definition = RUNTIME_FIELD_POLICY[field]
+        const definition = expectedPolicy[field]
         const blocking = definition.classification === 'semantic'
             || definition.classification === 'compatibility-critical'
         differences.push({
@@ -152,6 +222,9 @@ function compareRuntimeEnvelopes(before, after) {
 
 module.exports = {
     RUNTIME_FIELD_POLICY,
+    RUNTIME_FIELD_POLICY_V1,
+    RUNTIME_SCHEMA_V1,
+    RUNTIME_SCHEMA_V2,
     compareRuntimeEnvelopes,
     runtimeEnvelope,
 }

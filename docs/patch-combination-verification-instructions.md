@@ -204,7 +204,8 @@ Runtime-envelope fields have explicit comparison classes:
 | Field | Class | Acceptance meaning |
 | --- | --- | --- |
 | `umask`, `availableParallelism` | semantic | A difference fails closed because file modes or default worker history can change. |
-| Node version, platform, architecture, filesystem type, locale | compatibility-critical | A difference requires requalification and fails pre/post stability. |
+| Node version, platform, architecture, target filesystem type, locale | compatibility-critical | A difference requires requalification and fails pre/post stability. |
+| temporary directory and its filesystem type, `NODE_OPTIONS` | compatibility-critical | Worker-copy or inherited child-runtime context changed and requires requalification. |
 | timezone, kernel, mount namespace ID | diagnostic | Differences are retained but an opaque identifier alone is not a semantic mismatch. |
 | physical CPU count | informational | Effective worker count and ordered worker history remain authoritative. |
 
@@ -212,6 +213,12 @@ Unknown or missing fields fail closed. Diagnostic and informational fields are
 not ignored: their differences remain in the receipt, but they cannot block an
 otherwise identical run merely because an opaque namespace ID or host label
 changed.
+
+Runtime envelope v2 is current. The verifier retains the exact v1 field policy
+only to validate already-sealed historical receipts; new receipts always bind
+the v2 temporary-filesystem and child-runtime fields. A present field with an
+invalid or unavailable value is not treated as evidence merely because the same
+invalid value appears before and after the run.
 
 ## Acceptance and receipt
 

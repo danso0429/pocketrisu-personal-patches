@@ -4,12 +4,15 @@ const assert = require('node:assert/strict')
 const test = require('node:test')
 const {
     RUNTIME_FIELD_POLICY,
+    RUNTIME_FIELD_POLICY_V1,
+    RUNTIME_SCHEMA_V1,
+    RUNTIME_SCHEMA_V2,
     compareRuntimeEnvelopes,
 } = require('../src/verification-runtime.cjs')
 
 function envelope(overrides = {}) {
     return {
-        schema: 'patch-verification-runtime-envelope-v1',
+        schema: RUNTIME_SCHEMA_V2,
         fieldPolicy: RUNTIME_FIELD_POLICY,
         values: {
             nodeVersion: 'v25.9.0',
@@ -23,8 +26,26 @@ function envelope(overrides = {}) {
             cpuCount: 2,
             availableParallelism: 2,
             mountNamespaceId: 'mnt:[1]',
+            temporaryDirectory: '/tmp',
+            temporaryFilesystemType: '0xef53',
+            nodeOptions: null,
             ...overrides,
         },
+    }
+}
+
+function historicalEnvelope(overrides = {}) {
+    const current = envelope(overrides)
+    const {
+        temporaryDirectory,
+        temporaryFilesystemType,
+        nodeOptions,
+        ...values
+    } = current.values
+    return {
+        schema: RUNTIME_SCHEMA_V1,
+        fieldPolicy: RUNTIME_FIELD_POLICY_V1,
+        values,
     }
 }
 
@@ -36,6 +57,12 @@ test('runtime policy classifies every field explicitly', () => {
     assert.equal(RUNTIME_FIELD_POLICY.umask.classification, 'semantic')
     assert.equal(RUNTIME_FIELD_POLICY.availableParallelism.classification, 'semantic')
     assert.equal(RUNTIME_FIELD_POLICY.mountNamespaceId.classification, 'diagnostic')
+    assert.equal(RUNTIME_FIELD_POLICY.temporaryDirectory.classification, 'compatibility-critical')
+    assert.equal(
+        RUNTIME_FIELD_POLICY.temporaryFilesystemType.classification,
+        'compatibility-critical',
+    )
+    assert.equal(RUNTIME_FIELD_POLICY.nodeOptions.classification, 'compatibility-critical')
 })
 
 test('semantic and compatibility-critical runtime changes fail closed', () => {
@@ -47,6 +74,9 @@ test('semantic and compatibility-critical runtime changes fail closed', () => {
         ['architecture', 'x64'],
         ['filesystemType', '0x1234'],
         ['locale', 'ko_KR.UTF-8'],
+        ['temporaryDirectory', '/var/tmp'],
+        ['temporaryFilesystemType', '0x1234'],
+        ['nodeOptions', '--require=/tmp/observer.cjs'],
     ]) {
         const comparison = compareRuntimeEnvelopes(envelope(), envelope({ [field]: value }))
         assert.equal(comparison.matched, false, field)
@@ -101,4 +131,28 @@ test('unknown or missing runtime fields fail closed', () => {
         compareRuntimeEnvelopes(envelope(), alteredPolicy).errors.join('\n'),
         /runtime field policy mismatch/,
     )
+})
+
+test('invalid field values fail closed while version-one receipts remain comparable', () => {
+    for (const [field, value] of [
+        ['nodeVersion', ''],
+        ['filesystemType', null],
+        ['umask', -1],
+        ['cpuCount', 0],
+        ['availableParallelism', 0],
+        ['temporaryDirectory', 'relative/tmp'],
+        ['temporaryFilesystemType', null],
+    ]) {
+        const comparison = compareRuntimeEnvelopes(
+            envelope({ [field]: value }),
+            envelope({ [field]: value }),
+        )
+        assert.equal(comparison.matched, false, field)
+        assert.match(comparison.errors.join('\n'), new RegExp(field))
+    }
+    assert.deepEqual(compareRuntimeEnvelopes(historicalEnvelope(), historicalEnvelope()), {
+        errors: [],
+        differences: [],
+        matched: true,
+    })
 })

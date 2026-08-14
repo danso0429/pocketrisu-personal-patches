@@ -22,6 +22,7 @@ const {
 } = require('../src/verification-receipts.cjs')
 const {
     RUNTIME_FIELD_POLICY,
+    RUNTIME_SCHEMA_V2,
 } = require('../src/verification-runtime.cjs')
 
 function canonicalResult() {
@@ -74,7 +75,7 @@ function executionReceipt({
         && verifierErrors.length === 0
         && stability.matched
     const runtimeEnvelope = {
-        schema: 'patch-verification-runtime-envelope-v1',
+        schema: RUNTIME_SCHEMA_V2,
         fieldPolicy: RUNTIME_FIELD_POLICY,
         values: {
             nodeVersion: 'v25.9.0',
@@ -88,6 +89,9 @@ function executionReceipt({
             cpuCount: 2,
             availableParallelism: 2,
             mountNamespaceId: 'mnt:[1]',
+            temporaryDirectory: '/tmp',
+            temporaryFilesystemType: '0xef53',
+            nodeOptions: null,
         },
     }
     return sealDocument({
