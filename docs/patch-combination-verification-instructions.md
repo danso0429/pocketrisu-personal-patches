@@ -386,6 +386,64 @@ the global state contract, issues a certificate, skips a transaction, or
 replaces Global Exhaustive. S0-P is a read-only observation and is never a
 canonical state record.
 
+## Phase 2 capability audit and action hypergraph
+
+Phase 2 adds an explicit audit command. It is not the default checker and does
+not change resolver, compose, manager, transaction, status, revert, persisted
+state, or generated installer behavior:
+
+```bash
+npm run audit:capabilities -- \
+  --governance-commit <40-hex-governance-commit> \
+  --target-root /path/to/pristine/PocketRisu \
+  --output /separate/evidence/capability-audit.json \
+  --markdown-output /separate/evidence/capability-audit.md
+```
+
+The command first recompiles the Phase 1 inventory and freezes source and
+target roots. It then emits:
+
+- a schema-versioned capability contract for the target-compatible catalog and
+  for the selected prospective plan;
+- mechanically derived file, region, metadata, topology, state, module, and
+  unsealed legacy-runtime capabilities;
+- pack/unit/resource action nodes and typed edges;
+- higher-order `autoWhen`, shared-file, typed-boundary, and global-fallback
+  hyperedges without reducing them to pair-only evidence;
+- deterministic local and fail-closed component derivations;
+- an exact declared source read-set and a current legacy catalog-load access
+  receipt; and
+- independent hashes for the inventory, contracts, graphs, access records,
+  and complete receipt.
+
+The legacy loader runs in a separate Node process with filesystem reads limited
+to the exact Phase 1 source-input files. Filesystem writes, child processes,
+workers, native addons, global module search, and string code generation are
+not granted. On runtimes that support network permissions, network access is
+also not granted. Spawn errors, signals, nonzero exits, stderr, empty output,
+invalid JSON, hash mismatch, incomplete catalog coverage, undeclared paths or
+modules, and permission mismatches all fail closed.
+
+The Node permission model is a defense against unintended access, not a proof
+against malicious code. Existing file descriptors, environment and
+process-global state, time, randomness, promises, streams, native/runtime
+loopholes, opaque application code, and worker history therefore remain
+unsealed legacy surfaces. Observation of the current load is not promoted to a
+capability-completeness proof.
+
+A typed boundary is admitted only when its schema, participants, resource,
+input classes, validator, completeness, and fallback are explicit. A shared
+resource without such a complete boundary unions its participants. Unknown or
+incomplete boundaries, unknown capability fields, forged component hints, and
+unsealed Local or Boundary-safe admissions are rejected before mutation.
+
+For the current catalog every pack remains `G` (or would become `U` on an
+invalid surface), and the global persisted selection/state and history
+connectors union the selected catalog. The Phase 2 graph therefore authorizes
+no mask reduction, component checker, certificate, transaction skip, state
+migration, default-command change, or canonical-gate replacement. Global
+Exhaustive remains the independent required fallback.
+
 ## Failure and cleanup
 
 - A nonzero exit, incomplete coverage, changed repeated plan, unexpected
