@@ -201,7 +201,9 @@ async function buildReceipt(options, {
     const comparison = compareInputFreeze(before, after)
     const status = comparison.matched
         && inventory.completeness.status === 'complete-observational'
-        && generatedArtifacts.every((artifact) => artifact.catalogMatches === true)
+        && generatedArtifacts.every((artifact) =>
+            artifact.catalogMatches === true && artifact.contentMatches === true
+        )
         ? 'passed'
         : 'failed'
     const receipt = {

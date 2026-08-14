@@ -490,6 +490,9 @@ function compileEffectInventory(catalog, {
         ...generatedArtifacts
             .filter((artifact) => artifact.catalogMatches !== true)
             .map((artifact) => ({ kind: 'generated-catalog-mismatch', file: artifact.file })),
+        ...generatedArtifacts
+            .filter((artifact) => artifact.contentMatches !== true)
+            .map((artifact) => ({ kind: 'generated-installer-content-mismatch', file: artifact.file })),
     ]
     const inventory = {
         schema: INVENTORY_SCHEMA,
@@ -632,25 +635,54 @@ function inspectGeneratedCatalogs(repositoryRoot, catalog) {
     const root = fs.realpathSync(path.resolve(repositoryRoot))
     const directory = path.join(root, 'dist')
     const expected = [
-        'pocketrisu-all.cjs',
-        'pocketrisu-features.cjs',
-        'pocketrisu-hardening.cjs',
-        'pocketrisu-patcher.cjs',
+        { name: 'pocketrisu-all.cjs', profile: 'all' },
+        { name: 'pocketrisu-features.cjs', profile: 'features' },
+        { name: 'pocketrisu-hardening.cjs', profile: 'hardening' },
+        { name: 'pocketrisu-patcher.cjs', profile: null },
     ]
     const catalogHash = jsonSha256(catalog)
-    return expected.map((name) => {
+    const builderPath = path.join(root, 'scripts/build-installers.cjs')
+    let build = null
+    let buildError = null
+    try {
+        ({ build } = require(builderPath))
+        if (typeof build !== 'function') throw new Error('builder does not export build()')
+    } catch (error) {
+        buildError = String(error.message ?? error)
+    }
+    return expected.map(({ name, profile }) => {
         const absolute = path.join(directory, name)
         if (!fs.existsSync(absolute)) {
-            return { file: `dist/${name}`, status: 'missing', catalogMatches: false }
+            return {
+                file: `dist/${name}`,
+                profile,
+                status: 'missing',
+                catalogMatches: false,
+                contentMatches: false,
+                buildError,
+            }
         }
         const source = fs.readFileSync(absolute, 'utf8')
+        let expectedSource = null
+        let artifactBuildError = buildError
+        if (build !== null) {
+            try {
+                expectedSource = build(profile, catalog)
+            } catch (error) {
+                artifactBuildError = String(error.message ?? error)
+            }
+        }
         const line = source.split('\n').find((entry) => entry.startsWith('const EMBEDDED_CATALOG = '))
         if (!line?.endsWith(';')) {
             return {
                 file: `dist/${name}`,
+                profile,
                 status: 'unparseable',
                 descriptor: fileDescriptor(absolute),
                 catalogMatches: false,
+                contentMatches: expectedSource !== null && source === expectedSource,
+                expectedSha256: expectedSource === null ? null : sha256(expectedSource),
+                buildError: artifactBuildError,
             }
         }
         let embedded
@@ -659,16 +691,25 @@ function inspectGeneratedCatalogs(repositoryRoot, catalog) {
         } catch (error) {
             return {
                 file: `dist/${name}`,
+                profile,
                 status: 'unparseable',
                 descriptor: fileDescriptor(absolute),
                 parseError: String(error.message ?? error),
                 catalogMatches: false,
+                contentMatches: expectedSource !== null && source === expectedSource,
+                expectedSha256: expectedSource === null ? null : sha256(expectedSource),
+                buildError: artifactBuildError,
             }
         }
         return {
             file: `dist/${name}`,
+            profile,
             status: 'parsed',
             descriptor: fileDescriptor(absolute),
+            builder: {
+                path: 'scripts/build-installers.cjs',
+                descriptor: fileDescriptor(builderPath),
+            },
             packCount: embedded.length,
             unitCount: embedded.reduce((count, pack) => count + (pack.units?.length ?? 0), 0),
             managedPathCount: new Set(embedded.flatMap((pack) =>
@@ -676,6 +717,9 @@ function inspectGeneratedCatalogs(repositoryRoot, catalog) {
             )).size,
             catalogSha256: jsonSha256(embedded),
             catalogMatches: jsonSha256(embedded) === catalogHash,
+            contentMatches: expectedSource !== null && source === expectedSource,
+            expectedSha256: expectedSource === null ? null : sha256(expectedSource),
+            buildError: artifactBuildError,
         }
     })
 }
