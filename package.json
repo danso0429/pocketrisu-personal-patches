@@ -10,6 +10,7 @@
     "audit:theorem": "node scripts/build-compositional-theorem-audit.cjs",
     "audit:shadow-state": "node scripts/build-s1d-shadow-state.cjs",
     "audit:s2-state": "node scripts/build-s2-state-audit.cjs",
+    "audit:certificates": "node scripts/build-certificate-audit.cjs",
     "inventory:effects": "node scripts/build-effect-inventory.cjs",
     "qualify": "node scripts/qualify-target.cjs",
     "test": "node --test test/*.test.cjs",

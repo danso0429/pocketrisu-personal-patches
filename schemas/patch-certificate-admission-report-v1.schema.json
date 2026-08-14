@@ -1,0 +1,17 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "patch-certificate-admission-report-v1",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schema", "status", "theoremOutcome", "recordsGenerated", "recordsAccepted", "masksSkipped", "canonicalProtection", "reportSha256"],
+  "properties": {
+    "schema": { "const": "patch-certificate-admission-report-v1" },
+    "status": { "const": "not-issued-global-fallback" },
+    "theoremOutcome": { "const": "global-fallback" },
+    "recordsGenerated": { "const": 0 },
+    "recordsAccepted": { "const": 0 },
+    "masksSkipped": { "const": 0 },
+    "canonicalProtection": { "type": "object" },
+    "reportSha256": { "type": "string", "pattern": "^[0-9a-f]{64}$" }
+  }
+}

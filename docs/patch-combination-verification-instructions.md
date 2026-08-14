@@ -536,6 +536,31 @@ serializer, issue reusable certificates or remove the S0/global fallback. The
 current graph still yields one component and therefore demonstrates no current
 local-state reuse benefit.
 
+## Phase 6 exact shadow certificates
+
+Phase 6 defines an exact component key over the admitted component source read
+set, target projection, policy, engine, effect manifest, action subgraph,
+boundary classes, local state, runtime envelope, filesystem semantics and H2
+history model. The key intentionally excludes proven-unread unrelated component
+inputs; changing any retained field is an exact miss.
+
+6A generation is immutable, content-addressed and write-only. Per-mask and
+boundary observations form Merkle leaves under a component manifest. 6B uses a
+separate verifier path to re-hash keys, manifests, leaves and proofs, and to
+compare them with fresh concrete replay. Corrupt, truncated, stale,
+mixed-version, incomplete-domain or non-exact evidence is rejected. Retention
+GC is dry-run only.
+
+6C skipping exists only as an explicit `frozen-audit-experimental` decision
+after independent verification. Its counters distinguish records loaded,
+accepted and rejected from concrete masks skipped. It does not change the
+canonical gate or default.
+
+The current theorem outcome is `global-fallback`, so
+`npm run audit:certificates -- ...` emits a no-certificate report with zero
+records and zero masks skipped. Production-certified reusable certificate count
+remains zero.
+
 ## Failure and cleanup
 
 - A nonzero exit, incomplete coverage, changed repeated plan, unexpected
