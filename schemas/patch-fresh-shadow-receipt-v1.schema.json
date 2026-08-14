@@ -1,0 +1,122 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "patch-fresh-shadow-receipt-v1",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema",
+    "status",
+    "component",
+    "boundaryClasses",
+    "coverage",
+    "observations",
+    "isolation",
+    "fallback",
+    "canonicalProtection",
+    "receiptSha256"
+  ],
+  "properties": {
+    "schema": { "const": "patch-fresh-shadow-receipt-v1" },
+    "status": { "enum": ["passed", "fallback-required"] },
+    "component": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["id", "packIds", "visiblePackIds"],
+      "properties": {
+        "id": { "type": "string", "minLength": 1 },
+        "packIds": { "type": "array", "items": { "type": "string" }, "uniqueItems": true },
+        "visiblePackIds": { "type": "array", "items": { "type": "string" }, "uniqueItems": true }
+      }
+    },
+    "boundaryClasses": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["id", "inputsSha256"],
+        "properties": {
+          "id": { "type": "string", "minLength": 1 },
+          "inputsSha256": { "type": "string", "pattern": "^[0-9a-f]{64}$" }
+        }
+      }
+    },
+    "coverage": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["localMasks", "boundaryClasses", "expectedExecutions", "processedExecutions"],
+      "properties": {
+        "localMasks": { "type": "integer", "minimum": 0 },
+        "boundaryClasses": { "type": "integer", "minimum": 0 },
+        "expectedExecutions": { "type": "integer", "minimum": 0 },
+        "processedExecutions": { "type": "integer", "minimum": 0 }
+      }
+    },
+    "observations": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "mask",
+          "selectedPackIds",
+          "boundaryClassId",
+          "projectionId",
+          "processInstanceId",
+          "workerPid",
+          "initialChangeCount",
+          "status",
+          "repeatedChangeCount",
+          "revertChangeCount",
+          "restored"
+        ],
+        "properties": {
+          "mask": { "type": "integer", "minimum": 0 },
+          "selectedPackIds": { "type": "array", "items": { "type": "string" }, "uniqueItems": true },
+          "boundaryClassId": { "type": "string", "minLength": 1 },
+          "projectionId": { "type": "string", "minLength": 1 },
+          "processInstanceId": { "type": "string", "minLength": 1 },
+          "workerPid": { "type": "integer", "minimum": 1 },
+          "initialChangeCount": { "type": "integer", "minimum": 0 },
+          "status": { "enum": ["clean", "current"] },
+          "repeatedChangeCount": { "const": 0 },
+          "revertChangeCount": { "type": "integer", "minimum": 0 },
+          "restored": { "const": true }
+        }
+      }
+    },
+    "isolation": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["target", "process", "moduleGraph", "calculationCaches", "unmanagedHistory"],
+      "properties": {
+        "target": { "const": "fresh-projection-per-mask-and-boundary" },
+        "process": { "const": "fresh-process-per-mask-and-boundary" },
+        "moduleGraph": { "const": "fresh-process-module-graph" },
+        "calculationCaches": { "const": "empty-per-process" },
+        "unmanagedHistory": { "const": "unique-temporary-root-per-process" }
+      }
+    },
+    "fallback": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["required", "reasons"],
+      "properties": {
+        "required": { "type": "boolean" },
+        "reasons": { "type": "array", "items": { "type": "string" }, "uniqueItems": true }
+      }
+    },
+    "canonicalProtection": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["canonicalGate", "canonicalExecutionSkipped", "certificatesIssued", "productionStateWritten", "defaultChanged"],
+      "properties": {
+        "canonicalGate": { "const": "Global Exhaustive" },
+        "canonicalExecutionSkipped": { "const": false },
+        "certificatesIssued": { "const": 0 },
+        "productionStateWritten": { "const": false },
+        "defaultChanged": { "const": false }
+      }
+    },
+    "receiptSha256": { "type": "string", "pattern": "^[0-9a-f]{64}$" }
+  }
+}
