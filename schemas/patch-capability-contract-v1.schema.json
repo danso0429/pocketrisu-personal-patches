@@ -21,16 +21,17 @@
     "inventorySha256": { "type": "string", "pattern": "^[0-9a-f]{64}$" },
     "target": {
       "type": "object",
-      "required": ["packageName", "packageVersion", "resolvedPackIds", "resolvedUnitIds"],
+      "required": ["packageName", "packageVersion", "scope", "packIds", "unitIds"],
       "properties": {
         "packageName": { "type": ["string", "null"] },
         "packageVersion": { "type": ["string", "null"] },
-        "resolvedPackIds": {
+        "scope": { "enum": ["target-catalog", "resolved-selection"] },
+        "packIds": {
           "type": "array",
           "uniqueItems": true,
           "items": { "type": "string", "minLength": 1 }
         },
-        "resolvedUnitIds": {
+        "unitIds": {
           "type": "array",
           "uniqueItems": true,
           "items": { "type": "string", "minLength": 1 }

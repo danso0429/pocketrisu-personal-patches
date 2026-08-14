@@ -1,0 +1,43 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://example.invalid/patch-action-hypergraph-v1.schema.json",
+  "title": "Patch Action Hypergraph v1",
+  "type": "object",
+  "required": [
+    "schema",
+    "contractSha256",
+    "target",
+    "nodes",
+    "edges",
+    "hyperedges",
+    "localComponents",
+    "components",
+    "fallback",
+    "graphSha256"
+  ],
+  "properties": {
+    "schema": { "const": "patch-action-hypergraph-v1" },
+    "contractSha256": { "type": "string", "pattern": "^[0-9a-f]{64}$" },
+    "target": { "type": "object" },
+    "nodes": { "type": "array" },
+    "edges": { "type": "array" },
+    "hyperedges": { "type": "array" },
+    "localComponents": { "type": "array" },
+    "components": { "type": "array" },
+    "fallback": {
+      "type": "object",
+      "required": ["required", "reasons"],
+      "properties": {
+        "required": { "type": "boolean" },
+        "reasons": {
+          "type": "array",
+          "uniqueItems": true,
+          "items": { "type": "string", "minLength": 1 }
+        }
+      },
+      "additionalProperties": false
+    },
+    "graphSha256": { "type": "string", "pattern": "^[0-9a-f]{64}$" }
+  },
+  "additionalProperties": false
+}

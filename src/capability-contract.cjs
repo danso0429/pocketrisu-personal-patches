@@ -242,16 +242,20 @@ function validateCapabilityContract(contract, { verifyHash = true } = {}) {
     assertExactKeys(contract.target, [
         'packageName',
         'packageVersion',
-        'resolvedPackIds',
-        'resolvedUnitIds',
+        'scope',
+        'packIds',
+        'unitIds',
     ], 'target')
     for (const key of ['packageName', 'packageVersion']) {
         if (contract.target[key] !== null) assertString(contract.target[key], `target.${key}`)
     }
-    assertStringArray(contract.target.resolvedPackIds, 'target.resolvedPackIds')
-    assertStringArray(contract.target.resolvedUnitIds, 'target.resolvedUnitIds')
-    const knownPacks = new Set(contract.target.resolvedPackIds)
-    const knownUnits = new Set(contract.target.resolvedUnitIds)
+    if (!['target-catalog', 'resolved-selection'].includes(contract.target.scope)) {
+        throw new CapabilityContractError('INVALID_CONTRACT', 'target.scope is invalid')
+    }
+    assertStringArray(contract.target.packIds, 'target.packIds')
+    assertStringArray(contract.target.unitIds, 'target.unitIds')
+    const knownPacks = new Set(contract.target.packIds)
+    const knownUnits = new Set(contract.target.unitIds)
 
     if (!Array.isArray(contract.capabilities) || !Array.isArray(contract.packs)) {
         throw new CapabilityContractError('INVALID_CONTRACT', 'packs and capabilities must be arrays')
