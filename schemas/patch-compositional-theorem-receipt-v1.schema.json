@@ -1,0 +1,59 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "patch-compositional-theorem-receipt-v1",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schema", "status", "outcome", "contractSha256", "graphSha256", "premises", "boundaryCoverage", "shadowReceiptHashes", "canonicalProtection", "receiptSha256"],
+  "properties": {
+    "schema": { "const": "patch-compositional-theorem-receipt-v1" },
+    "status": { "enum": ["passed", "fallback", "rejected"] },
+    "outcome": { "enum": ["component-admitted", "global-fallback", "admission-rejected"] },
+    "contractSha256": { "type": "string", "pattern": "^[0-9a-f]{64}$" },
+    "graphSha256": { "type": "string", "pattern": "^[0-9a-f]{64}$" },
+    "premises": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["id", "status", "sourceRepresentation", "runtimeEnforcement", "evidenceSha256", "independentValidator", "failureAction"],
+        "properties": {
+          "id": { "type": "string" },
+          "status": { "enum": ["verified", "unverified"] },
+          "sourceRepresentation": { "type": "string", "minLength": 1 },
+          "runtimeEnforcement": { "type": "string", "minLength": 1 },
+          "evidenceSha256": { "type": ["string", "null"], "pattern": "^[0-9a-f]{64}$" },
+          "independentValidator": { "type": "string", "minLength": 1 },
+          "failureAction": { "enum": ["broader-component", "global-fallback", "admission-rejection"] }
+        }
+      }
+    },
+    "boundaryCoverage": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["boundaryId", "inputClass", "classIds"],
+        "properties": {
+          "boundaryId": { "type": "string" },
+          "inputClass": { "type": "string" },
+          "classIds": { "type": "array", "minItems": 1, "uniqueItems": true, "items": { "type": "string" } }
+        }
+      }
+    },
+    "shadowReceiptHashes": { "type": "array", "uniqueItems": true, "items": { "type": "string", "pattern": "^[0-9a-f]{64}$" } },
+    "canonicalProtection": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["canonicalGate", "fallbackRetained", "certificatesIssued", "canonicalMasksSkipped", "productionStateWritten", "defaultChanged"],
+      "properties": {
+        "canonicalGate": { "const": "Global Exhaustive" },
+        "fallbackRetained": { "const": true },
+        "certificatesIssued": { "const": 0 },
+        "canonicalMasksSkipped": { "const": 0 },
+        "productionStateWritten": { "const": false },
+        "defaultChanged": { "const": false }
+      }
+    },
+    "receiptSha256": { "type": "string", "pattern": "^[0-9a-f]{64}$" }
+  }
+}
