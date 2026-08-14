@@ -2,6 +2,7 @@
 
 const crypto = require('node:crypto')
 const fs = require('node:fs')
+const os = require('node:os')
 const path = require('node:path')
 const { spawn } = require('node:child_process')
 
@@ -440,6 +441,103 @@ function runChild(command, args, {
     })
 }
 
+function readCapturedFile(file, maxOutputBytes) {
+    const size = fs.statSync(file).size
+    const length = Math.min(size, maxOutputBytes)
+    const buffer = Buffer.alloc(length)
+    const descriptor = fs.openSync(file, 'r')
+    try {
+        if (length > 0) fs.readSync(descriptor, buffer, 0, length, 0)
+    } finally {
+        fs.closeSync(descriptor)
+    }
+    return {
+        bytes: size,
+        exceeded: size > maxOutputBytes,
+        text: buffer.toString('utf8'),
+    }
+}
+
+function runChildWithFileCapture(command, args, {
+    cwd,
+    env = process.env,
+    maxOutputBytes = MAX_CHILD_OUTPUT_BYTES,
+} = {}) {
+    return new Promise((resolve) => {
+        const captureRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'patch-verification-child-'))
+        const stdoutPath = path.join(captureRoot, 'stdout')
+        const stderrPath = path.join(captureRoot, 'stderr')
+        const stdoutDescriptor = fs.openSync(stdoutPath, 'wx', 0o600)
+        const stderrDescriptor = fs.openSync(stderrPath, 'wx', 0o600)
+        let child = null
+        let closed = false
+        let outputError = null
+        let spawnError = null
+
+        const closeDescriptors = () => {
+            if (closed) return
+            closed = true
+            fs.closeSync(stdoutDescriptor)
+            fs.closeSync(stderrDescriptor)
+        }
+        const finish = (exitCode, signal) => {
+            clearInterval(sizeMonitor)
+            closeDescriptors()
+            try {
+                const stdout = readCapturedFile(stdoutPath, maxOutputBytes)
+                const stderr = readCapturedFile(stderrPath, maxOutputBytes)
+                if (stdout.exceeded) {
+                    outputError ??= `stdout exceeded ${maxOutputBytes} bytes`
+                }
+                if (stderr.exceeded) {
+                    outputError ??= `stderr exceeded ${maxOutputBytes} bytes`
+                }
+                resolve({
+                    exitCode,
+                    signal,
+                    spawnError,
+                    outputError,
+                    stdout: stdout.text,
+                    stderr: stderr.text,
+                })
+            } finally {
+                fs.rmSync(captureRoot, { recursive: true, force: true })
+            }
+        }
+
+        let sizeMonitor = null
+        try {
+            child = spawn(command, args, {
+                cwd,
+                env,
+                stdio: ['ignore', stdoutDescriptor, stderrDescriptor],
+            })
+            sizeMonitor = setInterval(() => {
+                if (
+                    fs.fstatSync(stdoutDescriptor).size > maxOutputBytes
+                    || fs.fstatSync(stderrDescriptor).size > maxOutputBytes
+                ) {
+                    outputError ??= `child output exceeded ${maxOutputBytes} bytes`
+                    child.kill('SIGTERM')
+                }
+            }, 100)
+            child.once('error', (error) => {
+                spawnError = {
+                    code: error.code ?? null,
+                    message: error.message,
+                }
+            })
+            child.once('close', finish)
+        } catch (error) {
+            spawnError = {
+                code: error.code ?? null,
+                message: error.message,
+            }
+            finish(null, null)
+        }
+    })
+}
+
 function writeJsonAtomic(file, value) {
     const absolute = path.resolve(file)
     const parent = path.dirname(absolute)
@@ -476,6 +574,7 @@ module.exports = {
     pathIsInside,
     regularFileDescriptor,
     runChild,
+    runChildWithFileCapture,
     sha256,
     sourceFreezeDescriptor,
     targetGitIdentity,

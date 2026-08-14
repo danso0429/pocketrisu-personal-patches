@@ -154,6 +154,12 @@ nonzero exit, empty or malformed output, incomplete raw-mask coverage, or
 noncanonical worker history. This wrapper adds provenance; it does not replace,
 reduce, resume, or alter the canonical Global Exhaustive route.
 
+The verifier subprocess writes stdout and stderr to private temporary file
+descriptors which the wrapper reads only after process close. This is part of
+the execution contract: a runtime that drops nested Node output on pipe-backed
+stdio must not turn an empty-output, status-zero tuple into a pass. Temporary
+capture files are removed after their bounded contents enter the receipt.
+
 For a Git target, target identity binds the application tree separately from
 commit, tracked/index status, staged and unstaged diff hashes, and the contents
 of `HEAD`, index, packed refs, shallow marker, and resolved HEAD ref. Directory

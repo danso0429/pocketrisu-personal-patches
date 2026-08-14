@@ -12,6 +12,7 @@ const {
     contentTreeDescriptor,
     parseCanonicalOutput,
     runChild,
+    runChildWithFileCapture,
     SOURCE_CORE_PATHS,
     targetFreezeDescriptor,
     validateCanonicalResult,
@@ -153,6 +154,28 @@ test('evidence output is atomic and never overwrites an existing receipt', (t) =
         (error) => error.code === 'EEXIST',
     )
     assert.deepEqual(JSON.parse(fs.readFileSync(output, 'utf8')), { value: 'first' })
+})
+
+test('verifier file capture preserves nested Node output and enforces its limit', async () => {
+    const captured = await runChildWithFileCapture(process.execPath, [
+        '-e',
+        'process.stdout.write("nested stdout\\n"); process.stderr.write("nested stderr\\n")',
+    ])
+    assert.deepEqual(captured, {
+        exitCode: 0,
+        signal: null,
+        spawnError: null,
+        outputError: null,
+        stdout: 'nested stdout\n',
+        stderr: 'nested stderr\n',
+    })
+
+    const exceeded = await runChildWithFileCapture(process.execPath, [
+        '-e',
+        'process.stdout.write("12345")',
+    ], { maxOutputBytes: 4 })
+    assert.notEqual(exceeded.outputError, null)
+    assert.equal(exceeded.stdout, '1234')
 })
 
 test('target identity ignores Git mtimes but binds commit, index, and application state', async (t) => {

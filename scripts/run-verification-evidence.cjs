@@ -8,7 +8,7 @@ const {
     captureInputFreeze,
     compareInputFreeze,
     parseCanonicalOutput,
-    runChild,
+    runChildWithFileCapture,
     sha256,
     validateVerificationResult,
     writeJsonAtomic,
@@ -112,7 +112,9 @@ async function main(argv = process.argv) {
         targetRoot: options.root,
         targetProvenance: options.targetProvenance,
     })
-    const execution = await runChild(command[0], command.slice(1), { cwd: sourceRoot })
+    const execution = await runChildWithFileCapture(command[0], command.slice(1), {
+        cwd: sourceRoot,
+    })
     const after = await captureInputFreeze({
         sourceRoot,
         targetRoot: options.root,
