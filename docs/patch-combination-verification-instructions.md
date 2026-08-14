@@ -170,6 +170,10 @@ and administrative-file mtimes under `.git` are recorded by neither identity
 and cannot create application-content drift. This does not weaken VCS binding:
 changing commit, index, relevant administrative contents, application paths,
 contents, modes, symlinks, or hardlink topology still changes the target root.
+Git identity commands remove inherited `GIT_*` repository/index overrides,
+disable system and global Git configuration, retain repository-local config,
+and record the observed Git version. An ambient `GIT_DIR` therefore cannot
+redirect source or target provenance to another repository.
 
 The routine gate continues to allow a proved-pristine extracted archive. The
 evidence wrapper requires its independently obtained lowercase SHA-256:

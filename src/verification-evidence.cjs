@@ -161,10 +161,16 @@ function contentTreeDescriptor(root, {
 }
 
 async function gitOutput(root, args, { trim = true } = {}) {
+    const env = Object.fromEntries(Object.entries(process.env).filter(
+        ([key]) => !key.startsWith('GIT_'),
+    ))
+    env.GIT_CONFIG_NOSYSTEM = '1'
+    env.GIT_CONFIG_GLOBAL = os.devNull
+    env.GIT_TERMINAL_PROMPT = '0'
     const result = await runChild(
         'git',
         ['--no-pager', '-C', root, ...args],
-        { maxOutputBytes: 64 * 1024 * 1024 },
+        { env, maxOutputBytes: 64 * 1024 * 1024 },
     )
     if (
         result.spawnError !== null
@@ -183,6 +189,7 @@ async function gitOutput(root, args, { trim = true } = {}) {
 
 async function sourceGitIdentity(root) {
     return {
+        gitVersion: await gitOutput(root, ['--version']),
         commit: await gitOutput(root, ['rev-parse', 'HEAD']),
         branch: await gitOutput(root, ['branch', '--show-current']),
         status: await gitOutput(

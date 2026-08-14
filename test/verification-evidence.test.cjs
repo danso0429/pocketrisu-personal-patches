@@ -261,6 +261,34 @@ test('target identity ignores Git mtimes but binds commit, index, and applicatio
     assert.notEqual(applicationChanged.provenance.status, baseline.provenance.status)
 })
 
+test('Git identity ignores inherited repository and index overrides', async (t) => {
+    const root = temporaryDirectory(t)
+    const other = temporaryDirectory(t)
+    for (const repository of [root, other]) {
+        fs.writeFileSync(path.join(repository, 'tracked.txt'), `${repository}\n`)
+        await runGit(t, ['init', '-q', repository])
+        await runGit(t, ['-C', repository, 'config', 'user.name', 'test'])
+        await runGit(t, ['-C', repository, 'config', 'user.email', 'test@example.invalid'])
+        await runGit(t, ['-C', repository, 'add', 'tracked.txt'])
+        await runGit(t, ['-C', repository, 'commit', '-qm', 'fixture'])
+    }
+    const expectedCommit = (await runGit(t, ['-C', root, 'rev-parse', 'HEAD'])).trim()
+    const previousGitDirectory = process.env.GIT_DIR
+    const previousIndexFile = process.env.GIT_INDEX_FILE
+    process.env.GIT_DIR = path.join(other, '.git')
+    process.env.GIT_INDEX_FILE = path.join(other, '.git', 'index')
+    try {
+        const descriptor = await targetFreezeDescriptor(root)
+        assert.equal(descriptor.provenance.commit, expectedCommit)
+        assert.match(descriptor.provenance.gitVersion, /^git version /)
+    } finally {
+        if (previousGitDirectory === undefined) delete process.env.GIT_DIR
+        else process.env.GIT_DIR = previousGitDirectory
+        if (previousIndexFile === undefined) delete process.env.GIT_INDEX_FILE
+        else process.env.GIT_INDEX_FILE = previousIndexFile
+    }
+})
+
 test('non-Git target requires independent declared archive provenance', async (t) => {
     const root = temporaryDirectory(t)
     fs.writeFileSync(path.join(root, 'file.txt'), 'archive\n')
