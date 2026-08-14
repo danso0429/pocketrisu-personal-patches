@@ -561,6 +561,21 @@ The current theorem outcome is `global-fallback`, so
 records and zero masks skipped. Production-certified reusable certificate count
 remains zero.
 
+## Phase 7 qualification
+
+Phase 7 compares independently accepted Global Exhaustive receipts on frozen
+cohorts with the current shadow route. Resource samples are grouped by change
+class and report p50, p95, p99, CPU, RSS, temporary storage and evidence
+storage with an explicit safety factor. A class can meet the 60-second Local
+budget only when it is independently production-eligible; synthetic or
+fallback samples are always `not-eligible` regardless of speed.
+
+The current catalog has no production-eligible Local class. Its shadow and
+theorem routes select Global Exhaustive, issue zero production certificates and
+skip zero masks. Phase 7 can therefore qualify only a conservative global-only
+C0 scope. It cannot use synthetic timing to authorize a Local lane, weaken a
+stable-release rule, change policy or hide a differential mismatch.
+
 ## Failure and cleanup
 
 - A nonzero exit, incomplete coverage, changed repeated plan, unexpected
