@@ -452,6 +452,29 @@ no mask reduction, component checker, certificate, transaction skip, state
 migration, default-command change, or canonical-gate replacement. Global
 Exhaustive remains the independent required fallback.
 
+## Phase 3A fresh-isolated shadow verifier
+
+Phase 3A adds a non-default shadow path only. An admitted local component is
+enumerated over every local raw mask and every explicitly declared boundary
+class. Each `(component, boundary class, local mask)` execution receives a new
+projected target root and a new Node process, so its module graph, calculation
+caches and unmanaged filesystem history are empty.
+
+The worker observes the same transaction sequence as the current oracle:
+initial plan, transactional apply, current/clean status, same-selection
+zero-change re-plan, empty-selection revert plan, transactional revert and
+exact byte/mode restoration. Coverage validation rejects missing, duplicate or
+out-of-range masks and boundary classes, and rejects process or projection
+reuse. The first failure retains its projection and records component,
+boundary, mask and phase.
+
+The current catalog is not locally admitted: its Phase 2 contract is
+`L0/B0/G46/U0` and its action graph requires Global Exhaustive fallback.
+Therefore `npm run audit:shadow -- ...` records `fallback-required` and executes
+zero local masks. It never treats that result as a canonical skip. This command
+does not issue certificates, write production state, change defaults or replace
+the independent Global Exhaustive command.
+
 ## Failure and cleanup
 
 - A nonzero exit, incomplete coverage, changed repeated plan, unexpected
