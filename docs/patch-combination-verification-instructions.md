@@ -411,6 +411,9 @@ target roots. It then emits:
 - higher-order `autoWhen`, shared-file, typed-boundary, and global-fallback
   hyperedges without reducing them to pair-only evidence;
 - deterministic local and fail-closed component derivations;
+- a pre-mutation comparison of every prospective transition precondition,
+  file/state write or delete, target-identity read, and transaction-runtime
+  action against the compiled contract;
 - an exact declared source read-set and a current legacy catalog-load access
   receipt; and
 - independent hashes for the inventory, contracts, graphs, access records,
@@ -423,6 +426,11 @@ not granted. On runtimes that support network permissions, network access is
 also not granted. Spawn errors, signals, nonzero exits, stderr, empty output,
 invalid JSON, hash mismatch, incomplete catalog coverage, undeclared paths or
 modules, and permission mismatches all fail closed.
+
+The transition audit is also read-only. An undeclared target path, state path,
+metadata/topology action, target-identity read, journal/lock action, process
+observation, time input, or randomness input rejects the audit before
+`applyTransition` is called. Its receipt records `mutationPerformed: false`.
 
 The Node permission model is a defense against unintended access, not a proof
 against malicious code. Existing file descriptors, environment and
