@@ -213,6 +213,24 @@ test('verifier file capture preserves nested Node output and enforces its limit'
     assert.equal(exceeded.stdout, '1234')
 })
 
+test('verifier file capture preserves spawn errors and removes its temporary root', async () => {
+    const prefix = 'patch-verification-child-'
+    const before = new Set(fs.readdirSync(os.tmpdir()).filter((name) => name.startsWith(prefix)))
+    const result = await runChildWithFileCapture(
+        `/definitely-missing-phase0-command-${process.pid}`,
+        [],
+    )
+    assert.equal(result.exitCode, -2)
+    assert.equal(result.signal, null)
+    assert.equal(result.spawnError.code, 'ENOENT')
+    assert.equal(result.outputError, null)
+    assert.equal(result.stdout, '')
+    assert.equal(result.stderr, '')
+    const newlyRemaining = fs.readdirSync(os.tmpdir())
+        .filter((name) => name.startsWith(prefix) && !before.has(name))
+    assert.deepEqual(newlyRemaining, [])
+})
+
 test('target identity ignores Git mtimes but binds commit, index, and application state', async (t) => {
     const root = temporaryDirectory(t)
     fs.writeFileSync(path.join(root, 'tracked.txt'), 'one\n')

@@ -512,60 +512,92 @@ function runChildWithFileCapture(command, args, {
     maxOutputBytes = MAX_CHILD_OUTPUT_BYTES,
 } = {}) {
     return new Promise((resolve) => {
-        const captureRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'patch-verification-child-'))
-        const stdoutPath = path.join(captureRoot, 'stdout')
-        const stderrPath = path.join(captureRoot, 'stderr')
-        const stdoutDescriptor = fs.openSync(stdoutPath, 'wx', 0o600)
-        const stderrDescriptor = fs.openSync(stderrPath, 'wx', 0o600)
+        let captureRoot = null
+        let stdoutPath = null
+        let stderrPath = null
+        let stdoutDescriptor = null
+        let stderrDescriptor = null
         let child = null
-        let closed = false
+        let finished = false
         let outputError = null
         let spawnError = null
+        let sizeMonitor = null
 
         const closeDescriptors = () => {
-            if (closed) return
-            closed = true
-            fs.closeSync(stdoutDescriptor)
-            fs.closeSync(stderrDescriptor)
+            for (const [label, descriptor] of [
+                ['stdout', stdoutDescriptor],
+                ['stderr', stderrDescriptor],
+            ]) {
+                if (descriptor === null) continue
+                try {
+                    fs.closeSync(descriptor)
+                } catch (error) {
+                    outputError ??= `${label} capture close failed: ${error.message}`
+                }
+            }
         }
         const finish = (exitCode, signal) => {
+            if (finished) return
+            finished = true
             clearInterval(sizeMonitor)
             closeDescriptors()
+            let stdout = { exceeded: false, text: '' }
+            let stderr = { exceeded: false, text: '' }
             try {
-                const stdout = readCapturedFile(stdoutPath, maxOutputBytes)
-                const stderr = readCapturedFile(stderrPath, maxOutputBytes)
+                if (stdoutPath !== null) {
+                    stdout = readCapturedFile(stdoutPath, maxOutputBytes)
+                }
+                if (stderrPath !== null) {
+                    stderr = readCapturedFile(stderrPath, maxOutputBytes)
+                }
                 if (stdout.exceeded) {
                     outputError ??= `stdout exceeded ${maxOutputBytes} bytes`
                 }
                 if (stderr.exceeded) {
                     outputError ??= `stderr exceeded ${maxOutputBytes} bytes`
                 }
-                resolve({
-                    exitCode,
-                    signal,
-                    spawnError,
-                    outputError,
-                    stdout: stdout.text,
-                    stderr: stderr.text,
-                })
-            } finally {
-                fs.rmSync(captureRoot, { recursive: true, force: true })
+            } catch (error) {
+                outputError ??= `output capture finalization failed: ${error.message}`
             }
+            if (captureRoot !== null) {
+                try {
+                    fs.rmSync(captureRoot, { recursive: true, force: true })
+                } catch (error) {
+                    outputError ??= `output capture cleanup failed: ${error.message}`
+                }
+            }
+            resolve({
+                exitCode,
+                signal,
+                spawnError,
+                outputError,
+                stdout: stdout.text,
+                stderr: stderr.text,
+            })
         }
 
-        let sizeMonitor = null
         try {
+            captureRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'patch-verification-child-'))
+            stdoutPath = path.join(captureRoot, 'stdout')
+            stderrPath = path.join(captureRoot, 'stderr')
+            stdoutDescriptor = fs.openSync(stdoutPath, 'wx', 0o600)
+            stderrDescriptor = fs.openSync(stderrPath, 'wx', 0o600)
             child = spawn(command, args, {
                 cwd,
                 env,
                 stdio: ['ignore', stdoutDescriptor, stderrDescriptor],
             })
             sizeMonitor = setInterval(() => {
-                if (
-                    fs.fstatSync(stdoutDescriptor).size > maxOutputBytes
-                    || fs.fstatSync(stderrDescriptor).size > maxOutputBytes
-                ) {
-                    outputError ??= `child output exceeded ${maxOutputBytes} bytes`
+                try {
+                    if (
+                        fs.fstatSync(stdoutDescriptor).size > maxOutputBytes
+                        || fs.fstatSync(stderrDescriptor).size > maxOutputBytes
+                    ) {
+                        outputError ??= `child output exceeded ${maxOutputBytes} bytes`
+                        child.kill('SIGTERM')
+                    }
+                } catch (error) {
+                    outputError ??= `output capture monitoring failed: ${error.message}`
                     child.kill('SIGTERM')
                 }
             }, 100)
@@ -577,10 +609,7 @@ function runChildWithFileCapture(command, args, {
             })
             child.once('close', finish)
         } catch (error) {
-            spawnError = {
-                code: error.code ?? null,
-                message: error.message,
-            }
+            outputError = `output capture setup failed: ${error.message}`
             finish(null, null)
         }
     })
