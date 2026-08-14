@@ -152,10 +152,17 @@ The output must be outside both frozen input roots and must not already exist.
 Input roots and the output parent are resolved through symlinks before this
 boundary is checked; the wrapper writes through that frozen canonical output
 location rather than through a mutable path alias.
+
+Keep both input roots quiescent for the execution. The recorded content trees
+prove pre-run and post-run endpoint equality; they are not a continuous
+filesystem monitor and do not prove that an external actor could not make and
+then exactly revert a transient change between those snapshots.
+
 The wrapper fails closed on source or target drift, spawn error, signal,
-nonzero exit, empty or malformed output, nonempty stderr, incomplete raw-mask coverage, or
-noncanonical worker history. This wrapper adds provenance; it does not replace,
-reduce, resume, or alter the canonical Global Exhaustive route.
+nonzero exit, empty or malformed output, nonempty stderr, incomplete raw-mask
+coverage, or noncanonical worker history. This wrapper adds provenance; it
+does not replace, reduce, resume, or alter the canonical Global Exhaustive
+route.
 
 The verifier subprocess writes stdout and stderr to private temporary file
 descriptors which the wrapper reads only after process close. This is part of
@@ -195,9 +202,9 @@ turn a failed execution into a pass. Unknown values fail closed. The default is
 `current-active`; use `--disposition VALUE` when another lifecycle state is
 already known.
 
-Because lifecycle classification can change after an immutable receipt is
-created, a registry may apply a hash-keyed classification document without
-rewriting that receipt. The override document has this exact shape:
+Because lifecycle classification can change after a sealed no-clobber receipt
+is created, a registry may apply a hash-keyed classification document without
+rewriting that receipt content. The override document has this exact shape:
 
 ```json
 {
@@ -223,6 +230,11 @@ Every override must match one registered receipt's exact file SHA-256. The
 registry preserves both the receipt-recorded and effective dispositions, the
 reason, and `executionAccepted`; reclassification can never turn a failed
 execution into a pass.
+
+Receipt and registry SHA-256 seals detect content changes and the writers
+refuse to overwrite an existing output path. They are not signatures,
+certificates, an immutable storage service, or authority to reuse a prior run
+as a component certificate. Those later mechanisms remain outside Phase 0.
 
 Before accepting a receipt, run the standalone integrity and execution check:
 
