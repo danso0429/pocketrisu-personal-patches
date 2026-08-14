@@ -144,6 +144,32 @@ test('evidence output cannot mutate a frozen input tree', (t) => {
     assert.doesNotThrow(() => assertOutputOutsideInputs(outside, [root]))
 })
 
+test('input and output boundary checks resolve root and parent symlinks', (t) => {
+    const container = temporaryDirectory(t)
+    const input = path.join(container, 'input')
+    const outside = path.join(container, 'outside')
+    fs.mkdirSync(input)
+    fs.mkdirSync(outside)
+    fs.writeFileSync(path.join(input, 'file.txt'), 'bound\n')
+    const inputAlias = path.join(container, 'input-alias')
+    const outputAlias = path.join(container, 'output-alias')
+    fs.symlinkSync(input, inputAlias, 'dir')
+    fs.symlinkSync(input, outputAlias, 'dir')
+
+    assert.equal(
+        contentTreeDescriptor(inputAlias).rootSha256,
+        contentTreeDescriptor(input).rootSha256,
+    )
+    assert.throws(
+        () => assertOutputOutsideInputs(path.join(outputAlias, 'receipt.json'), [input]),
+        /outside frozen input root/,
+    )
+    assert.equal(
+        assertOutputOutsideInputs(path.join(outside, 'receipt.json'), [input]),
+        path.join(fs.realpathSync(outside), 'receipt.json'),
+    )
+})
+
 test('evidence output is atomic and never overwrites an existing receipt', (t) => {
     const root = temporaryDirectory(t)
     const output = path.join(root, 'receipt.json')

@@ -114,7 +114,7 @@ function walkTree(root, relative, entries, inodeMembers, excludedRootEntries) {
 function contentTreeDescriptor(root, {
     excludedRootEntries = ['.git'],
 } = {}) {
-    const absoluteRoot = path.resolve(root)
+    const absoluteRoot = fs.realpathSync(path.resolve(root))
     const entries = []
     const inodeMembers = new Map()
     walkTree(
@@ -220,7 +220,7 @@ async function targetGitIdentity(root) {
 }
 
 async function sourceFreezeDescriptor(root) {
-    const absoluteRoot = path.resolve(root)
+    const absoluteRoot = fs.realpathSync(path.resolve(root))
     return {
         schema: FREEZE_SCHEMA,
         applicationTree: contentTreeDescriptor(absoluteRoot),
@@ -240,7 +240,7 @@ async function sourceFreezeDescriptor(root) {
 }
 
 async function targetFreezeDescriptor(root, { targetProvenance = null } = {}) {
-    const absoluteRoot = path.resolve(root)
+    const absoluteRoot = fs.realpathSync(path.resolve(root))
     let provenance
     if (fs.existsSync(path.join(absoluteRoot, '.git'))) {
         provenance = await targetGitIdentity(absoluteRoot)
@@ -285,12 +285,24 @@ function pathIsInside(candidate, root) {
     return relative === '' || (!relative.startsWith('..') && !path.isAbsolute(relative))
 }
 
+function canonicalOutputPath(output) {
+    const absolute = path.resolve(output)
+    const parent = fs.realpathSync(path.dirname(absolute))
+    if (!fs.statSync(parent).isDirectory()) {
+        throw new Error(`Evidence output parent is not a directory: ${parent}`)
+    }
+    return path.join(parent, path.basename(absolute))
+}
+
 function assertOutputOutsideInputs(output, roots) {
+    const canonicalOutput = canonicalOutputPath(output)
     for (const root of roots) {
-        if (pathIsInside(output, root)) {
+        const canonicalRoot = fs.realpathSync(path.resolve(root))
+        if (pathIsInside(canonicalOutput, canonicalRoot)) {
             throw new Error(`Evidence output must be outside frozen input root: ${root}`)
         }
     }
+    return canonicalOutput
 }
 
 function parseCanonicalOutput(stdout) {
@@ -567,6 +579,7 @@ module.exports = {
     TREE_SCHEMA,
     assertOutputOutsideInputs,
     captureInputFreeze,
+    canonicalOutputPath,
     compareInputFreeze,
     contentTreeDescriptor,
     jsonSha256,

@@ -91,10 +91,10 @@ function parseArgs(argv) {
 async function main(argv = process.argv) {
     const options = parseArgs(argv)
     const sourceRoot = path.resolve(__dirname, '..')
-    assertOutputOutsideInputs(options.output, [sourceRoot, options.root])
     if (!fs.existsSync(path.dirname(options.output))) {
         throw new Error(`Evidence output parent does not exist: ${path.dirname(options.output)}`)
     }
+    const output = assertOutputOutsideInputs(options.output, [sourceRoot, options.root])
     const verifier = path.join(
         sourceRoot,
         'scripts',
@@ -167,9 +167,9 @@ async function main(argv = process.argv) {
         verifierErrors,
         accepted,
     })
-    writeJsonAtomic(options.output, receipt)
+    writeJsonAtomic(output, receipt)
     process.stdout.write(`${JSON.stringify({
-        receipt: options.output,
+        receipt: output,
         accepted,
         exitCode: execution.exitCode,
         signal: execution.signal,

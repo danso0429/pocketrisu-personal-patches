@@ -149,6 +149,9 @@ npm run verify:combinations:evidence -- \
 ```
 
 The output must be outside both frozen input roots and must not already exist.
+Input roots and the output parent are resolved through symlinks before this
+boundary is checked; the wrapper writes through that frozen canonical output
+location rather than through a mutable path alias.
 The wrapper fails closed on source or target drift, spawn error, signal,
 nonzero exit, empty or malformed output, incomplete raw-mask coverage, or
 noncanonical worker history. This wrapper adds provenance; it does not replace,
