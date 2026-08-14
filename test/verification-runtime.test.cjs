@@ -141,6 +141,7 @@ test('invalid field values fail closed while version-one receipts remain compara
         ['cpuCount', 0],
         ['availableParallelism', 0],
         ['temporaryDirectory', 'relative/tmp'],
+        ['temporaryDirectory', '/tmp/../var/tmp'],
         ['temporaryFilesystemType', null],
     ]) {
         const comparison = compareRuntimeEnvelopes(

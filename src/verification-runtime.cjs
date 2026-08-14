@@ -2,6 +2,7 @@
 
 const fs = require('node:fs')
 const os = require('node:os')
+const path = require('node:path')
 
 const RUNTIME_SCHEMA_V1 = 'patch-verification-runtime-envelope-v1'
 const RUNTIME_SCHEMA_V2 = 'patch-verification-runtime-envelope-v2'
@@ -89,12 +90,9 @@ const nonEmptyString = (value) => typeof value === 'string' && value.length > 0
 const nullableString = (value) => value === null || nonEmptyString(value)
 const positiveInteger = (value) => Number.isSafeInteger(value) && value > 0
 const canonicalDirectory = (value) => {
-    if (!nonEmptyString(value)) return false
-    try {
-        return fs.statSync(value).isDirectory() && fs.realpathSync(value) === value
-    } catch {
-        return false
-    }
+    return nonEmptyString(value)
+        && path.isAbsolute(value)
+        && path.normalize(value) === value
 }
 const RUNTIME_VALUE_VALIDATORS = Object.freeze({
     nodeVersion: (value) => nonEmptyString(value) && /^v\d/.test(value),
