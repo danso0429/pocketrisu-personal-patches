@@ -8,6 +8,7 @@
     "audit:capabilities": "node scripts/build-capability-audit.cjs",
     "audit:shadow": "node scripts/build-fresh-shadow-audit.cjs",
     "audit:theorem": "node scripts/build-compositional-theorem-audit.cjs",
+    "audit:shadow-state": "node scripts/build-s1d-shadow-state.cjs",
     "inventory:effects": "node scripts/build-effect-inventory.cjs",
     "qualify": "node scripts/qualify-target.cjs",
     "test": "node --test test/*.test.cjs",

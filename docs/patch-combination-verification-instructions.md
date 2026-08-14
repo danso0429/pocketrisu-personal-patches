@@ -496,6 +496,24 @@ remain unverified. `npm run audit:theorem -- ...` therefore records
 `global-fallback`; it does not issue a certificate, skip a canonical mask,
 migrate state, or change the default command.
 
+## Phase 4 S1-D shadow state
+
+Phase 4 keeps format-2 global state as the sole authority. The non-default
+`audit:shadow-state` command creates component records only in a separate,
+immutable evidence output from a prospective plan; it never writes the target
+state path. Pack, unit and order positions plus file ownership are retained so
+an independent reader can reconstruct the exact global semantic value.
+
+Every component record binds the action-graph version and has its own ETag.
+The aggregate receipt binds the complete global state and graph hashes.
+Missing, duplicate, corrupt, stale or cross-component file records fail closed.
+Shadow failure does not alter manager status, re-plan, revert, journal recovery
+or the canonical global state path.
+
+S1-D records are not canonical, are not migration inputs, do not authorize
+transaction skipping and are not certificates. The current one-component
+graph produces one shadow record and demonstrates no state locality benefit.
+
 ## Failure and cleanup
 
 - A nonzero exit, incomplete coverage, changed repeated plan, unexpected
