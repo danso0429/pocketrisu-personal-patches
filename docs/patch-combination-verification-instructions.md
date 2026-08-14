@@ -347,6 +347,44 @@ Scope-enforced results use cache-differential schema v2. The standalone
 verifier retains v1 validation only so already-sealed pre-scope receipts remain
 historical evidence rather than being rewritten or discarded.
 
+## Phase 1 observational effect inventory
+
+Phase 1 adds an observational inventory command without changing selection,
+planning, composition, apply, status, revert, persisted state, generated
+installer behavior, or the canonical checker:
+
+```bash
+npm run inventory:effects -- \
+  --governance-commit <40-hex-governance-commit> \
+  --target-root /path/to/pristine/PocketRisu \
+  --output /separate/evidence/effect-inventory.json \
+  --markdown-output /separate/evidence/effect-inventory.md
+```
+
+Both outputs must be outside the source and target roots and must not already
+exist. The command freezes source and target before and after compiling the
+inventory, observes an `all` prospective plan without applying it, and emits:
+
+- every loaded pack and unit definition, including exact definition hashes;
+- file, anchored-region, whole-file ownership, declared ordering, pack
+  relation, and higher-order `autoWhen` inventories;
+- every declared target-version view;
+- the complete patch source tree and generated-installer catalog comparison;
+- explicit global patcher-state surfaces and undeclared state/symbol limits;
+- conservative candidate L/B/G/U classifications;
+- a non-canonical, read-only S0-P per-pack projection of the prospective global
+  state; and
+- source and target pre-run/post-run roots.
+
+The current CommonJS manifests and inserted application code are not sealed by
+a capability API. Therefore a valid current pack is classified as candidate
+`G`, while an unknown field, unsupported value, invalid unit, missing source
+input, or generated-catalog mismatch fails closed as `U` or an incomplete
+inventory. No Phase 1 result admits `L` or `B`, enforces a capability, changes
+the global state contract, issues a certificate, skips a transaction, or
+replaces Global Exhaustive. S0-P is a read-only observation and is never a
+canonical state record.
+
 ## Failure and cleanup
 
 - A nonzero exit, incomplete coverage, changed repeated plan, unexpected

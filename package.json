@@ -5,6 +5,7 @@
   "type": "commonjs",
   "scripts": {
     "build": "node scripts/build-installers.cjs",
+    "inventory:effects": "node scripts/build-effect-inventory.cjs",
     "qualify": "node scripts/qualify-target.cjs",
     "test": "node --test test/*.test.cjs",
     "verify:combinations": "node scripts/verify-all-combinations.cjs",

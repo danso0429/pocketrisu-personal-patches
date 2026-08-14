@@ -1,0 +1,33 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://example.invalid/patch-effect-inventory-receipt-v1.schema.json",
+  "title": "Patch Effect Inventory Receipt v1",
+  "type": "object",
+  "required": [
+    "schema",
+    "status",
+    "createdAt",
+    "governance",
+    "command",
+    "cohort",
+    "inventory",
+    "targetObservation",
+    "S0PProjection",
+    "canonicalProtection",
+    "payloadSha256"
+  ],
+  "properties": {
+    "schema": { "const": "patch-effect-inventory-receipt-v1" },
+    "status": { "enum": ["passed", "failed"] },
+    "createdAt": { "type": "string" },
+    "governance": { "type": "object" },
+    "command": { "type": "object" },
+    "cohort": { "type": "object" },
+    "inventory": { "$ref": "patch-effect-inventory-v1.schema.json" },
+    "targetObservation": { "type": "object" },
+    "S0PProjection": { "$ref": "patch-s0p-projection-v1.schema.json" },
+    "canonicalProtection": { "type": "object" },
+    "payloadSha256": { "type": "string", "pattern": "^[0-9a-f]{64}$" }
+  },
+  "additionalProperties": false
+}
