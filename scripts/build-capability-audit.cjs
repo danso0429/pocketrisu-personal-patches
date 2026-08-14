@@ -13,6 +13,9 @@ const {
     auditLegacyCatalogLoad,
 } = require('../src/legacy-capability-audit.cjs')
 const {
+    auditTransitionCapabilities,
+} = require('../src/transition-capability-audit.cjs')
+const {
     loadCatalog,
     resolveProfile,
 } = require('../src/catalog.cjs')
@@ -102,6 +105,7 @@ function renderMarkdown(receipt) {
         `- Target catalog admitted components: ${targetGraph.components.map((entry) => entry.packIds.length).join(', ')}`,
         `- Resolved selection contract: ${receipt.resolvedSelection.contract.contractSha256}`,
         `- Resolved selection graph: ${selectionGraph.graphSha256}`,
+        `- Transition capability audit: ${receipt.resolvedSelection.transitionAudit.auditSha256}`,
         `- Resolved selection local components: ${selectionGraph.localComponents.map((entry) => entry.packIds.length).join(', ')}`,
         `- Resolved selection admitted components: ${selectionGraph.components.map((entry) => entry.packIds.length).join(', ')}`,
         `- Legacy access calls: ${receipt.legacyAccess.receipt.accesses.callCount}`,
@@ -173,6 +177,7 @@ async function buildReceipt(options, {
         unitIds: observation.activeUnitIds,
     })
     const selectionGraph = compileActionHypergraph(inventory, selectionContract)
+    const transitionAudit = auditTransitionCapabilities(plan, selectionContract)
     const after = await captureInputFreeze({
         sourceRoot: source,
         targetRoot,
@@ -185,6 +190,8 @@ async function buildReceipt(options, {
         && legacyAccess.receipt.violations.length === 0
         && targetCatalogContract.canonicalProtection.masksSkipped === 0
         && selectionContract.canonicalProtection.masksSkipped === 0
+        && transitionAudit.status === 'pass'
+        && transitionAudit.mutationPerformed === false
     const receipt = {
         schema: RECEIPT_SCHEMA,
         status: passed ? 'passed' : 'failed',
@@ -216,6 +223,7 @@ async function buildReceipt(options, {
             observation,
             contract: selectionContract,
             graph: selectionGraph,
+            transitionAudit,
         },
         canonicalProtection: {
             canonicalGate: 'Global Exhaustive',
@@ -250,6 +258,7 @@ async function main() {
         targetCatalogGraphSha256: result.receipt.targetCatalog.graph.graphSha256,
         selectionContractSha256: result.receipt.resolvedSelection.contract.contractSha256,
         selectionGraphSha256: result.receipt.resolvedSelection.graph.graphSha256,
+        transitionAuditSha256: result.receipt.resolvedSelection.transitionAudit.auditSha256,
         legacyAccessSha256: result.receipt.legacyAccess.receipt.payloadSha256,
         payloadSha256: result.receipt.payloadSha256,
     })}\n`)

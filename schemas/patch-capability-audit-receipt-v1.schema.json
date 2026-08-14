@@ -37,11 +37,12 @@
     },
     "resolvedSelection": {
       "type": "object",
-      "required": ["observation", "contract", "graph"],
+      "required": ["observation", "contract", "graph", "transitionAudit"],
       "properties": {
         "observation": { "type": "object" },
         "contract": { "type": "object" },
-        "graph": { "type": "object" }
+        "graph": { "type": "object" },
+        "transitionAudit": { "type": "object" }
       },
       "additionalProperties": false
     },
