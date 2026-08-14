@@ -8,6 +8,23 @@ const { spawn } = require('node:child_process')
 const TREE_SCHEMA = 'patch-verification-content-tree-v1'
 const FREEZE_SCHEMA = 'patch-verification-input-freeze-v1'
 const MAX_CHILD_OUTPUT_BYTES = 64 * 1024 * 1024
+const SOURCE_CORE_PATHS = Object.freeze([
+    'package.json',
+    'docs/patch-combination-verification-instructions.md',
+    'scripts/verify-all-combinations.cjs',
+    'scripts/verify-cache-differential.cjs',
+    'scripts/run-verification-evidence.cjs',
+    'scripts/verify-verification-receipt.cjs',
+    'scripts/build-verification-receipt-registry.cjs',
+    'src/catalog.cjs',
+    'src/compatibility.cjs',
+    'src/resolver.cjs',
+    'src/compose.cjs',
+    'src/manager.cjs',
+    'src/verification-evidence.cjs',
+    'src/verification-receipts.cjs',
+    'src/verification-runtime.cjs',
+])
 
 function sha256(value) {
     return crypto.createHash('sha256').update(value).digest('hex')
@@ -203,16 +220,6 @@ async function targetGitIdentity(root) {
 
 async function sourceFreezeDescriptor(root) {
     const absoluteRoot = path.resolve(root)
-    const corePaths = [
-        'package.json',
-        'docs/patch-combination-verification-instructions.md',
-        'scripts/verify-all-combinations.cjs',
-        'src/catalog.cjs',
-        'src/compatibility.cjs',
-        'src/resolver.cjs',
-        'src/compose.cjs',
-        'src/manager.cjs',
-    ]
     return {
         schema: FREEZE_SCHEMA,
         applicationTree: contentTreeDescriptor(absoluteRoot),
@@ -224,7 +231,7 @@ async function sourceFreezeDescriptor(root) {
         catalog: contentTreeDescriptor(path.join(absoluteRoot, 'patches'), {
             excludedRootEntries: [],
         }),
-        coreFiles: Object.fromEntries(corePaths.map((relative) => [
+        coreFiles: Object.fromEntries(SOURCE_CORE_PATHS.map((relative) => [
             relative,
             regularFileDescriptor(path.join(absoluteRoot, relative)),
         ])),
@@ -342,6 +349,50 @@ function validateCanonicalResult(result) {
     return errors
 }
 
+function validateCacheDifferentialResult(result) {
+    const errors = []
+    if (result?.schema !== 'patch-verification-cache-differential-v1') {
+        errors.push('cache differential schema is missing or incompatible')
+        return errors
+    }
+    if (!Number.isSafeInteger(result.rawSelections) || result.rawSelections < 1) {
+        errors.push('rawSelections is not a positive safe integer')
+    }
+    if (result.verifiedSelections !== result.rawSelections) {
+        errors.push('verifiedSelections does not equal rawSelections')
+    }
+    if (result.roundTrips !== 'differential-passed' || result.result !== 'passed') {
+        errors.push('cache differential did not report passed round trips')
+    }
+    const expectedPhases = ['initial-plan', 'repeated-plan', 'revert-plan']
+    if (JSON.stringify(result.phases) !== JSON.stringify(expectedPhases)) {
+        errors.push('cache differential phases are incomplete or reordered')
+    }
+    const historyErrors = validateCanonicalResult({
+        rawSelections: result.rawSelections,
+        verifiedSelections: result.verifiedSelections,
+        roundTrips: 'passed',
+        workers: result.workers,
+        workerHistory: result.workerHistory,
+    })
+    errors.push(...historyErrors)
+    const comparisons = result.comparisons?.standardCaches
+    if (
+        comparisons?.comparisons !== result.rawSelections * expectedPhases.length
+        || comparisons?.mismatches !== 0
+        || !Number.isSafeInteger(comparisons?.referenceBytes)
+        || comparisons.referenceBytes < 1
+        || comparisons.candidateBytes !== comparisons.referenceBytes
+    ) errors.push('cache differential comparison coverage or bytes are invalid')
+    return errors
+}
+
+function validateVerificationResult(kind, result) {
+    if (kind === 'global-exhaustive') return validateCanonicalResult(result)
+    if (kind === 'cache-differential') return validateCacheDifferentialResult(result)
+    return [`unknown verification kind: ${kind}`]
+}
+
 function runChild(command, args, {
     cwd,
     env = process.env,
@@ -414,6 +465,7 @@ function writeJsonAtomic(file, value) {
 module.exports = {
     FREEZE_SCHEMA,
     MAX_CHILD_OUTPUT_BYTES,
+    SOURCE_CORE_PATHS,
     TREE_SCHEMA,
     assertOutputOutsideInputs,
     captureInputFreeze,
@@ -429,5 +481,7 @@ module.exports = {
     targetGitIdentity,
     targetFreezeDescriptor,
     validateCanonicalResult,
+    validateCacheDifferentialResult,
+    validateVerificationResult,
     writeJsonAtomic,
 }

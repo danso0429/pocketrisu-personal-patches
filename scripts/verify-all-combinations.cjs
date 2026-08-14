@@ -642,10 +642,14 @@ if (!isMainThread && workerData?.mode === 'verify-combination-shard') {
 
 module.exports = {
     WORKER_HISTORY_MODEL,
+    copyVerificationRoot,
+    inspectTarget,
     main,
     mergeShardResults,
     parseArgs,
+    sameSnapshot,
     shardMasks,
+    snapshot,
     verifyShard,
     workerMaskSequence,
 }

@@ -12,6 +12,7 @@ const {
     contentTreeDescriptor,
     parseCanonicalOutput,
     runChild,
+    SOURCE_CORE_PATHS,
     targetFreezeDescriptor,
     validateCanonicalResult,
     writeJsonAtomic,
@@ -66,14 +67,12 @@ test('input freeze compares pre-run and post-run source and target roots', async
         path.join(sourceRoot, 'docs/patch-combination-verification-instructions.md'),
         'policy\n',
     )
-    for (const relative of [
-        'scripts/verify-all-combinations.cjs',
-        'src/catalog.cjs',
-        'src/compatibility.cjs',
-        'src/resolver.cjs',
-        'src/compose.cjs',
-        'src/manager.cjs',
-    ]) fs.writeFileSync(path.join(sourceRoot, relative), `${relative}\n`)
+    for (const relative of SOURCE_CORE_PATHS.filter((value) => ![
+        'package.json',
+        'docs/patch-combination-verification-instructions.md',
+    ].includes(value))) {
+        fs.writeFileSync(path.join(sourceRoot, relative), `${relative}\n`)
+    }
     fs.writeFileSync(path.join(sourceRoot, 'patches', 'manifest.cjs'), 'module.exports = {}\n')
     fs.writeFileSync(path.join(targetRoot, 'app.txt'), 'target\n')
     await runGit(t, ['init', '-q', sourceRoot])

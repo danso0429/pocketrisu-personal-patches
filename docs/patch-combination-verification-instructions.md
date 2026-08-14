@@ -254,6 +254,23 @@ audit method and result in a dedicated validation receipt. When those
 internals are unchanged, do not repeat that expensive differential audit;
 the routine exhaustive command remains the gate.
 
+The cache differential is an additional qualification command, never the
+canonical gate. It has no alternate schedule option and always uses the same
+`stride-v1` worker assignment and persistent worker-local cache history:
+
+```bash
+npm run verify:combinations:evidence -- \
+  --verification cache-differential \
+  --root /path/to/separate/pristine/PocketRisu \
+  --output /separate/evidence/cache-differential-receipt.json
+```
+
+For every raw mask it compares complete typed cached and uncached initial,
+repeated, and revert plans; literal embedded state strings; status; managed
+post-apply endpoints; and final restoration. A mismatch, missing comparison,
+non-stride worker history, source/target drift, or incomplete coverage fails
+closed and leaves Global Exhaustive as the required fallback.
+
 ## Failure and cleanup
 
 - A nonzero exit, incomplete coverage, changed repeated plan, unexpected

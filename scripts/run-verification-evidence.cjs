@@ -10,7 +10,7 @@ const {
     parseCanonicalOutput,
     runChild,
     sha256,
-    validateCanonicalResult,
+    validateVerificationResult,
     writeJsonAtomic,
 } = require('../src/verification-evidence.cjs')
 const {
@@ -30,6 +30,7 @@ function parseArgs(argv) {
     let allowReviewing = false
     let disposition = 'current-active'
     let targetProvenance = null
+    let verificationKind = 'global-exhaustive'
     for (let index = 2; index < argv.length; index += 1) {
         const argument = argv[index]
         if (argument === '--root') root = argv[++index]
@@ -49,6 +50,14 @@ function parseArgs(argv) {
                 throw new Error('--target-provenance requires sha256:<64 lowercase hex>')
             }
         }
+        else if (argument === '--verification') {
+            verificationKind = argv[++index]
+            if (!['global-exhaustive', 'cache-differential'].includes(verificationKind)) {
+                throw new Error(
+                    '--verification must be global-exhaustive or cache-differential',
+                )
+            }
+        }
         else if (argument === '--jobs') {
             const value = argv[++index]
             if (!/^[1-9]\d*$/.test(value ?? '')) {
@@ -64,7 +73,8 @@ function parseArgs(argv) {
         throw new Error(
             'Usage: run-verification-evidence.cjs --root PRISTINE_POCKETRISU '
             + '--output RECEIPT.json [--jobs N] [--allow-reviewing] '
-            + '[--disposition VALUE] [--target-provenance sha256:HEX]',
+            + '[--disposition VALUE] [--target-provenance sha256:HEX] '
+            + '[--verification global-exhaustive|cache-differential]',
         )
     }
     return {
@@ -74,6 +84,7 @@ function parseArgs(argv) {
         allowReviewing,
         disposition,
         targetProvenance,
+        verificationKind,
     }
 }
 
@@ -84,7 +95,13 @@ async function main(argv = process.argv) {
     if (!fs.existsSync(path.dirname(options.output))) {
         throw new Error(`Evidence output parent does not exist: ${path.dirname(options.output)}`)
     }
-    const verifier = path.join(sourceRoot, 'scripts/verify-all-combinations.cjs')
+    const verifier = path.join(
+        sourceRoot,
+        'scripts',
+        options.verificationKind === 'cache-differential'
+            ? 'verify-cache-differential.cjs'
+            : 'verify-all-combinations.cjs',
+    )
     const verifierArgs = ['--root', options.root, '--json']
     if (options.jobs !== null) verifierArgs.push('--jobs', String(options.jobs))
     if (options.allowReviewing) verifierArgs.push('--allow-reviewing')
@@ -105,7 +122,10 @@ async function main(argv = process.argv) {
     const runtimeComparison = compareRuntimeEnvelopes(runtimeBefore, runtimeAfter)
     const stability = compareInputFreeze(before, after)
     const verifierResult = parseCanonicalOutput(execution.stdout)
-    const verifierErrors = validateCanonicalResult(verifierResult)
+    const verifierErrors = validateVerificationResult(
+        options.verificationKind,
+        verifierResult,
+    )
     const stdoutBytes = Buffer.byteLength(execution.stdout)
     const accepted = execution.spawnError === null
         && execution.outputError === null
@@ -117,6 +137,7 @@ async function main(argv = process.argv) {
         && runtimeComparison.matched
     const receipt = sealDocument({
         schema: 'patch-verification-execution-receipt-v2',
+        verificationKind: options.verificationKind,
         disposition: options.disposition,
         timestamp: new Date().toISOString(),
         command,

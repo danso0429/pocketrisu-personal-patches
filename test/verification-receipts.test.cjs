@@ -5,7 +5,11 @@ const fs = require('node:fs')
 const os = require('node:os')
 const path = require('node:path')
 const test = require('node:test')
-const { sha256, writeJsonAtomic } = require('../src/verification-evidence.cjs')
+const {
+    sha256,
+    validateVerificationResult,
+    writeJsonAtomic,
+} = require('../src/verification-evidence.cjs')
 const {
     requiredExitCode,
 } = require('../scripts/verify-verification-receipt.cjs')
@@ -42,6 +46,7 @@ function executionReceipt({
     result = canonicalResult(),
     execution = {},
     stability = { sourceMatched: true, targetMatched: true, matched: true },
+    verificationKind = 'global-exhaustive',
 } = {}) {
     const stdout = execution.stdout ?? `${JSON.stringify(result)}\n`
     const stderr = execution.stderr ?? ''
@@ -61,7 +66,7 @@ function executionReceipt({
     const parsed = stdout.trim() ? (() => {
         try { return JSON.parse(stdout) } catch { return null }
     })() : null
-    const verifierErrors = parsed ? [] : ['stdout is not one non-empty JSON object']
+    const verifierErrors = validateVerificationResult(verificationKind, parsed)
     const accepted = completeExecution.spawnError === null
         && completeExecution.outputError === null
         && completeExecution.exitCode === 0
@@ -87,6 +92,7 @@ function executionReceipt({
     }
     return sealDocument({
         schema: 'patch-verification-execution-receipt-v2',
+        verificationKind,
         disposition,
         execution: completeExecution,
         verifierResult: parsed,
@@ -125,6 +131,37 @@ test('sealed accepted receipt verifies independently', () => {
     receipt.execution.stdout = '{}\n'
     assert.equal(verifyDocumentIntegrity(receipt), false)
     assert.equal(evaluateExecutionReceipt(receipt).receiptValid, false)
+})
+
+test('sealed cache differential receipt verifies all masks and phases', () => {
+    const result = {
+        schema: 'patch-verification-cache-differential-v1',
+        rawSelections: 4,
+        verifiedSelections: 4,
+        workers: 2,
+        workerHistory: canonicalResult().workerHistory,
+        phases: ['initial-plan', 'repeated-plan', 'revert-plan'],
+        comparisons: {
+            standardCaches: {
+                comparisons: 12,
+                mismatches: 0,
+                referenceBytes: 100,
+                candidateBytes: 100,
+            },
+        },
+        roundTrips: 'differential-passed',
+        result: 'passed',
+    }
+    const receipt = executionReceipt({
+        result,
+        verificationKind: 'cache-differential',
+    })
+    assert.deepEqual(evaluateExecutionReceipt(receipt), {
+        structuralErrors: [],
+        acceptanceErrors: [],
+        receiptValid: true,
+        executionAccepted: true,
+    })
 })
 
 test('status zero with EPERM and empty stdout cannot pass', () => {

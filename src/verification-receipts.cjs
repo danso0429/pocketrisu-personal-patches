@@ -5,7 +5,7 @@ const path = require('node:path')
 const {
     parseCanonicalOutput,
     sha256,
-    validateCanonicalResult,
+    validateVerificationResult,
 } = require('./verification-evidence.cjs')
 const {
     compareRuntimeEnvelopes,
@@ -119,7 +119,7 @@ function evaluateExecutionReceipt(receipt) {
         structuralErrors.push('stderr hash mismatch')
     }
     const parsed = parseCanonicalOutput(stdout)
-    const verifierErrors = validateCanonicalResult(parsed)
+    const verifierErrors = validateVerificationResult(receipt?.verificationKind, parsed)
     try {
         if (canonicalJson(receipt.verifierResult) !== canonicalJson(parsed)) {
             structuralErrors.push('recorded verifier result differs from stdout')
