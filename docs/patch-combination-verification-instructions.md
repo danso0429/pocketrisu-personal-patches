@@ -172,8 +172,11 @@ changing commit, index, relevant administrative contents, application paths,
 contents, modes, symlinks, or hardlink topology still changes the target root.
 Git identity commands remove inherited `GIT_*` repository/index overrides,
 disable system and global Git configuration, retain repository-local config,
-and record the observed Git version. An ambient `GIT_DIR` therefore cannot
-redirect source or target provenance to another repository.
+disable optional Git index writes, and record the observed Git version. The
+bound administrative set includes repository/worktree config, info exclude,
+object alternates, index, HEAD/ref, packed refs, and shallow state. An ambient
+`GIT_DIR` therefore cannot redirect provenance and evidence capture itself
+does not refresh the target index.
 
 The routine gate continues to allow a proved-pristine extracted archive. The
 evidence wrapper requires its independently obtained lowercase SHA-256:

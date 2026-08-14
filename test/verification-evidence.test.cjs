@@ -240,7 +240,12 @@ test('target identity ignores Git mtimes but binds commit, index, and applicatio
     await runGit(t, ['-C', root, 'add', 'tracked.txt'])
     await runGit(t, ['-C', root, 'commit', '-qm', 'fixture'])
 
+    const indexPath = path.join(root, '.git', 'index')
+    const indexBeforeEvidence = fs.readFileSync(indexPath)
     const baseline = await targetFreezeDescriptor(root)
+    assert.deepEqual(fs.readFileSync(indexPath), indexBeforeEvidence)
+    assert.equal(baseline.provenance.administrativeFiles.config.type, 'file')
+    assert.equal(baseline.provenance.administrativeFiles.infoExclude.type, 'file')
     const gitDirectory = path.join(root, '.git')
     const shifted = new Date(Date.now() + 60_000)
     fs.utimesSync(gitDirectory, shifted, shifted)

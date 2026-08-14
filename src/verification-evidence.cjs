@@ -166,6 +166,7 @@ async function gitOutput(root, args, { trim = true } = {}) {
     ))
     env.GIT_CONFIG_NOSYSTEM = '1'
     env.GIT_CONFIG_GLOBAL = os.devNull
+    env.GIT_OPTIONAL_LOCKS = '0'
     env.GIT_TERMINAL_PROMPT = '0'
     const result = await runChild(
         'git',
@@ -221,6 +222,10 @@ async function targetGitIdentity(root) {
     const paths = {
         HEAD: await gitAdministrativePath(root, 'HEAD'),
         index: await gitAdministrativePath(root, 'index'),
+        config: await gitAdministrativePath(root, 'config'),
+        configWorktree: await gitAdministrativePath(root, 'config.worktree'),
+        infoExclude: await gitAdministrativePath(root, 'info/exclude'),
+        objectAlternates: await gitAdministrativePath(root, 'objects/info/alternates'),
         packedRefs: await gitAdministrativePath(root, 'packed-refs'),
         shallow: await gitAdministrativePath(root, 'shallow'),
     }
