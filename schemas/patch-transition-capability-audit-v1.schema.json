@@ -1,0 +1,27 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://example.invalid/patch-transition-capability-audit-v1.schema.json",
+  "title": "Patch Transition Capability Audit v1",
+  "type": "object",
+  "required": [
+    "schema",
+    "status",
+    "contractSha256",
+    "transitionSha256",
+    "actions",
+    "violations",
+    "mutationPerformed",
+    "auditSha256"
+  ],
+  "properties": {
+    "schema": { "const": "patch-transition-capability-audit-v1" },
+    "status": { "enum": ["pass", "fail"] },
+    "contractSha256": { "type": "string", "pattern": "^[0-9a-f]{64}$" },
+    "transitionSha256": { "type": "string", "pattern": "^[0-9a-f]{64}$" },
+    "actions": { "type": "array" },
+    "violations": { "type": "array" },
+    "mutationPerformed": { "const": false },
+    "auditSha256": { "type": "string", "pattern": "^[0-9a-f]{64}$" }
+  },
+  "additionalProperties": false
+}
