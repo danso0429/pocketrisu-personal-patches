@@ -1,0 +1,135 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://example.invalid/patch-capability-contract-v1.schema.json",
+  "title": "Patch Capability Contract v1",
+  "type": "object",
+  "required": [
+    "schema",
+    "mode",
+    "inventorySha256",
+    "target",
+    "packs",
+    "capabilities",
+    "boundaries",
+    "unknownSurfaces",
+    "canonicalProtection",
+    "contractSha256"
+  ],
+  "properties": {
+    "schema": { "const": "patch-capability-contract-v1" },
+    "mode": { "const": "audit" },
+    "inventorySha256": { "type": "string", "pattern": "^[0-9a-f]{64}$" },
+    "target": {
+      "type": "object",
+      "required": ["packageName", "packageVersion", "resolvedPackIds", "resolvedUnitIds"],
+      "properties": {
+        "packageName": { "type": ["string", "null"] },
+        "packageVersion": { "type": ["string", "null"] },
+        "resolvedPackIds": {
+          "type": "array",
+          "uniqueItems": true,
+          "items": { "type": "string", "minLength": 1 }
+        },
+        "resolvedUnitIds": {
+          "type": "array",
+          "uniqueItems": true,
+          "items": { "type": "string", "minLength": 1 }
+        }
+      },
+      "additionalProperties": false
+    },
+    "packs": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["packId", "tier", "admission", "capabilityIds", "reasons"],
+        "properties": {
+          "packId": { "type": "string", "minLength": 1 },
+          "tier": { "enum": ["L", "B", "G", "U"] },
+          "admission": {
+            "enum": ["component-safe", "boundary-safe", "global-fallback", "rejected"]
+          },
+          "capabilityIds": {
+            "type": "array",
+            "uniqueItems": true,
+            "items": { "type": "string", "minLength": 1 }
+          },
+          "reasons": {
+            "type": "array",
+            "items": { "type": "string", "minLength": 1 }
+          }
+        },
+        "additionalProperties": false
+      }
+    },
+    "capabilities": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": [
+          "id",
+          "packId",
+          "unitId",
+          "kind",
+          "access",
+          "resource",
+          "source",
+          "enforcement",
+          "componentSafe"
+        ],
+        "properties": {
+          "id": { "type": "string", "minLength": 1 },
+          "packId": { "type": "string", "minLength": 1 },
+          "unitId": { "type": ["string", "null"] },
+          "kind": { "type": "string", "minLength": 1 },
+          "access": { "enum": ["read", "write", "delete", "execute", "observe", "manage"] },
+          "resource": { "type": "string", "minLength": 1 },
+          "source": {
+            "enum": [
+              "unit-ir",
+              "manager-contract",
+              "manifest-declaration",
+              "legacy-observation",
+              "runtime-policy",
+              "unknown"
+            ]
+          },
+          "enforcement": { "enum": ["denied", "wrapped", "observed", "unsealed"] },
+          "componentSafe": { "type": "boolean" }
+        },
+        "additionalProperties": false
+      }
+    },
+    "boundaries": {
+      "type": "array",
+      "items": { "type": "object" }
+    },
+    "unknownSurfaces": {
+      "type": "array",
+      "uniqueItems": true,
+      "items": { "type": "string", "minLength": 1 }
+    },
+    "canonicalProtection": {
+      "type": "object",
+      "required": [
+        "canonicalGate",
+        "globalFallbackRequired",
+        "defaultChanged",
+        "stateChanged",
+        "certificatesIssued",
+        "masksSkipped"
+      ],
+      "properties": {
+        "canonicalGate": { "const": "Global Exhaustive" },
+        "globalFallbackRequired": { "const": true },
+        "defaultChanged": { "const": false },
+        "stateChanged": { "const": false },
+        "certificatesIssued": { "const": 0 },
+        "masksSkipped": { "const": 0 }
+      },
+      "additionalProperties": false
+    },
+    "contractSha256": { "type": "string", "pattern": "^[0-9a-f]{64}$" }
+  },
+  "additionalProperties": false
+}
