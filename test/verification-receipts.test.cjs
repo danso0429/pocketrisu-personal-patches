@@ -226,6 +226,29 @@ test('resealed stability or command contradictions remain invalid', () => {
     )
 })
 
+test('command validation is portable across recorded path syntaxes', () => {
+    const original = executionReceipt()
+    const { integrity, ...payload } = original
+    const windowsReceipt = sealDocument({
+        ...payload,
+        command: [
+            'C:\\Program Files\\nodejs\\node.exe',
+            'C:\\repo\\scripts\\verify-all-combinations.cjs',
+            '--root',
+            'C:\\target',
+            '--json',
+            '--jobs',
+            '2',
+        ],
+    })
+    assert.deepEqual(evaluateExecutionReceipt(windowsReceipt), {
+        structuralErrors: [],
+        acceptanceErrors: [],
+        receiptValid: true,
+        executionAccepted: true,
+    })
+})
+
 test('status zero with nonempty stderr cannot pass', () => {
     const receipt = executionReceipt({ execution: { stderr: 'unexpected warning\n' } })
     const evaluation = evaluateExecutionReceipt(receipt)

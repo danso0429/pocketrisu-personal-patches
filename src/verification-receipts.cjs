@@ -171,16 +171,24 @@ function validateCommandContract(receipt) {
         'cache-differential': 'verify-cache-differential.cjs',
     }
     const scriptName = scriptNames[receipt?.verificationKind]
+    const isPortableAbsolute = (value) =>
+        path.posix.isAbsolute(value) || path.win32.isAbsolute(value)
+    const portableBasename = (value) => value.includes('\\')
+        ? path.win32.basename(value)
+        : path.posix.basename(value)
+    const portableParentBasename = (value) => value.includes('\\')
+        ? path.win32.basename(path.win32.dirname(value))
+        : path.posix.basename(path.posix.dirname(value))
     if (
         !Array.isArray(command)
         || command.some((value) => typeof value !== 'string')
         || command.length < 5
-        || !path.isAbsolute(command[0])
-        || !path.isAbsolute(command[1])
-        || path.basename(path.dirname(command[1])) !== 'scripts'
-        || path.basename(command[1]) !== scriptName
+        || !isPortableAbsolute(command[0])
+        || !isPortableAbsolute(command[1])
+        || portableParentBasename(command[1]) !== 'scripts'
+        || portableBasename(command[1]) !== scriptName
         || command[2] !== '--root'
-        || !path.isAbsolute(command[3] ?? '')
+        || !isPortableAbsolute(command[3] ?? '')
         || command[4] !== '--json'
     ) return [...errors, 'verification command does not match its declared kind']
     let cursor = 5
