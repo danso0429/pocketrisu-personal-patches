@@ -29,6 +29,9 @@ const {
     permissionPreflight,
     validateLegacyAccessReceipt,
 } = require('../src/legacy-capability-audit.cjs')
+const {
+    auditTransitionCapabilities,
+} = require('../src/transition-capability-audit.cjs')
 const { loadCatalog } = require('../src/catalog.cjs')
 
 const ROOT = path.resolve(__dirname, '..')
@@ -142,7 +145,7 @@ test('current target catalog compiles to fail-closed G components', () => {
         { L: 0, B: 0, G: 46, U: 0 },
     )
     assert.equal(contract.target.unitIds.length, 869)
-    assert.equal(contract.capabilities.length, 6933)
+    assert.equal(contract.capabilities.length, 7301)
     assert.deepEqual(graph.localComponents.map((entry) => entry.packIds.length), [45, 1])
     assert.deepEqual(graph.components.map((entry) => entry.packIds.length), [46])
     assert.equal(graph.fallback.required, true)
@@ -161,8 +164,51 @@ test('current target catalog compiles to fail-closed G components', () => {
         'time:application-time',
         'worker:application-workers',
     ])
-    assert.equal(contract.contractSha256, 'd2c17917276bbc4ddbc517a274d8ce2c119cd111702a6f700f7a3b8fdd6e1efd')
-    assert.equal(graph.graphSha256, 'abf28624aa51972971e81e990987e14d1f19c99297a0fe9ff173cc6cc976a1f3')
+    assert.equal(contract.contractSha256, 'aa5d832e8dd0beeeda8da7771afb5ad9552221e571d7b1763f6df304e1595f88')
+    assert.equal(graph.graphSha256, '8c484064a34becf6109a4b957a993a51e81de7188ac4553f2f927d0bb72e63f0')
+})
+
+test('prospective transition actions are admitted before mutation and unknown paths fail closed', () => {
+    const compiled = inventory()
+    const contract = compileCapabilityContract(compiled, {
+        scope: 'target-catalog',
+        packageName: 'pocketrisu',
+        packageVersion: '1.9.0',
+    })
+    const unit = compiled.units.find((candidate) => contract.target.unitIds.includes(candidate.id))
+    const statePath = 'save/pocketrisu-patches/state.json'
+    const transition = {
+        target: { packageName: 'pocketrisu', packageVersion: '1.9.0' },
+        resolution: { resolvedIds: contract.target.packIds },
+        preconditions: [
+            { path: unit.file, before: null, beforeMode: null },
+            { path: statePath, before: null, beforeMode: null },
+        ],
+        changes: [
+            { path: unit.file, before: null, beforeMode: null, after: 'managed', afterMode: 0o644 },
+            { path: statePath, before: null, beforeMode: null, after: '{}\n', afterMode: 0o600 },
+        ],
+    }
+    const audit = auditTransitionCapabilities(transition, contract)
+    assert.equal(audit.status, 'pass')
+    assert.equal(audit.mutationPerformed, false)
+    assert.equal(audit.violations.length, 0)
+    assert.ok(audit.actions.every((action) => action.capabilityIds.length > 0))
+
+    const undeclared = structuredClone(transition)
+    undeclared.changes.push({
+        path: 'undeclared.txt',
+        before: null,
+        beforeMode: null,
+        after: 'x',
+        afterMode: 0o644,
+    })
+    assert.throws(
+        () => auditTransitionCapabilities(undeclared, contract),
+        (error) =>
+            error.code === 'UNDECLARED_TRANSITION_ACTION'
+            && error.details.violations.some((violation) => violation.resource === 'undeclared.txt'),
+    )
 })
 
 test('high-order autoWhen remains a hyperedge and unions every participant', () => {
