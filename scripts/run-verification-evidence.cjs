@@ -13,17 +13,31 @@ const {
     validateCanonicalResult,
     writeJsonAtomic,
 } = require('../src/verification-evidence.cjs')
+const {
+    RECEIPT_DISPOSITIONS,
+    sealDocument,
+    validateDisposition,
+} = require('../src/verification-receipts.cjs')
 
 function parseArgs(argv) {
     let root = null
     let output = null
     let jobs = null
     let allowReviewing = false
+    let disposition = 'current-active'
     for (let index = 2; index < argv.length; index += 1) {
         const argument = argv[index]
         if (argument === '--root') root = argv[++index]
         else if (argument === '--output') output = argv[++index]
         else if (argument === '--allow-reviewing') allowReviewing = true
+        else if (argument === '--disposition') {
+            disposition = argv[++index]
+            if (!validateDisposition(disposition)) {
+                throw new Error(
+                    `--disposition must be one of: ${RECEIPT_DISPOSITIONS.join(', ')}`,
+                )
+            }
+        }
         else if (argument === '--jobs') {
             const value = argv[++index]
             if (!/^[1-9]\d*$/.test(value ?? '')) {
@@ -38,7 +52,8 @@ function parseArgs(argv) {
     if (!root || !output) {
         throw new Error(
             'Usage: run-verification-evidence.cjs --root PRISTINE_POCKETRISU '
-            + '--output RECEIPT.json [--jobs N] [--allow-reviewing]',
+            + '--output RECEIPT.json [--jobs N] [--allow-reviewing] '
+            + '[--disposition VALUE]',
         )
     }
     return {
@@ -46,6 +61,7 @@ function parseArgs(argv) {
         output: path.resolve(output),
         jobs,
         allowReviewing,
+        disposition,
     }
 }
 
@@ -75,8 +91,9 @@ async function main(argv = process.argv) {
         && stdoutBytes > 0
         && verifierErrors.length === 0
         && stability.matched
-    const receipt = {
+    const receipt = sealDocument({
         schema: 'patch-verification-execution-receipt-v1',
+        disposition: options.disposition,
         timestamp: new Date().toISOString(),
         command,
         options: {
@@ -96,7 +113,7 @@ async function main(argv = process.argv) {
         verifierResult,
         verifierErrors,
         accepted,
-    }
+    })
     writeJsonAtomic(options.output, receipt)
     process.stdout.write(`${JSON.stringify({
         receipt: options.output,

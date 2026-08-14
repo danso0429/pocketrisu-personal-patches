@@ -8,7 +8,8 @@
     "qualify": "node scripts/qualify-target.cjs",
     "test": "node --test test/*.test.cjs",
     "verify:combinations": "node scripts/verify-all-combinations.cjs",
-    "verify:combinations:evidence": "node scripts/run-verification-evidence.cjs"
+    "verify:combinations:evidence": "node scripts/run-verification-evidence.cjs",
+    "verify:combinations:receipt": "node scripts/verify-verification-receipt.cjs"
   },
   "engines": {
     "node": ">=22"

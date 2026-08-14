@@ -154,6 +154,24 @@ nonzero exit, empty or malformed output, incomplete raw-mask coverage, or
 noncanonical worker history. This wrapper adds provenance; it does not replace,
 reduce, resume, or alter the canonical Global Exhaustive route.
 
+Every execution receipt must use exactly one disposition: `current-active`,
+`historical`, `incomplete`, `invalid`, `superseded`, `diagnostic-only`, or
+`defect-reproduction`. Disposition describes evidence lifecycle and does not
+turn a failed execution into a pass. Unknown values fail closed. The default is
+`current-active`; use `--disposition VALUE` when another lifecycle state is
+already known.
+
+Before accepting a receipt, run the standalone integrity and execution check:
+
+```bash
+npm run verify:combinations:receipt -- --receipt /path/to/receipt.json
+```
+
+It independently recomputes output bytes/hashes, JSON parsing, raw-mask
+coverage, worker history, pre/post stability, and the receipt payload hash. A
+valid negative receipt remains evidence but this command exits nonzero unless
+the recorded execution also passed every acceptance predicate.
+
 ## Acceptance and receipt
 
 Do not predict the result. After a zero exit code, record the observed JSON
