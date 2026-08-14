@@ -23,9 +23,25 @@
     "governance": { "type": "object" },
     "command": { "type": "object" },
     "cohort": { "type": "object" },
-    "inventory": { "$ref": "patch-effect-inventory-v1.schema.json" },
+    "inventory": {
+      "type": "object",
+      "required": ["schema", "inventorySha256"],
+      "properties": {
+        "schema": { "const": "patch-effect-inventory-v1" },
+        "inventorySha256": { "type": "string", "pattern": "^[0-9a-f]{64}$" }
+      }
+    },
     "targetObservation": { "type": "object" },
-    "S0PProjection": { "$ref": "patch-s0p-projection-v1.schema.json" },
+    "S0PProjection": {
+      "type": "object",
+      "required": ["schema", "canonical", "readOnly", "projectionSha256"],
+      "properties": {
+        "schema": { "const": "patch-s0p-projection-v1" },
+        "canonical": { "const": false },
+        "readOnly": { "const": true },
+        "projectionSha256": { "type": "string", "pattern": "^[0-9a-f]{64}$" }
+      }
+    },
     "canonicalProtection": { "type": "object" },
     "payloadSha256": { "type": "string", "pattern": "^[0-9a-f]{64}$" }
   },
