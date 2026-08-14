@@ -369,7 +369,8 @@ inventory, observes an `all` prospective plan without applying it, and emits:
 - file, anchored-region, whole-file ownership, declared ordering, pack
   relation, and higher-order `autoWhen` inventories;
 - every declared target-version view;
-- the complete patch source tree and generated-installer catalog comparison;
+- the complete patch source tree, embedded catalog comparison, and exact
+  byte-for-byte regeneration comparison for every generated installer;
 - explicit global patcher-state surfaces and undeclared state/symbol limits;
 - conservative candidate L/B/G/U classifications;
 - a non-canonical, read-only S0-P per-pack projection of the prospective global
@@ -379,8 +380,8 @@ inventory, observes an `all` prospective plan without applying it, and emits:
 The current CommonJS manifests and inserted application code are not sealed by
 a capability API. Therefore a valid current pack is classified as candidate
 `G`, while an unknown field, unsupported value, invalid unit, missing source
-input, or generated-catalog mismatch fails closed as `U` or an incomplete
-inventory. No Phase 1 result admits `L` or `B`, enforces a capability, changes
+input, generated-catalog mismatch, or stale generated-installer content fails
+closed as `U` or an incomplete inventory. No Phase 1 result admits `L` or `B`, enforces a capability, changes
 the global state contract, issues a certificate, skips a transaction, or
 replaces Global Exhaustive. S0-P is a read-only observation and is never a
 canonical state record.
