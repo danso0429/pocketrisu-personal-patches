@@ -514,6 +514,28 @@ S1-D records are not canonical, are not migration inputs, do not authorize
 transaction skipping and are not certificates. The current one-component
 graph produces one shadow record and demonstrates no state locality benefit.
 
+## Phase 5 isolated S2 state prototype
+
+Phase 5 exposes S2 only through the non-default `audit:s2-state` command. It
+creates an isolated output directory outside source and target; the production
+manager serializer and user state path remain unchanged. Each component record
+has a version derived from its local action subgraph and a local ETag derived
+from only its local state. The aggregate registry retains the compatibility
+projection and exact global rollback data.
+
+The registry commits component leaves into a Merkle root and includes a proof
+for every component. Publication writes all records into a unique temporary
+directory and renames it only after the complete registry and snapshot exist;
+interruption leaves no published partial snapshot. Missing, duplicate,
+corrupt, stale, split or merged records fail independent loading.
+
+This is an isolated Phase 5A prototype integrated behind an explicit
+non-default audit command as the Phase 5B boundary. It does not activate S2 as
+production canonical state, migrate real user data, change the default
+serializer, issue reusable certificates or remove the S0/global fallback. The
+current graph still yields one component and therefore demonstrates no current
+local-state reuse benefit.
+
 ## Failure and cleanup
 
 - A nonzero exit, incomplete coverage, changed repeated plan, unexpected
