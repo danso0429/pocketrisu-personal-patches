@@ -134,6 +134,7 @@ async function main(argv = process.argv) {
         && execution.exitCode === 0
         && execution.signal === null
         && stdoutBytes > 0
+        && Buffer.byteLength(execution.stderr) === 0
         && verifierErrors.length === 0
         && stability.matched
         && runtimeComparison.matched

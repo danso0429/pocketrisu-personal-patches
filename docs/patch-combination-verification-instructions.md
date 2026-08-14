@@ -153,7 +153,7 @@ Input roots and the output parent are resolved through symlinks before this
 boundary is checked; the wrapper writes through that frozen canonical output
 location rather than through a mutable path alias.
 The wrapper fails closed on source or target drift, spawn error, signal,
-nonzero exit, empty or malformed output, incomplete raw-mask coverage, or
+nonzero exit, empty or malformed output, nonempty stderr, incomplete raw-mask coverage, or
 noncanonical worker history. This wrapper adds provenance; it does not replace,
 reduce, resume, or alter the canonical Global Exhaustive route.
 
@@ -195,7 +195,8 @@ npm run verify:combinations:receipt -- --receipt /path/to/receipt.json
 ```
 
 It independently recomputes output bytes/hashes, JSON parsing, raw-mask
-coverage, worker history, pre/post stability, and the receipt payload hash. A
+coverage, worker history, content-tree roots, pre/post stability, exact child
+command/options, and the receipt payload hash. A
 valid negative receipt remains evidence but this command exits nonzero unless
 the recorded execution also passed every acceptance predicate.
 

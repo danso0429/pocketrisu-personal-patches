@@ -6,6 +6,9 @@ const os = require('node:os')
 const path = require('node:path')
 const test = require('node:test')
 const {
+    FREEZE_SCHEMA,
+    TREE_SCHEMA,
+    jsonSha256,
     sha256,
     validateVerificationResult,
     writeJsonAtomic,
@@ -43,6 +46,35 @@ function canonicalResult() {
     }
 }
 
+function tree(value) {
+    const identity = {
+        schema: TREE_SCHEMA,
+        exclusions: [],
+        entries: [{ path: '', type: 'directory', mode: 0o700, value }],
+    }
+    return {
+        ...identity,
+        entryCount: identity.entries.length,
+        rootSha256: jsonSha256(identity),
+    }
+}
+
+function freeze(sourceValue = 'source', targetValue = 'target') {
+    return {
+        schema: FREEZE_SCHEMA,
+        source: {
+            schema: FREEZE_SCHEMA,
+            applicationTree: tree(sourceValue),
+            catalog: tree(`catalog-${sourceValue}`),
+        },
+        target: {
+            schema: FREEZE_SCHEMA,
+            applicationTree: tree(targetValue),
+            provenance: { kind: 'git', commit: 'fixture' },
+        },
+    }
+}
+
 function executionReceipt({
     disposition = 'current-active',
     result = canonicalResult(),
@@ -73,6 +105,7 @@ function executionReceipt({
         && completeExecution.outputError === null
         && completeExecution.exitCode === 0
         && completeExecution.signal === null
+        && Buffer.byteLength(stderr) === 0
         && verifierErrors.length === 0
         && stability.matched
     const runtimeEnvelope = {
@@ -95,10 +128,34 @@ function executionReceipt({
             nodeOptions: null,
         },
     }
+    const before = freeze()
+    const after = freeze(
+        stability.sourceMatched ? 'source' : 'changed-source',
+        stability.targetMatched ? 'target' : 'changed-target',
+    )
     return sealDocument({
         schema: 'patch-verification-execution-receipt-v2',
         verificationKind,
         disposition,
+        timestamp: '2000-01-01T00:00:00.000Z',
+        command: [
+            '/usr/bin/node',
+            `/repo/scripts/${verificationKind === 'cache-differential'
+                ? 'verify-cache-differential.cjs'
+                : 'verify-all-combinations.cjs'}`,
+            '--root',
+            '/tmp/target',
+            '--json',
+            '--jobs',
+            '2',
+        ],
+        options: {
+            jobs: 2,
+            allowReviewing: false,
+            targetProvenance: null,
+        },
+        before,
+        after,
         execution: completeExecution,
         verifierResult: parsed,
         verifierErrors,
@@ -136,6 +193,44 @@ test('sealed accepted receipt verifies independently', () => {
     receipt.execution.stdout = '{}\n'
     assert.equal(verifyDocumentIntegrity(receipt), false)
     assert.equal(evaluateExecutionReceipt(receipt).receiptValid, false)
+})
+
+test('resealed stability or command contradictions remain invalid', () => {
+    const original = executionReceipt()
+    const { integrity, ...payload } = original
+    const falseStability = sealDocument({
+        ...payload,
+        stability: { sourceMatched: false, targetMatched: true, matched: false },
+        accepted: false,
+    })
+    assert.match(
+        evaluateExecutionReceipt(falseStability).structuralErrors.join('\n'),
+        /stability summary differs/,
+    )
+    const wrongCommand = sealDocument({
+        ...payload,
+        command: [
+            '/usr/bin/node',
+            '/repo/scripts/verify-cache-differential.cjs',
+            '--root',
+            '/tmp/target',
+            '--json',
+            '--jobs',
+            '2',
+        ],
+    })
+    assert.match(
+        evaluateExecutionReceipt(wrongCommand).structuralErrors.join('\n'),
+        /verification command/,
+    )
+})
+
+test('status zero with nonempty stderr cannot pass', () => {
+    const receipt = executionReceipt({ execution: { stderr: 'unexpected warning\n' } })
+    const evaluation = evaluateExecutionReceipt(receipt)
+    assert.equal(evaluation.receiptValid, true)
+    assert.equal(evaluation.executionAccepted, false)
+    assert.match(evaluation.acceptanceErrors.join('\n'), /stderr is not empty/)
 })
 
 test('sealed cache differential receipt verifies all masks and phases', () => {

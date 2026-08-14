@@ -3,6 +3,10 @@
 const fs = require('node:fs')
 const path = require('node:path')
 const {
+    FREEZE_SCHEMA,
+    TREE_SCHEMA,
+    compareInputFreeze,
+    jsonSha256,
     parseCanonicalOutput,
     sha256,
     validateVerificationResult,
@@ -82,6 +86,120 @@ function validateDisposition(disposition) {
     return RECEIPT_DISPOSITIONS.includes(disposition)
 }
 
+function validateTreeDescriptor(tree, label) {
+    const errors = []
+    if (tree?.schema !== TREE_SCHEMA) return [`${label} tree schema is missing or incompatible`]
+    if (!Array.isArray(tree.exclusions) || !Array.isArray(tree.entries)) {
+        return [`${label} tree identity arrays are missing`]
+    }
+    if (
+        new Set(tree.exclusions).size !== tree.exclusions.length
+        || JSON.stringify(tree.exclusions) !== JSON.stringify([...tree.exclusions].sort())
+    ) errors.push(`${label} tree exclusions are not sorted and unique`)
+    if (tree.entryCount !== tree.entries.length) {
+        errors.push(`${label} tree entry count mismatch`)
+    }
+    try {
+        const expectedRoot = jsonSha256({
+            schema: TREE_SCHEMA,
+            exclusions: tree.exclusions,
+            entries: tree.entries,
+        })
+        if (tree.rootSha256 !== expectedRoot) errors.push(`${label} tree root mismatch`)
+    } catch (error) {
+        errors.push(`${label} tree identity cannot be hashed: ${error.message}`)
+    }
+    return errors
+}
+
+function validateFreezeRecord(record, label) {
+    const errors = []
+    if (record?.schema !== FREEZE_SCHEMA) {
+        errors.push(`${label} freeze schema is missing or incompatible`)
+        return errors
+    }
+    for (const side of ['source', 'target']) {
+        if (record[side]?.schema !== FREEZE_SCHEMA) {
+            errors.push(`${label} ${side} freeze schema is missing or incompatible`)
+            continue
+        }
+        errors.push(...validateTreeDescriptor(
+            record[side].applicationTree,
+            `${label} ${side} application`,
+        ))
+    }
+    errors.push(...validateTreeDescriptor(record.source?.catalog, `${label} source catalog`))
+    return errors
+}
+
+function validateCommandContract(receipt) {
+    const errors = []
+    const options = receipt?.options
+    const optionKeys = options && typeof options === 'object'
+        ? Object.keys(options).sort()
+        : []
+    if (JSON.stringify(optionKeys) !== JSON.stringify([
+        'allowReviewing',
+        'jobs',
+        'targetProvenance',
+    ])) return ['verification options are missing or contain unknown fields']
+    const jobsValid = options.jobs === null
+        || (Number.isSafeInteger(options.jobs) && options.jobs > 0)
+    if (!jobsValid) errors.push('verification jobs option is invalid')
+    if (typeof options.allowReviewing !== 'boolean') {
+        errors.push('verification allowReviewing option is invalid')
+    }
+    if (
+        options.targetProvenance !== null
+        && !/^sha256:[0-9a-f]{64}$/.test(options.targetProvenance ?? '')
+    ) errors.push('verification targetProvenance option is invalid')
+    for (const phase of ['before', 'after']) {
+        const provenance = receipt?.[phase]?.target?.provenance
+        if (options.targetProvenance === null) {
+            if (provenance?.kind !== 'git') {
+                errors.push(`${phase} target provenance is not Git as declared`)
+            }
+        } else if (
+            provenance?.kind !== 'declared-archive'
+            || `sha256:${provenance.sha256}` !== options.targetProvenance
+        ) errors.push(`${phase} target archive provenance differs from receipt options`)
+    }
+
+    const command = receipt?.command
+    const scriptNames = {
+        'global-exhaustive': 'verify-all-combinations.cjs',
+        'cache-differential': 'verify-cache-differential.cjs',
+    }
+    const scriptName = scriptNames[receipt?.verificationKind]
+    if (
+        !Array.isArray(command)
+        || command.some((value) => typeof value !== 'string')
+        || command.length < 5
+        || !path.isAbsolute(command[0])
+        || !path.isAbsolute(command[1])
+        || path.basename(path.dirname(command[1])) !== 'scripts'
+        || path.basename(command[1]) !== scriptName
+        || command[2] !== '--root'
+        || !path.isAbsolute(command[3] ?? '')
+        || command[4] !== '--json'
+    ) return [...errors, 'verification command does not match its declared kind']
+    let cursor = 5
+    if (options.jobs !== null) {
+        if (command[cursor] !== '--jobs' || command[cursor + 1] !== String(options.jobs)) {
+            errors.push('verification command jobs differ from receipt options')
+        }
+        cursor += 2
+    }
+    if (options.allowReviewing) {
+        if (command[cursor] !== '--allow-reviewing') {
+            errors.push('verification command review flag differs from receipt options')
+        }
+        cursor += 1
+    }
+    if (cursor !== command.length) errors.push('verification command has unknown or reordered flags')
+    return errors
+}
+
 function evaluateExecutionReceipt(receipt) {
     const structuralErrors = []
     const acceptanceErrors = []
@@ -94,6 +212,14 @@ function evaluateExecutionReceipt(receipt) {
     if (!verifyDocumentIntegrity(receipt)) {
         structuralErrors.push('receipt integrity mismatch')
     }
+    structuralErrors.push(...validateCommandContract(receipt))
+    if (
+        typeof receipt?.timestamp !== 'string'
+        || Number.isNaN(Date.parse(receipt.timestamp))
+        || new Date(receipt.timestamp).toISOString() !== receipt.timestamp
+    ) structuralErrors.push('receipt timestamp is missing or noncanonical')
+    structuralErrors.push(...validateFreezeRecord(receipt?.before, 'before'))
+    structuralErrors.push(...validateFreezeRecord(receipt?.after, 'after'))
     const execution = receipt?.execution
     if (!execution || typeof execution !== 'object') {
         structuralErrors.push('execution record is missing')
@@ -131,10 +257,19 @@ function evaluateExecutionReceipt(receipt) {
         structuralErrors.push(`verifier evidence is not canonicalizable: ${error.message}`)
     }
     const stability = receipt?.stability
-    if (
-        !stability
-        || stability.matched !== (stability.sourceMatched && stability.targetMatched)
-    ) structuralErrors.push('stability summary is missing or inconsistent')
+    let recomputedStability = {
+        sourceMatched: false,
+        targetMatched: false,
+        matched: false,
+    }
+    try {
+        recomputedStability = compareInputFreeze(receipt?.before, receipt?.after)
+        if (canonicalJson(stability) !== canonicalJson(recomputedStability)) {
+            structuralErrors.push('stability summary differs from pre/post evidence')
+        }
+    } catch (error) {
+        structuralErrors.push(`stability evidence is not canonicalizable: ${error.message}`)
+    }
     const recordedRuntime = receipt?.runtime
     const runtimeComparison = compareRuntimeEnvelopes(
         recordedRuntime?.before,
@@ -153,9 +288,10 @@ function evaluateExecutionReceipt(receipt) {
     if (execution.exitCode !== 0) acceptanceErrors.push('exit code is not zero')
     if (execution.signal !== null) acceptanceErrors.push('child terminated by signal')
     if (Buffer.byteLength(stdout) === 0) acceptanceErrors.push('stdout is empty')
+    if (Buffer.byteLength(stderr) !== 0) acceptanceErrors.push('stderr is not empty')
     acceptanceErrors.push(...verifierErrors)
-    if (!stability?.sourceMatched) acceptanceErrors.push('source pre/post root mismatch')
-    if (!stability?.targetMatched) acceptanceErrors.push('target pre/post root mismatch')
+    if (!recomputedStability.sourceMatched) acceptanceErrors.push('source pre/post root mismatch')
+    if (!recomputedStability.targetMatched) acceptanceErrors.push('target pre/post root mismatch')
     acceptanceErrors.push(...runtimeComparison.errors)
     const calculatedAccepted = structuralErrors.length === 0 && acceptanceErrors.length === 0
     if (receipt?.accepted !== calculatedAccepted) {
