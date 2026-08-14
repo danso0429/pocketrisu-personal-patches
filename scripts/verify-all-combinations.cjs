@@ -31,6 +31,24 @@ const {
     createPairAnalysisCache,
 } = require('../src/compose.cjs')
 
+const WORKER_HISTORY_MODEL = Object.freeze({
+    schema: 'patch-combination-worker-history-v1',
+    schedule: 'stride-v1',
+    assignment: 'mask = workerIndex + (step * workerCount)',
+    targetCopies: 'one complete target copy per worker',
+    workerLifetime: 'one worker thread, module graph, and cache set for all assigned masks',
+    managedReset: 'catalog-managed bytes and POSIX modes restored and verified after every mask',
+    persistentWithinWorker: Object.freeze([
+        'process state',
+        'module state',
+        'calculation caches',
+        'unmanaged filesystem history',
+        'execution-order history',
+    ]),
+    freshPerMask: false,
+    resume: 'unsupported',
+})
+
 function parseArgs(argv) {
     let root = null
     let json = false
@@ -164,6 +182,10 @@ function* shardMasks(totalSelections, shardIndex, shardCount) {
     }
 }
 
+function workerMaskSequence(totalSelections, shardIndex, shardCount) {
+    return [...shardMasks(totalSelections, shardIndex, shardCount)]
+}
+
 function verifyShard({
     root,
     allowReviewing,
@@ -183,6 +205,7 @@ function verifyShard({
     const baseline = snapshot(root, managedPaths)
     const graphs = new Set()
     let maximumResolvedUnits = 0
+    const assignedMasks = workerMaskSequence(totalSelections, shardIndex, shardCount)
     const processedMasks = []
     const compositionCache = createCompositionCache()
     const packEtagCache = createPackEtagCache()
@@ -199,11 +222,12 @@ function verifyShard({
         total: 0,
     }
 
-    for (const mask of shardMasks(totalSelections, shardIndex, shardCount)) {
+    for (const mask of assignedMasks) {
         const selected = visible.filter((_, index) =>
             Math.floor(mask / (2 ** index)) % 2 === 1
         )
         const selectionStarted = performance.now()
+        let phase = 'initial-plan'
         try {
             const transition = timed(timings, 'initialPlan', () => planTransition({
                 root,
@@ -219,8 +243,10 @@ function verifyShard({
                 maximumResolvedUnits,
                 transition.order.length,
             )
+            phase = 'apply'
             timed(timings, 'apply', () => applyTransition({ root, transition }))
 
+            phase = 'status'
             const current = timed(timings, 'status', () => status({ root }))
             const expectedStatus = transition.state === null ? 'clean' : 'current'
             if (current.status !== expectedStatus) {
@@ -229,6 +255,7 @@ function verifyShard({
                 )
             }
 
+            phase = 'repeated-plan'
             const repeated = timed(timings, 'repeatedPlan', () => planTransition({
                 root,
                 catalog,
@@ -246,6 +273,7 @@ function verifyShard({
                 )
             }
 
+            phase = 'revert-plan'
             const reverted = timed(timings, 'revertPlan', () => planTransition({
                 root,
                 catalog,
@@ -255,11 +283,13 @@ function verifyShard({
                 packEtagCache,
                 stateEncodingCache,
             }))
+            phase = 'revert-apply'
             timed(
                 timings,
                 'revertApply',
                 () => applyTransition({ root, transition: reverted }),
             )
+            phase = 'restoration-snapshot'
             const restored = timed(
                 timings,
                 'snapshot',
@@ -270,7 +300,16 @@ function verifyShard({
             }
             processedMasks.push(mask)
         } catch (error) {
+            error.mask = mask
+            error.phase = phase
             error.selection = selected
+            error.workerHistory = {
+                workerIndex: shardIndex,
+                workerCount: shardCount,
+                orderedMasks: assignedMasks,
+                completedMasks: [...processedMasks],
+                schedule: WORKER_HISTORY_MODEL.schedule,
+            }
             throw error
         } finally {
             timings.total += performance.now() - selectionStarted
@@ -281,6 +320,12 @@ function verifyShard({
         shardIndex,
         shardCount,
         processedMasks,
+        workerHistory: {
+            workerIndex: shardIndex,
+            workerCount: shardCount,
+            orderedMasks: assignedMasks,
+            schedule: WORKER_HISTORY_MODEL.schedule,
+        },
         graphs: [...graphs],
         maximumResolvedUnits,
         compatibility: compatibility.status,
@@ -347,7 +392,39 @@ function mergeShardResults(totalSelections, results) {
         hits: 0,
         misses: 0,
     }
+    const workerHistories = []
+    const workerIndexes = new Set()
     for (const result of results) {
+        const history = result.workerHistory
+        if (
+            !history
+            || history.schedule !== WORKER_HISTORY_MODEL.schedule
+            || !Number.isInteger(history.workerIndex)
+            || history.workerIndex < 0
+            || history.workerIndex >= results.length
+            || history.workerCount !== results.length
+            || workerIndexes.has(history.workerIndex)
+        ) {
+            throw coverageError('Worker reported invalid or duplicate history metadata')
+        }
+        const expectedMasks = workerMaskSequence(
+            totalSelections,
+            history.workerIndex,
+            history.workerCount,
+        )
+        if (
+            JSON.stringify(history.orderedMasks) !== JSON.stringify(expectedMasks)
+            || JSON.stringify(result.processedMasks) !== JSON.stringify(expectedMasks)
+        ) {
+            throw coverageError(
+                `Worker ${history.workerIndex} mask history differs from canonical stride`,
+            )
+        }
+        workerIndexes.add(history.workerIndex)
+        workerHistories.push({
+            workerIndex: history.workerIndex,
+            orderedMasks: [...history.orderedMasks],
+        })
         for (const mask of result.processedMasks) {
             if (!Number.isInteger(mask) || mask < 0 || mask >= totalSelections) {
                 throw coverageError(`Worker reported out-of-range selection mask ${mask}`)
@@ -395,6 +472,9 @@ function mergeShardResults(totalSelections, results) {
         packEtagCache,
         stateEncodingCache,
         timingsMs: roundedTimings(timingsMs),
+        workerHistories: workerHistories.toSorted(
+            (left, right) => left.workerIndex - right.workerIndex,
+        ),
     }
 }
 
@@ -402,7 +482,10 @@ function serializeError(error) {
     return {
         message: error.message,
         code: error.code ?? null,
+        mask: error.mask ?? null,
+        phase: error.phase ?? null,
         selection: error.selection ?? null,
+        workerHistory: error.workerHistory ?? null,
         stack: error.stack ?? null,
     }
 }
@@ -410,7 +493,10 @@ function serializeError(error) {
 function deserializeError(value) {
     const error = new Error(value.message)
     if (value.code) error.code = value.code
+    if (value.mask !== null) error.mask = value.mask
+    if (value.phase) error.phase = value.phase
     if (value.selection) error.selection = value.selection
+    if (value.workerHistory) error.workerHistory = value.workerHistory
     if (value.stack) error.stack = value.stack
     return error
 }
@@ -500,6 +586,10 @@ async function main(argv = process.argv) {
             maximumResolvedUnits: coverage.maximumResolvedUnits,
             roundTrips: 'passed',
             workers: workerCount,
+            workerHistory: {
+                ...WORKER_HISTORY_MODEL,
+                workers: coverage.workerHistories,
+            },
             compositionCache: coverage.compositionCache,
             pairAnalysisCache: coverage.pairAnalysisCache,
             packEtagCache: coverage.packEtagCache,
@@ -523,7 +613,12 @@ async function main(argv = process.argv) {
 function reportError(error) {
     console.error(`[combination-check] ${error.message}`)
     if (error.code) console.error(`[${error.code}]`)
+    if (error.mask !== undefined) console.error(`[mask] ${error.mask}`)
+    if (error.phase) console.error(`[phase] ${error.phase}`)
     if (error.selection) console.error(`[selection] ${error.selection.join(',') || '(none)'}`)
+    if (error.workerHistory) {
+        console.error(`[worker-history] ${JSON.stringify(error.workerHistory)}`)
+    }
 }
 
 if (!isMainThread && workerData?.mode === 'verify-combination-shard') {
@@ -546,9 +641,11 @@ if (!isMainThread && workerData?.mode === 'verify-combination-shard') {
 }
 
 module.exports = {
+    WORKER_HISTORY_MODEL,
     main,
     mergeShardResults,
     parseArgs,
     shardMasks,
     verifyShard,
+    workerMaskSequence,
 }

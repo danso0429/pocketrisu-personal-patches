@@ -3,10 +3,21 @@
 const test = require('node:test')
 const assert = require('node:assert/strict')
 const {
+    WORKER_HISTORY_MODEL,
     mergeShardResults,
     parseArgs,
     shardMasks,
+    workerMaskSequence,
 } = require('../scripts/verify-all-combinations.cjs')
+
+function history(total, workerIndex, workerCount) {
+    return {
+        workerIndex,
+        workerCount,
+        orderedMasks: workerMaskSequence(total, workerIndex, workerCount),
+        schedule: WORKER_HISTORY_MODEL.schedule,
+    }
+}
 
 test('combination shards cover every mask exactly once', () => {
     for (let total = 1; total <= 41; total += 1) {
@@ -24,6 +35,15 @@ test('combination shards cover every mask exactly once', () => {
                 masks.toSorted((left, right) => left - right),
                 Array.from({ length: total }, (_, index) => index),
             )
+            for (let workerIndex = 0; workerIndex < effectiveJobs; workerIndex += 1) {
+                assert.deepEqual(
+                    workerMaskSequence(total, workerIndex, effectiveJobs),
+                    Array.from(
+                        { length: Math.ceil((total - workerIndex) / effectiveJobs) },
+                        (_, step) => workerIndex + (step * effectiveJobs),
+                    ),
+                )
+            }
         }
     }
 })
@@ -32,6 +52,7 @@ test('coverage merge preserves graph and maximum-unit aggregation', () => {
     assert.deepEqual(
         mergeShardResults(4, [
             {
+                workerHistory: history(4, 0, 2),
                 processedMasks: [0, 2],
                 graphs: ['a', 'a,b'],
                 maximumResolvedUnits: 7,
@@ -51,6 +72,7 @@ test('coverage merge preserves graph and maximum-unit aggregation', () => {
                 },
             },
             {
+                workerHistory: history(4, 1, 2),
                 processedMasks: [1, 3],
                 graphs: ['a', 'b'],
                 maximumResolvedUnits: 11,
@@ -88,6 +110,10 @@ test('coverage merge preserves graph and maximum-unit aggregation', () => {
                 status: 77,
                 total: 308,
             },
+            workerHistories: [
+                { workerIndex: 0, orderedMasks: [0, 2] },
+                { workerIndex: 1, orderedMasks: [1, 3] },
+            ],
         },
     )
 })
@@ -112,18 +138,57 @@ test('coverage merge fails closed on missing, duplicate, or invalid masks', () =
         },
     }
     for (const results of [
-        [{ ...graph, processedMasks: [0, 1, 2] }],
+        [{ ...graph, workerHistory: history(4, 0, 1), processedMasks: [0, 1, 2] }],
         [
-            { ...graph, processedMasks: [0, 1] },
-            { ...graph, processedMasks: [1, 2, 3] },
+            { ...graph, workerHistory: history(4, 0, 2), processedMasks: [0, 1] },
+            { ...graph, workerHistory: history(4, 1, 2), processedMasks: [1, 2, 3] },
         ],
-        [{ ...graph, processedMasks: [0, 1, 2, 4] }],
+        [{ ...graph, workerHistory: history(4, 0, 1), processedMasks: [0, 1, 2, 4] }],
     ]) {
         assert.throws(
             () => mergeShardResults(4, results),
             (error) => error.code === 'INCOMPLETE_COMBINATION_COVERAGE',
         )
     }
+})
+
+test('coverage merge fails closed on altered worker history', () => {
+    const graph = {
+        processedMasks: [0, 2],
+        graphs: [],
+        maximumResolvedUnits: 0,
+        compositionCache: { bypasses: 0, hits: 0, misses: 0, stores: 0 },
+        pairAnalysisCache: { entries: 0, hits: 0, misses: 0 },
+        packEtagCache: { hits: 0, misses: 0 },
+        stateEncodingCache: { hits: 0, misses: 0 },
+        timingsMs: {
+            apply: 0,
+            initialPlan: 0,
+            repeatedPlan: 0,
+            revertApply: 0,
+            revertPlan: 0,
+            snapshot: 0,
+            status: 0,
+            total: 0,
+        },
+    }
+    assert.throws(
+        () => mergeShardResults(4, [
+            {
+                ...graph,
+                workerHistory: {
+                    ...history(4, 0, 2),
+                    orderedMasks: [2, 0],
+                },
+            },
+            {
+                ...graph,
+                processedMasks: [1, 3],
+                workerHistory: history(4, 1, 2),
+            },
+        ]),
+        (error) => error.code === 'INCOMPLETE_COMBINATION_COVERAGE',
+    )
 })
 
 test('jobs accepts only positive integers', () => {

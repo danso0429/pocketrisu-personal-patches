@@ -29,6 +29,21 @@ Every worker uses an independent complete source copy. Aggregation fails
 closed on an out-of-range, duplicate, or missing mask. `normalizedGraphs` is
 diagnostic information only: it must never replace the raw-selection gate.
 
+The canonical schedule is `stride-v1`: worker `w` of `N` processes masks
+`w, w + N, w + 2N, ...` in that order. Each worker reuses one worker thread,
+module graph, and calculation-cache set across all of its assigned masks. After
+each mask, the verifier restores and checks catalog-managed bytes and POSIX
+modes, but process state, module state, cache state, unmanaged filesystem
+history, and execution-order history may persist inside that worker. This is
+not fresh-per-mask isolation.
+
+The effective worker count, schedule version, and each worker's ordered mask
+sequence are semantic execution context and must be retained in the result.
+Changing worker assignment, order, cache lifetime, retry order, shard boundary,
+or resume behavior requires the qualification in the anti-reward-hacking
+section. The canonical checker does not support resume; a retry starts a new
+complete execution unless a separately approved policy says otherwise.
+
 The verifier's exact-revert claim is limited to catalog-managed file bytes and
 POSIX modes. A feature receipt that claims complete-tree identity must perform
 and record its own broader comparison, including the treatment of private
@@ -131,6 +146,8 @@ and confirm:
 - target identity and compatibility are the reviewed values;
 - visible packs, managed path count, maximum resolved units, and effective
   worker count are present;
+- `workerHistory.schema`, canonical schedule version, and every worker's
+  ordered mask sequence are present and cover the raw domain exactly once;
 - cache counters and phase timings, when emitted, are recorded as diagnostics
   rather than fixed acceptance constants.
 
