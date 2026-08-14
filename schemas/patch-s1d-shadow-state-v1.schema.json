@@ -1,0 +1,73 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "patch-s1d-shadow-state-v1",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schema", "status", "globalStateSha256", "graphSha256", "compatibilityProjection", "components", "comparison", "canonicalProtection", "receiptSha256"],
+  "properties": {
+    "schema": { "const": "patch-s1d-shadow-state-v1" },
+    "status": { "const": "passed" },
+    "globalStateSha256": { "type": "string", "pattern": "^[0-9a-f]{64}$" },
+    "graphSha256": { "type": "string", "pattern": "^[0-9a-f]{64}$" },
+    "compatibilityProjection": { "type": "object" },
+    "components": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["schema", "componentId", "componentVersion", "packIds", "packs", "order", "units", "files", "etag"],
+        "properties": {
+          "schema": { "const": "patch-s1d-component-record-v1" },
+          "componentId": { "type": "string" },
+          "componentVersion": { "type": "string", "pattern": "^[0-9a-f]{64}$" },
+          "packIds": { "type": "array", "uniqueItems": true, "items": { "type": "string" } },
+          "packs": { "type": "array", "items": { "$ref": "#/$defs/positioned" } },
+          "order": { "type": "array", "items": { "$ref": "#/$defs/positioned" } },
+          "units": { "type": "array", "items": { "$ref": "#/$defs/positioned" } },
+          "files": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "additionalProperties": false,
+              "required": ["path", "value"],
+              "properties": { "path": { "type": "string" }, "value": {} }
+            }
+          },
+          "etag": { "type": "string", "pattern": "^[0-9a-f]{64}$" }
+        }
+      }
+    },
+    "comparison": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["semanticMatch", "componentCount", "missingComponents", "duplicateComponents"],
+      "properties": {
+        "semanticMatch": { "const": true },
+        "componentCount": { "type": "integer", "minimum": 0 },
+        "missingComponents": { "type": "array", "maxItems": 0 },
+        "duplicateComponents": { "type": "array", "maxItems": 0 }
+      }
+    },
+    "canonicalProtection": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["globalStateSoleAuthority", "productionStateWritten", "shadowUsedToSkip", "certificatesIssued", "defaultChanged"],
+      "properties": {
+        "globalStateSoleAuthority": { "const": true },
+        "productionStateWritten": { "const": false },
+        "shadowUsedToSkip": { "const": false },
+        "certificatesIssued": { "const": 0 },
+        "defaultChanged": { "const": false }
+      }
+    },
+    "receiptSha256": { "type": "string", "pattern": "^[0-9a-f]{64}$" }
+  },
+  "$defs": {
+    "positioned": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["position", "value"],
+      "properties": { "position": { "type": "integer", "minimum": 0 }, "value": {} }
+    }
+  }
+}
