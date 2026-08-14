@@ -41,7 +41,7 @@ test('current catalog inventory is complete with first/middle/last and hash witn
     assert.deepEqual(inventory.completeness.issues, [])
     assert.equal(
         inventory.inventorySha256,
-        '96f66b7c0bf60bf4cb6cbcf719884534e10f68964e3741fd6c5b9bcb96a6073e',
+        'ba4b6698b75cd8f385a3b55d9b0cf0977f3fdaba3f3a6cfdde71fe048e07a733',
     )
 
     assert.equal(inventory.packs[0].id, 'bg-preserve')
@@ -89,6 +89,13 @@ test('source and generated catalog inputs are mechanically cross-checked', () =>
         'dist/pocketrisu-patcher.cjs',
     ])
     assert.equal(generatedArtifacts.every((artifact) => artifact.catalogMatches), true)
+    assert.equal(generatedArtifacts.every((artifact) => artifact.contentMatches), true)
+    assert.equal(
+        generatedArtifacts.every((artifact) =>
+            artifact.descriptor.sha256 === artifact.expectedSha256
+        ),
+        true,
+    )
     assert.equal(generatedArtifacts.every((artifact) => artifact.packCount === 46), true)
     assert.equal(generatedArtifacts.every((artifact) => artifact.unitCount === 1184), true)
     assert.equal(generatedArtifacts.every((artifact) => artifact.managedPathCount === 259), true)
@@ -197,6 +204,25 @@ test('unknown fields and unsupported values are explicit U instead of omissions'
         self: { $unsupported: 'cycle' },
     })
     assert.deepEqual(unsupportedEntries, [{ location: '$.self', kind: 'cycle' }])
+
+    const staleInstaller = compileEffectInventory([{
+        id: 'pack-a',
+        version: '1',
+        units: [],
+    }], {
+        generatedArtifacts: [{
+            file: 'dist/stale.cjs',
+            catalogMatches: true,
+            contentMatches: false,
+        }],
+    })
+    assert.equal(staleInstaller.completeness.status, 'incomplete-fail-closed')
+    assert.equal(
+        staleInstaller.completeness.issues.some((issue) =>
+            issue.kind === 'generated-installer-content-mismatch'
+        ),
+        true,
+    )
 })
 
 test('S0-P projection is read-only, non-canonical and retains global connectors', () => {
