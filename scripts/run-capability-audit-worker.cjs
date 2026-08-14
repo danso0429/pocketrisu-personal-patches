@@ -211,6 +211,10 @@ function main() {
 try {
     main()
 } catch (error) {
-    process.stderr.write(`${error?.stack ?? error}\n`)
+    process.stderr.write(`${JSON.stringify({
+        code: error?.code ?? null,
+        message: error?.message ?? String(error),
+        stack: error?.stack ?? null,
+    })}\n`)
     process.exitCode = 1
 }
