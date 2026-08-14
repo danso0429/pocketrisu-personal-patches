@@ -136,6 +136,24 @@ TMPDIR=/dev/shm npm run verify:combinations -- \
 CPU and storage capacity. Do not encode one host's worker count as a universal
 default. Record the effective `workers` value from the result.
 
+## Phase 0 evidence wrapper
+
+The opt-in evidence wrapper records the patcher source tree, Git commit/status
+and diff hashes, policy, catalog, checker/core hashes, and the target
+application tree both before and after the unchanged canonical command:
+
+```bash
+npm run verify:combinations:evidence -- \
+  --root /path/to/separate/pristine/PocketRisu \
+  --output /separate/evidence/combination-receipt.json
+```
+
+The output must be outside both frozen input roots and must not already exist.
+The wrapper fails closed on source or target drift, spawn error, signal,
+nonzero exit, empty or malformed output, incomplete raw-mask coverage, or
+noncanonical worker history. This wrapper adds provenance; it does not replace,
+reduce, resume, or alter the canonical Global Exhaustive route.
+
 ## Acceptance and receipt
 
 Do not predict the result. After a zero exit code, record the observed JSON

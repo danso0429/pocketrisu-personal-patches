@@ -1,0 +1,369 @@
+'use strict'
+
+const crypto = require('node:crypto')
+const fs = require('node:fs')
+const path = require('node:path')
+const { spawn } = require('node:child_process')
+
+const TREE_SCHEMA = 'patch-verification-content-tree-v1'
+const FREEZE_SCHEMA = 'patch-verification-input-freeze-v1'
+const MAX_CHILD_OUTPUT_BYTES = 64 * 1024 * 1024
+
+function sha256(value) {
+    return crypto.createHash('sha256').update(value).digest('hex')
+}
+
+function jsonSha256(value) {
+    return sha256(JSON.stringify(value))
+}
+
+function regularFileDescriptor(file) {
+    const stat = fs.lstatSync(file)
+    if (!stat.isFile()) throw new Error(`Evidence input is not a regular file: ${file}`)
+    const content = fs.readFileSync(file)
+    return {
+        type: 'file',
+        mode: stat.mode & 0o7777,
+        size: stat.size,
+        sha256: sha256(content),
+    }
+}
+
+function walkTree(root, relative, entries, inodeMembers, excludedRootEntries) {
+    if (relative && excludedRootEntries.has(relative)) return
+    const absolute = relative ? path.join(root, relative) : root
+    const stat = fs.lstatSync(absolute)
+    if (stat.isDirectory()) {
+        entries.push({
+            path: relative,
+            type: 'directory',
+            mode: stat.mode & 0o7777,
+        })
+        for (const name of fs.readdirSync(absolute).sort()) {
+            const child = relative ? path.join(relative, name) : name
+            if (!relative && excludedRootEntries.has(child)) continue
+            walkTree(root, child, entries, inodeMembers, excludedRootEntries)
+        }
+        return
+    }
+    if (stat.isFile()) {
+        const content = fs.readFileSync(absolute)
+        const inodeKey = `${stat.dev}:${stat.ino}`
+        if (!inodeMembers.has(inodeKey)) inodeMembers.set(inodeKey, [])
+        inodeMembers.get(inodeKey).push(relative)
+        entries.push({
+            path: relative,
+            type: 'file',
+            mode: stat.mode & 0o7777,
+            size: stat.size,
+            sha256: sha256(content),
+            linkCount: stat.nlink,
+            inodeKey,
+        })
+        return
+    }
+    if (stat.isSymbolicLink()) {
+        entries.push({
+            path: relative,
+            type: 'symlink',
+            mode: stat.mode & 0o7777,
+            target: fs.readlinkSync(absolute),
+        })
+        return
+    }
+    throw new Error(`Unsupported evidence input type: ${absolute}`)
+}
+
+function contentTreeDescriptor(root, {
+    excludedRootEntries = ['.git'],
+} = {}) {
+    const absoluteRoot = path.resolve(root)
+    const entries = []
+    const inodeMembers = new Map()
+    walkTree(
+        absoluteRoot,
+        '',
+        entries,
+        inodeMembers,
+        new Set(excludedRootEntries),
+    )
+    const hardlinkGroups = new Map([...inodeMembers].map(([inodeKey, members]) => [
+        inodeKey,
+        members.length > 1 ? sha256(JSON.stringify([...members].sort())) : null,
+    ]))
+    const normalizedEntries = entries.map((entry) => {
+        if (entry.type !== 'file') return entry
+        const { inodeKey, ...rest } = entry
+        return {
+            ...rest,
+            hardlinkGroup: hardlinkGroups.get(inodeKey),
+        }
+    })
+    const identity = {
+        schema: TREE_SCHEMA,
+        exclusions: [...excludedRootEntries].sort(),
+        entries: normalizedEntries,
+    }
+    return {
+        ...identity,
+        entryCount: normalizedEntries.length,
+        rootSha256: jsonSha256(identity),
+    }
+}
+
+async function gitOutput(root, args, { trim = true } = {}) {
+    const result = await runChild(
+        'git',
+        ['--no-pager', '-C', root, ...args],
+        { maxOutputBytes: 64 * 1024 * 1024 },
+    )
+    if (
+        result.spawnError !== null
+        || result.outputError !== null
+        || result.exitCode !== 0
+        || result.signal !== null
+    ) {
+        const detail = result.spawnError?.message
+            ?? result.outputError
+            ?? result.stderr.trim()
+            ?? `exit=${result.exitCode} signal=${result.signal}`
+        throw new Error(`Git evidence command failed: ${detail}`)
+    }
+    return trim ? result.stdout.trim() : result.stdout
+}
+
+async function sourceGitIdentity(root) {
+    return {
+        commit: await gitOutput(root, ['rev-parse', 'HEAD']),
+        branch: await gitOutput(root, ['branch', '--show-current']),
+        status: await gitOutput(
+            root,
+            ['status', '--porcelain=v1', '--untracked-files=all'],
+            { trim: false },
+        ),
+        unstagedDiffSha256: sha256(await gitOutput(
+            root,
+            ['diff', '--binary'],
+            { trim: false },
+        )),
+        stagedDiffSha256: sha256(await gitOutput(
+            root,
+            ['diff', '--cached', '--binary'],
+            { trim: false },
+        )),
+    }
+}
+
+async function sourceFreezeDescriptor(root) {
+    const absoluteRoot = path.resolve(root)
+    const corePaths = [
+        'package.json',
+        'docs/patch-combination-verification-instructions.md',
+        'scripts/verify-all-combinations.cjs',
+        'src/catalog.cjs',
+        'src/compatibility.cjs',
+        'src/resolver.cjs',
+        'src/compose.cjs',
+        'src/manager.cjs',
+    ]
+    return {
+        schema: FREEZE_SCHEMA,
+        applicationTree: contentTreeDescriptor(absoluteRoot),
+        git: await sourceGitIdentity(absoluteRoot),
+        policy: regularFileDescriptor(path.join(
+            absoluteRoot,
+            'docs/patch-combination-verification-instructions.md',
+        )),
+        catalog: contentTreeDescriptor(path.join(absoluteRoot, 'patches'), {
+            excludedRootEntries: [],
+        }),
+        coreFiles: Object.fromEntries(corePaths.map((relative) => [
+            relative,
+            regularFileDescriptor(path.join(absoluteRoot, relative)),
+        ])),
+    }
+}
+
+function targetFreezeDescriptor(root) {
+    return {
+        schema: FREEZE_SCHEMA,
+        applicationTree: contentTreeDescriptor(root),
+    }
+}
+
+async function captureInputFreeze({ sourceRoot, targetRoot }) {
+    return {
+        schema: FREEZE_SCHEMA,
+        source: await sourceFreezeDescriptor(sourceRoot),
+        target: targetFreezeDescriptor(targetRoot),
+    }
+}
+
+function compareInputFreeze(before, after) {
+    const sourceMatched = jsonSha256(before.source) === jsonSha256(after.source)
+    const targetMatched = jsonSha256(before.target) === jsonSha256(after.target)
+    return {
+        sourceMatched,
+        targetMatched,
+        matched: sourceMatched && targetMatched,
+    }
+}
+
+function pathIsInside(candidate, root) {
+    const relative = path.relative(path.resolve(root), path.resolve(candidate))
+    return relative === '' || (!relative.startsWith('..') && !path.isAbsolute(relative))
+}
+
+function assertOutputOutsideInputs(output, roots) {
+    for (const root of roots) {
+        if (pathIsInside(output, root)) {
+            throw new Error(`Evidence output must be outside frozen input root: ${root}`)
+        }
+    }
+}
+
+function parseCanonicalOutput(stdout) {
+    if (typeof stdout !== 'string' || stdout.trim() === '') return null
+    try {
+        const value = JSON.parse(stdout)
+        return value && typeof value === 'object' && !Array.isArray(value) ? value : null
+    } catch {
+        return null
+    }
+}
+
+function validateCanonicalResult(result) {
+    const errors = []
+    if (!result) return ['stdout is not one non-empty JSON object']
+    if (!Number.isSafeInteger(result.rawSelections) || result.rawSelections < 1) {
+        errors.push('rawSelections is not a positive safe integer')
+    }
+    if (result.verifiedSelections !== result.rawSelections) {
+        errors.push('verifiedSelections does not equal rawSelections')
+    }
+    if (result.roundTrips !== 'passed') errors.push('roundTrips is not passed')
+    const history = result.workerHistory
+    if (
+        !history
+        || history.schema !== 'patch-combination-worker-history-v1'
+        || history.schedule !== 'stride-v1'
+        || !Array.isArray(history.workers)
+        || history.workers.length !== result.workers
+    ) {
+        errors.push('worker history metadata is missing or incompatible')
+        return errors
+    }
+    const observed = []
+    for (let workerIndex = 0; workerIndex < history.workers.length; workerIndex += 1) {
+        const worker = history.workers[workerIndex]
+        const expected = []
+        for (let mask = workerIndex; mask < result.rawSelections; mask += result.workers) {
+            expected.push(mask)
+        }
+        if (
+            worker.workerIndex !== workerIndex
+            || JSON.stringify(worker.orderedMasks) !== JSON.stringify(expected)
+        ) {
+            errors.push(`worker ${workerIndex} does not match canonical stride history`)
+        }
+        if (Array.isArray(worker.orderedMasks)) observed.push(...worker.orderedMasks)
+    }
+    const sorted = observed.toSorted((left, right) => left - right)
+    const expectedDomain = Array.from(
+        { length: result.rawSelections ?? 0 },
+        (_, index) => index,
+    )
+    if (JSON.stringify(sorted) !== JSON.stringify(expectedDomain)) {
+        errors.push('worker histories do not cover every raw mask exactly once')
+    }
+    return errors
+}
+
+function runChild(command, args, {
+    cwd,
+    env = process.env,
+    maxOutputBytes = MAX_CHILD_OUTPUT_BYTES,
+} = {}) {
+    return new Promise((resolve) => {
+        const stdoutChunks = []
+        const stderrChunks = []
+        let stdoutBytes = 0
+        let stderrBytes = 0
+        let outputError = null
+        let spawnError = null
+        const child = spawn(command, args, {
+            cwd,
+            env,
+            stdio: ['ignore', 'pipe', 'pipe'],
+        })
+        const collect = (chunks, chunk, stream) => {
+            const bytes = stream === 'stdout' ? stdoutBytes + chunk.length : stderrBytes + chunk.length
+            if (stream === 'stdout') stdoutBytes = bytes
+            else stderrBytes = bytes
+            if (bytes > maxOutputBytes) {
+                outputError ??= `${stream} exceeded ${maxOutputBytes} bytes`
+                child.kill('SIGTERM')
+                return
+            }
+            chunks.push(chunk)
+        }
+        child.stdout.on('data', (chunk) => collect(stdoutChunks, chunk, 'stdout'))
+        child.stderr.on('data', (chunk) => collect(stderrChunks, chunk, 'stderr'))
+        child.once('error', (error) => {
+            spawnError = {
+                code: error.code ?? null,
+                message: error.message,
+            }
+        })
+        child.once('close', (exitCode, signal) => resolve({
+            exitCode,
+            signal,
+            spawnError,
+            outputError,
+            stdout: Buffer.concat(stdoutChunks).toString('utf8'),
+            stderr: Buffer.concat(stderrChunks).toString('utf8'),
+        }))
+    })
+}
+
+function writeJsonAtomic(file, value) {
+    const absolute = path.resolve(file)
+    const parent = path.dirname(absolute)
+    const temporary = path.join(
+        parent,
+        `.${path.basename(absolute)}.${process.pid}.${crypto.randomUUID()}.tmp`,
+    )
+    try {
+        fs.writeFileSync(temporary, `${JSON.stringify(value, null, 2)}\n`, {
+            mode: 0o600,
+            flag: 'wx',
+        })
+        fs.linkSync(temporary, absolute)
+    } finally {
+        try {
+            fs.unlinkSync(temporary)
+        } catch (error) {
+            if (error.code !== 'ENOENT') throw error
+        }
+    }
+}
+
+module.exports = {
+    FREEZE_SCHEMA,
+    MAX_CHILD_OUTPUT_BYTES,
+    TREE_SCHEMA,
+    assertOutputOutsideInputs,
+    captureInputFreeze,
+    compareInputFreeze,
+    contentTreeDescriptor,
+    jsonSha256,
+    parseCanonicalOutput,
+    pathIsInside,
+    regularFileDescriptor,
+    runChild,
+    sha256,
+    sourceFreezeDescriptor,
+    targetFreezeDescriptor,
+    validateCanonicalResult,
+    writeJsonAtomic,
+}
