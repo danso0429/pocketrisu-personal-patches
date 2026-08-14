@@ -475,6 +475,27 @@ zero local masks. It never treats that result as a canonical skip. This command
 does not issue certificates, write production state, change defaults or replace
 the independent Global Exhaustive command.
 
+## Phase 3B compositional theorem audit
+
+Phase 3B encodes eleven required admission premises as an exact,
+machine-readable set. Each premise names its source representation, runtime
+enforcement, concrete evidence hash, independent validator and fail-closed
+action. Missing, duplicate, unknown or unverified premises never admit a
+component. A graph hash change invalidates the old split, and every typed
+boundary input class must be linked to concrete boundary classes executed by
+every participant component.
+
+The independent theorem path validates capability, action-graph and fresh
+shadow receipt hashes without sharing generator caches. It returns only one of
+`component-admitted`, `global-fallback` or `admission-rejected`. A current graph
+that already requires fallback returns `global-fallback` before any local
+admission can be claimed.
+
+The current catalog has no admitted local component and its theorem premises
+remain unverified. `npm run audit:theorem -- ...` therefore records
+`global-fallback`; it does not issue a certificate, skip a canonical mask,
+migrate state, or change the default command.
+
 ## Failure and cleanup
 
 - A nonzero exit, incomplete coverage, changed repeated plan, unexpected
