@@ -1,0 +1,18 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "patch-phase7-qualification-v1",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schema", "status", "scope", "oracleComparison", "shadowResults", "resourceClasses", "adversarialResults", "canonicalProtection", "receiptSha256"],
+  "properties": {
+    "schema": { "const": "patch-phase7-qualification-v1" },
+    "status": { "enum": ["passed-global-only", "failed"] },
+    "scope": { "const": "conservative-global-only-C0" },
+    "oracleComparison": { "type": "object" },
+    "shadowResults": { "type": "object" },
+    "resourceClasses": { "type": "array", "items": { "type": "object" } },
+    "adversarialResults": { "type": "object" },
+    "canonicalProtection": { "type": "object" },
+    "receiptSha256": { "type": "string", "pattern": "^[0-9a-f]{64}$" }
+  }
+}
