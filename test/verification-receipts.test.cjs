@@ -236,7 +236,7 @@ test('status zero with nonempty stderr cannot pass', () => {
 
 test('sealed cache differential receipt verifies all masks and phases', () => {
     const result = {
-        schema: 'patch-verification-cache-differential-v1',
+        schema: 'patch-verification-cache-differential-v2',
         visiblePacks: ['a', 'b'],
         rawSelections: 4,
         verifiedSelections: 4,

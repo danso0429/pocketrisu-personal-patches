@@ -50,7 +50,7 @@ test('cache comparison reports the exact mask and phase on mismatch', () => {
 
 test('cache differential result requires canonical stride and all three phases', () => {
     const result = {
-        schema: 'patch-verification-cache-differential-v1',
+        schema: 'patch-verification-cache-differential-v2',
         visiblePacks: ['a', 'b'],
         rawSelections: 4,
         verifiedSelections: 4,
@@ -88,6 +88,9 @@ test('cache differential result requires canonical stride and all three phases',
         }),
         [],
     )
+    const { scope, ...historical } = result
+    historical.schema = 'patch-verification-cache-differential-v1'
+    assert.deepEqual(validateCacheDifferentialResult(historical), [])
 })
 
 test('cache differential accepts only root, jobs, review, and json options', () => {

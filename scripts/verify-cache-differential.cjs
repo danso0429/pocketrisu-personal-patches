@@ -420,7 +420,7 @@ async function main(argv = process.argv) {
             throw new Error(`Cache differential comparison coverage ${comparisons}/${totalSelections * 3}`)
         }
         result = {
-            schema: 'patch-verification-cache-differential-v1',
+            schema: 'patch-verification-cache-differential-v2',
             target: {
                 packageName: inspected.pkg.name,
                 packageVersion: inspected.pkg.version ?? null,

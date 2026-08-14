@@ -396,7 +396,10 @@ function validateCanonicalResult(result) {
 
 function validateCacheDifferentialResult(result) {
     const errors = []
-    if (result?.schema !== 'patch-verification-cache-differential-v1') {
+    if (![
+        'patch-verification-cache-differential-v1',
+        'patch-verification-cache-differential-v2',
+    ].includes(result?.schema)) {
         errors.push('cache differential schema is missing or incompatible')
         return errors
     }
@@ -409,7 +412,10 @@ function validateCacheDifferentialResult(result) {
     if (result.roundTrips !== 'differential-passed' || result.result !== 'passed') {
         errors.push('cache differential did not report passed round trips')
     }
-    if (JSON.stringify(result.scope) !== JSON.stringify(CACHE_DIFFERENTIAL_SCOPE)) {
+    if (
+        result.schema === 'patch-verification-cache-differential-v2'
+        && JSON.stringify(result.scope) !== JSON.stringify(CACHE_DIFFERENTIAL_SCOPE)
+    ) {
         errors.push('cache differential scope is missing or overstated')
     }
     const expectedPhases = ['initial-plan', 'repeated-plan', 'revert-plan']

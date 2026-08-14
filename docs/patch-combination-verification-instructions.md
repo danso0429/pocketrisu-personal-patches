@@ -324,6 +324,9 @@ worker every phase runs `uncached` then `cached` in one worker thread and thus
 shares its module graph and process/global history. The result must state this
 scope mechanically with `freshIsolated: false`; this differential is neither a
 fresh-isolation proof nor permission to weaken the Global Exhaustive fallback.
+Scope-enforced results use cache-differential schema v2. The standalone
+verifier retains v1 validation only so already-sealed pre-scope receipts remain
+historical evidence rather than being rewritten or discarded.
 
 ## Failure and cleanup
 
