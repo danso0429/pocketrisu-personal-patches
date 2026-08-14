@@ -1,0 +1,25 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "patch-s2-snapshot-v1",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schema", "registry", "records", "canonicalProtection", "snapshotSha256"],
+  "properties": {
+    "schema": { "const": "patch-s2-snapshot-v1" },
+    "registry": { "type": "object" },
+    "records": { "type": "array", "minItems": 1, "items": { "type": "object" } },
+    "canonicalProtection": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["mode", "productionMigrationActivated", "defaultSerializerChanged", "S0FallbackRetained", "certificatesIssued"],
+      "properties": {
+        "mode": { "const": "isolated-audit" },
+        "productionMigrationActivated": { "const": false },
+        "defaultSerializerChanged": { "const": false },
+        "S0FallbackRetained": { "const": true },
+        "certificatesIssued": { "const": 0 }
+      }
+    },
+    "snapshotSha256": { "type": "string", "pattern": "^[0-9a-f]{64}$" }
+  }
+}
