@@ -179,7 +179,7 @@ function publish(storeRoot, identity, entries) {
     }).objects
 }
 
-function createAcceptedQualification(t) {
+function createAcceptedQualification(t, { finalDisposition = 'accepted-qualification' } = {}) {
     const { parent, storeRoot, identity } = storeFixture(t)
     const support = supportRecord()
     const closure = buildMachineClosureReceipt({
@@ -240,6 +240,7 @@ function createAcceptedQualification(t) {
         createdAt: '2026-08-15T10:00:03.000Z', subject,
         contentManifestDescriptorSha256: contentObject.descriptorSha256,
         validationResultDescriptorSha256: validationObject.descriptorSha256,
+        disposition: finalDisposition,
     })
     const [finalObject] = publish(storeRoot, identity, [{
         payloadModel: 'canonical-json', mediaType: 'application/vnd.pocketrisu.qualification-manifest+json',
@@ -256,7 +257,9 @@ function createAcceptedQualification(t) {
     })
     updateCurrentRef(storeRoot, buildCurrentRef({
         storeIdentityHash: identity.storeIdentityHash,
+        registryId: appended.registry.registryId,
         registryDescriptorSha256: registryObject.descriptorSha256,
+        snapshotSequence: appended.registry.snapshotSequence,
         registryRootSha256: appended.registry.registryRootSha256,
         updatedAt: '2026-08-15T10:00:05.000Z',
     }))
@@ -264,30 +267,6 @@ function createAcceptedQualification(t) {
         parent, storeRoot, identity, subject, content, contentObject, supportObject, closureObject,
         localObject, globalObject, validation, validationObject, finalObject, registry: appended.registry, registryObject,
     }
-}
-
-function replaceCurrentWithAcceptedFinal(fixture, finalObject, timestamp) {
-    const appended = appendRegistryEntry({
-        storeIdentityHash: fixture.identity.storeIdentityHash,
-        action: 'accept',
-        subject: fixture.subject,
-        qualificationManifestDescriptorSha256: finalObject.descriptorSha256,
-        reason: 'accepted disposition regression fixture',
-        timestamp,
-    })
-    const registryObject = publishRegistrySnapshot({
-        storeRoot: fixture.storeRoot,
-        registry: appended.registry,
-        qualificationToolCommit: TOOL_COMMIT,
-        createdAt: timestamp,
-    })
-    updateCurrentRef(fixture.storeRoot, buildCurrentRef({
-        storeIdentityHash: fixture.identity.storeIdentityHash,
-        registryDescriptorSha256: registryObject.descriptorSha256,
-        registryRootSha256: appended.registry.registryRootSha256,
-        updatedAt: timestamp,
-    }))
-    return registryObject
 }
 
 test('valid three-stage qualification and current registry verify without optional narrative', (t) => {
@@ -302,6 +281,17 @@ test('valid three-stage qualification and current registry verify without option
         storeRoot: fixture.storeRoot, expectedSubject: fixture.subject, requireCurrentRef: true,
     })
     assert.equal(verified.effectiveEntry.action, 'accept')
+    assert.equal(verified.registryHead.currentRefSnapshotSha256, fixture.registryObject.descriptorSha256)
+    assert.equal(verified.registryHead.verifiedMaximalHeadSha256, fixture.registryObject.descriptorSha256)
+    assert.equal(verified.registryHead.currentRefSequence, 0)
+    assert.equal(verified.registryHead.verifiedMaximalHeadSequence, 0)
+    assert.equal(verified.registryHead.snapshotsDiscovered, 1)
+    assert.equal(verified.registryHead.snapshotsValidated, 1)
+    assert.equal(verified.registryHead.genesisCount, 1)
+    assert.equal(verified.registryHead.maximalHeadCount, 1)
+    assert.equal(verified.registryHead.rollbackDetected, false)
+    assert.equal(verified.registryHead.forkDetected, false)
+    assert.equal(verified.registryHead.invalidSnapshotCount, 0)
     assert.deepEqual(verified.effectiveEntry.operatingCounts, {
         materialOperatingCohort: false, stableRelease: false,
         productionDefectYield: false, candidateOperatingSample: false,
@@ -309,23 +299,8 @@ test('valid three-stage qualification and current registry verify without option
 })
 
 test('accepted registry rejects every non-accepted final manifest disposition', (t) => {
-    for (const [index, disposition] of ['diagnostic', 'incomplete', 'invalid', 'negative', 'superseded'].entries()) {
-        const fixture = createAcceptedQualification(t)
-        const final = buildQualificationManifest({
-            createdAt: `2026-08-15T10:10:0${index}.000Z`,
-            subject: fixture.subject,
-            contentManifestDescriptorSha256: fixture.contentObject.descriptorSha256,
-            validationResultDescriptorSha256: fixture.validationObject.descriptorSha256,
-            disposition,
-        })
-        const [finalObject] = publish(fixture.storeRoot, fixture.identity, [{
-            payloadModel: 'canonical-json',
-            mediaType: 'application/vnd.pocketrisu.qualification-manifest+json',
-            role: 'final-qualification-manifest',
-            referencedSchema: final.schema,
-            value: final,
-        }])
-        replaceCurrentWithAcceptedFinal(fixture, finalObject, `2026-08-15T10:11:0${index}.000Z`)
+    for (const disposition of ['diagnostic', 'incomplete', 'invalid', 'negative', 'superseded']) {
+        const fixture = createAcceptedQualification(t, { finalDisposition: disposition })
         expectCode(() => verifyQualificationRegistry({
             storeRoot: fixture.storeRoot,
             expectedSubject: fixture.subject,
@@ -354,7 +329,9 @@ test('a latest supersession is not a current accepted qualification', (t) => {
     })
     updateCurrentRef(fixture.storeRoot, buildCurrentRef({
         storeIdentityHash: fixture.identity.storeIdentityHash,
+        registryId: superseded.registry.registryId,
         registryDescriptorSha256: registryObject.descriptorSha256,
+        snapshotSequence: superseded.registry.snapshotSequence,
         registryRootSha256: superseded.registry.registryRootSha256,
         updatedAt: '2026-08-15T10:12:01.000Z',
     }))
@@ -460,7 +437,9 @@ test('revoked current evidence is rejected while immutable accepted history rema
     })
     updateCurrentRef(fixture.storeRoot, buildCurrentRef({
         storeIdentityHash: fixture.identity.storeIdentityHash,
+        registryId: revoked.registry.registryId,
         registryDescriptorSha256: revokedObject.descriptorSha256,
+        snapshotSequence: revoked.registry.snapshotSequence,
         registryRootSha256: revoked.registry.registryRootSha256,
         updatedAt: '2026-08-15T10:01:01.000Z',
     }))

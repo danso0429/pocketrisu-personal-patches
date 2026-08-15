@@ -13,11 +13,10 @@ const {
     QUALIFICATION_REGISTRY_SCHEMA,
     CONTENT_MANIFEST_SCHEMA,
     VALIDATION_RESULT_SCHEMA,
-    readCurrentRegistry,
+    resolveVerifiedQualificationRegistryHead,
 } = require('./qualification-registry.cjs')
 const {
     fullSchemaRegistry,
-    verifyRegistryAncestry,
 } = require('./qualification-verifier.cjs')
 const { sealDocument } = require('./verification-receipts.cjs')
 
@@ -113,14 +112,8 @@ function planQualificationRetention({
     const root = identity.rootRealpath
     const legacyBefore = directorySummary(path.join(root, 'objects'))
     const quarantineBefore = quarantineRoots.map((value) => ({ root: path.resolve(value), ...directorySummary(path.resolve(value)) }))
-    const current = readCurrentRegistry(root)
+    const current = resolveVerifiedQualificationRegistryHead(root)
     if (current.registry === null) fail('QUALIFICATION_REGISTRY_MISSING', 'Qualification retention requires an independently rooted current registry')
-    const currentRecord = loadPublishedObject({
-        storeRoot: root,
-        descriptorSha256: current.registryDescriptorSha256,
-        schemaRegistry: fullSchemaRegistry(),
-    })
-    verifyRegistryAncestry(root, currentRecord)
     const descriptorInventory = listContentAddresses(root, 'descriptors', '.json')
     const payloadInventory = listContentAddresses(root, 'payloads')
     const descriptors = new Map()
@@ -129,7 +122,7 @@ function planQualificationRetention({
         descriptors.set(inventory.sha256, { ...inventory, record, references: descriptorReferences(record) })
     }
     const reachableDescriptors = new Set()
-    const pending = [current.registryDescriptorSha256]
+    const pending = current.snapshotRecords.map((record) => record.descriptorSha256)
     while (pending.length > 0) {
         const digest = pending.pop()
         if (!SHA256_PATTERN.test(digest ?? '')) fail('INVALID_RETENTION_REFERENCE', `Invalid descriptor reference: ${digest}`)

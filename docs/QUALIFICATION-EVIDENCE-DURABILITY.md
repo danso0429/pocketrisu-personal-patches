@@ -104,7 +104,18 @@ and a final manifest before appending the dedicated qualification registry.
 The registry is separate from Global execution receipts and operating ledgers.
 
 Registry snapshots are immutable, content-addressed, append-only, and
-hash-chained. Exact duplicate subject/manifest acceptance is idempotent.
+hash-chained. A stable `registryId` binds the store identity, dedicated
+registry namespace, registry schema, and qualification purpose. Each snapshot
+has a zero-based `snapshotSequence`; `baseRegistryDescriptorSha256` is the
+predecessor-snapshot field. Immutable snapshot-index records are published at:
+
+```text
+STORE/v2/registries/qualification/REGISTRY_ID/snapshots/DESCRIPTOR_SHA256.json
+```
+
+The mutable current ref binds the same store and registry identities, snapshot
+schema, descriptor hash, sequence, and entry-root hash. Exact duplicate
+subject/manifest acceptance is idempotent.
 Conflicting acceptance requires an explicit `supersede` entry. Invalidated
 evidence receives an append-only `revoke` entry. Historical snapshots and
 objects remain available. Source, policy, contract, declaration, route, schema,
@@ -139,6 +150,21 @@ semantics, fixture derivation, manifest references, registry ancestry and
 current ref, authority compatibility, count isolation, and production
 protections. Missing, corrupt, truncated, unknown, stale, revoked, superseded,
 or quarantine-only evidence fails closed.
+
+Registry head verification enumerates every immutable snapshot-index record for
+the store's qualification registry, validates the complete predecessor graph,
+requires one genesis and one maximal head, and then requires the mutable current
+ref to identify that head with the exact sequence. A later published descendant,
+a fork, an orphan, an invalid trailing snapshot, or a rolled-back current ref is
+not resolved by timestamp, directory order, or current-ref preference. The
+registrar runs this same verification before append and after current-ref
+publication; the verifier, preflight, and retention planner share it.
+
+This detects rollback while a later immutable snapshot, descendant, fork, or
+integrity trace remains in the accepted store. It does not detect an attacker
+who deletes every later immutable snapshot and every independent checkpoint or
+backup. This subsystem is not a transparency log and has no external monotonic
+witness, signed checkpoint, or cross-host rollback resistance.
 
 ## Read-only operating preflight
 
@@ -187,7 +213,7 @@ root is not registration.
 
 ## Rollback
 
-The four implementation commits are independently revertible in reverse order.
+The implementation commits are independently revertible in reverse order.
 Reverting tooling does not remove durable evidence. Do not delete a store or
 registry as rollback. Preserve it, stop new registration, append a revocation
 with the reviewed tool when appropriate, and retain all negative evidence.

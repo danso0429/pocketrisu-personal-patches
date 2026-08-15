@@ -4,14 +4,17 @@
   "title": "Dedicated qualification evidence registry v1",
   "type": "object",
   "additionalProperties": false,
-  "required": ["schema", "generatedAt", "storeIdentityHash", "baseRegistryDescriptorSha256", "entries", "registryRootSha256", "integrity"],
+  "required": ["schema", "generatedAt", "storeIdentityHash", "registryId", "snapshotSequence", "baseRegistryDescriptorSha256", "entries", "registryRootSha256", "integrity"],
   "properties": {
     "schema": { "const": "patch-qualification-evidence-registry-v1" },
     "generatedAt": { "type": "string", "format": "date-time" },
     "storeIdentityHash": { "type": "string", "pattern": "^[0-9a-f]{64}$" },
+    "registryId": { "type": "string", "pattern": "^[0-9a-f]{64}$" },
+    "snapshotSequence": { "type": "integer", "minimum": 0, "maximum": 9007199254740991 },
     "baseRegistryDescriptorSha256": { "type": ["string", "null"], "pattern": "^[0-9a-f]{64}$" },
     "entries": {
       "type": "array",
+      "minItems": 1,
       "items": {
         "type": "object",
         "additionalProperties": false,

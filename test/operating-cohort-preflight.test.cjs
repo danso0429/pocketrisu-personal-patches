@@ -208,7 +208,9 @@ async function durableChain(t, { finalDisposition = 'accepted-qualification' } =
     })
     updateCurrentRef(storeRoot, buildCurrentRef({
         storeIdentityHash: identity.storeIdentityHash,
+        registryId: appended.registry.registryId,
         registryDescriptorSha256: registryObject.descriptorSha256,
+        snapshotSequence: appended.registry.snapshotSequence,
         registryRootSha256: appended.registry.registryRootSha256,
         updatedAt: '2026-08-15T14:00:05.000Z',
     }))
@@ -348,7 +350,9 @@ test('real registry revocation reaches production preflight and fails closed', a
     })
     updateCurrentRef(fixture.storeRoot, buildCurrentRef({
         storeIdentityHash: require('../src/qualification-object-store.cjs').loadStoreIdentity(fixture.storeRoot).storeIdentityHash,
+        registryId: revoked.registry.registryId,
         registryDescriptorSha256: registryObject.descriptorSha256,
+        snapshotSequence: revoked.registry.snapshotSequence,
         registryRootSha256: revoked.registry.registryRootSha256,
         updatedAt: '2026-08-15T14:01:01.000Z',
     }))

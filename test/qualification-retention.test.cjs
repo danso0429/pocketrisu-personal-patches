@@ -152,7 +152,9 @@ function graphFixture(t, { withUnreachable = true } = {}) {
     })
     updateCurrentRef(storeRoot, buildCurrentRef({
         storeIdentityHash: identity.storeIdentityHash,
+        registryId: appended.registry.registryId,
         registryDescriptorSha256: registryObject.descriptorSha256,
+        snapshotSequence: appended.registry.snapshotSequence,
         registryRootSha256: appended.registry.registryRootSha256,
         updatedAt: CREATED_AT,
     }))
@@ -196,7 +198,9 @@ test('revoked and prior accepted snapshots remain protected through the registry
     })
     updateCurrentRef(fixture.storeRoot, buildCurrentRef({
         storeIdentityHash: fixture.identity.storeIdentityHash,
+        registryId: revoked.registry.registryId,
         registryDescriptorSha256: revokedObject.descriptorSha256,
+        snapshotSequence: revoked.registry.snapshotSequence,
         registryRootSha256: revoked.registry.registryRootSha256,
         updatedAt: '2026-08-15T12:01:01.000Z',
     }))
@@ -222,7 +226,9 @@ test('superseded snapshots and their prior manifest remain retained', (t) => {
     })
     updateCurrentRef(fixture.storeRoot, buildCurrentRef({
         storeIdentityHash: fixture.identity.storeIdentityHash,
+        registryId: superseded.registry.registryId,
         registryDescriptorSha256: supersededObject.descriptorSha256,
+        snapshotSequence: superseded.registry.snapshotSequence,
         registryRootSha256: superseded.registry.registryRootSha256,
         updatedAt: '2026-08-15T12:02:01.000Z',
     }))

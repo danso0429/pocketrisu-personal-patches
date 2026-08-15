@@ -33,7 +33,7 @@ const {
     QUALIFICATION_REGISTRY_SCHEMA,
     VALIDATION_RESULT_SCHEMA,
     effectiveRegistryEntry,
-    readCurrentRegistry,
+    resolveVerifiedQualificationRegistryHead,
     registrySchemaRegistry,
     validateContentManifest,
     validateQualificationManifest,
@@ -314,6 +314,8 @@ function verifyRegistryAncestry(storeRoot, registryRecord, seen = new Set()) {
     })
     const base = validateRegistry(baseRecord.document)
     if (base.storeIdentityHash !== registry.storeIdentityHash
+        || base.registryId !== registry.registryId
+        || registry.snapshotSequence !== base.snapshotSequence + 1
         || base.entries.length + 1 !== registry.entries.length
         || !canonicalJsonBytes(base.entries).equals(canonicalJsonBytes(registry.entries.slice(0, -1)))) {
         fail('BROKEN_QUALIFICATION_REGISTRY_ANCESTRY', 'Qualification registry base is not the exact prior snapshot')
@@ -328,22 +330,13 @@ function verifyQualificationRegistry({
     requireCurrentRef = false,
     subjectRoot,
 }) {
-    let registryRecord
-    let current = null
-    if (registryDescriptorSha256 === null) {
-        current = readCurrentRegistry(storeRoot)
-        if (current.registry === null) fail('QUALIFICATION_REGISTRY_MISSING', 'Qualification registry current ref is missing')
-        registryDescriptorSha256 = current.registryDescriptorSha256
-        registryRecord = loadObject(storeRoot, registryDescriptorSha256)
-    } else {
-        registryRecord = loadObject(storeRoot, registryDescriptorSha256)
-        if (requireCurrentRef) {
-            current = readCurrentRegistry(storeRoot)
-            if (current.registryDescriptorSha256 !== registryDescriptorSha256) {
-                fail('STALE_QUALIFICATION_CURRENT_REF', 'Registry descriptor is not the current accepted registry')
-            }
-        }
+    const verifiedHead = resolveVerifiedQualificationRegistryHead(storeRoot)
+    if (registryDescriptorSha256 !== null
+        && registryDescriptorSha256 !== verifiedHead.registryDescriptorSha256) {
+        fail('STALE_QUALIFICATION_CURRENT_REF', 'Registry descriptor is not the verified maximal registry head', verifiedHead.metrics)
     }
+    registryDescriptorSha256 = verifiedHead.registryDescriptorSha256
+    const registryRecord = verifiedHead.snapshotRecords.find((record) => record.descriptorSha256 === registryDescriptorSha256).loaded
     assertDescriptor(registryRecord, {
         role: 'qualification-registry-snapshot',
         payloadModel: 'canonical-json',
@@ -380,7 +373,8 @@ function verifyQualificationRegistry({
         effectiveEntry: effective.entry,
         qualification,
         ancestryDescriptors,
-        currentRefVerified: requireCurrentRef,
+        currentRefVerified: true,
+        registryHead: verifiedHead.metrics,
     }
 }
 

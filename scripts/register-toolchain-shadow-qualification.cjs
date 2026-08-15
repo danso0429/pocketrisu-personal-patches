@@ -17,8 +17,8 @@ const {
     buildCurrentRef,
     buildQualificationManifest,
     publishRegistrySnapshot,
-    readCurrentRegistry,
     registrySchemaRegistry,
+    resolveVerifiedQualificationRegistryHead,
     updateCurrentRef,
     validateValidationResult,
 } = require('../src/qualification-registry.cjs')
@@ -271,7 +271,7 @@ async function main(argv = process.argv) {
             '--tool-root', options.toolRoot,
             '--subject-root', options.subjectRoot,
         ])
-        const current = readCurrentRegistry(options.storeRoot)
+        const current = resolveVerifiedQualificationRegistryHead(options.storeRoot, { allowEmpty: true })
         const appended = appendRegistryEntry({
             baseRegistry: current.registry,
             baseRegistryDescriptorSha256: current.registryDescriptorSha256,
@@ -293,21 +293,20 @@ async function main(argv = process.argv) {
                 createdAt,
             })
         }
-        await runIndependentVerifier([
-            '--store', options.storeRoot,
-            '--registry', registryObject.descriptorSha256,
-            '--subject', subjectFile,
-            '--tool-root', options.toolRoot,
-            '--subject-root', options.subjectRoot,
-        ])
         const registry = appended.registry
         if (!appended.idempotent) {
             updateCurrentRef(options.storeRoot, buildCurrentRef({
                 storeIdentityHash: identity.storeIdentityHash,
+                registryId: registry.registryId,
                 registryDescriptorSha256: registryObject.descriptorSha256,
+                snapshotSequence: registry.snapshotSequence,
                 registryRootSha256: registry.registryRootSha256,
                 updatedAt: createdAt,
             }))
+        }
+        const verifiedHead = resolveVerifiedQualificationRegistryHead(options.storeRoot)
+        if (verifiedHead.registryDescriptorSha256 !== registryObject.descriptorSha256) {
+            throw new Error('Published registry snapshot is not the unique verified maximal head')
         }
         await runIndependentVerifier([
             '--store', options.storeRoot,
@@ -327,6 +326,9 @@ async function main(argv = process.argv) {
             qualificationManifestDescriptorSha256: finalObject.descriptorSha256,
             registryDescriptorSha256: registryObject.descriptorSha256,
             registryRootSha256: registry.registryRootSha256,
+            registryId: registry.registryId,
+            snapshotSequence: registry.snapshotSequence,
+            verifiedRegistryHead: verifiedHead.metrics,
             entryId: appended.entry.entryId,
             operatingLedgerChanged: false,
             operatingCounts: appended.entry.operatingCounts,

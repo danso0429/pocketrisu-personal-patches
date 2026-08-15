@@ -10,6 +10,7 @@ const {
 } = require('./verification-receipts.cjs')
 const {
     canonicalJsonBytes,
+    durablePublishExact,
     loadPublishedObject,
     loadStoreIdentity,
     parseJsonStrict,
@@ -27,6 +28,8 @@ const VALIDATION_RESULT_SCHEMA = 'patch-qualification-validation-result-v1'
 const QUALIFICATION_MANIFEST_SCHEMA = 'patch-qualification-manifest-v1'
 const QUALIFICATION_REGISTRY_SCHEMA = 'patch-qualification-evidence-registry-v1'
 const CURRENT_REF_SCHEMA = 'patch-qualification-registry-current-ref-v1'
+const REGISTRY_ID_SCHEMA = 'patch-qualification-registry-identity-v1'
+const SNAPSHOT_REF_SCHEMA = 'patch-qualification-registry-snapshot-ref-v1'
 const ACCEPTED_PURPOSE = 'prerequisite-for-material-shadow-cohort-collection'
 const DISPOSITIONS = Object.freeze([
     'accepted-qualification', 'diagnostic', 'negative', 'incomplete', 'invalid', 'superseded',
@@ -73,6 +76,17 @@ function validateSha(value, label, nullable = false) {
     if (nullable && value === null) return value
     if (!SHA256_PATTERN.test(value ?? '')) fail('INVALID_QUALIFICATION_HASH', `${label} is not a SHA-256 digest`)
     return value
+}
+
+function qualificationRegistryId(storeIdentityHash) {
+    validateSha(storeIdentityHash, 'registry identity store hash')
+    return sha256(canonicalJsonBytes({
+        schema: REGISTRY_ID_SCHEMA,
+        storeIdentityHash,
+        registryNamespace: 'v2/registries/qualification',
+        registrySchema: QUALIFICATION_REGISTRY_SCHEMA,
+        purpose: ACCEPTED_PURPOSE,
+    }))
 }
 
 function validateSubject(subject) {
@@ -324,13 +338,21 @@ function validateRegistry(registry) {
         fail('INVALID_QUALIFICATION_REGISTRY', 'Qualification registry schema or integrity is invalid')
     }
     exactKeys(registry, [
-        'schema', 'generatedAt', 'storeIdentityHash', 'baseRegistryDescriptorSha256',
-        'entries', 'registryRootSha256', 'integrity',
+        'schema', 'generatedAt', 'storeIdentityHash', 'registryId', 'snapshotSequence',
+        'baseRegistryDescriptorSha256', 'entries', 'registryRootSha256', 'integrity',
     ], 'qualification registry')
     validateSha(registry.storeIdentityHash, 'registry store identity')
+    validateSha(registry.registryId, 'registry ID')
     validateSha(registry.baseRegistryDescriptorSha256, 'base registry descriptor', true)
-    if (!Array.isArray(registry.entries) || Number.isNaN(Date.parse(registry.generatedAt))) {
+    if (registry.registryId !== qualificationRegistryId(registry.storeIdentityHash)
+        || !Number.isSafeInteger(registry.snapshotSequence) || registry.snapshotSequence < 0
+        || !Array.isArray(registry.entries) || registry.entries.length === 0
+        || registry.snapshotSequence !== registry.entries.length - 1
+        || Number.isNaN(Date.parse(registry.generatedAt))) {
         fail('INVALID_QUALIFICATION_REGISTRY', 'Qualification registry entries or timestamp are invalid')
+    }
+    if ((registry.snapshotSequence === 0) !== (registry.baseRegistryDescriptorSha256 === null)) {
+        fail('BROKEN_QUALIFICATION_REGISTRY_ANCESTRY', 'Registry genesis and predecessor fields disagree')
     }
     let previous = null
     const entryIds = new Set()
@@ -420,6 +442,8 @@ function appendRegistryEntry({
         schema: QUALIFICATION_REGISTRY_SCHEMA,
         generatedAt: timestamp,
         storeIdentityHash,
+        registryId: qualificationRegistryId(storeIdentityHash),
+        snapshotSequence: baseRegistry === null ? 0 : baseRegistry.snapshotSequence + 1,
         baseRegistryDescriptorSha256,
         entries,
         registryRootSha256: entry.entrySha256,
@@ -440,23 +464,46 @@ function currentRefPath(storeRoot) {
     return path.join(path.resolve(storeRoot), 'v2/refs/qualification/current.json')
 }
 
-function buildCurrentRef({ storeIdentityHash, registryDescriptorSha256, registryRootSha256, updatedAt }) {
+function buildCurrentRef({
+    storeIdentityHash,
+    registryId,
+    registryDescriptorSha256,
+    snapshotSequence,
+    registryRootSha256,
+    updatedAt,
+}) {
     validateSha(storeIdentityHash, 'current ref store identity')
+    validateSha(registryId, 'current ref registry ID')
     validateSha(registryDescriptorSha256, 'current ref registry descriptor')
     validateSha(registryRootSha256, 'current ref registry root')
+    if (registryId !== qualificationRegistryId(storeIdentityHash)
+        || !Number.isSafeInteger(snapshotSequence) || snapshotSequence < 0) {
+        fail('INVALID_QUALIFICATION_CURRENT_REF', 'Qualification current ref registry identity or sequence is invalid')
+    }
     return sealDocument({
         schema: CURRENT_REF_SCHEMA,
         storeIdentityHash,
+        registryId,
+        registrySchema: QUALIFICATION_REGISTRY_SCHEMA,
         registryDescriptorSha256,
+        snapshotSequence,
         registryRootSha256,
         updatedAt,
     })
 }
 
 function validateCurrentRef(reference) {
+    exactKeys(reference, [
+        'schema', 'storeIdentityHash', 'registryId', 'registrySchema', 'registryDescriptorSha256',
+        'snapshotSequence', 'registryRootSha256', 'updatedAt', 'integrity',
+    ], 'qualification current ref')
     if (!verifyDocumentIntegrity(reference) || reference.schema !== CURRENT_REF_SCHEMA
         || !SHA256_PATTERN.test(reference.storeIdentityHash ?? '')
+        || !SHA256_PATTERN.test(reference.registryId ?? '')
+        || reference.registryId !== qualificationRegistryId(reference.storeIdentityHash)
+        || reference.registrySchema !== QUALIFICATION_REGISTRY_SCHEMA
         || !SHA256_PATTERN.test(reference.registryDescriptorSha256 ?? '')
+        || !Number.isSafeInteger(reference.snapshotSequence) || reference.snapshotSequence < 0
         || !SHA256_PATTERN.test(reference.registryRootSha256 ?? '')
         || Number.isNaN(Date.parse(reference.updatedAt))) {
         fail('INVALID_QUALIFICATION_CURRENT_REF', 'Qualification current ref is invalid')
@@ -464,22 +511,17 @@ function validateCurrentRef(reference) {
     return reference
 }
 
-function readCurrentRegistry(storeRoot) {
+function readCurrentRef(storeRoot) {
     const identity = loadStoreIdentity(storeRoot)
     const file = currentRefPath(storeRoot)
-    if (!fs.existsSync(file)) return { identity, reference: null, registry: null, registryDescriptorSha256: null }
+    if (!fs.existsSync(file)) return { identity, reference: null }
+    const stat = fs.lstatSync(file)
+    if (!stat.isFile() || stat.isSymbolicLink()) fail('INVALID_QUALIFICATION_CURRENT_REF', 'Qualification current ref is not a regular file')
     const encoded = fs.readFileSync(file)
     const reference = validateCurrentRef(parseJsonStrict(encoded, 'qualification current ref'))
     if (!encoded.equals(canonicalJsonBytes(reference))) fail('NONCANONICAL_CURRENT_REF', 'Qualification current ref is not canonical JSON')
     if (reference.storeIdentityHash !== identity.storeIdentityHash) fail('STORE_IDENTITY_MISMATCH', 'Qualification current ref belongs to another store')
-    const loaded = loadPublishedObject({
-        storeRoot,
-        descriptorSha256: reference.registryDescriptorSha256,
-        schemaRegistry: registrySchemaRegistry(),
-    })
-    const registry = validateRegistry(loaded.document)
-    if (registry.registryRootSha256 !== reference.registryRootSha256) fail('BROKEN_QUALIFICATION_REGISTRY_CHAIN', 'Current ref registry root mismatch')
-    return { identity, reference, registry, registryDescriptorSha256: reference.registryDescriptorSha256 }
+    return { identity, reference }
 }
 
 function fsyncDirectory(directory) {
@@ -512,6 +554,247 @@ function updateCurrentRef(storeRoot, reference) {
     return reference
 }
 
+function snapshotNamespaceRoot(identity, registryId = qualificationRegistryId(identity.storeIdentityHash)) {
+    validateSha(registryId, 'snapshot namespace registry ID')
+    return path.join(identity.rootRealpath, identity.registryNamespace, registryId, 'snapshots')
+}
+
+function snapshotRefPath(identity, registryDescriptorSha256, registryId = qualificationRegistryId(identity.storeIdentityHash)) {
+    validateSha(registryDescriptorSha256, 'snapshot descriptor')
+    return path.join(snapshotNamespaceRoot(identity, registryId), `${registryDescriptorSha256}.json`)
+}
+
+function buildSnapshotRef({ identity, registry, registryDescriptorSha256 }) {
+    validateRegistry(registry)
+    if (registry.storeIdentityHash !== identity.storeIdentityHash
+        || registry.registryId !== qualificationRegistryId(identity.storeIdentityHash)) {
+        fail('STORE_IDENTITY_MISMATCH', 'Registry snapshot belongs to another store or registry')
+    }
+    validateSha(registryDescriptorSha256, 'snapshot descriptor')
+    return sealDocument({
+        schema: SNAPSHOT_REF_SCHEMA,
+        storeIdentityHash: identity.storeIdentityHash,
+        registryId: registry.registryId,
+        registrySchema: QUALIFICATION_REGISTRY_SCHEMA,
+        registryDescriptorSha256,
+        snapshotSequence: registry.snapshotSequence,
+        previousSnapshotSha256: registry.baseRegistryDescriptorSha256,
+    })
+}
+
+function validateSnapshotRef(reference, identity, expectedDescriptorSha256) {
+    exactKeys(reference, [
+        'schema', 'storeIdentityHash', 'registryId', 'registrySchema', 'registryDescriptorSha256',
+        'snapshotSequence', 'previousSnapshotSha256', 'integrity',
+    ], 'qualification registry snapshot ref')
+    if (!verifyDocumentIntegrity(reference) || reference.schema !== SNAPSHOT_REF_SCHEMA
+        || reference.storeIdentityHash !== identity.storeIdentityHash
+        || reference.registryId !== qualificationRegistryId(identity.storeIdentityHash)
+        || reference.registrySchema !== QUALIFICATION_REGISTRY_SCHEMA
+        || reference.registryDescriptorSha256 !== expectedDescriptorSha256
+        || !Number.isSafeInteger(reference.snapshotSequence) || reference.snapshotSequence < 0) {
+        fail('INVALID_QUALIFICATION_REGISTRY_SNAPSHOT', 'Qualification registry snapshot ref is invalid')
+    }
+    validateSha(reference.previousSnapshotSha256, 'snapshot ref predecessor', true)
+    if (reference.previousSnapshotSha256 === expectedDescriptorSha256) {
+        fail('CYCLIC_QUALIFICATION_REGISTRY', 'Registry snapshot ref is self-parented')
+    }
+    return reference
+}
+
+function publishSnapshotRef(storeRoot, registry, registryDescriptorSha256) {
+    const identity = loadStoreIdentity(storeRoot)
+    const reference = buildSnapshotRef({ identity, registry, registryDescriptorSha256 })
+    const registryDirectory = path.dirname(snapshotNamespaceRoot(identity, registry.registryId))
+    if (!fs.existsSync(registryDirectory)) {
+        try {
+            fs.mkdirSync(registryDirectory, { mode: 0o700 })
+            fsyncDirectory(path.dirname(registryDirectory))
+        } catch (error) {
+            if (error.code !== 'EEXIST') throw error
+        }
+    }
+    const registryDirectoryStat = fs.lstatSync(registryDirectory)
+    if (!registryDirectoryStat.isDirectory() || registryDirectoryStat.isSymbolicLink()
+        || registryDirectoryStat.uid !== process.geteuid() || (registryDirectoryStat.mode & 0o077) !== 0) {
+        fail('INVALID_QUALIFICATION_REGISTRY_NAMESPACE', 'Registry identity namespace is not an owned private directory')
+    }
+    const file = snapshotRefPath(identity, registryDescriptorSha256, registry.registryId)
+    durablePublishExact(file, canonicalJsonBytes(reference), path.join(identity.rootRealpath, 'v2/tmp'))
+    return { path: file, reference }
+}
+
+function enumerateRegistrySnapshots(storeRoot) {
+    const identity = loadStoreIdentity(storeRoot)
+    const registryId = qualificationRegistryId(identity.storeIdentityHash)
+    const registryNamespace = path.join(identity.rootRealpath, identity.registryNamespace)
+    for (const name of fs.readdirSync(registryNamespace).sort()) {
+        if (!SHA256_PATTERN.test(name)) {
+            fail('QUALIFICATION_REGISTRY_INTEGRITY_ERROR', `Unexpected registry identity namespace entry: ${name}`, { invalidSnapshotCount: 1 })
+        }
+        const directory = path.join(registryNamespace, name)
+        const stat = fs.lstatSync(directory)
+        if (!stat.isDirectory() || stat.isSymbolicLink()) {
+            fail('QUALIFICATION_REGISTRY_INTEGRITY_ERROR', `Registry identity namespace is not a regular directory: ${directory}`, { invalidSnapshotCount: 1 })
+        }
+    }
+    const namespace = snapshotNamespaceRoot(identity, registryId)
+    if (!fs.existsSync(namespace)) return { identity, registryId, snapshots: new Map() }
+    const namespaceStat = fs.lstatSync(namespace)
+    if (!namespaceStat.isDirectory() || namespaceStat.isSymbolicLink()) {
+        fail('QUALIFICATION_REGISTRY_INTEGRITY_ERROR', 'Qualification snapshot namespace is not a regular directory', { invalidSnapshotCount: 1 })
+    }
+    const snapshots = new Map()
+    for (const name of fs.readdirSync(namespace).sort()) {
+        const match = /^([0-9a-f]{64})\.json$/.exec(name)
+        if (!match) fail('QUALIFICATION_REGISTRY_INTEGRITY_ERROR', `Unexpected qualification snapshot entry: ${name}`, { invalidSnapshotCount: 1 })
+        const descriptorSha256 = match[1]
+        const file = path.join(namespace, name)
+        const stat = fs.lstatSync(file)
+        if (!stat.isFile() || stat.isSymbolicLink()) {
+            fail('QUALIFICATION_REGISTRY_INTEGRITY_ERROR', `Qualification snapshot ref is not a regular file: ${file}`, { invalidSnapshotCount: 1 })
+        }
+        try {
+            const bytes = fs.readFileSync(file)
+            const reference = validateSnapshotRef(parseJsonStrict(bytes, 'qualification registry snapshot ref'), identity, descriptorSha256)
+            if (!bytes.equals(canonicalJsonBytes(reference))) fail('NONCANONICAL_REGISTRY_SNAPSHOT_REF', 'Registry snapshot ref is not canonical JSON')
+            const loaded = loadPublishedObject({
+                storeRoot,
+                descriptorSha256,
+                schemaRegistry: registrySchemaRegistry(),
+            })
+            for (const [label, objectPath] of [
+                ['descriptor', loaded.descriptorPath],
+                ['payload', loaded.payloadPath],
+            ]) {
+                const objectStat = fs.lstatSync(objectPath)
+                if (!objectStat.isFile() || objectStat.isSymbolicLink()) {
+                    fail('INVALID_QUALIFICATION_REGISTRY_SNAPSHOT', `Registry snapshot ${label} is not a regular file`)
+                }
+            }
+            if (loaded.descriptor.role !== 'qualification-registry-snapshot'
+                || loaded.descriptor.payloadModel !== 'canonical-json'
+                || loaded.descriptor.mediaType !== 'application/vnd.pocketrisu.qualification-registry+json'
+                || loaded.descriptor.referencedSchema !== QUALIFICATION_REGISTRY_SCHEMA) {
+                fail('INVALID_QUALIFICATION_REGISTRY_SNAPSHOT', 'Registry snapshot descriptor role or type is invalid')
+            }
+            const registry = validateRegistry(loaded.document)
+            if (registry.storeIdentityHash !== identity.storeIdentityHash
+                || registry.registryId !== registryId
+                || registry.snapshotSequence !== reference.snapshotSequence
+                || registry.baseRegistryDescriptorSha256 !== reference.previousSnapshotSha256) {
+                fail('INVALID_QUALIFICATION_REGISTRY_SNAPSHOT', 'Registry snapshot and immutable ref disagree')
+            }
+            snapshots.set(descriptorSha256, { descriptorSha256, file, reference, registry, loaded })
+        } catch (error) {
+            if (error.code === 'QUALIFICATION_REGISTRY_INTEGRITY_ERROR') throw error
+            fail('QUALIFICATION_REGISTRY_INTEGRITY_ERROR', `Invalid qualification registry snapshot ${descriptorSha256}`, {
+                invalidSnapshotCount: 1,
+                causeCode: error.code ?? null,
+                causeMessage: error.message,
+            })
+        }
+    }
+    return { identity, registryId, snapshots }
+}
+
+function resolveVerifiedQualificationRegistryHead(storeRoot, { allowEmpty = false } = {}) {
+    const { identity, registryId, snapshots } = enumerateRegistrySnapshots(storeRoot)
+    const { reference } = readCurrentRef(storeRoot)
+    const metrics = {
+        registryId,
+        currentRefSnapshotSha256: reference?.registryDescriptorSha256 ?? null,
+        currentRefSequence: reference?.snapshotSequence ?? null,
+        verifiedMaximalHeadSha256: null,
+        verifiedMaximalHeadSequence: null,
+        snapshotsDiscovered: snapshots.size,
+        snapshotsValidated: snapshots.size,
+        genesisCount: 0,
+        maximalHeadCount: 0,
+        rollbackDetected: false,
+        forkDetected: false,
+        invalidSnapshotCount: 0,
+    }
+    if (snapshots.size === 0) {
+        if (reference !== null) fail('QUALIFICATION_REGISTRY_HEAD_MISSING', 'Current ref names a registry with no immutable snapshot', metrics)
+        if (allowEmpty) return { identity, reference: null, registryId, registry: null, registryDescriptorSha256: null, snapshotRecords: [], metrics }
+        fail('QUALIFICATION_REGISTRY_MISSING', 'Qualification registry has no immutable snapshots', metrics)
+    }
+    const children = new Map([...snapshots.keys()].map((digest) => [digest, []]))
+    const genesis = []
+    for (const record of snapshots.values()) {
+        const predecessor = record.registry.baseRegistryDescriptorSha256
+        if (predecessor === record.descriptorSha256) fail('CYCLIC_QUALIFICATION_REGISTRY', 'Registry snapshot is its own predecessor', metrics)
+        if (predecessor === null) {
+            genesis.push(record)
+            if (record.registry.snapshotSequence !== 0) fail('QUALIFICATION_REGISTRY_SEQUENCE_MISMATCH', 'Genesis snapshot sequence is not zero', metrics)
+            continue
+        }
+        const parent = snapshots.get(predecessor)
+        if (!parent) fail('MISSING_QUALIFICATION_REGISTRY_BASE', 'Registry snapshot predecessor is missing', { ...metrics, snapshot: record.descriptorSha256, predecessor })
+        if (record.registry.snapshotSequence !== parent.registry.snapshotSequence + 1) {
+            fail('QUALIFICATION_REGISTRY_SEQUENCE_MISMATCH', 'Registry snapshot sequence is not predecessor sequence plus one', metrics)
+        }
+        if (parent.registry.entries.length + 1 !== record.registry.entries.length
+            || !canonicalJsonBytes(parent.registry.entries).equals(canonicalJsonBytes(record.registry.entries.slice(0, -1)))) {
+            fail('BROKEN_QUALIFICATION_REGISTRY_ANCESTRY', 'Registry snapshot is not the exact append-only successor', metrics)
+        }
+        children.get(predecessor).push(record.descriptorSha256)
+    }
+    metrics.genesisCount = genesis.length
+    if (genesis.length !== 1) fail('QUALIFICATION_REGISTRY_GENESIS_COUNT', 'Registry history must contain exactly one genesis', metrics)
+    const visited = new Set()
+    const visiting = new Set()
+    function visit(digest) {
+        if (visiting.has(digest)) fail('CYCLIC_QUALIFICATION_REGISTRY', 'Qualification registry contains a cycle', metrics)
+        if (visited.has(digest)) return
+        visiting.add(digest)
+        for (const child of children.get(digest)) visit(child)
+        visiting.delete(digest)
+        visited.add(digest)
+    }
+    visit(genesis[0].descriptorSha256)
+    if (visited.size !== snapshots.size) fail('DISCONNECTED_QUALIFICATION_REGISTRY', 'Registry snapshot is not connected to the unique genesis', metrics)
+    const heads = [...snapshots.values()].filter((record) => children.get(record.descriptorSha256).length === 0)
+    metrics.maximalHeadCount = heads.length
+    if (heads.length !== 1) {
+        metrics.forkDetected = heads.length > 1
+        fail('QUALIFICATION_REGISTRY_FORK', 'Qualification registry does not have one unique maximal head', metrics)
+    }
+    const head = heads[0]
+    metrics.verifiedMaximalHeadSha256 = head.descriptorSha256
+    metrics.verifiedMaximalHeadSequence = head.registry.snapshotSequence
+    if (reference === null) fail('STALE_QUALIFICATION_CURRENT_REF', 'Immutable registry snapshot exists without a current ref', metrics)
+    if (reference.registryId !== registryId || reference.storeIdentityHash !== identity.storeIdentityHash
+        || reference.registrySchema !== QUALIFICATION_REGISTRY_SCHEMA) {
+        fail('INVALID_QUALIFICATION_CURRENT_REF', 'Current ref registry identity is incompatible', metrics)
+    }
+    if (!snapshots.has(reference.registryDescriptorSha256)) {
+        fail('INVALID_QUALIFICATION_CURRENT_REF', 'Current ref does not name an immutable registry snapshot', metrics)
+    }
+    if (reference.registryDescriptorSha256 !== head.descriptorSha256) {
+        metrics.rollbackDetected = true
+        fail('QUALIFICATION_REGISTRY_HEAD_ROLLBACK', 'Qualification current ref does not name the unique maximal head', metrics)
+    }
+    if (reference.snapshotSequence !== head.registry.snapshotSequence
+        || reference.registryRootSha256 !== head.registry.registryRootSha256) {
+        fail('QUALIFICATION_REGISTRY_CURRENT_REF_MISMATCH', 'Current ref metadata differs from the maximal head', metrics)
+    }
+    return {
+        identity,
+        reference,
+        registryId,
+        registry: head.registry,
+        registryDescriptorSha256: head.descriptorSha256,
+        snapshotRecords: [...snapshots.values()],
+        metrics,
+    }
+}
+
+function readCurrentRegistry(storeRoot) {
+    return resolveVerifiedQualificationRegistryHead(storeRoot, { allowEmpty: true })
+}
+
 function publishRegistrySnapshot({ storeRoot, registry, qualificationToolCommit, createdAt }) {
     validateRegistry(registry)
     const publication = publishEvidenceBatch({
@@ -528,7 +811,9 @@ function publishRegistrySnapshot({ storeRoot, registry, qualificationToolCommit,
         publisherToolIdentity: { qualificationToolCommit },
         createdAt,
     })
-    return publication.objects[0]
+    const object = publication.objects[0]
+    publishSnapshotRef(storeRoot, registry, object.descriptorSha256)
+    return object
 }
 
 module.exports = {
@@ -541,20 +826,27 @@ module.exports = {
     OPERATING_COUNTS,
     QUALIFICATION_MANIFEST_SCHEMA,
     QUALIFICATION_REGISTRY_SCHEMA,
+    REGISTRY_ID_SCHEMA,
+    SNAPSHOT_REF_SCHEMA,
     QualificationRegistryError,
     VALIDATION_RESULT_SCHEMA,
     appendRegistryEntry,
     buildContentManifest,
     buildCurrentRef,
+    buildSnapshotRef,
     buildQualificationManifest,
     buildValidationResult,
     effectiveRegistryEntry,
+    enumerateRegistrySnapshots,
     publishRegistrySnapshot,
+    qualificationRegistryId,
     readCurrentRegistry,
+    resolveVerifiedQualificationRegistryHead,
     registrySchemaRegistry,
     updateCurrentRef,
     validateContentManifest,
     validateCurrentRef,
+    validateSnapshotRef,
     validateQualificationManifest,
     validateRegistry,
     validateRegistryEntry,

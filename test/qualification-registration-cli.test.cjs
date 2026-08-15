@@ -7,10 +7,16 @@ const path = require('node:path')
 const test = require('node:test')
 const {
     canonicalJsonBytes,
+    loadStoreIdentity,
     parseJsonStrict,
     sha256,
 } = require('../src/qualification-object-store.cjs')
 const { parseArgs } = require('../scripts/register-toolchain-shadow-qualification.cjs')
+const {
+    appendRegistryEntry,
+    publishRegistrySnapshot,
+    resolveVerifiedQualificationRegistryHead,
+} = require('../src/qualification-registry.cjs')
 const {
     BUILD_BOUNDARY_CLASS,
     CANONICAL_TARGET_TREE_SHA256,
@@ -311,7 +317,7 @@ test('actual registration CLI accepts the formerly failing invocation and uses o
     fs.writeFileSync(files.event, '{"event":"supporting-source"}\n', { mode: 0o600 })
     fs.writeFileSync(files.environment, 'task-scoped fixture environment\n', { mode: 0o600 })
 
-    const registered = await runChild(process.execPath, [
+    const registrationArguments = [
         registrationScript,
         '--store', storeRoot,
         '--support', files.support,
@@ -324,12 +330,16 @@ test('actual registration CLI accepts the formerly failing invocation and uses o
         '--tool-root', repositoryRoot,
         '--subject-root', subjectRoot,
         '--reason', 'qualification parser production-path regression',
-    ], { cwd: repositoryRoot, maxOutputBytes: 32 * 1024 * 1024 })
+    ]
+    const registered = await runChild(process.execPath, registrationArguments, { cwd: repositoryRoot, maxOutputBytes: 32 * 1024 * 1024 })
     const report = await requireSuccessfulJsonChild(registered, 'qualification registration')
     assert.equal(report.registered, true)
     assert.equal(report.subjectImplementationCommit, SUBJECT_IMPLEMENTATION_COMMIT)
     assert.equal(report.qualificationToolCommit, toolCommit)
     assert.equal(report.operatingLedgerChanged, false)
+    assert.equal(report.snapshotSequence, 0)
+    assert.equal(report.verifiedRegistryHead.maximalHeadCount, 1)
+    assert.equal(report.verifiedRegistryHead.verifiedMaximalHeadSha256, report.registryDescriptorSha256)
     assert.deepEqual(report.operatingCounts, {
         materialOperatingCohort: false,
         stableRelease: false,
@@ -338,4 +348,30 @@ test('actual registration CLI accepts the formerly failing invocation and uses o
     })
     assert.equal(fs.existsSync(path.join(storeRoot, 'v2/refs/qualification/current.json')), true)
     assert.equal(fs.existsSync(realStoreRoot), false, 'registration must not initialize the real accepted store')
+
+    const current = resolveVerifiedQualificationRegistryHead(storeRoot)
+    const descendant = appendRegistryEntry({
+        baseRegistry: current.registry,
+        baseRegistryDescriptorSha256: current.registryDescriptorSha256,
+        storeIdentityHash: loadStoreIdentity(storeRoot).storeIdentityHash,
+        action: 'accept',
+        subject: { ...current.registry.entries[0].subject, qualificationToolCommit: '4'.repeat(40) },
+        qualificationManifestDescriptorSha256: 'f'.repeat(64),
+        reason: 'published descendant crash-window registrar regression',
+        timestamp: '2026-08-15T14:00:02.000Z',
+    })
+    publishRegistrySnapshot({
+        storeRoot,
+        registry: descendant.registry,
+        qualificationToolCommit: toolCommit,
+        createdAt: '2026-08-15T14:00:02.000Z',
+    })
+    const currentRefPath = path.join(storeRoot, 'v2/refs/qualification/current.json')
+    const refBeforeRetry = fs.readFileSync(currentRefPath)
+    const retry = await runChild(process.execPath, registrationArguments, { cwd: repositoryRoot, maxOutputBytes: 32 * 1024 * 1024 })
+    assert.equal(retry.spawnError, null)
+    assert.equal(retry.signal, null)
+    assert.notEqual(retry.exitCode, 0)
+    assert.match(retry.stderr, /QUALIFICATION_REGISTRY_HEAD_ROLLBACK/)
+    assert.equal(fs.readFileSync(currentRefPath).equals(refBeforeRetry), true)
 })

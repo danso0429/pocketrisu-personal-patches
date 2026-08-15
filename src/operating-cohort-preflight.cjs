@@ -120,6 +120,8 @@ function assertCompatible(verified, expectation) {
 
 function reasonFor(error) {
     if (error?.code === 'QUARANTINE_ONLY_EVIDENCE') return 'quarantine-only-evidence'
+    if (error?.code === 'QUALIFICATION_REGISTRY_HEAD_ROLLBACK') return 'registry-head-rollback'
+    if (error?.code === 'QUALIFICATION_REGISTRY_FORK') return 'registry-fork'
     if (error?.code === 'QUALIFICATION_REVOKED') return 'revoked-qualification'
     if (['STALE_QUALIFICATION_CURRENT_REF', 'QUALIFICATION_SUPERSEDED'].includes(error?.code)) return 'superseded-qualification'
     if (['STALE_QUALIFICATION_SUBJECT', 'STALE_QUALIFICATION_COMPATIBILITY'].includes(error?.code)) return 'stale-qualification'

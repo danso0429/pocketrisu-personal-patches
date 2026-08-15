@@ -130,6 +130,7 @@ async function main(argv = process.argv) {
         report = {
             mode: 'registry', passed: true, registryRootSha256: verified.registryRootSha256,
             currentRefVerified: verified.currentRefVerified,
+            registryHead: verified.registryHead,
         }
     }
     process.stdout.write(`${JSON.stringify(report)}\n`)

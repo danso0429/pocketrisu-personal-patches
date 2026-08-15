@@ -673,6 +673,8 @@ module.exports = {
     canonicalJson,
     canonicalJsonBytes,
     contentAddressPath,
+    durablePublishExact,
+    fsyncDirectory,
     initializeQualificationStore,
     loadPublishedObject,
     loadStoreIdentity,
