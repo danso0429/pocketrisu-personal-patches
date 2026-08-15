@@ -1,0 +1,30 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://pocketrisu.local/schemas/patch-toolchain-shadow-pilot-closure-receipt-v1.schema.json",
+  "title": "Toolchain shadow pilot authoritative closure receipt v1",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema", "recordedAt", "result", "qualificationType", "subject",
+    "candidate", "environmentBoundary", "fixtureDerivation", "observations",
+    "sourceObjects", "checks", "acceptedPurpose", "excludedPurposes",
+    "canonicalProtection", "integrity"
+  ],
+  "properties": {
+    "schema": { "const": "toolchain-shadow-pilot-closure-receipt-v1" },
+    "recordedAt": { "type": "string", "format": "date-time" },
+    "result": { "enum": ["passed", "failed", "incomplete"] },
+    "qualificationType": { "const": "toolchain-hardening-shadow-pilot-closure" },
+    "subject": { "type": "object" },
+    "candidate": { "type": "object" },
+    "environmentBoundary": { "type": "object" },
+    "fixtureDerivation": { "type": "object" },
+    "observations": { "type": "object" },
+    "sourceObjects": { "type": "object" },
+    "checks": { "type": "object" },
+    "acceptedPurpose": { "const": "prerequisite-for-material-shadow-cohort-collection" },
+    "excludedPurposes": { "type": "array", "items": { "type": "string" }, "uniqueItems": true },
+    "canonicalProtection": { "type": "object" },
+    "integrity": { "type": "object" }
+  }
+}

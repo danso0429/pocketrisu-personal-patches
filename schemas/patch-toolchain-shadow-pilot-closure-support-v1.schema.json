@@ -1,0 +1,26 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://pocketrisu.local/schemas/patch-toolchain-shadow-pilot-closure-support-v1.schema.json",
+  "title": "Toolchain shadow pilot closure machine support v1",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema", "recordedAt", "authority", "sourceIdentity", "targetIdentity",
+    "environment", "fixtureDerivation", "receiptValidation", "focusedTests",
+    "integrityChecks", "canonicalProtection", "integrity"
+  ],
+  "properties": {
+    "schema": { "const": "patch-toolchain-shadow-pilot-closure-support-v1" },
+    "recordedAt": { "type": "string", "format": "date-time" },
+    "authority": { "type": "object" },
+    "sourceIdentity": { "type": "object" },
+    "targetIdentity": { "type": "object" },
+    "environment": { "type": "object" },
+    "fixtureDerivation": { "type": "object" },
+    "receiptValidation": { "type": "object" },
+    "focusedTests": { "type": "object" },
+    "integrityChecks": { "type": "object" },
+    "canonicalProtection": { "type": "object" },
+    "integrity": { "type": "object" }
+  }
+}
