@@ -1,0 +1,218 @@
+{
+  "schema": "patch-toolchain-shadow-contract-v1",
+  "version": 1,
+  "candidate": {
+    "packId": "toolchain-hardening",
+    "manifestVersion": "0.1.3",
+    "productionClass": "G",
+    "shadowClass": "B",
+    "label": "shadow B candidate"
+  },
+  "target": {
+    "packageName": "pocketrisu",
+    "packageVersion": "1.9.0",
+    "commit": "85a65f3137b45c8de4a8d21a9887be213b1ac3fc",
+    "applicationTreeSha256": "c7be2eab4313422d1ae0c199094fd53cce12d0aa73a8ce7a3b6a61d623d822c3",
+    "files": [
+      { "path": "package.json", "sha256": "b51113c4eb494438dcaa7acd0220d0a03d63ba4d671ec2c1addee0a65c5dd797", "mode": 384 },
+      { "path": "pnpm-lock.yaml", "sha256": "92e8cc33d73f508f6c90710c9b15c766dd54c24cd770dcf67f10b06cdee3d36f", "mode": 384 },
+      { "path": "vitest.setup.ts", "sha256": "cc6b2c597f870db639e0f27a077691e11fbe9b900a367dbcf82bca5ab941f906", "mode": 384 }
+    ]
+  },
+  "component": {
+    "id": "component:toolchain-hardening-shadow-v1",
+    "packIds": ["toolchain-hardening"],
+    "visiblePackIds": ["toolchain-hardening"],
+    "unitIds": [
+      "toolchain-hardening:lock-lightningcss-override",
+      "toolchain-hardening:lock-lightningcss-packages",
+      "toolchain-hardening:lock-lightningcss-snapshots",
+      "toolchain-hardening:lock-tailwind-lightningcss",
+      "toolchain-hardening:lock-vite-lightningcss",
+      "toolchain-hardening:package-lightningcss-override",
+      "toolchain-hardening:vitest-storage"
+    ]
+  },
+  "manifestExecution": {
+    "allowedModules": ["node:fs", "node:path"],
+    "declaredReads": [
+      "patches/toolchain-hardening/anchors/pnpm-lock-packages.yaml",
+      "patches/toolchain-hardening/anchors/pnpm-lock-snapshots.yaml",
+      "patches/toolchain-hardening/anchors/vitest.setup.ts",
+      "patches/toolchain-hardening/files/pnpm-lock-packages.yaml",
+      "patches/toolchain-hardening/files/pnpm-lock-snapshots.yaml",
+      "patches/toolchain-hardening/files/vitest.setup.ts"
+    ],
+    "declaredWrites": [],
+    "loader": "declarative-shadow-materializer-v1"
+  },
+  "operations": [
+    {
+      "id": "toolchain-hardening:vitest-storage",
+      "file": "vitest.setup.ts",
+      "type": "replace",
+      "where": null,
+      "requires": [],
+      "markerNeedle": "new Storage()",
+      "anchor": { "kind": "file", "path": "patches/toolchain-hardening/anchors/vitest.setup.ts", "bytes": 171, "sha256": "cc6b2c597f870db639e0f27a077691e11fbe9b900a367dbcf82bca5ab941f906" },
+      "managed": { "kind": "file", "path": "patches/toolchain-hardening/files/vitest.setup.ts", "bytes": 632, "sha256": "d55a3e514f7a8f0b6d2a47d74e0ce2da722aaa544f2052785205e6cb69cc3d43" }
+    },
+    {
+      "id": "toolchain-hardening:package-lightningcss-override",
+      "file": "package.json",
+      "type": "insert",
+      "where": "after",
+      "requires": [],
+      "markerNeedle": "\"lightningcss\": \"1.33.0\"",
+      "anchor": { "kind": "literal", "text": "  \"pnpm\": {\n", "bytes": 12, "sha256": "efd41049ecb16578b4fe0ccce3c8ca3193ff491d8fe316764f23f026a979c9b3" },
+      "managed": { "kind": "literal", "text": "    \"overrides\": {\n      \"lightningcss\": \"1.33.0\"\n    },\n", "bytes": 57, "sha256": "7695250600a0d58f31e7efec709313c1caf68535b5407292221ea1553f738141" }
+    },
+    {
+      "id": "toolchain-hardening:lock-lightningcss-override",
+      "file": "pnpm-lock.yaml",
+      "type": "insert",
+      "where": "after",
+      "requires": [],
+      "markerNeedle": "overrides:\n  lightningcss: 1.33.0",
+      "anchor": { "kind": "literal", "text": "  excludeLinksFromLockfile: false\n", "bytes": 34, "sha256": "633602f77ad035b2ab4facb2820da3bc908d147933998a3f1d6b26564c23c6ca" },
+      "managed": { "kind": "literal", "text": "\noverrides:\n  lightningcss: 1.33.0\n", "bytes": 35, "sha256": "3e9580158f4e006e25cec0cf331674ae01f1dde6adb0c843ea3e332b28525f52" }
+    },
+    {
+      "id": "toolchain-hardening:lock-lightningcss-packages",
+      "file": "pnpm-lock.yaml",
+      "type": "replace",
+      "where": null,
+      "requires": ["toolchain-hardening:lock-lightningcss-override"],
+      "markerNeedle": "lightningcss@1.33.0:",
+      "anchor": { "kind": "file", "path": "patches/toolchain-hardening/anchors/pnpm-lock-packages.yaml", "bytes": 2774, "sha256": "f9528825e1b214f84340de5280f327f806bcca8112f3e3b2126f7cd02ef98b7c" },
+      "managed": { "kind": "file", "path": "patches/toolchain-hardening/files/pnpm-lock-packages.yaml", "bytes": 2774, "sha256": "102e9ba58a9eb115f65b0e09301e8ad7bd82e5ef6aa7aea537cc566a9714e4f3" }
+    },
+    {
+      "id": "toolchain-hardening:lock-tailwind-lightningcss",
+      "file": "pnpm-lock.yaml",
+      "type": "replace",
+      "where": null,
+      "requires": ["toolchain-hardening:lock-lightningcss-packages"],
+      "markerNeedle": "  '@tailwindcss/node@4.2.2':\n    dependencies:\n      '@jridgewell/remapping': 2.3.5\n      enhanced-resolve: 5.20.1\n      jiti: 2.6.1\n      lightningcss: 1.33.0",
+      "anchor": { "kind": "literal", "text": "  '@tailwindcss/node@4.2.2':\n    dependencies:\n      '@jridgewell/remapping': 2.3.5\n      enhanced-resolve: 5.20.1\n      jiti: 2.6.1\n      lightningcss: 1.32.0\n      magic-string: 0.30.21\n", "bytes": 188, "sha256": "90a57ba150189b20c2a66f91083bf7ec636c5e74dde994a9a2aff421c95fcac2" },
+      "managed": { "kind": "literal", "text": "  '@tailwindcss/node@4.2.2':\n    dependencies:\n      '@jridgewell/remapping': 2.3.5\n      enhanced-resolve: 5.20.1\n      jiti: 2.6.1\n      lightningcss: 1.33.0\n      magic-string: 0.30.21\n", "bytes": 188, "sha256": "5160c27f821f4d037c630f9abb07b830391920059cdd39b33990da1fdc2ac87c" }
+    },
+    {
+      "id": "toolchain-hardening:lock-lightningcss-snapshots",
+      "file": "pnpm-lock.yaml",
+      "type": "replace",
+      "where": null,
+      "requires": ["toolchain-hardening:lock-tailwind-lightningcss"],
+      "markerNeedle": "lightningcss-android-arm64@1.33.0:\n    optional: true",
+      "anchor": { "kind": "file", "path": "patches/toolchain-hardening/anchors/pnpm-lock-snapshots.yaml", "bytes": 1190, "sha256": "5b7e2888ea5a0103a97b6b61ed8003c3a2f0c49a0a7df6c2bd51316e82c3e29a" },
+      "managed": { "kind": "file", "path": "patches/toolchain-hardening/files/pnpm-lock-snapshots.yaml", "bytes": 1190, "sha256": "3eb7a2a2d52fedf45729c45872908bdea8f65e25d49549b9dc1c5497654177f0" }
+    },
+    {
+      "id": "toolchain-hardening:lock-vite-lightningcss",
+      "file": "pnpm-lock.yaml",
+      "type": "replace",
+      "where": null,
+      "requires": ["toolchain-hardening:lock-lightningcss-snapshots"],
+      "markerNeedle": "  vite@8.0.8(@types/node@22.19.3)(esbuild@0.27.2)(jiti@2.6.1)(yaml@2.8.2):\n    dependencies:\n      lightningcss: 1.33.0",
+      "anchor": { "kind": "literal", "text": "  vite@8.0.8(@types/node@22.19.3)(esbuild@0.27.2)(jiti@2.6.1)(yaml@2.8.2):\n    dependencies:\n      lightningcss: 1.32.0\n      picomatch: 4.0.4\n", "bytes": 143, "sha256": "cde640b8333c406ca10f9afeb88e6f44465f1363059a84b57eb9d0406c432d7c" },
+      "managed": { "kind": "literal", "text": "  vite@8.0.8(@types/node@22.19.3)(esbuild@0.27.2)(jiti@2.6.1)(yaml@2.8.2):\n    dependencies:\n      lightningcss: 1.33.0\n      picomatch: 4.0.4\n", "bytes": 143, "sha256": "0d74d17cb956fe78d330861badfda77dbf523575b4ef62d38f676b7c47455570" }
+    }
+  ],
+  "state": {
+    "productKeys": [],
+    "patcherSurfaces": [
+      { "path": "save/pocketrisu-patches/intent.json", "access": ["delete", "read", "write"], "scope": "global-canonical" },
+      { "path": "save/pocketrisu-patches/lock.json", "access": ["delete", "read", "write"], "scope": "global-canonical" },
+      { "path": "save/pocketrisu-patches/state.json", "access": ["delete", "read", "write"], "scope": "global-canonical" },
+      { "path": "save/pocketrisu-patches/transaction.json", "access": ["delete", "read", "write"], "scope": "global-canonical" }
+    ],
+    "shadowProjection": "S0-P-read-only",
+    "productionMigration": false
+  },
+  "symbols": [
+    { "id": "global:localStorage", "phase": "target-test-bootstrap", "access": ["read-own-descriptor", "write-conditional"], "boundary": "boundary:local-storage-descriptor" },
+    { "id": "global:safeStructuredClone", "phase": "target-test-bootstrap", "access": ["provide"], "boundary": null },
+    { "id": "module:happy-dom/Storage", "phase": "target-test-bootstrap", "access": ["consume", "construct"], "boundary": "boundary:local-storage-descriptor" },
+    { "id": "module:katex", "phase": "target-test-bootstrap", "access": ["mock"], "boundary": null },
+    { "id": "module:vitest/vi", "phase": "target-test-bootstrap", "access": ["consume"], "boundary": null },
+    { "id": "package:lightningcss@1.33.0", "phase": "install-build", "access": ["provide-native-implementation"], "boundary": "boundary:toolchain-build" },
+    { "id": "package:vite-tailwind-consumers", "phase": "install-build", "access": ["consume"], "boundary": "boundary:toolchain-build" }
+  ],
+  "boundaries": [
+    {
+      "schema": "patch-typed-boundary-v1",
+      "id": "boundary:target-baseline",
+      "surface": "target",
+      "resource": "pocketrisu@1.9.0/85a65f3137b45c8de4a8d21a9887be213b1ac3fc",
+      "inputClasses": ["target:pocketrisu-1.9.0-exact"],
+      "validator": "toolchain-target-baseline-v1",
+      "fallback": "global-exhaustive"
+    },
+    {
+      "schema": "patch-typed-boundary-v1",
+      "id": "boundary:local-storage-descriptor",
+      "surface": "symbol",
+      "resource": "globalThis.localStorage-own-property-descriptor",
+      "inputClasses": [
+        "local-storage:no-own-descriptor",
+        "local-storage:usable-effect-free-data-value",
+        "local-storage:configurable-unusable-data-value",
+        "local-storage:configurable-accessor-not-invoked"
+      ],
+      "validator": "toolchain-local-storage-boundary-v1",
+      "fallback": "global-exhaustive"
+    },
+    {
+      "schema": "patch-typed-boundary-v1",
+      "id": "boundary:toolchain-build",
+      "surface": "environment",
+      "resource": "pnpm-lightningcss-native-build",
+      "inputClasses": ["toolchain:linux-arm64-glibc-node-25.9.0-pnpm-10.34.1"],
+      "validator": "toolchain-build-boundary-v1",
+      "fallback": "global-exhaustive"
+    }
+  ],
+  "runtimeCapabilities": {
+    "allowed": [
+      "filesystem:read:declared-manifest-assets",
+      "filesystem:read-write-delete:three-managed-target-paths",
+      "state:read-write-delete:isolated-patcher-metadata",
+      "symbol:localStorage:typed-boundary",
+      "module:vitest-happy-dom-katex:target-test-bootstrap"
+    ],
+    "denied": [
+      "environment:undeclared",
+      "filesystem:undeclared",
+      "module:undeclared",
+      "network:any",
+      "process-global:undeclared-mutation",
+      "randomness:application",
+      "subprocess:any",
+      "time:application",
+      "worker:persistent-or-reused"
+    ]
+  },
+  "fallback": {
+    "required": true,
+    "gate": "Global Exhaustive",
+    "on": [
+      "declaration-invalid",
+      "boundary-incomplete",
+      "capability-undeclared",
+      "local-global-mismatch",
+      "target-drift",
+      "unknown"
+    ]
+  },
+  "canonicalProtection": {
+    "canonicalGate": "Global Exhaustive",
+    "productionClassification": "G",
+    "defaultChanged": false,
+    "c0RoutingChanged": false,
+    "productionStateChanged": false,
+    "productionCertificates": 0,
+    "canonicalMasksSkipped": 0,
+    "c1Authorized": false
+  },
+  "declarationSha256": "96d1e6513aa2d73521762c3ecf270c6c0bede44ff18f21b454cb4c3735c82e44"
+}
