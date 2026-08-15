@@ -127,12 +127,7 @@ function reasonFor(error) {
     return `invalid-durable-qualification:${error?.code ?? 'unknown'}`
 }
 
-function preflightOperatingCohort({
-    storeRoot,
-    expectation,
-    checkedAt = new Date().toISOString(),
-    dependencies = {},
-}) {
+function runPreflight({ storeRoot, expectation, checkedAt, subjectRoot, dependencies }) {
     const resolved = path.resolve(storeRoot)
     const expected = validateExpectation(expectation)
     const before = treeIdentity(resolved)
@@ -146,6 +141,7 @@ function preflightOperatingCohort({
             storeRoot: resolved,
             expectedSubject: expected.subject,
             requireCurrentRef: true,
+            subjectRoot,
         })
         assertCompatible(verified, expected)
         report = {
@@ -187,12 +183,29 @@ function preflightOperatingCohort({
     return report
 }
 
+function preflightOperatingCohort({ storeRoot, expectation, subjectRoot, checkedAt = new Date().toISOString() }) {
+    return runPreflight({
+        storeRoot,
+        expectation,
+        subjectRoot,
+        checkedAt,
+        dependencies: { verifyQualificationRegistry, loadStoreIdentity },
+    })
+}
+
+function preflightOperatingCohortWithTestDependencies({
+    storeRoot, expectation, subjectRoot = null, checkedAt = new Date().toISOString(), dependencies,
+}) {
+    return runPreflight({ storeRoot, expectation, subjectRoot, checkedAt, dependencies })
+}
+
 module.exports = {
     EXPECTATION_SCHEMA,
     OperatingCohortPreflightError,
     PREFLIGHT_SCHEMA,
     assertCompatible,
     preflightOperatingCohort,
+    preflightOperatingCohortWithTestDependencies,
     treeIdentity,
     validateExpectation,
 }

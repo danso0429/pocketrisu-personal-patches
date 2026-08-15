@@ -165,7 +165,7 @@ function validateValidationResult(result) {
     }
     exactKeys(result, [
         'schema', 'validatedAt', 'result', 'independentVerifier', 'storeIdentityHash',
-        'contentManifestDescriptorSha256', 'checkedDescriptors', 'checks', 'failures', 'integrity',
+        'contentManifestDescriptorSha256', 'checkedDescriptors', 'derivation', 'checks', 'failures', 'integrity',
     ], 'validation result')
     validateSha(result.storeIdentityHash, 'validation store identity')
     validateSha(result.contentManifestDescriptorSha256, 'validation content manifest')
@@ -178,6 +178,24 @@ function validateValidationResult(result) {
         'authorityCompatible', 'operatingCountsIsolated', 'productionProtectionValid',
         'quarantineNotAuthority',
     ], 'independent validation checks')
+    exactKeys(result.derivation, [
+        'freshProcess', 'processId', 'subjectCommit', 'subjectClean', 'inputDeclarationSha256',
+        'recipePath', 'recipeSha256', 'outputFixtureDeclarationSha256',
+        'outputSyntheticTargetTreeSha256', 'publisherFlagTrusted',
+    ], 'independent fixture derivation')
+    const qualification = require('./toolchain-shadow-qualification.cjs')
+    if (result.derivation.freshProcess !== true
+        || !Number.isInteger(result.derivation.processId) || result.derivation.processId <= 0
+        || result.derivation.subjectCommit !== SUBJECT_IMPLEMENTATION_COMMIT
+        || result.derivation.subjectClean !== true
+        || result.derivation.inputDeclarationSha256 !== qualification.COMPILED_DECLARATION_SHA256
+        || result.derivation.recipePath !== qualification.RECIPE_PATH
+        || result.derivation.recipeSha256 !== qualification.RECIPE_SHA256
+        || result.derivation.outputFixtureDeclarationSha256 !== qualification.FIXTURE_DECLARATION_SHA256
+        || result.derivation.outputSyntheticTargetTreeSha256 !== qualification.SYNTHETIC_TARGET_TREE_SHA256
+        || result.derivation.publisherFlagTrusted !== false) {
+        fail('INVALID_VALIDATION_RESULT', 'Independent fixture derivation is incomplete')
+    }
     if (!Array.isArray(result.checkedDescriptors) || new Set(result.checkedDescriptors).size !== result.checkedDescriptors.length) {
         fail('INVALID_VALIDATION_RESULT', 'Validation descriptor coverage is missing or duplicated')
     }
@@ -199,6 +217,7 @@ function buildValidationResult({
     storeIdentityHash,
     contentManifestDescriptorSha256,
     checkedDescriptors,
+    derivation,
     checks,
     failures = [],
 }) {
@@ -214,6 +233,7 @@ function buildValidationResult({
         storeIdentityHash,
         contentManifestDescriptorSha256,
         checkedDescriptors: [...new Set(checkedDescriptors)].sort(),
+        derivation,
         checks,
         failures,
     }))

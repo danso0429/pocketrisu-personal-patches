@@ -50,11 +50,12 @@ function parseArgs(argv) {
             '--environment-narrative': 'environmentNarrativeFile',
             '--reason': 'reason',
             '--tool-root': 'toolRoot',
+            '--subject-root': 'subjectRoot',
         }[flag]
         if (!key || index + 1 >= values.length) throw new Error(`Unknown or incomplete option: ${flag}`)
         options[key] = values[++index]
     }
-    for (const key of ['storeRoot', 'supportFile', 'closureFile', 'localReceiptFile', 'globalReceiptFile', 'reason']) {
+    for (const key of ['storeRoot', 'supportFile', 'closureFile', 'localReceiptFile', 'globalReceiptFile', 'reason', 'subjectRoot']) {
         if (!options[key]) throw new Error(`Missing required option: ${key}`)
     }
     for (const key of Object.keys(options)) {
@@ -227,6 +228,7 @@ async function main(argv = process.argv) {
             '--subject', subjectFile,
             '--validation-output', validationFile,
             '--tool-root', options.toolRoot,
+            '--subject-root', options.subjectRoot,
         ])
         const validation = validateValidationResult(parseJsonStrict(fs.readFileSync(validationFile), 'independent validation result'))
         const validationObject = publishOne({
@@ -258,6 +260,7 @@ async function main(argv = process.argv) {
             '--qualification-manifest', finalObject.descriptorSha256,
             '--subject', subjectFile,
             '--tool-root', options.toolRoot,
+            '--subject-root', options.subjectRoot,
         ])
         const current = readCurrentRegistry(options.storeRoot)
         const appended = appendRegistryEntry({
@@ -286,6 +289,7 @@ async function main(argv = process.argv) {
             '--registry', registryObject.descriptorSha256,
             '--subject', subjectFile,
             '--tool-root', options.toolRoot,
+            '--subject-root', options.subjectRoot,
         ])
         const registry = appended.registry
         if (!appended.idempotent) {
@@ -302,6 +306,7 @@ async function main(argv = process.argv) {
             '--subject', subjectFile,
             '--require-current-ref',
             '--tool-root', options.toolRoot,
+            '--subject-root', options.subjectRoot,
         ])
         const operatingLedgerAfter = directoryIdentity(path.join(options.storeRoot, 'objects'))
         if (operatingLedgerAfter !== operatingLedgerBefore) throw new Error('Qualification registration changed legacy operating evidence')

@@ -34,11 +34,12 @@ function parseArgs(argv) {
             '--subject': 'subjectFile',
             '--validation-output': 'validationOutput',
             '--tool-root': 'toolRoot',
+            '--subject-root': 'subjectRoot',
         }[flag]
         if (!key) throw new Error(`Unknown option: ${flag}`)
         options[key] = values[++index]
     }
-    if (!options.storeRoot || !options.subjectFile) throw new Error('--store and --subject are required')
+    if (!options.storeRoot || !options.subjectFile || !options.subjectRoot) throw new Error('--store, --subject and --subject-root are required')
     const modes = ['contentManifest', 'qualificationManifest', 'registry'].filter((key) => options[key])
     if (modes.length !== 1) throw new Error('Exactly one of --content-manifest, --qualification-manifest or --registry is required')
     if ((options.validationOutput !== undefined) !== (options.contentManifest !== undefined)) {
@@ -50,6 +51,7 @@ function parseArgs(argv) {
     options.storeRoot = path.resolve(options.storeRoot)
     options.subjectFile = path.resolve(options.subjectFile)
     options.toolRoot = path.resolve(options.toolRoot)
+    options.subjectRoot = path.resolve(options.subjectRoot)
     if (options.validationOutput) options.validationOutput = path.resolve(options.validationOutput)
     return options
 }
@@ -95,6 +97,7 @@ async function main(argv = process.argv) {
             storeRoot: options.storeRoot,
             contentManifestDescriptorSha256: options.contentManifest,
             expectedSubject: subject,
+            subjectRoot: options.subjectRoot,
         })
         const result = buildValidationResult({
             validatedAt: new Date().toISOString(),
@@ -103,6 +106,7 @@ async function main(argv = process.argv) {
             contentManifestDescriptorSha256: options.contentManifest,
             checkedDescriptors: verified.checkedDescriptors,
             checks: verified.checks,
+            derivation: verified.derivation,
             failures: [],
         })
         writeCanonicalOutput(options.validationOutput, result)
@@ -112,6 +116,7 @@ async function main(argv = process.argv) {
             storeRoot: options.storeRoot,
             qualificationManifestDescriptorSha256: options.qualificationManifest,
             expectedSubject: subject,
+            subjectRoot: options.subjectRoot,
         })
         report = { mode: 'final-manifest', passed: true, checkedDescriptors: verified.checkedDescriptors.length }
     } else {
@@ -120,6 +125,7 @@ async function main(argv = process.argv) {
             registryDescriptorSha256: options.registry,
             expectedSubject: subject,
             requireCurrentRef: options.requireCurrentRef,
+            subjectRoot: options.subjectRoot,
         })
         report = {
             mode: 'registry', passed: true, registryRootSha256: verified.registryRootSha256,

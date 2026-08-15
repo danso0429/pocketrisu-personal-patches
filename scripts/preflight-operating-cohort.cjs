@@ -14,16 +14,17 @@ function parseArgs(argv) {
         const value = argv[index + 1]
         if (flag === '--store') options.storeRoot = path.resolve(value)
         else if (flag === '--expectation') options.expectationFile = path.resolve(value)
+        else if (flag === '--subject-root') options.subjectRoot = path.resolve(value)
         else throw new Error(`Unknown option: ${flag}`)
     }
-    if (!options.storeRoot || !options.expectationFile) throw new Error('--store and --expectation are required')
+    if (!options.storeRoot || !options.expectationFile || !options.subjectRoot) throw new Error('--store, --expectation and --subject-root are required')
     return options
 }
 
 function main(argv = process.argv) {
     const options = parseArgs(argv)
     const expectation = parseJsonStrict(fs.readFileSync(options.expectationFile), 'operating preflight expectation')
-    const result = preflightOperatingCohort({ storeRoot: options.storeRoot, expectation })
+    const result = preflightOperatingCohort({ storeRoot: options.storeRoot, expectation, subjectRoot: options.subjectRoot })
     process.stdout.write(`${canonicalJsonBytes(result).toString()}\n`)
     return result
 }

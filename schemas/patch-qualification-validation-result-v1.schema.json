@@ -4,7 +4,7 @@
   "title": "Independent qualification validation result v1",
   "type": "object",
   "additionalProperties": false,
-  "required": ["schema", "validatedAt", "result", "independentVerifier", "storeIdentityHash", "contentManifestDescriptorSha256", "checkedDescriptors", "checks", "failures", "integrity"],
+  "required": ["schema", "validatedAt", "result", "independentVerifier", "storeIdentityHash", "contentManifestDescriptorSha256", "checkedDescriptors", "derivation", "checks", "failures", "integrity"],
   "properties": {
     "schema": { "const": "patch-qualification-validation-result-v1" },
     "validatedAt": { "type": "string", "format": "date-time" },
@@ -13,6 +13,23 @@
     "storeIdentityHash": { "type": "string", "pattern": "^[0-9a-f]{64}$" },
     "contentManifestDescriptorSha256": { "type": "string", "pattern": "^[0-9a-f]{64}$" },
     "checkedDescriptors": { "type": "array", "items": { "type": "string", "pattern": "^[0-9a-f]{64}$" }, "uniqueItems": true },
+    "derivation": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["freshProcess", "processId", "subjectCommit", "subjectClean", "inputDeclarationSha256", "recipePath", "recipeSha256", "outputFixtureDeclarationSha256", "outputSyntheticTargetTreeSha256", "publisherFlagTrusted"],
+      "properties": {
+        "freshProcess": { "const": true },
+        "processId": { "type": "integer", "minimum": 1 },
+        "subjectCommit": { "const": "54c8307f87354ba14f6f94b3344cc228cfdea1f7" },
+        "subjectClean": { "const": true },
+        "inputDeclarationSha256": { "const": "55a0c3f60f170871a2d40135588c5945b8a3e2098aaab25747db30f4ad07db4a" },
+        "recipePath": { "const": "src/toolchain-shadow-known-answer.cjs" },
+        "recipeSha256": { "const": "506947855af39ebec2c61ffc69c8e66e9920d13fc4333a6da1f3a7c3ea2b94ed" },
+        "outputFixtureDeclarationSha256": { "const": "6fd01efbc4f46fd9176f4385c4656b465e1b63a9eb623e1273dbb0fe5e76db59" },
+        "outputSyntheticTargetTreeSha256": { "const": "575b83f54b46873b2d3c77b8354b5a39cb518c2a7a1d5cce203b7c8a7d255841" },
+        "publisherFlagTrusted": { "const": false }
+      }
+    },
     "checks": { "type": "object" },
     "failures": { "type": "array", "items": { "type": "string" } },
     "integrity": { "type": "object" }

@@ -37,6 +37,18 @@ const quarantineRoot = '/home/ubuntu/.local/share/pocketrisu-patcher/evidence-qu
 const localBytes = fs.readFileSync(path.join(quarantineRoot, 'local-synthetic-known-answer.json'))
 const TOOL_COMMIT = '3'.repeat(40)
 const CREATED_AT = '2026-08-15T12:00:00.000Z'
+const DERIVATION = Object.freeze({
+    freshProcess: true,
+    processId: 12345,
+    subjectCommit: SUBJECT_IMPLEMENTATION_COMMIT,
+    subjectClean: true,
+    inputDeclarationSha256: COMPILED_DECLARATION_SHA256,
+    recipePath: 'src/toolchain-shadow-known-answer.cjs',
+    recipeSha256: '506947855af39ebec2c61ffc69c8e66e9920d13fc4333a6da1f3a7c3ea2b94ed',
+    outputFixtureDeclarationSha256: '6fd01efbc4f46fd9176f4385c4656b465e1b63a9eb623e1273dbb0fe5e76db59',
+    outputSyntheticTargetTreeSha256: '575b83f54b46873b2d3c77b8354b5a39cb518c2a7a1d5cce203b7c8a7d255841',
+    publisherFlagTrusted: false,
+})
 
 function storeFixture(t) {
     const parent = fs.mkdtempSync(path.join(fixtureParent, '.qualification-retention-test-'))
@@ -108,6 +120,7 @@ function graphFixture(t, { withUnreachable = true } = {}) {
         storeIdentityHash: identity.storeIdentityHash,
         contentManifestDescriptorSha256: contentObject.descriptorSha256,
         checkedDescriptors: [contentObject.descriptorSha256, leaf.descriptorSha256, narrative.descriptorSha256],
+        derivation: { ...DERIVATION },
         checks: {
             storeIdentityValid: true, objectHashesValid: true, objectTypesValid: true,
             schemasValid: true, manifestReferencesComplete: true, receiptsValid: true,

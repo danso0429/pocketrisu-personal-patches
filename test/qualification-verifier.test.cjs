@@ -22,9 +22,10 @@ const {
 const {
     assertQuarantineIsNotAcceptedStore,
     fullSchemaRegistry,
-    verifyContentQualification,
-    verifyFinalQualification,
-    verifyQualificationRegistry,
+    independentlyDeriveFixture,
+    verifyContentQualification: verifyContentQualificationActual,
+    verifyFinalQualification: verifyFinalQualificationActual,
+    verifyQualificationRegistry: verifyQualificationRegistryActual,
 } = require('../src/qualification-verifier.cjs')
 const {
     BUILD_BOUNDARY_CLASS,
@@ -54,6 +55,18 @@ const receipts = validateReceiptPair(localBytes, globalBytes)
 const TOOL_COMMIT = '3'.repeat(40)
 const CREATED_AT = '2026-08-15T10:00:00.000Z'
 const fixtureParent = path.resolve(repositoryRoot, '../..')
+
+function verifyContentQualification(options) {
+    return verifyContentQualificationActual({ ...options, subjectRoot })
+}
+
+function verifyFinalQualification(options) {
+    return verifyFinalQualificationActual({ ...options, subjectRoot })
+}
+
+function verifyQualificationRegistry(options) {
+    return verifyQualificationRegistryActual({ ...options, subjectRoot })
+}
 
 function expectCode(action, codes) {
     const accepted = Array.isArray(codes) ? codes : [codes]
@@ -217,6 +230,7 @@ function createAcceptedQualification(t) {
         contentManifestDescriptorSha256: contentObject.descriptorSha256,
         checkedDescriptors: contentVerification.checkedDescriptors,
         checks: contentVerification.checks,
+        derivation: contentVerification.derivation,
     })
     const [validationObject] = publish(storeRoot, identity, [{
         payloadModel: 'canonical-json', mediaType: 'application/vnd.pocketrisu.qualification-validation+json',
@@ -494,6 +508,16 @@ test('quarantine paths cannot become accepted merely because they contain expect
     expectCode(() => assertQuarantineIsNotAcceptedStore(quarantineRoot), 'QUARANTINE_ONLY_EVIDENCE')
 })
 
+test('independent fixture derivation runs in a distinct process and binds full hashes', () => {
+    const result = independentlyDeriveFixture({ subjectRoot })
+    assert.equal(result.freshProcess, true)
+    assert.notEqual(result.processId, process.pid)
+    assert.equal(result.publisherFlagTrusted, false)
+    assert.equal(result.inputDeclarationSha256, COMPILED_DECLARATION_SHA256)
+    assert.equal(result.outputFixtureDeclarationSha256, '6fd01efbc4f46fd9176f4385c4656b465e1b63a9eb623e1273dbb0fe5e76db59')
+    assert.equal(result.recipeSha256, '506947855af39ebec2c61ffc69c8e66e9920d13fc4333a6da1f3a7c3ea2b94ed')
+})
+
 test('fresh-process verifier independently rejects a stale expected subject', async (t) => {
     const fixture = createAcceptedQualification(t)
     const subjectFile = path.join(fixture.parent, 'stale-subject.json')
@@ -502,13 +526,14 @@ test('fresh-process verifier independently rejects a stale expected subject', as
         "const fs=require('node:fs')",
         `const verifier=require(${JSON.stringify(path.join(repositoryRoot, 'src/qualification-verifier.cjs'))})`,
         'const subject=JSON.parse(fs.readFileSync(process.argv[3]))',
-        "try { verifier.verifyQualificationRegistry({storeRoot:process.argv[1],registryDescriptorSha256:process.argv[2],expectedSubject:subject,requireCurrentRef:true}); process.exit(0) } catch(error) { process.stderr.write(String(error.code)); process.exit(7) }",
+        "try { verifier.verifyQualificationRegistry({storeRoot:process.argv[1],registryDescriptorSha256:process.argv[2],expectedSubject:subject,requireCurrentRef:true,subjectRoot:process.argv[4]}); process.exit(0) } catch(error) { process.stderr.write(String(error.code)); process.exit(7) }",
     ].join(';')
     const result = await runChild(process.execPath, [
         '-e', freshVerifier,
         fixture.storeRoot,
         fixture.registryObject.descriptorSha256,
         subjectFile,
+        subjectRoot,
     ], { cwd: repositoryRoot, maxOutputBytes: 4 * 1024 * 1024 })
     assert.equal(result.spawnError, null)
     assert.equal(result.outputError, null)

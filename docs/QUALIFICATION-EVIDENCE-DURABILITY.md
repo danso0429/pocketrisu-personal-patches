@@ -93,6 +93,7 @@ npm run qualification:register:toolchain-shadow -- \
   --closure /absolute/closure.json \
   --local-receipt /absolute/local.json \
   --global-synthetic-receipt /absolute/global.json \
+  --subject-root /absolute/frozen-subject-worktree \
   --reason "reviewed qualification registration"
 ```
 
@@ -125,10 +126,14 @@ npm run qualification:verify -- \
   --store /absolute/accepted/store \
   --registry SHA256 \
   --subject /absolute/expected-subject.json \
+  --subject-root /absolute/frozen-subject-worktree \
   --require-current-ref
 ```
 
-The verifier does not trust publisher success or publisher caches. It validates
+The verifier does not trust publisher success or publisher caches. It starts a
+fresh derivation process, reads and hashes the frozen recipe, derives the
+fixture again, and compares the full input, recipe, declaration, and target
+hashes. It validates
 store identity, raw and canonical bytes, descriptors, schemas, receipt
 semantics, fixture derivation, manifest references, registry ancestry and
 current ref, authority compatibility, count isolation, and production
@@ -145,11 +150,14 @@ schema-set hashes.
 ```sh
 npm run qualification:preflight -- \
   --store /absolute/accepted/store \
-  --expectation /absolute/preflight-expectation.json
+  --expectation /absolute/preflight-expectation.json \
+  --subject-root /absolute/frozen-subject-worktree
 ```
 
 `toolchainPilotClosurePassed: true` requires a durable accepted current registry
-entry, independent validation, and exact compatibility. A quarantine manifest
+entry, production-path independent verification (including fresh fixture
+derivation), and exact compatibility. A caller-supplied verifier result is not
+an accepted input to the production command. A quarantine manifest
 alone produces `quarantine-only-evidence`. The command reads and hashes the
 store before and after verification and does not mutate evidence, ledgers,
 source, target, policy, classification, or state. It never authorizes C1.
