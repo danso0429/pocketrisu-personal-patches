@@ -21,7 +21,28 @@
     "fixtureDerivation": { "type": "object" },
     "observations": { "type": "object" },
     "sourceObjects": { "type": "object" },
-    "checks": { "type": "object" },
+    "checks": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "authorityCompatible", "environmentBoundarySatisfied", "fixtureDerivationMatched",
+        "focusedAdversarialTestsPassed", "freshIsolationEvidencePassed", "localCoveragePassed",
+        "localRoutePassed", "receiptIntegrityPassed", "sourceTargetIntegrityPassed",
+        "syntheticLocalGlobalComparisonPassed"
+      ],
+      "properties": {
+        "authorityCompatible": { "const": true },
+        "environmentBoundarySatisfied": { "const": true },
+        "fixtureDerivationMatched": { "const": true },
+        "focusedAdversarialTestsPassed": { "const": true },
+        "freshIsolationEvidencePassed": { "const": true },
+        "localCoveragePassed": { "const": true },
+        "localRoutePassed": { "const": true },
+        "receiptIntegrityPassed": { "const": true },
+        "sourceTargetIntegrityPassed": { "const": true },
+        "syntheticLocalGlobalComparisonPassed": { "const": true }
+      }
+    },
     "acceptedPurpose": { "const": "prerequisite-for-material-shadow-cohort-collection" },
     "excludedPurposes": { "type": "array", "items": { "type": "string" }, "uniqueItems": true },
     "canonicalProtection": { "type": "object" },

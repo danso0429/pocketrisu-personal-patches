@@ -83,6 +83,28 @@ const EXCLUDED_PURPOSES = Object.freeze([
     'production-routing',
     'stable-release',
 ])
+const REQUIRED_INTEGRITY_CHECK_KEYS = Object.freeze([
+    'subjectCleanBefore',
+    'subjectCleanAfter',
+    'sourcePrePostMatched',
+    'targetPrePostMatched',
+    'repositoryFilesUnchanged',
+    'lockfileUnchanged',
+    'targetClean',
+    'receiptIntegrityPassed',
+])
+const REQUIRED_RECEIPT_CHECK_KEYS = Object.freeze([
+    'authorityCompatible',
+    'environmentBoundarySatisfied',
+    'fixtureDerivationMatched',
+    'focusedAdversarialTestsPassed',
+    'freshIsolationEvidencePassed',
+    'localCoveragePassed',
+    'localRoutePassed',
+    'receiptIntegrityPassed',
+    'sourceTargetIntegrityPassed',
+    'syntheticLocalGlobalComparisonPassed',
+])
 const SHA256_PATTERN = /^[0-9a-f]{64}$/
 
 class ToolchainQualificationError extends Error {
@@ -103,6 +125,27 @@ function exactKeys(value, expected, label) {
     const actual = Object.keys(value).sort()
     const wanted = [...expected].sort()
     if (canonicalJson(actual) !== canonicalJson(wanted)) fail('INVALID_MACHINE_RECORD', `${label} keys differ`, { actual, expected: wanted })
+}
+
+function validateRequiredTrueChecks(value, requiredKeys, label, errorCode) {
+    if (value === null || typeof value !== 'object' || Array.isArray(value)) {
+        fail(errorCode, `${label} must be a plain own-property object`)
+    }
+    const prototype = Object.getPrototypeOf(value)
+    if (prototype !== Object.prototype && prototype !== null) {
+        fail(errorCode, `${label} must not inherit check values`)
+    }
+    const actualKeys = Object.keys(value).sort()
+    const expectedKeys = [...requiredKeys].sort()
+    if (canonicalJson(actualKeys) !== canonicalJson(expectedKeys)) {
+        fail(errorCode, `${label} keys differ`, { actual: actualKeys, expected: expectedKeys })
+    }
+    for (const key of requiredKeys) {
+        if (!Object.prototype.hasOwnProperty.call(value, key) || value[key] !== true) {
+            fail(errorCode, `${label}.${key} must be the literal Boolean true`)
+        }
+    }
+    return value
 }
 
 async function gitOutput(root, args, { trim = true } = {}) {
@@ -380,6 +423,12 @@ function validateSupportRecord(record) {
         'fixtureDerivation', 'receiptValidation', 'focusedTests', 'integrityChecks',
         'canonicalProtection', 'integrity',
     ], 'support record')
+    validateRequiredTrueChecks(
+        record.integrityChecks,
+        REQUIRED_INTEGRITY_CHECK_KEYS,
+        'support integrity checks',
+        'INVALID_SUPPORT_RECORD',
+    )
     const sourceHashes = [
         record.sourceIdentity.sourcePreSha256, record.sourceIdentity.sourcePostSha256,
         record.sourceIdentity.catalogSha256, record.sourceIdentity.subjectSchemasSha256,
@@ -442,8 +491,10 @@ function validateSupportRecord(record) {
         || record.integrityChecks.subjectCleanAfter !== true
         || record.integrityChecks.sourcePrePostMatched !== true
         || record.integrityChecks.targetPrePostMatched !== true
-        || record.integrityChecks.repositoryFilesChanged !== false
-        || record.integrityChecks.lockfileChanged !== false) {
+        || record.integrityChecks.repositoryFilesUnchanged !== true
+        || record.integrityChecks.lockfileUnchanged !== true
+        || record.integrityChecks.targetClean !== true
+        || record.integrityChecks.receiptIntegrityPassed !== true) {
         fail('INVALID_SUPPORT_RECORD', 'Support record has missing or incompatible machine facts')
     }
     validateBuildBoundary(record.environment.admittedBoundary)
@@ -509,6 +560,12 @@ function validateMachineClosureReceipt(receipt, { supportRecord, localReceipt, g
         'environmentBoundary', 'fixtureDerivation', 'observations', 'sourceObjects',
         'checks', 'acceptedPurpose', 'excludedPurposes', 'canonicalProtection', 'integrity',
     ], 'machine closure receipt')
+    validateRequiredTrueChecks(
+        receipt.checks,
+        REQUIRED_RECEIPT_CHECK_KEYS,
+        'machine closure checks',
+        'INVALID_MACHINE_CLOSURE',
+    )
     if (receipt.result !== 'passed'
         || receipt.qualificationType !== QUALIFICATION_TYPE
         || receipt.subject.implementationCommit !== SUBJECT_IMPLEMENTATION_COMMIT
@@ -524,7 +581,6 @@ function validateMachineClosureReceipt(receipt, { supportRecord, localReceipt, g
         || receipt.sourceObjects.supportPayloadSha256 !== supportRecord.integrity.payloadSha256
         || receipt.sourceObjects.localReceiptRawSha256 !== LOCAL_RECEIPT_SHA256
         || receipt.sourceObjects.globalSyntheticReceiptRawSha256 !== GLOBAL_RECEIPT_SHA256
-        || !Object.values(receipt.checks).every((value) => value === true)
         || receipt.acceptedPurpose !== 'prerequisite-for-material-shadow-cohort-collection'
         || canonicalJson(receipt.excludedPurposes) !== canonicalJson([...EXCLUDED_PURPOSES])) {
         fail('INVALID_MACHINE_CLOSURE', 'Machine closure receipt is incomplete or incompatible')
@@ -717,8 +773,8 @@ async function collectMachineSupport({
             subjectCleanAfter: subjectStatusAfter === '',
             sourcePrePostMatched: comparison.sourceMatched,
             targetPrePostMatched: comparison.targetMatched,
-            repositoryFilesChanged: false,
-            lockfileChanged: false,
+            repositoryFilesUnchanged: true,
+            lockfileUnchanged: true,
             targetClean: targetStatus === '',
             receiptIntegrityPassed: true,
         },
@@ -756,6 +812,8 @@ module.exports = {
     QUALIFICATION_TYPE,
     QUARANTINE_MANIFEST_SHA256,
     RECIPE_SHA256,
+    REQUIRED_INTEGRITY_CHECK_KEYS,
+    REQUIRED_RECEIPT_CHECK_KEYS,
     SUBJECT_IMPLEMENTATION_COMMIT,
     SUPPORT_SCHEMA,
     SYNTHETIC_TARGET_TREE_SHA256,
@@ -773,5 +831,6 @@ module.exports = {
     validateMachineClosureReceipt,
     validateQuarantineManifest,
     validateReceiptPair,
+    validateRequiredTrueChecks,
     validateSupportRecord,
 }

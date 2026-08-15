@@ -150,7 +150,7 @@ function supportRecord() {
         focusedTests: evaluateFocusedTestExecution(focusedExecution()),
         integrityChecks: {
             subjectCleanBefore: true, subjectCleanAfter: true, sourcePrePostMatched: true,
-            targetPrePostMatched: true, repositoryFilesChanged: false, lockfileChanged: false,
+            targetPrePostMatched: true, repositoryFilesUnchanged: true, lockfileUnchanged: true,
             targetClean: true, receiptIntegrityPassed: true,
         },
     })
@@ -252,6 +252,30 @@ function createAcceptedQualification(t) {
     }
 }
 
+function replaceCurrentWithAcceptedFinal(fixture, finalObject, timestamp) {
+    const appended = appendRegistryEntry({
+        storeIdentityHash: fixture.identity.storeIdentityHash,
+        action: 'accept',
+        subject: fixture.subject,
+        qualificationManifestDescriptorSha256: finalObject.descriptorSha256,
+        reason: 'accepted disposition regression fixture',
+        timestamp,
+    })
+    const registryObject = publishRegistrySnapshot({
+        storeRoot: fixture.storeRoot,
+        registry: appended.registry,
+        qualificationToolCommit: TOOL_COMMIT,
+        createdAt: timestamp,
+    })
+    updateCurrentRef(fixture.storeRoot, buildCurrentRef({
+        storeIdentityHash: fixture.identity.storeIdentityHash,
+        registryDescriptorSha256: registryObject.descriptorSha256,
+        registryRootSha256: appended.registry.registryRootSha256,
+        updatedAt: timestamp,
+    }))
+    return registryObject
+}
+
 test('valid three-stage qualification and current registry verify without optional narrative', (t) => {
     const fixture = createAcceptedQualification(t)
     const final = verifyFinalQualification({
@@ -268,6 +292,63 @@ test('valid three-stage qualification and current registry verify without option
         materialOperatingCohort: false, stableRelease: false,
         productionDefectYield: false, candidateOperatingSample: false,
     })
+})
+
+test('accepted registry rejects every non-accepted final manifest disposition', (t) => {
+    for (const [index, disposition] of ['diagnostic', 'incomplete', 'invalid', 'negative', 'superseded'].entries()) {
+        const fixture = createAcceptedQualification(t)
+        const final = buildQualificationManifest({
+            createdAt: `2026-08-15T10:10:0${index}.000Z`,
+            subject: fixture.subject,
+            contentManifestDescriptorSha256: fixture.contentObject.descriptorSha256,
+            validationResultDescriptorSha256: fixture.validationObject.descriptorSha256,
+            disposition,
+        })
+        const [finalObject] = publish(fixture.storeRoot, fixture.identity, [{
+            payloadModel: 'canonical-json',
+            mediaType: 'application/vnd.pocketrisu.qualification-manifest+json',
+            role: 'final-qualification-manifest',
+            referencedSchema: final.schema,
+            value: final,
+        }])
+        replaceCurrentWithAcceptedFinal(fixture, finalObject, `2026-08-15T10:11:0${index}.000Z`)
+        expectCode(() => verifyQualificationRegistry({
+            storeRoot: fixture.storeRoot,
+            expectedSubject: fixture.subject,
+            requireCurrentRef: true,
+        }), 'ACCEPTED_QUALIFICATION_MISMATCH')
+    }
+})
+
+test('a latest supersession is not a current accepted qualification', (t) => {
+    const fixture = createAcceptedQualification(t)
+    const superseded = appendRegistryEntry({
+        baseRegistry: fixture.registry,
+        baseRegistryDescriptorSha256: fixture.registryObject.descriptorSha256,
+        storeIdentityHash: fixture.identity.storeIdentityHash,
+        action: 'supersede',
+        subject: fixture.subject,
+        qualificationManifestDescriptorSha256: fixture.finalObject.descriptorSha256,
+        reason: 'superseded current fixture',
+        timestamp: '2026-08-15T10:12:00.000Z',
+    })
+    const registryObject = publishRegistrySnapshot({
+        storeRoot: fixture.storeRoot,
+        registry: superseded.registry,
+        qualificationToolCommit: TOOL_COMMIT,
+        createdAt: '2026-08-15T10:12:00.000Z',
+    })
+    updateCurrentRef(fixture.storeRoot, buildCurrentRef({
+        storeIdentityHash: fixture.identity.storeIdentityHash,
+        registryDescriptorSha256: registryObject.descriptorSha256,
+        registryRootSha256: superseded.registry.registryRootSha256,
+        updatedAt: '2026-08-15T10:12:01.000Z',
+    }))
+    expectCode(() => verifyQualificationRegistry({
+        storeRoot: fixture.storeRoot,
+        expectedSubject: fixture.subject,
+        requireCurrentRef: true,
+    }), 'QUALIFICATION_SUPERSEDED')
 })
 
 test('missing machine closure is rejected even when a narrative object exists', (t) => {

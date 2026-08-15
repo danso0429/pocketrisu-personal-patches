@@ -21,6 +21,8 @@ const {
     POLICY_SHA256,
     QUARANTINE_MANIFEST_SHA256,
     RECIPE_SHA256,
+    REQUIRED_INTEGRITY_CHECK_KEYS,
+    REQUIRED_RECEIPT_CHECK_KEYS,
     SUBJECT_IMPLEMENTATION_COMMIT,
     SYNTHETIC_TARGET_TREE_SHA256,
     TARGET_COMMIT,
@@ -32,6 +34,7 @@ const {
     validateMachineClosureReceipt,
     validateQuarantineManifest,
     validateReceiptPair,
+    validateRequiredTrueChecks,
     validateSupportRecord,
 } = require('../src/toolchain-shadow-qualification.cjs')
 
@@ -141,8 +144,8 @@ function validSupport(overrides = {}) {
             subjectCleanAfter: true,
             sourcePrePostMatched: true,
             targetPrePostMatched: true,
-            repositoryFilesChanged: false,
-            lockfileChanged: false,
+            repositoryFilesUnchanged: true,
+            lockfileUnchanged: true,
             targetClean: true,
             receiptIntegrityPassed: true,
         },
@@ -152,6 +155,13 @@ function validSupport(overrides = {}) {
 }
 
 function mutateSupport(record, mutation) {
+    const clone = structuredClone(record)
+    delete clone.integrity
+    mutation(clone)
+    return sealDocument(clone)
+}
+
+function mutateClosure(record, mutation) {
     const clone = structuredClone(record)
     delete clone.integrity
     mutation(clone)
@@ -232,11 +242,68 @@ test('invalid pnpm boundary and task-scoped provisioning fail closed', () => {
 
 test('repository and lockfile mutation are rejected', () => {
     const support = validSupport()
-    for (const key of ['repositoryFilesChanged', 'lockfileChanged']) {
+    for (const key of ['repositoryFilesUnchanged', 'lockfileUnchanged']) {
         expectCode(() => validateSupportRecord(mutateSupport(support, (value) => {
-            value.integrityChecks[key] = true
+            value.integrityChecks[key] = false
         })), 'INVALID_SUPPORT_RECORD')
     }
+})
+
+test('support integrity checks require the complete own literal-true set', () => {
+    const support = validSupport()
+    for (const key of ['targetClean', 'receiptIntegrityPassed']) {
+        for (const replacement of [false, null, 'true', 1]) {
+            expectCode(() => validateSupportRecord(mutateSupport(support, (value) => {
+                value.integrityChecks[key] = replacement
+            })), 'INVALID_SUPPORT_RECORD')
+        }
+        expectCode(() => validateSupportRecord(mutateSupport(support, (value) => {
+            delete value.integrityChecks[key]
+        })), 'INVALID_SUPPORT_RECORD')
+    }
+    expectCode(() => validateSupportRecord(mutateSupport(support, (value) => {
+        value.integrityChecks = {}
+    })), 'INVALID_SUPPORT_RECORD')
+    assert.deepEqual(Object.keys(support.integrityChecks).sort(), [...REQUIRED_INTEGRITY_CHECK_KEYS].sort())
+})
+
+test('machine closure checks reject empty, partial, inherited, mistyped, and substitute fields', () => {
+    const support = validSupport()
+    const closure = buildMachineClosureReceipt({
+        supportRecord: support,
+        localReceipt: receipts.localReceipt,
+        globalReceipt: receipts.globalReceipt,
+        recordedAt: '2026-08-15T08:00:02.000Z',
+    })
+    for (const mutate of [
+        (checks) => { for (const key of Object.keys(checks)) delete checks[key] },
+        (checks) => { delete checks.authorityCompatible },
+        (checks) => { delete checks.authorityCompatible; delete checks.receiptIntegrityPassed },
+        (checks) => { checks.authorityCompatible = false },
+        (checks) => { checks.authorityCompatible = null },
+        (checks) => { checks.authorityCompatible = 'true' },
+        (checks) => { checks.authorityCompatible = 1 },
+        (checks) => { delete checks.authorityCompatible; checks.unknownProof = true },
+    ]) {
+        expectCode(() => validateMachineClosureReceipt(mutateClosure(closure, (value) => mutate(value.checks)), {
+            supportRecord: support,
+            localReceipt: receipts.localReceipt,
+            globalReceipt: receipts.globalReceipt,
+        }), 'INVALID_MACHINE_CLOSURE')
+    }
+    const inherited = Object.create({ authorityCompatible: true })
+    for (const key of REQUIRED_RECEIPT_CHECK_KEYS) if (key !== 'authorityCompatible') inherited[key] = true
+    expectCode(() => validateRequiredTrueChecks(
+        inherited,
+        REQUIRED_RECEIPT_CHECK_KEYS,
+        'machine closure checks',
+        'INVALID_MACHINE_CLOSURE',
+    ), 'INVALID_MACHINE_CLOSURE')
+    assert.equal(validateMachineClosureReceipt(closure, {
+        supportRecord: support,
+        localReceipt: receipts.localReceipt,
+        globalReceipt: receipts.globalReceipt,
+    }), closure)
 })
 
 test('altered derivation recipe, prefix hash, and wrong target role are rejected', () => {

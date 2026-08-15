@@ -114,6 +114,7 @@ function verifyContentQualification({ storeRoot, contentManifestDescriptorSha256
         globalReceipt,
     })
     if (content.objects.authorityEnvironmentDescriptorSha256 !== supportRecord.descriptorSha256
+        || closure.qualificationType !== content.qualificationType
         || closure.subject.implementationCommit !== content.subject.implementationCommit
         || closure.subject.qualificationToolCommit !== content.subject.qualificationToolCommit
         || closure.subject.policySha256 !== content.subject.policySha256
@@ -187,6 +188,9 @@ function verifyFinalQualification({ storeRoot, qualificationManifestDescriptorSh
         contentManifestDescriptorSha256: finalManifest.contentManifestDescriptorSha256,
         expectedSubject: finalManifest.subject,
     })
+    if (finalManifest.qualificationType !== contentResult.content.qualificationType) {
+        fail('QUALIFICATION_TYPE_MISMATCH', 'Final and content manifest qualification types differ')
+    }
     const validationRecord = loadObject(storeRoot, finalManifest.validationResultDescriptorSha256)
     assertDescriptor(validationRecord, {
         role: 'independent-qualification-validation',
@@ -275,11 +279,22 @@ function verifyQualificationRegistry({
     if (effective.state !== 'accepted' || effective.entry.action === 'revoke') {
         fail(effective.state === 'revoked' ? 'QUALIFICATION_REVOKED' : 'QUALIFICATION_NOT_ACCEPTED', 'No effective accepted qualification exists')
     }
+    if (effective.entry.action !== 'accept') {
+        fail('QUALIFICATION_SUPERSEDED', 'The latest effective qualification is not a current accepted entry')
+    }
     const qualification = verifyFinalQualification({
         storeRoot,
         qualificationManifestDescriptorSha256: effective.entry.qualificationManifestDescriptorSha256,
         expectedSubject,
     })
+    const finalManifest = qualification.finalManifest
+    if (finalManifest.disposition !== 'accepted-qualification'
+        || finalManifest.qualificationType !== effective.entry.qualificationType
+        || finalManifest.acceptedPurpose !== effective.entry.acceptedPurpose
+        || !canonicalJsonBytes(finalManifest.excludedPurposes).equals(canonicalJsonBytes(effective.entry.excludedPurposes))
+        || !canonicalJsonBytes(finalManifest.operatingCounts).equals(canonicalJsonBytes(effective.entry.operatingCounts))) {
+        fail('ACCEPTED_QUALIFICATION_MISMATCH', 'Accepted registry entry and final manifest are incompatible')
+    }
     return {
         registry,
         registryDescriptorSha256,

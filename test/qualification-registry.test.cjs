@@ -19,6 +19,7 @@ const {
 } = require('../src/qualification-registry.cjs')
 const {
     EXCLUDED_PURPOSES,
+    QUALIFICATION_TYPE,
     SUBJECT_IMPLEMENTATION_COMMIT,
 } = require('../src/toolchain-shadow-qualification.cjs')
 
@@ -133,6 +134,34 @@ test('invalid disposition and any operating count fail closed', () => {
     for (const key of Object.keys(OPERATING_COUNTS)) {
         expectCode(() => validateQualificationManifest(reseal(final, (value) => { value.operatingCounts[key] = true })), 'OPERATING_COUNT_ISOLATION_FAILED')
     }
+})
+
+test('content, final, and registry records require the exact qualification type', () => {
+    const content = buildContentManifest({ createdAt: CREATED_AT, subject: subject(), objects: objects() })
+    const final = buildQualificationManifest({
+        createdAt: CREATED_AT,
+        subject: subject(),
+        contentManifestDescriptorSha256: HASH_A,
+        validationResultDescriptorSha256: HASH_B,
+    })
+    assert.equal(content.qualificationType, QUALIFICATION_TYPE)
+    assert.equal(final.qualificationType, QUALIFICATION_TYPE)
+    expectCode(() => validateContentManifest(reseal(content, (value) => {
+        value.qualificationType = 'other-supported-qualification'
+    })), 'INVALID_QUALIFICATION_TYPE')
+    expectCode(() => validateQualificationManifest(reseal(final, (value) => {
+        value.qualificationType = 'other-supported-qualification'
+    })), 'INVALID_QUALIFICATION_TYPE')
+    expectCode(() => validateContentManifest(reseal(content, (value) => {
+        delete value.qualificationType
+    })), 'INVALID_QUALIFICATION_DOCUMENT')
+    expectCode(() => validateQualificationManifest(reseal(final, (value) => {
+        delete value.qualificationType
+    })), 'INVALID_QUALIFICATION_DOCUMENT')
+    const registry = initialRegistry().registry
+    expectCode(() => validateRegistry(reseal(registry, (value) => {
+        value.entries[0].qualificationType = 'other-supported-qualification'
+    })), 'BROKEN_QUALIFICATION_REGISTRY_CHAIN')
 })
 
 test('initial accept is append-only and exact duplicate registration is idempotent', () => {

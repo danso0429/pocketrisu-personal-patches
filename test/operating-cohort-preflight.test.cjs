@@ -67,10 +67,16 @@ function acceptedVerification(overrides = {}) {
     const verified = {
         registryDescriptorSha256: '5'.repeat(64),
         registryRootSha256: '6'.repeat(64),
-        effectiveEntry: { operatingCounts: { ...OPERATING_COUNTS } },
+        effectiveEntry: {
+            action: 'accept', disposition: 'accepted-qualification',
+            qualificationType: 'toolchain-hardening-shadow-pilot-closure',
+            operatingCounts: { ...OPERATING_COUNTS },
+        },
         qualification: {
             support,
             finalManifest: {
+                qualificationType: 'toolchain-hardening-shadow-pilot-closure',
+                disposition: 'accepted-qualification',
                 subject: expected.subject,
                 operatingCounts: { ...OPERATING_COUNTS },
                 canonicalProtection: { ...CANONICAL_PROTECTION },
@@ -141,6 +147,15 @@ test('nonzero operating counts fail closed', (t) => {
         assert.equal(result.toolchainPilotClosurePassed, false)
         assert.match(result.reason, /OPERATING_COUNT_ISOLATION_FAILED/)
     }
+})
+
+test('preflight rejects non-accepted final disposition and non-accept effective action', (t) => {
+    const diagnostic = acceptedVerification()
+    diagnostic.qualification.finalManifest.disposition = 'diagnostic'
+    assert.equal(runWith(t, diagnostic).result.reason, 'no-compatible-accepted-qualification')
+    const superseded = acceptedVerification()
+    superseded.effectiveEntry.action = 'supersede'
+    assert.equal(runWith(t, superseded).result.reason, 'no-compatible-accepted-qualification')
 })
 
 test('production certificate, skipped mask, migration, and C1 changes fail closed', (t) => {

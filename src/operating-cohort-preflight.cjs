@@ -11,6 +11,7 @@ const {
     CANONICAL_PROTECTION,
     OPERATING_COUNTS,
 } = require('./qualification-registry.cjs')
+const { QUALIFICATION_TYPE } = require('./toolchain-shadow-qualification.cjs')
 const {
     assertQuarantineIsNotAcceptedStore,
     verifyQualificationRegistry,
@@ -90,6 +91,13 @@ function treeIdentity(root) {
 function assertCompatible(verified, expectation) {
     const support = verified.qualification.support
     const finalManifest = verified.qualification.finalManifest
+    if (verified.effectiveEntry.action !== 'accept'
+        || verified.effectiveEntry.disposition !== 'accepted-qualification'
+        || verified.effectiveEntry.qualificationType !== QUALIFICATION_TYPE
+        || finalManifest.disposition !== 'accepted-qualification'
+        || finalManifest.qualificationType !== QUALIFICATION_TYPE) {
+        fail('QUALIFICATION_NOT_ACCEPTED', 'Preflight requires a current accepted qualification of the exact candidate type')
+    }
     if (!canonicalJsonBytes(finalManifest.subject).equals(canonicalJsonBytes(expectation.subject))) {
         fail('STALE_QUALIFICATION_SUBJECT', 'Qualification subject differs from preflight expectation')
     }
@@ -113,7 +121,7 @@ function assertCompatible(verified, expectation) {
 function reasonFor(error) {
     if (error?.code === 'QUARANTINE_ONLY_EVIDENCE') return 'quarantine-only-evidence'
     if (error?.code === 'QUALIFICATION_REVOKED') return 'revoked-qualification'
-    if (error?.code === 'STALE_QUALIFICATION_CURRENT_REF') return 'superseded-qualification'
+    if (['STALE_QUALIFICATION_CURRENT_REF', 'QUALIFICATION_SUPERSEDED'].includes(error?.code)) return 'superseded-qualification'
     if (['STALE_QUALIFICATION_SUBJECT', 'STALE_QUALIFICATION_COMPATIBILITY'].includes(error?.code)) return 'stale-qualification'
     if (error?.code === 'QUALIFICATION_NOT_ACCEPTED') return 'no-compatible-accepted-qualification'
     return `invalid-durable-qualification:${error?.code ?? 'unknown'}`

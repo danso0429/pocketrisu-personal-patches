@@ -120,6 +120,9 @@ function validateContentManifest(manifest) {
         'schema', 'createdAt', 'qualificationType', 'subject', 'objects', 'acceptedPurpose',
         'excludedPurposes', 'operatingCounts', 'integrity',
     ], 'content manifest')
+    if (manifest.qualificationType !== QUALIFICATION_TYPE) {
+        fail('INVALID_QUALIFICATION_TYPE', 'Content manifest qualification type is incompatible')
+    }
     validateSubject(manifest.subject)
     validatePurposes(manifest.acceptedPurpose, manifest.excludedPurposes)
     validateOperatingCounts(manifest.operatingCounts)
@@ -225,6 +228,9 @@ function validateQualificationManifest(manifest) {
         'validationResultDescriptorSha256', 'disposition', 'acceptedPurpose', 'excludedPurposes',
         'operatingCounts', 'canonicalProtection', 'integrity',
     ], 'qualification manifest')
+    if (manifest.qualificationType !== QUALIFICATION_TYPE) {
+        fail('INVALID_QUALIFICATION_TYPE', 'Final manifest qualification type is incompatible')
+    }
     validateSubject(manifest.subject)
     validateSha(manifest.contentManifestDescriptorSha256, 'final content manifest')
     validateSha(manifest.validationResultDescriptorSha256, 'final validation result')

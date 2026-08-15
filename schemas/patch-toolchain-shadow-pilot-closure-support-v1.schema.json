@@ -19,7 +19,25 @@
     "fixtureDerivation": { "type": "object" },
     "receiptValidation": { "type": "object" },
     "focusedTests": { "type": "object" },
-    "integrityChecks": { "type": "object" },
+    "integrityChecks": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "subjectCleanBefore", "subjectCleanAfter", "sourcePrePostMatched",
+        "targetPrePostMatched", "repositoryFilesUnchanged", "lockfileUnchanged",
+        "targetClean", "receiptIntegrityPassed"
+      ],
+      "properties": {
+        "subjectCleanBefore": { "const": true },
+        "subjectCleanAfter": { "const": true },
+        "sourcePrePostMatched": { "const": true },
+        "targetPrePostMatched": { "const": true },
+        "repositoryFilesUnchanged": { "const": true },
+        "lockfileUnchanged": { "const": true },
+        "targetClean": { "const": true },
+        "receiptIntegrityPassed": { "const": true }
+      }
+    },
     "canonicalProtection": { "type": "object" },
     "integrity": { "type": "object" }
   }

@@ -10,7 +10,44 @@
     "generatedAt": { "type": "string", "format": "date-time" },
     "storeIdentityHash": { "type": "string", "pattern": "^[0-9a-f]{64}$" },
     "baseRegistryDescriptorSha256": { "type": ["string", "null"], "pattern": "^[0-9a-f]{64}$" },
-    "entries": { "type": "array", "items": { "type": "object" } },
+    "entries": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "sequence", "previousEntrySha256", "entryId", "action", "qualificationType",
+          "subject", "qualificationManifestDescriptorSha256", "disposition", "acceptedPurpose",
+          "excludedPurposes", "operatingCounts", "reason", "timestamp", "entrySha256"
+        ],
+        "properties": {
+          "sequence": { "type": "integer", "minimum": 1 },
+          "previousEntrySha256": { "type": ["string", "null"], "pattern": "^[0-9a-f]{64}$" },
+          "entryId": { "type": "string", "pattern": "^[0-9a-f]{64}$" },
+          "action": { "enum": ["accept", "revoke", "supersede"] },
+          "qualificationType": { "const": "toolchain-hardening-shadow-pilot-closure" },
+          "subject": { "type": "object" },
+          "qualificationManifestDescriptorSha256": { "type": "string", "pattern": "^[0-9a-f]{64}$" },
+          "disposition": { "enum": ["accepted-qualification", "invalid"] },
+          "acceptedPurpose": { "const": "prerequisite-for-material-shadow-cohort-collection" },
+          "excludedPurposes": { "type": "array", "items": { "type": "string" }, "uniqueItems": true },
+          "operatingCounts": { "type": "object" },
+          "reason": { "type": "string", "minLength": 1 },
+          "timestamp": { "type": "string", "format": "date-time" },
+          "entrySha256": { "type": "string", "pattern": "^[0-9a-f]{64}$" }
+        },
+        "allOf": [
+          {
+            "if": { "properties": { "action": { "const": "revoke" } }, "required": ["action"] },
+            "then": { "properties": { "disposition": { "const": "invalid" } } }
+          },
+          {
+            "if": { "properties": { "action": { "enum": ["accept", "supersede"] } }, "required": ["action"] },
+            "then": { "properties": { "disposition": { "const": "accepted-qualification" } } }
+          }
+        ]
+      }
+    },
     "registryRootSha256": { "type": ["string", "null"], "pattern": "^[0-9a-f]{64}$" },
     "integrity": { "type": "object" }
   }
