@@ -24,6 +24,15 @@ const { canonicalJson } = require('../src/verification-receipts.cjs')
 const { sha256 } = require('../src/verification-evidence.cjs')
 const { candidateObservationProjection } = require('../src/toolchain-shadow-projection.cjs')
 
+const SYNTHETIC_FAULTS = new Set([
+    null,
+    'apply-failure',
+    'interrupted-worker',
+    'repeated-plan-failure',
+    'revert-corruption',
+    'target-integrity-failure',
+])
+
 const METADATA_PATHS = [DEFAULT_INTENT_PATH, DEFAULT_JOURNAL_PATH, DEFAULT_LOCK_PATH, DEFAULT_STATE_PATH]
 
 function descriptor(root, relative) {
@@ -126,6 +135,9 @@ function main() {
     if (!input || ![0, 1].includes(input.mask) || typeof input.boundaryClassId !== 'string') {
         throw Object.assign(new Error('Invalid shadow-mask input'), { code: 'INVALID_SHADOW_MASK_INPUT' })
     }
+    if (!SYNTHETIC_FAULTS.has(input.syntheticFault ?? null)) {
+        throw Object.assign(new Error('Unknown synthetic fault'), { code: 'UNKNOWN_FAULT_INJECTION' })
+    }
     const compiled = validateToolchainShadowDeclaration(input.declaration, {
         repositoryRoot: input.sourceRoot,
         targetRoot: input.targetRoot,
@@ -139,6 +151,9 @@ function main() {
     const wallStarted = process.hrtime.bigint()
     let phase = 'initial-plan'
     try {
+        if (input.syntheticFault === 'interrupted-worker') {
+            process.kill(process.pid, 'SIGTERM')
+        }
         const selectedPackIds = input.mask === 1 ? ['toolchain-hardening'] : []
         const transition = planTransition({
             root: input.targetRoot,
@@ -151,6 +166,9 @@ function main() {
             compiled.declaration,
         )
         phase = 'apply'
+        if (input.syntheticFault === 'apply-failure') {
+            throw Object.assign(new Error('Synthetic apply failure'), { code: 'SYNTHETIC_APPLY_FAILURE' })
+        }
         applyTransition({ root: input.targetRoot, transition })
         peakBytes = Math.max(peakBytes, allocatedBytes(input.targetRoot))
         const applied = snapshot(input.targetRoot, paths)
@@ -177,6 +195,9 @@ function main() {
             packIds: selectedPackIds,
             profile: 'toolchain-shadow-pilot',
         })
+        if (input.syntheticFault === 'repeated-plan-failure') {
+            throw Object.assign(new Error('Synthetic repeated-plan failure'), { code: 'SYNTHETIC_REPEATED_PLAN_FAILURE' })
+        }
         if (repeated.changes.length !== 0) throw new Error('Same-selection re-plan was not zero-change')
         phase = 'revert-plan'
         const reverted = planTransition({
@@ -187,6 +208,9 @@ function main() {
         })
         phase = 'revert-apply'
         applyTransition({ root: input.targetRoot, transition: reverted })
+        if (input.syntheticFault === 'revert-corruption') {
+            fs.appendFileSync(path.join(input.targetRoot, 'package.json'), ' ')
+        }
         peakBytes = Math.max(peakBytes, allocatedBytes(input.targetRoot))
         phase = 'restoration'
         const restoredSnapshot = snapshot(input.targetRoot, paths)

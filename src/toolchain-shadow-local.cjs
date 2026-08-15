@@ -27,6 +27,13 @@ const {
 
 const LOCAL_RECEIPT_SCHEMA = 'patch-toolchain-shadow-local-receipt-v1'
 const DISPOSITIONS = Object.freeze(['synthetic-known-answer', 'dry-run', 'material-shadow', 'defect-reproduction'])
+const SYNTHETIC_FAULTS = Object.freeze([
+    'apply-failure',
+    'interrupted-worker',
+    'repeated-plan-failure',
+    'revert-corruption',
+    'target-integrity-failure',
+])
 
 class ToolchainShadowLocalError extends Error {
     constructor(code, message, details = {}) {
@@ -49,7 +56,7 @@ function copyProjectionFile(sourceRoot, targetRoot, relative) {
     fs.chmodSync(destination, stat.mode & 0o7777)
 }
 
-function spawnMask({ sourceRoot, projectionRoot, mask, boundaryClassId, declaration }) {
+function spawnMask({ sourceRoot, projectionRoot, mask, boundaryClassId, declaration, syntheticFault }) {
     const worker = path.join(sourceRoot, 'scripts/run-toolchain-shadow-mask.cjs')
     const result = childProcess.spawnSync(process.execPath, [worker], {
         cwd: sourceRoot,
@@ -61,6 +68,7 @@ function spawnMask({ sourceRoot, projectionRoot, mask, boundaryClassId, declarat
             mask,
             boundaryClassId,
             declaration,
+            syntheticFault,
         }),
         maxBuffer: 32 * 1024 * 1024,
         timeout: 30_000,
@@ -243,9 +251,16 @@ async function runFreshLocalShadow({
     disposition = 'dry-run',
     compiledContract = null,
     recordedAt = new Date().toISOString(),
+    syntheticFault = null,
 }) {
     if (!DISPOSITIONS.includes(disposition)) {
         throw new ToolchainShadowLocalError('UNKNOWN_LOCAL_DISPOSITION', `Unknown disposition ${disposition}`)
+    }
+    if (syntheticFault !== null && !SYNTHETIC_FAULTS.includes(syntheticFault)) {
+        throw new ToolchainShadowLocalError('UNKNOWN_FAULT_INJECTION', 'Fault injection value is unknown')
+    }
+    if (syntheticFault !== null && disposition !== 'synthetic-known-answer') {
+        throw new ToolchainShadowLocalError('FAULT_INJECTION_FORBIDDEN', 'Fault injection is synthetic-only')
     }
     const source = fs.realpathSync(path.resolve(sourceRoot))
     const target = fs.realpathSync(path.resolve(targetRoot))
@@ -284,6 +299,7 @@ async function runFreshLocalShadow({
                     mask,
                     boundaryClassId,
                     declaration: compiled.declaration,
+                    syntheticFault,
                 })
                 observations.push({ projectionId, ...observation })
                 peakTemporaryBytes = Math.max(peakTemporaryBytes, observation.resources.temporaryPeakBytes)
@@ -303,6 +319,9 @@ async function runFreshLocalShadow({
                 })
             }
         }
+    }
+    if (syntheticFault === 'target-integrity-failure') {
+        fs.appendFileSync(path.join(target, 'package.json'), ' ')
     }
     const targetAfter = await targetFreezeDescriptor(target, { targetProvenance })
     if (sha256(canonicalJson(targetBefore)) !== sha256(canonicalJson(targetAfter))) {
@@ -376,6 +395,7 @@ async function runFreshLocalShadow({
 module.exports = {
     DISPOSITIONS,
     LOCAL_RECEIPT_SCHEMA,
+    SYNTHETIC_FAULTS,
     ToolchainShadowLocalError,
     runFreshLocalShadow,
     validateLocalShadowReceipt,
