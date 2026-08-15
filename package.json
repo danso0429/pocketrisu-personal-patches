@@ -20,7 +20,12 @@
     "verify:combinations:cache-differential": "node scripts/verify-cache-differential.cjs",
     "verify:combinations:evidence": "node scripts/run-verification-evidence.cjs",
     "verify:combinations:receipt": "node scripts/verify-verification-receipt.cjs",
-    "verify:combinations:receipt-registry": "node scripts/build-verification-receipt-registry.cjs"
+    "verify:combinations:receipt-registry": "node scripts/build-verification-receipt-registry.cjs",
+    "evidence:c0:run": "node scripts/run-c0-evidence.cjs",
+    "evidence:c0:verify": "node scripts/verify-c0-evidence.cjs",
+    "evidence:c0:ledgers": "node scripts/build-c0-ledgers.cjs",
+    "evidence:c0:gc-plan": "node scripts/plan-c0-evidence-gc.cjs",
+    "evidence:c0:review-status": "node scripts/review-c0-evidence-status.cjs"
   },
   "engines": {
     "node": ">=22"
