@@ -134,7 +134,8 @@ function validatePilotReceipt(receipt, {
         || globalProjection.localReceiptPayloadSha256 !== localReceipt.integrity.payloadSha256
         || receipt.authority.declarationSha256 !== localReceipt.declarationSha256
         || receipt.authority.declarationSha256 !== globalProjection.declarationSha256
-        || receipt.authority.targetSha256 !== localReceipt.target.applicationTreeSha256) {
+        || receipt.authority.targetSha256 !== localReceipt.target.applicationTreeSha256
+        || globalProjection.target?.applicationTreeSha256 !== localReceipt.target.applicationTreeSha256) {
         throw new ToolchainShadowEvidenceError('PILOT_REFERENCE_MISMATCH', 'Local/Global projection references differ')
     }
     let globalAccepted = false
@@ -155,6 +156,8 @@ function validatePilotReceipt(receipt, {
             || receipt.authority.governanceCommit !== c0Bundle.authority.governance.commit
             || receipt.authority.implementationCommit !== c0Bundle.authority.implementation.commit
             || receipt.authority.policySha256 !== c0Bundle.authority.policy.sha256
+            || receipt.authority.catalogSha256 !== c0Bundle.authority.catalog.rootSha256
+            || c0Bundle.authority.target.commit !== localReceipt.target.commit
             || globalReceipt.verifierResult?.rawSelections !== 4096
             || globalReceipt.verifierResult?.verifiedSelections !== 4096
             || globalReceipt.verifierResult?.roundTrips !== 'passed'

@@ -6,6 +6,8 @@ const os = require('node:os')
 const path = require('node:path')
 const test = require('node:test')
 const { loadCatalog } = require('../src/catalog.cjs')
+const { buildEvidenceBundle } = require('../src/c0-evidence.cjs')
+const { routeCurrentC0 } = require('../src/c0-policy.cjs')
 const {
     buildPilotIncident,
     buildPilotReceipt,
@@ -24,6 +26,16 @@ const {
     publishEvidenceObject,
 } = require('../src/c0-retention.cjs')
 const { canonicalJson, sealDocument } = require('../src/verification-receipts.cjs')
+const {
+    captureInputFreeze,
+    sha256,
+    validateVerificationResult,
+} = require('../src/verification-evidence.cjs')
+const {
+    compareRuntimeEnvelopes,
+    runtimeEnvelope,
+} = require('../src/verification-runtime.cjs')
+const { BUILD_BOUNDARY_CLASS } = require('../src/toolchain-shadow-boundaries.cjs')
 
 const ROOT = path.resolve(__dirname, '..')
 const HASH = (value) => value.repeat(64)
@@ -62,6 +74,114 @@ async function fixture() {
         recordedAt: '2026-08-15T00:00:01.000Z',
     })
     return { target, localReceipt, globalProjection }
+}
+
+async function materialFixture() {
+    const target = createToolchainKnownAnswerTarget(ROOT)
+    const localReceipt = await runFreshLocalShadow({
+        sourceRoot: ROOT,
+        targetRoot: target.root,
+        targetProvenance: target.provenance,
+        disposition: 'material-shadow',
+        compiledContract: target.compiled,
+        buildBoundaryObserver: () => ({ ...BUILD_BOUNDARY_CLASS }),
+        recordedAt: '2026-08-15T01:00:00.000Z',
+    })
+    const visiblePacks = loadCatalog(ROOT).filter((pack) => pack.userSelectable !== false)
+        .map((pack) => pack.id).sort()
+    const syntheticProjection = syntheticGlobalProjection({
+        localReceipt,
+        visiblePacks,
+        recordedAt: '2026-08-15T01:00:01.000Z',
+    })
+    const { integrity: projectionIntegrity, ...projectionPayload } = syntheticProjection
+    const globalProjection = sealDocument({
+        ...projectionPayload,
+        sourceKind: 'global-projection-one-worker',
+        materialEligibility: 'requires-bound-c0-global-receipt',
+    })
+    const frozen = await captureInputFreeze({
+        sourceRoot: ROOT,
+        targetRoot: target.root,
+        targetProvenance: target.provenance,
+    })
+    frozen.target.provenance = { kind: 'git', commit: localReceipt.target.commit }
+    const runtime = runtimeEnvelope({ root: ROOT })
+    const result = {
+        visiblePacks,
+        rawSelections: 4096,
+        verifiedSelections: 4096,
+        roundTrips: 'passed',
+        workers: 1,
+        workerHistory: {
+            schema: 'patch-combination-worker-history-v1',
+            schedule: 'stride-v1',
+            workers: [{ workerIndex: 0, orderedMasks: Array.from({ length: 4096 }, (_, mask) => mask) }],
+        },
+    }
+    const stdout = `${JSON.stringify(result)}\n`
+    const command = [process.execPath, path.join(ROOT, 'scripts/verify-all-combinations.cjs'), '--root', target.root, '--json', '--jobs', '1']
+    const globalReceipt = sealDocument({
+        schema: 'patch-verification-execution-receipt-v2',
+        verificationKind: 'global-exhaustive',
+        disposition: 'current-active',
+        timestamp: '2026-08-15T01:00:02.000Z',
+        command,
+        options: { jobs: 1, allowReviewing: false, targetProvenance: null },
+        before: frozen,
+        after: structuredClone(frozen),
+        execution: {
+            exitCode: 0,
+            signal: null,
+            spawnError: null,
+            outputError: null,
+            stdout,
+            stderr: '',
+            stdoutBytes: Buffer.byteLength(stdout),
+            stdoutSha256: sha256(stdout),
+            stderrBytes: 0,
+            stderrSha256: sha256(''),
+        },
+        verifierResult: result,
+        verifierErrors: validateVerificationResult('global-exhaustive', result),
+        stability: { sourceMatched: true, targetMatched: true, matched: true },
+        runtime: {
+            before: runtime,
+            after: structuredClone(runtime),
+            comparison: compareRuntimeEnvelopes(runtime, runtime),
+        },
+        accepted: true,
+    })
+    const c0Bundle = buildEvidenceBundle({
+        sourceRoot: ROOT,
+        globalReceipt,
+        resources: {
+            measurementSchema: 'patch-c0-resource-measurement-v1',
+            wallMs: 1,
+            cpu: { wrapperMs: 1, childrenMs: 1, totalMs: 2 },
+            maximumRssKiB: 1,
+            temporary: {
+                root: '/tmp/toolchain-material-known-answer',
+                baselineBytes: 0,
+                sampledPeakBytes: 1,
+                postRunResidueBytes: 0,
+                sampleIntervalMs: 100,
+                retained: false,
+            },
+        },
+        governanceRepository: 'https://github.com/danso0429/patch-verification-governance',
+        governanceCommit: 'a'.repeat(40),
+        governanceStatusVersion: 12,
+        implementationRepository: 'material-known-answer',
+        runKind: 'production-c0',
+        cohortClass: 'audit',
+        trialId: 'material-known-answer-1',
+        materiallyDistinct: true,
+        repeatedPerformanceTrial: false,
+        c0Decision: routeCurrentC0({ correctness: 'passed', budget: 'passed' }),
+        recordedAt: '2026-08-15T01:00:03.000Z',
+    })
+    return { target, localReceipt, globalProjection, globalReceipt, c0Bundle }
 }
 
 function dryRun(value, overrides = {}) {
@@ -167,4 +287,50 @@ test('material mode fails closed without a bound accepted C0 Global cohort', asy
     }
 })
 
-module.exports = { authority, dryRun, fixture }
+test('material pilot accepts only a bound one-worker 4,096-mask C0 Global known answer', async () => {
+    const value = await materialFixture()
+    try {
+        const boundAuthority = {
+            governanceCommit: value.c0Bundle.authority.governance.commit,
+            implementationCommit: value.c0Bundle.authority.implementation.commit,
+            policySha256: value.c0Bundle.authority.policy.sha256,
+            catalogSha256: value.c0Bundle.authority.catalog.rootSha256,
+            schemasSha256: HASH('8'),
+            targetSha256: value.localReceipt.target.applicationTreeSha256,
+            declarationSha256: value.localReceipt.declarationSha256,
+            environmentSha256: HASH('9'),
+            localRouteSha256: HASH('a'),
+            globalRouteSha256: HASH('b'),
+            c0CohortId: value.c0Bundle.cohort.cohortId,
+        }
+        const pilot = buildPilotReceipt({
+            mode: 'material-shadow',
+            localReceipt: value.localReceipt,
+            globalProjection: value.globalProjection,
+            globalReceipt: value.globalReceipt,
+            c0Bundle: value.c0Bundle,
+            authority: boundAuthority,
+            trialId: 'material-known-answer-1',
+            materiallyDistinct: true,
+            recordedAt: '2026-08-15T01:00:04.000Z',
+        })
+        assert.equal(pilot.result.pilotCorrectness, 'passed')
+        assert.equal(pilot.result.candidateAdmission, 'not-authorized')
+        assert.equal(pilot.result.productionClassification, 'G')
+
+        assert.throws(() => buildPilotReceipt({
+            mode: 'material-shadow',
+            localReceipt: value.localReceipt,
+            globalProjection: value.globalProjection,
+            globalReceipt: value.globalReceipt,
+            c0Bundle: value.c0Bundle,
+            authority: { ...boundAuthority, catalogSha256: HASH('c') },
+            trialId: 'material-known-answer-2',
+            materiallyDistinct: true,
+        }), (error) => error.code === 'MATERIAL_GLOBAL_MISMATCH')
+    } finally {
+        fs.rmSync(value.target.root, { recursive: true, force: true })
+    }
+})
+
+module.exports = { authority, dryRun, fixture, materialFixture }
