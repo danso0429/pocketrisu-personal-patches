@@ -1,0 +1,48 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://pocketrisu.local/schemas/patch-evidence-store-identity-v1.schema.json",
+  "title": "Patch qualification evidence store identity v1",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema",
+    "storeUuid",
+    "createdAt",
+    "effectiveUid",
+    "rootRealpath",
+    "durabilityClass",
+    "objectNamespaceVersion",
+    "supportedObjectModels",
+    "sizeLimits",
+    "publicationAlgorithm",
+    "registryNamespace",
+    "storeIdentityHash"
+  ],
+  "properties": {
+    "schema": { "const": "patch-evidence-store-identity-v1" },
+    "storeUuid": { "type": "string", "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$" },
+    "createdAt": { "type": "string", "format": "date-time" },
+    "effectiveUid": { "type": "integer", "minimum": 0 },
+    "rootRealpath": { "type": "string", "pattern": "^/" },
+    "durabilityClass": { "const": "server-local" },
+    "objectNamespaceVersion": { "const": "v2" },
+    "supportedObjectModels": {
+      "const": ["canonical-json", "raw-blob"]
+    },
+    "sizeLimits": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["descriptor", "machineCanonicalJson", "registrySnapshot", "rawPayload", "publicationBatch"],
+      "properties": {
+        "descriptor": { "const": 65536 },
+        "machineCanonicalJson": { "const": 4194304 },
+        "registrySnapshot": { "const": 16777216 },
+        "rawPayload": { "const": 67108864 },
+        "publicationBatch": { "const": 268435456 }
+      }
+    },
+    "publicationAlgorithm": { "const": "write-fsync-reread-link-fsync-v1" },
+    "registryNamespace": { "const": "v2/registries/qualification" },
+    "storeIdentityHash": { "type": "string", "pattern": "^[0-9a-f]{64}$" }
+  }
+}

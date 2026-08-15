@@ -1,0 +1,53 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://pocketrisu.local/schemas/patch-evidence-object-descriptor-v1.schema.json",
+  "title": "Patch qualification evidence object descriptor v1",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema",
+    "payloadSha256",
+    "payloadBytes",
+    "payloadModel",
+    "mediaType",
+    "role",
+    "contentEncoding",
+    "referencedSchema",
+    "canonicalSemanticSha256",
+    "publisherToolIdentity",
+    "createdAt",
+    "sizeLimitClass"
+  ],
+  "properties": {
+    "schema": { "const": "patch-evidence-object-descriptor-v1" },
+    "payloadSha256": { "type": "string", "pattern": "^[0-9a-f]{64}$" },
+    "payloadBytes": { "type": "integer", "minimum": 0 },
+    "payloadModel": { "enum": ["canonical-json", "raw-blob"] },
+    "mediaType": {
+      "enum": [
+        "application/json",
+        "application/x-ndjson",
+        "text/markdown; charset=utf-8",
+        "application/vnd.pocketrisu.toolchain-shadow-pilot-closure+json",
+        "application/vnd.pocketrisu.qualification-manifest+json",
+        "application/vnd.pocketrisu.qualification-validation+json",
+        "application/vnd.pocketrisu.qualification-registry+json"
+      ]
+    },
+    "role": { "type": "string", "pattern": "^[a-z][a-z0-9-]{0,127}$" },
+    "contentEncoding": { "const": "identity" },
+    "referencedSchema": { "type": ["string", "null"], "minLength": 1 },
+    "canonicalSemanticSha256": {
+      "anyOf": [
+        { "type": "string", "pattern": "^[0-9a-f]{64}$" },
+        { "type": "null" }
+      ]
+    },
+    "publisherToolIdentity": {
+      "type": "object",
+      "minProperties": 1
+    },
+    "createdAt": { "type": "string", "format": "date-time" },
+    "sizeLimitClass": { "enum": ["machine-canonical-json", "registry-snapshot", "raw-payload"] }
+  }
+}
