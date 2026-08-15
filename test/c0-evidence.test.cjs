@@ -2,6 +2,7 @@
 
 const assert = require('node:assert/strict')
 const fs = require('node:fs')
+const os = require('node:os')
 const path = require('node:path')
 const test = require('node:test')
 const {
@@ -29,6 +30,11 @@ const {
     finalizeEvidenceBundle,
     requiredExitCode,
 } = require('../src/c0-evidence.cjs')
+const {
+    allocatedDirectoryBytes,
+    parseGnuTime,
+    runMeasuredWrapper,
+} = require('../scripts/run-c0-evidence.cjs')
 
 const FIXTURE_COMMIT = 'a'.repeat(40)
 const TARGET_COMMIT = 'b'.repeat(40)
@@ -369,4 +375,38 @@ test('corrupt Global receipt and corrupt bundle integrity are rejected', () => {
     const corruptBundle = structuredClone(bundle)
     corruptBundle.resources.wallMs = 999
     assert.equal(evaluateC0EvidenceBundle(corruptBundle, { globalReceipt: receipt }).bundleValid, false)
+})
+
+test('GNU time parser rejects missing or corrupt resource records', () => {
+    assert.deepEqual(parseGnuTime('patch-c0-time-v1\t1.25\t0.75\t4096\n'), {
+        processGroupCpuMs: 2000,
+        maximumRssKiB: 4096,
+    })
+    assert.throws(() => parseGnuTime(''), /missing/)
+    assert.throws(() => parseGnuTime('patch-c0-time-v1\tbad\t0\t1\n'), /invalid/)
+})
+
+test('resource capture measures the wrapper process group and dedicated temporary root', async (t) => {
+    if (!fs.existsSync('/usr/bin/time')) return t.skip('GNU time is unavailable')
+    const root = fs.mkdtempSync(path.join(os.tmpdir(), 'c0-resource-known-answer-'))
+    t.after(() => fs.rmSync(root, { recursive: true, force: true }))
+    const measured = await runMeasuredWrapper(process.execPath, [
+        '-e',
+        "require('node:fs').writeFileSync(require('node:path').join(process.env.TMPDIR,'payload'),Buffer.alloc(8192))",
+    ], {
+        cwd: __dirname,
+        env: { ...process.env, TMPDIR: root, TMP: root, TEMP: root },
+        temporaryRoot: root,
+    })
+    assert.equal(measured.exitCode, 0)
+    assert.equal(measured.signal, null)
+    assert.equal(measured.spawnError, null)
+    assert.equal(measured.stdout, '')
+    assert.equal(measured.stderr, '')
+    assert.ok(measured.wallMs > 0)
+    assert.ok(measured.time.processGroupCpuMs >= 0)
+    assert.ok(measured.time.maximumRssKiB > 0)
+    assert.ok(measured.sampledPeakBytes >= measured.baselineBytes)
+    assert.ok(measured.sampledPeakBytes >= measured.postRunResidueBytes)
+    assert.ok(allocatedDirectoryBytes(root) >= 8192)
 })

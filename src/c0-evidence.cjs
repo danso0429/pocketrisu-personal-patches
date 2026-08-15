@@ -1,5 +1,7 @@
 'use strict'
 
+const fs = require('node:fs')
+const path = require('node:path')
 const {
     sha256,
 } = require('./verification-evidence.cjs')
@@ -299,7 +301,9 @@ function validateAuthority(bundle, receipt, errors) {
     ], 'worker schedule authority', errors)) return
     const workerHistory = receipt?.verifierResult?.workerHistory
     const expectedSchedule = workerHistory?.schedule ?? 'stride-v1'
-    const expectedWorkers = receipt?.verifierResult?.workers ?? receipt?.options?.jobs
+    const expectedWorkers = receipt?.verifierResult?.workers
+        ?? receipt?.options?.jobs
+        ?? receipt?.runtime?.before?.values?.availableParallelism
     const expectedOrderedMasks = workerHistory?.workers ?? []
     if (authority.workerSchedule.schedule !== expectedSchedule) errors.push('worker schedule differs from Global receipt or requested canonical schedule')
     if (authority.workerSchedule.workers !== expectedWorkers) errors.push('worker count differs from Global receipt or command options')
@@ -356,6 +360,247 @@ function globalCoverageComplete(receipt) {
     return masks.length === expected
         && new Set(masks).size === expected
         && masks.every((mask) => Number.isSafeInteger(mask) && mask >= 0 && mask < expected)
+}
+
+const C0_SCHEMA_FILES = Object.freeze([
+    'schemas/patch-c0-cohort-ledger-v1.schema.json',
+    'schemas/patch-c0-defect-yield-summary-v1.schema.json',
+    'schemas/patch-c0-evidence-bundle-v1.schema.json',
+    'schemas/patch-c0-incident-record-v1.schema.json',
+    'schemas/patch-c0-retention-plan-v1.schema.json',
+    'schemas/patch-c0-review-trigger-v1.schema.json',
+    'schemas/patch-c0-stable-release-ledger-v1.schema.json',
+])
+
+function schemaAuthority(sourceRoot) {
+    const files = C0_SCHEMA_FILES.map((relative) => ({
+        path: relative,
+        sha256: sha256(fs.readFileSync(path.join(sourceRoot, relative))),
+    }))
+    return {
+        rootSha256: canonicalSha256(files),
+        files,
+    }
+}
+
+function runtimeSemanticIdentity(envelope) {
+    const values = {}
+    for (const [field, definition] of Object.entries(envelope?.fieldPolicy ?? {})) {
+        if (!['semantic', 'compatibility-critical'].includes(definition?.classification)) continue
+        values[field] = envelope?.values?.[field]
+    }
+    return {
+        schema: 'patch-c0-runtime-semantic-identity-v1',
+        values,
+    }
+}
+
+function workerScheduleAuthority(receipt) {
+    const workerHistory = receipt?.verifierResult?.workerHistory
+    const payload = {
+        schedule: workerHistory?.schedule ?? 'stride-v1',
+        workers: receipt?.verifierResult?.workers
+            ?? receipt?.options?.jobs
+            ?? receipt?.runtime?.before?.values?.availableParallelism,
+        orderedMasksSha256: canonicalSha256(workerHistory?.workers ?? []),
+        historyMode: 'persistent-per-worker-v1',
+    }
+    return { ...payload, sha256: canonicalSha256(payload) }
+}
+
+function cacheHistoryAuthority() {
+    const payload = {
+        cacheMode: 'enabled-shared-per-worker-v1',
+        moduleHistoryMode: 'persistent-per-worker-v1',
+        unmanagedHistoryMode: 'persistent-per-worker-v1',
+    }
+    return { ...payload, sha256: canonicalSha256(payload) }
+}
+
+function buildAuthority({
+    sourceRoot,
+    globalReceipt,
+    governanceRepository,
+    governanceCommit,
+    governanceStatusVersion,
+    implementationRepository,
+}) {
+    const before = globalReceipt.before
+    const after = globalReceipt.after
+    const command = globalReceipt.command
+    const semanticIdentity = runtimeSemanticIdentity(globalReceipt.runtime.before)
+    const authority = {
+        governance: {
+            repository: governanceRepository,
+            commit: governanceCommit,
+            statusVersion: governanceStatusVersion,
+        },
+        implementation: {
+            repository: implementationRepository,
+            commit: before.source.git.commit,
+            branch: before.source.git.branch,
+            statusSha256: sha256(before.source.git.status),
+            stagedDiffSha256: before.source.git.stagedDiffSha256,
+            unstagedDiffSha256: before.source.git.unstagedDiffSha256,
+        },
+        policy: {
+            path: 'docs/patch-combination-verification-instructions.md',
+            sha256: before.source.policy.sha256,
+        },
+        catalog: { rootSha256: before.source.catalog.rootSha256 },
+        schemas: schemaAuthority(sourceRoot),
+        target: {
+            commit: before.target.provenance.commit,
+            beforeSha256: canonicalSha256(before.target),
+            afterSha256: canonicalSha256(after.target),
+            applicationBeforeSha256: before.target.applicationTree.rootSha256,
+            applicationAfterSha256: after.target.applicationTree.rootSha256,
+        },
+        environment: {
+            beforeSha256: canonicalSha256(globalReceipt.runtime.before),
+            afterSha256: canonicalSha256(globalReceipt.runtime.after),
+            semanticSha256: canonicalSha256(semanticIdentity),
+        },
+        command: { argv: command, sha256: canonicalSha256(command) },
+        workerSchedule: workerScheduleAuthority(globalReceipt),
+        cacheHistory: cacheHistoryAuthority(),
+    }
+    return authority
+}
+
+function buildCorrectness(globalReceipt) {
+    const evaluation = evaluateExecutionReceipt(globalReceipt)
+    const coverageComplete = globalCoverageComplete(globalReceipt)
+    const targetIntegrity = globalReceipt?.stability?.targetMatched === true
+    const receiptIntegrity = evaluation.receiptValid
+    const c0GlobalMatch = globalReceipt?.verificationKind === 'global-exhaustive'
+    const missingOutput = (globalReceipt?.execution?.stdoutBytes ?? 0) === 0
+    const spawnError = globalReceipt?.execution?.spawnError === null
+        ? null
+        : String(globalReceipt?.execution?.spawnError?.code
+            ?? globalReceipt?.execution?.spawnError?.message
+            ?? 'spawn-error')
+    const signal = globalReceipt?.execution?.signal ?? null
+    const reportedFailures = Array.isArray(globalReceipt?.verifierResult?.failures)
+        ? globalReceipt.verifierResult.failures.length
+        : 0
+    const passed = evaluation.executionAccepted
+        && coverageComplete
+        && targetIntegrity
+        && receiptIntegrity
+        && c0GlobalMatch
+        && !missingOutput
+        && spawnError === null
+        && signal === null
+        && reportedFailures === 0
+    return {
+        status: passed ? 'passed' : (evaluation.receiptValid ? 'failed' : 'incomplete'),
+        coverageComplete,
+        targetIntegrity,
+        receiptIntegrity,
+        c0GlobalMatch,
+        missingOutput,
+        spawnError,
+        signal,
+        reportedFailures,
+        errors: [
+            ...evaluation.structuralErrors.map((error) => `receipt-structure: ${error}`),
+            ...evaluation.acceptanceErrors.map((error) => `receipt-acceptance: ${error}`),
+        ],
+    }
+}
+
+function buildEvidenceBundle({
+    sourceRoot,
+    globalReceipt,
+    resources,
+    governanceRepository,
+    governanceCommit,
+    governanceStatusVersion,
+    implementationRepository,
+    runKind,
+    cohortClass,
+    trialId,
+    materiallyDistinct,
+    repeatedPerformanceTrial,
+    syntheticMutation = false,
+    focusedGates = [],
+    productGates = [],
+    c0Decision,
+    referencedObjectsNewPhysicalBytes = 0,
+    recordedAt = new Date().toISOString(),
+}) {
+    const authority = buildAuthority({
+        sourceRoot,
+        globalReceipt,
+        governanceRepository,
+        governanceCommit,
+        governanceStatusVersion,
+        implementationRepository,
+    })
+    const correctness = buildCorrectness(globalReceipt)
+    const receiptEncoded = canonicalJson(globalReceipt)
+    const receiptObjectSha256 = sha256(receiptEncoded)
+    const productionEligible = runKind === 'production-c0'
+    const effectiveDisposition = correctness.status === 'passed'
+        ? globalReceipt.disposition
+        : (globalReceipt.disposition === 'current-active'
+            ? (correctness.status === 'incomplete' ? 'incomplete' : 'defect-reproduction')
+            : globalReceipt.disposition)
+    return finalizeEvidenceBundle({
+        schema: C0_EVIDENCE_SCHEMA,
+        disposition: effectiveDisposition,
+        runKind,
+        recordedAt,
+        cohort: {
+            identitySchema: C0_COHORT_IDENTITY_SCHEMA,
+            cohortId: null,
+            runId: null,
+            trialId,
+            cohortClass,
+            materiallyDistinct,
+            repeatedPerformanceTrial,
+            productionEligible,
+            syntheticMutation,
+            identity: expectedCohortIdentity(authority),
+        },
+        authority,
+        c0Decision,
+        globalReceipt: {
+            objectSha256: receiptObjectSha256,
+            bytes: Buffer.byteLength(receiptEncoded),
+            payloadSha256: globalReceipt.integrity.payloadSha256,
+            accepted: globalReceipt.accepted,
+            disposition: globalReceipt.disposition,
+        },
+        gates: {
+            focused: focusedGates,
+            global: {
+                name: 'Global Exhaustive',
+                result: correctness.status === 'passed' ? 'passed' : 'failed',
+                receiptObjectSha256,
+                detailsSha256: null,
+            },
+            product: productGates,
+        },
+        correctness,
+        resources: {
+            ...resources,
+            evidenceStorage: {
+                receiptBytes: Buffer.byteLength(receiptEncoded),
+                referencedObjectsNewPhysicalBytes,
+            },
+        },
+        canonicalProtection: {
+            canonicalGate: 'Global Exhaustive',
+            globalFallbackRetained: true,
+            defaultChanged: false,
+            productionCertificates: 0,
+            canonicalMasksSkipped: 0,
+            productionStateMigration: false,
+            c1Authorized: false,
+        },
+    })
 }
 
 function validateCorrectness(bundle, receipt, receiptEvaluation, errors, acceptanceErrors) {
@@ -578,10 +823,18 @@ module.exports = {
     RESOURCE_MEASUREMENT_SCHEMA,
     RUN_KINDS,
     canonicalSha256,
+    buildAuthority,
+    buildCorrectness,
+    buildEvidenceBundle,
+    cacheHistoryAuthority,
     computeCohortId,
     computeRunId,
     evaluateC0EvidenceBundle,
     expectedCohortIdentity,
     finalizeEvidenceBundle,
+    globalCoverageComplete,
     requiredExitCode,
+    runtimeSemanticIdentity,
+    schemaAuthority,
+    workerScheduleAuthority,
 }
