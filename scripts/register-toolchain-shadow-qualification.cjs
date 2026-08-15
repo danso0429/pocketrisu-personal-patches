@@ -37,23 +37,32 @@ const { runChild } = require('../src/verification-evidence.cjs')
 function parseArgs(argv) {
     const options = { toolRoot: path.resolve(__dirname, '..') }
     const values = argv.slice(2)
-    for (let index = 0; index < values.length; index += 2) {
+    const optionKeys = {
+        '--store': 'storeRoot',
+        '--support': 'supportFile',
+        '--closure': 'closureFile',
+        '--local-receipt': 'localReceiptFile',
+        '--global-synthetic-receipt': 'globalReceiptFile',
+        '--closure-narrative': 'narrativeFile',
+        '--source-event': 'sourceEventFile',
+        '--environment-narrative': 'environmentNarrativeFile',
+        '--reason': 'reason',
+        '--tool-root': 'toolRoot',
+        '--subject-root': 'subjectRoot',
+    }
+    const seen = new Set()
+    let index = 0
+    while (index < values.length) {
         const flag = values[index]
-        const key = {
-            '--store': 'storeRoot',
-            '--support': 'supportFile',
-            '--closure': 'closureFile',
-            '--local-receipt': 'localReceiptFile',
-            '--global-synthetic-receipt': 'globalReceiptFile',
-            '--closure-narrative': 'narrativeFile',
-            '--source-event': 'sourceEventFile',
-            '--environment-narrative': 'environmentNarrativeFile',
-            '--reason': 'reason',
-            '--tool-root': 'toolRoot',
-            '--subject-root': 'subjectRoot',
-        }[flag]
-        if (!key || index + 1 >= values.length) throw new Error(`Unknown or incomplete option: ${flag}`)
-        options[key] = values[++index]
+        const key = optionKeys[flag]
+        if (!key) throw new Error(`Unknown option: ${flag}`)
+        if (seen.has(flag)) throw new Error(`Duplicate option: ${flag}`)
+        if (index + 1 >= values.length || values[index + 1] === '' || values[index + 1].startsWith('--')) {
+            throw new Error(`Missing value for ${flag}`)
+        }
+        options[key] = values[index + 1]
+        seen.add(flag)
+        index += 2
     }
     for (const key of ['storeRoot', 'supportFile', 'closureFile', 'localReceiptFile', 'globalReceiptFile', 'reason', 'subjectRoot']) {
         if (!options[key]) throw new Error(`Missing required option: ${key}`)
