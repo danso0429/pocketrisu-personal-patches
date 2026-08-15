@@ -10,7 +10,7 @@ const {
     verifyDocumentIntegrity,
 } = require('../src/verification-receipts.cjs')
 const {
-    canonicalObjectBytes,
+    evidenceObjectBytes,
     loadEvidenceObject,
     objectPath,
     planC0EvidenceRetention,
@@ -66,9 +66,16 @@ test('content-addressed publication is immutable and deduplicates exact bytes', 
     assert.equal(second.created, false)
     assert.equal(second.newPhysicalBytes, 0)
     assert.equal(first.objectSha256, second.objectSha256)
-    assert.equal(first.bytes, canonicalObjectBytes(document).length)
+    assert.equal(first.bytes, evidenceObjectBytes(document).length)
     assert.equal(fs.lstatSync(first.path).mode & 0o777, 0o444)
     assert.deepEqual(loadEvidenceObject(store, first.objectSha256).document, document)
+    const reordered = publishEvidenceObject(store, {
+        integrity: document.integrity,
+        label: document.label,
+        disposition: document.disposition,
+        schema: document.schema,
+    })
+    assert.notEqual(first.objectSha256, reordered.objectSha256)
 })
 
 test('corrupt, truncated, or noncanonical evidence objects fail closed', (t) => {

@@ -13,9 +13,14 @@ const {
     validateVerificationResult,
 } = require('../src/verification-evidence.cjs')
 const {
-    canonicalJson,
     sealDocument,
 } = require('../src/verification-receipts.cjs')
+const {
+    evidenceObjectBytes,
+    objectSha256: evidenceObjectSha256,
+    publishEvidenceObject,
+    loadEvidenceObject,
+} = require('../src/c0-retention.cjs')
 const {
     RUNTIME_FIELD_POLICY,
     RUNTIME_SCHEMA_V2,
@@ -205,7 +210,7 @@ function authority(receipt) {
 
 function bundleFixture({ receipt = globalReceipt(), runKind = 'production-c0', trialId = 'trial-1' } = {}) {
     const boundAuthority = authority(receipt)
-    const receiptEncoded = canonicalJson(receipt)
+    const receiptEncoded = evidenceObjectBytes(receipt)
     const production = runKind === 'production-c0'
     return finalizeEvidenceBundle({
         schema: 'patch-c0-evidence-bundle-v1',
@@ -227,15 +232,15 @@ function bundleFixture({ receipt = globalReceipt(), runKind = 'production-c0', t
         authority: boundAuthority,
         c0Decision: routeCurrentC0({ correctness: receipt.accepted ? 'passed' : 'failed', budget: 'passed' }),
         globalReceipt: {
-            objectSha256: sha256(receiptEncoded),
-            bytes: Buffer.byteLength(receiptEncoded),
+            objectSha256: evidenceObjectSha256(receipt),
+            bytes: receiptEncoded.length,
             payloadSha256: receipt.integrity.payloadSha256,
             accepted: receipt.accepted,
             disposition: receipt.disposition,
         },
         gates: {
             focused: [{ name: 'fixture-focused', result: 'not-run', receiptObjectSha256: null, detailsSha256: null }],
-            global: { name: 'Global Exhaustive', result: receipt.accepted ? 'passed' : 'failed', receiptObjectSha256: sha256(receiptEncoded), detailsSha256: null },
+            global: { name: 'Global Exhaustive', result: receipt.accepted ? 'passed' : 'failed', receiptObjectSha256: evidenceObjectSha256(receipt), detailsSha256: null },
             product: [{ name: 'fixture-product', result: 'not-run', receiptObjectSha256: null, detailsSha256: null }],
         },
         correctness: {
@@ -264,8 +269,8 @@ function bundleFixture({ receipt = globalReceipt(), runKind = 'production-c0', t
                 retained: false,
             },
             evidenceStorage: {
-                receiptBytes: Buffer.byteLength(receiptEncoded),
-                referencedObjectsNewPhysicalBytes: Buffer.byteLength(receiptEncoded),
+                receiptBytes: receiptEncoded.length,
+                referencedObjectsNewPhysicalBytes: receiptEncoded.length,
             },
         },
         canonicalProtection: {
@@ -376,6 +381,24 @@ test('corrupt Global receipt and corrupt bundle integrity are rejected', () => {
     const corruptBundle = structuredClone(bundle)
     corruptBundle.resources.wallMs = 999
     assert.equal(evaluateC0EvidenceBundle(corruptBundle, { globalReceipt: receipt }).bundleValid, false)
+})
+
+test('content-addressed round trip preserves order-sensitive receipt identities', (t) => {
+    const store = fs.mkdtempSync(path.join(os.tmpdir(), 'c0-evidence-order-roundtrip-'))
+    t.after(() => fs.rmSync(store, { recursive: true, force: true }))
+    const receipt = globalReceipt()
+    const bundle = bundleFixture({ receipt })
+    const receiptPublication = publishEvidenceObject(store, receipt)
+    assert.equal(receiptPublication.objectSha256, bundle.globalReceipt.objectSha256)
+    const bundlePublication = publishEvidenceObject(store, bundle)
+    const loadedBundle = loadEvidenceObject(store, bundlePublication.objectSha256).document
+    const loadedReceipt = loadEvidenceObject(store, receiptPublication.objectSha256).document
+    assert.deepEqual(evaluateC0EvidenceBundle(loadedBundle, { globalReceipt: loadedReceipt }), {
+        structuralErrors: [],
+        acceptanceErrors: [],
+        bundleValid: true,
+        operatingEvidenceAccepted: true,
+    })
 })
 
 test('GNU time parser rejects missing or corrupt resource records', () => {

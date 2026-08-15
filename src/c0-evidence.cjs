@@ -15,6 +15,10 @@ const {
 const {
     validateC0Decision,
 } = require('./c0-policy.cjs')
+const {
+    evidenceObjectBytes,
+    objectSha256: evidenceObjectSha256,
+} = require('./c0-retention.cjs')
 
 const C0_EVIDENCE_SCHEMA = 'patch-c0-evidence-bundle-v1'
 const C0_COHORT_IDENTITY_SCHEMA = 'patch-c0-cohort-identity-v1'
@@ -539,8 +543,8 @@ function buildEvidenceBundle({
         implementationRepository,
     })
     const correctness = buildCorrectness(globalReceipt)
-    const receiptEncoded = canonicalJson(globalReceipt)
-    const receiptObjectSha256 = sha256(receiptEncoded)
+    const receiptEncoded = evidenceObjectBytes(globalReceipt)
+    const receiptObjectSha256 = evidenceObjectSha256(globalReceipt)
     const productionEligible = runKind === 'production-c0'
     const effectiveDisposition = correctness.status === 'passed'
         ? globalReceipt.disposition
@@ -568,7 +572,7 @@ function buildEvidenceBundle({
         c0Decision,
         globalReceipt: {
             objectSha256: receiptObjectSha256,
-            bytes: Buffer.byteLength(receiptEncoded),
+            bytes: receiptEncoded.length,
             payloadSha256: globalReceipt.integrity.payloadSha256,
             accepted: globalReceipt.accepted,
             disposition: globalReceipt.disposition,
@@ -587,7 +591,7 @@ function buildEvidenceBundle({
         resources: {
             ...resources,
             evidenceStorage: {
-                receiptBytes: Buffer.byteLength(receiptEncoded),
+                receiptBytes: receiptEncoded.length,
                 referencedObjectsNewPhysicalBytes,
             },
         },
@@ -710,7 +714,7 @@ function validateResources(bundle, receipt, errors) {
     ], 'evidence storage resources', errors)) {
         validateNonnegativeNumber(resources.evidenceStorage.receiptBytes, 'receipt bytes', errors, { integer: true })
         validateNonnegativeNumber(resources.evidenceStorage.referencedObjectsNewPhysicalBytes, 'new physical evidence bytes', errors, { integer: true })
-        const receiptBytes = Buffer.byteLength(canonicalJson(receipt))
+        const receiptBytes = evidenceObjectBytes(receipt).length
         if (resources.evidenceStorage.receiptBytes !== receiptBytes) errors.push('receipt byte measurement mismatch')
     }
 }
@@ -772,9 +776,9 @@ function evaluateC0EvidenceBundle(bundle, { globalReceipt } = {}) {
     if (!exactKeys(bundle.globalReceipt, ['objectSha256', 'bytes', 'payloadSha256', 'accepted', 'disposition'], 'Global receipt reference', structuralErrors)) {
         return { structuralErrors, acceptanceErrors: ['Global receipt reference is invalid'], bundleValid: false, operatingEvidenceAccepted: false }
     }
-    const encodedReceipt = canonicalJson(globalReceipt)
-    if (bundle.globalReceipt.objectSha256 !== sha256(encodedReceipt)) structuralErrors.push('Global receipt object hash mismatch')
-    if (bundle.globalReceipt.bytes !== Buffer.byteLength(encodedReceipt)) structuralErrors.push('Global receipt object byte count mismatch')
+    const encodedReceipt = evidenceObjectBytes(globalReceipt)
+    if (bundle.globalReceipt.objectSha256 !== evidenceObjectSha256(globalReceipt)) structuralErrors.push('Global receipt object hash mismatch')
+    if (bundle.globalReceipt.bytes !== encodedReceipt.length) structuralErrors.push('Global receipt object byte count mismatch')
     if (bundle.globalReceipt.payloadSha256 !== globalReceipt?.integrity?.payloadSha256) structuralErrors.push('Global receipt payload hash mismatch')
     if (bundle.globalReceipt.disposition !== globalReceipt?.disposition) structuralErrors.push('Global receipt disposition mismatch')
     const receiptEvaluation = evaluateExecutionReceipt(globalReceipt)

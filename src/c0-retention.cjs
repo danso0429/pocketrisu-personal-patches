@@ -7,7 +7,6 @@ const {
     sha256,
 } = require('./verification-evidence.cjs')
 const {
-    canonicalJson,
     sealDocument,
 } = require('./verification-receipts.cjs')
 
@@ -25,12 +24,12 @@ function validateHash(value, label = 'object hash') {
     return value
 }
 
-function canonicalObjectBytes(document) {
-    return Buffer.from(canonicalJson(document))
+function evidenceObjectBytes(document) {
+    return Buffer.from(JSON.stringify(document))
 }
 
 function objectSha256(document) {
-    return sha256(canonicalObjectBytes(document))
+    return sha256(evidenceObjectBytes(document))
 }
 
 function objectPath(storeRoot, objectSha256) {
@@ -52,7 +51,7 @@ function ensureStore(storeRoot) {
 
 function publishEvidenceObject(storeRoot, document) {
     const root = ensureStore(storeRoot)
-    const encoded = canonicalObjectBytes(document)
+    const encoded = evidenceObjectBytes(document)
     const objectSha256 = sha256(encoded)
     const finalPath = objectPath(root, objectSha256)
     fs.mkdirSync(path.dirname(finalPath), { recursive: true, mode: 0o700 })
@@ -105,8 +104,8 @@ function loadEvidenceObject(storeRoot, objectSha256) {
     } catch (error) {
         throw new Error(`Evidence object JSON is corrupt (${objectSha256}): ${error.message}`)
     }
-    if (!encoded.equals(canonicalObjectBytes(document))) {
-        throw new Error(`Evidence object is not canonical JSON: ${objectSha256}`)
+    if (!encoded.equals(evidenceObjectBytes(document))) {
+        throw new Error(`Evidence object is not exact compact JSON: ${objectSha256}`)
     }
     return {
         document,
@@ -302,10 +301,11 @@ function planC0EvidenceRetention({
 
 module.exports = {
     RETENTION_SCHEMA,
-    canonicalObjectBytes,
+    evidenceObjectBytes,
     extractObjectReferences,
     listEvidenceObjects,
     loadEvidenceObject,
+    objectSha256,
     objectPath,
     planC0EvidenceRetention,
     publishEvidenceObject,

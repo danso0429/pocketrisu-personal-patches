@@ -10,6 +10,9 @@ const {
     computeCohortId,
     computeRunId,
 } = require('./c0-evidence.cjs')
+const {
+    objectSha256: evidenceObjectSha256,
+} = require('./c0-retention.cjs')
 
 const COHORT_LEDGER_SCHEMA = 'patch-c0-cohort-ledger-v1'
 const STABLE_RELEASE_LEDGER_SCHEMA = 'patch-c0-stable-release-ledger-v1'
@@ -34,7 +37,7 @@ const SHA256_PATTERN = /^[0-9a-f]{64}$/
 const COMMIT_PATTERN = /^[0-9a-f]{40}$/
 
 function objectSha256(document) {
-    return canonicalSha256(document)
+    return evidenceObjectSha256(document)
 }
 
 function validTimestamp(value) {

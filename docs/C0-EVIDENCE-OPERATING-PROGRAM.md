@@ -61,8 +61,8 @@ A bundle binds all of these inputs and observations:
   zero production certificates, zero skipped canonical masks, no production
   state migration and no C1 authorization.
 
-Every document is sealed over canonical JSON. The evidence store writes those
-canonical bytes to:
+Every document seal is computed over canonical JSON. The evidence store keeps
+the document's exact compact JSON property order and writes those bytes to:
 
 ```text
 STORE/objects/sha256/HH/REMAINING-62-HEX.json
@@ -71,9 +71,13 @@ STORE/objects/sha256/HH/REMAINING-62-HEX.json
 Publication uses no-clobber linking. An existing path is accepted only when
 its bytes exactly match its hash. Exact duplicate publication reports zero new
 physical bytes; it does not rewrite the object. Store verification rejects a
-symlink, non-regular file, hash mismatch, malformed JSON, or noncanonical JSON.
-The seal and content address provide tamper detection, not a signature or a
-component certificate.
+symlink, non-regular file, hash mismatch, malformed JSON, or JSON that is not
+the exact compact encoding represented by its parsed insertion order. This
+order preservation is required because current tree/state evidence includes
+order-sensitive exact-byte identities; the store must not normalize them.
+Semantically equal documents with different property order therefore remain
+different exact evidence objects. The seal and content address provide tamper
+detection, not a signature or a component certificate.
 
 ## Cohort and trial identity
 
