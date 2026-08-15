@@ -32,6 +32,7 @@ const {
 } = require('../src/c0-evidence.cjs')
 const {
     allocatedDirectoryBytes,
+    implementationRepository,
     parseGnuTime,
     runMeasuredWrapper,
 } = require('../scripts/run-c0-evidence.cjs')
@@ -409,4 +410,11 @@ test('resource capture measures the wrapper process group and dedicated temporar
     assert.ok(measured.sampledPeakBytes >= measured.baselineBytes)
     assert.ok(measured.sampledPeakBytes >= measured.postRunResidueBytes)
     assert.ok(allocatedDirectoryBytes(root) >= 8192)
+})
+
+test('runner resolves implementation origin without synchronous child spawning', async () => {
+    const root = path.resolve(__dirname, '..')
+    const repository = await implementationRepository(root)
+    assert.equal(typeof repository, 'string')
+    assert.notEqual(repository, '')
 })

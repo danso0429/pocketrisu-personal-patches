@@ -4,7 +4,7 @@
 const fs = require('node:fs')
 const os = require('node:os')
 const path = require('node:path')
-const { spawn, execFileSync } = require('node:child_process')
+const { spawn } = require('node:child_process')
 const {
     assertOutputOutsideInputs,
     captureInputFreeze,
@@ -12,6 +12,7 @@ const {
     pathIsInside,
     parseCanonicalOutput,
     runChildWithFileCapture,
+    runChild,
     sha256,
     validateVerificationResult,
     writeJsonAtomic,
@@ -249,15 +250,30 @@ function readGateList(file, label) {
     return value
 }
 
-function implementationRepository(sourceRoot) {
-    const value = execFileSync('git', [
+async function implementationRepository(sourceRoot) {
+    const env = Object.fromEntries(Object.entries(process.env).filter(([key]) => !key.startsWith('GIT_')))
+    env.GIT_CONFIG_NOSYSTEM = '1'
+    env.GIT_CONFIG_GLOBAL = os.devNull
+    env.GIT_OPTIONAL_LOCKS = '0'
+    env.GIT_TERMINAL_PROMPT = '0'
+    const result = await runChild('git', [
         '--no-pager',
         '-C',
         sourceRoot,
         'remote',
         'get-url',
         'origin',
-    ], { encoding: 'utf8' }).trim()
+    ], { cwd: sourceRoot, env })
+    if (
+        result.spawnError !== null
+        || result.outputError !== null
+        || result.exitCode !== 0
+        || result.signal !== null
+        || result.stderr !== ''
+    ) {
+        throw new Error(`Implementation origin lookup failed: ${JSON.stringify(result)}`)
+    }
+    const value = result.stdout.trim()
     if (!value) throw new Error('Implementation origin is missing')
     return value
 }
@@ -435,7 +451,7 @@ async function main(argv = process.argv) {
         governanceRepository: options.governanceRepository,
         governanceCommit: options.governanceCommit,
         governanceStatusVersion: options.governanceStatusVersion,
-        implementationRepository: implementationRepository(sourceRoot),
+        implementationRepository: await implementationRepository(sourceRoot),
         runKind,
         cohortClass: options.cohortClass,
         trialId: options.trialId,
@@ -484,6 +500,7 @@ if (require.main === module) {
 
 module.exports = {
     allocatedDirectoryBytes,
+    implementationRepository,
     internalCapture,
     main,
     parseArgs,
