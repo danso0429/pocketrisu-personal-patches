@@ -1,0 +1,56 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://pocketrisu.local/schemas/patch-c0-stable-release-ledger-v1.schema.json",
+  "title": "PocketRisu C0 stable-release ledger v1",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schema", "generatedAt", "baseLedgerObjectSha256", "entries", "integrity"],
+  "properties": {
+    "schema": { "const": "patch-c0-stable-release-ledger-v1" },
+    "generatedAt": { "type": "string", "format": "date-time" },
+    "baseLedgerObjectSha256": {
+      "oneOf": [
+        { "type": "string", "pattern": "^[0-9a-f]{64}$" },
+        { "type": "null" }
+      ]
+    },
+    "entries": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["sequence", "previousEntrySha256", "releaseId", "releaseTag", "implementationCommit", "cohortId", "runId", "bundleObjectSha256", "globalReceiptObjectSha256", "productGateResult", "recordedAt", "disposition", "entrySha256"],
+        "properties": {
+          "sequence": { "type": "integer", "minimum": 0 },
+          "previousEntrySha256": {
+            "oneOf": [
+              { "type": "string", "pattern": "^[0-9a-f]{64}$" },
+              { "type": "null" }
+            ]
+          },
+          "releaseId": { "type": "string", "minLength": 1 },
+          "releaseTag": { "type": "string", "minLength": 1 },
+          "implementationCommit": { "type": "string", "pattern": "^[0-9a-f]{40}$" },
+          "cohortId": { "type": "string", "pattern": "^[0-9a-f]{64}$" },
+          "runId": { "type": "string", "pattern": "^[0-9a-f]{64}$" },
+          "bundleObjectSha256": { "type": "string", "pattern": "^[0-9a-f]{64}$" },
+          "globalReceiptObjectSha256": { "type": "string", "pattern": "^[0-9a-f]{64}$" },
+          "productGateResult": { "enum": ["passed", "failed", "incomplete", "not-run"] },
+          "recordedAt": { "type": "string", "format": "date-time" },
+          "disposition": { "type": "string", "minLength": 1 },
+          "entrySha256": { "type": "string", "pattern": "^[0-9a-f]{64}$" }
+        }
+      }
+    },
+    "integrity": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["schema", "algorithm", "payloadSha256"],
+      "properties": {
+        "schema": { "const": "patch-verification-receipt-integrity-v1" },
+        "algorithm": { "const": "sha256-over-canonical-json-v1" },
+        "payloadSha256": { "type": "string", "pattern": "^[0-9a-f]{64}$" }
+      }
+    }
+  }
+}

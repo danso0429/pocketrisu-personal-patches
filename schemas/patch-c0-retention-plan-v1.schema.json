@@ -1,0 +1,65 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://pocketrisu.local/schemas/patch-c0-retention-plan-v1.schema.json",
+  "title": "PocketRisu C0 evidence retention plan v1",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schema", "generatedAt", "storeRoot", "dryRun", "referenceRoots", "protectedObjectSha256s", "referencedObjectSha256s", "objects", "rollbackManifest", "summary", "integrity"],
+  "properties": {
+    "schema": { "const": "patch-c0-retention-plan-v1" },
+    "generatedAt": { "type": "string", "format": "date-time" },
+    "storeRoot": { "type": "string", "minLength": 1 },
+    "dryRun": { "const": true },
+    "referenceRoots": { "type": "array", "items": { "type": "string", "minLength": 1 } },
+    "protectedObjectSha256s": { "$ref": "#/$defs/hashList" },
+    "referencedObjectSha256s": { "$ref": "#/$defs/hashList" },
+    "objects": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["sha256", "bytes", "referenced", "protected", "disposition", "action", "reasons"],
+        "properties": {
+          "sha256": { "$ref": "#/$defs/sha256" },
+          "bytes": { "type": "integer", "minimum": 0 },
+          "referenced": { "type": "boolean" },
+          "protected": { "type": "boolean" },
+          "disposition": { "enum": ["current-active", "historical", "incomplete", "invalid", "superseded", "diagnostic-only", "defect-reproduction", "unknown"] },
+          "action": { "enum": ["retain", "eligible-for-future-review"] },
+          "reasons": { "type": "array", "minItems": 1, "items": { "type": "string", "minLength": 1 } }
+        }
+      }
+    },
+    "rollbackManifest": { "$ref": "#/$defs/hashList" },
+    "summary": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["objects", "bytes", "referencedObjects", "protectedObjects", "futureReviewCandidates", "candidateBytes", "deletedObjects", "deletedBytes"],
+      "properties": {
+        "objects": { "type": "integer", "minimum": 0 },
+        "bytes": { "type": "integer", "minimum": 0 },
+        "referencedObjects": { "type": "integer", "minimum": 0 },
+        "protectedObjects": { "type": "integer", "minimum": 0 },
+        "futureReviewCandidates": { "type": "integer", "minimum": 0 },
+        "candidateBytes": { "type": "integer", "minimum": 0 },
+        "deletedObjects": { "const": 0 },
+        "deletedBytes": { "const": 0 }
+      }
+    },
+    "integrity": { "$ref": "#/$defs/integrity" }
+  },
+  "$defs": {
+    "sha256": { "type": "string", "pattern": "^[0-9a-f]{64}$" },
+    "hashList": { "type": "array", "uniqueItems": true, "items": { "$ref": "#/$defs/sha256" } },
+    "integrity": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["schema", "algorithm", "payloadSha256"],
+      "properties": {
+        "schema": { "const": "patch-verification-receipt-integrity-v1" },
+        "algorithm": { "const": "sha256-over-canonical-json-v1" },
+        "payloadSha256": { "$ref": "#/$defs/sha256" }
+      }
+    }
+  }
+}

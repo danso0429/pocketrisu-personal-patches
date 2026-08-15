@@ -1,0 +1,36 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://pocketrisu.local/schemas/patch-c0-defect-yield-summary-v1.schema.json",
+  "title": "PocketRisu C0 defect-yield summary v1",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schema", "generatedAt", "cohortLedgerObjectSha256", "incidentRecordObjectSha256s", "productionCohorts", "confirmedProductionDefects", "syntheticIncidentsExcluded", "globalCaught", "globalUniqueYield", "alsoCaughtByFocused", "alsoCaughtByProduct", "unknownEarlierGateResult", "integrity"],
+  "properties": {
+    "schema": { "const": "patch-c0-defect-yield-summary-v1" },
+    "generatedAt": { "type": "string", "format": "date-time" },
+    "cohortLedgerObjectSha256": { "type": "string", "pattern": "^[0-9a-f]{64}$" },
+    "incidentRecordObjectSha256s": {
+      "type": "array",
+      "uniqueItems": true,
+      "items": { "type": "string", "pattern": "^[0-9a-f]{64}$" }
+    },
+    "productionCohorts": { "type": "integer", "minimum": 0 },
+    "confirmedProductionDefects": { "type": "integer", "minimum": 0 },
+    "syntheticIncidentsExcluded": { "type": "integer", "minimum": 0 },
+    "globalCaught": { "type": "integer", "minimum": 0 },
+    "globalUniqueYield": { "type": "integer", "minimum": 0 },
+    "alsoCaughtByFocused": { "type": "integer", "minimum": 0 },
+    "alsoCaughtByProduct": { "type": "integer", "minimum": 0 },
+    "unknownEarlierGateResult": { "type": "integer", "minimum": 0 },
+    "integrity": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["schema", "algorithm", "payloadSha256"],
+      "properties": {
+        "schema": { "const": "patch-verification-receipt-integrity-v1" },
+        "algorithm": { "const": "sha256-over-canonical-json-v1" },
+        "payloadSha256": { "type": "string", "pattern": "^[0-9a-f]{64}$" }
+      }
+    }
+  }
+}

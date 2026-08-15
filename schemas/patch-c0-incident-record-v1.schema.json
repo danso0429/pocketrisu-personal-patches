@@ -1,0 +1,69 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://pocketrisu.local/schemas/patch-c0-incident-record-v1.schema.json",
+  "title": "PocketRisu C0 incident record v1",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schema", "incidentId", "recordedAt", "sequence", "previousIncidentSha256", "cohortId", "runId", "bundleObjectSha256", "cohortClass", "syntheticMutation", "productionDefectEligible", "firstFailure", "detectors", "attribution", "rootCause", "fix", "negativeEvidenceObjectSha256s", "disposition", "integrity"],
+  "properties": {
+    "schema": { "const": "patch-c0-incident-record-v1" },
+    "incidentId": { "type": "string", "pattern": "^[0-9a-f]{64}$" },
+    "recordedAt": { "type": "string", "format": "date-time" },
+    "sequence": { "type": "integer", "minimum": 0 },
+    "previousIncidentSha256": {
+      "oneOf": [
+        { "type": "string", "pattern": "^[0-9a-f]{64}$" },
+        { "type": "null" }
+      ]
+    },
+    "cohortId": { "type": "string", "pattern": "^[0-9a-f]{64}$" },
+    "runId": { "type": "string", "pattern": "^[0-9a-f]{64}$" },
+    "bundleObjectSha256": { "type": "string", "pattern": "^[0-9a-f]{64}$" },
+    "cohortClass": { "enum": ["stable-release", "patch", "relation", "core", "audit"] },
+    "syntheticMutation": { "type": "boolean" },
+    "productionDefectEligible": { "type": "boolean" },
+    "firstFailure": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["phase", "mask", "worker", "message", "stdoutObjectSha256", "stderrObjectSha256"],
+      "properties": {
+        "phase": { "type": "string", "minLength": 1 },
+        "mask": { "type": ["integer", "null"], "minimum": 0 },
+        "worker": { "type": ["integer", "null"], "minimum": 0 },
+        "message": { "type": "string", "minLength": 1 },
+        "stdoutObjectSha256": { "type": ["string", "null"], "pattern": "^[0-9a-f]{64}$" },
+        "stderrObjectSha256": { "type": ["string", "null"], "pattern": "^[0-9a-f]{64}$" }
+      }
+    },
+    "detectors": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["focused", "global", "product"],
+      "properties": {
+        "focused": { "enum": ["caught", "missed", "not-run", "not-applicable", "unknown"] },
+        "global": { "enum": ["caught", "missed", "not-run", "not-applicable", "unknown"] },
+        "product": { "enum": ["caught", "missed", "not-run", "not-applicable", "unknown"] }
+      }
+    },
+    "attribution": { "enum": ["implementation-defect", "target-defect", "environment-defect", "harness-defect", "synthetic-mutation", "unknown"] },
+    "rootCause": { "type": ["string", "null"] },
+    "fix": { "type": ["string", "null"] },
+    "negativeEvidenceObjectSha256s": {
+      "type": "array",
+      "minItems": 1,
+      "uniqueItems": true,
+      "items": { "type": "string", "pattern": "^[0-9a-f]{64}$" }
+    },
+    "disposition": { "enum": ["current-active", "historical", "incomplete", "invalid", "superseded", "diagnostic-only", "defect-reproduction"] },
+    "integrity": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["schema", "algorithm", "payloadSha256"],
+      "properties": {
+        "schema": { "const": "patch-verification-receipt-integrity-v1" },
+        "algorithm": { "const": "sha256-over-canonical-json-v1" },
+        "payloadSha256": { "type": "string", "pattern": "^[0-9a-f]{64}$" }
+      }
+    }
+  }
+}

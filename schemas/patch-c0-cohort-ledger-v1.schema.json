@@ -1,0 +1,62 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://pocketrisu.local/schemas/patch-c0-cohort-ledger-v1.schema.json",
+  "title": "PocketRisu C0 cohort or incident-index ledger v1",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schema", "ledgerKind", "generatedAt", "baseLedgerObjectSha256", "entries", "integrity"],
+  "properties": {
+    "schema": { "const": "patch-c0-cohort-ledger-v1" },
+    "ledgerKind": { "enum": ["cohort", "incident-index"] },
+    "generatedAt": { "type": "string", "format": "date-time" },
+    "baseLedgerObjectSha256": {
+      "oneOf": [
+        { "type": "string", "pattern": "^[0-9a-f]{64}$" },
+        { "type": "null" }
+      ]
+    },
+    "entries": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["sequence", "previousEntrySha256", "recordType", "cohortId", "runId", "objectSha256", "recordedAt", "cohortClass", "materiallyDistinct", "repeatedPerformanceTrial", "productionEligible", "syntheticMutation", "disposition", "accepted", "entrySha256"],
+        "properties": {
+          "sequence": { "type": "integer", "minimum": 0 },
+          "previousEntrySha256": {
+            "oneOf": [
+              { "type": "string", "pattern": "^[0-9a-f]{64}$" },
+              { "type": "null" }
+            ]
+          },
+          "recordType": { "enum": ["cohort", "incident"] },
+          "cohortId": { "type": "string", "pattern": "^[0-9a-f]{64}$" },
+          "runId": { "type": "string", "pattern": "^[0-9a-f]{64}$" },
+          "objectSha256": { "type": "string", "pattern": "^[0-9a-f]{64}$" },
+          "recordedAt": { "type": "string", "format": "date-time" },
+          "cohortClass": { "enum": ["stable-release", "patch", "relation", "core", "audit"] },
+          "materiallyDistinct": { "type": "boolean" },
+          "repeatedPerformanceTrial": { "type": "boolean" },
+          "productionEligible": { "type": "boolean" },
+          "syntheticMutation": { "type": "boolean" },
+          "disposition": { "type": "string", "minLength": 1 },
+          "accepted": { "type": "boolean" },
+          "entrySha256": { "type": "string", "pattern": "^[0-9a-f]{64}$" }
+        }
+      }
+    },
+    "integrity": { "$ref": "#/$defs/integrity" }
+  },
+  "$defs": {
+    "integrity": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["schema", "algorithm", "payloadSha256"],
+      "properties": {
+        "schema": { "const": "patch-verification-receipt-integrity-v1" },
+        "algorithm": { "const": "sha256-over-canonical-json-v1" },
+        "payloadSha256": { "type": "string", "pattern": "^[0-9a-f]{64}$" }
+      }
+    }
+  }
+}

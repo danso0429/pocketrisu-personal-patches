@@ -1,0 +1,318 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://pocketrisu.local/schemas/patch-c0-evidence-bundle-v1.schema.json",
+  "title": "PocketRisu C0 evidence bundle v1",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema",
+    "disposition",
+    "runKind",
+    "recordedAt",
+    "cohort",
+    "authority",
+    "c0Decision",
+    "globalReceipt",
+    "gates",
+    "correctness",
+    "resources",
+    "canonicalProtection",
+    "integrity"
+  ],
+  "properties": {
+    "schema": { "const": "patch-c0-evidence-bundle-v1" },
+    "disposition": {
+      "enum": ["current-active", "historical", "incomplete", "invalid", "superseded", "diagnostic-only", "defect-reproduction"]
+    },
+    "runKind": { "enum": ["production-c0", "synthetic-known-answer"] },
+    "recordedAt": { "type": "string", "format": "date-time" },
+    "cohort": { "$ref": "#/$defs/cohort" },
+    "authority": { "$ref": "#/$defs/authority" },
+    "c0Decision": { "type": "object" },
+    "globalReceipt": { "$ref": "#/$defs/objectReference" },
+    "gates": { "$ref": "#/$defs/gates" },
+    "correctness": { "$ref": "#/$defs/correctness" },
+    "resources": { "$ref": "#/$defs/resources" },
+    "canonicalProtection": { "$ref": "#/$defs/canonicalProtection" },
+    "integrity": { "$ref": "#/$defs/integrity" }
+  },
+  "$defs": {
+    "sha256": { "type": "string", "pattern": "^[0-9a-f]{64}$" },
+    "nullableSha256": {
+      "oneOf": [
+        { "$ref": "#/$defs/sha256" },
+        { "type": "null" }
+      ]
+    },
+    "cohort": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["identitySchema", "cohortId", "runId", "trialId", "cohortClass", "materiallyDistinct", "repeatedPerformanceTrial", "productionEligible", "syntheticMutation", "identity"],
+      "properties": {
+        "identitySchema": { "const": "patch-c0-cohort-identity-v1" },
+        "cohortId": { "$ref": "#/$defs/sha256" },
+        "runId": { "$ref": "#/$defs/sha256" },
+        "trialId": { "type": "string", "minLength": 1 },
+        "cohortClass": { "enum": ["stable-release", "patch", "relation", "core", "audit"] },
+        "materiallyDistinct": { "type": "boolean" },
+        "repeatedPerformanceTrial": { "type": "boolean" },
+        "productionEligible": { "type": "boolean" },
+        "syntheticMutation": { "type": "boolean" },
+        "identity": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["governanceCommit", "implementationCommit", "implementationStatusSha256", "policySha256", "catalogSha256", "schemasSha256", "targetBeforeSha256", "runtimeSemanticSha256", "commandSha256", "workerHistorySha256", "cacheHistorySha256"],
+          "properties": {
+            "governanceCommit": { "type": "string", "pattern": "^[0-9a-f]{40}$" },
+            "implementationCommit": { "type": "string", "pattern": "^[0-9a-f]{40}$" },
+            "implementationStatusSha256": { "$ref": "#/$defs/sha256" },
+            "policySha256": { "$ref": "#/$defs/sha256" },
+            "catalogSha256": { "$ref": "#/$defs/sha256" },
+            "schemasSha256": { "$ref": "#/$defs/sha256" },
+            "targetBeforeSha256": { "$ref": "#/$defs/sha256" },
+            "runtimeSemanticSha256": { "$ref": "#/$defs/sha256" },
+            "commandSha256": { "$ref": "#/$defs/sha256" },
+            "workerHistorySha256": { "$ref": "#/$defs/sha256" },
+            "cacheHistorySha256": { "$ref": "#/$defs/sha256" }
+          }
+        }
+      }
+    },
+    "authority": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["governance", "implementation", "policy", "catalog", "schemas", "target", "environment", "command", "workerSchedule", "cacheHistory"],
+      "properties": {
+        "governance": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["repository", "commit", "statusVersion"],
+          "properties": {
+            "repository": { "type": "string", "minLength": 1 },
+            "commit": { "type": "string", "pattern": "^[0-9a-f]{40}$" },
+            "statusVersion": { "type": "integer", "minimum": 1 }
+          }
+        },
+        "implementation": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["repository", "commit", "branch", "statusSha256", "stagedDiffSha256", "unstagedDiffSha256"],
+          "properties": {
+            "repository": { "type": "string", "minLength": 1 },
+            "commit": { "type": "string", "pattern": "^[0-9a-f]{40}$" },
+            "branch": { "type": "string" },
+            "statusSha256": { "$ref": "#/$defs/sha256" },
+            "stagedDiffSha256": { "$ref": "#/$defs/sha256" },
+            "unstagedDiffSha256": { "$ref": "#/$defs/sha256" }
+          }
+        },
+        "policy": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["path", "sha256"],
+          "properties": {
+            "path": { "type": "string", "minLength": 1 },
+            "sha256": { "$ref": "#/$defs/sha256" }
+          }
+        },
+        "catalog": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["rootSha256"],
+          "properties": { "rootSha256": { "$ref": "#/$defs/sha256" } }
+        },
+        "schemas": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["rootSha256", "files"],
+          "properties": {
+            "rootSha256": { "$ref": "#/$defs/sha256" },
+            "files": {
+              "type": "array",
+              "minItems": 1,
+              "items": {
+                "type": "object",
+                "additionalProperties": false,
+                "required": ["path", "sha256"],
+                "properties": {
+                  "path": { "type": "string", "minLength": 1 },
+                  "sha256": { "$ref": "#/$defs/sha256" }
+                }
+              }
+            }
+          }
+        },
+        "target": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["commit", "beforeSha256", "afterSha256", "applicationBeforeSha256", "applicationAfterSha256"],
+          "properties": {
+            "commit": { "type": "string", "pattern": "^[0-9a-f]{40}$" },
+            "beforeSha256": { "$ref": "#/$defs/sha256" },
+            "afterSha256": { "$ref": "#/$defs/sha256" },
+            "applicationBeforeSha256": { "$ref": "#/$defs/sha256" },
+            "applicationAfterSha256": { "$ref": "#/$defs/sha256" }
+          }
+        },
+        "environment": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["beforeSha256", "afterSha256", "semanticSha256"],
+          "properties": {
+            "beforeSha256": { "$ref": "#/$defs/sha256" },
+            "afterSha256": { "$ref": "#/$defs/sha256" },
+            "semanticSha256": { "$ref": "#/$defs/sha256" }
+          }
+        },
+        "command": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["argv", "sha256"],
+          "properties": {
+            "argv": { "type": "array", "minItems": 1, "items": { "type": "string" } },
+            "sha256": { "$ref": "#/$defs/sha256" }
+          }
+        },
+        "workerSchedule": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["schedule", "workers", "orderedMasksSha256", "historyMode", "sha256"],
+          "properties": {
+            "schedule": { "type": "string", "minLength": 1 },
+            "workers": { "type": "integer", "minimum": 1 },
+            "orderedMasksSha256": { "$ref": "#/$defs/sha256" },
+            "historyMode": { "type": "string", "minLength": 1 },
+            "sha256": { "$ref": "#/$defs/sha256" }
+          }
+        },
+        "cacheHistory": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["cacheMode", "moduleHistoryMode", "unmanagedHistoryMode", "sha256"],
+          "properties": {
+            "cacheMode": { "type": "string", "minLength": 1 },
+            "moduleHistoryMode": { "type": "string", "minLength": 1 },
+            "unmanagedHistoryMode": { "type": "string", "minLength": 1 },
+            "sha256": { "$ref": "#/$defs/sha256" }
+          }
+        }
+      }
+    },
+    "objectReference": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["objectSha256", "bytes", "payloadSha256", "accepted", "disposition"],
+      "properties": {
+        "objectSha256": { "$ref": "#/$defs/sha256" },
+        "bytes": { "type": "integer", "minimum": 1 },
+        "payloadSha256": { "$ref": "#/$defs/sha256" },
+        "accepted": { "type": "boolean" },
+        "disposition": { "type": "string", "minLength": 1 }
+      }
+    },
+    "gate": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["name", "result", "receiptObjectSha256", "detailsSha256"],
+      "properties": {
+        "name": { "type": "string", "minLength": 1 },
+        "result": { "enum": ["passed", "failed", "incomplete", "not-run", "not-applicable"] },
+        "receiptObjectSha256": { "$ref": "#/$defs/nullableSha256" },
+        "detailsSha256": { "$ref": "#/$defs/nullableSha256" }
+      }
+    },
+    "gates": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["focused", "global", "product"],
+      "properties": {
+        "focused": { "type": "array", "items": { "$ref": "#/$defs/gate" } },
+        "global": { "$ref": "#/$defs/gate" },
+        "product": { "type": "array", "items": { "$ref": "#/$defs/gate" } }
+      }
+    },
+    "correctness": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["status", "coverageComplete", "targetIntegrity", "receiptIntegrity", "c0GlobalMatch", "missingOutput", "spawnError", "signal", "reportedFailures", "errors"],
+      "properties": {
+        "status": { "enum": ["passed", "failed", "incomplete"] },
+        "coverageComplete": { "type": "boolean" },
+        "targetIntegrity": { "type": "boolean" },
+        "receiptIntegrity": { "type": "boolean" },
+        "c0GlobalMatch": { "type": "boolean" },
+        "missingOutput": { "type": "boolean" },
+        "spawnError": { "type": ["string", "null"] },
+        "signal": { "type": ["string", "null"] },
+        "reportedFailures": { "type": "integer", "minimum": 0 },
+        "errors": { "type": "array", "items": { "type": "string" } }
+      }
+    },
+    "resources": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["measurementSchema", "wallMs", "cpu", "maximumRssKiB", "temporary", "evidenceStorage"],
+      "properties": {
+        "measurementSchema": { "const": "patch-c0-resource-measurement-v1" },
+        "wallMs": { "type": "number", "minimum": 0 },
+        "cpu": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["wrapperMs", "childrenMs", "totalMs"],
+          "properties": {
+            "wrapperMs": { "type": "number", "minimum": 0 },
+            "childrenMs": { "type": "number", "minimum": 0 },
+            "totalMs": { "type": "number", "minimum": 0 }
+          }
+        },
+        "maximumRssKiB": { "type": "integer", "minimum": 0 },
+        "temporary": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["root", "baselineBytes", "sampledPeakBytes", "postRunResidueBytes", "sampleIntervalMs", "retained"],
+          "properties": {
+            "root": { "type": "string", "minLength": 1 },
+            "baselineBytes": { "type": "integer", "minimum": 0 },
+            "sampledPeakBytes": { "type": "integer", "minimum": 0 },
+            "postRunResidueBytes": { "type": "integer", "minimum": 0 },
+            "sampleIntervalMs": { "type": "integer", "minimum": 10 },
+            "retained": { "type": "boolean" }
+          }
+        },
+        "evidenceStorage": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["receiptBytes", "referencedObjectsNewPhysicalBytes"],
+          "properties": {
+            "receiptBytes": { "type": "integer", "minimum": 1 },
+            "referencedObjectsNewPhysicalBytes": { "type": "integer", "minimum": 0 }
+          }
+        }
+      }
+    },
+    "canonicalProtection": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["canonicalGate", "globalFallbackRetained", "defaultChanged", "productionCertificates", "canonicalMasksSkipped", "productionStateMigration", "c1Authorized"],
+      "properties": {
+        "canonicalGate": { "const": "Global Exhaustive" },
+        "globalFallbackRetained": { "const": true },
+        "defaultChanged": { "const": false },
+        "productionCertificates": { "const": 0 },
+        "canonicalMasksSkipped": { "const": 0 },
+        "productionStateMigration": { "const": false },
+        "c1Authorized": { "const": false }
+      }
+    },
+    "integrity": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["schema", "algorithm", "payloadSha256"],
+      "properties": {
+        "schema": { "const": "patch-verification-receipt-integrity-v1" },
+        "algorithm": { "const": "sha256-over-canonical-json-v1" },
+        "payloadSha256": { "$ref": "#/$defs/sha256" }
+      }
+    }
+  }
+}
