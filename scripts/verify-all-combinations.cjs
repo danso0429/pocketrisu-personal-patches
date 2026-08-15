@@ -30,6 +30,12 @@ const {
     createCompositionCache,
     createPairAnalysisCache,
 } = require('../src/compose.cjs')
+const { candidateObservationProjection } = require('../src/toolchain-shadow-projection.cjs')
+const {
+    buildSameGlobalComparison,
+    validateSameGlobalReference,
+} = require('../src/toolchain-shadow-same-global.cjs')
+const { MANAGED_PATHS: TOOLCHAIN_MANAGED_PATHS } = require('../src/toolchain-shadow-contract.cjs')
 
 const WORKER_HISTORY_MODEL = Object.freeze({
     schema: 'patch-combination-worker-history-v1',
@@ -53,6 +59,7 @@ function parseArgs(argv) {
     let root = null
     let json = false
     let allowReviewing = false
+    let toolchainShadowReference = null
     const availableParallelism = typeof os.availableParallelism === 'function'
         ? os.availableParallelism()
         : os.cpus().length
@@ -63,6 +70,17 @@ function parseArgs(argv) {
         if (argv[index] === '--root') root = argv[++index]
         else if (argv[index] === '--json') json = true
         else if (argv[index] === '--allow-reviewing') allowReviewing = true
+        else if (argv[index] === '--toolchain-shadow-reference-base64') {
+            const value = argv[++index]
+            if (typeof value !== 'string' || value.length === 0) {
+                throw new Error('--toolchain-shadow-reference-base64 requires a value')
+            }
+            let parsed
+            try { parsed = JSON.parse(Buffer.from(value, 'base64url').toString('utf8')) } catch {
+                throw new Error('--toolchain-shadow-reference-base64 is not valid encoded JSON')
+            }
+            toolchainShadowReference = validateSameGlobalReference(parsed)
+        }
         else if (argv[index] === '--jobs') {
             const value = argv[++index]
             if (!/^[1-9]\d*$/.test(value ?? '')) {
@@ -81,7 +99,7 @@ function parseArgs(argv) {
             + '[--allow-reviewing] [--jobs N] [--json]',
         )
     }
-    return { root: path.resolve(root), json, allowReviewing, jobs }
+    return { root: path.resolve(root), json, allowReviewing, jobs, toolchainShadowReference }
 }
 
 function fingerprint(root, relative) {
@@ -191,6 +209,7 @@ function verifyShard({
     allowReviewing,
     shardIndex,
     shardCount,
+    toolchainShadowReference = null,
 }) {
     const {
         catalog,
@@ -207,6 +226,13 @@ function verifyShard({
     let maximumResolvedUnits = 0
     const assignedMasks = workerMaskSequence(totalSelections, shardIndex, shardCount)
     const processedMasks = []
+    const toolchainShadowObservations = []
+    const candidateBitIndex = toolchainShadowReference === null
+        ? null
+        : visible.indexOf(toolchainShadowReference.candidateId)
+    if (toolchainShadowReference !== null && candidateBitIndex < 0) {
+        throw new Error('Toolchain shadow candidate is absent from the canonical Global domain')
+    }
     const compositionCache = createCompositionCache()
     const packEtagCache = createPackEtagCache()
     const pairAnalysisCache = createPairAnalysisCache()
@@ -271,6 +297,22 @@ function verifyShard({
                         .map((change) => change.path)
                         .join(', ')}`,
                 )
+            }
+
+            if (toolchainShadowReference !== null) {
+                const candidateMask = Math.floor(mask / (2 ** candidateBitIndex)) % 2
+                const projection = candidateObservationProjection({
+                    mask: candidateMask,
+                    snapshot: snapshot(root, TOOLCHAIN_MANAGED_PATHS),
+                    state: transition.state,
+                })
+                toolchainShadowObservations.push({
+                    mask,
+                    candidateMask,
+                    projectionSha256: projection.projectionSha256,
+                    matchesLocal: projection.projectionSha256
+                        === toolchainShadowReference.references[String(candidateMask)],
+                })
             }
 
             phase = 'revert-plan'
@@ -350,6 +392,7 @@ function verifyShard({
             misses: stateEncodingCache.misses,
         },
         timingsMs: roundedTimings(timings),
+        toolchainShadowObservations,
     }
 }
 
@@ -394,6 +437,7 @@ function mergeShardResults(totalSelections, results) {
     }
     const workerHistories = []
     const workerIndexes = new Set()
+    const toolchainShadowObservations = []
     for (const result of results) {
         const history = result.workerHistory
         if (
@@ -434,6 +478,7 @@ function mergeShardResults(totalSelections, results) {
             }
             processed.add(mask)
         }
+        toolchainShadowObservations.push(...(result.toolchainShadowObservations ?? []))
         for (const graph of result.graphs) graphs.add(graph)
         maximumResolvedUnits = Math.max(
             maximumResolvedUnits,
@@ -475,6 +520,7 @@ function mergeShardResults(totalSelections, results) {
         workerHistories: workerHistories.toSorted(
             (left, right) => left.workerIndex - right.workerIndex,
         ),
+        toolchainShadowObservations,
     }
 }
 
@@ -568,6 +614,7 @@ async function main(argv = process.argv) {
                 allowReviewing: options.allowReviewing,
                 shardIndex,
                 shardCount: workerCount,
+                toolchainShadowReference: options.toolchainShadowReference,
             }))
         }
         const shardResults = await Promise.all(workers.map(({ promise }) => promise))
@@ -595,6 +642,13 @@ async function main(argv = process.argv) {
             packEtagCache: coverage.packEtagCache,
             stateEncodingCache: coverage.stateEncodingCache,
             timingsMs: coverage.timingsMs,
+        }
+        if (options.toolchainShadowReference !== null) {
+            result.toolchainShadowComparison = buildSameGlobalComparison({
+                reference: options.toolchainShadowReference,
+                visiblePacks: visible,
+                observations: coverage.toolchainShadowObservations,
+            })
         }
         if (options.json) console.log(JSON.stringify(result, null, 2))
         else console.log(

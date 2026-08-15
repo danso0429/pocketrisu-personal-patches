@@ -37,6 +37,7 @@ const {
     validateReceiptPair,
 } = require('../src/toolchain-shadow-qualification.cjs')
 const { runChild } = require('../src/verification-evidence.cjs')
+const { declarationHash } = require('../src/operating-cohort-route.cjs')
 
 const repositoryRoot = path.resolve(__dirname, '..')
 const fixtureParent = path.resolve(repositoryRoot, '../..')
@@ -45,6 +46,7 @@ const TOOL_COMMIT = '3'.repeat(40)
 const subjectRoot = '/home/ubuntu/nai-studio-2/.worktrees/toolchain-hardening-shadow-pilot'
 const targetRoot = '/tmp/pocketrisu-v190-audit'
 const durableFixtureParent = '/home/ubuntu/.local/share/pocketrisu-patcher/qualification-test-fixtures'
+const materialDeclarationFile = path.join(repositoryRoot, 'contracts/first-material-c0-toolchain-hardening-v1.json')
 const localBytes = fs.readFileSync(path.join(quarantineRoot, 'local-synthetic-known-answer.json'))
 const globalBytes = fs.readFileSync(path.join(quarantineRoot, 'global-synthetic-known-answer.json'))
 const receiptPair = validateReceiptPair(localBytes, globalBytes)
@@ -233,42 +235,37 @@ function fixture(t) {
 }
 
 function expectation(toolCommit = TOOL_COMMIT) {
-    return {
-        schema: EXPECTATION_SCHEMA,
-        subject: {
-            implementationCommit: SUBJECT_IMPLEMENTATION_COMMIT,
-            qualificationToolCommit: toolCommit,
-            policySha256: POLICY_SHA256,
-            contractSha256: CONTRACT_SHA256,
-            compiledDeclarationSha256: COMPILED_DECLARATION_SHA256,
-            targetCommit: TARGET_COMMIT,
-            targetApplicationTreeSha256: CANONICAL_TARGET_TREE_SHA256,
-        },
-        compatibility: {
-            subjectSchemasSha256: '1'.repeat(64),
-            qualificationSchemasSha256: '2'.repeat(64),
-            localRouteSha256: '3'.repeat(64),
-            globalProjectionRouteSha256: '4'.repeat(64),
-        },
+    const value = JSON.parse(fs.readFileSync(materialDeclarationFile, 'utf8'))
+    assert.equal(value.schema, EXPECTATION_SCHEMA)
+    value.qualification.subject.qualificationToolCommit = toolCommit
+    value.qualification.compatibility = {
+        subjectSchemasSha256: '1'.repeat(64),
+        qualificationSchemasSha256: '2'.repeat(64),
+        localRouteSha256: '3'.repeat(64),
+        globalProjectionRouteSha256: '4'.repeat(64),
     }
+    value.declarationSha256 = declarationHash(value)
+    return value
 }
 
 function expectationForFixture(fixture) {
     const expected = expectation(fixture.subject.qualificationToolCommit)
-    expected.compatibility = {
+    expected.qualification.compatibility = {
         subjectSchemasSha256: fixture.support.sourceIdentity.subjectSchemasSha256,
         qualificationSchemasSha256: fixture.support.sourceIdentity.qualificationSchemasSha256,
         localRouteSha256: fixture.support.sourceIdentity.localRouteSha256,
         globalProjectionRouteSha256: fixture.support.sourceIdentity.globalProjectionRouteSha256,
     }
+    expected.declarationSha256 = declarationHash(expected)
     return expected
 }
 
 function acceptedVerification(overrides = {}) {
     const expected = expectation()
     const support = {
-        sourceIdentity: { ...expected.compatibility },
+        sourceIdentity: { ...expected.qualification.compatibility },
         targetIdentity: { role: 'canonical-audited-target' },
+        environment: { admittedBoundary: expected.environment },
     }
     const verified = {
         registryDescriptorSha256: '5'.repeat(64),
@@ -283,7 +280,7 @@ function acceptedVerification(overrides = {}) {
             finalManifest: {
                 qualificationType: 'toolchain-hardening-shadow-pilot-closure',
                 disposition: 'accepted-qualification',
-                subject: expected.subject,
+                subject: expected.qualification.subject,
                 operatingCounts: { ...OPERATING_COUNTS },
                 canonicalProtection: { ...CANONICAL_PROTECTION },
             },
@@ -297,6 +294,7 @@ function runWith(t, verified = acceptedVerification(), expected = expectation())
     const result = preflightOperatingCohortWithTestDependencies({
         storeRoot,
         expectation: expected,
+        subjectRoot,
         checkedAt: '2026-08-15T11:00:01.000Z',
         dependencies: { verifyQualificationRegistry: () => verified },
     })
@@ -309,6 +307,36 @@ test('valid durable compatible qualification permits shadow-cohort prompt constr
     assert.equal(result.reason, 'accepted-durable-compatible-qualification')
     assert.equal(result.readOnly, true)
     assert.equal(result.automaticallyAuthorizesC1, false)
+})
+
+test('managed nested-spawn EPERM preserves accepted state but blocks material execution', (t) => {
+    const { storeRoot } = fixture(t)
+    const accepted = acceptedVerification()
+    const derivationError = new Error('Fresh fixture derivation process failed')
+    derivationError.code = 'INDEPENDENT_DERIVATION_FAILED'
+    derivationError.details = { spawnError: 'spawnSync node EPERM' }
+    const result = preflightOperatingCohortWithTestDependencies({
+        storeRoot,
+        expectation: expectation(),
+        subjectRoot,
+        checkedAt: '2026-08-15T11:00:01.000Z',
+        dependencies: {
+            verifyQualificationRegistry: () => { throw derivationError },
+            inspectDurableAcceptedQualification: () => ({
+                registryDescriptorSha256: accepted.registryDescriptorSha256,
+                registryRootSha256: accepted.registryRootSha256,
+                effectiveEntry: accepted.effectiveEntry,
+                support: accepted.qualification.support,
+                finalManifest: accepted.qualification.finalManifest,
+            }),
+        },
+    })
+    assert.equal(result.acceptedQualificationState, 'accepted')
+    assert.equal(result.freshVerificationInCurrentExecutionEnvironment, 'environment-unavailable')
+    assert.equal(result.route.routeId, 'material-c0-global-plus-toolchain-shadow')
+    assert.equal(result.route.globalExecutionsExpected, 1)
+    assert.equal(result.route.safeToExecute, false)
+    assert.deepEqual(result.blockers, ['fresh-qualification-verification-environment-unavailable'])
 })
 
 test('real store-to-registry-to-independent-verifier-to-production-preflight chain passes', async (t) => {

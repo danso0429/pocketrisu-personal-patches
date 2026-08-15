@@ -54,79 +54,62 @@ plan, transactional apply, status, zero-change same-selection re-plan, empty-sel
 revert, managed/state/artifact restoration, and boundary preservation. The receipt
 rejects missing, duplicate, out-of-range, or reused coverage.
 
-Run the material local half without changing the source target:
+The standalone local command is a focused diagnostic and qualification tool:
 
 ```bash
 npm run pilot:toolchain:local -- \
   --root /absolute/pocketrisu-personal-patches \
   --target /absolute/pristine/PocketRisu \
   --receipt /absolute/evidence/toolchain-local.json \
-  --material-shadow
+  --dry-run
 ```
 
-## Mandatory Global comparison
+Do not run it separately before a combined material cohort. The material C0
+runner invokes the local domain exactly once inside the measured combined
+route and publishes that receipt.
 
-A material pilot cohort has three separate executions and no substitution:
+## Material same-Global comparison
 
-1. The eight-execution fresh local route above.
-2. The independent 4,096-mask candidate projection route below.
-3. The existing blocking Global Exhaustive route captured by the C0 evidence runner
-   with `--jobs 1`.
+A material candidate cohort uses the operating route
+`material-c0-global-plus-toolchain-shadow`. It has two execution domains and no
+substitution:
 
-Generate the candidate projection after the local receipt:
+1. Eight fresh isolated local executions.
+2. One blocking 4,096-mask Global Exhaustive execution.
 
-```bash
-npm run pilot:toolchain:global-projection -- \
-  --root /absolute/pocketrisu-personal-patches \
-  --target /absolute/pristine/PocketRisu \
-  --local-receipt /absolute/evidence/toolchain-local.json \
-  --receipt /absolute/evidence/toolchain-global-projection.json
-```
+There is no separate material 4,096-mask candidate projection. The canonical
+Global workers collect the supplemental candidate projection during the same
+apply/status/re-plan/revert history, and the resulting receipt binds the local
+receipt, material declaration, worker schedule and runtime. A second Global
+invocation for that frozen cohort is rejected.
 
-The projection executes all 4,096 raw masks using the full current catalog and
-persistent one-worker history. It records 2,048 candidate-off and 2,048 candidate-on
-projections, status, repeated plan, revert, restoration, source/target roots, and
-resources. This is extra shadow work; it does not shorten or replace the canonical
-Global run.
-
-Capture the unchanged blocking Global route through the existing C0 evidence program:
+Capture the combined route through the C0 evidence program:
 
 ```bash
 npm run evidence:c0:run -- \
   --root /absolute/pristine/PocketRisu \
   --bundle /absolute/evidence/c0-bundle.json \
   --global-receipt /absolute/evidence/global-receipt.json \
+  --operating-expectation /absolute/pocketrisu-personal-patches/contracts/first-material-c0-toolchain-hardening-v1.json \
+  --qualification-store /absolute/accepted/qualification-store \
+  --qualified-subject-root /absolute/frozen-qualified-subject \
+  --local-shadow-receipt /absolute/evidence/toolchain-local.json \
+  --candidate-linkage /absolute/evidence/toolchain-linkage.json \
   --store /absolute/evidence/store \
   --governance-commit 49d891b12a51745b9da91bf23105d78869cf8664 \
   --governance-status-version 12 \
-  --cohort-class audit \
+  --cohort-class patch \
   --trial-id toolchain-shadow-001 \
   --materially-distinct \
-  --jobs 1
+  --change-category toolchain-hardening
 ```
 
-Build the bound material pilot receipt only after all three inputs exist:
-
-```bash
-npm run pilot:toolchain:run -- \
-  --material-shadow \
-  --root /absolute/pocketrisu-personal-patches \
-  --store /absolute/evidence/store \
-  --receipt /absolute/evidence/toolchain-pilot.json \
-  --governance-commit 49d891b12a51745b9da91bf23105d78869cf8664 \
-  --trial-id toolchain-shadow-001 \
-  --materially-distinct \
-  --local-receipt /absolute/evidence/toolchain-local.json \
-  --global-projection /absolute/evidence/toolchain-global-projection.json \
-  --global-receipt /absolute/evidence/global-receipt.json \
-  --c0-bundle /absolute/evidence/c0-bundle.json
-```
-
-The material builder rejects a missing or invalid C0 bundle, incomplete Global
-coverage, any jobs count other than one, target mismatch, source/policy/cohort
-mismatch, or synthetic input. A mismatch produces pilot correctness `failed`,
-candidate admission `denied`, production classification unchanged `G`, and a
-separate immutable incident. The accepted Global result remains referenced separately.
+The material runner rejects a stale declaration, qualification, target, policy,
+environment or local domain before execution. The linkage rejects another
+cohort ID, another Global run ID, incomplete Global coverage or any exact anchor
+mismatch. A comparison mismatch produces candidate status `failed`; production
+classification remains `G`, no certificate is issued, and the independent
+Global result remains explicit.
 
 ## Synthetic dry-run
 
@@ -159,8 +142,7 @@ erase or supersede the original negative evidence.
 ## Evidence, resources, and retention
 
 Local receipts bind child-inclusive CPU, maximum RSS, wall time, projected temporary
-peak, exact post-run residue, and logical receipt bytes. Global projection receipts
-bind their wall, CPU, RSS, and temporary allocation. Material receipts preserve the
+peak, exact post-run residue, and logical receipt bytes. Material receipts preserve the
 complete C0 wrapper/process-group measurement separately. Pilot publication reports
 logical receipt bytes, referenced bytes, new physical bytes after CAS deduplication,
 and complete wrapper totals.

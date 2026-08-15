@@ -1,0 +1,150 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://pocketrisu.local/schemas/patch-toolchain-shadow-operating-linkage-v1.schema.json",
+  "title": "PocketRisu toolchain shadow operating linkage v1",
+  "oneOf": [
+    { "$ref": "#/$defs/passed" },
+    { "$ref": "#/$defs/failed" }
+  ],
+  "$defs": {
+    "hash": { "type": "string", "pattern": "^[0-9a-f]{64}$" },
+    "commit": { "type": "string", "pattern": "^[0-9a-f]{40}$" },
+    "integrity": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["schema", "payloadSha256"],
+      "properties": {
+        "schema": { "const": "patch-verification-receipt-integrity-v1" },
+        "payloadSha256": { "$ref": "#/$defs/hash" }
+      }
+    },
+    "common": {
+      "type": "object",
+      "required": ["schema", "status", "routeId", "cohortId", "globalRunId", "materialDeclarationSha256", "routeDecisionSha256", "integrity"],
+      "properties": {
+        "schema": { "const": "patch-toolchain-shadow-operating-linkage-v1" },
+        "status": { "enum": ["passed", "failed"] },
+        "routeId": { "const": "material-c0-global-plus-toolchain-shadow" },
+        "cohortId": { "$ref": "#/$defs/hash" },
+        "globalRunId": { "$ref": "#/$defs/hash" },
+        "materialDeclarationSha256": { "$ref": "#/$defs/hash" },
+        "routeDecisionSha256": { "$ref": "#/$defs/hash" },
+        "integrity": { "$ref": "#/$defs/integrity" }
+      }
+    },
+    "passed": {
+      "allOf": [
+        { "$ref": "#/$defs/common" },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["schema", "status", "routeId", "cohortId", "globalRunId", "source", "policySha256", "target", "canonicalScheduleHistory", "runtimeSemanticSha256", "materialDeclarationSha256", "routeDecisionSha256", "references", "comparison", "canonicalProtection", "integrity"],
+          "properties": {
+            "schema": true,
+            "status": { "enum": ["passed", "failed"] },
+            "routeId": true,
+            "cohortId": true,
+            "globalRunId": true,
+            "source": {
+              "type": "object",
+              "additionalProperties": false,
+              "required": ["qualifiedSubjectCommit", "materialToolingCommit"],
+              "properties": {
+                "qualifiedSubjectCommit": { "$ref": "#/$defs/commit" },
+                "materialToolingCommit": { "$ref": "#/$defs/commit" }
+              }
+            },
+            "policySha256": { "$ref": "#/$defs/hash" },
+            "target": {
+              "type": "object",
+              "additionalProperties": false,
+              "required": ["commit", "applicationTreeSha256"],
+              "properties": {
+                "commit": { "$ref": "#/$defs/commit" },
+                "applicationTreeSha256": { "$ref": "#/$defs/hash" }
+              }
+            },
+            "canonicalScheduleHistory": {
+              "type": "object",
+              "additionalProperties": false,
+              "required": ["schedule", "workerScheduleSha256", "cacheHistorySha256"],
+              "properties": {
+                "schedule": { "const": "stride-v1" },
+                "workerScheduleSha256": { "$ref": "#/$defs/hash" },
+                "cacheHistorySha256": { "$ref": "#/$defs/hash" }
+              }
+            },
+            "runtimeSemanticSha256": { "$ref": "#/$defs/hash" },
+            "materialDeclarationSha256": true,
+            "routeDecisionSha256": true,
+            "references": {
+              "type": "object",
+              "additionalProperties": false,
+              "required": ["localReceiptObjectSha256", "localReceiptPayloadSha256", "globalReceiptObjectSha256", "globalReceiptPayloadSha256", "c0BundlePayloadSha256"],
+              "properties": {
+                "localReceiptObjectSha256": { "$ref": "#/$defs/hash" },
+                "localReceiptPayloadSha256": { "$ref": "#/$defs/hash" },
+                "globalReceiptObjectSha256": { "$ref": "#/$defs/hash" },
+                "globalReceiptPayloadSha256": { "$ref": "#/$defs/hash" },
+                "c0BundlePayloadSha256": { "$ref": "#/$defs/hash" }
+              }
+            },
+            "comparison": {
+              "type": "object",
+              "additionalProperties": false,
+              "required": ["globalExecutionSource", "rawMasks", "processedMasks", "localMasks", "boundaryClasses", "totalLocalCases", "mismatches"],
+              "properties": {
+                "globalExecutionSource": { "const": "canonical-global-exhaustive-same-execution" },
+                "rawMasks": { "const": 4096 },
+                "processedMasks": { "const": 4096 },
+                "localMasks": { "const": 2 },
+                "boundaryClasses": { "const": 4 },
+                "totalLocalCases": { "const": 8 },
+                "mismatches": { "type": "integer", "minimum": 0, "maximum": 4096 }
+              }
+            },
+            "canonicalProtection": {
+              "type": "object",
+              "additionalProperties": false,
+              "required": ["canonicalGate", "productionClass", "shadowClass", "productionCertificatesIssued", "canonicalMasksSkipped", "productionStateMigrated", "c1RelaxationAuthorized"],
+              "properties": {
+                "canonicalGate": { "const": "Global Exhaustive" },
+                "productionClass": { "const": "G" },
+                "shadowClass": { "const": "B" },
+                "productionCertificatesIssued": { "const": 0 },
+                "canonicalMasksSkipped": { "const": 0 },
+                "productionStateMigrated": { "const": false },
+                "c1RelaxationAuthorized": { "const": false }
+              }
+            },
+            "integrity": true
+          }
+        }
+      ]
+    },
+    "failed": {
+      "allOf": [
+        { "$ref": "#/$defs/common" },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["schema", "status", "routeId", "cohortId", "globalRunId", "materialDeclarationSha256", "routeDecisionSha256", "localFailure", "localEvidenceObjectSha256", "globalReceiptObjectSha256", "reason", "integrity"],
+          "properties": {
+            "schema": true,
+            "status": { "const": "failed" },
+            "routeId": true,
+            "cohortId": true,
+            "globalRunId": true,
+            "materialDeclarationSha256": true,
+            "routeDecisionSha256": true,
+            "localFailure": { "type": ["object", "null"] },
+            "localEvidenceObjectSha256": { "$ref": "#/$defs/hash" },
+            "globalReceiptObjectSha256": { "$ref": "#/$defs/hash" },
+            "reason": { "type": "string", "minLength": 1 },
+            "integrity": true
+          }
+        }
+      ]
+    }
+  }
+}

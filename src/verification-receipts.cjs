@@ -14,6 +14,7 @@ const {
 const {
     compareRuntimeEnvelopes,
 } = require('./verification-runtime.cjs')
+const { validateSameGlobalReference } = require('./toolchain-shadow-same-global.cjs')
 
 const RECEIPT_DISPOSITIONS = Object.freeze([
     'current-active',
@@ -138,11 +139,16 @@ function validateCommandContract(receipt) {
     const optionKeys = options && typeof options === 'object'
         ? Object.keys(options).sort()
         : []
-    if (JSON.stringify(optionKeys) !== JSON.stringify([
+    const baseOptionKeys = [
         'allowReviewing',
         'jobs',
         'targetProvenance',
-    ])) return ['verification options are missing or contain unknown fields']
+    ]
+    const operatingOptionKeys = [...baseOptionKeys, 'operatingRoute'].sort()
+    if (JSON.stringify(optionKeys) !== JSON.stringify(baseOptionKeys)
+        && JSON.stringify(optionKeys) !== JSON.stringify(operatingOptionKeys)) {
+        return ['verification options are missing or contain unknown fields']
+    }
     const jobsValid = options.jobs === null
         || (Number.isSafeInteger(options.jobs) && options.jobs > 0)
     if (!jobsValid) errors.push('verification jobs option is invalid')
@@ -163,6 +169,22 @@ function validateCommandContract(receipt) {
             provenance?.kind !== 'declared-archive'
             || `sha256:${provenance.sha256}` !== options.targetProvenance
         ) errors.push(`${phase} target archive provenance differs from receipt options`)
+    }
+    if (options.operatingRoute !== undefined) {
+        const route = options.operatingRoute
+        if (!route || JSON.stringify(Object.keys(route).sort()) !== JSON.stringify([
+            'candidateComparisonStatus', 'decisionSha256', 'globalExecutionsExpected',
+            'materialDeclarationSha256', 'routeId',
+        ]) || !['material-c0-global', 'material-c0-global-plus-toolchain-shadow'].includes(route.routeId)
+            || !/^[0-9a-f]{64}$/.test(route.materialDeclarationSha256 ?? '')
+            || !/^[0-9a-f]{64}$/.test(route.decisionSha256 ?? '')
+            || route.globalExecutionsExpected !== 1
+            || !['required', 'skipped-local-failure', 'not-applicable'].includes(route.candidateComparisonStatus)
+            || (route.routeId === 'material-c0-global' && route.candidateComparisonStatus !== 'not-applicable')
+            || (route.routeId === 'material-c0-global-plus-toolchain-shadow'
+                && route.candidateComparisonStatus === 'not-applicable')) {
+            errors.push('verification operating route option is invalid')
+        }
     }
 
     const command = receipt?.command
@@ -203,6 +225,34 @@ function validateCommandContract(receipt) {
             errors.push('verification command review flag differs from receipt options')
         }
         cursor += 1
+    }
+    if (options.operatingRoute?.candidateComparisonStatus === 'required') {
+        if (command[cursor] !== '--toolchain-shadow-reference-base64'
+            || typeof command[cursor + 1] !== 'string' || command[cursor + 1].length === 0) {
+            errors.push('combined operating route is missing its same-Global reference')
+        } else {
+            try {
+                const reference = JSON.parse(Buffer.from(command[cursor + 1], 'base64url').toString('utf8'))
+                validateSameGlobalReference(reference)
+                const comparison = receipt?.verifierResult?.toolchainShadowComparison
+                const comparisonReference = comparison === undefined ? null : {
+                    schema: reference.schema,
+                    candidateId: comparison.candidateId,
+                    candidateDeclarationSha256: comparison.candidateDeclarationSha256,
+                    materialDeclarationSha256: comparison.materialDeclarationSha256,
+                    localReceiptPayloadSha256: comparison.localReceiptPayloadSha256,
+                    references: comparison.localReferences,
+                }
+                if (reference.materialDeclarationSha256 !== options.operatingRoute.materialDeclarationSha256
+                    || comparisonReference === null
+                    || canonicalJson(reference) !== canonicalJson(comparisonReference)) {
+                    errors.push('same-Global reference differs from operating route options')
+                }
+            } catch {
+                errors.push('same-Global reference is not valid encoded JSON')
+            }
+        }
+        cursor += 2
     }
     if (cursor !== command.length) errors.push('verification command has unknown or reordered flags')
     return errors
@@ -254,6 +304,16 @@ function evaluateExecutionReceipt(receipt) {
     }
     const parsed = parseCanonicalOutput(stdout)
     const verifierErrors = validateVerificationResult(receipt?.verificationKind, parsed)
+    const operatingRouteId = receipt?.options?.operatingRoute?.routeId ?? null
+    const candidateComparisonStatus = receipt?.options?.operatingRoute?.candidateComparisonStatus ?? null
+    if (candidateComparisonStatus === 'required'
+        && parsed?.toolchainShadowComparison === undefined) {
+        structuralErrors.push('combined operating route lacks same-Global comparison output')
+    }
+    if ((operatingRouteId === 'material-c0-global' || candidateComparisonStatus === 'skipped-local-failure')
+        && parsed?.toolchainShadowComparison !== undefined) {
+        structuralErrors.push('operating route contains unexpected candidate shadow output')
+    }
     try {
         if (canonicalJson(receipt.verifierResult) !== canonicalJson(parsed)) {
             structuralErrors.push('recorded verifier result differs from stdout')

@@ -22,10 +22,16 @@ function parseArgs(argv) {
 
 async function main(argv = process.argv) {
     const options = parseArgs(argv)
+    const localReceipt = JSON.parse(fs.readFileSync(options.localReceipt, 'utf8'))
+    if (localReceipt.disposition === 'material-shadow') {
+        const error = new Error('Separate material Global projection is forbidden; use the one-Global combined C0 route')
+        error.code = 'SEPARATE_MATERIAL_GLOBAL_PROJECTION_FORBIDDEN'
+        throw error
+    }
     const receipt = await runGlobalProjection({
         sourceRoot: path.resolve(options.root),
         targetRoot: path.resolve(options.target),
-        localReceipt: JSON.parse(fs.readFileSync(options.localReceipt, 'utf8')),
+        localReceipt,
         targetProvenance: options.targetProvenance ?? null,
     })
     writeJsonAtomic(path.resolve(options.receipt), receipt)

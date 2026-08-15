@@ -18,11 +18,36 @@ observed immediately before the run. The public bootstrap entrypoint is:
 https://raw.githubusercontent.com/danso0429/patch-verification-governance/main/LLM-ENTRYPOINT.md
 ```
 
-The evidence runner executes the unchanged
+The evidence runner executes the canonical
 `scripts/verify-all-combinations.cjs` entrypoint. It does not call
 `scripts/verify-c0.cjs`, reduce the raw domain, change the worker schedule, or
 use prior evidence to skip execution. `npm run verify:combinations` remains the
-independent canonical fallback and its package script is unchanged.
+independent canonical fallback and its package script is unchanged. The
+combined material route can attach a read-only toolchain-shadow observation
+reference to that same execution; this does not add a second Global execution
+or change the default command's result contract.
+
+## Operating route contract
+
+Operating evidence uses only these route IDs:
+
+- `material-c0-global`: one materially distinct C0 cohort, one blocking Global
+  Exhaustive execution, and no local candidate execution.
+- `material-c0-global-plus-toolchain-shadow`: the same one Global execution
+  plus the qualified 2-mask by 4-boundary local shadow domain and an exact
+  differential linkage for one frozen cohort.
+
+Canonical policy section identifiers are not operating route IDs. The shared
+`decideOperatingCohortRoute()` function is called by both the read-only
+preflight and the material runner. Candidate impact comes only from the sealed
+versioned material declaration; it is never inferred from prompt prose.
+
+The combined runner freezes the declaration, verifies the accepted candidate
+qualification, runs focused gates, runs the isolated local shadow, and then
+invokes canonical Global Exhaustive exactly once. The same Global workers emit
+supplemental candidate projections after apply/status/re-plan and before
+revert. Candidate comparison consumes that exact receipt. A per-cohort guard
+rejects a second Global invocation before it starts.
 
 ## Evidence object model
 
@@ -53,6 +78,7 @@ A bundle binds all of these inputs and observations:
 - exact child argv, effective worker count, `stride-v1` schedule and every
   worker's ordered mask sequence hash;
 - shared-per-worker cache, module and unmanaged-history modes;
+- sealed material declaration and machine route-decision hashes;
 - focused-gate, Global Exhaustive and product-gate results as three separate
   fields;
 - output/spawn/signal, exact raw coverage, target integrity, receipt integrity
@@ -86,7 +112,7 @@ different:
 
 - `cohortId` hashes the semantic cohort identity: governance, implementation
   and dirty-state identity, policy, catalog, schema, target, runtime,
-  command, worker history and cache/history mode.
+  command, worker history, cache/history mode and operating route/declaration.
 - `runId` additionally binds the complete run bundle except its own value,
   including the trial ID, outcomes and resource observation.
 - a repeated performance trial keeps the cohort identity but receives a new
@@ -115,6 +141,11 @@ npm run evidence:c0:run -- \
   --store /separate/c0-evidence-store \
   --bundle /separate/exports/c0-bundle.json \
   --global-receipt /separate/exports/global-receipt.json \
+  --operating-expectation /absolute/contracts/first-material-c0-toolchain-hardening-v1.json \
+  --qualification-store /absolute/accepted/qualification-store \
+  --qualified-subject-root /absolute/frozen-qualified-subject \
+  --local-shadow-receipt /separate/exports/toolchain-local.json \
+  --candidate-linkage /separate/exports/toolchain-linkage.json \
   --governance-commit 40-lowercase-hex-characters \
   --governance-status-version 12 \
   --cohort-class patch \
@@ -146,8 +177,13 @@ Pass lists with `--focused-gates FILE.json` and `--product-gates FILE.json`.
 Referenced objects must already exist in the same evidence store before a
 retention plan can succeed.
 
-The runner first captures a standard Global execution receipt, publishes it,
-builds and independently validates the C0 bundle, then publishes the bundle.
+For a combined route the runner first captures the isolated local receipt, then
+captures one standard Global execution receipt with the supplemental observer,
+publishes both, builds and independently validates the C0 bundle, and publishes
+the exact candidate linkage. A local failure is preserved and does not become a
+candidate pass. A Global failure fails the material cohort. A comparison
+mismatch preserves a failed candidate linkage while leaving the independent
+Global result explicit.
 The two requested JSON files are immutable operator exports and must not
 already exist. The JSON result on stdout reports both object addresses and
 their new physical bytes after deduplication.

@@ -178,6 +178,13 @@ async function materialFixture() {
         trialId: 'material-known-answer-1',
         materiallyDistinct: true,
         repeatedPerformanceTrial: false,
+        operatingRoute: {
+            routeId: 'material-c0-global-plus-toolchain-shadow',
+            materialDeclarationSha256: HASH('c'),
+            decisionSha256: HASH('d'),
+            globalExecutionsExpected: 1,
+            candidateShadowExpected: true,
+        },
         c0Decision: routeCurrentC0({ correctness: 'passed', budget: 'passed' }),
         recordedAt: '2026-08-15T01:00:03.000Z',
     })

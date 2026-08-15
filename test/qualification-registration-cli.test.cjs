@@ -33,6 +33,7 @@ const {
     validateReceiptPair,
 } = require('../src/toolchain-shadow-qualification.cjs')
 const { runChild } = require('../src/verification-evidence.cjs')
+const { treeIdentity } = require('../src/operating-cohort-preflight.cjs')
 
 const repositoryRoot = path.resolve(__dirname, '..')
 const registrationScript = path.join(repositoryRoot, 'scripts/register-toolchain-shadow-qualification.cjs')
@@ -270,7 +271,7 @@ test('every required option is independently required', () => {
 })
 
 test('actual registration CLI accepts the formerly failing invocation and uses only a disposable external store', async (t) => {
-    assert.equal(fs.existsSync(realStoreRoot), false, 'real accepted store must remain absent')
+    const realStoreBefore = treeIdentity(realStoreRoot)
     fs.mkdirSync(disposableRootBase, { recursive: true, mode: 0o700 })
     fs.chmodSync(disposableRootBase, 0o700)
     const parent = fs.mkdtempSync(path.join(disposableRootBase, 'parser-'))
@@ -347,7 +348,7 @@ test('actual registration CLI accepts the formerly failing invocation and uses o
         candidateOperatingSample: false,
     })
     assert.equal(fs.existsSync(path.join(storeRoot, 'v2/refs/qualification/current.json')), true)
-    assert.equal(fs.existsSync(realStoreRoot), false, 'registration must not initialize the real accepted store')
+    assert.equal(treeIdentity(realStoreRoot), realStoreBefore, 'registration must not change the real accepted store')
 
     const current = resolveVerifiedQualificationRegistryHead(storeRoot)
     const descendant = appendRegistryEntry({
@@ -374,4 +375,5 @@ test('actual registration CLI accepts the formerly failing invocation and uses o
     assert.notEqual(retry.exitCode, 0)
     assert.match(retry.stderr, /QUALIFICATION_REGISTRY_HEAD_ROLLBACK/)
     assert.equal(fs.readFileSync(currentRefPath).equals(refBeforeRetry), true)
+    assert.equal(treeIdentity(realStoreRoot), realStoreBefore, 'registration retry must not change the real accepted store')
 })

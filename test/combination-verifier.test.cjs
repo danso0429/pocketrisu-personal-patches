@@ -114,6 +114,7 @@ test('coverage merge preserves graph and maximum-unit aggregation', () => {
                 { workerIndex: 0, orderedMasks: [0, 2] },
                 { workerIndex: 1, orderedMasks: [1, 3] },
             ],
+            toolchainShadowObservations: [],
         },
     )
 })

@@ -61,7 +61,7 @@
         "identity": {
           "type": "object",
           "additionalProperties": false,
-          "required": ["governanceCommit", "implementationCommit", "implementationStatusSha256", "policySha256", "catalogSha256", "schemasSha256", "targetBeforeSha256", "runtimeSemanticSha256", "commandSha256", "workerHistorySha256", "cacheHistorySha256"],
+          "required": ["governanceCommit", "implementationCommit", "implementationStatusSha256", "policySha256", "catalogSha256", "schemasSha256", "targetBeforeSha256", "runtimeSemanticSha256", "commandSha256", "workerHistorySha256", "cacheHistorySha256", "operatingRouteSha256"],
           "properties": {
             "governanceCommit": { "type": "string", "pattern": "^[0-9a-f]{40}$" },
             "implementationCommit": { "type": "string", "pattern": "^[0-9a-f]{40}$" },
@@ -73,7 +73,8 @@
             "runtimeSemanticSha256": { "$ref": "#/$defs/sha256" },
             "commandSha256": { "$ref": "#/$defs/sha256" },
             "workerHistorySha256": { "$ref": "#/$defs/sha256" },
-            "cacheHistorySha256": { "$ref": "#/$defs/sha256" }
+            "cacheHistorySha256": { "$ref": "#/$defs/sha256" },
+            "operatingRouteSha256": { "$ref": "#/$defs/sha256" }
           }
         }
       }
@@ -81,7 +82,7 @@
     "authority": {
       "type": "object",
       "additionalProperties": false,
-      "required": ["governance", "implementation", "policy", "catalog", "schemas", "target", "environment", "command", "workerSchedule", "cacheHistory"],
+      "required": ["governance", "implementation", "policy", "catalog", "schemas", "target", "environment", "command", "workerSchedule", "cacheHistory", "operatingRoute"],
       "properties": {
         "governance": {
           "type": "object",
@@ -193,6 +194,19 @@
             "cacheMode": { "type": "string", "minLength": 1 },
             "moduleHistoryMode": { "type": "string", "minLength": 1 },
             "unmanagedHistoryMode": { "type": "string", "minLength": 1 },
+            "sha256": { "$ref": "#/$defs/sha256" }
+          }
+        },
+        "operatingRoute": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["routeId", "materialDeclarationSha256", "decisionSha256", "globalExecutionsExpected", "candidateShadowExpected", "sha256"],
+          "properties": {
+            "routeId": { "oneOf": [{ "enum": ["material-c0-global", "material-c0-global-plus-toolchain-shadow"] }, { "type": "null" }] },
+            "materialDeclarationSha256": { "$ref": "#/$defs/nullableSha256" },
+            "decisionSha256": { "$ref": "#/$defs/nullableSha256" },
+            "globalExecutionsExpected": { "const": 1 },
+            "candidateShadowExpected": { "type": "boolean" },
             "sha256": { "$ref": "#/$defs/sha256" }
           }
         }

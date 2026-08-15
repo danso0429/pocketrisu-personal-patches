@@ -74,17 +74,15 @@ function parseArgs(argv) {
         if (!options[key]) throw new Error(`Missing ${key}`)
     }
     if (!/^[0-9a-f]{40}$/.test(options.governanceCommit)) throw new Error('--governance-commit is invalid')
+    if (options.mode === 'material-shadow') {
+        const error = new Error('Legacy material pilot route is removed; use material-c0-global-plus-toolchain-shadow')
+        error.code = 'LEGACY_MATERIAL_SHADOW_ROUTE_REMOVED'
+        throw error
+    }
     if (options.mode === 'synthetic-dry-run') {
         if (options.materiallyDistinct || options.repeatedPerformanceTrial
             || options.localReceipt || options.globalProjection || options.globalReceipt || options.c0Bundle) {
             throw new Error('Synthetic dry-run cannot bind material evidence or trial classification')
-        }
-    } else {
-        for (const key of ['localReceipt', 'globalProjection', 'globalReceipt', 'c0Bundle']) {
-            if (!options[key]) throw new Error(`Material pilot requires --${key}`)
-        }
-        if (options.materiallyDistinct === options.repeatedPerformanceTrial) {
-            throw new Error('Material pilot requires exactly one cohort/trial classification')
         }
     }
     return options

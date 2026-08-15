@@ -46,6 +46,7 @@ const {
 } = require('../../src/operating-cohort-preflight.cjs')
 const qualification = require('../../src/toolchain-shadow-qualification.cjs')
 const { sealDocument } = require('../../src/verification-receipts.cjs')
+const { declarationHash } = require('../../src/operating-cohort-route.cjs')
 
 const repositoryRoot = path.resolve(__dirname, '../..')
 const subjectRoot = '/home/ubuntu/nai-studio-2/.worktrees/toolchain-hardening-shadow-pilot'
@@ -257,16 +258,19 @@ function subjectFromSupport(support) {
 }
 
 function expectationFor(support, subject = subjectFromSupport(support)) {
-    return {
-        schema: EXPECTATION_SCHEMA,
-        subject,
-        compatibility: {
-            subjectSchemasSha256: support.sourceIdentity.subjectSchemasSha256,
-            qualificationSchemasSha256: support.sourceIdentity.qualificationSchemasSha256,
-            localRouteSha256: support.sourceIdentity.localRouteSha256,
-            globalProjectionRouteSha256: support.sourceIdentity.globalProjectionRouteSha256,
-        },
+    const value = JSON.parse(fs.readFileSync(path.join(
+        repositoryRoot, 'contracts/first-material-c0-toolchain-hardening-v1.json',
+    ), 'utf8'))
+    assert.equal(value.schema, EXPECTATION_SCHEMA)
+    value.qualification.subject = subject
+    value.qualification.compatibility = {
+        subjectSchemasSha256: support.sourceIdentity.subjectSchemasSha256,
+        qualificationSchemasSha256: support.sourceIdentity.qualificationSchemasSha256,
+        localRouteSha256: support.sourceIdentity.localRouteSha256,
+        globalProjectionRouteSha256: support.sourceIdentity.globalProjectionRouteSha256,
     }
+    value.declarationSha256 = declarationHash(value)
+    return value
 }
 
 function runPreflight(workspace, expectation) {

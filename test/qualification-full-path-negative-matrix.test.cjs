@@ -30,6 +30,7 @@ const {
 const { fullSchemaRegistry } = require('../src/qualification-verifier.cjs')
 const qualification = require('../src/toolchain-shadow-qualification.cjs')
 const { sealDocument } = require('../src/verification-receipts.cjs')
+const { declarationHash } = require('../src/operating-cohort-route.cjs')
 const {
     cleanupWorkspace,
     closureQuarantineRoot,
@@ -56,6 +57,7 @@ const {
     subjectFromSupport,
     subjectRoot,
     targetRoot,
+    treeIdentity,
     writeInputs,
     buildRealMachineSources,
 } = require('./helpers/qualification-e2e-fixtures.cjs')
@@ -321,7 +323,7 @@ function validRegisteredWorkspace(label, source, reordered = false) {
 }
 
 test('complete durable registry-to-verifier-to-preflight negative matrix', { timeout: 900_000 }, async (t) => {
-    assert.equal(fs.existsSync(realStoreRoot), false, 'real accepted qualification store must remain absent')
+    const realStoreBefore = treeIdentity(realStoreRoot)
     const sourceWorkspace = createWorkspace('matrix-positive-control')
     let source
     try {
@@ -333,7 +335,7 @@ test('complete durable registry-to-verifier-to-preflight negative matrix', { tim
         assert.equal(positive.report.verifiedRegistryHead.rollbackDetected, false)
         assert.equal(positive.report.verifiedRegistryHead.forkDetected, false)
         assert.equal(positive.report.verifiedRegistryHead.verifiedMaximalHeadSha256, positive.report.registryDescriptorSha256)
-        assert.equal(fs.existsSync(realStoreRoot), false)
+        assert.equal(treeIdentity(realStoreRoot), realStoreBefore)
         t.diagnostic(`positive-control registry=${positive.report.registryDescriptorSha256}`)
 
         await t.test('machine closure required-check and derivation cases reject at publisher and compromised-store layers', () => {
@@ -403,19 +405,20 @@ test('complete durable registry-to-verifier-to-preflight negative matrix', { tim
 
         await t.test('stale compatibility and production-protection values reject through production preflight', () => {
             const staleCases = [
-                ['stale-subject', (expected) => { expected.subject.implementationCommit = '0'.repeat(40) }],
-                ['stale-contract', (expected) => { expected.subject.contractSha256 = '0'.repeat(64) }],
-                ['stale-declaration', (expected) => { expected.subject.compiledDeclarationSha256 = '0'.repeat(64) }],
-                ['stale-policy', (expected) => { expected.subject.policySha256 = '0'.repeat(64) }],
-                ['stale-target-commit', (expected) => { expected.subject.targetCommit = '0'.repeat(40) }],
-                ['stale-target-tree', (expected) => { expected.subject.targetApplicationTreeSha256 = '0'.repeat(64) }],
-                ['stale-route', (expected) => { expected.compatibility.localRouteSha256 = '0'.repeat(64) }],
+                ['stale-subject', (expected) => { expected.qualification.subject.implementationCommit = '0'.repeat(40) }],
+                ['stale-contract', (expected) => { expected.qualification.subject.contractSha256 = '0'.repeat(64) }],
+                ['stale-declaration', (expected) => { expected.qualification.subject.compiledDeclarationSha256 = '0'.repeat(64) }],
+                ['stale-policy', (expected) => { expected.qualification.subject.policySha256 = '0'.repeat(64) }],
+                ['stale-target-commit', (expected) => { expected.qualification.subject.targetCommit = '0'.repeat(40) }],
+                ['stale-target-tree', (expected) => { expected.qualification.subject.targetApplicationTreeSha256 = '0'.repeat(64) }],
+                ['stale-route', (expected) => { expected.qualification.compatibility.localRouteSha256 = '0'.repeat(64) }],
             ]
             for (const [caseId, mutate] of staleCases) {
                 const { workspace, valid } = validRegisteredWorkspace(caseId, source)
                 try {
                     const expected = structuredClone(valid.expectation)
                     mutate(expected)
+                    expected.declarationSha256 = declarationHash(expected)
                     const preflight = runPreflight(workspace, expected)
                     assertPreflightFalse(preflight, caseId)
                     records.push(completeRecord(caseId, {
@@ -700,7 +703,7 @@ test('complete durable registry-to-verifier-to-preflight negative matrix', { tim
                 'preflightParsedResult', 'failureReason', 'cleanupResult',
             ]) assert.equal(Object.prototype.hasOwnProperty.call(record, key), true, `${record.caseId}: missing record ${key}`)
         }
-        assert.equal(fs.existsSync(realStoreRoot), false)
+        assert.equal(treeIdentity(realStoreRoot), realStoreBefore)
         assert.equal(fs.existsSync(disposableRootBase), true)
         t.diagnostic(`negative-case-records=${records.length} recordsSha256=${sha256(canonicalJsonBytes(records.map((record) => ({ caseId: record.caseId, passed: record.toolchainPilotClosurePassed }))))}`)
     } finally {

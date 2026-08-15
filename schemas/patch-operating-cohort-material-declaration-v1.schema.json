@@ -1,0 +1,89 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://pocketrisu.local/schemas/patch-operating-cohort-material-declaration-v1.schema.json",
+  "title": "PocketRisu material operating cohort declaration v1",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schema", "version", "declarationId", "changeClass", "materiallyDistinct", "stableRelease", "releaseCandidate", "materialReason", "candidateImpact", "qualification", "environment", "globalContract", "declarationSha256"],
+  "properties": {
+    "schema": { "const": "patch-operating-cohort-material-declaration-v1" },
+    "version": { "const": 1 },
+    "declarationId": { "type": "string", "pattern": "^[a-z0-9][a-z0-9-]*-v1$" },
+    "changeClass": { "enum": ["patch", "relation", "core", "audit", "stable-release"] },
+    "materiallyDistinct": { "const": true },
+    "stableRelease": { "type": "boolean" },
+    "releaseCandidate": { "type": "string", "minLength": 1 },
+    "materialReason": { "type": "string", "minLength": 1 },
+    "candidateImpact": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["affected", "candidateId", "reason"],
+      "properties": {
+        "affected": { "type": "boolean" },
+        "candidateId": { "oneOf": [{ "const": "toolchain-hardening" }, { "type": "null" }] },
+        "reason": { "type": "string", "minLength": 1 }
+      }
+    },
+    "qualification": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["subject", "compatibility"],
+      "properties": {
+        "subject": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["implementationCommit", "qualificationToolCommit", "policySha256", "contractSha256", "compiledDeclarationSha256", "targetCommit", "targetApplicationTreeSha256"],
+          "properties": {
+            "implementationCommit": { "$ref": "#/$defs/commit" },
+            "qualificationToolCommit": { "$ref": "#/$defs/commit" },
+            "policySha256": { "$ref": "#/$defs/hash" },
+            "contractSha256": { "$ref": "#/$defs/hash" },
+            "compiledDeclarationSha256": { "$ref": "#/$defs/hash" },
+            "targetCommit": { "$ref": "#/$defs/commit" },
+            "targetApplicationTreeSha256": { "$ref": "#/$defs/hash" }
+          }
+        },
+        "compatibility": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["subjectSchemasSha256", "qualificationSchemasSha256", "localRouteSha256", "globalProjectionRouteSha256"],
+          "properties": {
+            "subjectSchemasSha256": { "$ref": "#/$defs/hash" },
+            "qualificationSchemasSha256": { "$ref": "#/$defs/hash" },
+            "localRouteSha256": { "$ref": "#/$defs/hash" },
+            "globalProjectionRouteSha256": { "$ref": "#/$defs/hash" }
+          }
+        }
+      }
+    },
+    "environment": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["id", "nodeVersion", "platform", "architecture", "libc", "pnpmVersion"],
+      "properties": {
+        "id": { "type": "string", "minLength": 1 },
+        "nodeVersion": { "type": "string", "minLength": 1 },
+        "platform": { "type": "string", "minLength": 1 },
+        "architecture": { "type": "string", "minLength": 1 },
+        "libc": { "type": "string", "minLength": 1 },
+        "pnpmVersion": { "type": "string", "minLength": 1 }
+      }
+    },
+    "globalContract": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["canonicalGate", "workerSchedule", "workerHistory", "globalExecutionsExpected"],
+      "properties": {
+        "canonicalGate": { "const": "Global Exhaustive" },
+        "workerSchedule": { "const": "stride-v1" },
+        "workerHistory": { "const": "persistent-per-worker-v1" },
+        "globalExecutionsExpected": { "const": 1 }
+      }
+    },
+    "declarationSha256": { "type": "string", "pattern": "^[0-9a-f]{64}$" }
+  },
+  "$defs": {
+    "hash": { "type": "string", "pattern": "^[0-9a-f]{64}$" },
+    "commit": { "type": "string", "pattern": "^[0-9a-f]{40}$" }
+  }
+}

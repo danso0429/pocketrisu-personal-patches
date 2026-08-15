@@ -133,7 +133,10 @@ function derivationIdentity(derivation) {
     return identity
 }
 
-function verifyContentQualification({ storeRoot, contentManifestDescriptorSha256, expectedSubject = null, subjectRoot }) {
+function readContentQualification({
+    storeRoot, contentManifestDescriptorSha256, expectedSubject = null, subjectRoot,
+    performFreshDerivation = true,
+}) {
     const identity = loadStoreIdentity(storeRoot)
     const contentRecord = loadObject(storeRoot, contentManifestDescriptorSha256)
     assertDescriptor(contentRecord, {
@@ -171,7 +174,7 @@ function verifyContentQualification({ storeRoot, contentManifestDescriptorSha256
     })
     const localReceipt = validateLocalShadowReceipt(localRecord.document)
     const globalReceipt = validateGlobalProjectionReceipt(globalRecord.document)
-    const derivation = independentlyDeriveFixture({ subjectRoot })
+    const derivation = performFreshDerivation ? independentlyDeriveFixture({ subjectRoot }) : null
     const closure = validateMachineClosureReceipt(closureRecord.document, {
         supportRecord: support,
         localReceipt,
@@ -190,15 +193,17 @@ function verifyContentQualification({ storeRoot, contentManifestDescriptorSha256
         || closure.sourceObjects.localReceiptSemanticSha256 !== localRecord.descriptor.canonicalSemanticSha256
         || closure.sourceObjects.globalSyntheticReceiptRawSha256 !== globalRecord.descriptor.payloadSha256
         || closure.sourceObjects.globalSyntheticReceiptSemanticSha256 !== globalRecord.descriptor.canonicalSemanticSha256
-        || support.fixtureDerivation.inputDeclarationSha256 !== derivation.inputDeclarationSha256
-        || support.fixtureDerivation.recipePath !== derivation.recipePath
-        || support.fixtureDerivation.recipeSha256 !== derivation.recipeSha256
-        || support.fixtureDerivation.outputFixtureDeclarationSha256 !== derivation.outputFixtureDeclarationSha256
-        || support.fixtureDerivation.outputSyntheticTargetTreeSha256 !== derivation.outputSyntheticTargetTreeSha256
-        || localReceipt.declarationSha256 !== derivation.outputFixtureDeclarationSha256
-        || globalReceipt.declarationSha256 !== derivation.outputFixtureDeclarationSha256
-        || localReceipt.target.applicationTreeSha256 !== derivation.outputSyntheticTargetTreeSha256
-        || globalReceipt.target.applicationTreeSha256 !== derivation.outputSyntheticTargetTreeSha256) {
+        || (derivation !== null && (
+            support.fixtureDerivation.inputDeclarationSha256 !== derivation.inputDeclarationSha256
+            || support.fixtureDerivation.recipePath !== derivation.recipePath
+            || support.fixtureDerivation.recipeSha256 !== derivation.recipeSha256
+            || support.fixtureDerivation.outputFixtureDeclarationSha256 !== derivation.outputFixtureDeclarationSha256
+            || support.fixtureDerivation.outputSyntheticTargetTreeSha256 !== derivation.outputSyntheticTargetTreeSha256
+        ))
+        || localReceipt.declarationSha256 !== support.fixtureDerivation.outputFixtureDeclarationSha256
+        || globalReceipt.declarationSha256 !== support.fixtureDerivation.outputFixtureDeclarationSha256
+        || localReceipt.target.applicationTreeSha256 !== support.fixtureDerivation.outputSyntheticTargetTreeSha256
+        || globalReceipt.target.applicationTreeSha256 !== support.fixtureDerivation.outputSyntheticTargetTreeSha256) {
         fail('QUALIFICATION_REFERENCE_MISMATCH', 'Qualification content references incompatible machine evidence')
     }
     const checked = new Set([
@@ -243,6 +248,10 @@ function verifyContentQualification({ storeRoot, contentManifestDescriptorSha256
             quarantineNotAuthority: true,
         },
     }
+}
+
+function verifyContentQualification(options) {
+    return readContentQualification({ ...options, performFreshDerivation: true })
 }
 
 function verifyFinalQualification({ storeRoot, qualificationManifestDescriptorSha256, expectedSubject = null, subjectRoot }) {
@@ -323,6 +332,83 @@ function verifyRegistryAncestry(storeRoot, registryRecord, seen = new Set()) {
     return [...verifyRegistryAncestry(storeRoot, baseRecord, seen), descriptorSha256]
 }
 
+function inspectDurableAcceptedQualification({ storeRoot, expectedSubject }) {
+    const verifiedHead = resolveVerifiedQualificationRegistryHead(storeRoot)
+    const registry = verifiedHead.registry
+    const effective = effectiveRegistryEntry(registry, expectedSubject)
+    if (effective.state !== 'accepted' || effective.entry.action !== 'accept') {
+        fail(effective.state === 'revoked' ? 'QUALIFICATION_REVOKED' : 'QUALIFICATION_NOT_ACCEPTED', 'No durable accepted qualification exists')
+    }
+    const finalRecord = loadObject(storeRoot, effective.entry.qualificationManifestDescriptorSha256)
+    assertDescriptor(finalRecord, {
+        role: 'final-qualification-manifest',
+        payloadModel: 'canonical-json',
+        mediaType: 'application/vnd.pocketrisu.qualification-manifest+json',
+        schema: QUALIFICATION_MANIFEST_SCHEMA,
+    })
+    const finalManifest = validateQualificationManifest(finalRecord.document)
+    if (!canonicalJsonBytes(finalManifest.subject).equals(canonicalJsonBytes(expectedSubject))
+        || finalManifest.disposition !== 'accepted-qualification'
+        || finalManifest.qualificationType !== effective.entry.qualificationType
+        || finalManifest.acceptedPurpose !== effective.entry.acceptedPurpose
+        || !canonicalJsonBytes(finalManifest.excludedPurposes).equals(canonicalJsonBytes(effective.entry.excludedPurposes))
+        || !canonicalJsonBytes(finalManifest.operatingCounts).equals(canonicalJsonBytes(effective.entry.operatingCounts))) {
+        fail('ACCEPTED_QUALIFICATION_MISMATCH', 'Durable accepted registry entry and final manifest are incompatible')
+    }
+    const stored = readContentQualification({
+        storeRoot,
+        contentManifestDescriptorSha256: finalManifest.contentManifestDescriptorSha256,
+        expectedSubject,
+        performFreshDerivation: false,
+    })
+    const validationRecord = loadObject(storeRoot, finalManifest.validationResultDescriptorSha256)
+    assertDescriptor(validationRecord, {
+        role: 'independent-qualification-validation',
+        payloadModel: 'canonical-json',
+        mediaType: 'application/vnd.pocketrisu.qualification-validation+json',
+        schema: VALIDATION_RESULT_SCHEMA,
+    })
+    const validation = validateValidationResult(validationRecord.document)
+    const storedDerivation = stored.support.fixtureDerivation
+    const validatedDerivation = validation.derivation
+    if (validation.result !== 'passed'
+        || validation.independentVerifier.qualificationToolCommit !== finalManifest.subject.qualificationToolCommit
+        || validation.storeIdentityHash !== stored.identity.storeIdentityHash
+        || validation.contentManifestDescriptorSha256 !== finalManifest.contentManifestDescriptorSha256
+        || validatedDerivation.freshProcess !== true
+        || validatedDerivation.publisherFlagTrusted !== false
+        || validatedDerivation.subjectCommit !== expectedSubject.implementationCommit
+        || validatedDerivation.subjectClean !== true
+        || validatedDerivation.inputDeclarationSha256 !== storedDerivation.inputDeclarationSha256
+        || validatedDerivation.recipePath !== storedDerivation.recipePath
+        || validatedDerivation.recipeSha256 !== storedDerivation.recipeSha256
+        || validatedDerivation.outputFixtureDeclarationSha256 !== storedDerivation.outputFixtureDeclarationSha256
+        || validatedDerivation.outputSyntheticTargetTreeSha256 !== storedDerivation.outputSyntheticTargetTreeSha256
+        || !stored.checkedDescriptors.every((hash) => validation.checkedDescriptors.includes(hash))) {
+        fail('INDEPENDENT_VALIDATION_MISMATCH', 'Stored independent validation does not cover the durable qualification graph')
+    }
+    return {
+        registry,
+        registryDescriptorSha256: verifiedHead.registryDescriptorSha256,
+        registryRootSha256: registry.registryRootSha256,
+        registryHead: verifiedHead.metrics,
+        effectiveEntry: effective.entry,
+        finalManifest,
+        content: stored.content,
+        support: stored.support,
+        closure: stored.closure,
+        localReceipt: stored.localReceipt,
+        globalReceipt: stored.globalReceipt,
+        validation,
+        checkedDescriptors: [...new Set([
+            ...stored.checkedDescriptors,
+            finalRecord.descriptorSha256,
+            validationRecord.descriptorSha256,
+        ])].sort(),
+        freshIndependentDerivationPerformed: false,
+    }
+}
+
 function verifyQualificationRegistry({
     storeRoot,
     registryDescriptorSha256 = null,
@@ -394,6 +480,7 @@ module.exports = {
     assertQuarantineIsNotAcceptedStore,
     fullSchemaRegistry,
     independentlyDeriveFixture,
+    inspectDurableAcceptedQualification,
     verifyContentQualification,
     verifyFinalQualification,
     verifyRegistryAncestry,

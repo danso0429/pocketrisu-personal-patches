@@ -168,10 +168,10 @@ witness, signed checkpoint, or cross-host rollback resistance.
 
 ## Read-only operating preflight
 
-The expectation document has schema
-`qualification-operating-preflight-expectation-v1` and binds the exact subject
-plus local route, Global projection route, subject schema-set, and qualification
-schema-set hashes.
+The expectation document is the versioned material declaration with schema
+`patch-operating-cohort-material-declaration-v1`. It binds candidate impact,
+the exact subject, policy, contract, compiled candidate declaration, target,
+environment, local/Global route compatibility hashes and one-Global contract.
 
 ```sh
 npm run qualification:preflight -- \
@@ -180,13 +180,20 @@ npm run qualification:preflight -- \
   --subject-root /absolute/frozen-subject-worktree
 ```
 
-`toolchainPilotClosurePassed: true` requires a durable accepted current registry
-entry, production-path independent verification (including fresh fixture
-derivation), and exact compatibility. A caller-supplied verifier result is not
+The output itself contains `route`, `cohort`, `candidate`, `blockers` and the
+complete sealed machine route decision. `toolchainPilotClosurePassed: true`
+requires a durable accepted current registry entry, production-path independent
+verification (including fresh fixture derivation), and exact compatibility. A caller-supplied verifier result is not
 an accepted input to the production command. A quarantine manifest
 alone produces `quarantine-only-evidence`. The command reads and hashes the
 store before and after verification and does not mutate evidence, ledgers,
 source, target, policy, classification, or state. It never authorizes C1.
+
+Durable registry acceptance and a fresh verifier run are reported separately.
+If managed execution policy denies nested child spawning with `EPERM`, fresh
+verification is `environment-unavailable`; durable acceptance is not revoked,
+but a combined material route is not safe to execute until the unchanged
+verifier passes from an approved normal host path.
 
 ## Retention and backup
 

@@ -115,6 +115,7 @@ function expectedCohortIdentity(authority) {
         commandSha256: authority.command.sha256,
         workerHistorySha256: authority.workerSchedule.sha256,
         cacheHistorySha256: authority.cacheHistory.sha256,
+        operatingRouteSha256: authority.operatingRoute.sha256,
     }
 }
 
@@ -169,6 +170,7 @@ function validateCohort(bundle, errors) {
         'commandSha256',
         'workerHistorySha256',
         'cacheHistorySha256',
+        'operatingRouteSha256',
     ], 'cohort identity', errors)) return
     if (!COMMIT_PATTERN.test(cohort.identity.governanceCommit ?? '')) {
         errors.push('cohort governance commit is invalid')
@@ -203,6 +205,7 @@ function validateAuthority(bundle, receipt, errors) {
         'command',
         'workerSchedule',
         'cacheHistory',
+        'operatingRoute',
     ], 'authority', errors)) return
 
     if (!exactKeys(authority.governance, ['repository', 'commit', 'statusVersion'], 'governance authority', errors)) return
@@ -325,6 +328,33 @@ function validateAuthority(bundle, receipt, errors) {
     ], 'cache/history authority', errors)) return
     const { sha256: cacheSha256, ...cachePayload } = authority.cacheHistory
     if (cacheSha256 !== canonicalSha256(cachePayload)) errors.push('cache/history authority hash mismatch')
+
+    if (!exactKeys(authority.operatingRoute, [
+        'routeId', 'materialDeclarationSha256', 'decisionSha256',
+        'globalExecutionsExpected', 'candidateShadowExpected', 'sha256',
+    ], 'operating route authority', errors)) return
+    const { sha256: routeSha256, ...routePayload } = authority.operatingRoute
+    if (routeSha256 !== canonicalSha256(routePayload)) errors.push('operating route authority hash mismatch')
+    if (authority.operatingRoute.routeId === null) {
+        if (!(bundle.runKind === 'synthetic-known-answer' || bundle.cohort?.repeatedPerformanceTrial === true)
+            || authority.operatingRoute.materialDeclarationSha256 !== null
+            || authority.operatingRoute.decisionSha256 !== null
+            || authority.operatingRoute.globalExecutionsExpected !== 1
+            || authority.operatingRoute.candidateShadowExpected !== false) {
+            errors.push('non-operating route authority is invalid')
+        }
+    } else {
+        if (!['material-c0-global', 'material-c0-global-plus-toolchain-shadow'].includes(authority.operatingRoute.routeId)) {
+            errors.push('operating route ID is invalid')
+        }
+        validateSha256(authority.operatingRoute.materialDeclarationSha256, 'material declaration hash', errors)
+        validateSha256(authority.operatingRoute.decisionSha256, 'route decision hash', errors)
+        if (authority.operatingRoute.globalExecutionsExpected !== 1
+            || authority.operatingRoute.candidateShadowExpected
+                !== (authority.operatingRoute.routeId === 'material-c0-global-plus-toolchain-shadow')) {
+            errors.push('operating route execution counts are invalid')
+        }
+    }
 }
 
 function validateGate(gate, label, errors) {
@@ -374,6 +404,9 @@ const C0_SCHEMA_FILES = Object.freeze([
     'schemas/patch-c0-retention-plan-v1.schema.json',
     'schemas/patch-c0-review-trigger-v1.schema.json',
     'schemas/patch-c0-stable-release-ledger-v1.schema.json',
+    'schemas/patch-operating-cohort-material-declaration-v1.schema.json',
+    'schemas/patch-operating-cohort-route-decision-v1.schema.json',
+    'schemas/patch-toolchain-shadow-operating-linkage-v1.schema.json',
 ])
 
 function schemaAuthority(sourceRoot) {
@@ -428,11 +461,19 @@ function buildAuthority({
     governanceCommit,
     governanceStatusVersion,
     implementationRepository,
+    operatingRoute,
 }) {
     const before = globalReceipt.before
     const after = globalReceipt.after
     const command = globalReceipt.command
     const semanticIdentity = runtimeSemanticIdentity(globalReceipt.runtime.before)
+    const routePayload = operatingRoute === null ? {
+        routeId: null,
+        materialDeclarationSha256: null,
+        decisionSha256: null,
+        globalExecutionsExpected: 1,
+        candidateShadowExpected: false,
+    } : operatingRoute
     const authority = {
         governance: {
             repository: governanceRepository,
@@ -468,6 +509,7 @@ function buildAuthority({
         command: { argv: command, sha256: canonicalSha256(command) },
         workerSchedule: workerScheduleAuthority(globalReceipt),
         cacheHistory: cacheHistoryAuthority(),
+        operatingRoute: { ...routePayload, sha256: canonicalSha256(routePayload) },
     }
     return authority
 }
@@ -532,6 +574,7 @@ function buildEvidenceBundle({
     productGates = [],
     c0Decision,
     referencedObjectsNewPhysicalBytes = 0,
+    operatingRoute = null,
     recordedAt = new Date().toISOString(),
 }) {
     const authority = buildAuthority({
@@ -541,6 +584,7 @@ function buildEvidenceBundle({
         governanceCommit,
         governanceStatusVersion,
         implementationRepository,
+        operatingRoute,
     })
     const correctness = buildCorrectness(globalReceipt)
     const receiptEncoded = evidenceObjectBytes(globalReceipt)

@@ -1,0 +1,31 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://pocketrisu.local/schemas/patch-operating-cohort-route-decision-v1.schema.json",
+  "title": "PocketRisu operating cohort route decision v1",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schema", "routeId", "cohortType", "changeClass", "materiallyDistinct", "stableRelease", "candidateAffected", "candidateId", "candidateQualificationCompatible", "candidateExecutionReason", "candidateExecutionSkipped", "candidateOperatingSampleEligible", "candidateSkipReason", "localMasksExpected", "boundaryClassesExpected", "totalLocalCasesExpected", "globalExecutionsExpected", "materialDeclarationSha256", "safeToExecute", "blockers", "decisionSha256"],
+  "properties": {
+    "schema": { "const": "patch-operating-cohort-route-decision-v1" },
+    "routeId": { "enum": ["material-c0-global", "material-c0-global-plus-toolchain-shadow"] },
+    "cohortType": { "enum": ["material-c0-global", "material-c0-global-plus-toolchain-shadow"] },
+    "changeClass": { "enum": ["patch", "relation", "core", "audit", "stable-release"] },
+    "materiallyDistinct": { "const": true },
+    "stableRelease": { "type": "boolean" },
+    "candidateAffected": { "type": "boolean" },
+    "candidateId": { "oneOf": [{ "const": "toolchain-hardening" }, { "type": "null" }] },
+    "candidateQualificationCompatible": { "type": "boolean" },
+    "candidateExecutionReason": { "oneOf": [{ "type": "string", "minLength": 1 }, { "type": "null" }] },
+    "candidateExecutionSkipped": { "type": "boolean" },
+    "candidateOperatingSampleEligible": { "type": "boolean" },
+    "candidateSkipReason": { "oneOf": [{ "type": "string", "minLength": 1 }, { "type": "null" }] },
+    "localMasksExpected": { "enum": [0, 2] },
+    "boundaryClassesExpected": { "enum": [0, 4] },
+    "totalLocalCasesExpected": { "enum": [0, 8] },
+    "globalExecutionsExpected": { "const": 1 },
+    "materialDeclarationSha256": { "type": "string", "pattern": "^[0-9a-f]{64}$" },
+    "safeToExecute": { "type": "boolean" },
+    "blockers": { "type": "array", "items": { "type": "string", "minLength": 1 }, "uniqueItems": true },
+    "decisionSha256": { "type": "string", "pattern": "^[0-9a-f]{64}$" }
+  }
+}

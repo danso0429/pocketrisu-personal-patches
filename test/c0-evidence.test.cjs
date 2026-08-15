@@ -165,6 +165,9 @@ function authority(receipt) {
         'schemas/patch-c0-retention-plan-v1.schema.json',
         'schemas/patch-c0-review-trigger-v1.schema.json',
         'schemas/patch-c0-stable-release-ledger-v1.schema.json',
+        'schemas/patch-operating-cohort-material-declaration-v1.schema.json',
+        'schemas/patch-operating-cohort-route-decision-v1.schema.json',
+        'schemas/patch-toolchain-shadow-operating-linkage-v1.schema.json',
     ].map((file, index) => ({ path: file, sha256: String(index + 1).padStart(64, '0') }))
     const workerPayload = {
         schedule: receipt.verifierResult?.workerHistory?.schedule ?? 'stride-v1',
@@ -176,6 +179,13 @@ function authority(receipt) {
         cacheMode: 'enabled-shared-per-worker-v1',
         moduleHistoryMode: 'persistent-per-worker-v1',
         unmanagedHistoryMode: 'persistent-per-worker-v1',
+    }
+    const routePayload = {
+        routeId: 'material-c0-global',
+        materialDeclarationSha256: '1'.repeat(64),
+        decisionSha256: '2'.repeat(64),
+        globalExecutionsExpected: 1,
+        candidateShadowExpected: false,
     }
     return {
         governance: { repository: 'https://example.invalid/governance', commit: FIXTURE_COMMIT, statusVersion: 12 },
@@ -205,6 +215,7 @@ function authority(receipt) {
         command: { argv: receipt.command, sha256: canonicalSha256(receipt.command) },
         workerSchedule: { ...workerPayload, sha256: canonicalSha256(workerPayload) },
         cacheHistory: { ...cachePayload, sha256: canonicalSha256(cachePayload) },
+        operatingRoute: { ...routePayload, sha256: canonicalSha256(routePayload) },
     }
 }
 
@@ -212,6 +223,16 @@ function bundleFixture({ receipt = globalReceipt(), runKind = 'production-c0', t
     const boundAuthority = authority(receipt)
     const receiptEncoded = evidenceObjectBytes(receipt)
     const production = runKind === 'production-c0'
+    if (!production) {
+        const routePayload = {
+            routeId: null,
+            materialDeclarationSha256: null,
+            decisionSha256: null,
+            globalExecutionsExpected: 1,
+            candidateShadowExpected: false,
+        }
+        boundAuthority.operatingRoute = { ...routePayload, sha256: canonicalSha256(routePayload) }
+    }
     return finalizeEvidenceBundle({
         schema: 'patch-c0-evidence-bundle-v1',
         disposition: receipt.accepted ? 'current-active' : 'defect-reproduction',

@@ -5,6 +5,7 @@ const fs = require('node:fs')
 const os = require('node:os')
 const path = require('node:path')
 const { spawn } = require('node:child_process')
+const { validateSameGlobalComparison } = require('./toolchain-shadow-same-global.cjs')
 
 const TREE_SCHEMA = 'patch-verification-content-tree-v1'
 const FREEZE_SCHEMA = 'patch-verification-input-freeze-v1'
@@ -402,6 +403,11 @@ function validateCanonicalResult(result) {
     }
     if (observedMasks !== result.rawSelections) {
         errors.push('worker histories do not cover every raw mask exactly once')
+    }
+    if (result.toolchainShadowComparison !== undefined) {
+        try { validateSameGlobalComparison(result.toolchainShadowComparison, result) } catch (error) {
+            errors.push(`same-Global candidate comparison is invalid: ${error.code ?? error.message}`)
+        }
     }
     return errors
 }

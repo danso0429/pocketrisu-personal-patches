@@ -186,6 +186,11 @@ function extractObjectReferences(document) {
         optionalReference(document.references?.c0BundleObjectSha256, 'pilot C0 bundle reference', references)
     } else if (schema === 'patch-toolchain-shadow-incident-v1') {
         optionalReference(document.pilotReceiptObjectSha256, 'pilot incident receipt reference', references)
+    } else if (schema === 'patch-toolchain-shadow-operating-linkage-v1') {
+        optionalReference(document.references?.localReceiptObjectSha256
+            ?? document.localEvidenceObjectSha256, 'operating linkage local reference', references)
+        optionalReference(document.references?.globalReceiptObjectSha256
+            ?? document.globalReceiptObjectSha256, 'operating linkage Global reference', references)
     }
     return [...references].sort()
 }

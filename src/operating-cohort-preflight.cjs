@@ -14,12 +14,18 @@ const {
 const { QUALIFICATION_TYPE } = require('./toolchain-shadow-qualification.cjs')
 const {
     assertQuarantineIsNotAcceptedStore,
+    inspectDurableAcceptedQualification,
     verifyQualificationRegistry,
 } = require('./qualification-verifier.cjs')
+const { loadToolchainShadowDeclaration } = require('./toolchain-shadow-contract.cjs')
+const {
+    MATERIAL_DECLARATION_SCHEMA,
+    decideOperatingCohortRoute,
+    validateMaterialDeclaration,
+} = require('./operating-cohort-route.cjs')
 
 const PREFLIGHT_SCHEMA = 'qualification-operating-cohort-preflight-v1'
-const EXPECTATION_SCHEMA = 'qualification-operating-preflight-expectation-v1'
-const SHA256_PATTERN = /^[0-9a-f]{64}$/
+const EXPECTATION_SCHEMA = MATERIAL_DECLARATION_SCHEMA
 
 class OperatingCohortPreflightError extends Error {
     constructor(code, message, details = null) {
@@ -34,36 +40,10 @@ function fail(code, message, details = null) {
     throw new OperatingCohortPreflightError(code, message, details)
 }
 
-function exactKeys(value, expected, label) {
-    if (!value || typeof value !== 'object' || Array.isArray(value)
-        || !canonicalJsonBytes(Object.keys(value).sort()).equals(canonicalJsonBytes([...expected].sort()))) {
-        fail('INVALID_PREFLIGHT_EXPECTATION', `${label} keys differ`)
-    }
-}
-
 function validateExpectation(expectation) {
-    exactKeys(expectation, ['schema', 'subject', 'compatibility'], 'preflight expectation')
-    if (expectation.schema !== EXPECTATION_SCHEMA) fail('INVALID_PREFLIGHT_EXPECTATION', 'Preflight expectation schema is unsupported')
-    exactKeys(expectation.subject, [
-        'implementationCommit', 'qualificationToolCommit', 'policySha256', 'contractSha256',
-        'compiledDeclarationSha256', 'targetCommit', 'targetApplicationTreeSha256',
-    ], 'preflight subject')
-    if (!/^[0-9a-f]{40}$/.test(expectation.subject.implementationCommit ?? '')
-        || !/^[0-9a-f]{40}$/.test(expectation.subject.qualificationToolCommit ?? '')
-        || !/^[0-9a-f]{40}$/.test(expectation.subject.targetCommit ?? '')) {
-        fail('INVALID_PREFLIGHT_EXPECTATION', 'Preflight subject commit is invalid')
+    try { return validateMaterialDeclaration(expectation) } catch (error) {
+        fail('INVALID_PREFLIGHT_EXPECTATION', error.message, { causeCode: error.code ?? null })
     }
-    for (const key of ['policySha256', 'contractSha256', 'compiledDeclarationSha256', 'targetApplicationTreeSha256']) {
-        if (!SHA256_PATTERN.test(expectation.subject[key] ?? '')) fail('INVALID_PREFLIGHT_EXPECTATION', `Preflight subject ${key} is invalid`)
-    }
-    exactKeys(expectation.compatibility, [
-        'subjectSchemasSha256', 'qualificationSchemasSha256', 'localRouteSha256',
-        'globalProjectionRouteSha256',
-    ], 'preflight compatibility')
-    for (const [key, value] of Object.entries(expectation.compatibility)) {
-        if (!SHA256_PATTERN.test(value ?? '')) fail('INVALID_PREFLIGHT_EXPECTATION', `Preflight compatibility ${key} is invalid`)
-    }
-    return expectation
 }
 
 function treeIdentity(root) {
@@ -89,6 +69,8 @@ function treeIdentity(root) {
 }
 
 function assertCompatible(verified, expectation) {
+    const expectedSubject = expectation.qualification.subject
+    const expectedCompatibility = expectation.qualification.compatibility
     const support = verified.qualification.support
     const finalManifest = verified.qualification.finalManifest
     if (verified.effectiveEntry.action !== 'accept'
@@ -98,11 +80,11 @@ function assertCompatible(verified, expectation) {
         || finalManifest.qualificationType !== QUALIFICATION_TYPE) {
         fail('QUALIFICATION_NOT_ACCEPTED', 'Preflight requires a current accepted qualification of the exact candidate type')
     }
-    if (!canonicalJsonBytes(finalManifest.subject).equals(canonicalJsonBytes(expectation.subject))) {
+    if (!canonicalJsonBytes(finalManifest.subject).equals(canonicalJsonBytes(expectedSubject))) {
         fail('STALE_QUALIFICATION_SUBJECT', 'Qualification subject differs from preflight expectation')
     }
     const source = support.sourceIdentity
-    for (const [key, expected] of Object.entries(expectation.compatibility)) {
+    for (const [key, expected] of Object.entries(expectedCompatibility)) {
         if (source[key] !== expected) fail('STALE_QUALIFICATION_COMPATIBILITY', `Qualification ${key} changed`)
     }
     if (support.targetIdentity.role !== 'canonical-audited-target') {
@@ -116,6 +98,38 @@ function assertCompatible(verified, expectation) {
         fail('CANONICAL_PROTECTION_WEAKENED', 'Qualification production protection differs')
     }
     return true
+}
+
+function candidateDomain(subjectRoot, expectation) {
+    if (expectation.candidateImpact.affected !== true) return null
+    const compiled = loadToolchainShadowDeclaration(subjectRoot)
+    return {
+        candidateId: compiled.pack.id,
+        localMasksExpected: 2,
+        boundaryClassesExpected: compiled.boundaryClassIds.length,
+        totalLocalCasesExpected: 2 * compiled.boundaryClassIds.length,
+        compiledDeclarationSha256: compiled.declarationSha256,
+    }
+}
+
+function qualificationStateFrom(verified, expectation) {
+    const support = verified.qualification?.support ?? verified.support
+    const finalManifest = verified.qualification?.finalManifest ?? verified.finalManifest
+    return {
+        accepted: true,
+        registryIntegrity: true,
+        reason: 'accepted-durable-compatible-qualification',
+        subject: finalManifest.subject,
+        compatibility: Object.fromEntries(Object.keys(expectation.qualification.compatibility)
+            .map((key) => [key, support.sourceIdentity[key]])),
+        environment: support.environment.admittedBoundary,
+    }
+}
+
+function nestedSpawnUnavailable(error) {
+    if (error?.code !== 'INDEPENDENT_DERIVATION_FAILED') return false
+    const detail = JSON.stringify(error.details ?? {})
+    return /\bEPERM\b/.test(detail) && /spawn/i.test(detail)
 }
 
 function reasonFor(error) {
@@ -136,49 +150,131 @@ function runPreflight({ storeRoot, expectation, checkedAt, subjectRoot, dependen
     const verify = dependencies.verifyQualificationRegistry ?? verifyQualificationRegistry
     const loadIdentity = dependencies.loadStoreIdentity ?? loadStoreIdentity
     let report
+    let durable = null
+    let qualificationState = null
+    let freshVerification = 'failed'
+    let verificationFailure = null
     try {
         assertQuarantineIsNotAcceptedStore(resolved)
         const identity = loadIdentity(resolved)
         const verified = verify({
             storeRoot: resolved,
-            expectedSubject: expected.subject,
+            expectedSubject: expected.qualification.subject,
             requireCurrentRef: true,
             subjectRoot,
         })
         assertCompatible(verified, expected)
-        report = {
-            schema: PREFLIGHT_SCHEMA,
-            checkedAt,
-            storeRoot: identity.rootRealpath,
-            storeIdentityHash: identity.storeIdentityHash,
-            toolchainPilotClosurePassed: true,
-            reason: 'accepted-durable-compatible-qualification',
-            registryDescriptorSha256: verified.registryDescriptorSha256,
-            registryRootSha256: verified.registryRootSha256,
-            subject: expected.subject,
-            operatingCounts: { ...OPERATING_COUNTS },
-            canonicalProtection: { ...CANONICAL_PROTECTION },
-            readOnly: true,
-            automaticallyAuthorizesC1: false,
-            failures: [],
-        }
+        durable = verified
+        qualificationState = qualificationStateFrom(verified, expected)
+        freshVerification = 'passed'
+        report = { identity }
     } catch (error) {
-        report = {
-            schema: PREFLIGHT_SCHEMA,
-            checkedAt,
-            storeRoot: resolved,
-            storeIdentityHash: null,
-            toolchainPilotClosurePassed: false,
-            reason: reasonFor(error),
-            registryDescriptorSha256: null,
-            registryRootSha256: null,
-            subject: expected.subject,
-            operatingCounts: { ...OPERATING_COUNTS },
-            canonicalProtection: { ...CANONICAL_PROTECTION },
-            readOnly: true,
-            automaticallyAuthorizesC1: false,
-            failures: [{ code: error.code ?? 'UNKNOWN', message: error.message }],
+        verificationFailure = error
+        freshVerification = nestedSpawnUnavailable(error) ? 'environment-unavailable' : 'failed'
+        try {
+            const customVerifier = verify !== verifyQualificationRegistry
+            const inspect = error.code === 'QUARANTINE_ONLY_EVIDENCE'
+                || (customVerifier && dependencies.inspectDurableAcceptedQualification === undefined)
+                ? () => { throw error }
+                : (dependencies.inspectDurableAcceptedQualification ?? inspectDurableAcceptedQualification)
+            durable = inspect({ storeRoot: resolved, expectedSubject: expected.qualification.subject })
+            assertCompatible({ qualification: {
+                support: durable.support,
+                finalManifest: durable.finalManifest,
+            }, effectiveEntry: durable.effectiveEntry }, expected)
+            qualificationState = qualificationStateFrom(durable, expected)
+            report = { identity: loadIdentity(resolved) }
+        } catch (durableError) {
+            qualificationState = {
+                accepted: false,
+                registryIntegrity: ![
+                    'QUALIFICATION_REGISTRY_HEAD_ROLLBACK', 'QUALIFICATION_REGISTRY_FORK',
+                    'INVALID_QUALIFICATION_CURRENT_REF', 'QUALIFICATION_REGISTRY_CURRENT_REF_MISMATCH',
+                ].includes(durableError.code),
+                reason: reasonFor(durableError),
+                subject: expected.qualification.subject,
+                compatibility: expected.qualification.compatibility,
+                environment: expected.environment,
+            }
+            report = { identity: null, durableError }
         }
+    }
+    let domain = null
+    try { domain = candidateDomain(subjectRoot, expected) } catch (error) {
+        domain = { derivationError: error.code ?? error.message }
+    }
+    const decision = decideOperatingCohortRoute({
+        declaration: expected,
+        qualificationState,
+        freshVerification,
+        candidateDomain: domain,
+    })
+    const identity = report.identity
+    const reason = qualificationState.accepted
+        ? (freshVerification === 'passed'
+            ? 'accepted-durable-compatible-qualification'
+            : (freshVerification === 'environment-unavailable'
+                ? 'accepted-qualification-fresh-verification-environment-unavailable'
+                : reasonFor(verificationFailure)))
+        : qualificationState.reason
+    const failures = []
+    if (verificationFailure !== null) failures.push({
+        code: verificationFailure.code ?? 'UNKNOWN',
+        message: verificationFailure.message,
+        classification: freshVerification,
+    })
+    if (report.durableError) failures.push({
+        code: report.durableError.code ?? 'UNKNOWN', message: report.durableError.message,
+        classification: 'accepted-qualification-state',
+    })
+    report = {
+        schema: PREFLIGHT_SCHEMA,
+        checkedAt,
+        storeRoot: identity?.rootRealpath ?? resolved,
+        storeIdentityHash: identity?.storeIdentityHash ?? null,
+        acceptedQualificationState: qualificationState.accepted ? 'accepted' : 'unavailable',
+        freshVerificationInCurrentExecutionEnvironment: freshVerification,
+        toolchainPilotClosurePassed: freshVerification === 'passed' && qualificationState.accepted,
+        reason,
+        registryDescriptorSha256: durable?.registryDescriptorSha256 ?? null,
+        registryRootSha256: durable?.registryRootSha256 ?? null,
+        subject: expected.qualification.subject,
+        route: {
+            routeId: decision.routeId,
+            safeToExecute: decision.safeToExecute,
+            globalExecutionsExpected: decision.globalExecutionsExpected,
+            decisionSha256: decision.decisionSha256,
+        },
+        machineRouteDecision: decision,
+        routeDecisionInputs: {
+            qualificationState,
+            freshVerification,
+            candidateDomain: domain,
+        },
+        cohort: {
+            materiallyDistinct: decision.materiallyDistinct,
+            changeClass: decision.changeClass,
+            stableRelease: decision.stableRelease,
+            materialDeclarationSha256: decision.materialDeclarationSha256,
+        },
+        candidate: {
+            affected: decision.candidateAffected,
+            candidateId: decision.candidateId,
+            qualificationCompatible: decision.candidateQualificationCompatible,
+            executionReason: decision.candidateExecutionReason,
+            executionSkipped: decision.candidateExecutionSkipped,
+            skipReason: decision.candidateSkipReason,
+            localMasksExpected: decision.localMasksExpected,
+            boundaryClassesExpected: decision.boundaryClassesExpected,
+            totalLocalCasesExpected: decision.totalLocalCasesExpected,
+            operatingSampleEligible: decision.candidateOperatingSampleEligible,
+        },
+        blockers: decision.blockers,
+        operatingCounts: { ...OPERATING_COUNTS },
+        canonicalProtection: { ...CANONICAL_PROTECTION },
+        readOnly: true,
+        automaticallyAuthorizesC1: false,
+        failures,
     }
     const after = treeIdentity(resolved)
     if (after !== before) fail('PREFLIGHT_MUTATED_STORE', 'Operating cohort preflight changed the evidence store')

@@ -35,6 +35,7 @@ const {
     CANONICAL_TARGET_TREE_SHA256,
 } = require('../src/toolchain-shadow-qualification.cjs')
 const { sealDocument } = require('../src/verification-receipts.cjs')
+const { declarationHash } = require('../src/operating-cohort-route.cjs')
 
 const repositoryRoot = path.resolve(__dirname, '..')
 const subjectRoot = '/home/ubuntu/nai-studio-2/.worktrees/toolchain-hardening-shadow-pilot'
@@ -62,16 +63,19 @@ function subject(seed = '1') {
 }
 
 function expectation(currentSubject) {
-    return {
-        schema: EXPECTATION_SCHEMA,
-        subject: currentSubject,
-        compatibility: {
-            subjectSchemasSha256: '1'.repeat(64),
-            qualificationSchemasSha256: '2'.repeat(64),
-            localRouteSha256: '3'.repeat(64),
-            globalProjectionRouteSha256: '4'.repeat(64),
-        },
+    const value = JSON.parse(fs.readFileSync(path.join(
+        repositoryRoot, 'contracts/first-material-c0-toolchain-hardening-v1.json',
+    ), 'utf8'))
+    assert.equal(value.schema, EXPECTATION_SCHEMA)
+    value.qualification.subject = currentSubject
+    value.qualification.compatibility = {
+        subjectSchemasSha256: '1'.repeat(64),
+        qualificationSchemasSha256: '2'.repeat(64),
+        localRouteSha256: '3'.repeat(64),
+        globalProjectionRouteSha256: '4'.repeat(64),
     }
+    value.declarationSha256 = declarationHash(value)
+    return value
 }
 
 function fixture(t) {

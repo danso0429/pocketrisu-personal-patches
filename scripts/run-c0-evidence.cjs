@@ -36,6 +36,18 @@ const {
 const {
     publishEvidenceObject,
 } = require('../src/c0-retention.cjs')
+const { preflightOperatingCohort } = require('../src/operating-cohort-preflight.cjs')
+const { runFreshLocalShadow } = require('../src/toolchain-shadow-local.cjs')
+const { buildSameGlobalReference } = require('../src/toolchain-shadow-same-global.cjs')
+const {
+    ROUTE_COMBINED,
+    createOneGlobalExecutionGuard,
+    validateRouteDecision,
+} = require('../src/operating-cohort-route.cjs')
+const {
+    buildCandidateOperatingLinkage,
+    validateCandidateOperatingLinkageRecord,
+} = require('../src/operating-cohort-linkage.cjs')
 
 const DEFAULT_GOVERNANCE_REPOSITORY = 'https://github.com/danso0429/patch-verification-governance'
 const GNU_TIME = '/usr/bin/time'
@@ -90,6 +102,11 @@ function parseArgs(argv) {
         else if (argument === '--synthetic-known-answer-result') options.syntheticResult = path.resolve(next())
         else if (argument === '--temporary-parent') options.temporaryParent = path.resolve(next())
         else if (argument === '--store') options.store = path.resolve(next())
+        else if (argument === '--operating-expectation') options.operatingExpectation = path.resolve(next())
+        else if (argument === '--qualification-store') options.qualificationStore = path.resolve(next())
+        else if (argument === '--qualified-subject-root') options.qualifiedSubjectRoot = path.resolve(next())
+        else if (argument === '--local-shadow-receipt') options.localShadowReceipt = path.resolve(next())
+        else if (argument === '--candidate-linkage') options.candidateLinkage = path.resolve(next())
         else if (argument === '--disposition') options.disposition = next()
         else throw new Error(`Unknown argument: ${argument}`)
     }
@@ -116,6 +133,11 @@ function parseArgs(argv) {
         }
     } else if (options.materiallyDistinct || options.repeatedPerformanceTrial) {
         throw new Error('Synthetic known answers cannot be material cohorts or performance trials')
+    }
+    if (options.syntheticResult === null && options.materiallyDistinct) {
+        for (const field of ['operatingExpectation', 'qualificationStore', 'qualifiedSubjectRoot']) {
+            if (!options[field]) throw new Error(`Material C0 runs require --${field.replace(/[A-Z]/g, (value) => `-${value.toLowerCase()}`)}`)
+        }
     }
     if (options.stableRelease && options.cohortClass !== 'stable-release') {
         throw new Error('--stable-release requires --cohort-class stable-release')
@@ -299,15 +321,47 @@ async function internalCapture(request) {
     const verifier = request.syntheticResult === null
         ? path.join(sourceRoot, 'scripts', 'verify-all-combinations.cjs')
         : makeSyntheticVerifier(request.temporaryRoot, request.syntheticResult)
+    let localReceipt = null
+    let localFailure = null
+    let sameGlobalReference = null
+    if (request.routeDecision?.routeId === ROUTE_COMBINED) {
+        try {
+            localReceipt = await runFreshLocalShadow({
+                sourceRoot: request.qualifiedSubjectRoot,
+                targetRoot: request.root,
+                disposition: 'material-shadow',
+            })
+            sameGlobalReference = buildSameGlobalReference({
+                localReceipt,
+                materialDeclarationSha256: request.materialDeclaration.declarationSha256,
+            })
+        } catch (error) {
+            localFailure = sealDocument({
+                schema: 'patch-toolchain-shadow-local-failure-v1',
+                status: 'failed',
+                code: error.code ?? 'UNKNOWN_LOCAL_SHADOW_FAILURE',
+                message: error.message,
+                materialDeclarationSha256: request.materialDeclaration.declarationSha256,
+                recordedAt: new Date().toISOString(),
+            })
+        }
+    }
     const verifierArgs = ['--root', request.root, '--json']
     if (request.jobs !== null) verifierArgs.push('--jobs', String(request.jobs))
+    if (sameGlobalReference !== null) {
+        verifierArgs.push(
+            '--toolchain-shadow-reference-base64',
+            Buffer.from(JSON.stringify(sameGlobalReference)).toString('base64url'),
+        )
+    }
     const command = [process.execPath, verifier, ...verifierArgs]
     const runtimeBefore = runtimeEnvelope({ root: request.root })
     const before = await captureInputFreeze({ sourceRoot, targetRoot: request.root })
-    const execution = await runChildWithFileCapture(command[0], command.slice(1), {
-        cwd: sourceRoot,
-        env: process.env,
+    const globalGuard = createOneGlobalExecutionGuard((...args) => runChildWithFileCapture(...args))
+    const execution = await globalGuard.execute(command[0], command.slice(1), {
+        cwd: sourceRoot, env: process.env,
     })
+    if (globalGuard.executions() !== 1) throw new Error('Material C0 route did not execute Global exactly once')
     const after = await captureInputFreeze({ sourceRoot, targetRoot: request.root })
     const runtimeAfter = runtimeEnvelope({ root: request.root })
     const runtimeComparison = compareRuntimeEnvelopes(runtimeBefore, runtimeAfter)
@@ -333,7 +387,20 @@ async function internalCapture(request) {
         disposition,
         timestamp: new Date().toISOString(),
         command,
-        options: { jobs: request.jobs, allowReviewing: false, targetProvenance: null },
+        options: {
+            jobs: request.jobs,
+            allowReviewing: false,
+            targetProvenance: null,
+            ...(request.routeDecision === null ? {} : { operatingRoute: {
+                routeId: request.routeDecision.routeId,
+                materialDeclarationSha256: request.routeDecision.materialDeclarationSha256,
+                decisionSha256: request.routeDecision.decisionSha256,
+                globalExecutionsExpected: request.routeDecision.globalExecutionsExpected,
+                candidateComparisonStatus: request.routeDecision.routeId === ROUTE_COMBINED
+                    ? (localFailure === null ? 'required' : 'skipped-local-failure')
+                    : 'not-applicable',
+            } }),
+        },
         before,
         after,
         stability,
@@ -352,6 +419,9 @@ async function internalCapture(request) {
     const wrapperCpu = process.cpuUsage(wrapperCpuStart)
     return {
         receipt,
+        localReceipt,
+        localFailure,
+        globalExecutions: globalGuard.executions(),
         wrapperCpuMs: Number(((wrapperCpu.user + wrapperCpu.system) / 1000).toFixed(3)),
     }
 }
@@ -368,13 +438,46 @@ async function main(argv = process.argv) {
     if (argv[2] === '--internal-capture') return internalMain(argv)
     const options = parseArgs(argv)
     const sourceRoot = path.resolve(__dirname, '..')
+    let materialDeclaration = null
+    let operatingPreflight = null
+    let routeDecision = null
+    if (options.syntheticResult === null && options.materiallyDistinct) {
+        materialDeclaration = JSON.parse(fs.readFileSync(options.operatingExpectation, 'utf8'))
+        operatingPreflight = preflightOperatingCohort({
+            storeRoot: options.qualificationStore,
+            expectation: materialDeclaration,
+            subjectRoot: options.qualifiedSubjectRoot,
+        })
+        routeDecision = validateRouteDecision(operatingPreflight.machineRouteDecision, {
+            declaration: materialDeclaration,
+            ...operatingPreflight.routeDecisionInputs,
+        })
+        if (!routeDecision.safeToExecute) {
+            throw new Error(`Operating route is not safe to execute: ${routeDecision.blockers.join(', ')}`)
+        }
+        if (routeDecision.routeId === ROUTE_COMBINED
+            && (!options.localShadowReceipt || !options.candidateLinkage)) {
+            throw new Error('Combined material route requires --local-shadow-receipt and --candidate-linkage')
+        }
+        if (routeDecision.routeId !== ROUTE_COMBINED
+            && (options.localShadowReceipt || options.candidateLinkage)) {
+            throw new Error('Global-only material route cannot request candidate shadow outputs')
+        }
+    }
     const bundleOutput = assertOutputOutsideInputs(options.bundle, [sourceRoot, options.root])
     const receiptOutput = assertOutputOutsideInputs(options.globalReceipt, [sourceRoot, options.root])
+    const localShadowOutput = options.localShadowReceipt === undefined
+        ? null
+        : assertOutputOutsideInputs(options.localShadowReceipt, [sourceRoot, options.root])
+    const candidateLinkageOutput = options.candidateLinkage === undefined
+        ? null
+        : assertOutputOutsideInputs(options.candidateLinkage, [sourceRoot, options.root])
     if (bundleOutput === receiptOutput) throw new Error('Bundle and Global receipt outputs must differ')
     if (pathIsInside(options.store, sourceRoot) || pathIsInside(options.store, options.root)) {
         throw new Error('Evidence store must be outside source and target input roots')
     }
-    if (fs.existsSync(bundleOutput) || fs.existsSync(receiptOutput)) {
+    if ([bundleOutput, receiptOutput, localShadowOutput, candidateLinkageOutput]
+        .filter((value) => value !== null).some((value) => fs.existsSync(value))) {
         throw new Error('Evidence outputs already exist; immutable outputs are never overwritten')
     }
     if (!fs.existsSync(GNU_TIME)) throw new Error(`${GNU_TIME} is required for process-group resource capture`)
@@ -388,6 +491,9 @@ async function main(argv = process.argv) {
         disposition: options.disposition,
         syntheticResult: options.syntheticResult,
         temporaryRoot,
+        qualifiedSubjectRoot: options.qualifiedSubjectRoot ?? null,
+        materialDeclaration,
+        routeDecision,
     })
     const measured = await runMeasuredWrapper(process.execPath, [
         path.resolve(__filename),
@@ -412,6 +518,7 @@ async function main(argv = process.argv) {
     if (!measured.time) throw new Error('C0 evidence process-group resource measurement is missing')
     const internalResult = JSON.parse(fs.readFileSync(internalResultFile, 'utf8'))
     const globalReceipt = internalResult.receipt
+    if (internalResult.globalExecutions !== 1) throw new Error('Global execution count differs from one')
     const totalCpuMs = Math.max(measured.time.processGroupCpuMs, internalResult.wrapperCpuMs)
     const wrapperCpuMs = Math.min(internalResult.wrapperCpuMs, totalCpuMs)
     const childCpuMs = Number((totalCpuMs - wrapperCpuMs).toFixed(3))
@@ -444,6 +551,9 @@ async function main(argv = process.argv) {
         budget: 'unknown',
     })
     const receiptPublication = publishEvidenceObject(options.store, globalReceipt)
+    let localPublication = null
+    const localEvidence = internalResult.localReceipt ?? internalResult.localFailure
+    if (localEvidence !== null) localPublication = publishEvidenceObject(options.store, localEvidence)
     const bundle = buildEvidenceBundle({
         sourceRoot,
         globalReceipt,
@@ -461,14 +571,59 @@ async function main(argv = process.argv) {
         productGates: readGateList(options.productGates, 'product'),
         c0Decision,
         referencedObjectsNewPhysicalBytes: receiptPublication.newPhysicalBytes,
+        operatingRoute: routeDecision === null ? null : {
+            routeId: routeDecision.routeId,
+            materialDeclarationSha256: routeDecision.materialDeclarationSha256,
+            decisionSha256: routeDecision.decisionSha256,
+            globalExecutionsExpected: routeDecision.globalExecutionsExpected,
+            candidateShadowExpected: routeDecision.routeId === ROUTE_COMBINED,
+        },
     })
     const evaluation = evaluateC0EvidenceBundle(bundle, { globalReceipt })
     if (!evaluation.bundleValid) {
         throw new Error(`Generated C0 evidence bundle is invalid: ${evaluation.structuralErrors.join('; ')}`)
     }
     const bundlePublication = publishEvidenceObject(options.store, bundle)
+    let candidateLinkage = null
+    let candidateLinkagePublication = null
+    if (routeDecision?.routeId === ROUTE_COMBINED) {
+        if (internalResult.localReceipt !== null
+            && globalReceipt.verifierResult?.toolchainShadowComparison !== undefined) {
+            candidateLinkage = buildCandidateOperatingLinkage({
+                bundle, globalReceipt, localReceipt: internalResult.localReceipt,
+                localReceiptObjectSha256: localPublication.objectSha256,
+                declaration: materialDeclaration, routeDecision,
+            })
+        } else {
+            candidateLinkage = sealDocument({
+                schema: 'patch-toolchain-shadow-operating-linkage-v1',
+                status: 'failed',
+                routeId: ROUTE_COMBINED,
+                cohortId: bundle.cohort.cohortId,
+                globalRunId: bundle.cohort.runId,
+                materialDeclarationSha256: materialDeclaration.declarationSha256,
+                routeDecisionSha256: routeDecision.decisionSha256,
+                localFailure: internalResult.localFailure,
+                localEvidenceObjectSha256: localPublication?.objectSha256 ?? null,
+                globalReceiptObjectSha256: receiptPublication.objectSha256,
+                reason: internalResult.localFailure !== null
+                    ? 'local-shadow-failed-before-same-Global-comparison'
+                    : 'global-execution-did-not-produce-same-Global-comparison',
+            })
+        }
+        validateCandidateOperatingLinkageRecord(candidateLinkage,
+            internalResult.localReceipt !== null
+                && globalReceipt.verifierResult?.toolchainShadowComparison !== undefined ? {
+                bundle, globalReceipt, localReceipt: internalResult.localReceipt,
+                localReceiptObjectSha256: localPublication.objectSha256,
+                declaration: materialDeclaration, routeDecision,
+            } : null)
+        candidateLinkagePublication = publishEvidenceObject(options.store, candidateLinkage)
+    }
     writeJsonAtomic(receiptOutput, globalReceipt)
     writeJsonAtomic(bundleOutput, bundle)
+    if (localShadowOutput !== null) writeJsonAtomic(localShadowOutput, localEvidence)
+    if (candidateLinkageOutput !== null) writeJsonAtomic(candidateLinkageOutput, candidateLinkage)
     process.stdout.write(`${JSON.stringify({
         schema: 'patch-c0-evidence-run-result-v1',
         bundle: bundleOutput,
@@ -476,16 +631,26 @@ async function main(argv = process.argv) {
         cohortId: bundle.cohort.cohortId,
         runId: bundle.cohort.runId,
         runKind,
+        route: routeDecision,
+        operatingPreflight,
+        localShadowReceipt: localShadowOutput,
+        candidateLinkage: candidateLinkageOutput,
         temporaryRetained,
         resources,
         publications: {
             globalReceipt: receiptPublication,
             bundle: bundlePublication,
-            totalNewPhysicalBytes: receiptPublication.newPhysicalBytes + bundlePublication.newPhysicalBytes,
+            totalNewPhysicalBytes: receiptPublication.newPhysicalBytes
+                + bundlePublication.newPhysicalBytes
+                + (localPublication?.newPhysicalBytes ?? 0)
+                + (candidateLinkagePublication?.newPhysicalBytes ?? 0),
+            localShadow: localPublication,
+            candidateLinkage: candidateLinkagePublication,
         },
         evaluation,
     })}\n`)
-    if (!evaluation.bundleValid || (runKind === 'production-c0' && !evaluation.operatingEvidenceAccepted)) {
+    if (!evaluation.bundleValid || (runKind === 'production-c0' && !evaluation.operatingEvidenceAccepted)
+        || candidateLinkage?.status === 'failed') {
         process.exitCode = 1
     }
     return { bundle, globalReceipt, evaluation }

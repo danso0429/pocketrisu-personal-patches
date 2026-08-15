@@ -1,0 +1,47 @@
+{
+  "schema": "patch-operating-cohort-material-declaration-v1",
+  "version": 1,
+  "declarationId": "first-material-c0-toolchain-hardening-v1",
+  "changeClass": "patch",
+  "materiallyDistinct": true,
+  "stableRelease": false,
+  "releaseCandidate": "not-applicable",
+  "materialReason": "first-material-cohort-for-exact-subject-and-authority",
+  "candidateImpact": {
+    "affected": true,
+    "candidateId": "toolchain-hardening",
+    "reason": "exact-toolchain-hardening-frozen-subject-requires-matching-c0-global-bundle"
+  },
+  "qualification": {
+    "subject": {
+      "implementationCommit": "54c8307f87354ba14f6f94b3344cc228cfdea1f7",
+      "qualificationToolCommit": "f62708858c7f54a973e3cc9f433e926239eca9ea",
+      "policySha256": "356dccb9438853cdb3cd7a7847385dc0072da7eeccb10c6f3ba838590918b3a2",
+      "contractSha256": "4ea28240b2bcaa846e718ea0d075cb30c6816a8e7d0c5e7e3364ff6fa7fa577f",
+      "compiledDeclarationSha256": "55a0c3f60f170871a2d40135588c5945b8a3e2098aaab25747db30f4ad07db4a",
+      "targetCommit": "85a65f3137b45c8de4a8d21a9887be213b1ac3fc",
+      "targetApplicationTreeSha256": "c7be2eab4313422d1ae0c199094fd53cce12d0aa73a8ce7a3b6a61d623d822c3"
+    },
+    "compatibility": {
+      "subjectSchemasSha256": "2ca4cb56c2987bfe7933b4643c1e827b503983b08d5b5ae000bd5d9eb07498dd",
+      "qualificationSchemasSha256": "4bf16f35086e139e36d12af0c1fd41e10b898815bb7feea733ac90421f718e9a",
+      "localRouteSha256": "94f361f9f1c61a636effd6d59dc15e6487c175effdf413670a80dc1f45adfa5a",
+      "globalProjectionRouteSha256": "da0969b270f9573e7fc3879a4f18a0451b4b1464beaa909cd54f2ffd5eb81225"
+    }
+  },
+  "environment": {
+    "id": "toolchain:linux-arm64-glibc-node-25.9.0-pnpm-10.34.1",
+    "nodeVersion": "v25.9.0",
+    "platform": "linux",
+    "architecture": "arm64",
+    "libc": "glibc",
+    "pnpmVersion": "10.34.1"
+  },
+  "globalContract": {
+    "canonicalGate": "Global Exhaustive",
+    "workerSchedule": "stride-v1",
+    "workerHistory": "persistent-per-worker-v1",
+    "globalExecutionsExpected": 1
+  },
+  "declarationSha256": "82ef6e13facdb7ef55bec1bed0264766424ff3a0b876ecf17da1ccc81f336379"
+}
