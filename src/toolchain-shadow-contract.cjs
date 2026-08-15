@@ -29,6 +29,29 @@ const REQUIRED_SYMBOL_IDS = Object.freeze([
     'package:lightningcss@1.33.0',
     'package:vite-tailwind-consumers',
 ])
+const REQUIRED_ALLOWED_CAPABILITIES = Object.freeze([
+    'environment:read:PATH-for-pnpm-pilot-preflight',
+    'filesystem:read-write-delete:three-managed-target-paths',
+    'filesystem:read:declared-manifest-assets',
+    'module:vitest-happy-dom-katex:target-test-bootstrap',
+    'process-global:read:manager-pid',
+    'randomness:read:manager-transaction-token',
+    'state:read-write-delete:isolated-patcher-metadata',
+    'subprocess:read:pnpm-version-pilot-preflight',
+    'symbol:localStorage:typed-boundary',
+    'time:read:manager-transaction-timestamp',
+])
+const REQUIRED_DENIED_CAPABILITIES = Object.freeze([
+    'environment:undeclared',
+    'filesystem:undeclared',
+    'module:undeclared',
+    'network:any',
+    'process-global:undeclared-mutation',
+    'randomness:application',
+    'subprocess:undeclared',
+    'time:application',
+    'worker:persistent-or-reused',
+])
 
 class ToolchainShadowContractError extends Error {
     constructor(code, message, details = {}) {
@@ -295,8 +318,12 @@ function validateToolchainShadowDeclaration(declaration, {
     }
 
     exactKeys(declaration.runtimeCapabilities, ['allowed', 'denied'], 'runtimeCapabilities')
-    sortedUnique(declaration.runtimeCapabilities.allowed, 'runtimeCapabilities.allowed')
+    const allowed = sortedUnique(declaration.runtimeCapabilities.allowed, 'runtimeCapabilities.allowed')
     const denied = sortedUnique(declaration.runtimeCapabilities.denied, 'runtimeCapabilities.denied')
+    if (canonicalJson(allowed) !== canonicalJson([...REQUIRED_ALLOWED_CAPABILITIES].sort())
+        || canonicalJson(denied) !== canonicalJson([...REQUIRED_DENIED_CAPABILITIES].sort())) {
+        throw new ToolchainShadowContractError('UNSEALED_RUNTIME_CAPABILITY', 'Runtime capability set is not exact')
+    }
     for (const prefix of ['environment:', 'filesystem:', 'module:', 'network:', 'process-global:', 'randomness:', 'subprocess:', 'time:', 'worker:']) {
         if (!denied.some((entry) => entry.startsWith(prefix))) {
             throw new ToolchainShadowContractError('UNSEALED_RUNTIME_CAPABILITY', `Missing deny rule for ${prefix}`)

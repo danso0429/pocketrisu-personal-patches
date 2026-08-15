@@ -1,6 +1,7 @@
 'use strict'
 
 const crypto = require('node:crypto')
+const childProcess = require('node:child_process')
 const vm = require('node:vm')
 const { canonicalJson } = require('./verification-receipts.cjs')
 const { sha256 } = require('./verification-evidence.cjs')
@@ -261,6 +262,37 @@ function validateBuildBoundary(observed) {
     return observed
 }
 
+function observeBuildBoundary() {
+    const result = childProcess.spawnSync('pnpm', ['--version'], {
+        encoding: 'utf8',
+        timeout: 10_000,
+        windowsHide: true,
+    })
+    if (result.error || result.signal !== null || result.status !== 0
+        || typeof result.stdout !== 'string' || result.stdout.trim() === ''
+        || typeof result.stderr !== 'string' || result.stderr !== '') {
+        throw new ToolchainShadowBoundaryError('BUILD_BOUNDARY_OBSERVATION_FAILED', 'pnpm version preflight failed', {
+            exitCode: result.status,
+            signal: result.signal,
+            spawnError: result.error === undefined ? null : {
+                code: result.error.code ?? null,
+                message: result.error.message,
+            },
+            stdout: result.stdout ?? null,
+            stderr: result.stderr ?? null,
+        })
+    }
+    const header = process.report?.getReport()?.header ?? {}
+    return validateBuildBoundary({
+        id: `toolchain:${process.platform}-${process.arch}-${header.glibcVersionRuntime ? 'glibc' : 'unknown-libc'}-node-${process.version.slice(1)}-pnpm-${result.stdout.trim()}`,
+        nodeVersion: process.version,
+        platform: process.platform,
+        architecture: process.arch,
+        libc: header.glibcVersionRuntime ? 'glibc' : 'unknown',
+        pnpmVersion: result.stdout.trim(),
+    })
+}
+
 function validateCapabilityAccess(access, declaration) {
     exactKeys(access, ['kind', 'mode', 'resource'], 'capability access')
     if (!CAPABILITY_KINDS.includes(access.kind) || typeof access.mode !== 'string' || typeof access.resource !== 'string') {
@@ -302,6 +334,10 @@ function validateCapabilityAccess(access, declaration) {
         && access.mode === 'read' && access.resource === 'manager-transaction-token') return access
     if (access.kind === 'time'
         && access.mode === 'read' && access.resource === 'manager-transaction-timestamp') return access
+    if (access.kind === 'environment'
+        && access.mode === 'read' && access.resource === 'PATH-for-pnpm-pilot-preflight') return access
+    if (access.kind === 'subprocess'
+        && access.mode === 'read' && access.resource === 'pnpm-version-pilot-preflight') return access
     const code = {
         environment: 'UNDECLARED_ENVIRONMENT_ACCESS',
         network: 'UNDECLARED_NETWORK_ACCESS',
@@ -342,6 +378,7 @@ module.exports = {
     enumerateBoundaryClasses,
     executeLocalStorageBoundary,
     newProcessInstanceId,
+    observeBuildBoundary,
     validateBuildBoundary,
     validateCapabilityAccess,
     validateCapabilityReceipt,

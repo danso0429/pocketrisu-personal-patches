@@ -57,6 +57,12 @@ test('capability admission rejects undeclared surfaces and process-global effect
     assert.doesNotThrow(() => validateCapabilityAccess({
         kind: 'filesystem', mode: 'read', resource: 'package.json',
     }, compiled.declaration))
+    assert.doesNotThrow(() => validateCapabilityAccess({
+        kind: 'environment', mode: 'read', resource: 'PATH-for-pnpm-pilot-preflight',
+    }, compiled.declaration))
+    assert.doesNotThrow(() => validateCapabilityAccess({
+        kind: 'subprocess', mode: 'read', resource: 'pnpm-version-pilot-preflight',
+    }, compiled.declaration))
     const cases = [
         [{ kind: 'filesystem', mode: 'write', resource: 'unexpected.txt' }, 'UNDECLARED_FILESYSTEM_ACCESS'],
         [{ kind: 'state', mode: 'read', resource: 'save/other.json' }, 'UNDECLARED_STATE_ACCESS'],

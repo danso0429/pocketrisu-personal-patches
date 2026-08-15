@@ -181,7 +181,9 @@
       "module:vitest-happy-dom-katex:target-test-bootstrap",
       "process-global:read:manager-pid",
       "randomness:read:manager-transaction-token",
-      "time:read:manager-transaction-timestamp"
+      "time:read:manager-transaction-timestamp",
+      "environment:read:PATH-for-pnpm-pilot-preflight",
+      "subprocess:read:pnpm-version-pilot-preflight"
     ],
     "denied": [
       "environment:undeclared",
@@ -190,7 +192,7 @@
       "network:any",
       "process-global:undeclared-mutation",
       "randomness:application",
-      "subprocess:any",
+      "subprocess:undeclared",
       "time:application",
       "worker:persistent-or-reused"
     ]
@@ -217,5 +219,5 @@
     "canonicalMasksSkipped": 0,
     "c1Authorized": false
   },
-  "declarationSha256": "1aa7e066aa33648e572e6c88033f3c540b2a7a8edebb12248eb853328d990330"
+  "declarationSha256": "55a0c3f60f170871a2d40135588c5945b8a3e2098aaab25747db30f4ad07db4a"
 }

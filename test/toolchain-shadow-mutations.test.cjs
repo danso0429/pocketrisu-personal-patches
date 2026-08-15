@@ -117,3 +117,27 @@ test('fault injection is unavailable to material shadow runs', async () => {
         fs.rmSync(target.root, { recursive: true, force: true })
     }
 })
+
+test('material and actual-target dry runs reject a mismatched build boundary before mutation', async () => {
+    const target = createToolchainKnownAnswerTarget(ROOT)
+    try {
+        await assert.rejects(
+            () => runFreshLocalShadow({
+                sourceRoot: ROOT,
+                targetRoot: target.root,
+                targetProvenance: target.provenance,
+                disposition: 'dry-run',
+                compiledContract: target.compiled,
+                buildBoundaryObserver() {
+                    const error = new Error('pnpm boundary mismatch')
+                    error.code = 'BUILD_BOUNDARY_MISMATCH'
+                    throw error
+                },
+            }),
+            (error) => error.code === 'BUILD_BOUNDARY_MISMATCH',
+        )
+        assert.equal(fs.readFileSync(path.join(target.root, 'package.json'), 'utf8').endsWith('}\n'), true)
+    } finally {
+        fs.rmSync(target.root, { recursive: true, force: true })
+    }
+})

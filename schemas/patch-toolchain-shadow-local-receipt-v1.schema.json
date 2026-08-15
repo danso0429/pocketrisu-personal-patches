@@ -11,6 +11,7 @@
     "recordedAt",
     "candidate",
     "declarationSha256",
+    "buildBoundary",
     "target",
     "component",
     "boundaryClasses",
@@ -38,6 +39,7 @@
       }
     },
     "declarationSha256": { "type": "string", "pattern": "^[0-9a-f]{64}$" },
+    "buildBoundary": { "type": "object" },
     "target": { "type": "object" },
     "component": { "type": "object" },
     "boundaryClasses": { "type": "array", "minItems": 4, "maxItems": 4, "uniqueItems": true },

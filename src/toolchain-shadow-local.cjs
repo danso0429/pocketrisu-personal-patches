@@ -7,6 +7,10 @@ const os = require('node:os')
 const path = require('node:path')
 const {
     enumerateBoundaryClasses,
+    BUILD_BOUNDARY_CLASS,
+    observeBuildBoundary,
+    validateBuildBoundary,
+    validateCapabilityReceipt,
 } = require('./toolchain-shadow-boundaries.cjs')
 const {
     BOUNDARY_CLASS_IDS,
@@ -121,6 +125,15 @@ function validateLocalShadowReceipt(receipt) {
         shadowClass: 'B',
         admission: 'not-production-admitted',
     })) throw new ToolchainShadowLocalError('PRODUCTION_CLASSIFICATION_CHANGED', 'Candidate protection changed')
+    const expectedBuildSource = receipt.disposition === 'synthetic-known-answer'
+        ? 'synthetic-contract-fixture'
+        : 'observed-runtime'
+    if (receipt.buildBoundary?.source !== expectedBuildSource
+        || canonicalJson(receipt.buildBoundary?.observed) !== canonicalJson(BUILD_BOUNDARY_CLASS)
+        || receipt.buildBoundary?.preflightCapabilityReceipt?.schema
+            !== 'patch-toolchain-capability-receipt-v1') {
+        throw new ToolchainShadowLocalError('BUILD_BOUNDARY_MISMATCH', 'Build boundary is missing or unobserved')
+    }
     if (!Array.isArray(receipt.boundaryClasses)) {
         throw new ToolchainShadowLocalError('INCOMPLETE_LOCAL_COVERAGE', 'Boundary coverage is absent')
     }
@@ -252,6 +265,7 @@ async function runFreshLocalShadow({
     compiledContract = null,
     recordedAt = new Date().toISOString(),
     syntheticFault = null,
+    buildBoundaryObserver = observeBuildBoundary,
 }) {
     if (!DISPOSITIONS.includes(disposition)) {
         throw new ToolchainShadowLocalError('UNKNOWN_LOCAL_DISPOSITION', `Unknown disposition ${disposition}`)
@@ -272,6 +286,13 @@ async function runFreshLocalShadow({
             compareCanonicalManifest: true,
         })
     }
+    const buildBoundary = disposition === 'synthetic-known-answer'
+        ? validateBuildBoundary({ ...BUILD_BOUNDARY_CLASS })
+        : buildBoundaryObserver()
+    const preflightCapabilityReceipt = validateCapabilityReceipt([
+        { kind: 'environment', mode: 'read', resource: 'PATH-for-pnpm-pilot-preflight' },
+        { kind: 'subprocess', mode: 'read', resource: 'pnpm-version-pilot-preflight' },
+    ], compiled.declaration)
     const targetBefore = await targetFreezeDescriptor(target, { targetProvenance })
     if (targetBefore.applicationTree.rootSha256 !== compiled.declaration.target.applicationTreeSha256) {
         throw new ToolchainShadowLocalError('TARGET_BASELINE_DRIFT', 'Complete target application tree differs')
@@ -339,6 +360,13 @@ async function runFreshLocalShadow({
             admission: 'not-production-admitted',
         },
         declarationSha256: compiled.declarationSha256,
+        buildBoundary: {
+            source: disposition === 'synthetic-known-answer'
+                ? 'synthetic-contract-fixture'
+                : 'observed-runtime',
+            observed: buildBoundary,
+            preflightCapabilityReceipt,
+        },
         target: {
             commit: compiled.declaration.target.commit,
             applicationTreeSha256: targetBefore.applicationTree.rootSha256,
