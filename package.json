@@ -25,7 +25,13 @@
     "evidence:c0:verify": "node scripts/verify-c0-evidence.cjs",
     "evidence:c0:ledgers": "node scripts/build-c0-ledgers.cjs",
     "evidence:c0:gc-plan": "node scripts/plan-c0-evidence-gc.cjs",
-    "evidence:c0:review-status": "node scripts/review-c0-evidence-status.cjs"
+    "evidence:c0:review-status": "node scripts/review-c0-evidence-status.cjs",
+    "pilot:toolchain:local": "node scripts/run-toolchain-shadow-local.cjs",
+    "pilot:toolchain:global-projection": "node scripts/run-toolchain-global-projection.cjs",
+    "pilot:toolchain:run": "node scripts/run-toolchain-shadow-pilot.cjs",
+    "pilot:toolchain:dry-run": "node scripts/run-toolchain-shadow-pilot.cjs --synthetic-known-answer",
+    "pilot:toolchain:verify": "node scripts/verify-toolchain-shadow-receipt.cjs",
+    "pilot:toolchain:test": "node --test test/toolchain-shadow-contract.test.cjs test/toolchain-shadow-boundaries.test.cjs test/toolchain-shadow-local.test.cjs test/toolchain-shadow-global.test.cjs test/toolchain-shadow-evidence.test.cjs test/toolchain-shadow-mutations.test.cjs"
   },
   "engines": {
     "node": ">=22"
