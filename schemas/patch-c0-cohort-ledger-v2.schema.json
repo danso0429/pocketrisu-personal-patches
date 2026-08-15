@@ -1,0 +1,57 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://pocketrisu.local/schemas/patch-c0-cohort-ledger-v2.schema.json",
+  "title": "PocketRisu C0 material-input cohort ledger v2",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schema", "ledgerKind", "generatedAt", "baseLedgerObjectSha256", "entries", "integrity"],
+  "properties": {
+    "schema": { "const": "patch-c0-cohort-ledger-v2" },
+    "ledgerKind": { "enum": ["cohort", "incident-index"] },
+    "generatedAt": { "type": "string", "format": "date-time" },
+    "baseLedgerObjectSha256": { "oneOf": [{ "$ref": "#/$defs/hash" }, { "type": "null" }] },
+    "entries": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["sequence", "previousEntrySha256", "recordType", "cohortId", "materialInputKey", "executionAttemptId", "evidenceBundleId", "globalRunId", "localRunId", "objectSha256", "recordedAt", "cohortClass", "materiallyDistinct", "repeatedPerformanceTrial", "productionEligible", "syntheticMutation", "disposition", "accepted", "entrySha256"],
+        "properties": {
+          "sequence": { "type": "integer", "minimum": 0 },
+          "previousEntrySha256": { "oneOf": [{ "$ref": "#/$defs/hash" }, { "type": "null" }] },
+          "recordType": { "enum": ["cohort", "incident"] },
+          "materialInputKey": { "$ref": "#/$defs/hash" },
+          "cohortId": { "$ref": "#/$defs/hash" },
+          "executionAttemptId": { "$ref": "#/$defs/hash" },
+          "evidenceBundleId": { "$ref": "#/$defs/hash" },
+          "globalRunId": { "$ref": "#/$defs/hash" },
+          "localRunId": { "oneOf": [{ "$ref": "#/$defs/hash" }, { "type": "null" }] },
+          "objectSha256": { "$ref": "#/$defs/hash" },
+          "recordedAt": { "type": "string", "format": "date-time" },
+          "cohortClass": { "enum": ["stable-release", "patch", "relation", "core", "audit"] },
+          "materiallyDistinct": { "type": "boolean" },
+          "repeatedPerformanceTrial": { "type": "boolean" },
+          "productionEligible": { "type": "boolean" },
+          "syntheticMutation": { "type": "boolean" },
+          "disposition": { "type": "string", "minLength": 1 },
+          "accepted": { "type": "boolean" },
+          "entrySha256": { "$ref": "#/$defs/hash" }
+        }
+      }
+    },
+    "integrity": { "$ref": "#/$defs/integrity" }
+  },
+  "$defs": {
+    "hash": { "type": "string", "pattern": "^[0-9a-f]{64}$" },
+    "integrity": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["schema", "algorithm", "payloadSha256"],
+      "properties": {
+        "schema": { "const": "patch-verification-receipt-integrity-v1" },
+        "algorithm": { "const": "sha256-over-canonical-json-v1" },
+        "payloadSha256": { "$ref": "#/$defs/hash" }
+      }
+    }
+  }
+}

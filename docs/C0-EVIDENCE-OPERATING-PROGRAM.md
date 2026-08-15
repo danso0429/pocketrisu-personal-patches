@@ -42,22 +42,30 @@ Canonical policy section identifiers are not operating route IDs. The shared
 preflight and the material runner. Candidate impact comes only from the sealed
 versioned material declaration; it is never inferred from prompt prose.
 
-The combined runner freezes the declaration, verifies the accepted candidate
-qualification, runs focused gates, runs the isolated local shadow, and then
-invokes canonical Global Exhaustive exactly once. The same Global workers emit
+The combined route publishes an immutable pre-execution declaration, verifies
+the accepted qualification, and binds focused-gate evidence to that frozen
+attempt before it runs the isolated local shadow and invokes canonical Global
+Exhaustive exactly once. The same Global workers emit
 supplemental candidate projections after apply/status/re-plan and before
-revert. Candidate comparison consumes that exact receipt. A per-cohort guard
-rejects a second Global invocation before it starts.
+revert. Candidate comparison consumes that exact receipt. A durable
+per-attempt launch claim is created before spawn. A second claim is rejected;
+an unknown crash outcome fails closed instead of launching Global again.
 
-## Evidence object model
+## Evidence object and identity model
 
-The seven versioned schemas are:
+Operating material evidence uses these pre-execution and v2 schemas. The v1 C0
+schemas remain valid for historical evidence:
 
 ```text
-patch-c0-evidence-bundle-v1
-patch-c0-cohort-ledger-v1
-patch-c0-stable-release-ledger-v1
-patch-c0-incident-record-v1
+patch-operating-cohort-frozen-declaration-v1
+patch-operating-cohort-gate-evidence-v1
+patch-operating-global-launch-claim-v1
+patch-c0-evidence-bundle-v2
+patch-c0-cohort-ledger-v2
+patch-c0-stable-release-ledger-v2
+patch-toolchain-shadow-operating-linkage-v2
+patch-toolchain-shadow-operating-sample-ledger-v1
+patch-c0-incident-record-v2
 patch-c0-defect-yield-summary-v1
 patch-c0-retention-plan-v1
 patch-c0-review-trigger-v1
@@ -105,20 +113,33 @@ Semantically equal documents with different property order therefore remain
 different exact evidence objects. The seal and content address provide tamper
 detection, not a signature or a component certificate.
 
-## Cohort and trial identity
+## Pre-execution and post-execution identities
 
-`cohortId`, `runId`, repeated trials and material cohorts are deliberately
-different:
+Four identities have non-overlapping roles:
 
-- `cohortId` hashes the semantic cohort identity: governance, implementation
-  and dirty-state identity, policy, catalog, schema, target, runtime,
-  command, worker history, cache/history mode and operating route/declaration.
-- `runId` additionally binds the complete run bundle except its own value,
-  including the trial ID, outcomes and resource observation.
-- a repeated performance trial keeps the cohort identity but receives a new
-  trial ID and run ID;
-- a materially distinct cohort must change a bound semantic input and
-  therefore receives a different cohort ID;
+- `materialInputKey` deterministically hashes the canonical material
+  declaration and its material-classification authority. It excludes
+  receipts, run IDs, observed worker history, resources, timestamps and random
+  values. Same-input and materially-distinct classification use this key.
+- `cohortId` deterministically hashes `materialInputKey` plus the exact route,
+  qualification, verification tooling/verifiers, schedule/history contract,
+  jobs, isolation, environment and local-domain contracts before execution.
+  Actual worker history and all execution outcomes are excluded.
+- `executionAttemptId` is unique per authorized attempt and is frozen before
+  focused gates. A retry keeps the material key and cohort ID and receives a
+  new attempt ID.
+- `evidenceBundleId` is created after observation and binds the attempt,
+  focused gates, local/Global run IDs and receipts, observed worker history,
+  linkage/differential results, integrity results, resources and failure
+  disposition. It never feeds back into `cohortId`.
+
+The local receipt, Global receipt, same-Global comparison and candidate
+linkage must match the exact material key, cohort, attempt and frozen
+declaration hash. Cross-cohort and cross-attempt mixes are rejected. A current
+tooling-only observation-contract change leaves `materialInputKey` unchanged
+while changing `cohortId` when verification semantics changed.
+
+- a materially distinct cohort must change `materialInputKey`;
 - production runs must be exactly one of a materially distinct cohort or a
   repeated performance trial;
 - a synthetic known-answer is neither, is always `productionEligible: false`,
@@ -126,10 +147,22 @@ different:
 
 The five operating cohort classes are `stable-release`, `patch`, `relation`,
 `core` and `audit`. Repeating the same source/target/policy/environment tuple
-does not create another materially distinct cohort merely because its wall
-time or trial ID changed.
+does not create another materially distinct cohort merely because its attempt
+ID, evidence bundle, receipt, wall time or trial ID changed.
 
-## Run a production C0 cohort
+## Freeze, bind gates, then run a production C0 cohort
+
+Run `npm run evidence:c0:freeze` first with the exact material declaration,
+authority, accepted qualification store, qualified subject and pristine
+target. It publishes `patch-operating-cohort-frozen-declaration-v1` and returns
+non-null material, cohort, attempt and declaration identities without running
+a gate, local case or Global mask. A pending declaration changes no maturity
+count.
+
+After focused gates finish, seal their result list with
+`npm run evidence:c0:seal-gates`, the frozen declaration object hash and
+`--kind focused`. The material runner validates and publishes that wrapper
+before it can start local or Global work.
 
 Use a pristine, separate Git target and evidence/store locations outside both
 the implementation and target roots. Pin the governance commit instead of
@@ -146,6 +179,8 @@ npm run evidence:c0:run -- \
   --qualified-subject-root /absolute/frozen-qualified-subject \
   --local-shadow-receipt /separate/exports/toolchain-local.json \
   --candidate-linkage /separate/exports/toolchain-linkage.json \
+  --frozen-declaration 64-lowercase-hex-object-address \
+  --focused-gates /separate/exports/frozen-focused-gates.json \
   --governance-commit 40-lowercase-hex-characters \
   --governance-status-version 12 \
   --cohort-class patch \
@@ -160,9 +195,7 @@ only as an explicitly recorded cohort input; it changes worker history and
 must not be compared as if it were the same semantic cohort. Stable releases
 must use both `--cohort-class stable-release` and `--stable-release`.
 
-Focused and product gate lists are optional JSON arrays. Omitting one records
-an explicit `not-run` entry rather than implying a pass. Each supplied entry
-has exactly this shape:
+The gate sealing command consumes a JSON array whose entries have this shape:
 
 ```json
 {
@@ -173,15 +206,20 @@ has exactly this shape:
 }
 ```
 
-Pass lists with `--focused-gates FILE.json` and `--product-gates FILE.json`.
-Referenced objects must already exist in the same evidence store before a
-retention plan can succeed.
+Pass the resulting sealed gate-evidence document, not the unbound array, with
+`--focused-gates` or `--product-gates`. Focused evidence is required for a
+production material attempt; failed, incomplete or not-run focused evidence
+stops before local and Global. Referenced objects must already exist in the
+same evidence store before a retention plan can succeed.
 
-For a combined route the runner first captures the isolated local receipt, then
+For a combined route the runner first captures and durably publishes the
+isolated local receipt or first local failure, then
 captures one standard Global execution receipt with the supplemental observer,
 publishes both, builds and independently validates the C0 bundle, and publishes
-the exact candidate linkage. A local failure is preserved and does not become a
-candidate pass. A Global failure fails the material cohort. A comparison
+the exact candidate linkage. A local failure is preserved first. The current
+C0 contract still runs the single independent Global attempt, but neither the
+material cohort nor candidate sample is accepted. A Global failure fails the
+material cohort. A comparison
 mismatch preserves a failed candidate linkage while leaving the independent
 Global result explicit.
 The two requested JSON files are immutable operator exports and must not
@@ -296,7 +334,11 @@ Pass it with `--stable-release INPUT.json` and
 be a stable-release cohort. `--base-stable-release-ledger` extends a prior
 snapshot. Release IDs and tags are unique.
 
-Incident records are created through the exported
+New operating-attempt incident records use
+`patch-c0-incident-record-v2` and bind `materialInputKey`, `cohortId`,
+`executionAttemptId`, `evidenceBundleId`, `globalRunId` and the optional
+`localRunId` without overloading one run field. Historical v1 incident records
+remain valid. Incident records are created through the exported
 `finalizeIncidentRecord()` API in `src/c0-ledgers.cjs`. It assigns the sequence,
 binds the preceding incident object's exact hash, seals the record and forces
 `productionDefectEligible: false` for synthetic mutations. The first record's

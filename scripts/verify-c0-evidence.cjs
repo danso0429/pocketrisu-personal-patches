@@ -48,7 +48,26 @@ function main(argv = process.argv) {
     const globalReceipt = options.globalReceipt
         ? JSON.parse(fs.readFileSync(options.globalReceipt, 'utf8'))
         : loadEvidenceObject(options.store, bundle.globalReceipt.objectSha256).document
-    const evaluation = evaluateC0EvidenceBundle(bundle, { globalReceipt })
+    const operating = bundle.schema === 'patch-c0-evidence-bundle-v2'
+    if (operating && !options.store) throw new Error('Operating evidence verification requires --store for attempt references')
+    const localEvidence = operating && bundle.attemptEvidence.localEvidenceObjectSha256 !== null
+        ? loadEvidenceObject(options.store, bundle.attemptEvidence.localEvidenceObjectSha256).document
+        : null
+    const gateEvidenceDocuments = operating ? {
+        focused: loadEvidenceObject(options.store, bundle.gateEvidence.focused.objectSha256).document,
+        product: loadEvidenceObject(options.store, bundle.gateEvidence.product.objectSha256).document,
+    } : null
+    const globalLaunchClaim = operating
+        ? loadEvidenceObject(options.store, bundle.attemptEvidence.globalLaunchClaimObjectSha256).document
+        : null
+    const evaluation = evaluateC0EvidenceBundle(bundle, {
+        globalReceipt,
+        ...(bundle.attemptEvidence?.localEvidenceKind === 'failure'
+            ? { localFailure: localEvidence }
+            : { localReceipt: localEvidence }),
+        gateEvidenceDocuments,
+        globalLaunchClaim,
+    })
     process.stdout.write(`${JSON.stringify({
         bundle: options.bundle ?? `sha256:${options.bundleObject}`,
         globalReceipt: options.globalReceipt ?? `sha256:${bundle.globalReceipt.objectSha256}`,

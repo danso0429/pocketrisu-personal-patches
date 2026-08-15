@@ -1,0 +1,53 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://pocketrisu.local/schemas/patch-operating-cohort-frozen-declaration-v1.schema.json",
+  "title": "PocketRisu pre-execution frozen operating cohort declaration v1",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schema", "disposition", "materialInputKey", "cohortId", "executionAttemptId", "materialDeclarationSha256", "materialClassification", "materialInputIdentity", "cohortIdentity", "executionAttempt", "route", "authority", "subject", "target", "candidate", "environmentContract", "canonicalGlobalContract", "candidateLocalContract", "createdBeforeExecution", "canonicalProtection", "integrity"],
+  "properties": {
+    "schema": { "const": "patch-operating-cohort-frozen-declaration-v1" },
+    "disposition": { "const": "declared-pending" },
+    "materialInputKey": { "$ref": "#/$defs/hash" },
+    "cohortId": { "$ref": "#/$defs/hash" },
+    "executionAttemptId": { "$ref": "#/$defs/hash" },
+    "materialDeclarationSha256": { "$ref": "#/$defs/hash" },
+    "materialClassification": { "type": "object" },
+    "materialInputIdentity": { "type": "object" },
+    "cohortIdentity": { "type": "object" },
+    "executionAttempt": { "type": "object" },
+    "route": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["routeId", "decisionSha256", "globalExecutionsExpected"],
+      "properties": {
+        "routeId": { "enum": ["material-c0-global", "material-c0-global-plus-toolchain-shadow"] },
+        "decisionSha256": { "$ref": "#/$defs/hash" },
+        "globalExecutionsExpected": { "const": 1 }
+      }
+    },
+    "authority": { "type": "object" },
+    "subject": { "type": "object" },
+    "target": { "type": "object" },
+    "candidate": { "type": "object" },
+    "environmentContract": { "type": "object" },
+    "canonicalGlobalContract": { "type": "object" },
+    "candidateLocalContract": { "type": "object" },
+    "createdBeforeExecution": { "const": true },
+    "canonicalProtection": { "type": "object" },
+    "integrity": { "$ref": "#/$defs/integrity" }
+  },
+  "$defs": {
+    "hash": { "type": "string", "pattern": "^[0-9a-f]{64}$" },
+    "integrity": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["schema", "algorithm", "payloadSha256"],
+      "properties": {
+        "schema": { "const": "patch-verification-receipt-integrity-v1" },
+        "algorithm": { "const": "sha256-over-canonical-json-v1" },
+        "payloadSha256": { "$ref": "#/$defs/hash" }
+      }
+    }
+  }
+}

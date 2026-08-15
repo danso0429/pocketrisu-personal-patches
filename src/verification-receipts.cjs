@@ -87,6 +87,14 @@ function validateDisposition(disposition) {
     return RECEIPT_DISPOSITIONS.includes(disposition)
 }
 
+function computeGlobalRunId(receipt) {
+    const { integrity, ...payload } = receipt
+    return sha256(canonicalJson({
+        schema: 'patch-global-exhaustive-run-identity-v1',
+        receipt: { ...payload, globalRunId: null },
+    }))
+}
+
 function validateTreeDescriptor(tree, label) {
     const errors = []
     if (tree?.schema !== TREE_SCHEMA) return [`${label} tree schema is missing or incompatible`]
@@ -172,10 +180,15 @@ function validateCommandContract(receipt) {
     }
     if (options.operatingRoute !== undefined) {
         const route = options.operatingRoute
-        if (!route || JSON.stringify(Object.keys(route).sort()) !== JSON.stringify([
+        const routeKeys = Object.keys(route ?? {}).sort()
+        const legacyRouteKeys = [
             'candidateComparisonStatus', 'decisionSha256', 'globalExecutionsExpected',
             'materialDeclarationSha256', 'routeId',
-        ]) || !['material-c0-global', 'material-c0-global-plus-toolchain-shadow'].includes(route.routeId)
+        ].sort()
+        const frozenRouteKeys = [...legacyRouteKeys, 'operatingCohort'].sort()
+        if (!route || (JSON.stringify(routeKeys) !== JSON.stringify(legacyRouteKeys)
+            && JSON.stringify(routeKeys) !== JSON.stringify(frozenRouteKeys))
+            || !['material-c0-global', 'material-c0-global-plus-toolchain-shadow'].includes(route.routeId)
             || !/^[0-9a-f]{64}$/.test(route.materialDeclarationSha256 ?? '')
             || !/^[0-9a-f]{64}$/.test(route.decisionSha256 ?? '')
             || route.globalExecutionsExpected !== 1
@@ -184,6 +197,18 @@ function validateCommandContract(receipt) {
             || (route.routeId === 'material-c0-global-plus-toolchain-shadow'
                 && route.candidateComparisonStatus === 'not-applicable')) {
             errors.push('verification operating route option is invalid')
+        }
+        if (route?.operatingCohort !== undefined) {
+            const binding = route.operatingCohort
+            if (JSON.stringify(Object.keys(binding ?? {}).sort()) !== JSON.stringify([
+                'cohortId', 'executionAttemptId', 'frozenDeclarationSha256', 'materialInputKey',
+            ]) || Object.values(binding ?? {}).some((value) => !/^[0-9a-f]{64}$/.test(value ?? ''))
+                || !/^[0-9a-f]{64}$/.test(receipt.globalRunId ?? '')
+                || receipt.globalRunId !== computeGlobalRunId(receipt)) {
+                errors.push('verification receipt frozen cohort binding is invalid')
+            }
+        } else if (receipt.globalRunId !== undefined) {
+            errors.push('unbound verification receipt contains a Global run ID')
         }
     }
 
@@ -241,9 +266,19 @@ function validateCommandContract(receipt) {
                     candidateDeclarationSha256: comparison.candidateDeclarationSha256,
                     materialDeclarationSha256: comparison.materialDeclarationSha256,
                     localReceiptPayloadSha256: comparison.localReceiptPayloadSha256,
+                    ...(reference.cohortId === undefined ? {} : {
+                        materialInputKey: comparison.materialInputKey,
+                        cohortId: comparison.cohortId,
+                        executionAttemptId: comparison.executionAttemptId,
+                        frozenDeclarationSha256: comparison.frozenDeclarationSha256,
+                        localRunId: comparison.localRunId,
+                    }),
                     references: comparison.localReferences,
                 }
                 if (reference.materialDeclarationSha256 !== options.operatingRoute.materialDeclarationSha256
+                    || (options.operatingRoute.operatingCohort !== undefined
+                        && ['materialInputKey', 'cohortId', 'executionAttemptId', 'frozenDeclarationSha256']
+                            .some((key) => reference[key] !== options.operatingRoute.operatingCohort[key]))
                     || comparisonReference === null
                     || canonicalJson(reference) !== canonicalJson(comparisonReference)) {
                     errors.push('same-Global reference differs from operating route options')
@@ -455,6 +490,7 @@ module.exports = {
     INTEGRITY_SCHEMA,
     RECEIPT_DISPOSITIONS,
     buildReceiptRegistry,
+    computeGlobalRunId,
     canonicalJson,
     dispositionOverrideMap,
     evaluateExecutionReceipt,

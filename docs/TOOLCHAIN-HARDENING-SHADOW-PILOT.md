@@ -81,9 +81,13 @@ There is no separate material 4,096-mask candidate projection. The canonical
 Global workers collect the supplemental candidate projection during the same
 apply/status/re-plan/revert history, and the resulting receipt binds the local
 receipt, material declaration, worker schedule and runtime. A second Global
-invocation for that frozen cohort is rejected.
+launch claim for the same frozen execution attempt is rejected before spawn;
+an authorized retry keeps the cohort ID and receives a new attempt ID.
 
-Capture the combined route through the C0 evidence program:
+First publish the pre-execution declaration with
+`npm run evidence:c0:freeze`, then bind the focused-gate result list with
+`npm run evidence:c0:seal-gates -- --kind focused`. Neither command runs local
+or Global work. Supply those immutable identities to the combined route:
 
 ```bash
 npm run evidence:c0:run -- \
@@ -95,6 +99,8 @@ npm run evidence:c0:run -- \
   --qualified-subject-root /absolute/frozen-qualified-subject \
   --local-shadow-receipt /absolute/evidence/toolchain-local.json \
   --candidate-linkage /absolute/evidence/toolchain-linkage.json \
+  --frozen-declaration 64-lowercase-hex-object-address \
+  --focused-gates /absolute/evidence/frozen-focused-gates.json \
   --store /absolute/evidence/store \
   --governance-commit 49d891b12a51745b9da91bf23105d78869cf8664 \
   --governance-status-version 12 \

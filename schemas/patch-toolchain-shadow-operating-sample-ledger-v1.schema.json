@@ -1,0 +1,49 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://pocketrisu.local/schemas/patch-toolchain-shadow-operating-sample-ledger-v1.schema.json",
+  "title": "PocketRisu toolchain shadow accepted operating-sample ledger v1",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schema", "generatedAt", "baseLedgerObjectSha256", "entries", "integrity"],
+  "properties": {
+    "schema": { "const": "patch-toolchain-shadow-operating-sample-ledger-v1" },
+    "generatedAt": { "type": "string", "format": "date-time" },
+    "baseLedgerObjectSha256": { "oneOf": [{ "$ref": "#/$defs/hash" }, { "type": "null" }] },
+    "entries": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["sequence", "previousEntrySha256", "candidateId", "materialInputKey", "cohortId", "executionAttemptId", "evidenceBundleId", "localRunId", "globalRunId", "linkageObjectSha256", "accepted", "entrySha256"],
+        "properties": {
+          "sequence": { "type": "integer", "minimum": 0 },
+          "previousEntrySha256": { "oneOf": [{ "$ref": "#/$defs/hash" }, { "type": "null" }] },
+          "candidateId": { "const": "toolchain-hardening" },
+          "materialInputKey": { "$ref": "#/$defs/hash" },
+          "cohortId": { "$ref": "#/$defs/hash" },
+          "executionAttemptId": { "$ref": "#/$defs/hash" },
+          "evidenceBundleId": { "$ref": "#/$defs/hash" },
+          "localRunId": { "$ref": "#/$defs/hash" },
+          "globalRunId": { "$ref": "#/$defs/hash" },
+          "linkageObjectSha256": { "$ref": "#/$defs/hash" },
+          "accepted": { "const": true },
+          "entrySha256": { "$ref": "#/$defs/hash" }
+        }
+      }
+    },
+    "integrity": { "$ref": "#/$defs/integrity" }
+  },
+  "$defs": {
+    "hash": { "type": "string", "pattern": "^[0-9a-f]{64}$" },
+    "integrity": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["schema", "algorithm", "payloadSha256"],
+      "properties": {
+        "schema": { "const": "patch-verification-receipt-integrity-v1" },
+        "algorithm": { "const": "sha256-over-canonical-json-v1" },
+        "payloadSha256": { "$ref": "#/$defs/hash" }
+      }
+    }
+  }
+}

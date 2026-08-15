@@ -19,6 +19,7 @@ const {
 } = require('../src/verification-evidence.cjs')
 const {
     RECEIPT_DISPOSITIONS,
+    computeGlobalRunId,
     sealDocument,
     validateDisposition,
 } = require('../src/verification-receipts.cjs')
@@ -35,9 +36,11 @@ const {
 } = require('../src/c0-policy.cjs')
 const {
     publishEvidenceObject,
+    loadEvidenceObject,
 } = require('../src/c0-retention.cjs')
 const { preflightOperatingCohort } = require('../src/operating-cohort-preflight.cjs')
 const { runFreshLocalShadow } = require('../src/toolchain-shadow-local.cjs')
+const { loadToolchainShadowDeclaration } = require('../src/toolchain-shadow-contract.cjs')
 const { buildSameGlobalReference } = require('../src/toolchain-shadow-same-global.cjs')
 const {
     ROUTE_COMBINED,
@@ -45,9 +48,21 @@ const {
     validateRouteDecision,
 } = require('../src/operating-cohort-route.cjs')
 const {
+    LINKAGE_SCHEMA_V2,
     buildCandidateOperatingLinkage,
     validateCandidateOperatingLinkageRecord,
 } = require('../src/operating-cohort-linkage.cjs')
+const {
+    buildCohortIdentity,
+    buildMaterialInputIdentity,
+    buildVerificationIdentities,
+    claimGlobalLaunch,
+    validateFrozenCohortDeclaration,
+} = require('../src/operating-cohort-identity.cjs')
+const {
+    buildOperatingGateEvidence,
+    validateOperatingGateEvidence,
+} = require('../src/operating-cohort-gates.cjs')
 
 const DEFAULT_GOVERNANCE_REPOSITORY = 'https://github.com/danso0429/patch-verification-governance'
 const GNU_TIME = '/usr/bin/time'
@@ -107,6 +122,7 @@ function parseArgs(argv) {
         else if (argument === '--qualified-subject-root') options.qualifiedSubjectRoot = path.resolve(next())
         else if (argument === '--local-shadow-receipt') options.localShadowReceipt = path.resolve(next())
         else if (argument === '--candidate-linkage') options.candidateLinkage = path.resolve(next())
+        else if (argument === '--frozen-declaration') options.frozenDeclaration = next()
         else if (argument === '--disposition') options.disposition = next()
         else throw new Error(`Unknown argument: ${argument}`)
     }
@@ -134,9 +150,12 @@ function parseArgs(argv) {
     } else if (options.materiallyDistinct || options.repeatedPerformanceTrial) {
         throw new Error('Synthetic known answers cannot be material cohorts or performance trials')
     }
-    if (options.syntheticResult === null && options.materiallyDistinct) {
-        for (const field of ['operatingExpectation', 'qualificationStore', 'qualifiedSubjectRoot']) {
+    if (options.syntheticResult === null) {
+        for (const field of ['operatingExpectation', 'qualificationStore', 'qualifiedSubjectRoot', 'frozenDeclaration']) {
             if (!options[field]) throw new Error(`Material C0 runs require --${field.replace(/[A-Z]/g, (value) => `-${value.toLowerCase()}`)}`)
+        }
+        if (!/^[0-9a-f]{64}$/.test(options.frozenDeclaration)) {
+            throw new Error('--frozen-declaration requires an evidence object SHA-256')
         }
     }
     if (options.stableRelease && options.cohortClass !== 'stable-release') {
@@ -272,6 +291,41 @@ function readGateList(file, label) {
     return value
 }
 
+function prepareOperatingGateEvidence({
+    file, gateKind, frozenDeclaration, frozenDeclarationObjectSha256, store,
+}) {
+    let document
+    if (file === null) {
+        document = buildOperatingGateEvidence({
+            gateKind,
+            frozenDeclaration,
+            frozenDeclarationObjectSha256,
+            gates: [{
+                name: `${gateKind}-gates-not-supplied`,
+                result: 'not-run',
+                receiptObjectSha256: null,
+                detailsSha256: null,
+            }],
+        })
+    } else {
+        document = JSON.parse(fs.readFileSync(file, 'utf8'))
+        validateOperatingGateEvidence(document, {
+            gateKind,
+            frozenDeclaration,
+            frozenDeclarationObjectSha256,
+        })
+    }
+    const publication = publishEvidenceObject(store, document)
+    return {
+        document,
+        publication,
+        reference: {
+            objectSha256: publication.objectSha256,
+            payloadSha256: document.integrity.payloadSha256,
+        },
+    }
+}
+
 async function implementationRepository(sourceRoot) {
     const env = Object.fromEntries(Object.entries(process.env).filter(([key]) => !key.startsWith('GIT_')))
     env.GIT_CONFIG_NOSYSTEM = '1'
@@ -300,6 +354,68 @@ async function implementationRepository(sourceRoot) {
     return value
 }
 
+async function validateCurrentFrozenInputs({
+    sourceRoot,
+    targetRoot,
+    subjectRoot,
+    declaration,
+    routeDecision,
+    preflight,
+    frozenDeclaration,
+    governance,
+    jobs,
+    dependencies = {},
+}) {
+    const capture = await (dependencies.captureInputFreeze ?? captureInputFreeze)({
+        sourceRoot,
+        targetRoot,
+    })
+    if (capture.source.git.status !== ''
+        || capture.target.provenance.kind !== 'git'
+        || capture.target.provenance.status !== ''
+        || capture.target.provenance.commit !== frozenDeclaration.target.commit
+        || capture.target.applicationTree.rootSha256 !== frozenDeclaration.target.applicationTreeSha256) {
+        throw new Error('Current source or target differs from the frozen pre-execution contract')
+    }
+    const compiled = (dependencies.loadToolchainShadowDeclaration
+        ?? loadToolchainShadowDeclaration)(subjectRoot, { targetRoot })
+    const localDomain = routeDecision.totalLocalCasesExpected === 0 ? {
+        candidateId: null,
+        masks: [],
+        boundaryClasses: [],
+        totalLocalCases: 0,
+    } : {
+        candidateId: compiled.pack.id,
+        masks: [0, 1],
+        boundaryClasses: [...compiled.boundaryClassIds],
+        totalLocalCases: 2 * compiled.boundaryClassIds.length,
+    }
+    const materialInput = buildMaterialInputIdentity({ declaration, governance })
+    const currentCohort = buildCohortIdentity({
+        declaration,
+        governance,
+        routeDecision,
+        routeDecisionInputs: preflight.routeDecisionInputs,
+        preflight,
+        materialInput,
+        tooling: {
+            repository: await (dependencies.implementationRepository
+                ?? implementationRepository)(sourceRoot),
+            commit: capture.source.git.commit,
+            statusSha256: sha256(capture.source.git.status),
+        },
+        verificationIdentities: (dependencies.buildVerificationIdentities
+            ?? buildVerificationIdentities)(sourceRoot),
+        jobs,
+        localDomain,
+    })
+    if (materialInput.materialInputKey !== frozenDeclaration.materialInputKey
+        || currentCohort.cohortId !== frozenDeclaration.cohortId) {
+        throw new Error('Current material or verification inputs differ from the frozen cohort identity')
+    }
+    return { capture, materialInput, cohort: currentCohort }
+}
+
 function makeSyntheticVerifier(temporaryRoot, resultFile) {
     const result = JSON.parse(fs.readFileSync(resultFile, 'utf8'))
     const errors = validateVerificationResult('global-exhaustive', result)
@@ -315,6 +431,14 @@ function makeSyntheticVerifier(temporaryRoot, resultFile) {
     return verifier
 }
 
+function publishLocalEvidenceBeforeGlobal({ store, localReceipt, localFailure }) {
+    if (localReceipt !== null && localFailure !== null) {
+        throw new Error('Local receipt and local failure cannot both be preserved')
+    }
+    const localEvidence = localReceipt ?? localFailure
+    return localEvidence === null ? null : publishEvidenceObject(store, localEvidence)
+}
+
 async function internalCapture(request) {
     const wrapperCpuStart = process.cpuUsage()
     const sourceRoot = request.sourceRoot
@@ -324,16 +448,27 @@ async function internalCapture(request) {
     let localReceipt = null
     let localFailure = null
     let sameGlobalReference = null
+    const operatingCohort = request.frozenDeclaration === null ? null : {
+        materialInputKey: request.frozenDeclaration.materialInputKey,
+        cohortId: request.frozenDeclaration.cohortId,
+        executionAttemptId: request.frozenDeclaration.executionAttemptId,
+        frozenDeclarationSha256: request.frozenDeclarationObjectSha256,
+    }
     if (request.routeDecision?.routeId === ROUTE_COMBINED) {
         try {
             localReceipt = await runFreshLocalShadow({
                 sourceRoot: request.qualifiedSubjectRoot,
                 targetRoot: request.root,
                 disposition: 'material-shadow',
+                operatingCohort,
             })
             sameGlobalReference = buildSameGlobalReference({
                 localReceipt,
                 materialDeclarationSha256: request.materialDeclaration.declarationSha256,
+                materialInputKey: operatingCohort?.materialInputKey ?? null,
+                cohortId: operatingCohort?.cohortId ?? null,
+                executionAttemptId: operatingCohort?.executionAttemptId ?? null,
+                frozenDeclarationSha256: operatingCohort?.frozenDeclarationSha256 ?? null,
             })
         } catch (error) {
             localFailure = sealDocument({
@@ -342,10 +477,16 @@ async function internalCapture(request) {
                 code: error.code ?? 'UNKNOWN_LOCAL_SHADOW_FAILURE',
                 message: error.message,
                 materialDeclarationSha256: request.materialDeclaration.declarationSha256,
+                ...(operatingCohort === null ? {} : { operatingCohort }),
                 recordedAt: new Date().toISOString(),
             })
         }
     }
+    const localPublication = publishLocalEvidenceBeforeGlobal({
+        store: request.store,
+        localReceipt,
+        localFailure,
+    })
     const verifierArgs = ['--root', request.root, '--json']
     if (request.jobs !== null) verifierArgs.push('--jobs', String(request.jobs))
     if (sameGlobalReference !== null) {
@@ -358,6 +499,14 @@ async function internalCapture(request) {
     const runtimeBefore = runtimeEnvelope({ root: request.root })
     const before = await captureInputFreeze({ sourceRoot, targetRoot: request.root })
     const globalGuard = createOneGlobalExecutionGuard((...args) => runChildWithFileCapture(...args))
+    let launchClaim = null
+    if (request.frozenDeclaration !== null) {
+        launchClaim = claimGlobalLaunch({
+            storeRoot: request.store,
+            frozenDeclaration: request.frozenDeclaration,
+            frozenDeclarationObjectSha256: request.frozenDeclarationObjectSha256,
+        })
+    }
     const execution = await globalGuard.execute(command[0], command.slice(1), {
         cwd: sourceRoot, env: process.env,
     })
@@ -381,7 +530,7 @@ async function internalCapture(request) {
     const disposition = accepted
         ? request.disposition
         : (request.disposition === 'current-active' ? 'defect-reproduction' : request.disposition)
-    const receipt = sealDocument({
+    const receiptPayload = {
         schema: 'patch-verification-execution-receipt-v2',
         verificationKind: 'global-exhaustive',
         disposition,
@@ -399,6 +548,7 @@ async function internalCapture(request) {
                 candidateComparisonStatus: request.routeDecision.routeId === ROUTE_COMBINED
                     ? (localFailure === null ? 'required' : 'skipped-local-failure')
                     : 'not-applicable',
+                operatingCohort,
             } }),
         },
         before,
@@ -415,13 +565,18 @@ async function internalCapture(request) {
         verifierResult,
         verifierErrors,
         accepted,
-    })
+        ...(operatingCohort === null ? {} : { globalRunId: '0'.repeat(64) }),
+    }
+    if (operatingCohort !== null) receiptPayload.globalRunId = computeGlobalRunId(receiptPayload)
+    const receipt = sealDocument(receiptPayload)
     const wrapperCpu = process.cpuUsage(wrapperCpuStart)
     return {
         receipt,
         localReceipt,
         localFailure,
+        localPublication,
         globalExecutions: globalGuard.executions(),
+        launchClaim,
         wrapperCpuMs: Number(((wrapperCpu.user + wrapperCpu.system) / 1000).toFixed(3)),
     }
 }
@@ -441,7 +596,10 @@ async function main(argv = process.argv) {
     let materialDeclaration = null
     let operatingPreflight = null
     let routeDecision = null
-    if (options.syntheticResult === null && options.materiallyDistinct) {
+    let frozenDeclaration = null
+    let frozenDeclarationObjectSha256 = null
+    let operatingGateEvidence = null
+    if (options.syntheticResult === null) {
         materialDeclaration = JSON.parse(fs.readFileSync(options.operatingExpectation, 'utf8'))
         operatingPreflight = preflightOperatingCohort({
             storeRoot: options.qualificationStore,
@@ -463,6 +621,37 @@ async function main(argv = process.argv) {
             && (options.localShadowReceipt || options.candidateLinkage)) {
             throw new Error('Global-only material route cannot request candidate shadow outputs')
         }
+        const frozenRecord = loadEvidenceObject(options.store, options.frozenDeclaration)
+        frozenDeclaration = validateFrozenCohortDeclaration(frozenRecord.document)
+        frozenDeclarationObjectSha256 = frozenRecord.objectSha256
+        if (frozenDeclaration.materialDeclarationSha256 !== materialDeclaration.declarationSha256
+            || frozenDeclaration.route.routeId !== routeDecision.routeId
+            || frozenDeclaration.route.decisionSha256 !== routeDecision.decisionSha256
+            || frozenDeclaration.route.globalExecutionsExpected !== routeDecision.globalExecutionsExpected
+            || JSON.stringify(frozenDeclaration.cohortIdentity.qualification)
+                !== JSON.stringify(operatingPreflight.qualificationIdentity)
+            || frozenDeclaration.materialClassification.materiallyDistinct !== options.materiallyDistinct
+            || frozenDeclaration.materialClassification.repeatedPerformanceTrial !== options.repeatedPerformanceTrial) {
+            throw new Error('Frozen declaration differs from the current machine preflight')
+        }
+        await validateCurrentFrozenInputs({
+            sourceRoot,
+            targetRoot: options.root,
+            subjectRoot: options.qualifiedSubjectRoot,
+            declaration: materialDeclaration,
+            routeDecision,
+            preflight: operatingPreflight,
+            frozenDeclaration,
+            governance: {
+                repository: options.governanceRepository,
+                commit: options.governanceCommit,
+                statusVersion: options.governanceStatusVersion,
+            },
+            jobs: options.jobs,
+        })
+        if (options.focusedGates === null) {
+            throw new Error('Material C0 execution requires frozen focused-gate evidence')
+        }
     }
     const bundleOutput = assertOutputOutsideInputs(options.bundle, [sourceRoot, options.root])
     const receiptOutput = assertOutputOutsideInputs(options.globalReceipt, [sourceRoot, options.root])
@@ -481,6 +670,30 @@ async function main(argv = process.argv) {
         throw new Error('Evidence outputs already exist; immutable outputs are never overwritten')
     }
     if (!fs.existsSync(GNU_TIME)) throw new Error(`${GNU_TIME} is required for process-group resource capture`)
+    if (frozenDeclaration !== null) {
+        operatingGateEvidence = {
+            focused: prepareOperatingGateEvidence({
+                file: options.focusedGates,
+                gateKind: 'focused',
+                frozenDeclaration,
+                frozenDeclarationObjectSha256,
+                store: options.store,
+            }),
+            product: prepareOperatingGateEvidence({
+                file: options.productGates,
+                gateKind: 'product',
+                frozenDeclaration,
+                frozenDeclarationObjectSha256,
+                store: options.store,
+            }),
+        }
+        const blockingFocusedGates = operatingGateEvidence.focused.document.gates
+            .filter((gate) => !['passed', 'not-applicable'].includes(gate.result))
+        if (blockingFocusedGates.length > 0) {
+            throw new Error(`Focused gates do not permit material execution: ${blockingFocusedGates
+                .map((gate) => `${gate.name}:${gate.result}`).join(', ')}`)
+        }
+    }
     const temporaryRoot = fs.mkdtempSync(path.join(options.temporaryParent, 'patch-c0-evidence-'))
     const requestFile = path.join(temporaryRoot, 'request.json')
     const internalResultFile = path.join(temporaryRoot, 'internal-result.json')
@@ -494,6 +707,9 @@ async function main(argv = process.argv) {
         qualifiedSubjectRoot: options.qualifiedSubjectRoot ?? null,
         materialDeclaration,
         routeDecision,
+        store: options.store,
+        frozenDeclaration,
+        frozenDeclarationObjectSha256,
     })
     const measured = await runMeasuredWrapper(process.execPath, [
         path.resolve(__filename),
@@ -551,9 +767,15 @@ async function main(argv = process.argv) {
         budget: 'unknown',
     })
     const receiptPublication = publishEvidenceObject(options.store, globalReceipt)
-    let localPublication = null
+    let localPublication = internalResult.localPublication ?? null
     const localEvidence = internalResult.localReceipt ?? internalResult.localFailure
-    if (localEvidence !== null) localPublication = publishEvidenceObject(options.store, localEvidence)
+    if (localEvidence !== null) {
+        const independentlyPublished = publishEvidenceObject(options.store, localEvidence)
+        if (localPublication === null) localPublication = independentlyPublished
+        else if (localPublication.objectSha256 !== independentlyPublished.objectSha256) {
+            throw new Error('Pre-Global local evidence publication identity changed')
+        }
+    }
     const bundle = buildEvidenceBundle({
         sourceRoot,
         globalReceipt,
@@ -567,10 +789,23 @@ async function main(argv = process.argv) {
         trialId: options.trialId,
         materiallyDistinct: options.materiallyDistinct,
         repeatedPerformanceTrial: options.repeatedPerformanceTrial,
-        focusedGates: readGateList(options.focusedGates, 'focused'),
-        productGates: readGateList(options.productGates, 'product'),
+        focusedGates: operatingGateEvidence?.focused.document.gates
+            ?? readGateList(options.focusedGates, 'focused'),
+        productGates: operatingGateEvidence?.product.document.gates
+            ?? readGateList(options.productGates, 'product'),
+        gateEvidence: operatingGateEvidence === null ? null : {
+            focused: operatingGateEvidence.focused.reference,
+            product: operatingGateEvidence.product.reference,
+        },
+        globalLaunchClaimObjectSha256:
+            internalResult.launchClaim?.objectPublication?.objectSha256 ?? null,
         c0Decision,
-        referencedObjectsNewPhysicalBytes: receiptPublication.newPhysicalBytes,
+        referencedObjectsNewPhysicalBytes: receiptPublication.newPhysicalBytes
+            + (localPublication?.newPhysicalBytes ?? 0)
+            + (operatingGateEvidence?.focused.publication.newPhysicalBytes ?? 0)
+            + (operatingGateEvidence?.product.publication.newPhysicalBytes ?? 0)
+            + (internalResult.launchClaim?.objectPublication?.newPhysicalBytes ?? 0)
+            + (internalResult.launchClaim?.appendOnlyPublication?.physicalBytes ?? 0),
         operatingRoute: routeDecision === null ? null : {
             routeId: routeDecision.routeId,
             materialDeclarationSha256: routeDecision.materialDeclarationSha256,
@@ -578,8 +813,25 @@ async function main(argv = process.argv) {
             globalExecutionsExpected: routeDecision.globalExecutionsExpected,
             candidateShadowExpected: routeDecision.routeId === ROUTE_COMBINED,
         },
+        frozenDeclaration,
+        frozenDeclarationObjectSha256,
+        localReceipt: internalResult.localReceipt,
+        localReceiptObjectSha256: internalResult.localReceipt === null
+            ? null : localPublication?.objectSha256 ?? null,
+        localFailure: internalResult.localFailure,
+        localFailureObjectSha256: internalResult.localFailure === null
+            ? null : localPublication?.objectSha256 ?? null,
     })
-    const evaluation = evaluateC0EvidenceBundle(bundle, { globalReceipt })
+    const evaluation = evaluateC0EvidenceBundle(bundle, {
+        globalReceipt,
+        localReceipt: internalResult.localReceipt,
+        localFailure: internalResult.localFailure,
+        gateEvidenceDocuments: operatingGateEvidence === null ? null : {
+            focused: operatingGateEvidence.focused.document,
+            product: operatingGateEvidence.product.document,
+        },
+        globalLaunchClaim: internalResult.launchClaim?.claim ?? null,
+    })
     if (!evaluation.bundleValid) {
         throw new Error(`Generated C0 evidence bundle is invalid: ${evaluation.structuralErrors.join('; ')}`)
     }
@@ -596,11 +848,16 @@ async function main(argv = process.argv) {
             })
         } else {
             candidateLinkage = sealDocument({
-                schema: 'patch-toolchain-shadow-operating-linkage-v1',
+                schema: LINKAGE_SCHEMA_V2,
                 status: 'failed',
                 routeId: ROUTE_COMBINED,
+                materialInputKey: bundle.cohort.materialInputKey,
                 cohortId: bundle.cohort.cohortId,
-                globalRunId: bundle.cohort.runId,
+                executionAttemptId: bundle.cohort.executionAttemptId,
+                frozenDeclarationSha256: bundle.frozenDeclarationObjectSha256,
+                localRunId: internalResult.localReceipt?.localRunId ?? null,
+                globalRunId: globalReceipt.globalRunId,
+                evidenceBundleId: bundle.evidenceBundleId,
                 materialDeclarationSha256: materialDeclaration.declarationSha256,
                 routeDecisionSha256: routeDecision.decisionSha256,
                 localFailure: internalResult.localFailure,
@@ -629,7 +886,9 @@ async function main(argv = process.argv) {
         bundle: bundleOutput,
         globalReceipt: receiptOutput,
         cohortId: bundle.cohort.cohortId,
-        runId: bundle.cohort.runId,
+        executionAttemptId: bundle.cohort.executionAttemptId ?? null,
+        evidenceBundleId: bundle.evidenceBundleId ?? bundle.cohort.runId,
+        globalRunId: globalReceipt.globalRunId ?? bundle.cohort.runId,
         runKind,
         route: routeDecision,
         operatingPreflight,
@@ -643,9 +902,16 @@ async function main(argv = process.argv) {
             totalNewPhysicalBytes: receiptPublication.newPhysicalBytes
                 + bundlePublication.newPhysicalBytes
                 + (localPublication?.newPhysicalBytes ?? 0)
-                + (candidateLinkagePublication?.newPhysicalBytes ?? 0),
+                + (candidateLinkagePublication?.newPhysicalBytes ?? 0)
+                + (operatingGateEvidence?.focused.publication.newPhysicalBytes ?? 0)
+                + (operatingGateEvidence?.product.publication.newPhysicalBytes ?? 0)
+                + (internalResult.launchClaim?.objectPublication?.newPhysicalBytes ?? 0)
+                + (internalResult.launchClaim?.appendOnlyPublication?.physicalBytes ?? 0),
             localShadow: localPublication,
             candidateLinkage: candidateLinkagePublication,
+            focusedGateEvidence: operatingGateEvidence?.focused.publication ?? null,
+            productGateEvidence: operatingGateEvidence?.product.publication ?? null,
+            globalLaunchClaim: internalResult.launchClaim ?? null,
         },
         evaluation,
     })}\n`)
@@ -668,7 +934,9 @@ module.exports = {
     implementationRepository,
     internalCapture,
     main,
+    validateCurrentFrozenInputs,
     parseArgs,
     parseGnuTime,
+    publishLocalEvidenceBeforeGlobal,
     runMeasuredWrapper,
 }

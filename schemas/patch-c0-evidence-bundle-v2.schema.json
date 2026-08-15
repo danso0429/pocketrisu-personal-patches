@@ -1,0 +1,87 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://pocketrisu.local/schemas/patch-c0-evidence-bundle-v2.schema.json",
+  "title": "PocketRisu C0 evidence bundle with pre-execution identities v2",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schema", "evidenceBundleId", "disposition", "runKind", "recordedAt", "frozenDeclarationObjectSha256", "frozenDeclaration", "cohort", "authority", "c0Decision", "globalReceipt", "attemptEvidence", "gateEvidence", "gates", "correctness", "resources", "canonicalProtection", "integrity"],
+  "properties": {
+    "schema": { "const": "patch-c0-evidence-bundle-v2" },
+    "evidenceBundleId": { "$ref": "#/$defs/hash" },
+    "disposition": { "type": "string", "minLength": 1 },
+    "runKind": { "enum": ["production-c0", "synthetic-known-answer"] },
+    "recordedAt": { "type": "string", "format": "date-time" },
+    "frozenDeclarationObjectSha256": { "$ref": "#/$defs/hash" },
+    "frozenDeclaration": { "type": "object" },
+    "cohort": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["identitySchema", "materialInputKey", "cohortId", "executionAttemptId", "trialId", "cohortClass", "materiallyDistinct", "repeatedPerformanceTrial", "productionEligible", "syntheticMutation", "identity"],
+      "properties": {
+        "identitySchema": { "const": "patch-operating-cohort-identity-v2" },
+        "materialInputKey": { "$ref": "#/$defs/hash" },
+        "cohortId": { "$ref": "#/$defs/hash" },
+        "executionAttemptId": { "$ref": "#/$defs/hash" },
+        "trialId": { "type": "string", "minLength": 1 },
+        "cohortClass": { "enum": ["stable-release", "patch", "relation", "core", "audit"] },
+        "materiallyDistinct": { "type": "boolean" },
+        "repeatedPerformanceTrial": { "type": "boolean" },
+        "productionEligible": { "type": "boolean" },
+        "syntheticMutation": { "type": "boolean" },
+        "identity": { "type": "object" }
+      }
+    },
+    "authority": { "type": "object" },
+    "c0Decision": { "type": "object" },
+    "globalReceipt": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["objectSha256", "bytes", "payloadSha256", "globalRunId", "accepted", "disposition"],
+      "properties": {
+        "objectSha256": { "$ref": "#/$defs/hash" },
+        "bytes": { "type": "integer", "minimum": 0 },
+        "payloadSha256": { "$ref": "#/$defs/hash" },
+        "globalRunId": { "$ref": "#/$defs/hash" },
+        "accepted": { "type": "boolean" },
+        "disposition": { "type": "string", "minLength": 1 }
+      }
+    },
+    "attemptEvidence": { "type": "object" },
+    "gateEvidence": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["focused", "product"],
+      "properties": {
+        "focused": { "$ref": "#/$defs/objectReference" },
+        "product": { "$ref": "#/$defs/objectReference" }
+      }
+    },
+    "gates": { "type": "object" },
+    "correctness": { "type": "object" },
+    "resources": { "type": "object" },
+    "canonicalProtection": { "type": "object" },
+    "integrity": { "$ref": "#/$defs/integrity" }
+  },
+  "$defs": {
+    "hash": { "type": "string", "pattern": "^[0-9a-f]{64}$" },
+    "objectReference": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["objectSha256", "payloadSha256"],
+      "properties": {
+        "objectSha256": { "$ref": "#/$defs/hash" },
+        "payloadSha256": { "$ref": "#/$defs/hash" }
+      }
+    },
+    "integrity": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["schema", "algorithm", "payloadSha256"],
+      "properties": {
+        "schema": { "const": "patch-verification-receipt-integrity-v1" },
+        "algorithm": { "const": "sha256-over-canonical-json-v1" },
+        "payloadSha256": { "$ref": "#/$defs/hash" }
+      }
+    }
+  }
+}

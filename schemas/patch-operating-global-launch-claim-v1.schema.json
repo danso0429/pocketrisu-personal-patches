@@ -1,0 +1,32 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://pocketrisu.local/schemas/patch-operating-global-launch-claim-v1.schema.json",
+  "title": "PocketRisu append-only Global launch claim v1",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schema", "materialInputKey", "cohortId", "executionAttemptId", "frozenDeclarationObjectSha256", "globalLaunchOrdinal", "state", "claimedAt", "integrity"],
+  "properties": {
+    "schema": { "const": "patch-operating-global-launch-claim-v1" },
+    "materialInputKey": { "$ref": "#/$defs/hash" },
+    "cohortId": { "$ref": "#/$defs/hash" },
+    "executionAttemptId": { "$ref": "#/$defs/hash" },
+    "frozenDeclarationObjectSha256": { "$ref": "#/$defs/hash" },
+    "globalLaunchOrdinal": { "const": 1 },
+    "state": { "const": "claimed-before-spawn" },
+    "claimedAt": { "type": "string", "format": "date-time" },
+    "integrity": { "$ref": "#/$defs/integrity" }
+  },
+  "$defs": {
+    "hash": { "type": "string", "pattern": "^[0-9a-f]{64}$" },
+    "integrity": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["schema", "algorithm", "payloadSha256"],
+      "properties": {
+        "schema": { "const": "patch-verification-receipt-integrity-v1" },
+        "algorithm": { "const": "sha256-over-canonical-json-v1" },
+        "payloadSha256": { "$ref": "#/$defs/hash" }
+      }
+    }
+  }
+}

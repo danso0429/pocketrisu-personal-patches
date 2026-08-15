@@ -1,0 +1,28 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://pocketrisu.local/schemas/patch-c0-stable-release-ledger-v2.schema.json",
+  "title": "PocketRisu stable-release ledger with frozen-attempt identity v2",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schema", "generatedAt", "baseLedgerObjectSha256", "entries", "integrity"],
+  "properties": {
+    "schema": { "const": "patch-c0-stable-release-ledger-v2" },
+    "generatedAt": { "type": "string", "format": "date-time" },
+    "baseLedgerObjectSha256": { "oneOf": [{ "$ref": "#/$defs/hash" }, { "type": "null" }] },
+    "entries": { "type": "array", "items": { "type": "object" } },
+    "integrity": { "$ref": "#/$defs/integrity" }
+  },
+  "$defs": {
+    "hash": { "type": "string", "pattern": "^[0-9a-f]{64}$" },
+    "integrity": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["schema", "algorithm", "payloadSha256"],
+      "properties": {
+        "schema": { "const": "patch-verification-receipt-integrity-v1" },
+        "algorithm": { "const": "sha256-over-canonical-json-v1" },
+        "payloadSha256": { "$ref": "#/$defs/hash" }
+      }
+    }
+  }
+}

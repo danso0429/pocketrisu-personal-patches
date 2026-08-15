@@ -53,10 +53,19 @@ exact skip reason. A compatible candidate requires a fresh independent
 qualification verification in the current execution environment before the
 combined route is safe to execute.
 
-## One-Global execution and linkage
+## Pre-execution identity and one-Global execution
 
-The material runner owns a per-cohort one-shot Global executor. A second call
-throws `SECOND_GLOBAL_EXECUTION_FORBIDDEN` before invoking the checker. The
+`materialInputKey` classifies exact material inputs. `cohortId` adds the exact
+verification contract and is frozen before any gate or execution.
+`executionAttemptId` distinguishes an authorized attempt; completed or failed
+observations receive a post-execution `evidenceBundleId`. Receipt results,
+actual worker history, run IDs, resource observations and timestamps never
+feed backward into `cohortId`.
+
+The material runner owns one Global launch per execution attempt. Before spawn
+it durably writes a `claimed-before-spawn` record. A second claim is rejected;
+if a crash makes the first outcome unknown, the attempt fails closed and a
+separately authorized retry must use a new attempt ID for the same cohort. The
 combined route encodes the local reference into the same canonical Global
 command. Global workers collect the supplemental candidate projection between
 same-selection re-plan and revert; they do not change selection coverage,
@@ -64,7 +73,8 @@ worker scheduling, canonical status, restoration or failure handling.
 
 The candidate linkage binds:
 
-- C0 cohort ID and Global run ID;
+- material input key, cohort ID, execution attempt ID, frozen declaration
+  hash, local run ID, Global run ID and evidence bundle ID;
 - qualified subject and material tooling commits;
 - policy SHA-256;
 - target commit and application-tree SHA-256;
@@ -72,11 +82,18 @@ The candidate linkage binds:
 - material declaration and route decision hashes;
 - local and Global immutable evidence objects.
 
-Another cohort, another Global run ID or any other exact anchor mismatch is a
-failure. A local failure remains a failed candidate sample even if Global
-passes. A Global failure fails the material cohort. A comparison mismatch is
+Another cohort, another attempt, another Global run ID or any other exact
+anchor mismatch is a failure. A local failure is preserved before the current
+contract permits the single independent C0 Global run; neither material nor
+candidate evidence is accepted. A Global failure fails the material cohort. A comparison mismatch is
 preserved as a failed candidate linkage and does not change canonical
 production routing.
+
+Accepted cohort entries reference all four identity layers and exact local and
+Global run IDs. Maturity distinctness uses `materialInputKey`. Candidate
+operating samples require a passing v2 linkage to the same accepted,
+materially-distinct entry, so a repeat/performance attempt cannot inflate
+distinct-input counts.
 
 ## Managed execution policy
 

@@ -37,7 +37,9 @@
     "qualification:register:toolchain-shadow": "node scripts/register-toolchain-shadow-qualification.cjs",
     "qualification:verify": "node scripts/verify-qualification-evidence.cjs",
     "qualification:gc:plan": "node scripts/plan-qualification-evidence-gc.cjs",
-    "qualification:preflight": "node scripts/preflight-operating-cohort.cjs"
+    "qualification:preflight": "node scripts/preflight-operating-cohort.cjs",
+    "evidence:c0:freeze": "node scripts/freeze-operating-cohort.cjs",
+    "evidence:c0:seal-gates": "node scripts/seal-operating-cohort-gates.cjs"
   },
   "engines": {
     "node": ">=22"

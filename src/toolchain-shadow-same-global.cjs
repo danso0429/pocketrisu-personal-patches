@@ -73,20 +73,41 @@ function buildSameGlobalReference({ localReceipt, materialDeclarationSha256 }) {
         candidateDeclarationSha256: localReceipt.declarationSha256,
         materialDeclarationSha256,
         localReceiptPayloadSha256: localReceipt.integrity.payloadSha256,
+        ...(localReceipt.operatingCohort === undefined ? {} : {
+            materialInputKey: localReceipt.operatingCohort.materialInputKey,
+            cohortId: localReceipt.operatingCohort.cohortId,
+            executionAttemptId: localReceipt.operatingCohort.executionAttemptId,
+            frozenDeclarationSha256: localReceipt.operatingCohort.frozenDeclarationSha256,
+            localRunId: localReceipt.localRunId,
+        }),
         references: localProjectionReferences(localReceipt),
     }
 }
 
 function validateSameGlobalReference(reference) {
-    exactKeys(reference, [
+    const legacyKeys = [
         'schema', 'candidateId', 'candidateDeclarationSha256',
         'materialDeclarationSha256', 'localReceiptPayloadSha256', 'references',
-    ], 'same-Global reference')
+    ]
+    const operatingKeys = [
+        ...legacyKeys, 'materialInputKey', 'cohortId', 'executionAttemptId',
+        'frozenDeclarationSha256', 'localRunId',
+    ]
+    const actualKeys = Object.keys(reference ?? {}).sort()
+    const isOperating = canonicalJson(actualKeys) === canonicalJson(operatingKeys.sort())
+    if (!isOperating && canonicalJson(actualKeys) !== canonicalJson(legacyKeys.sort())) {
+        fail('INVALID_SAME_GLOBAL_EVIDENCE', 'same-Global reference keys differ')
+    }
     if (reference.schema !== REFERENCE_SCHEMA || reference.candidateId !== 'toolchain-hardening') {
         fail('INVALID_LOCAL_REFERENCE', 'Same-Global reference candidate identity is invalid')
     }
     for (const key of ['candidateDeclarationSha256', 'materialDeclarationSha256', 'localReceiptPayloadSha256']) {
         if (!SHA256_PATTERN.test(reference[key] ?? '')) fail('INVALID_LOCAL_REFERENCE', `${key} is invalid`)
+    }
+    if (isOperating) {
+        for (const key of [
+            'materialInputKey', 'cohortId', 'executionAttemptId', 'frozenDeclarationSha256', 'localRunId',
+        ]) if (!SHA256_PATTERN.test(reference[key] ?? '')) fail('INVALID_LOCAL_REFERENCE', `${key} is invalid`)
     }
     exactKeys(reference.references, ['0', '1'], 'same-Global projection references')
     if (Object.values(reference.references).some((value) => !SHA256_PATTERN.test(value ?? ''))) {
@@ -129,6 +150,13 @@ function buildSameGlobalComparison({ reference, visiblePacks, observations }) {
         candidateDeclarationSha256: reference.candidateDeclarationSha256,
         materialDeclarationSha256: reference.materialDeclarationSha256,
         localReceiptPayloadSha256: reference.localReceiptPayloadSha256,
+        ...(reference.cohortId === undefined ? {} : {
+            materialInputKey: reference.materialInputKey,
+            cohortId: reference.cohortId,
+            executionAttemptId: reference.executionAttemptId,
+            frozenDeclarationSha256: reference.frozenDeclarationSha256,
+            localRunId: reference.localRunId,
+        }),
         localReferences: { ...reference.references },
         globalExecutionSource: 'canonical-global-exhaustive-same-execution',
         coverage: {
@@ -145,17 +173,33 @@ function buildSameGlobalComparison({ reference, visiblePacks, observations }) {
 
 function validateSameGlobalComparison(comparison, result) {
     if (comparison === undefined) return true
-    exactKeys(comparison, [
+    const legacyKeys = [
         'schema', 'candidateId', 'candidateBitIndex', 'candidateDeclarationSha256',
         'materialDeclarationSha256', 'localReceiptPayloadSha256', 'localReferences', 'globalExecutionSource',
         'coverage', 'observations', 'mismatches', 'status',
-    ], 'same-Global comparison')
+    ]
+    const operatingKeys = [
+        ...legacyKeys, 'materialInputKey', 'cohortId', 'executionAttemptId',
+        'frozenDeclarationSha256', 'localRunId',
+    ]
+    const actualKeys = Object.keys(comparison ?? {}).sort()
+    const isOperating = canonicalJson(actualKeys) === canonicalJson(operatingKeys.sort())
+    if (!isOperating && canonicalJson(actualKeys) !== canonicalJson(legacyKeys.sort())) {
+        fail('INVALID_SAME_GLOBAL_EVIDENCE', 'same-Global comparison keys differ')
+    }
     const reference = {
         schema: REFERENCE_SCHEMA,
         candidateId: comparison.candidateId,
         candidateDeclarationSha256: comparison.candidateDeclarationSha256,
         materialDeclarationSha256: comparison.materialDeclarationSha256,
         localReceiptPayloadSha256: comparison.localReceiptPayloadSha256,
+        ...(isOperating ? {
+            materialInputKey: comparison.materialInputKey,
+            cohortId: comparison.cohortId,
+            executionAttemptId: comparison.executionAttemptId,
+            frozenDeclarationSha256: comparison.frozenDeclarationSha256,
+            localRunId: comparison.localRunId,
+        } : {}),
         references: comparison.localReferences,
     }
     validateSameGlobalReference(reference)

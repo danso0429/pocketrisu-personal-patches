@@ -13,6 +13,7 @@ const {
 const RETENTION_SCHEMA = 'patch-c0-retention-plan-v1'
 const SHA256_PATTERN = /^[0-9a-f]{64}$/
 const PROTECTED_DISPOSITIONS = new Set([
+    'declared-pending',
     'historical',
     'incomplete',
     'invalid',
@@ -141,8 +142,14 @@ function optionalReference(value, label, references) {
 function extractObjectReferences(document) {
     const references = new Set()
     const schema = document?.schema
-    if (schema === 'patch-c0-evidence-bundle-v1') {
+    if (['patch-c0-evidence-bundle-v1', 'patch-c0-evidence-bundle-v2'].includes(schema)) {
         optionalReference(document.globalReceipt?.objectSha256, 'bundle Global receipt reference', references)
+        optionalReference(document.frozenDeclarationObjectSha256, 'bundle frozen declaration reference', references)
+        optionalReference(document.attemptEvidence?.localEvidenceObjectSha256, 'bundle local evidence reference', references)
+        optionalReference(document.gateEvidence?.focused?.objectSha256, 'bundle focused-gate evidence reference', references)
+        optionalReference(document.gateEvidence?.product?.objectSha256, 'bundle product-gate evidence reference', references)
+        optionalReference(document.attemptEvidence?.globalLaunchClaimObjectSha256,
+            'bundle Global launch claim reference', references)
         for (const gate of [
             ...(document.gates?.focused ?? []),
             document.gates?.global,
@@ -151,16 +158,16 @@ function extractObjectReferences(document) {
             optionalReference(gate.receiptObjectSha256, 'gate receipt reference', references)
             optionalReference(gate.detailsSha256, 'gate detail reference', references)
         }
-    } else if (schema === 'patch-c0-cohort-ledger-v1') {
+    } else if (['patch-c0-cohort-ledger-v1', 'patch-c0-cohort-ledger-v2'].includes(schema)) {
         optionalReference(document.baseLedgerObjectSha256, 'cohort base ledger reference', references)
         for (const entry of document.entries ?? []) optionalReference(entry.objectSha256, 'cohort ledger object reference', references)
-    } else if (schema === 'patch-c0-stable-release-ledger-v1') {
+    } else if (['patch-c0-stable-release-ledger-v1', 'patch-c0-stable-release-ledger-v2'].includes(schema)) {
         optionalReference(document.baseLedgerObjectSha256, 'stable-release base ledger reference', references)
         for (const entry of document.entries ?? []) {
             optionalReference(entry.bundleObjectSha256, 'stable-release bundle reference', references)
             optionalReference(entry.globalReceiptObjectSha256, 'stable-release Global receipt reference', references)
         }
-    } else if (schema === 'patch-c0-incident-record-v1') {
+    } else if (['patch-c0-incident-record-v1', 'patch-c0-incident-record-v2'].includes(schema)) {
         optionalReference(document.previousIncidentSha256, 'previous incident reference', references)
         optionalReference(document.bundleObjectSha256, 'incident bundle reference', references)
         optionalReference(document.firstFailure?.stdoutObjectSha256, 'incident stdout reference', references)
@@ -186,23 +193,49 @@ function extractObjectReferences(document) {
         optionalReference(document.references?.c0BundleObjectSha256, 'pilot C0 bundle reference', references)
     } else if (schema === 'patch-toolchain-shadow-incident-v1') {
         optionalReference(document.pilotReceiptObjectSha256, 'pilot incident receipt reference', references)
-    } else if (schema === 'patch-toolchain-shadow-operating-linkage-v1') {
+    } else if (['patch-toolchain-shadow-operating-linkage-v1', 'patch-toolchain-shadow-operating-linkage-v2'].includes(schema)) {
+        optionalReference(document.references?.frozenDeclarationObjectSha256,
+            'operating linkage frozen declaration reference', references)
         optionalReference(document.references?.localReceiptObjectSha256
             ?? document.localEvidenceObjectSha256, 'operating linkage local reference', references)
         optionalReference(document.references?.globalReceiptObjectSha256
             ?? document.globalReceiptObjectSha256, 'operating linkage Global reference', references)
+        optionalReference(document.references?.c0BundleObjectSha256,
+            'operating linkage C0 bundle reference', references)
+    } else if (schema === 'patch-operating-global-launch-claim-v1') {
+        optionalReference(document.frozenDeclarationObjectSha256,
+            'Global launch claim frozen declaration reference', references)
+    } else if (schema === 'patch-operating-cohort-gate-evidence-v1') {
+        optionalReference(document.frozenDeclarationSha256,
+            'operating gate frozen declaration reference', references)
+        for (const gate of document.gates ?? []) {
+            optionalReference(gate.receiptObjectSha256, 'operating gate receipt reference', references)
+            optionalReference(gate.detailsSha256, 'operating gate detail reference', references)
+        }
+    } else if (schema === 'patch-toolchain-shadow-operating-sample-ledger-v1') {
+        optionalReference(document.baseLedgerObjectSha256,
+            'candidate operating-sample base ledger reference', references)
+        for (const entry of document.entries ?? []) {
+            optionalReference(entry.linkageObjectSha256,
+                'candidate operating-sample linkage reference', references)
+        }
     }
     return [...references].sort()
 }
 
 function objectDisposition(document) {
     if (typeof document?.disposition === 'string') return document.disposition
-    if (document?.schema === 'patch-c0-incident-record-v1') return document.disposition ?? 'unknown'
+    if (['patch-c0-incident-record-v1', 'patch-c0-incident-record-v2'].includes(document?.schema)) {
+        return document.disposition ?? 'unknown'
+    }
     if ([
         'patch-c0-cohort-ledger-v1',
+        'patch-c0-cohort-ledger-v2',
         'patch-c0-stable-release-ledger-v1',
+        'patch-c0-stable-release-ledger-v2',
         'patch-c0-defect-yield-summary-v1',
         'patch-c0-review-trigger-v1',
+        'patch-toolchain-shadow-operating-sample-ledger-v1',
         RETENTION_SCHEMA,
     ].includes(document?.schema)) return 'current-active'
     return 'unknown'
@@ -210,9 +243,13 @@ function objectDisposition(document) {
 
 function automaticallyProtected(document) {
     return PROTECTED_DISPOSITIONS.has(objectDisposition(document))
-        || document?.schema === 'patch-c0-incident-record-v1'
+        || ['patch-c0-incident-record-v1', 'patch-c0-incident-record-v2'].includes(document?.schema)
         || document?.schema === 'patch-toolchain-shadow-incident-v1'
-        || document?.schema === 'patch-c0-stable-release-ledger-v1'
+        || document?.schema === 'patch-toolchain-shadow-local-failure-v1'
+        || ['patch-c0-stable-release-ledger-v1', 'patch-c0-stable-release-ledger-v2',
+            'patch-operating-cohort-frozen-declaration-v1',
+            'patch-operating-cohort-gate-evidence-v1',
+            'patch-operating-global-launch-claim-v1'].includes(document?.schema)
 }
 
 function referenceClosure(seeds, objects, label) {

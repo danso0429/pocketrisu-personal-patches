@@ -20,6 +20,7 @@ const {
 const {
     RECEIPT_DISPOSITIONS,
     buildReceiptRegistry,
+    computeGlobalRunId,
     evaluateExecutionReceipt,
     sealDocument,
     verifyDocumentIntegrity,
@@ -194,6 +195,37 @@ test('sealed accepted receipt verifies independently', () => {
     receipt.execution.stdout = '{}\n'
     assert.equal(verifyDocumentIntegrity(receipt), false)
     assert.equal(evaluateExecutionReceipt(receipt).receiptValid, false)
+})
+
+test('operating Global receipt binds pre-execution material, cohort and attempt identities', () => {
+    const base = executionReceipt()
+    const { integrity: ignored, ...payload } = base
+    const operatingCohort = {
+        materialInputKey: '1'.repeat(64),
+        cohortId: '2'.repeat(64),
+        executionAttemptId: '3'.repeat(64),
+        frozenDeclarationSha256: '4'.repeat(64),
+    }
+    const draft = {
+        ...payload,
+        options: {
+            ...payload.options,
+            operatingRoute: {
+                routeId: 'material-c0-global',
+                materialDeclarationSha256: '5'.repeat(64),
+                decisionSha256: '6'.repeat(64),
+                globalExecutionsExpected: 1,
+                candidateComparisonStatus: 'not-applicable',
+                operatingCohort,
+            },
+        },
+        globalRunId: '0'.repeat(64),
+    }
+    draft.globalRunId = computeGlobalRunId(draft)
+    const receipt = sealDocument(draft)
+    assert.match(receipt.globalRunId, /^[0-9a-f]{64}$/)
+    assert.deepEqual(receipt.options.operatingRoute.operatingCohort, operatingCohort)
+    assert.equal(evaluateExecutionReceipt(receipt).receiptValid, true)
 })
 
 test('resealed stability or command contradictions remain invalid', () => {

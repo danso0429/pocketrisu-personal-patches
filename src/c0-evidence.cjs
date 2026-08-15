@@ -11,6 +11,7 @@ const {
     evaluateExecutionReceipt,
     sealDocument,
     verifyDocumentIntegrity,
+    computeGlobalRunId,
 } = require('./verification-receipts.cjs')
 const {
     validateC0Decision,
@@ -19,8 +20,17 @@ const {
     evidenceObjectBytes,
     objectSha256: evidenceObjectSha256,
 } = require('./c0-retention.cjs')
+const {
+    COHORT_IDENTITY_SCHEMA: OPERATING_COHORT_IDENTITY_SCHEMA,
+    computeEvidenceBundleId,
+    validateFrozenCohortDeclaration,
+    validateGlobalLaunchClaim,
+} = require('./operating-cohort-identity.cjs')
+const { validateLocalShadowReceipt } = require('./toolchain-shadow-local.cjs')
+const { validateOperatingGateEvidence } = require('./operating-cohort-gates.cjs')
 
 const C0_EVIDENCE_SCHEMA = 'patch-c0-evidence-bundle-v1'
+const C0_EVIDENCE_SCHEMA_V2 = 'patch-c0-evidence-bundle-v2'
 const C0_COHORT_IDENTITY_SCHEMA = 'patch-c0-cohort-identity-v1'
 const RESOURCE_MEASUREMENT_SCHEMA = 'patch-c0-resource-measurement-v1'
 const RUN_KINDS = Object.freeze(['production-c0', 'synthetic-known-answer'])
@@ -100,6 +110,12 @@ function finalizeEvidenceBundle(draft) {
             runId,
         },
     })
+}
+
+function finalizeOperatingEvidenceBundle(draft) {
+    const withId = { ...draft, evidenceBundleId: null }
+    const evidenceBundleId = computeEvidenceBundleId(withId)
+    return sealDocument({ ...withId, evidenceBundleId })
 }
 
 function expectedCohortIdentity(authority) {
@@ -398,15 +414,24 @@ function globalCoverageComplete(receipt) {
 
 const C0_SCHEMA_FILES = Object.freeze([
     'schemas/patch-c0-cohort-ledger-v1.schema.json',
+    'schemas/patch-c0-cohort-ledger-v2.schema.json',
     'schemas/patch-c0-defect-yield-summary-v1.schema.json',
     'schemas/patch-c0-evidence-bundle-v1.schema.json',
+    'schemas/patch-c0-evidence-bundle-v2.schema.json',
     'schemas/patch-c0-incident-record-v1.schema.json',
+    'schemas/patch-c0-incident-record-v2.schema.json',
     'schemas/patch-c0-retention-plan-v1.schema.json',
     'schemas/patch-c0-review-trigger-v1.schema.json',
     'schemas/patch-c0-stable-release-ledger-v1.schema.json',
+    'schemas/patch-c0-stable-release-ledger-v2.schema.json',
+    'schemas/patch-operating-cohort-frozen-declaration-v1.schema.json',
+    'schemas/patch-operating-cohort-gate-evidence-v1.schema.json',
     'schemas/patch-operating-cohort-material-declaration-v1.schema.json',
     'schemas/patch-operating-cohort-route-decision-v1.schema.json',
+    'schemas/patch-operating-global-launch-claim-v1.schema.json',
     'schemas/patch-toolchain-shadow-operating-linkage-v1.schema.json',
+    'schemas/patch-toolchain-shadow-operating-linkage-v2.schema.json',
+    'schemas/patch-toolchain-shadow-operating-sample-ledger-v1.schema.json',
 ])
 
 function schemaAuthority(sourceRoot) {
@@ -556,6 +581,169 @@ function buildCorrectness(globalReceipt) {
     }
 }
 
+function operatingBinding(frozenDeclaration, frozenDeclarationObjectSha256) {
+    return {
+        materialInputKey: frozenDeclaration.materialInputKey,
+        cohortId: frozenDeclaration.cohortId,
+        executionAttemptId: frozenDeclaration.executionAttemptId,
+        frozenDeclarationSha256: frozenDeclarationObjectSha256,
+    }
+}
+
+function buildOperatingEvidenceBundle({
+    sourceRoot,
+    globalReceipt,
+    localReceipt,
+    localReceiptObjectSha256,
+    localFailure,
+    localFailureObjectSha256,
+    frozenDeclaration,
+    frozenDeclarationObjectSha256,
+    resources,
+    governanceRepository,
+    governanceCommit,
+    governanceStatusVersion,
+    implementationRepository,
+    runKind,
+    cohortClass,
+    trialId,
+    syntheticMutation,
+    focusedGates,
+    productGates,
+    gateEvidence,
+    globalLaunchClaimObjectSha256,
+    c0Decision,
+    referencedObjectsNewPhysicalBytes,
+    operatingRoute,
+    recordedAt,
+}) {
+    validateFrozenCohortDeclaration(frozenDeclaration)
+    if (evidenceObjectSha256(frozenDeclaration) !== frozenDeclarationObjectSha256) {
+        throw new Error('Frozen declaration object identity mismatch')
+    }
+    const binding = operatingBinding(frozenDeclaration, frozenDeclarationObjectSha256)
+    const combined = operatingRoute?.candidateShadowExpected === true
+    if (!gateEvidence || !/^[0-9a-f]{64}$/.test(gateEvidence.focused?.objectSha256 ?? '')
+        || !/^[0-9a-f]{64}$/.test(gateEvidence.focused?.payloadSha256 ?? '')
+        || !/^[0-9a-f]{64}$/.test(gateEvidence.product?.objectSha256 ?? '')
+        || !/^[0-9a-f]{64}$/.test(gateEvidence.product?.payloadSha256 ?? '')) {
+        throw new Error('Operating gate evidence does not bind the frozen attempt')
+    }
+    if (!/^[0-9a-f]{64}$/.test(globalLaunchClaimObjectSha256 ?? '')) {
+        throw new Error('Operating evidence lacks its durable Global launch claim')
+    }
+    if (canonicalJson(globalReceipt?.options?.operatingRoute?.operatingCohort) !== canonicalJson(binding)
+        || !/^[0-9a-f]{64}$/.test(globalReceipt?.globalRunId ?? '')
+        || computeGlobalRunId(globalReceipt) !== globalReceipt.globalRunId
+        || (combined && ((localReceipt === null) === (localFailure === null)
+            || (localReceipt !== null && (canonicalJson(localReceipt.operatingCohort) !== canonicalJson(binding)
+                || !/^[0-9a-f]{64}$/.test(localReceipt.localRunId ?? '')
+                || localReceipt.declarationSha256 !== frozenDeclaration.candidate.compiledDeclarationSha256
+                || localReceipt.target?.commit !== frozenDeclaration.target.commit
+                || localReceipt.target?.applicationTreeSha256 !== frozenDeclaration.target.applicationTreeSha256
+                || !/^[0-9a-f]{64}$/.test(localReceiptObjectSha256 ?? '')))
+            || (localFailure !== null && (canonicalJson(localFailure.operatingCohort) !== canonicalJson(binding)
+                || !/^[0-9a-f]{64}$/.test(localFailureObjectSha256 ?? '')))))
+        || (!combined && (localReceipt !== null || localReceiptObjectSha256 !== null
+            || localFailure !== null || localFailureObjectSha256 !== null))) {
+        throw new Error('Execution receipts do not bind the exact frozen cohort attempt')
+    }
+    const authority = buildAuthority({
+        sourceRoot,
+        globalReceipt,
+        governanceRepository,
+        governanceCommit,
+        governanceStatusVersion,
+        implementationRepository,
+        operatingRoute,
+    })
+    const correctness = buildCorrectness(globalReceipt)
+    const receiptEncoded = evidenceObjectBytes(globalReceipt)
+    const receiptObjectSha256 = evidenceObjectSha256(globalReceipt)
+    const productionEligible = runKind === 'production-c0'
+    const effectiveDisposition = correctness.status === 'passed'
+        ? globalReceipt.disposition
+        : (globalReceipt.disposition === 'current-active'
+            ? (correctness.status === 'incomplete' ? 'incomplete' : 'defect-reproduction')
+            : globalReceipt.disposition)
+    const comparison = globalReceipt.verifierResult?.toolchainShadowComparison
+    return finalizeOperatingEvidenceBundle({
+        schema: C0_EVIDENCE_SCHEMA_V2,
+        evidenceBundleId: null,
+        disposition: effectiveDisposition,
+        runKind,
+        recordedAt,
+        frozenDeclarationObjectSha256,
+        frozenDeclaration: structuredClone(frozenDeclaration),
+        cohort: {
+            identitySchema: OPERATING_COHORT_IDENTITY_SCHEMA,
+            materialInputKey: frozenDeclaration.materialInputKey,
+            cohortId: frozenDeclaration.cohortId,
+            executionAttemptId: frozenDeclaration.executionAttemptId,
+            trialId,
+            cohortClass,
+            materiallyDistinct: frozenDeclaration.materialClassification.materiallyDistinct,
+            repeatedPerformanceTrial: frozenDeclaration.materialClassification.repeatedPerformanceTrial,
+            productionEligible,
+            syntheticMutation,
+            identity: structuredClone(frozenDeclaration.cohortIdentity),
+        },
+        authority,
+        c0Decision,
+        globalReceipt: {
+            objectSha256: receiptObjectSha256,
+            bytes: receiptEncoded.length,
+            payloadSha256: globalReceipt.integrity.payloadSha256,
+            globalRunId: globalReceipt.globalRunId,
+            accepted: globalReceipt.accepted,
+            disposition: globalReceipt.disposition,
+        },
+        attemptEvidence: {
+            localEvidenceKind: combined ? (localReceipt === null ? 'failure' : 'receipt') : 'none',
+            localEvidenceObjectSha256: localReceiptObjectSha256 ?? localFailureObjectSha256 ?? null,
+            localEvidencePayloadSha256: localReceipt?.integrity?.payloadSha256
+                ?? localFailure?.integrity?.payloadSha256 ?? null,
+            localRunId: localReceipt?.localRunId ?? null,
+            globalReceiptObjectSha256: receiptObjectSha256,
+            globalReceiptPayloadSha256: globalReceipt.integrity.payloadSha256,
+            globalRunId: globalReceipt.globalRunId,
+            globalLaunchClaimObjectSha256,
+            sameGlobalStatus: combined
+                ? (localFailure === null ? (comparison?.status ?? 'failed') : 'failed-local')
+                : 'not-applicable',
+            differentialUnexpectedMismatches: combined ? (comparison?.mismatches ?? null) : null,
+        },
+        gateEvidence: structuredClone(gateEvidence),
+        gates: {
+            focused: focusedGates,
+            global: {
+                name: 'Global Exhaustive',
+                result: correctness.status === 'passed' ? 'passed' : 'failed',
+                receiptObjectSha256,
+                detailsSha256: null,
+            },
+            product: productGates,
+        },
+        correctness,
+        resources: {
+            ...resources,
+            evidenceStorage: {
+                receiptBytes: receiptEncoded.length,
+                referencedObjectsNewPhysicalBytes,
+            },
+        },
+        canonicalProtection: {
+            canonicalGate: 'Global Exhaustive',
+            globalFallbackRetained: true,
+            defaultChanged: false,
+            productionCertificates: 0,
+            canonicalMasksSkipped: 0,
+            productionStateMigration: false,
+            c1Authorized: false,
+        },
+    })
+}
+
 function buildEvidenceBundle({
     sourceRoot,
     globalReceipt,
@@ -572,11 +760,31 @@ function buildEvidenceBundle({
     syntheticMutation = false,
     focusedGates = [],
     productGates = [],
+    gateEvidence = null,
+    globalLaunchClaimObjectSha256 = null,
     c0Decision,
     referencedObjectsNewPhysicalBytes = 0,
     operatingRoute = null,
+    frozenDeclaration = null,
+    frozenDeclarationObjectSha256 = null,
+    localReceipt = null,
+    localReceiptObjectSha256 = null,
+    localFailure = null,
+    localFailureObjectSha256 = null,
     recordedAt = new Date().toISOString(),
 }) {
+    if (frozenDeclaration !== null) {
+        return buildOperatingEvidenceBundle({
+            sourceRoot, globalReceipt, localReceipt, localReceiptObjectSha256,
+            localFailure, localFailureObjectSha256,
+            frozenDeclaration, frozenDeclarationObjectSha256, resources,
+            governanceRepository, governanceCommit, governanceStatusVersion,
+            implementationRepository, runKind, cohortClass, trialId,
+            syntheticMutation, focusedGates, productGates, gateEvidence,
+            globalLaunchClaimObjectSha256, c0Decision,
+            referencedObjectsNewPhysicalBytes, operatingRoute, recordedAt,
+        })
+    }
     const authority = buildAuthority({
         sourceRoot,
         globalReceipt,
@@ -788,7 +996,243 @@ function validateCanonicalProtection(bundle, errors) {
     }
 }
 
-function evaluateC0EvidenceBundle(bundle, { globalReceipt } = {}) {
+function validateOperatingCohort(bundle, receipt, localEvidence, globalLaunchClaim, errors, acceptanceErrors) {
+    const cohort = bundle.cohort
+    if (!exactKeys(cohort, [
+        'identitySchema', 'materialInputKey', 'cohortId', 'executionAttemptId',
+        'trialId', 'cohortClass', 'materiallyDistinct', 'repeatedPerformanceTrial',
+        'productionEligible', 'syntheticMutation', 'identity',
+    ], 'operating cohort', errors)) return
+    if (cohort.identitySchema !== OPERATING_COHORT_IDENTITY_SCHEMA) errors.push('operating cohort identity schema is invalid')
+    for (const key of ['materialInputKey', 'cohortId', 'executionAttemptId']) {
+        validateSha256(cohort[key], `operating cohort ${key}`, errors)
+    }
+    try {
+        validateFrozenCohortDeclaration(bundle.frozenDeclaration)
+    } catch (error) {
+        errors.push(`frozen declaration is invalid: ${error.code ?? error.message}`)
+        return
+    }
+    const frozen = bundle.frozenDeclaration
+    if (bundle.frozenDeclarationObjectSha256 !== evidenceObjectSha256(frozen)) errors.push('frozen declaration object hash mismatch')
+    if (cohort.materialInputKey !== frozen.materialInputKey
+        || cohort.cohortId !== frozen.cohortId
+        || cohort.executionAttemptId !== frozen.executionAttemptId
+        || canonicalJson(cohort.identity) !== canonicalJson(frozen.cohortIdentity)
+        || cohort.materiallyDistinct !== frozen.materialClassification.materiallyDistinct
+        || cohort.repeatedPerformanceTrial !== frozen.materialClassification.repeatedPerformanceTrial) {
+        errors.push('bundle cohort differs from the frozen declaration')
+    }
+    if (bundle.evidenceBundleId !== computeEvidenceBundleId(bundle)) errors.push('evidenceBundleId mismatch')
+    const binding = operatingBinding(frozen, bundle.frozenDeclarationObjectSha256)
+    if (canonicalJson(receipt?.options?.operatingRoute?.operatingCohort) !== canonicalJson(binding)
+        || receipt?.globalRunId !== bundle.globalReceipt?.globalRunId
+        || receipt?.globalRunId !== bundle.attemptEvidence?.globalRunId
+        || computeGlobalRunId(receipt) !== receipt?.globalRunId) {
+        errors.push('Global receipt differs from the frozen execution attempt')
+    }
+    const attempt = bundle.attemptEvidence
+    if (!exactKeys(attempt, [
+        'localEvidenceKind', 'localEvidenceObjectSha256', 'localEvidencePayloadSha256', 'localRunId',
+        'globalReceiptObjectSha256', 'globalReceiptPayloadSha256', 'globalRunId',
+        'globalLaunchClaimObjectSha256', 'sameGlobalStatus', 'differentialUnexpectedMismatches',
+    ], 'attempt evidence', errors)) return
+    for (const key of ['globalReceiptObjectSha256', 'globalReceiptPayloadSha256', 'globalRunId']) {
+        validateSha256(attempt[key], `attempt evidence ${key}`, errors)
+    }
+    validateSha256(attempt.globalLaunchClaimObjectSha256, 'Global launch claim object', errors)
+    try {
+        validateGlobalLaunchClaim(globalLaunchClaim, frozen, bundle.frozenDeclarationObjectSha256)
+        if (evidenceObjectSha256(globalLaunchClaim) !== attempt.globalLaunchClaimObjectSha256) {
+            errors.push('Global launch claim object hash mismatch')
+        }
+    } catch (error) {
+        errors.push(`Global launch claim is invalid: ${error.code ?? error.message}`)
+    }
+    const combined = frozen.route.routeId === 'material-c0-global-plus-toolchain-shadow'
+    if (combined) {
+        for (const key of ['localEvidenceObjectSha256', 'localEvidencePayloadSha256']) {
+            validateSha256(attempt[key], `attempt evidence ${key}`, errors)
+        }
+        const comparison = receipt?.verifierResult?.toolchainShadowComparison
+        if (attempt.localEvidenceKind === 'receipt') {
+            validateSha256(attempt.localRunId, 'attempt evidence localRunId', errors)
+            try { validateLocalShadowReceipt(localEvidence) } catch (error) {
+                errors.push(`local receipt is invalid: ${error.code ?? error.message}`)
+            }
+            if (evidenceObjectSha256(localEvidence) !== attempt.localEvidenceObjectSha256
+                || localEvidence?.integrity?.payloadSha256 !== attempt.localEvidencePayloadSha256
+                || localEvidence?.localRunId !== attempt.localRunId
+                || canonicalJson(localEvidence?.operatingCohort) !== canonicalJson(binding)
+                || localEvidence?.declarationSha256 !== frozen.candidate.compiledDeclarationSha256
+                || localEvidence?.target?.commit !== frozen.target.commit
+                || localEvidence?.target?.applicationTreeSha256 !== frozen.target.applicationTreeSha256
+                || attempt.sameGlobalStatus !== comparison?.status
+                || attempt.differentialUnexpectedMismatches !== comparison?.mismatches
+                || comparison?.materialInputKey !== frozen.materialInputKey
+                || comparison?.cohortId !== frozen.cohortId
+                || comparison?.executionAttemptId !== frozen.executionAttemptId
+                || comparison?.frozenDeclarationSha256 !== bundle.frozenDeclarationObjectSha256
+                || comparison?.localRunId !== attempt.localRunId) {
+                errors.push('same-Global comparison differs from frozen attempt evidence')
+            }
+            if (attempt.sameGlobalStatus !== 'passed'
+                || attempt.differentialUnexpectedMismatches !== 0) {
+                acceptanceErrors.push('candidate same-Global differential did not pass')
+            }
+        } else if (attempt.localEvidenceKind === 'failure') {
+            if (!verifyDocumentIntegrity(localEvidence)
+                || localEvidence?.schema !== 'patch-toolchain-shadow-local-failure-v1'
+                || localEvidence?.status !== 'failed'
+                || evidenceObjectSha256(localEvidence) !== attempt.localEvidenceObjectSha256
+                || localEvidence?.integrity?.payloadSha256 !== attempt.localEvidencePayloadSha256
+                || canonicalJson(localEvidence?.operatingCohort) !== canonicalJson(binding)
+                || attempt.localRunId !== null || attempt.sameGlobalStatus !== 'failed-local'
+                || attempt.differentialUnexpectedMismatches !== null || comparison !== undefined) {
+                errors.push('local failure evidence differs from the frozen attempt')
+            }
+            acceptanceErrors.push('candidate local shadow failed')
+        } else {
+            errors.push('attempt local evidence kind is invalid')
+        }
+    } else if (localEvidence !== null || attempt.localEvidenceKind !== 'none'
+        || attempt.localEvidenceObjectSha256 !== null
+        || attempt.localEvidencePayloadSha256 !== null || attempt.localRunId !== null
+        || attempt.sameGlobalStatus !== 'not-applicable'
+        || attempt.differentialUnexpectedMismatches !== null) {
+        errors.push('Global-only attempt contains local evidence')
+    }
+    const identity = frozen.cohortIdentity
+    if (bundle.authority.governance.commit !== identity.authority.governance.commit
+        || bundle.authority.governance.statusVersion !== identity.authority.governance.statusVersion
+        || bundle.authority.policy.sha256 !== identity.authority.policySha256
+        || bundle.authority.implementation.commit !== identity.verification.tooling.commit
+        || bundle.authority.target.commit !== identity.target.commit
+        || bundle.authority.target.applicationBeforeSha256 !== identity.target.applicationTreeSha256
+        || bundle.authority.workerSchedule.schedule
+            !== identity.canonicalGlobalContract.scheduleHistoryContract.schedule
+        || bundle.authority.workerSchedule.workers
+            !== identity.canonicalGlobalContract.scheduleHistoryContract.jobs.effective
+        || bundle.authority.workerSchedule.historyMode
+            !== identity.canonicalGlobalContract.scheduleHistoryContract.workerHistory
+        || bundle.authority.cacheHistory.cacheMode
+            !== identity.canonicalGlobalContract.scheduleHistoryContract.cacheMode
+        || bundle.authority.cacheHistory.moduleHistoryMode
+            !== identity.canonicalGlobalContract.scheduleHistoryContract.moduleHistoryMode
+        || bundle.authority.cacheHistory.unmanagedHistoryMode
+            !== identity.canonicalGlobalContract.scheduleHistoryContract.unmanagedHistoryMode
+        || receipt?.runtime?.before?.values?.nodeVersion !== identity.environmentContract.nodeVersion
+        || receipt?.runtime?.before?.values?.platform !== identity.environmentContract.platform
+        || receipt?.runtime?.before?.values?.architecture !== identity.environmentContract.architecture) {
+        errors.push('post-execution authority differs from the frozen verification contract')
+    }
+}
+
+function validateOperatingGateReferences(bundle, gateEvidenceDocuments, errors) {
+    if (!exactKeys(bundle.gateEvidence, ['focused', 'product'], 'operating gate evidence references', errors)) return
+    for (const gateKind of ['focused', 'product']) {
+        const reference = bundle.gateEvidence[gateKind]
+        if (!exactKeys(reference, ['objectSha256', 'payloadSha256'], `${gateKind} gate evidence reference`, errors)) continue
+        validateSha256(reference.objectSha256, `${gateKind} gate object`, errors)
+        validateSha256(reference.payloadSha256, `${gateKind} gate payload`, errors)
+        const document = gateEvidenceDocuments?.[gateKind]
+        try {
+            validateOperatingGateEvidence(document, {
+                gateKind,
+                frozenDeclaration: bundle.frozenDeclaration,
+                frozenDeclarationObjectSha256: bundle.frozenDeclarationObjectSha256,
+            })
+            if (evidenceObjectSha256(document) !== reference.objectSha256
+                || document.integrity.payloadSha256 !== reference.payloadSha256
+                || canonicalJson(document.gates) !== canonicalJson(bundle.gates[gateKind])) {
+                errors.push(`${gateKind} gate evidence differs from bundle gates`)
+            }
+        } catch (error) {
+            errors.push(`${gateKind} gate evidence is invalid: ${error.code ?? error.message}`)
+        }
+    }
+}
+
+function evaluateOperatingEvidenceBundle(bundle, globalReceipt, localEvidence,
+    gateEvidenceDocuments, globalLaunchClaim) {
+    const structuralErrors = []
+    const acceptanceErrors = []
+    if (!exactKeys(bundle, [
+        'schema', 'evidenceBundleId', 'disposition', 'runKind', 'recordedAt',
+        'frozenDeclarationObjectSha256', 'frozenDeclaration', 'cohort', 'authority',
+        'c0Decision', 'globalReceipt', 'attemptEvidence', 'gateEvidence', 'gates', 'correctness',
+        'resources', 'canonicalProtection', 'integrity',
+    ], 'C0 operating evidence bundle', structuralErrors)) {
+        return { structuralErrors, acceptanceErrors: ['bundle structure is invalid'], bundleValid: false, operatingEvidenceAccepted: false }
+    }
+    if (bundle.schema !== C0_EVIDENCE_SCHEMA_V2) structuralErrors.push('unsupported operating evidence schema')
+    if (!RECEIPT_DISPOSITIONS.includes(bundle.disposition)) structuralErrors.push('unknown C0 evidence disposition')
+    if (!RUN_KINDS.includes(bundle.runKind)) structuralErrors.push('unknown C0 evidence run kind')
+    if (!validCanonicalTimestamp(bundle.recordedAt)) structuralErrors.push('C0 evidence timestamp is missing or noncanonical')
+    if (!verifyDocumentIntegrity(bundle)) structuralErrors.push('C0 evidence integrity mismatch')
+    validateSha256(bundle.evidenceBundleId, 'evidenceBundleId', structuralErrors)
+    validateSha256(bundle.frozenDeclarationObjectSha256, 'frozen declaration object hash', structuralErrors)
+    if (!globalReceipt || typeof globalReceipt !== 'object') {
+        structuralErrors.push('referenced Global receipt is missing')
+        return { structuralErrors, acceptanceErrors: ['Global receipt is missing'], bundleValid: false, operatingEvidenceAccepted: false }
+    }
+    if (!exactKeys(bundle.globalReceipt, [
+        'objectSha256', 'bytes', 'payloadSha256', 'globalRunId', 'accepted', 'disposition',
+    ], 'Global receipt reference', structuralErrors)) {
+        return { structuralErrors, acceptanceErrors: ['Global receipt reference is invalid'], bundleValid: false, operatingEvidenceAccepted: false }
+    }
+    const encodedReceipt = evidenceObjectBytes(globalReceipt)
+    if (bundle.globalReceipt.objectSha256 !== evidenceObjectSha256(globalReceipt)) structuralErrors.push('Global receipt object hash mismatch')
+    if (bundle.globalReceipt.bytes !== encodedReceipt.length) structuralErrors.push('Global receipt object byte count mismatch')
+    if (bundle.globalReceipt.payloadSha256 !== globalReceipt?.integrity?.payloadSha256) structuralErrors.push('Global receipt payload hash mismatch')
+    if (bundle.globalReceipt.disposition !== globalReceipt?.disposition) structuralErrors.push('Global receipt disposition mismatch')
+    const receiptEvaluation = evaluateExecutionReceipt(globalReceipt)
+    if (bundle.globalReceipt.accepted !== receiptEvaluation.executionAccepted) structuralErrors.push('Global receipt accepted flag mismatch')
+    structuralErrors.push(...receiptEvaluation.structuralErrors.map((error) => `Global receipt: ${error}`))
+    try { validateC0Decision(bundle.c0Decision) } catch (error) {
+        structuralErrors.push(`C0 decision is invalid: ${error.code ?? error.message}`)
+    }
+    validateAuthority(bundle, globalReceipt, structuralErrors)
+    validateOperatingCohort(bundle, globalReceipt, localEvidence, globalLaunchClaim,
+        structuralErrors, acceptanceErrors)
+    validateOperatingGateReferences(bundle, gateEvidenceDocuments, structuralErrors)
+    validateGates(bundle, structuralErrors)
+    if (bundle.gates?.focused?.some((gate) =>
+        !['passed', 'not-applicable'].includes(gate?.result))) {
+        acceptanceErrors.push('focused gates did not satisfy the material execution contract')
+    }
+    validateCorrectness(bundle, globalReceipt, receiptEvaluation, structuralErrors, acceptanceErrors)
+    validateResources(bundle, globalReceipt, structuralErrors)
+    validateCanonicalProtection(bundle, structuralErrors)
+    if (bundle.runKind === 'synthetic-known-answer') acceptanceErrors.push('synthetic known-answer is not production operating evidence')
+    const bundleValid = structuralErrors.length === 0
+    return {
+        structuralErrors,
+        acceptanceErrors,
+        bundleValid,
+        operatingEvidenceAccepted: bundleValid && acceptanceErrors.length === 0,
+    }
+}
+
+function evaluateC0EvidenceBundle(bundle, {
+    globalReceipt,
+    localReceipt = null,
+    localFailure = null,
+    gateEvidenceDocuments = null,
+    globalLaunchClaim = null,
+} = {}) {
+    if (bundle?.schema === C0_EVIDENCE_SCHEMA_V2) {
+        if (localReceipt !== null && localFailure !== null) {
+            return {
+                structuralErrors: ['both local receipt and local failure were supplied'],
+                acceptanceErrors: ['local evidence is ambiguous'],
+                bundleValid: false,
+                operatingEvidenceAccepted: false,
+            }
+        }
+        return evaluateOperatingEvidenceBundle(bundle, globalReceipt,
+            localReceipt ?? localFailure, gateEvidenceDocuments, globalLaunchClaim)
+    }
     const structuralErrors = []
     const acceptanceErrors = []
     if (!exactKeys(bundle, [
@@ -867,6 +1311,7 @@ function requiredExitCode(evaluation, { allowSynthetic = false } = {}) {
 module.exports = {
     C0_COHORT_IDENTITY_SCHEMA,
     C0_EVIDENCE_SCHEMA,
+    C0_EVIDENCE_SCHEMA_V2,
     COHORT_CLASSES,
     RESOURCE_MEASUREMENT_SCHEMA,
     RUN_KINDS,
@@ -876,10 +1321,12 @@ module.exports = {
     buildEvidenceBundle,
     cacheHistoryAuthority,
     computeCohortId,
+    computeEvidenceBundleId,
     computeRunId,
     evaluateC0EvidenceBundle,
     expectedCohortIdentity,
     finalizeEvidenceBundle,
+    finalizeOperatingEvidenceBundle,
     globalCoverageComplete,
     requiredExitCode,
     runtimeSemanticIdentity,

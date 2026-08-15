@@ -25,6 +25,12 @@ function resealReceipt(receipt) {
 test('known-answer local route executes exact off/on masks across all boundaries', async () => {
     const target = syntheticTarget()
     try {
+        const operatingCohort = {
+            materialInputKey: '1'.repeat(64),
+            cohortId: '2'.repeat(64),
+            executionAttemptId: '3'.repeat(64),
+            frozenDeclarationSha256: '4'.repeat(64),
+        }
         const receipt = await runFreshLocalShadow({
             sourceRoot: ROOT,
             targetRoot: target.root,
@@ -32,6 +38,7 @@ test('known-answer local route executes exact off/on masks across all boundaries
             disposition: 'synthetic-known-answer',
             compiledContract: target.compiled,
             recordedAt: '2026-08-15T00:00:00.000Z',
+            operatingCohort,
         })
         assert.equal(receipt.status, 'passed')
         assert.deepEqual(receipt.coverage, {
@@ -42,6 +49,9 @@ test('known-answer local route executes exact off/on masks across all boundaries
         assert.ok(receipt.observations.every((entry) => entry.restoration.restored))
         assert.equal(receipt.candidate.productionClass, 'G')
         assert.equal(receipt.canonicalProtection.canonicalMasksSkipped, 0)
+        assert.deepEqual(receipt.operatingCohort, operatingCohort)
+        assert.match(receipt.localRunId, /^[0-9a-f]{64}$/)
+        assert.equal(validateLocalShadowReceipt(receipt), receipt)
     } finally {
         fs.rmSync(target.root, { recursive: true, force: true })
     }

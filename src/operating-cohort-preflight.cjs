@@ -126,6 +126,22 @@ function qualificationStateFrom(verified, expectation) {
     }
 }
 
+function acceptedQualificationIdentity(verified, identity) {
+    const finalManifest = verified.qualification?.finalManifest ?? verified.finalManifest
+    const effectiveEntry = verified.effectiveEntry
+    const result = {
+        storeIdentityHash: identity.storeIdentityHash,
+        registryDescriptorSha256: verified.registryDescriptorSha256,
+        registryRootSha256: verified.registryRootSha256,
+        finalManifestDescriptorSha256: effectiveEntry?.qualificationManifestDescriptorSha256,
+        finalManifestPayloadSha256: sha256(canonicalJsonBytes(finalManifest)),
+    }
+    if (Object.values(result).some((value) => !/^[0-9a-f]{64}$/.test(value ?? ''))) {
+        fail('QUALIFICATION_IDENTITY_INCOMPLETE', 'Accepted qualification identity is incomplete')
+    }
+    return result
+}
+
 function nestedSpawnUnavailable(error) {
     if (error?.code !== 'INDEPENDENT_DERIVATION_FAILED') return false
     const detail = JSON.stringify(error.details ?? {})
@@ -227,6 +243,9 @@ function runPreflight({ storeRoot, expectation, checkedAt, subjectRoot, dependen
         code: report.durableError.code ?? 'UNKNOWN', message: report.durableError.message,
         classification: 'accepted-qualification-state',
     })
+    const acceptedIdentity = qualificationState.accepted && identity !== null
+        ? acceptedQualificationIdentity(durable, identity)
+        : null
     report = {
         schema: PREFLIGHT_SCHEMA,
         checkedAt,
@@ -238,6 +257,7 @@ function runPreflight({ storeRoot, expectation, checkedAt, subjectRoot, dependen
         reason,
         registryDescriptorSha256: durable?.registryDescriptorSha256 ?? null,
         registryRootSha256: durable?.registryRootSha256 ?? null,
+        qualificationIdentity: acceptedIdentity,
         subject: expected.qualification.subject,
         route: {
             routeId: decision.routeId,

@@ -27,6 +27,19 @@ function localReceipt() {
     }
 }
 
+function operatingLocalReceipt() {
+    return {
+        ...localReceipt(),
+        operatingCohort: {
+            materialInputKey: '6'.repeat(64),
+            cohortId: '7'.repeat(64),
+            executionAttemptId: '8'.repeat(64),
+            frozenDeclarationSha256: '9'.repeat(64),
+        },
+        localRunId: 'a'.repeat(64),
+    }
+}
+
 function canonicalResult(comparison) {
     return {
         visiblePacks: ['base', 'toolchain-hardening'],
@@ -90,4 +103,31 @@ test('same-Global mismatch remains an explicit failed candidate comparison', () 
     assert.equal(comparison.status, 'failed')
     assert.equal(comparison.mismatches, 1)
     assert.deepEqual(validateVerificationResult('global-exhaustive', canonicalResult(comparison)), [])
+})
+
+test('same-Global reference and comparison preserve exact frozen attempt identity', () => {
+    const local = operatingLocalReceipt()
+    const reference = buildSameGlobalReference({
+        localReceipt: local,
+        materialDeclarationSha256: '5'.repeat(64),
+    })
+    const observations = Array.from({ length: 4 }, (_, mask) => {
+        const candidateMask = Math.floor(mask / 2) % 2
+        return {
+            mask,
+            candidateMask,
+            projectionSha256: reference.references[String(candidateMask)],
+            matchesLocal: true,
+        }
+    })
+    const comparison = buildSameGlobalComparison({
+        reference,
+        visiblePacks: ['base', 'toolchain-hardening'],
+        observations,
+    })
+    for (const field of ['materialInputKey', 'cohortId', 'executionAttemptId',
+        'frozenDeclarationSha256', 'localRunId']) {
+        assert.equal(comparison[field], reference[field])
+    }
+    assert.equal(validateSameGlobalComparison(comparison, canonicalResult(comparison)), comparison)
 })

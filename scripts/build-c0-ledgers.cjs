@@ -8,10 +8,12 @@ const {
 } = require('../src/c0-evidence.cjs')
 const {
     buildCohortLedger,
+    buildCandidateOperatingSampleLedger,
     buildDefectYieldSummary,
     buildStableReleaseLedger,
     objectSha256,
     validateIncidentChain,
+    validateIncidentBundleBinding,
 } = require('../src/c0-ledgers.cjs')
 const {
     writeJsonAtomic,
@@ -27,6 +29,7 @@ function parseArgs(argv) {
         globalReceipts: [],
         stableReleaseInputs: [],
         incidents: [],
+        candidateLinkages: [],
     }
     for (let index = 2; index < argv.length; index += 1) {
         const argument = argv[index]
@@ -36,11 +39,14 @@ function parseArgs(argv) {
         else if (argument === '--global-receipt') options.globalReceipts.push(value)
         else if (argument === '--stable-release') options.stableReleaseInputs.push(value)
         else if (argument === '--incident') options.incidents.push(value)
+        else if (argument === '--candidate-linkage') options.candidateLinkages.push(value)
         else if (argument === '--base-cohort-ledger') options.baseCohortLedger = value
         else if (argument === '--base-stable-release-ledger') options.baseStableReleaseLedger = value
         else if (argument === '--cohort-ledger-out') options.cohortLedgerOut = value
         else if (argument === '--stable-release-ledger-out') options.stableReleaseLedgerOut = value
         else if (argument === '--defect-yield-out') options.defectYieldOut = value
+        else if (argument === '--base-candidate-sample-ledger') options.baseCandidateSampleLedger = value
+        else if (argument === '--candidate-sample-ledger-out') options.candidateSampleLedgerOut = value
         else if (argument === '--store') options.store = value
         else throw new Error(`Unknown argument: ${argument}`)
     }
@@ -54,7 +60,11 @@ function parseArgs(argv) {
     if (options.incidents.length > 0 && !options.defectYieldOut) {
         throw new Error('--defect-yield-out is required when --incident is used')
     }
-    const outputs = [options.cohortLedgerOut, options.stableReleaseLedgerOut, options.defectYieldOut].filter(Boolean)
+    if (options.candidateLinkages.length > 0 && !options.candidateSampleLedgerOut) {
+        throw new Error('--candidate-sample-ledger-out is required when --candidate-linkage is used')
+    }
+    const outputs = [options.cohortLedgerOut, options.stableReleaseLedgerOut,
+        options.defectYieldOut, options.candidateSampleLedgerOut].filter(Boolean)
     if (new Set(outputs).size !== outputs.length) throw new Error('Ledger outputs must be distinct')
     for (const output of outputs) {
         if (!fs.existsSync(path.dirname(output))) throw new Error(`Output parent does not exist: ${path.dirname(output)}`)
@@ -98,7 +108,24 @@ function main(argv = process.argv) {
     const bundles = options.bundles.map(readJson)
     const receipts = options.globalReceipts.map(readJson)
     for (let index = 0; index < bundles.length; index += 1) {
-        const evaluation = evaluateC0EvidenceBundle(bundles[index], { globalReceipt: receipts[index] })
+        const bundle = bundles[index]
+        const operating = bundle.schema === 'patch-c0-evidence-bundle-v2'
+        const localEvidence = operating && bundle.attemptEvidence.localEvidenceObjectSha256 !== null
+            ? loadEvidenceObject(options.store, bundle.attemptEvidence.localEvidenceObjectSha256).document
+            : null
+        const gateEvidenceDocuments = operating ? {
+            focused: loadEvidenceObject(options.store, bundle.gateEvidence.focused.objectSha256).document,
+            product: loadEvidenceObject(options.store, bundle.gateEvidence.product.objectSha256).document,
+        } : null
+        const globalLaunchClaim = operating
+            ? loadEvidenceObject(options.store, bundle.attemptEvidence.globalLaunchClaimObjectSha256).document
+            : null
+        const evaluation = evaluateC0EvidenceBundle(bundle, {
+            globalReceipt: receipts[index], gateEvidenceDocuments, globalLaunchClaim,
+            ...(bundle.attemptEvidence?.localEvidenceKind === 'failure'
+                ? { localFailure: localEvidence }
+                : { localReceipt: localEvidence }),
+        })
         if (!evaluation.bundleValid) {
             throw new Error(`C0 bundle ${options.bundles[index]} is invalid: ${evaluation.structuralErrors.join('; ')}`)
         }
@@ -120,17 +147,40 @@ function main(argv = process.argv) {
         const incidents = options.incidents.map(readJson)
         const evaluation = validateIncidentChain(incidents)
         if (!evaluation.valid) throw new Error(`Incident chain is invalid: ${evaluation.errors.join('; ')}`)
-        for (const incident of incidents) loadEvidenceObject(options.store, objectSha256(incident))
+        for (let index = 0; index < incidents.length; index += 1) {
+            const incident = incidents[index]
+            loadEvidenceObject(options.store, objectSha256(incident))
+            if (incident.schema === 'patch-c0-incident-record-v2') {
+                const incidentBundle = loadEvidenceObject(options.store,
+                    incident.bundleObjectSha256).document
+                validateIncidentBundleBinding(incident, incidentBundle, {
+                    previousRecord: index === 0 ? null : incidents[index - 1],
+                })
+            }
+        }
         defectYield = buildDefectYieldSummary(cohortLedger, incidents)
+    }
+    let candidateSampleLedger = null
+    if (options.candidateSampleLedgerOut) {
+        const linkages = options.candidateLinkages.map((file) => {
+            const linkage = readJson(file)
+            return { linkage, linkageObjectSha256: objectSha256(linkage) }
+        })
+        for (const record of linkages) loadEvidenceObject(options.store, record.linkageObjectSha256)
+        const base = options.baseCandidateSampleLedger ? readJson(options.baseCandidateSampleLedger) : null
+        candidateSampleLedger = buildCandidateOperatingSampleLedger(linkages, cohortLedger, { baseLedger: base })
     }
     const publications = {
         cohortLedger: publishEvidenceObject(options.store, cohortLedger),
         stableReleaseLedger: stableReleaseLedger === null ? null : publishEvidenceObject(options.store, stableReleaseLedger),
         defectYield: defectYield === null ? null : publishEvidenceObject(options.store, defectYield),
+        candidateSampleLedger: candidateSampleLedger === null
+            ? null : publishEvidenceObject(options.store, candidateSampleLedger),
     }
     writeJsonAtomic(options.cohortLedgerOut, cohortLedger)
     if (stableReleaseLedger !== null) writeJsonAtomic(options.stableReleaseLedgerOut, stableReleaseLedger)
     if (defectYield !== null) writeJsonAtomic(options.defectYieldOut, defectYield)
+    if (candidateSampleLedger !== null) writeJsonAtomic(options.candidateSampleLedgerOut, candidateSampleLedger)
     const result = {
         schema: 'patch-c0-ledger-build-result-v1',
         cohortLedger: {
@@ -148,6 +198,11 @@ function main(argv = process.argv) {
             objectSha256: objectSha256(defectYield),
             confirmedProductionDefects: defectYield.confirmedProductionDefects,
             syntheticIncidentsExcluded: defectYield.syntheticIncidentsExcluded,
+        },
+        candidateSampleLedger: candidateSampleLedger === null ? null : {
+            file: options.candidateSampleLedgerOut,
+            objectSha256: objectSha256(candidateSampleLedger),
+            entries: candidateSampleLedger.entries.length,
         },
         publications,
     }

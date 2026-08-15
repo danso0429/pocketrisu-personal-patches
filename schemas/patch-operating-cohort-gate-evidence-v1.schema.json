@@ -1,0 +1,35 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://pocketrisu.local/schemas/patch-operating-cohort-gate-evidence-v1.schema.json",
+  "title": "PocketRisu frozen-attempt gate evidence v1",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schema", "gateKind", "materialInputKey", "cohortId", "executionAttemptId", "frozenDeclarationSha256", "recordedAt", "gates", "disposition", "integrity"],
+  "properties": {
+    "schema": { "const": "patch-operating-cohort-gate-evidence-v1" },
+    "gateKind": { "enum": ["focused", "product"] },
+    "materialInputKey": { "$ref": "#/$defs/hash" },
+    "cohortId": { "$ref": "#/$defs/hash" },
+    "executionAttemptId": { "$ref": "#/$defs/hash" },
+    "frozenDeclarationSha256": { "$ref": "#/$defs/hash" },
+    "recordedAt": { "type": "string", "format": "date-time" },
+    "gates": {
+      "type": "array",
+      "minItems": 1,
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["name", "result", "receiptObjectSha256", "detailsSha256"],
+        "properties": {
+          "name": { "type": "string", "minLength": 1 },
+          "result": { "enum": ["passed", "failed", "incomplete", "not-run", "not-applicable"] },
+          "receiptObjectSha256": { "oneOf": [{ "$ref": "#/$defs/hash" }, { "type": "null" }] },
+          "detailsSha256": { "oneOf": [{ "$ref": "#/$defs/hash" }, { "type": "null" }] }
+        }
+      }
+    },
+    "disposition": { "const": "attempt-gate-evidence" },
+    "integrity": { "type": "object" }
+  },
+  "$defs": { "hash": { "type": "string", "pattern": "^[0-9a-f]{64}$" } }
+}

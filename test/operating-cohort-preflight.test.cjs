@@ -273,6 +273,7 @@ function acceptedVerification(overrides = {}) {
         effectiveEntry: {
             action: 'accept', disposition: 'accepted-qualification',
             qualificationType: 'toolchain-hardening-shadow-pilot-closure',
+            qualificationManifestDescriptorSha256: '7'.repeat(64),
             operatingCounts: { ...OPERATING_COUNTS },
         },
         qualification: {

@@ -28,6 +28,7 @@ const {
     sha256,
     targetFreezeDescriptor,
 } = require('./verification-evidence.cjs')
+const { canonicalSha256 } = require('./operating-cohort-identity.cjs')
 
 const LOCAL_RECEIPT_SCHEMA = 'patch-toolchain-shadow-local-receipt-v1'
 const DISPOSITIONS = Object.freeze(['synthetic-known-answer', 'dry-run', 'material-shadow', 'defect-reproduction'])
@@ -118,6 +119,18 @@ function validateLocalShadowReceipt(receipt) {
     }
     if (!DISPOSITIONS.includes(receipt.disposition)) {
         throw new ToolchainShadowLocalError('UNKNOWN_LOCAL_DISPOSITION', 'Local receipt disposition is invalid')
+    }
+    if (receipt.operatingCohort !== undefined) {
+        const binding = receipt.operatingCohort
+        if (canonicalJson(Object.keys(binding).sort()) !== canonicalJson([
+            'cohortId', 'executionAttemptId', 'frozenDeclarationSha256', 'materialInputKey',
+        ]) || Object.values(binding).some((value) => !/^[0-9a-f]{64}$/.test(value ?? ''))
+            || !/^[0-9a-f]{64}$/.test(receipt.localRunId ?? '')
+            || receipt.localRunId !== computeLocalRunId(receipt)) {
+            throw new ToolchainShadowLocalError('LOCAL_COHORT_BINDING_MISMATCH', 'Local receipt does not bind one frozen execution attempt')
+        }
+    } else if (receipt.localRunId !== undefined) {
+        throw new ToolchainShadowLocalError('LOCAL_COHORT_BINDING_MISMATCH', 'Unbound local receipt contains a run ID')
     }
     if (canonicalJson(receipt.candidate) !== canonicalJson({
         packId: 'toolchain-hardening',
@@ -257,6 +270,14 @@ function sealMeasuredReceipt(payload) {
     throw new ToolchainShadowLocalError('UNSTABLE_RECEIPT_MEASUREMENT', 'Receipt byte measurement did not stabilize')
 }
 
+function computeLocalRunId(receipt) {
+    const { integrity, ...payload } = receipt
+    return canonicalSha256({
+        schema: 'patch-toolchain-shadow-local-run-identity-v1',
+        receipt: { ...payload, localRunId: null },
+    })
+}
+
 async function runFreshLocalShadow({
     sourceRoot,
     targetRoot,
@@ -266,6 +287,7 @@ async function runFreshLocalShadow({
     recordedAt = new Date().toISOString(),
     syntheticFault = null,
     buildBoundaryObserver = observeBuildBoundary,
+    operatingCohort = null,
 }) {
     if (!DISPOSITIONS.includes(disposition)) {
         throw new ToolchainShadowLocalError('UNKNOWN_LOCAL_DISPOSITION', `Unknown disposition ${disposition}`)
@@ -348,11 +370,20 @@ async function runFreshLocalShadow({
     if (sha256(canonicalJson(targetBefore)) !== sha256(canonicalJson(targetAfter))) {
         throw new ToolchainShadowLocalError('TARGET_INTEGRITY_FAILURE', 'Source target changed during local shadow')
     }
+    if (operatingCohort !== null && (canonicalJson(Object.keys(operatingCohort).sort()) !== canonicalJson([
+        'cohortId', 'executionAttemptId', 'frozenDeclarationSha256', 'materialInputKey',
+    ]) || Object.values(operatingCohort).some((value) => !/^[0-9a-f]{64}$/.test(value ?? '')))) {
+        throw new ToolchainShadowLocalError('LOCAL_COHORT_BINDING_MISMATCH', 'Local execution cohort binding is invalid')
+    }
     const payload = {
         schema: LOCAL_RECEIPT_SCHEMA,
         status: 'passed',
         disposition,
         recordedAt,
+        ...(operatingCohort === null ? {} : {
+            operatingCohort: structuredClone(operatingCohort),
+            localRunId: '0'.repeat(64),
+        }),
         candidate: {
             packId: 'toolchain-hardening',
             productionClass: 'G',
@@ -416,7 +447,11 @@ async function runFreshLocalShadow({
             c1Authorized: false,
         },
     }
-    const receipt = sealMeasuredReceipt(payload)
+    let receipt = sealMeasuredReceipt(payload)
+    if (operatingCohort !== null) {
+        payload.localRunId = computeLocalRunId(receipt)
+        receipt = sealMeasuredReceipt(payload)
+    }
     return validateLocalShadowReceipt(receipt)
 }
 
@@ -426,5 +461,6 @@ module.exports = {
     SYNTHETIC_FAULTS,
     ToolchainShadowLocalError,
     runFreshLocalShadow,
+    computeLocalRunId,
     validateLocalShadowReceipt,
 }
