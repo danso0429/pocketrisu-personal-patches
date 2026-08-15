@@ -296,6 +296,12 @@ function validateCapabilityAccess(access, declaration) {
         }
         return access
     }
+    if (access.kind === 'process-global'
+        && access.mode === 'read' && access.resource === 'manager-pid') return access
+    if (access.kind === 'randomness'
+        && access.mode === 'read' && access.resource === 'manager-transaction-token') return access
+    if (access.kind === 'time'
+        && access.mode === 'read' && access.resource === 'manager-transaction-timestamp') return access
     const code = {
         environment: 'UNDECLARED_ENVIRONMENT_ACCESS',
         network: 'UNDECLARED_NETWORK_ACCESS',

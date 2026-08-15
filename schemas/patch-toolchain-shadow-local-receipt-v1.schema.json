@@ -1,0 +1,61 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://pocketrisu.local/schemas/patch-toolchain-shadow-local-receipt-v1.schema.json",
+  "title": "PocketRisu toolchain-hardening fresh local shadow receipt v1",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema",
+    "status",
+    "disposition",
+    "recordedAt",
+    "candidate",
+    "declarationSha256",
+    "target",
+    "component",
+    "boundaryClasses",
+    "coverage",
+    "observations",
+    "isolation",
+    "resources",
+    "canonicalProtection",
+    "integrity"
+  ],
+  "properties": {
+    "schema": { "const": "patch-toolchain-shadow-local-receipt-v1" },
+    "status": { "enum": ["passed", "failed"] },
+    "disposition": { "enum": ["synthetic-known-answer", "dry-run", "material-shadow", "defect-reproduction"] },
+    "recordedAt": { "type": "string", "format": "date-time" },
+    "candidate": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["packId", "productionClass", "shadowClass", "admission"],
+      "properties": {
+        "packId": { "const": "toolchain-hardening" },
+        "productionClass": { "const": "G" },
+        "shadowClass": { "const": "B" },
+        "admission": { "const": "not-production-admitted" }
+      }
+    },
+    "declarationSha256": { "type": "string", "pattern": "^[0-9a-f]{64}$" },
+    "target": { "type": "object" },
+    "component": { "type": "object" },
+    "boundaryClasses": { "type": "array", "minItems": 4, "maxItems": 4, "uniqueItems": true },
+    "coverage": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["localMasks", "boundaryClasses", "expectedExecutions", "processedExecutions"],
+      "properties": {
+        "localMasks": { "const": 2 },
+        "boundaryClasses": { "const": 4 },
+        "expectedExecutions": { "const": 8 },
+        "processedExecutions": { "const": 8 }
+      }
+    },
+    "observations": { "type": "array", "minItems": 8, "maxItems": 8 },
+    "isolation": { "type": "object" },
+    "resources": { "type": "object" },
+    "canonicalProtection": { "type": "object" },
+    "integrity": { "type": "object" }
+  }
+}

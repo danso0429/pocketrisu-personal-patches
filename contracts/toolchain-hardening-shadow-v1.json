@@ -178,7 +178,10 @@
       "filesystem:read-write-delete:three-managed-target-paths",
       "state:read-write-delete:isolated-patcher-metadata",
       "symbol:localStorage:typed-boundary",
-      "module:vitest-happy-dom-katex:target-test-bootstrap"
+      "module:vitest-happy-dom-katex:target-test-bootstrap",
+      "process-global:read:manager-pid",
+      "randomness:read:manager-transaction-token",
+      "time:read:manager-transaction-timestamp"
     ],
     "denied": [
       "environment:undeclared",
@@ -214,5 +217,5 @@
     "canonicalMasksSkipped": 0,
     "c1Authorized": false
   },
-  "declarationSha256": "96d1e6513aa2d73521762c3ecf270c6c0bede44ff18f21b454cb4c3735c82e44"
+  "declarationSha256": "1aa7e066aa33648e572e6c88033f3c540b2a7a8edebb12248eb853328d990330"
 }
