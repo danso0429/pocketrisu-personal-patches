@@ -7,6 +7,9 @@ const {
     evaluateC0EvidenceBundle,
     requiredExitCode,
 } = require('../src/c0-evidence.cjs')
+const {
+    loadEvidenceObject,
+} = require('../src/c0-retention.cjs')
 
 function parseArgs(argv) {
     const values = argv.slice(2)
@@ -17,28 +20,38 @@ function parseArgs(argv) {
             options.allowSynthetic = true
             continue
         }
-        if (!['--bundle', '--global-receipt'].includes(value) || index + 1 >= values.length) {
-            throw new Error('Usage: verify-c0-evidence.cjs --bundle BUNDLE.json --global-receipt RECEIPT.json [--allow-synthetic-known-answer]')
+        if (!['--bundle', '--bundle-object', '--global-receipt', '--store'].includes(value) || index + 1 >= values.length) {
+            throw new Error('Usage: verify-c0-evidence.cjs (--bundle BUNDLE.json | --bundle-object SHA256 --store STORE) [--global-receipt RECEIPT.json | --store STORE] [--allow-synthetic-known-answer]')
         }
-        const key = value === '--bundle' ? 'bundle' : 'globalReceipt'
+        const key = {
+            '--bundle': 'bundle',
+            '--bundle-object': 'bundleObject',
+            '--global-receipt': 'globalReceipt',
+            '--store': 'store',
+        }[value]
         if (options[key]) throw new Error(`Duplicate argument: ${value}`)
-        options[key] = path.resolve(values[index + 1])
+        options[key] = key === 'bundleObject' ? values[index + 1] : path.resolve(values[index + 1])
         index += 1
     }
-    if (!options.bundle || !options.globalReceipt) {
-        throw new Error('Both --bundle and --global-receipt are required')
-    }
+    if ((options.bundle ? 1 : 0) + (options.bundleObject ? 1 : 0) !== 1) throw new Error('Exactly one of --bundle or --bundle-object is required')
+    if (options.bundleObject && !options.store) throw new Error('--bundle-object requires --store')
+    if (!options.globalReceipt && !options.store) throw new Error('Either --global-receipt or --store is required')
     return options
 }
 
 function main(argv = process.argv) {
     const options = parseArgs(argv)
-    const bundle = JSON.parse(fs.readFileSync(options.bundle, 'utf8'))
-    const globalReceipt = JSON.parse(fs.readFileSync(options.globalReceipt, 'utf8'))
+    const bundleRecord = options.bundleObject
+        ? loadEvidenceObject(options.store, options.bundleObject)
+        : null
+    const bundle = bundleRecord?.document ?? JSON.parse(fs.readFileSync(options.bundle, 'utf8'))
+    const globalReceipt = options.globalReceipt
+        ? JSON.parse(fs.readFileSync(options.globalReceipt, 'utf8'))
+        : loadEvidenceObject(options.store, bundle.globalReceipt.objectSha256).document
     const evaluation = evaluateC0EvidenceBundle(bundle, { globalReceipt })
     process.stdout.write(`${JSON.stringify({
-        bundle: options.bundle,
-        globalReceipt: options.globalReceipt,
+        bundle: options.bundle ?? `sha256:${options.bundleObject}`,
+        globalReceipt: options.globalReceipt ?? `sha256:${bundle.globalReceipt.objectSha256}`,
         runKind: bundle.runKind ?? null,
         disposition: bundle.disposition ?? null,
         ...evaluation,

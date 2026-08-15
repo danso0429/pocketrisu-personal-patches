@@ -16,6 +16,10 @@ const {
 const {
     writeJsonAtomic,
 } = require('../src/verification-evidence.cjs')
+const {
+    loadEvidenceObject,
+    publishEvidenceObject,
+} = require('../src/c0-retention.cjs')
 
 function parseArgs(argv) {
     const options = {
@@ -37,9 +41,10 @@ function parseArgs(argv) {
         else if (argument === '--cohort-ledger-out') options.cohortLedgerOut = value
         else if (argument === '--stable-release-ledger-out') options.stableReleaseLedgerOut = value
         else if (argument === '--defect-yield-out') options.defectYieldOut = value
+        else if (argument === '--store') options.store = value
         else throw new Error(`Unknown argument: ${argument}`)
     }
-    if (!options.cohortLedgerOut) throw new Error('--cohort-ledger-out is required')
+    if (!options.cohortLedgerOut || !options.store) throw new Error('--store and --cohort-ledger-out are required')
     if (options.bundles.length !== options.globalReceipts.length) {
         throw new Error('Every --bundle requires one positionally matching --global-receipt')
     }
@@ -97,6 +102,8 @@ function main(argv = process.argv) {
         if (!evaluation.bundleValid) {
             throw new Error(`C0 bundle ${options.bundles[index]} is invalid: ${evaluation.structuralErrors.join('; ')}`)
         }
+        loadEvidenceObject(options.store, objectSha256(bundles[index]))
+        loadEvidenceObject(options.store, bundles[index].globalReceipt.objectSha256)
     }
     const baseCohortLedger = options.baseCohortLedger ? readJson(options.baseCohortLedger) : null
     const cohortLedger = buildCohortLedger(bundles, { baseLedger: baseCohortLedger })
@@ -113,7 +120,13 @@ function main(argv = process.argv) {
         const incidents = options.incidents.map(readJson)
         const evaluation = validateIncidentChain(incidents)
         if (!evaluation.valid) throw new Error(`Incident chain is invalid: ${evaluation.errors.join('; ')}`)
+        for (const incident of incidents) loadEvidenceObject(options.store, objectSha256(incident))
         defectYield = buildDefectYieldSummary(cohortLedger, incidents)
+    }
+    const publications = {
+        cohortLedger: publishEvidenceObject(options.store, cohortLedger),
+        stableReleaseLedger: stableReleaseLedger === null ? null : publishEvidenceObject(options.store, stableReleaseLedger),
+        defectYield: defectYield === null ? null : publishEvidenceObject(options.store, defectYield),
     }
     writeJsonAtomic(options.cohortLedgerOut, cohortLedger)
     if (stableReleaseLedger !== null) writeJsonAtomic(options.stableReleaseLedgerOut, stableReleaseLedger)
@@ -136,6 +149,7 @@ function main(argv = process.argv) {
             confirmedProductionDefects: defectYield.confirmedProductionDefects,
             syntheticIncidentsExcluded: defectYield.syntheticIncidentsExcluded,
         },
+        publications,
     }
     process.stdout.write(`${JSON.stringify(result)}\n`)
     return result

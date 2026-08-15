@@ -10,6 +10,10 @@ const {
 const {
     writeJsonAtomic,
 } = require('../src/verification-evidence.cjs')
+const {
+    loadEvidenceObject,
+    publishEvidenceObject,
+} = require('../src/c0-retention.cjs')
 
 function parseArgs(argv) {
     const options = { incidents: [] }
@@ -21,9 +25,10 @@ function parseArgs(argv) {
         else if (argument === '--stable-release-ledger') options.stableReleaseLedger = value
         else if (argument === '--incident') options.incidents.push(value)
         else if (argument === '--output') options.output = value
+        else if (argument === '--store') options.store = value
         else throw new Error(`Unknown argument: ${argument}`)
     }
-    for (const field of ['cohortLedger', 'stableReleaseLedger', 'output']) {
+    for (const field of ['cohortLedger', 'stableReleaseLedger', 'output', 'store']) {
         if (!options[field]) throw new Error(`--${field.replace(/[A-Z]/g, (value) => `-${value.toLowerCase()}`)} is required`)
     }
     if (!fs.existsSync(path.dirname(options.output))) throw new Error(`Output parent does not exist: ${path.dirname(options.output)}`)
@@ -37,11 +42,18 @@ function readJson(file) {
 
 function main(argv = process.argv) {
     const options = parseArgs(argv)
+    const cohortLedger = readJson(options.cohortLedger)
+    const stableReleaseLedger = readJson(options.stableReleaseLedger)
+    const incidentRecords = options.incidents.map(readJson)
+    loadEvidenceObject(options.store, objectSha256(cohortLedger))
+    loadEvidenceObject(options.store, objectSha256(stableReleaseLedger))
+    for (const incident of incidentRecords) loadEvidenceObject(options.store, objectSha256(incident))
     const report = buildReviewTriggerReport({
-        cohortLedger: readJson(options.cohortLedger),
-        stableReleaseLedger: readJson(options.stableReleaseLedger),
-        incidentRecords: options.incidents.map(readJson),
+        cohortLedger,
+        stableReleaseLedger,
+        incidentRecords,
     })
+    const publication = publishEvidenceObject(options.store, report)
     writeJsonAtomic(options.output, report)
     process.stdout.write(`${JSON.stringify({
         schema: 'patch-c0-review-trigger-result-v1',
@@ -49,6 +61,7 @@ function main(argv = process.argv) {
         objectSha256: objectSha256(report),
         recommendation: report.recommendation,
         c1Authorized: false,
+        publication,
         unsatisfied: report.conditions.filter((condition) => !condition.satisfied).map((condition) => condition.id),
     })}\n`)
     return report

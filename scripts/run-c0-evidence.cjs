@@ -9,6 +9,7 @@ const {
     assertOutputOutsideInputs,
     captureInputFreeze,
     compareInputFreeze,
+    pathIsInside,
     parseCanonicalOutput,
     runChildWithFileCapture,
     sha256,
@@ -31,6 +32,9 @@ const {
 const {
     routeCurrentC0,
 } = require('../src/c0-policy.cjs')
+const {
+    publishEvidenceObject,
+} = require('../src/c0-retention.cjs')
 
 const DEFAULT_GOVERNANCE_REPOSITORY = 'https://github.com/danso0429/patch-verification-governance'
 const GNU_TIME = '/usr/bin/time'
@@ -84,10 +88,11 @@ function parseArgs(argv) {
         else if (argument === '--product-gates') options.productGates = path.resolve(next())
         else if (argument === '--synthetic-known-answer-result') options.syntheticResult = path.resolve(next())
         else if (argument === '--temporary-parent') options.temporaryParent = path.resolve(next())
+        else if (argument === '--store') options.store = path.resolve(next())
         else if (argument === '--disposition') options.disposition = next()
         else throw new Error(`Unknown argument: ${argument}`)
     }
-    for (const field of ['root', 'bundle', 'globalReceipt', 'governanceCommit', 'governanceStatusVersion', 'cohortClass', 'trialId']) {
+    for (const field of ['root', 'bundle', 'globalReceipt', 'store', 'governanceCommit', 'governanceStatusVersion', 'cohortClass', 'trialId']) {
         if (options[field] === null || options[field] === undefined || options[field] === '') {
             throw new Error(`Missing required option: ${field}`)
         }
@@ -350,6 +355,9 @@ async function main(argv = process.argv) {
     const bundleOutput = assertOutputOutsideInputs(options.bundle, [sourceRoot, options.root])
     const receiptOutput = assertOutputOutsideInputs(options.globalReceipt, [sourceRoot, options.root])
     if (bundleOutput === receiptOutput) throw new Error('Bundle and Global receipt outputs must differ')
+    if (pathIsInside(options.store, sourceRoot) || pathIsInside(options.store, options.root)) {
+        throw new Error('Evidence store must be outside source and target input roots')
+    }
     if (fs.existsSync(bundleOutput) || fs.existsSync(receiptOutput)) {
         throw new Error('Evidence outputs already exist; immutable outputs are never overwritten')
     }
@@ -419,6 +427,7 @@ async function main(argv = process.argv) {
         correctness,
         budget: 'unknown',
     })
+    const receiptPublication = publishEvidenceObject(options.store, globalReceipt)
     const bundle = buildEvidenceBundle({
         sourceRoot,
         globalReceipt,
@@ -435,9 +444,13 @@ async function main(argv = process.argv) {
         focusedGates: readGateList(options.focusedGates, 'focused'),
         productGates: readGateList(options.productGates, 'product'),
         c0Decision,
-        referencedObjectsNewPhysicalBytes: Buffer.byteLength(JSON.stringify(globalReceipt)),
+        referencedObjectsNewPhysicalBytes: receiptPublication.newPhysicalBytes,
     })
     const evaluation = evaluateC0EvidenceBundle(bundle, { globalReceipt })
+    if (!evaluation.bundleValid) {
+        throw new Error(`Generated C0 evidence bundle is invalid: ${evaluation.structuralErrors.join('; ')}`)
+    }
+    const bundlePublication = publishEvidenceObject(options.store, bundle)
     writeJsonAtomic(receiptOutput, globalReceipt)
     writeJsonAtomic(bundleOutput, bundle)
     process.stdout.write(`${JSON.stringify({
@@ -449,6 +462,11 @@ async function main(argv = process.argv) {
         runKind,
         temporaryRetained,
         resources,
+        publications: {
+            globalReceipt: receiptPublication,
+            bundle: bundlePublication,
+            totalNewPhysicalBytes: receiptPublication.newPhysicalBytes + bundlePublication.newPhysicalBytes,
+        },
         evaluation,
     })}\n`)
     if (!evaluation.bundleValid || (runKind === 'production-c0' && !evaluation.operatingEvidenceAccepted)) {
