@@ -22,6 +22,7 @@ const {
 } = require('../src/toolchain-shadow-contract.cjs')
 const { canonicalJson } = require('../src/verification-receipts.cjs')
 const { sha256 } = require('../src/verification-evidence.cjs')
+const { candidateObservationProjection } = require('../src/toolchain-shadow-projection.cjs')
 
 const METADATA_PATHS = [DEFAULT_INTENT_PATH, DEFAULT_JOURNAL_PATH, DEFAULT_LOCK_PATH, DEFAULT_STATE_PATH]
 
@@ -200,6 +201,11 @@ function main() {
         const cpu = process.cpuUsage(cpuStarted)
         const wallMs = Number(process.hrtime.bigint() - wallStarted) / 1e6
         const resourceUsage = process.resourceUsage()
+        const candidateProjection = candidateObservationProjection({
+            mask: input.mask,
+            snapshot: applied,
+            state: transition.state,
+        })
         process.stdout.write(`${JSON.stringify({
             schema: 'patch-toolchain-shadow-mask-observation-v1',
             processInstanceId: crypto.randomUUID(),
@@ -217,6 +223,7 @@ function main() {
             },
             apply: { status: observedStatus, paths: applied },
             symbolObservation,
+            candidateProjection,
             capabilityReceipt,
             repeatedPlan: { changeCount: repeated.changes.length },
             revert: { changeCount: reverted.changes.length },

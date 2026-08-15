@@ -1,0 +1,44 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://pocketrisu.local/schemas/patch-toolchain-shadow-global-projection-v1.schema.json",
+  "title": "PocketRisu toolchain-hardening Global projection receipt v1",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema", "status", "sourceKind", "recordedAt", "candidate", "declarationSha256",
+    "source", "target", "visiblePacks", "candidateBitIndex", "localReceiptPayloadSha256",
+    "coverage", "observations", "comparison", "resources", "materialEligibility",
+    "canonicalProtection", "integrity"
+  ],
+  "properties": {
+    "schema": { "const": "patch-toolchain-shadow-global-projection-v1" },
+    "status": { "enum": ["passed", "failed"] },
+    "sourceKind": { "enum": ["global-projection-one-worker", "synthetic-known-answer"] },
+    "recordedAt": { "type": "string", "format": "date-time" },
+    "candidate": { "const": { "packId": "toolchain-hardening", "productionClass": "G", "shadowClass": "B" } },
+    "declarationSha256": { "type": "string", "pattern": "^[0-9a-f]{64}$" },
+    "source": { "type": "object" },
+    "target": { "type": "object" },
+    "visiblePacks": { "type": "array", "minItems": 12, "maxItems": 12, "uniqueItems": true },
+    "candidateBitIndex": { "type": "integer", "minimum": 0, "maximum": 11 },
+    "localReceiptPayloadSha256": { "type": "string", "pattern": "^[0-9a-f]{64}$" },
+    "coverage": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["rawMasks", "processedMasks", "candidateOffMasks", "candidateOnMasks", "orderedMasksSha256"],
+      "properties": {
+        "rawMasks": { "const": 4096 },
+        "processedMasks": { "const": 4096 },
+        "candidateOffMasks": { "const": 2048 },
+        "candidateOnMasks": { "const": 2048 },
+        "orderedMasksSha256": { "type": "string", "pattern": "^[0-9a-f]{64}$" }
+      }
+    },
+    "observations": { "type": "array", "minItems": 4096, "maxItems": 4096 },
+    "comparison": { "type": "object" },
+    "resources": { "type": "object" },
+    "materialEligibility": { "enum": ["requires-bound-c0-global-receipt", "synthetic-only"] },
+    "canonicalProtection": { "type": "object" },
+    "integrity": { "type": "object" }
+  }
+}

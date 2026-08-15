@@ -179,6 +179,13 @@ function extractObjectReferences(document) {
             ...(document.referencedObjectSha256s ?? []),
             ...(document.rollbackManifest ?? []),
         ]) optionalReference(hash, 'retention plan reference', references)
+    } else if (schema === 'patch-toolchain-shadow-pilot-receipt-v1') {
+        optionalReference(document.references?.localReceiptObjectSha256, 'pilot local receipt reference', references)
+        optionalReference(document.references?.globalProjectionObjectSha256, 'pilot Global projection reference', references)
+        optionalReference(document.references?.globalReceiptObjectSha256, 'pilot Global receipt reference', references)
+        optionalReference(document.references?.c0BundleObjectSha256, 'pilot C0 bundle reference', references)
+    } else if (schema === 'patch-toolchain-shadow-incident-v1') {
+        optionalReference(document.pilotReceiptObjectSha256, 'pilot incident receipt reference', references)
     }
     return [...references].sort()
 }
@@ -199,6 +206,7 @@ function objectDisposition(document) {
 function automaticallyProtected(document) {
     return PROTECTED_DISPOSITIONS.has(objectDisposition(document))
         || document?.schema === 'patch-c0-incident-record-v1'
+        || document?.schema === 'patch-toolchain-shadow-incident-v1'
         || document?.schema === 'patch-c0-stable-release-ledger-v1'
 }
 

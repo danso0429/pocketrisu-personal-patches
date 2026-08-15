@@ -1,0 +1,29 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://pocketrisu.local/schemas/patch-toolchain-shadow-pilot-receipt-v1.schema.json",
+  "title": "PocketRisu toolchain-hardening shadow pilot receipt v1",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema", "mode", "disposition", "recordedAt", "cohort", "candidate", "authority",
+    "references", "comparison", "result", "resources", "retrySemantics", "incidentRequired",
+    "canonicalProtection", "integrity"
+  ],
+  "properties": {
+    "schema": { "const": "patch-toolchain-shadow-pilot-receipt-v1" },
+    "mode": { "enum": ["synthetic-dry-run", "material-shadow"] },
+    "disposition": { "enum": ["dry-run", "material-shadow", "defect-reproduction"] },
+    "recordedAt": { "type": "string", "format": "date-time" },
+    "cohort": { "type": "object" },
+    "candidate": { "const": { "packId": "toolchain-hardening", "productionClass": "G", "shadowClass": "B", "label": "shadow B candidate" } },
+    "authority": { "type": "object" },
+    "references": { "type": "object" },
+    "comparison": { "type": "object" },
+    "result": { "type": "object" },
+    "resources": { "type": "object" },
+    "retrySemantics": { "type": "object" },
+    "incidentRequired": { "type": "boolean" },
+    "canonicalProtection": { "type": "object" },
+    "integrity": { "type": "object" }
+  }
+}

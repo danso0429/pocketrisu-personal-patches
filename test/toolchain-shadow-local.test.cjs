@@ -2,66 +2,19 @@
 
 const assert = require('node:assert/strict')
 const fs = require('node:fs')
-const os = require('node:os')
 const path = require('node:path')
 const test = require('node:test')
-const {
-    declarationHash,
-    loadToolchainShadowDeclaration,
-    validateToolchainShadowDeclaration,
-} = require('../src/toolchain-shadow-contract.cjs')
 const {
     runFreshLocalShadow,
     validateLocalShadowReceipt,
 } = require('../src/toolchain-shadow-local.cjs')
+const { createToolchainKnownAnswerTarget } = require('../src/toolchain-shadow-known-answer.cjs')
 const { canonicalJson, sealDocument } = require('../src/verification-receipts.cjs')
-const { contentTreeDescriptor, sha256 } = require('../src/verification-evidence.cjs')
 
 const ROOT = path.resolve(__dirname, '..')
 
 function syntheticTarget() {
-    const root = fs.mkdtempSync(path.join(os.tmpdir(), 'toolchain-shadow-known-target-'))
-    const current = loadToolchainShadowDeclaration(ROOT)
-    const byId = new Map(current.pack.units.map((unit) => [unit.id, unit]))
-    const packageText = '{\n  "name": "pocketrisu",\n  "version": "1.9.0",\n  "pnpm": {\n    "onlyBuiltDependencies": []\n  }\n}\n'
-    const lockText = [
-        "lockfileVersion: '9.0'\n\nsettings:\n  autoInstallPeers: true\n",
-        byId.get('toolchain-hardening:lock-lightningcss-override').anchor,
-        '\npackages:\n\n',
-        byId.get('toolchain-hardening:lock-lightningcss-packages').anchor,
-        '\nsnapshots:\n\n',
-        byId.get('toolchain-hardening:lock-tailwind-lightningcss').anchor,
-        '\n',
-        byId.get('toolchain-hardening:lock-lightningcss-snapshots').anchor,
-        '\n',
-        byId.get('toolchain-hardening:lock-vite-lightningcss').anchor,
-    ].join('')
-    const files = {
-        'package.json': packageText,
-        'pnpm-lock.yaml': lockText,
-        'vitest.setup.ts': byId.get('toolchain-hardening:vitest-storage').anchor,
-    }
-    for (const [relative, content] of Object.entries(files)) {
-        fs.writeFileSync(path.join(root, relative), content, { mode: 0o600 })
-        fs.chmodSync(path.join(root, relative), 0o600)
-    }
-    const declaration = structuredClone(current.declaration)
-    declaration.target.files = Object.keys(files).sort().map((relative) => ({
-        path: relative,
-        sha256: sha256(files[relative]),
-        mode: 0o600,
-    }))
-    declaration.target.applicationTreeSha256 = contentTreeDescriptor(root).rootSha256
-    declaration.declarationSha256 = declarationHash(declaration)
-    const compiled = validateToolchainShadowDeclaration(declaration, {
-        repositoryRoot: ROOT,
-        targetRoot: root,
-    })
-    return {
-        root,
-        compiled,
-        provenance: `sha256:${sha256('synthetic-toolchain-shadow-known-target-v1')}`,
-    }
+    return createToolchainKnownAnswerTarget(ROOT)
 }
 
 function resealReceipt(receipt) {

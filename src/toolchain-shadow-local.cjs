@@ -156,6 +156,7 @@ function validateLocalShadowReceipt(receipt) {
         const expectedPaths = observation.mask === 1
             ? [...MANAGED_PATHS, STATE_PATHS.find((entry) => entry.endsWith('/state.json'))].sort()
             : []
+        const { projectionSha256, ...projectionPayload } = observation.candidateProjection ?? {}
         if (canonicalJson(observation.selectedPackIds) !== canonicalJson(selected)
             || observation.apply?.status !== expectedStatus
             || canonicalJson(Object.keys(observation.apply?.paths ?? {}).sort())
@@ -168,6 +169,11 @@ function validateLocalShadowReceipt(receipt) {
             || observation.symbolObservation?.mask !== observation.mask
             || observation.symbolObservation?.getterCalls !== 0
             || observation.symbolObservation?.safeStructuredCloneProvided !== true
+            || observation.candidateProjection?.mask !== observation.mask
+            || observation.candidateProjection?.active !== (observation.mask === 1)
+            || !/^[0-9a-f]{64}$/.test(observation.candidateProjection?.filesSha256 ?? '')
+            || !/^[0-9a-f]{64}$/.test(observation.candidateProjection?.stateSha256 ?? '')
+            || projectionSha256 !== sha256(canonicalJson(projectionPayload))
             || observation.capabilityReceipt?.schema !== 'patch-toolchain-capability-receipt-v1'
             || !/^[0-9a-f]{64}$/.test(observation.capabilityReceipt?.receiptSha256 ?? '')
             || observation.restoration.restored !== true

@@ -1,0 +1,24 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://pocketrisu.local/schemas/patch-toolchain-shadow-incident-v1.schema.json",
+  "title": "PocketRisu toolchain-hardening shadow pilot incident v1",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema", "disposition", "recordedAt", "incidentId", "cohortId", "runId",
+    "pilotReceiptObjectSha256", "failure", "preservation", "canonicalProtection", "integrity"
+  ],
+  "properties": {
+    "schema": { "const": "patch-toolchain-shadow-incident-v1" },
+    "disposition": { "const": "defect-reproduction" },
+    "recordedAt": { "type": "string", "format": "date-time" },
+    "incidentId": { "type": "string", "pattern": "^[0-9a-f]{64}$" },
+    "cohortId": { "type": "string", "pattern": "^[0-9a-f]{64}$" },
+    "runId": { "type": "string", "pattern": "^[0-9a-f]{64}$" },
+    "pilotReceiptObjectSha256": { "type": "string", "pattern": "^[0-9a-f]{64}$" },
+    "failure": { "type": "object" },
+    "preservation": { "type": "object" },
+    "canonicalProtection": { "type": "object" },
+    "integrity": { "type": "object" }
+  }
+}
