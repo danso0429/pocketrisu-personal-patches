@@ -1,0 +1,17 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://pocketrisu.local/schemas/patch-qualification-evidence-registry-v1.schema.json",
+  "title": "Dedicated qualification evidence registry v1",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schema", "generatedAt", "storeIdentityHash", "baseRegistryDescriptorSha256", "entries", "registryRootSha256", "integrity"],
+  "properties": {
+    "schema": { "const": "patch-qualification-evidence-registry-v1" },
+    "generatedAt": { "type": "string", "format": "date-time" },
+    "storeIdentityHash": { "type": "string", "pattern": "^[0-9a-f]{64}$" },
+    "baseRegistryDescriptorSha256": { "type": ["string", "null"], "pattern": "^[0-9a-f]{64}$" },
+    "entries": { "type": "array", "items": { "type": "object" } },
+    "registryRootSha256": { "type": ["string", "null"], "pattern": "^[0-9a-f]{64}$" },
+    "integrity": { "type": "object" }
+  }
+}

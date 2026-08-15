@@ -1,0 +1,19 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://pocketrisu.local/schemas/patch-qualification-content-manifest-v1.schema.json",
+  "title": "Qualification content manifest v1",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schema", "createdAt", "qualificationType", "subject", "objects", "acceptedPurpose", "excludedPurposes", "operatingCounts", "integrity"],
+  "properties": {
+    "schema": { "const": "patch-qualification-content-manifest-v1" },
+    "createdAt": { "type": "string", "format": "date-time" },
+    "qualificationType": { "const": "toolchain-hardening-shadow-pilot-closure" },
+    "subject": { "type": "object" },
+    "objects": { "type": "object" },
+    "acceptedPurpose": { "const": "prerequisite-for-material-shadow-cohort-collection" },
+    "excludedPurposes": { "type": "array", "items": { "type": "string" }, "uniqueItems": true },
+    "operatingCounts": { "type": "object" },
+    "integrity": { "type": "object" }
+  }
+}

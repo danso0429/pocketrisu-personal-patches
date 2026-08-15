@@ -1,0 +1,22 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://pocketrisu.local/schemas/patch-qualification-manifest-v1.schema.json",
+  "title": "Final qualification manifest v1",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schema", "createdAt", "qualificationType", "subject", "contentManifestDescriptorSha256", "validationResultDescriptorSha256", "disposition", "acceptedPurpose", "excludedPurposes", "operatingCounts", "canonicalProtection", "integrity"],
+  "properties": {
+    "schema": { "const": "patch-qualification-manifest-v1" },
+    "createdAt": { "type": "string", "format": "date-time" },
+    "qualificationType": { "const": "toolchain-hardening-shadow-pilot-closure" },
+    "subject": { "type": "object" },
+    "contentManifestDescriptorSha256": { "type": "string", "pattern": "^[0-9a-f]{64}$" },
+    "validationResultDescriptorSha256": { "type": "string", "pattern": "^[0-9a-f]{64}$" },
+    "disposition": { "enum": ["accepted-qualification", "diagnostic", "negative", "incomplete", "invalid", "superseded"] },
+    "acceptedPurpose": { "const": "prerequisite-for-material-shadow-cohort-collection" },
+    "excludedPurposes": { "type": "array", "items": { "type": "string" }, "uniqueItems": true },
+    "operatingCounts": { "type": "object" },
+    "canonicalProtection": { "type": "object" },
+    "integrity": { "type": "object" }
+  }
+}

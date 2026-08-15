@@ -1,0 +1,20 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://pocketrisu.local/schemas/patch-qualification-validation-result-v1.schema.json",
+  "title": "Independent qualification validation result v1",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schema", "validatedAt", "result", "independentVerifier", "storeIdentityHash", "contentManifestDescriptorSha256", "checkedDescriptors", "checks", "failures", "integrity"],
+  "properties": {
+    "schema": { "const": "patch-qualification-validation-result-v1" },
+    "validatedAt": { "type": "string", "format": "date-time" },
+    "result": { "enum": ["passed", "failed"] },
+    "independentVerifier": { "type": "object" },
+    "storeIdentityHash": { "type": "string", "pattern": "^[0-9a-f]{64}$" },
+    "contentManifestDescriptorSha256": { "type": "string", "pattern": "^[0-9a-f]{64}$" },
+    "checkedDescriptors": { "type": "array", "items": { "type": "string", "pattern": "^[0-9a-f]{64}$" }, "uniqueItems": true },
+    "checks": { "type": "object" },
+    "failures": { "type": "array", "items": { "type": "string" } },
+    "integrity": { "type": "object" }
+  }
+}
