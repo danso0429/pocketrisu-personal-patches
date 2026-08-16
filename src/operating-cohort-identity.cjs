@@ -122,6 +122,8 @@ function buildVerificationIdentities(sourceRoot) {
     return {
         canonicalGlobalVerifier: fileSetIdentity(root, [
             'scripts/verify-all-combinations.cjs',
+            'src/toolchain-shadow-canonical-projection.cjs',
+            'src/toolchain-shadow-same-global.cjs',
             'src/verification-evidence.cjs',
             'src/verification-receipts.cjs',
         ], 'patch-operating-global-verifier-identity-v1'),
@@ -129,6 +131,8 @@ function buildVerificationIdentities(sourceRoot) {
             'scripts/run-toolchain-shadow-mask.cjs',
             'src/operating-build-environment.cjs',
             'src/toolchain-shadow-boundaries.cjs',
+            'src/toolchain-shadow-canonical-projection.cjs',
+            'src/toolchain-shadow-contract.cjs',
             'src/toolchain-shadow-local.cjs',
             'src/toolchain-shadow-same-global.cjs',
         ], 'patch-operating-local-verifier-identity-v1'),

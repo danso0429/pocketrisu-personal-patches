@@ -182,3 +182,30 @@ package commands, mutation fixtures, comparison/receipt code, local runner, boun
 sealing, and contract/schema commits independently. Do not use rollback to delete
 evidence objects or user data. The unchanged Global Exhaustive command remains the
 fallback before, during, and after rollback.
+
+## Canonical projection and real-Global qualification v2
+
+V2 replaces the independently assembled local descriptor and Global fingerprint
+formats with one shared `canonicalCandidateProjection` implementation. Both paths
+derive the same semantic file, pack, selection, relation, persisted-state, unit and
+managed-path object before canonical JSON and SHA-256. Byte length, raw pack ETag,
+temporary roots, run/attempt IDs, receipt IDs, provisioning paths, worker metadata,
+timestamps and resource measurements remain diagnostic or execution evidence and do
+not enter semantic equality.
+
+The four boundary cases remain independent executions. Each candidate mask obtains a
+reference only after all four canonical projection byte strings agree. The mapping is
+fixed to candidate bit 11 in the sorted 12-pack Global domain, with 2,048 off and
+2,048 on masks.
+
+`patch-toolchain-shadow-real-global-qualification-v2` forbids the historical
+`syntheticGlobalProjection` shortcut. Its local side runs eight cases; its Global side
+runs the production canonical Global verifier once for all 4,096 masks. The Global
+table is generated from actual Global observations and is never copied from local
+references. All 4,096 independently mapped comparisons must match before v2 can be
+registered. This is qualification evidence only: it adds no material cohort, candidate
+operating sample, certificate, skipped mask, state migration or C1 authority.
+
+Historical v1 qualification remains immutable and independently verifiable, but it is
+not compatible with v2 operating admission. A v2 material preflight requires the v2
+qualification type and projection schema explicitly.

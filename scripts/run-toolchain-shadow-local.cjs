@@ -11,6 +11,7 @@ function parseArgs(argv) {
     for (let index = 0; index < values.length; index += 1) {
         const value = values[index]
         if (value === '--dry-run') options.disposition = 'dry-run'
+        else if (value === '--qualification-v2') options.disposition = 'qualification-v2'
         else if (value === '--material-shadow') options.disposition = 'material-shadow'
         else {
             const mapped = {

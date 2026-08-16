@@ -218,6 +218,22 @@ snapshots, and refs. Restore into the same logical store requires full hash and
 registry verification before preflight. Copying a quarantine into the accepted
 root is not registration.
 
+## V1 and v2 qualification coexistence
+
+The registry snapshot chain accepts both the historical
+`toolchain-hardening-shadow-pilot-closure` type and the independently generated
+`patch-toolchain-shadow-real-global-qualification-v2` type. Subject lookup includes
+the qualification type, so a historical v1 acceptance cannot satisfy v2 operating
+admission. A v2 content manifest binds the provisioning receipt, eight-case local
+receipt, one canonical 4,096-mask Global execution receipt, and the sealed real-Global
+qualification record. A fresh independent verifier revalidates every object hash,
+receipt, projection mapping, comparison and production-protection field before the
+final manifest or registry entry is accepted.
+
+Appending v2 creates a new registry snapshot and preserves the complete v1 ancestry.
+It does not rewrite the v1 manifest, fixture derivation, receipts, or any failed
+material evidence. Qualification objects remain outside all operating-count ledgers.
+
 ## Rollback
 
 The implementation commits are independently revertible in reverse order.

@@ -1,0 +1,17 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "patch-qualification-validation-result-v2",
+  "title": "Real-Global independent qualification validation v2",
+  "type": "object",
+  "required": [
+    "schema", "validatedAt", "result", "qualificationType", "independentVerifier",
+    "storeIdentityHash", "contentManifestDescriptorSha256", "checkedDescriptors",
+    "checks", "failures", "integrity"
+  ],
+  "properties": {
+    "schema": { "const": "patch-qualification-validation-result-v2" },
+    "qualificationType": { "const": "patch-toolchain-shadow-real-global-qualification-v2" },
+    "result": { "enum": ["passed", "failed"] }
+  },
+  "additionalProperties": false
+}

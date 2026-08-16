@@ -1,0 +1,19 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "patch-toolchain-shadow-real-global-provisioning-v2",
+  "title": "Toolchain shadow real-Global provisioning receipt v2",
+  "type": "object",
+  "required": [
+    "schema", "version", "qualificationType", "recordedAt", "status", "method",
+    "requested", "node", "pnpm", "runtime", "resolution", "expectedBoundary",
+    "observedBoundary", "boundaryComparison", "identities", "cleanup",
+    "canonicalProtection", "integrity"
+  ],
+  "properties": {
+    "schema": { "const": "patch-toolchain-shadow-real-global-provisioning-v2" },
+    "version": { "const": 2 },
+    "qualificationType": { "const": "patch-toolchain-shadow-real-global-qualification-v2" },
+    "status": { "const": "passed" }
+  },
+  "additionalProperties": false
+}

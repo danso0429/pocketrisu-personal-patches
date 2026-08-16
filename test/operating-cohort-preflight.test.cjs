@@ -368,26 +368,33 @@ function runWith(t, verified = acceptedVerification(), expected = expectation(),
     return { storeRoot, result }
 }
 
-test('valid durable compatible qualification permits shadow-cohort prompt construction only', (t) => {
+test('legacy v1 qualification stays verifiable but is ineligible for v2 shadow admission', (t) => {
     const { result } = runWith(t)
     assert.equal(result.toolchainPilotClosurePassed, true, JSON.stringify(result))
     assert.equal(result.reason, 'accepted-durable-compatible-qualification')
     assert.equal(result.readOnly, true)
     assert.equal(result.automaticallyAuthorizesC1, false)
-    assert.equal(result.route.safeToExecute, false)
-    assert.deepEqual(result.blockers, ['operating-environment-not-provisioned'])
+    assert.equal(result.route.routeId, 'material-c0-global')
+    assert.equal(result.route.safeToExecute, true)
+    assert.equal(result.candidate.qualificationCompatible, false)
+    assert.equal(result.candidate.executionSkipped, true)
+    assert.equal(result.candidate.skipReason, 'candidate-local-domain-mismatch')
+    assert.deepEqual(result.blockers, [])
 })
 
-test('preflight reports the combined route executable only after exact operating admission', (t) => {
+test('operating receipt cannot make a legacy v1 qualification eligible for v2 shadow admission', (t) => {
     const { result } = runWith(t, acceptedVerification(), expectation(), operatingReceipt())
     assert.equal(result.freshVerificationInCurrentExecutionEnvironment, 'passed')
-    assert.equal(result.operatingEnvironment.provisioned, true)
-    assert.equal(result.operatingEnvironment.buildBoundaryVerification, 'passed')
+    assert.equal(result.route.routeId, 'material-c0-global')
+    assert.equal(result.candidate.qualificationCompatible, false)
+    assert.equal(result.candidate.skipReason, 'candidate-local-domain-mismatch')
+    assert.equal(result.operatingEnvironment.provisioned, null)
+    assert.equal(result.operatingEnvironment.buildBoundaryVerification, 'not-required')
     assert.equal(result.route.safeToExecute, true)
     assert.deepEqual(result.blockers, [])
 })
 
-test('managed nested-spawn EPERM preserves accepted state but blocks material execution', (t) => {
+test('managed nested-spawn EPERM preserves historical v1 state without making it v2-eligible', (t) => {
     const { storeRoot } = fixture(t)
     const accepted = acceptedVerification()
     const derivationError = new Error('Fresh fixture derivation process failed')
@@ -411,13 +418,12 @@ test('managed nested-spawn EPERM preserves accepted state but blocks material ex
     })
     assert.equal(result.acceptedQualificationState, 'accepted')
     assert.equal(result.freshVerificationInCurrentExecutionEnvironment, 'environment-unavailable')
-    assert.equal(result.route.routeId, 'material-c0-global-plus-toolchain-shadow')
+    assert.equal(result.route.routeId, 'material-c0-global')
+    assert.equal(result.candidate.qualificationCompatible, false)
+    assert.equal(result.candidate.skipReason, 'candidate-local-domain-mismatch')
     assert.equal(result.route.globalExecutionsExpected, 1)
-    assert.equal(result.route.safeToExecute, false)
-    assert.deepEqual(result.blockers, [
-        'fresh-qualification-verification-environment-unavailable',
-        'operating-environment-not-provisioned',
-    ])
+    assert.equal(result.route.safeToExecute, true)
+    assert.deepEqual(result.blockers, [])
 })
 
 test('real store-to-registry-to-independent-verifier-to-production-preflight chain passes', async (t) => {

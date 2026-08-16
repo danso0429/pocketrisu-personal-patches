@@ -4,6 +4,7 @@ const crypto = require('node:crypto')
 const { canonicalJson } = require('./verification-receipts.cjs')
 
 const MATERIAL_DECLARATION_SCHEMA = 'patch-operating-cohort-material-declaration-v1'
+const MATERIAL_DECLARATION_V2_SCHEMA = 'patch-operating-cohort-material-declaration-v2'
 const ROUTE_DECISION_SCHEMA = 'patch-operating-cohort-route-decision-v1'
 const ROUTE_GLOBAL = 'material-c0-global'
 const ROUTE_COMBINED = 'material-c0-global-plus-toolchain-shadow'
@@ -11,6 +12,8 @@ const TOOLCHAIN_CANDIDATE_ID = 'toolchain-hardening'
 const TOOLCHAIN_IMPACT_REASON = 'exact-toolchain-hardening-frozen-subject-requires-matching-c0-global-bundle'
 const SHA256_PATTERN = /^[0-9a-f]{64}$/
 const COMMIT_PATTERN = /^[0-9a-f]{40}$/
+const REAL_GLOBAL_QUALIFICATION_TYPE = 'patch-toolchain-shadow-real-global-qualification-v2'
+const CANONICAL_PROJECTION_V2_SCHEMA = 'patch-toolchain-shadow-canonical-candidate-projection-v2'
 
 class OperatingCohortRouteError extends Error {
     constructor(code, message, details = null) {
@@ -56,8 +59,9 @@ function validateMaterialDeclaration(declaration) {
         'stableRelease', 'releaseCandidate', 'materialReason', 'candidateImpact',
         'qualification', 'environment', 'globalContract', 'declarationSha256',
     ], 'material declaration')
-    if (declaration.schema !== MATERIAL_DECLARATION_SCHEMA || declaration.version !== 1
-        || !/^[a-z0-9][a-z0-9-]*-v1$/.test(declaration.declarationId ?? '')) {
+    const v2 = declaration.schema === MATERIAL_DECLARATION_V2_SCHEMA && declaration.version === 2
+    if ((!v2 && (declaration.schema !== MATERIAL_DECLARATION_SCHEMA || declaration.version !== 1))
+        || !new RegExp(`^[a-z0-9][a-z0-9-]*-v${declaration.version}$`).test(declaration.declarationId ?? '')) {
         fail('INVALID_MATERIAL_DECLARATION', 'Material declaration identity is unsupported')
     }
     if (!['patch', 'relation', 'core', 'audit', 'stable-release'].includes(declaration.changeClass)
@@ -80,7 +84,13 @@ function validateMaterialDeclaration(declaration) {
         }
     } else fail('INVALID_CANDIDATE_IMPACT', 'candidateImpact.affected must be boolean')
 
-    exactKeys(declaration.qualification, ['subject', 'compatibility'], 'qualification binding')
+    exactKeys(declaration.qualification, v2
+        ? ['type', 'projectionSchema', 'subject', 'compatibility']
+        : ['subject', 'compatibility'], 'qualification binding')
+    if (v2 && (declaration.qualification.type !== REAL_GLOBAL_QUALIFICATION_TYPE
+        || declaration.qualification.projectionSchema !== CANONICAL_PROJECTION_V2_SCHEMA)) {
+        fail('INVALID_QUALIFICATION_TYPE', 'V2 material declaration qualification contract differs')
+    }
     exactKeys(declaration.qualification.subject, [
         'implementationCommit', 'qualificationToolCommit', 'policySha256', 'contractSha256',
         'compiledDeclarationSha256', 'targetCommit', 'targetApplicationTreeSha256',
@@ -266,6 +276,7 @@ function validateReusableGlobalAnchor(anchor, expected) {
 
 module.exports = {
     MATERIAL_DECLARATION_SCHEMA,
+    MATERIAL_DECLARATION_V2_SCHEMA,
     OperatingCohortRouteError,
     ROUTE_COMBINED,
     ROUTE_DECISION_SCHEMA,

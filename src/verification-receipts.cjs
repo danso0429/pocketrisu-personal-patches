@@ -14,7 +14,10 @@ const {
 const {
     compareRuntimeEnvelopes,
 } = require('./verification-runtime.cjs')
-const { validateSameGlobalReference } = require('./toolchain-shadow-same-global.cjs')
+const {
+    sameGlobalReferenceFromComparison,
+    validateSameGlobalReference,
+} = require('./toolchain-shadow-same-global.cjs')
 
 const RECEIPT_DISPOSITIONS = Object.freeze([
     'current-active',
@@ -153,8 +156,10 @@ function validateCommandContract(receipt) {
         'targetProvenance',
     ]
     const operatingOptionKeys = [...baseOptionKeys, 'operatingRoute'].sort()
+    const qualificationOptionKeys = [...baseOptionKeys, 'qualificationRoute'].sort()
     if (JSON.stringify(optionKeys) !== JSON.stringify(baseOptionKeys)
-        && JSON.stringify(optionKeys) !== JSON.stringify(operatingOptionKeys)) {
+        && JSON.stringify(optionKeys) !== JSON.stringify(operatingOptionKeys)
+        && JSON.stringify(optionKeys) !== JSON.stringify(qualificationOptionKeys)) {
         return ['verification options are missing or contain unknown fields']
     }
     const jobsValid = options.jobs === null
@@ -211,6 +216,17 @@ function validateCommandContract(receipt) {
             errors.push('unbound verification receipt contains a Global run ID')
         }
     }
+    if (options.qualificationRoute !== undefined) {
+        const route = options.qualificationRoute
+        if (JSON.stringify(Object.keys(route ?? {}).sort()) !== JSON.stringify([
+            'qualificationType', 'referencePayloadSha256',
+        ]) || route.qualificationType !== 'patch-toolchain-shadow-real-global-qualification-v2'
+            || !/^[0-9a-f]{64}$/.test(route.referencePayloadSha256 ?? '')
+            || !/^[0-9a-f]{64}$/.test(receipt.globalRunId ?? '')
+            || receipt.globalRunId !== computeGlobalRunId(receipt)) {
+            errors.push('verification qualification route option is invalid')
+        }
+    }
 
     const command = receipt?.command
     const scriptNames = {
@@ -251,7 +267,8 @@ function validateCommandContract(receipt) {
         }
         cursor += 1
     }
-    if (options.operatingRoute?.candidateComparisonStatus === 'required') {
+    if (options.operatingRoute?.candidateComparisonStatus === 'required'
+        || options.qualificationRoute !== undefined) {
         if (command[cursor] !== '--toolchain-shadow-reference-base64'
             || typeof command[cursor + 1] !== 'string' || command[cursor + 1].length === 0) {
             errors.push('combined operating route is missing its same-Global reference')
@@ -260,26 +277,18 @@ function validateCommandContract(receipt) {
                 const reference = JSON.parse(Buffer.from(command[cursor + 1], 'base64url').toString('utf8'))
                 validateSameGlobalReference(reference)
                 const comparison = receipt?.verifierResult?.toolchainShadowComparison
-                const comparisonReference = comparison === undefined ? null : {
-                    schema: reference.schema,
-                    candidateId: comparison.candidateId,
-                    candidateDeclarationSha256: comparison.candidateDeclarationSha256,
-                    materialDeclarationSha256: comparison.materialDeclarationSha256,
-                    localReceiptPayloadSha256: comparison.localReceiptPayloadSha256,
-                    ...(reference.cohortId === undefined ? {} : {
-                        materialInputKey: comparison.materialInputKey,
-                        cohortId: comparison.cohortId,
-                        executionAttemptId: comparison.executionAttemptId,
-                        frozenDeclarationSha256: comparison.frozenDeclarationSha256,
-                        localRunId: comparison.localRunId,
-                    }),
-                    references: comparison.localReferences,
-                }
-                if (reference.materialDeclarationSha256 !== options.operatingRoute.materialDeclarationSha256
+                const comparisonReference = comparison === undefined
+                    ? null : sameGlobalReferenceFromComparison(comparison)
+                const operatingMismatch = options.operatingRoute === undefined ? false
+                    : (reference.materialDeclarationSha256 !== options.operatingRoute.materialDeclarationSha256
                     || (options.operatingRoute.operatingCohort !== undefined
                         && ['materialInputKey', 'cohortId', 'executionAttemptId', 'frozenDeclarationSha256']
                             .some((key) => reference[key] !== options.operatingRoute.operatingCohort[key]))
-                    || comparisonReference === null
+                    )
+                const qualificationMismatch = options.qualificationRoute === undefined ? false
+                    : (reference.context !== 'real-global-qualification'
+                        || options.qualificationRoute.referencePayloadSha256 !== sha256(canonicalJson(reference)))
+                if (operatingMismatch || qualificationMismatch || comparisonReference === null
                     || canonicalJson(reference) !== canonicalJson(comparisonReference)) {
                     errors.push('same-Global reference differs from operating route options')
                 }
@@ -341,9 +350,10 @@ function evaluateExecutionReceipt(receipt) {
     const verifierErrors = validateVerificationResult(receipt?.verificationKind, parsed)
     const operatingRouteId = receipt?.options?.operatingRoute?.routeId ?? null
     const candidateComparisonStatus = receipt?.options?.operatingRoute?.candidateComparisonStatus ?? null
-    if (candidateComparisonStatus === 'required'
+    const qualificationComparisonRequired = receipt?.options?.qualificationRoute !== undefined
+    if ((candidateComparisonStatus === 'required' || qualificationComparisonRequired)
         && parsed?.toolchainShadowComparison === undefined) {
-        structuralErrors.push('combined operating route lacks same-Global comparison output')
+        structuralErrors.push('required same-Global comparison output is absent')
     }
     if ((operatingRouteId === 'material-c0-global' || candidateComparisonStatus === 'skipped-local-failure')
         && parsed?.toolchainShadowComparison !== undefined) {

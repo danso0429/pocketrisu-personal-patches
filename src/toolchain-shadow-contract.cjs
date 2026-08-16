@@ -7,7 +7,9 @@ const { canonicalJson } = require('./verification-receipts.cjs')
 const { sha256 } = require('./verification-evidence.cjs')
 const { CANONICAL_MANAGED_PATHS } = require('./toolchain-shadow-canonical-projection.cjs')
 
+const CONTRACT_SCHEMA_V1 = 'patch-toolchain-shadow-contract-v1'
 const CONTRACT_SCHEMA = 'patch-toolchain-shadow-contract-v2'
+const DECLARATION_PATH_V1 = 'contracts/toolchain-hardening-shadow-v1.json'
 const DECLARATION_PATH = 'contracts/toolchain-hardening-shadow-v2.json'
 const MANAGED_PATHS = CANONICAL_MANAGED_PATHS
 const STATE_PATHS = Object.freeze([
@@ -214,12 +216,15 @@ function validateToolchainShadowDeclaration(declaration, {
     compareCanonicalManifest = true,
 } = {}) {
     const root = fs.realpathSync(path.resolve(repositoryRoot))
+    const v1 = declaration.schema === CONTRACT_SCHEMA_V1 && declaration.version === 1
+    const v2 = declaration.schema === CONTRACT_SCHEMA && declaration.version === 2
     exactKeys(declaration, [
         'schema', 'version', 'candidate', 'target', 'component', 'manifestExecution',
-        'operations', 'state', 'symbols', 'boundaries', 'runtimeCapabilities', 'projection', 'fallback',
+        'operations', 'state', 'symbols', 'boundaries', 'runtimeCapabilities',
+        ...(v2 ? ['projection'] : []), 'fallback',
         'canonicalProtection', 'declarationSha256',
     ], 'declaration')
-    if (declaration.schema !== CONTRACT_SCHEMA || declaration.version !== 2) {
+    if (!v1 && !v2) {
         throw new ToolchainShadowContractError('UNKNOWN_DECLARATION_SCHEMA', 'Unknown shadow contract schema')
     }
     if (!/^[0-9a-f]{64}$/.test(declaration.declarationSha256)
@@ -237,7 +242,9 @@ function validateToolchainShadowDeclaration(declaration, {
 
     validateTargetFiles(declaration.target, targetRoot)
     exactKeys(declaration.component, ['id', 'packIds', 'visiblePackIds', 'unitIds'], 'component')
-    if (declaration.component.id !== 'component:toolchain-hardening-shadow-v2'
+    if (declaration.component.id !== (v2
+        ? 'component:toolchain-hardening-shadow-v2'
+        : 'component:toolchain-hardening-shadow-v1')
         || canonicalJson(declaration.component.packIds) !== canonicalJson(['toolchain-hardening'])
         || canonicalJson(declaration.component.visiblePackIds) !== canonicalJson(['toolchain-hardening'])) {
         throw new ToolchainShadowContractError('INVALID_COMPONENT_MEMBERSHIP', 'Component membership changed')
@@ -331,16 +338,18 @@ function validateToolchainShadowDeclaration(declaration, {
             throw new ToolchainShadowContractError('UNSEALED_RUNTIME_CAPABILITY', `Missing deny rule for ${prefix}`)
         }
     }
-    exactKeys(declaration.projection, [
-        'schema', 'fileObservationSchema', 'packIdentitySchema', 'selectionMode', 'candidateBitIndex',
-    ], 'projection')
-    if (canonicalJson(declaration.projection) !== canonicalJson({
-        schema: 'patch-toolchain-shadow-canonical-candidate-projection-v2',
-        fileObservationSchema: 'patch-toolchain-shadow-canonical-file-observation-v1',
-        packIdentitySchema: 'patch-toolchain-shadow-candidate-pack-identity-v1',
-        selectionMode: 'explicit-candidate-mask',
-        candidateBitIndex: 11,
-    })) throw new ToolchainShadowContractError('INVALID_PROJECTION_CONTRACT', 'Canonical projection contract differs')
+    if (v2) {
+        exactKeys(declaration.projection, [
+            'schema', 'fileObservationSchema', 'packIdentitySchema', 'selectionMode', 'candidateBitIndex',
+        ], 'projection')
+        if (canonicalJson(declaration.projection) !== canonicalJson({
+            schema: 'patch-toolchain-shadow-canonical-candidate-projection-v2',
+            fileObservationSchema: 'patch-toolchain-shadow-canonical-file-observation-v1',
+            packIdentitySchema: 'patch-toolchain-shadow-candidate-pack-identity-v1',
+            selectionMode: 'explicit-candidate-mask',
+            candidateBitIndex: 11,
+        })) throw new ToolchainShadowContractError('INVALID_PROJECTION_CONTRACT', 'Canonical projection contract differs')
+    }
     exactKeys(declaration.fallback, ['required', 'gate', 'on'], 'fallback')
     if (declaration.fallback.required !== true || declaration.fallback.gate !== 'Global Exhaustive') {
         throw new ToolchainShadowContractError('MISSING_GLOBAL_FALLBACK', 'Global Exhaustive fallback is not mandatory')
@@ -360,8 +369,10 @@ function validateToolchainShadowDeclaration(declaration, {
         c1Authorized: false,
     })) throw new ToolchainShadowContractError('CANONICAL_PROTECTION_WEAKENED', 'Canonical protection changed')
 
-    const catalog = loadCatalog(root)
-    const manifest = catalog.find((pack) => pack.id === declaration.candidate.packId)
+    const catalog = v2 ? loadCatalog(root) : null
+    const manifest = v2
+        ? catalog.find((pack) => pack.id === declaration.candidate.packId)
+        : require(path.join(root, 'patches/toolchain-hardening/manifest.cjs'))
     if (manifest === undefined) {
         throw new ToolchainShadowContractError('CANONICAL_MANIFEST_MISMATCH', 'Canonical candidate is absent from the full catalog')
     }
@@ -381,8 +392,16 @@ function validateToolchainShadowDeclaration(declaration, {
     return {
         declaration,
         declarationSha256: declaration.declarationSha256,
-        catalog,
-        pack: manifest,
+        ...(v2 ? { catalog, pack: manifest } : {
+            pack: {
+                id: declaration.candidate.packId,
+                title: 'Toolchain hardening',
+                version: declaration.candidate.manifestVersion,
+                targets: { pocketrisu: { verified: ['1.9.0'], reviewing: [] } },
+                userSelectable: true,
+                units: materializedUnits,
+            },
+        }),
         boundaryClassIds: [...BOUNDARY_CLASS_IDS],
         managedPaths: [...MANAGED_PATHS],
         statePaths: [...STATE_PATHS],
@@ -391,14 +410,23 @@ function validateToolchainShadowDeclaration(declaration, {
 
 function loadToolchainShadowDeclaration(repositoryRoot, options = {}) {
     const root = fs.realpathSync(path.resolve(repositoryRoot))
-    const file = safeSourcePath(root, DECLARATION_PATH)
+    const { contractVersion = 2, ...validationOptions } = options
+    if (![1, 2].includes(contractVersion)) {
+        throw new ToolchainShadowContractError('UNKNOWN_DECLARATION_SCHEMA', 'Unknown shadow contract version')
+    }
+    const file = safeSourcePath(root, contractVersion === 1 ? DECLARATION_PATH_V1 : DECLARATION_PATH)
     const declaration = JSON.parse(fs.readFileSync(file, 'utf8'))
-    return validateToolchainShadowDeclaration(declaration, { repositoryRoot: root, ...options })
+    return validateToolchainShadowDeclaration(declaration, {
+        repositoryRoot: root,
+        ...validationOptions,
+    })
 }
 
 module.exports = {
     BOUNDARY_CLASS_IDS,
+    CONTRACT_SCHEMA_V1,
     CONTRACT_SCHEMA,
+    DECLARATION_PATH_V1,
     DECLARATION_PATH,
     MANAGED_PATHS,
     STATE_PATHS,

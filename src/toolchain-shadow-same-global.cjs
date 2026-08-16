@@ -1,10 +1,19 @@
 'use strict'
 
 const crypto = require('node:crypto')
-const { candidateBoundaryConsensus } = require('./toolchain-shadow-canonical-projection.cjs')
+const {
+    PROJECTION_SCHEMA,
+    SEMANTIC_FIELD_SET_SHA256,
+    candidateBoundaryConsensus,
+    candidateMappingContract,
+    candidateMaskForGlobalMask,
+    validateGlobalCandidateMapping,
+} = require('./toolchain-shadow-canonical-projection.cjs')
 
 const REFERENCE_SCHEMA = 'patch-toolchain-shadow-same-global-reference-v1'
 const COMPARISON_SCHEMA = 'patch-toolchain-shadow-same-global-comparison-v1'
+const REFERENCE_V2_SCHEMA = 'patch-toolchain-shadow-same-global-reference-v2'
+const COMPARISON_V2_SCHEMA = 'patch-toolchain-shadow-same-global-comparison-v2'
 const SHA256_PATTERN = /^[0-9a-f]{64}$/
 
 class ToolchainShadowSameGlobalError extends Error {
@@ -71,7 +80,36 @@ function localProjectionReferences(localReceipt) {
     return references
 }
 
-function buildSameGlobalReference({ localReceipt, materialDeclarationSha256 }) {
+function buildSameGlobalReference({ localReceipt, materialDeclarationSha256 = null }) {
+    if (localReceipt?.schema === 'patch-toolchain-shadow-local-receipt-v2') {
+        if (!SHA256_PATTERN.test(localReceipt?.integrity?.payloadSha256 ?? '')
+            || !SHA256_PATTERN.test(localReceipt?.declarationSha256 ?? '')) {
+            fail('INVALID_LOCAL_REFERENCE', 'V2 local receipt identity is invalid')
+        }
+        const operating = localReceipt.operatingCohort !== undefined
+        if (operating !== (materialDeclarationSha256 !== null)
+            || (operating && !SHA256_PATTERN.test(materialDeclarationSha256 ?? ''))) {
+            fail('INVALID_LOCAL_REFERENCE', 'V2 reference context and material binding differ')
+        }
+        return validateSameGlobalReference({
+            schema: REFERENCE_V2_SCHEMA,
+            context: operating ? 'material-operating' : 'real-global-qualification',
+            candidateId: 'toolchain-hardening',
+            candidateDeclarationSha256: localReceipt.declarationSha256,
+            projectionSchema: PROJECTION_SCHEMA,
+            semanticFieldSetSha256: SEMANTIC_FIELD_SET_SHA256,
+            localReceiptPayloadSha256: localReceipt.integrity.payloadSha256,
+            ...(operating ? {
+                materialDeclarationSha256,
+                materialInputKey: localReceipt.operatingCohort.materialInputKey,
+                cohortId: localReceipt.operatingCohort.cohortId,
+                executionAttemptId: localReceipt.operatingCohort.executionAttemptId,
+                frozenDeclarationSha256: localReceipt.operatingCohort.frozenDeclarationSha256,
+                localRunId: localReceipt.localRunId,
+            } : {}),
+            references: localProjectionReferences(localReceipt),
+        })
+    }
     if (!SHA256_PATTERN.test(materialDeclarationSha256 ?? '')
         || !SHA256_PATTERN.test(localReceipt?.integrity?.payloadSha256 ?? '')
         || !SHA256_PATTERN.test(localReceipt?.declarationSha256 ?? '')) {
@@ -95,6 +133,42 @@ function buildSameGlobalReference({ localReceipt, materialDeclarationSha256 }) {
 }
 
 function validateSameGlobalReference(reference) {
+    if (reference?.schema === REFERENCE_V2_SCHEMA) {
+        const qualificationKeys = [
+            'schema', 'context', 'candidateId', 'candidateDeclarationSha256',
+            'projectionSchema', 'semanticFieldSetSha256', 'localReceiptPayloadSha256',
+            'references',
+        ]
+        const operatingKeys = [
+            ...qualificationKeys, 'materialDeclarationSha256', 'materialInputKey', 'cohortId',
+            'executionAttemptId', 'frozenDeclarationSha256', 'localRunId',
+        ]
+        const actualKeys = Object.keys(reference ?? {}).sort()
+        const operating = reference.context === 'material-operating'
+        const expectedKeys = operating ? operatingKeys : qualificationKeys
+        if (canonicalJson(actualKeys) !== canonicalJson(expectedKeys.sort())
+            || !['real-global-qualification', 'material-operating'].includes(reference.context)
+            || reference.candidateId !== 'toolchain-hardening'
+            || reference.projectionSchema !== PROJECTION_SCHEMA
+            || reference.semanticFieldSetSha256 !== SEMANTIC_FIELD_SET_SHA256) {
+            fail('INVALID_LOCAL_REFERENCE', 'V2 same-Global reference identity is invalid')
+        }
+        for (const key of [
+            'candidateDeclarationSha256', 'semanticFieldSetSha256',
+            'localReceiptPayloadSha256',
+        ]) if (!SHA256_PATTERN.test(reference[key] ?? '')) fail('INVALID_LOCAL_REFERENCE', `${key} is invalid`)
+        if (operating) {
+            for (const key of [
+                'materialDeclarationSha256', 'materialInputKey', 'cohortId', 'executionAttemptId',
+                'frozenDeclarationSha256', 'localRunId',
+            ]) if (!SHA256_PATTERN.test(reference[key] ?? '')) fail('INVALID_LOCAL_REFERENCE', `${key} is invalid`)
+        }
+        exactKeys(reference.references, ['0', '1'], 'V2 same-Global projection references')
+        if (Object.values(reference.references).some((value) => !SHA256_PATTERN.test(value ?? ''))) {
+            fail('INVALID_LOCAL_REFERENCE', 'V2 same-Global projection hash is invalid')
+        }
+        return reference
+    }
     const legacyKeys = [
         'schema', 'candidateId', 'candidateDeclarationSha256',
         'materialDeclarationSha256', 'localReceiptPayloadSha256', 'references',
@@ -128,6 +202,55 @@ function validateSameGlobalReference(reference) {
 
 function buildSameGlobalComparison({ reference, visiblePacks, observations }) {
     validateSameGlobalReference(reference)
+    if (reference.schema === REFERENCE_V2_SCHEMA) {
+        const mapping = candidateMappingContract(visiblePacks)
+        if (!Array.isArray(observations) || observations.length !== mapping.rawMasks) {
+            fail('INCOMPLETE_SAME_GLOBAL_COMPARISON', 'V2 observations do not cover the Global domain')
+        }
+        const ordered = [...observations].sort((left, right) => left.mask - right.mask)
+        const normalized = ordered.map((observation, mask) => {
+            const candidateMask = candidateMaskForGlobalMask(mask, mapping)
+            const matchesLocal = observation?.projectionSha256 === reference.references[String(candidateMask)]
+            if (observation?.mask !== mask || observation.candidateMask !== candidateMask
+                || !SHA256_PATTERN.test(observation.projectionSha256 ?? '')
+                || observation.matchesLocal !== matchesLocal) {
+                fail('INVALID_SAME_GLOBAL_OBSERVATION', `V2 same-Global observation ${mask} is invalid`)
+            }
+            return observation
+        })
+        validateGlobalCandidateMapping({ visiblePacks, observations: normalized })
+        const mismatches = normalized.filter((observation) => observation.matchesLocal !== true).length
+        return {
+            schema: COMPARISON_V2_SCHEMA,
+            context: reference.context,
+            candidateId: reference.candidateId,
+            projectionSchema: reference.projectionSchema,
+            semanticFieldSetSha256: reference.semanticFieldSetSha256,
+            candidateBitIndex: mapping.candidateBitIndex,
+            candidateDeclarationSha256: reference.candidateDeclarationSha256,
+            localReceiptPayloadSha256: reference.localReceiptPayloadSha256,
+            ...(reference.context === 'material-operating' ? {
+                materialDeclarationSha256: reference.materialDeclarationSha256,
+                materialInputKey: reference.materialInputKey,
+                cohortId: reference.cohortId,
+                executionAttemptId: reference.executionAttemptId,
+                frozenDeclarationSha256: reference.frozenDeclarationSha256,
+                localRunId: reference.localRunId,
+            } : {}),
+            localReferences: { ...reference.references },
+            globalExecutionSource: 'canonical-global-exhaustive-same-execution',
+            coverage: {
+                rawMasks: mapping.rawMasks,
+                processedMasks: mapping.rawMasks,
+                candidateOffMasks: mapping.candidateOffMasks,
+                candidateOnMasks: mapping.candidateOnMasks,
+            },
+            observations: normalized,
+            matches: normalized.length - mismatches,
+            mismatches,
+            status: mismatches === 0 ? 'passed' : 'failed',
+        }
+    }
     if (!Array.isArray(visiblePacks) || visiblePacks[visiblePacks.indexOf('toolchain-hardening')] !== 'toolchain-hardening') {
         fail('INVALID_GLOBAL_DOMAIN', 'Toolchain candidate is absent from the Global domain')
     }
@@ -183,6 +306,52 @@ function buildSameGlobalComparison({ reference, visiblePacks, observations }) {
 
 function validateSameGlobalComparison(comparison, result) {
     if (comparison === undefined) return true
+    if (comparison?.schema === COMPARISON_V2_SCHEMA) {
+        const qualificationKeys = [
+            'schema', 'context', 'candidateId', 'projectionSchema', 'semanticFieldSetSha256',
+            'candidateBitIndex', 'candidateDeclarationSha256', 'localReceiptPayloadSha256',
+            'localReferences', 'globalExecutionSource', 'coverage', 'observations', 'matches',
+            'mismatches', 'status',
+        ]
+        const operatingKeys = [
+            ...qualificationKeys, 'materialDeclarationSha256', 'materialInputKey', 'cohortId',
+            'executionAttemptId', 'frozenDeclarationSha256', 'localRunId',
+        ]
+        const operating = comparison.context === 'material-operating'
+        if (canonicalJson(Object.keys(comparison ?? {}).sort())
+            !== canonicalJson((operating ? operatingKeys : qualificationKeys).sort())) {
+            fail('INVALID_SAME_GLOBAL_EVIDENCE', 'V2 same-Global comparison keys differ')
+        }
+        const reference = {
+            schema: REFERENCE_V2_SCHEMA,
+            context: comparison.context,
+            candidateId: comparison.candidateId,
+            candidateDeclarationSha256: comparison.candidateDeclarationSha256,
+            projectionSchema: comparison.projectionSchema,
+            semanticFieldSetSha256: comparison.semanticFieldSetSha256,
+            localReceiptPayloadSha256: comparison.localReceiptPayloadSha256,
+            ...(operating ? {
+                materialDeclarationSha256: comparison.materialDeclarationSha256,
+                materialInputKey: comparison.materialInputKey,
+                cohortId: comparison.cohortId,
+                executionAttemptId: comparison.executionAttemptId,
+                frozenDeclarationSha256: comparison.frozenDeclarationSha256,
+                localRunId: comparison.localRunId,
+            } : {}),
+            references: comparison.localReferences,
+        }
+        const rebuilt = buildSameGlobalComparison({
+            reference,
+            visiblePacks: result.visiblePacks,
+            observations: comparison.observations,
+        })
+        if (canonicalJson(rebuilt) !== canonicalJson(comparison)
+            || comparison.coverage.rawMasks !== result.rawSelections
+            || comparison.coverage.processedMasks !== result.verifiedSelections) {
+            fail('INVALID_SAME_GLOBAL_COMPARISON', 'V2 comparison contradicts canonical coverage')
+        }
+        return comparison
+    }
     const legacyKeys = [
         'schema', 'candidateId', 'candidateBitIndex', 'candidateDeclarationSha256',
         'materialDeclarationSha256', 'localReceiptPayloadSha256', 'localReferences', 'globalExecutionSource',
@@ -227,13 +396,56 @@ function validateSameGlobalComparison(comparison, result) {
     return comparison
 }
 
+function sameGlobalReferenceFromComparison(comparison) {
+    if (comparison?.schema === COMPARISON_V2_SCHEMA) {
+        const operating = comparison.context === 'material-operating'
+        return validateSameGlobalReference({
+            schema: REFERENCE_V2_SCHEMA,
+            context: comparison.context,
+            candidateId: comparison.candidateId,
+            candidateDeclarationSha256: comparison.candidateDeclarationSha256,
+            projectionSchema: comparison.projectionSchema,
+            semanticFieldSetSha256: comparison.semanticFieldSetSha256,
+            localReceiptPayloadSha256: comparison.localReceiptPayloadSha256,
+            ...(operating ? {
+                materialDeclarationSha256: comparison.materialDeclarationSha256,
+                materialInputKey: comparison.materialInputKey,
+                cohortId: comparison.cohortId,
+                executionAttemptId: comparison.executionAttemptId,
+                frozenDeclarationSha256: comparison.frozenDeclarationSha256,
+                localRunId: comparison.localRunId,
+            } : {}),
+            references: comparison.localReferences,
+        })
+    }
+    const operating = comparison?.cohortId !== undefined
+    return validateSameGlobalReference({
+        schema: REFERENCE_SCHEMA,
+        candidateId: comparison?.candidateId,
+        candidateDeclarationSha256: comparison?.candidateDeclarationSha256,
+        materialDeclarationSha256: comparison?.materialDeclarationSha256,
+        localReceiptPayloadSha256: comparison?.localReceiptPayloadSha256,
+        ...(operating ? {
+            materialInputKey: comparison.materialInputKey,
+            cohortId: comparison.cohortId,
+            executionAttemptId: comparison.executionAttemptId,
+            frozenDeclarationSha256: comparison.frozenDeclarationSha256,
+            localRunId: comparison.localRunId,
+        } : {}),
+        references: comparison?.localReferences,
+    })
+}
+
 module.exports = {
     COMPARISON_SCHEMA,
+    COMPARISON_V2_SCHEMA,
     REFERENCE_SCHEMA,
+    REFERENCE_V2_SCHEMA,
     ToolchainShadowSameGlobalError,
     buildSameGlobalComparison,
     buildSameGlobalReference,
     localProjectionReferences,
+    sameGlobalReferenceFromComparison,
     validateSameGlobalComparison,
     validateSameGlobalReference,
 }

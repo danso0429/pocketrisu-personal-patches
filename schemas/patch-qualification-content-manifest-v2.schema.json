@@ -1,0 +1,23 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "patch-qualification-content-manifest-v2",
+  "title": "Real-Global qualification content manifest v2",
+  "type": "object",
+  "required": [
+    "schema", "createdAt", "qualificationType", "subject", "objects",
+    "acceptedPurpose", "excludedPurposes", "operatingCounts", "integrity"
+  ],
+  "properties": {
+    "schema": { "const": "patch-qualification-content-manifest-v2" },
+    "qualificationType": { "const": "patch-toolchain-shadow-real-global-qualification-v2" },
+    "objects": {
+      "type": "object",
+      "required": [
+        "qualificationRecordDescriptorSha256", "provisioningReceiptDescriptorSha256",
+        "localReceiptDescriptorSha256", "globalReceiptDescriptorSha256"
+      ],
+      "additionalProperties": false
+    }
+  },
+  "additionalProperties": false
+}

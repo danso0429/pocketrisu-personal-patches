@@ -12,6 +12,9 @@ const {
     validateLocalShadowReceipt,
 } = require('./toolchain-shadow-local.cjs')
 const {
+    evaluateExecutionReceipt,
+} = require('./verification-receipts.cjs')
+const {
     validateGlobalProjectionReceipt,
 } = require('./toolchain-shadow-global.cjs')
 const {
@@ -29,17 +32,29 @@ const {
 } = require('./toolchain-shadow-qualification.cjs')
 const {
     CONTENT_MANIFEST_SCHEMA,
+    CONTENT_MANIFEST_V2_SCHEMA,
     QUALIFICATION_MANIFEST_SCHEMA,
     QUALIFICATION_REGISTRY_SCHEMA,
     VALIDATION_RESULT_SCHEMA,
+    VALIDATION_RESULT_V2_SCHEMA,
+    REAL_GLOBAL_QUALIFICATION_TYPE,
     effectiveRegistryEntry,
     resolveVerifiedQualificationRegistryHead,
     registrySchemaRegistry,
     validateContentManifest,
+    validateContentManifestV2,
     validateQualificationManifest,
     validateRegistry,
     validateValidationResult,
+    validateValidationResultV2,
 } = require('./qualification-registry.cjs')
+const {
+    PROVISIONING_SCHEMA: REAL_GLOBAL_PROVISIONING_SCHEMA,
+    QUALIFICATION_SCHEMA: REAL_GLOBAL_QUALIFICATION_SCHEMA,
+    schemaRegistry: realGlobalSchemaRegistry,
+    validateProvisioningReceipt: validateRealGlobalProvisioningReceipt,
+    validateRealGlobalQualificationRecord,
+} = require('./toolchain-shadow-real-global-qualification.cjs')
 
 const LOCAL_RECEIPT_SCHEMA = 'patch-toolchain-shadow-local-receipt-v1'
 const GLOBAL_RECEIPT_SCHEMA = 'patch-toolchain-shadow-global-projection-v1'
@@ -60,10 +75,98 @@ function fail(code, message, details = null) {
 function fullSchemaRegistry() {
     return new Map([
         ...machineSchemaRegistry(),
+        ...realGlobalSchemaRegistry(),
         ...registrySchemaRegistry(),
         [LOCAL_RECEIPT_SCHEMA, validateLocalShadowReceipt],
+        ['patch-toolchain-shadow-local-receipt-v2', validateLocalShadowReceipt],
         [GLOBAL_RECEIPT_SCHEMA, validateGlobalProjectionReceipt],
+        ['patch-verification-execution-receipt-v2', (document) => {
+            const evaluation = evaluateExecutionReceipt(document)
+            if (!evaluation.receiptValid || !evaluation.executionAccepted) {
+                fail('INVALID_GLOBAL_QUALIFICATION_RECEIPT', 'Canonical Global qualification receipt is invalid', evaluation)
+            }
+            return document
+        }],
     ])
+}
+
+function readRealGlobalContentQualification({
+    storeRoot, identity, contentRecord, expectedSubject = null,
+}) {
+    assertDescriptor(contentRecord, {
+        role: 'qualification-content-manifest',
+        payloadModel: 'canonical-json',
+        mediaType: 'application/vnd.pocketrisu.qualification-manifest+json',
+        schema: CONTENT_MANIFEST_V2_SCHEMA,
+    })
+    const content = validateContentManifestV2(contentRecord.document)
+    if (expectedSubject !== null
+        && !canonicalJsonBytes(content.subject).equals(canonicalJsonBytes(expectedSubject))) {
+        fail('STALE_QUALIFICATION_SUBJECT', 'V2 content manifest subject differs from the expected frozen subject')
+    }
+    const load = (key, descriptor) => {
+        const record = loadObject(storeRoot, content.objects[key])
+        assertDescriptor(record, descriptor)
+        return record
+    }
+    const qualificationRecordObject = load('qualificationRecordDescriptorSha256', {
+        role: 'real-global-qualification-record', payloadModel: 'canonical-json',
+        mediaType: 'application/json', schema: REAL_GLOBAL_QUALIFICATION_SCHEMA,
+    })
+    const provisioningObject = load('provisioningReceiptDescriptorSha256', {
+        role: 'real-global-qualification-provisioning', payloadModel: 'canonical-json',
+        mediaType: 'application/json', schema: REAL_GLOBAL_PROVISIONING_SCHEMA,
+    })
+    const localObject = load('localReceiptDescriptorSha256', {
+        role: 'real-global-qualification-local-receipt', payloadModel: 'raw-blob',
+        mediaType: 'application/json', schema: 'patch-toolchain-shadow-local-receipt-v2',
+    })
+    const globalObject = load('globalReceiptDescriptorSha256', {
+        role: 'real-global-qualification-global-receipt', payloadModel: 'raw-blob',
+        mediaType: 'application/json', schema: 'patch-verification-execution-receipt-v2',
+    })
+    const provisioningReceipt = validateRealGlobalProvisioningReceipt(provisioningObject.document)
+    const localReceipt = validateLocalShadowReceipt(localObject.document)
+    const globalReceipt = globalObject.document
+    const qualificationRecord = validateRealGlobalQualificationRecord(
+        qualificationRecordObject.document,
+        { provisioningReceipt, localReceipt, globalReceipt },
+    )
+    if (qualificationRecord.qualificationType !== content.qualificationType
+        || !canonicalJsonBytes(qualificationRecord.subject).equals(canonicalJsonBytes(content.subject))) {
+        fail('QUALIFICATION_REFERENCE_MISMATCH', 'V2 qualification record and content manifest differ')
+    }
+    return {
+        identity,
+        content,
+        support: qualificationRecord,
+        closure: qualificationRecord,
+        qualificationRecord,
+        provisioningReceipt,
+        localReceipt,
+        globalReceipt,
+        derivation: null,
+        checkedDescriptors: [
+            contentRecord.descriptorSha256,
+            qualificationRecordObject.descriptorSha256,
+            provisioningObject.descriptorSha256,
+            localObject.descriptorSha256,
+            globalObject.descriptorSha256,
+        ].sort(),
+        checks: {
+            storeIdentityValid: true,
+            objectHashesValid: true,
+            objectTypesValid: true,
+            schemasValid: true,
+            manifestReferencesComplete: true,
+            receiptsValid: true,
+            realGlobalProjectionValid: true,
+            authorityCompatible: true,
+            operatingCountsIsolated: true,
+            productionProtectionValid: true,
+            quarantineNotAuthority: true,
+        },
+    }
 }
 
 function loadObject(storeRoot, descriptorSha256) {
@@ -139,6 +242,11 @@ function readContentQualification({
 }) {
     const identity = loadStoreIdentity(storeRoot)
     const contentRecord = loadObject(storeRoot, contentManifestDescriptorSha256)
+    if (contentRecord.descriptor.referencedSchema === CONTENT_MANIFEST_V2_SCHEMA) {
+        return readRealGlobalContentQualification({
+            storeRoot, identity, contentRecord, expectedSubject,
+        })
+    }
     assertDescriptor(contentRecord, {
         role: 'qualification-content-manifest',
         payloadModel: 'canonical-json',
@@ -276,18 +384,28 @@ function verifyFinalQualification({ storeRoot, qualificationManifestDescriptorSh
         fail('QUALIFICATION_TYPE_MISMATCH', 'Final and content manifest qualification types differ')
     }
     const validationRecord = loadObject(storeRoot, finalManifest.validationResultDescriptorSha256)
+    const validationSchema = finalManifest.qualificationType === REAL_GLOBAL_QUALIFICATION_TYPE
+        ? VALIDATION_RESULT_V2_SCHEMA : VALIDATION_RESULT_SCHEMA
     assertDescriptor(validationRecord, {
         role: 'independent-qualification-validation',
         payloadModel: 'canonical-json',
         mediaType: 'application/vnd.pocketrisu.qualification-validation+json',
-        schema: VALIDATION_RESULT_SCHEMA,
+        schema: validationSchema,
     })
-    const validation = validateValidationResult(validationRecord.document)
+    const validation = finalManifest.qualificationType === REAL_GLOBAL_QUALIFICATION_TYPE
+        ? validateValidationResultV2(validationRecord.document)
+        : validateValidationResult(validationRecord.document)
+    const v2CoverageValid = finalManifest.qualificationType !== REAL_GLOBAL_QUALIFICATION_TYPE
+        || (validation.qualificationType === REAL_GLOBAL_QUALIFICATION_TYPE
+            && contentResult.checkedDescriptors.every((hash) => validation.checkedDescriptors.includes(hash)))
+    const v1DerivationValid = finalManifest.qualificationType === REAL_GLOBAL_QUALIFICATION_TYPE
+        || canonicalJsonBytes(derivationIdentity(validation.derivation))
+            .equals(canonicalJsonBytes(derivationIdentity(contentResult.derivation)))
     if (validation.result !== 'passed'
         || validation.independentVerifier.qualificationToolCommit !== finalManifest.subject.qualificationToolCommit
         || validation.storeIdentityHash !== contentResult.identity.storeIdentityHash
         || validation.contentManifestDescriptorSha256 !== finalManifest.contentManifestDescriptorSha256
-        || !canonicalJsonBytes(derivationIdentity(validation.derivation)).equals(canonicalJsonBytes(derivationIdentity(contentResult.derivation)))
+        || !v1DerivationValid || !v2CoverageValid
         || !contentResult.checkedDescriptors.every((hash) => validation.checkedDescriptors.includes(hash))) {
         fail('INDEPENDENT_VALIDATION_MISMATCH', 'Stored independent validation does not cover the content manifest')
     }
@@ -332,10 +450,12 @@ function verifyRegistryAncestry(storeRoot, registryRecord, seen = new Set()) {
     return [...verifyRegistryAncestry(storeRoot, baseRecord, seen), descriptorSha256]
 }
 
-function inspectDurableAcceptedQualification({ storeRoot, expectedSubject }) {
+function inspectDurableAcceptedQualification({
+    storeRoot, expectedSubject, expectedQualificationType = require('./toolchain-shadow-qualification.cjs').QUALIFICATION_TYPE,
+}) {
     const verifiedHead = resolveVerifiedQualificationRegistryHead(storeRoot)
     const registry = verifiedHead.registry
-    const effective = effectiveRegistryEntry(registry, expectedSubject)
+    const effective = effectiveRegistryEntry(registry, expectedSubject, expectedQualificationType)
     if (effective.state !== 'accepted' || effective.entry.action !== 'accept') {
         fail(effective.state === 'revoked' ? 'QUALIFICATION_REVOKED' : 'QUALIFICATION_NOT_ACCEPTED', 'No durable accepted qualification exists')
     }
@@ -362,28 +482,36 @@ function inspectDurableAcceptedQualification({ storeRoot, expectedSubject }) {
         performFreshDerivation: false,
     })
     const validationRecord = loadObject(storeRoot, finalManifest.validationResultDescriptorSha256)
+    const validationSchema = finalManifest.qualificationType === REAL_GLOBAL_QUALIFICATION_TYPE
+        ? VALIDATION_RESULT_V2_SCHEMA : VALIDATION_RESULT_SCHEMA
     assertDescriptor(validationRecord, {
         role: 'independent-qualification-validation',
         payloadModel: 'canonical-json',
         mediaType: 'application/vnd.pocketrisu.qualification-validation+json',
-        schema: VALIDATION_RESULT_SCHEMA,
+        schema: validationSchema,
     })
-    const validation = validateValidationResult(validationRecord.document)
+    const validation = finalManifest.qualificationType === REAL_GLOBAL_QUALIFICATION_TYPE
+        ? validateValidationResultV2(validationRecord.document)
+        : validateValidationResult(validationRecord.document)
     const storedDerivation = stored.support.fixtureDerivation
     const validatedDerivation = validation.derivation
+    const v2StoredValid = finalManifest.qualificationType !== REAL_GLOBAL_QUALIFICATION_TYPE
+        || stored.checkedDescriptors.every((hash) => validation.checkedDescriptors.includes(hash))
+    const v1StoredValid = finalManifest.qualificationType === REAL_GLOBAL_QUALIFICATION_TYPE
+        || (validatedDerivation.freshProcess === true
+            && validatedDerivation.publisherFlagTrusted === false
+            && validatedDerivation.subjectCommit === expectedSubject.implementationCommit
+            && validatedDerivation.subjectClean === true
+            && validatedDerivation.inputDeclarationSha256 === storedDerivation.inputDeclarationSha256
+            && validatedDerivation.recipePath === storedDerivation.recipePath
+            && validatedDerivation.recipeSha256 === storedDerivation.recipeSha256
+            && validatedDerivation.outputFixtureDeclarationSha256 === storedDerivation.outputFixtureDeclarationSha256
+            && validatedDerivation.outputSyntheticTargetTreeSha256 === storedDerivation.outputSyntheticTargetTreeSha256)
     if (validation.result !== 'passed'
         || validation.independentVerifier.qualificationToolCommit !== finalManifest.subject.qualificationToolCommit
         || validation.storeIdentityHash !== stored.identity.storeIdentityHash
         || validation.contentManifestDescriptorSha256 !== finalManifest.contentManifestDescriptorSha256
-        || validatedDerivation.freshProcess !== true
-        || validatedDerivation.publisherFlagTrusted !== false
-        || validatedDerivation.subjectCommit !== expectedSubject.implementationCommit
-        || validatedDerivation.subjectClean !== true
-        || validatedDerivation.inputDeclarationSha256 !== storedDerivation.inputDeclarationSha256
-        || validatedDerivation.recipePath !== storedDerivation.recipePath
-        || validatedDerivation.recipeSha256 !== storedDerivation.recipeSha256
-        || validatedDerivation.outputFixtureDeclarationSha256 !== storedDerivation.outputFixtureDeclarationSha256
-        || validatedDerivation.outputSyntheticTargetTreeSha256 !== storedDerivation.outputSyntheticTargetTreeSha256
+        || !v1StoredValid || !v2StoredValid
         || !stored.checkedDescriptors.every((hash) => validation.checkedDescriptors.includes(hash))) {
         fail('INDEPENDENT_VALIDATION_MISMATCH', 'Stored independent validation does not cover the durable qualification graph')
     }
@@ -415,6 +543,7 @@ function verifyQualificationRegistry({
     expectedSubject,
     requireCurrentRef = false,
     subjectRoot,
+    expectedQualificationType = require('./toolchain-shadow-qualification.cjs').QUALIFICATION_TYPE,
 }) {
     const verifiedHead = resolveVerifiedQualificationRegistryHead(storeRoot)
     if (registryDescriptorSha256 !== null
@@ -431,7 +560,7 @@ function verifyQualificationRegistry({
     })
     const registry = validateRegistry(registryRecord.document)
     const ancestryDescriptors = verifyRegistryAncestry(storeRoot, registryRecord)
-    const effective = effectiveRegistryEntry(registry, expectedSubject)
+    const effective = effectiveRegistryEntry(registry, expectedSubject, expectedQualificationType)
     if (effective.state !== 'accepted' || effective.entry.action === 'revoke') {
         fail(effective.state === 'revoked' ? 'QUALIFICATION_REVOKED' : 'QUALIFICATION_NOT_ACCEPTED', 'No effective accepted qualification exists')
     }

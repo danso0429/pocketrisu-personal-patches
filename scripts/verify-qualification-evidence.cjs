@@ -10,6 +10,9 @@ const {
 } = require('../src/qualification-object-store.cjs')
 const {
     buildValidationResult,
+    buildValidationResultV2,
+    REAL_GLOBAL_QUALIFICATION_TYPE,
+    QUALIFICATION_TYPES,
 } = require('../src/qualification-registry.cjs')
 const {
     assertQuarantineIsNotAcceptedStore,
@@ -35,11 +38,15 @@ function parseArgs(argv) {
             '--validation-output': 'validationOutput',
             '--tool-root': 'toolRoot',
             '--subject-root': 'subjectRoot',
+            '--qualification-type': 'qualificationType',
         }[flag]
         if (!key) throw new Error(`Unknown option: ${flag}`)
         options[key] = values[++index]
     }
     if (!options.storeRoot || !options.subjectFile || !options.subjectRoot) throw new Error('--store, --subject and --subject-root are required')
+    if (options.qualificationType !== undefined && !QUALIFICATION_TYPES.includes(options.qualificationType)) {
+        throw new Error('--qualification-type is unsupported')
+    }
     const modes = ['contentManifest', 'qualificationManifest', 'registry'].filter((key) => options[key])
     if (modes.length !== 1) throw new Error('Exactly one of --content-manifest, --qualification-manifest or --registry is required')
     if ((options.validationOutput !== undefined) !== (options.contentManifest !== undefined)) {
@@ -98,15 +105,18 @@ async function main(argv = process.argv) {
             contentManifestDescriptorSha256: options.contentManifest,
             expectedSubject: subject,
             subjectRoot: options.subjectRoot,
+            expectedQualificationType: options.qualificationType,
         })
-        const result = buildValidationResult({
+        const buildResult = verified.content.qualificationType === REAL_GLOBAL_QUALIFICATION_TYPE
+            ? buildValidationResultV2 : buildValidationResult
+        const result = buildResult({
             validatedAt: new Date().toISOString(),
             qualificationToolCommit: await gitCommit(options.toolRoot),
             storeIdentityHash: verified.identity.storeIdentityHash,
             contentManifestDescriptorSha256: options.contentManifest,
             checkedDescriptors: verified.checkedDescriptors,
             checks: verified.checks,
-            derivation: verified.derivation,
+            ...(verified.derivation === null ? {} : { derivation: verified.derivation }),
             failures: [],
         })
         writeCanonicalOutput(options.validationOutput, result)
@@ -126,6 +136,7 @@ async function main(argv = process.argv) {
             expectedSubject: subject,
             requireCurrentRef: options.requireCurrentRef,
             subjectRoot: options.subjectRoot,
+            expectedQualificationType: options.qualificationType,
         })
         report = {
             mode: 'registry', passed: true, registryRootSha256: verified.registryRootSha256,

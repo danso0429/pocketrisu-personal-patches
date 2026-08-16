@@ -38,7 +38,11 @@ const {
     publishEvidenceObject,
     loadEvidenceObject,
 } = require('../src/c0-retention.cjs')
-const { preflightOperatingCohort } = require('../src/operating-cohort-preflight.cjs')
+const {
+    candidateContractRoot,
+    candidateContractVersion,
+    preflightOperatingCohort,
+} = require('../src/operating-cohort-preflight.cjs')
 const { runFreshLocalShadow } = require('../src/toolchain-shadow-local.cjs')
 const { loadToolchainShadowDeclaration } = require('../src/toolchain-shadow-contract.cjs')
 const { buildSameGlobalReference } = require('../src/toolchain-shadow-same-global.cjs')
@@ -384,7 +388,12 @@ async function validateCurrentFrozenInputs({
         throw new Error('Current source or target differs from the frozen pre-execution contract')
     }
     const compiled = (dependencies.loadToolchainShadowDeclaration
-        ?? loadToolchainShadowDeclaration)(subjectRoot, { targetRoot })
+        ?? loadToolchainShadowDeclaration)(candidateContractRoot(
+        subjectRoot, declaration, sourceRoot,
+    ), {
+        targetRoot,
+        contractVersion: candidateContractVersion(declaration),
+    })
     const localDomain = routeDecision.totalLocalCasesExpected === 0 ? {
         candidateId: null,
         masks: [],
@@ -529,7 +538,11 @@ async function internalCapture(request) {
     if (request.routeDecision?.routeId === ROUTE_COMBINED) {
         try {
             localReceipt = await runFreshLocalShadow({
-                sourceRoot: request.qualifiedSubjectRoot,
+                sourceRoot: candidateContractRoot(
+                    request.qualifiedSubjectRoot,
+                    request.materialDeclaration,
+                    request.sourceRoot,
+                ),
                 targetRoot: request.root,
                 disposition: 'material-shadow',
                 operatingCohort,

@@ -14,7 +14,11 @@ const {
     publishFrozenCohortDeclaration,
     publishOperatingEnvironmentForAttempt,
 } = require('../src/operating-cohort-identity.cjs')
-const { preflightOperatingCohort } = require('../src/operating-cohort-preflight.cjs')
+const {
+    candidateContractRoot,
+    candidateContractVersion,
+    preflightOperatingCohort,
+} = require('../src/operating-cohort-preflight.cjs')
 const { loadToolchainShadowDeclaration } = require('../src/toolchain-shadow-contract.cjs')
 const { captureInputFreeze, sha256, writeJsonAtomic } = require('../src/verification-evidence.cjs')
 const { listEvidenceObjects } = require('../src/c0-retention.cjs')
@@ -178,7 +182,12 @@ async function freezeOperatingCohort(options, dependencies = {}) {
             throw new Error(`Operating route is not safe to freeze: ${routeDecision.blockers.join(', ')}`)
         }
         const compiled = (dependencies.loadToolchainShadowDeclaration
-            ?? loadToolchainShadowDeclaration)(options.subjectRoot, { targetRoot: options.targetRoot })
+            ?? loadToolchainShadowDeclaration)(candidateContractRoot(
+            options.subjectRoot, declaration, sourceRoot,
+        ), {
+            targetRoot: options.targetRoot,
+            contractVersion: candidateContractVersion(declaration),
+        })
         const localDomain = routeDecision.totalLocalCasesExpected === 0 ? {
             candidateId: null,
             masks: [],

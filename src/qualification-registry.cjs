@@ -25,12 +25,16 @@ const {
 
 const CONTENT_MANIFEST_SCHEMA = 'patch-qualification-content-manifest-v1'
 const VALIDATION_RESULT_SCHEMA = 'patch-qualification-validation-result-v1'
+const CONTENT_MANIFEST_V2_SCHEMA = 'patch-qualification-content-manifest-v2'
+const VALIDATION_RESULT_V2_SCHEMA = 'patch-qualification-validation-result-v2'
 const QUALIFICATION_MANIFEST_SCHEMA = 'patch-qualification-manifest-v1'
 const QUALIFICATION_REGISTRY_SCHEMA = 'patch-qualification-evidence-registry-v1'
 const CURRENT_REF_SCHEMA = 'patch-qualification-registry-current-ref-v1'
 const REGISTRY_ID_SCHEMA = 'patch-qualification-registry-identity-v1'
 const SNAPSHOT_REF_SCHEMA = 'patch-qualification-registry-snapshot-ref-v1'
 const ACCEPTED_PURPOSE = 'prerequisite-for-material-shadow-cohort-collection'
+const REAL_GLOBAL_QUALIFICATION_TYPE = 'patch-toolchain-shadow-real-global-qualification-v2'
+const QUALIFICATION_TYPES = Object.freeze([QUALIFICATION_TYPE, REAL_GLOBAL_QUALIFICATION_TYPE])
 const DISPOSITIONS = Object.freeze([
     'accepted-qualification', 'diagnostic', 'negative', 'incomplete', 'invalid', 'superseded',
 ])
@@ -160,11 +164,48 @@ function validateContentManifest(manifest) {
     return manifest
 }
 
+function validateContentManifestV2(manifest) {
+    if (!verifyDocumentIntegrity(manifest) || manifest.schema !== CONTENT_MANIFEST_V2_SCHEMA) {
+        fail('INVALID_CONTENT_MANIFEST', 'Real-Global qualification content manifest schema or integrity is invalid')
+    }
+    exactKeys(manifest, [
+        'schema', 'createdAt', 'qualificationType', 'subject', 'objects', 'acceptedPurpose',
+        'excludedPurposes', 'operatingCounts', 'integrity',
+    ], 'real-Global content manifest')
+    if (manifest.qualificationType !== REAL_GLOBAL_QUALIFICATION_TYPE) {
+        fail('INVALID_QUALIFICATION_TYPE', 'Real-Global content manifest qualification type is incompatible')
+    }
+    validateSubject(manifest.subject)
+    validatePurposes(manifest.acceptedPurpose, manifest.excludedPurposes)
+    validateOperatingCounts(manifest.operatingCounts)
+    exactKeys(manifest.objects, [
+        'qualificationRecordDescriptorSha256', 'provisioningReceiptDescriptorSha256',
+        'localReceiptDescriptorSha256', 'globalReceiptDescriptorSha256',
+    ], 'real-Global content manifest objects')
+    for (const [key, value] of Object.entries(manifest.objects)) {
+        validateSha(value, `real-Global content manifest ${key}`)
+    }
+    return manifest
+}
+
 function buildContentManifest({ createdAt, subject, objects }) {
     return validateContentManifest(sealDocument({
         schema: CONTENT_MANIFEST_SCHEMA,
         createdAt,
         qualificationType: QUALIFICATION_TYPE,
+        subject,
+        objects,
+        acceptedPurpose: ACCEPTED_PURPOSE,
+        excludedPurposes: [...EXCLUDED_PURPOSES],
+        operatingCounts: { ...OPERATING_COUNTS },
+    }))
+}
+
+function buildContentManifestV2({ createdAt, subject, objects }) {
+    return validateContentManifestV2(sealDocument({
+        schema: CONTENT_MANIFEST_V2_SCHEMA,
+        createdAt,
+        qualificationType: REAL_GLOBAL_QUALIFICATION_TYPE,
         subject,
         objects,
         acceptedPurpose: ACCEPTED_PURPOSE,
@@ -225,6 +266,46 @@ function validateValidationResult(result) {
     return result
 }
 
+function validateValidationResultV2(result) {
+    if (!verifyDocumentIntegrity(result) || result.schema !== VALIDATION_RESULT_V2_SCHEMA) {
+        fail('INVALID_VALIDATION_RESULT', 'Real-Global qualification validation result schema or integrity is invalid')
+    }
+    exactKeys(result, [
+        'schema', 'validatedAt', 'result', 'qualificationType', 'independentVerifier',
+        'storeIdentityHash', 'contentManifestDescriptorSha256', 'checkedDescriptors',
+        'checks', 'failures', 'integrity',
+    ], 'real-Global validation result')
+    if (result.qualificationType !== REAL_GLOBAL_QUALIFICATION_TYPE) {
+        fail('INVALID_QUALIFICATION_TYPE', 'Real-Global validation result qualification type is incompatible')
+    }
+    exactKeys(result.independentVerifier, [
+        'qualificationToolCommit', 'freshProcess', 'publisherSuccessTrusted',
+    ], 'real-Global independent verifier identity')
+    exactKeys(result.checks, [
+        'storeIdentityValid', 'objectHashesValid', 'objectTypesValid', 'schemasValid',
+        'manifestReferencesComplete', 'receiptsValid', 'realGlobalProjectionValid',
+        'authorityCompatible', 'operatingCountsIsolated', 'productionProtectionValid',
+        'quarantineNotAuthority',
+    ], 'real-Global independent validation checks')
+    validateSha(result.storeIdentityHash, 'real-Global validation store identity')
+    validateSha(result.contentManifestDescriptorSha256, 'real-Global validation content manifest')
+    if (!Array.isArray(result.checkedDescriptors)
+        || new Set(result.checkedDescriptors).size !== result.checkedDescriptors.length) {
+        fail('INVALID_VALIDATION_RESULT', 'Real-Global validation descriptor coverage is missing or duplicated')
+    }
+    for (const hash of result.checkedDescriptors) validateSha(hash, 'real-Global checked descriptor')
+    if (!/^[0-9a-f]{40}$/.test(result.independentVerifier.qualificationToolCommit ?? '')
+        || result.independentVerifier.freshProcess !== true
+        || result.independentVerifier.publisherSuccessTrusted !== false
+        || !['passed', 'failed'].includes(result.result)
+        || !Array.isArray(result.failures)
+        || (result.result === 'passed'
+            && (result.failures.length !== 0 || !Object.values(result.checks).every((value) => value === true)))) {
+        fail('INVALID_VALIDATION_RESULT', 'Real-Global independent validation result is incomplete')
+    }
+    return result
+}
+
 function buildValidationResult({
     validatedAt,
     qualificationToolCommit,
@@ -253,6 +334,34 @@ function buildValidationResult({
     }))
 }
 
+function buildValidationResultV2({
+    validatedAt,
+    qualificationToolCommit,
+    storeIdentityHash,
+    contentManifestDescriptorSha256,
+    checkedDescriptors,
+    checks,
+    failures = [],
+}) {
+    return validateValidationResultV2(sealDocument({
+        schema: VALIDATION_RESULT_V2_SCHEMA,
+        validatedAt,
+        result: failures.length === 0 && Object.values(checks).every((value) => value === true)
+            ? 'passed' : 'failed',
+        qualificationType: REAL_GLOBAL_QUALIFICATION_TYPE,
+        independentVerifier: {
+            qualificationToolCommit,
+            freshProcess: true,
+            publisherSuccessTrusted: false,
+        },
+        storeIdentityHash,
+        contentManifestDescriptorSha256,
+        checkedDescriptors: [...new Set(checkedDescriptors)].sort(),
+        checks,
+        failures,
+    }))
+}
+
 function validateQualificationManifest(manifest) {
     if (!verifyDocumentIntegrity(manifest) || manifest.schema !== QUALIFICATION_MANIFEST_SCHEMA) {
         fail('INVALID_QUALIFICATION_MANIFEST', 'Final qualification manifest schema or integrity is invalid')
@@ -262,7 +371,7 @@ function validateQualificationManifest(manifest) {
         'validationResultDescriptorSha256', 'disposition', 'acceptedPurpose', 'excludedPurposes',
         'operatingCounts', 'canonicalProtection', 'integrity',
     ], 'qualification manifest')
-    if (manifest.qualificationType !== QUALIFICATION_TYPE) {
+    if (!QUALIFICATION_TYPES.includes(manifest.qualificationType)) {
         fail('INVALID_QUALIFICATION_TYPE', 'Final manifest qualification type is incompatible')
     }
     validateSubject(manifest.subject)
@@ -281,11 +390,12 @@ function buildQualificationManifest({
     contentManifestDescriptorSha256,
     validationResultDescriptorSha256,
     disposition = 'accepted-qualification',
+    qualificationType = QUALIFICATION_TYPE,
 }) {
     return validateQualificationManifest(sealDocument({
         schema: QUALIFICATION_MANIFEST_SCHEMA,
         createdAt,
-        qualificationType: QUALIFICATION_TYPE,
+        qualificationType,
         subject,
         contentManifestDescriptorSha256,
         validationResultDescriptorSha256,
@@ -314,7 +424,7 @@ function validateRegistryEntry(entry, expectedSequence, expectedPrevious) {
         'operatingCounts', 'reason', 'timestamp', 'entrySha256',
     ], `qualification registry entry ${expectedSequence}`)
     if (entry.sequence !== expectedSequence || entry.previousEntrySha256 !== expectedPrevious
-        || !ACTIONS.includes(entry.action) || entry.qualificationType !== QUALIFICATION_TYPE
+        || !ACTIONS.includes(entry.action) || !QUALIFICATION_TYPES.includes(entry.qualificationType)
         || !DISPOSITIONS.includes(entry.disposition) || typeof entry.reason !== 'string' || entry.reason.length === 0
         || Number.isNaN(Date.parse(entry.timestamp)) || entry.entryId !== entryIdentity(entry)
         || entry.entrySha256 !== entryHash(entry)) {
@@ -366,17 +476,20 @@ function validateRegistry(registry) {
     return registry
 }
 
-function subjectKey(subject) {
-    return sha256(canonicalJsonBytes({ qualificationType: QUALIFICATION_TYPE, subject }))
+function subjectKey(subject, qualificationType = QUALIFICATION_TYPE) {
+    if (!QUALIFICATION_TYPES.includes(qualificationType)) {
+        fail('INVALID_QUALIFICATION_TYPE', 'Qualification subject key type is unsupported')
+    }
+    return sha256(canonicalJsonBytes({ qualificationType, subject }))
 }
 
-function effectiveRegistryEntry(registry, subject) {
+function effectiveRegistryEntry(registry, subject, qualificationType = QUALIFICATION_TYPE) {
     validateRegistry(registry)
-    const key = subjectKey(subject)
+    const key = subjectKey(subject, qualificationType)
     let current = null
     let state = 'not-found'
     for (const entry of registry.entries) {
-        if (subjectKey(entry.subject) !== key) continue
+        if (subjectKey(entry.subject, entry.qualificationType) !== key) continue
         if (entry.action === 'accept' || entry.action === 'supersede') {
             current = entry
             state = 'accepted'
@@ -395,6 +508,7 @@ function appendRegistryEntry({
     action,
     subject,
     qualificationManifestDescriptorSha256,
+    qualificationType = QUALIFICATION_TYPE,
     reason,
     timestamp,
 }) {
@@ -409,7 +523,12 @@ function appendRegistryEntry({
         fail('INVALID_BASE_REGISTRY_REFERENCE', 'Initial registry cannot name a base snapshot')
     }
     if (baseRegistry !== null) validateSha(baseRegistryDescriptorSha256, 'base registry descriptor')
-    const effective = baseRegistry === null ? { state: 'not-found', entry: null } : effectiveRegistryEntry(baseRegistry, subject)
+    if (!QUALIFICATION_TYPES.includes(qualificationType)) {
+        fail('INVALID_QUALIFICATION_TYPE', 'Registry append qualification type is unsupported')
+    }
+    const effective = baseRegistry === null
+        ? { state: 'not-found', entry: null }
+        : effectiveRegistryEntry(baseRegistry, subject, qualificationType)
     if (action === 'accept' && effective.state === 'accepted') {
         if (effective.entry.qualificationManifestDescriptorSha256 === qualificationManifestDescriptorSha256) {
             return { registry: baseRegistry, entry: effective.entry, idempotent: true }
@@ -423,7 +542,7 @@ function appendRegistryEntry({
         previousEntrySha256: entries.at(-1)?.entrySha256 ?? null,
         entryId: null,
         action,
-        qualificationType: QUALIFICATION_TYPE,
+        qualificationType,
         subject,
         qualificationManifestDescriptorSha256,
         disposition: action === 'revoke' ? 'invalid' : 'accepted-qualification',
@@ -454,7 +573,9 @@ function appendRegistryEntry({
 function registrySchemaRegistry() {
     return new Map([
         [CONTENT_MANIFEST_SCHEMA, validateContentManifest],
+        [CONTENT_MANIFEST_V2_SCHEMA, validateContentManifestV2],
         [VALIDATION_RESULT_SCHEMA, validateValidationResult],
+        [VALIDATION_RESULT_V2_SCHEMA, validateValidationResultV2],
         [QUALIFICATION_MANIFEST_SCHEMA, validateQualificationManifest],
         [QUALIFICATION_REGISTRY_SCHEMA, validateRegistry],
     ])
@@ -821,21 +942,27 @@ module.exports = {
     ACTIONS,
     CANONICAL_PROTECTION,
     CONTENT_MANIFEST_SCHEMA,
+    CONTENT_MANIFEST_V2_SCHEMA,
     CURRENT_REF_SCHEMA,
     DISPOSITIONS,
     OPERATING_COUNTS,
     QUALIFICATION_MANIFEST_SCHEMA,
     QUALIFICATION_REGISTRY_SCHEMA,
+    QUALIFICATION_TYPES,
+    REAL_GLOBAL_QUALIFICATION_TYPE,
     REGISTRY_ID_SCHEMA,
     SNAPSHOT_REF_SCHEMA,
     QualificationRegistryError,
     VALIDATION_RESULT_SCHEMA,
+    VALIDATION_RESULT_V2_SCHEMA,
     appendRegistryEntry,
     buildContentManifest,
+    buildContentManifestV2,
     buildCurrentRef,
     buildSnapshotRef,
     buildQualificationManifest,
     buildValidationResult,
+    buildValidationResultV2,
     effectiveRegistryEntry,
     enumerateRegistrySnapshots,
     publishRegistrySnapshot,
@@ -845,10 +972,12 @@ module.exports = {
     registrySchemaRegistry,
     updateCurrentRef,
     validateContentManifest,
+    validateContentManifestV2,
     validateCurrentRef,
     validateSnapshotRef,
     validateQualificationManifest,
     validateRegistry,
     validateRegistryEntry,
     validateValidationResult,
+    validateValidationResultV2,
 }

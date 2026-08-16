@@ -662,7 +662,10 @@ async function collectMachineSupport({
     const contractHash = sha256(fs.readFileSync(path.join(subjectRoot, 'contracts/toolchain-hardening-shadow-v1.json')))
     if (policyHash !== POLICY_SHA256) fail('STALE_POLICY', 'Canonical policy hash changed')
     if (contractHash !== CONTRACT_SHA256) fail('STALE_CONTRACT', 'Candidate contract exact bytes changed')
-    const compiled = loadToolchainShadowDeclaration(subjectRoot, { targetRoot })
+    const compiled = loadToolchainShadowDeclaration(subjectRoot, {
+        targetRoot,
+        contractVersion: 1,
+    })
     if (compiled.declarationSha256 !== COMPILED_DECLARATION_SHA256) fail('STALE_DECLARATION', 'Compiled candidate declaration changed')
     if (compiled.declaration.target.commit !== TARGET_COMMIT
         || compiled.declaration.target.applicationTreeSha256 !== CANONICAL_TARGET_TREE_SHA256) {

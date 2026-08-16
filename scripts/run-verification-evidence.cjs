@@ -15,6 +15,8 @@ const {
 } = require('../src/verification-evidence.cjs')
 const {
     RECEIPT_DISPOSITIONS,
+    canonicalJson,
+    computeGlobalRunId,
     sealDocument,
     validateDisposition,
 } = require('../src/verification-receipts.cjs')
@@ -22,6 +24,9 @@ const {
     compareRuntimeEnvelopes,
     runtimeEnvelope,
 } = require('../src/verification-runtime.cjs')
+const {
+    validateSameGlobalReference,
+} = require('../src/toolchain-shadow-same-global.cjs')
 
 function parseArgs(argv) {
     let root = null
@@ -31,6 +36,7 @@ function parseArgs(argv) {
     let disposition = 'current-active'
     let targetProvenance = null
     let verificationKind = 'global-exhaustive'
+    let toolchainShadowReference = null
     for (let index = 2; index < argv.length; index += 1) {
         const argument = argv[index]
         if (argument === '--root') root = argv[++index]
@@ -58,6 +64,16 @@ function parseArgs(argv) {
                 )
             }
         }
+        else if (argument === '--toolchain-shadow-reference') {
+            const file = path.resolve(argv[++index] ?? '')
+            if (!fs.existsSync(file)) throw new Error('--toolchain-shadow-reference file is missing')
+            const reference = JSON.parse(fs.readFileSync(file, 'utf8'))
+            validateSameGlobalReference(reference)
+            if (reference.context !== 'real-global-qualification') {
+                throw new Error('--toolchain-shadow-reference must be a real-Global qualification reference')
+            }
+            toolchainShadowReference = { file, reference }
+        }
         else if (argument === '--jobs') {
             const value = argv[++index]
             if (!/^[1-9]\d*$/.test(value ?? '')) {
@@ -74,7 +90,8 @@ function parseArgs(argv) {
             'Usage: run-verification-evidence.cjs --root PRISTINE_POCKETRISU '
             + '--output RECEIPT.json [--jobs N] [--allow-reviewing] '
             + '[--disposition VALUE] [--target-provenance sha256:HEX] '
-            + '[--verification global-exhaustive|cache-differential]',
+            + '[--verification global-exhaustive|cache-differential] '
+            + '[--toolchain-shadow-reference REFERENCE.json]',
         )
     }
     return {
@@ -85,6 +102,7 @@ function parseArgs(argv) {
         disposition,
         targetProvenance,
         verificationKind,
+        toolchainShadowReference,
     }
 }
 
@@ -105,6 +123,15 @@ async function main(argv = process.argv) {
     const verifierArgs = ['--root', options.root, '--json']
     if (options.jobs !== null) verifierArgs.push('--jobs', String(options.jobs))
     if (options.allowReviewing) verifierArgs.push('--allow-reviewing')
+    if (options.toolchainShadowReference !== null) {
+        if (options.verificationKind !== 'global-exhaustive') {
+            throw new Error('Toolchain shadow reference requires Global Exhaustive verification')
+        }
+        verifierArgs.push(
+            '--toolchain-shadow-reference-base64',
+            Buffer.from(JSON.stringify(options.toolchainShadowReference.reference), 'utf8').toString('base64url'),
+        )
+    }
     const command = [process.execPath, verifier, ...verifierArgs]
     const runtimeBefore = runtimeEnvelope({ root: options.root })
     const before = await captureInputFreeze({
@@ -138,7 +165,7 @@ async function main(argv = process.argv) {
         && verifierErrors.length === 0
         && stability.matched
         && runtimeComparison.matched
-    const receipt = sealDocument({
+    const receiptPayload = {
         schema: 'patch-verification-execution-receipt-v2',
         verificationKind: options.verificationKind,
         disposition: options.disposition,
@@ -148,6 +175,12 @@ async function main(argv = process.argv) {
             jobs: options.jobs,
             allowReviewing: options.allowReviewing,
             targetProvenance: options.targetProvenance,
+            ...(options.toolchainShadowReference === null ? {} : {
+                qualificationRoute: {
+                    qualificationType: 'patch-toolchain-shadow-real-global-qualification-v2',
+                    referencePayloadSha256: sha256(canonicalJson(options.toolchainShadowReference.reference)),
+                },
+            }),
         },
         before,
         after,
@@ -167,7 +200,11 @@ async function main(argv = process.argv) {
         verifierResult,
         verifierErrors,
         accepted,
-    })
+    }
+    if (options.toolchainShadowReference !== null) {
+        receiptPayload.globalRunId = computeGlobalRunId(receiptPayload)
+    }
+    const receipt = sealDocument(receiptPayload)
     writeJsonAtomic(output, receipt)
     process.stdout.write(`${JSON.stringify({
         receipt: output,

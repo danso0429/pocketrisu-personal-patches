@@ -36,7 +36,10 @@ const {
 
 const LEGACY_LOCAL_RECEIPT_SCHEMA = 'patch-toolchain-shadow-local-receipt-v1'
 const LOCAL_RECEIPT_SCHEMA = 'patch-toolchain-shadow-local-receipt-v2'
-const DISPOSITIONS = Object.freeze(['synthetic-known-answer', 'dry-run', 'material-shadow', 'defect-reproduction'])
+const DISPOSITIONS = Object.freeze([
+    'synthetic-known-answer', 'dry-run', 'qualification-v2', 'material-shadow',
+    'defect-reproduction',
+])
 const SYNTHETIC_FAULTS = Object.freeze([
     'apply-failure',
     'interrupted-worker',

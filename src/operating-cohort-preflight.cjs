@@ -10,6 +10,7 @@ const {
 const {
     CANONICAL_PROTECTION,
     OPERATING_COUNTS,
+    REAL_GLOBAL_QUALIFICATION_TYPE,
 } = require('./qualification-registry.cjs')
 const { QUALIFICATION_TYPE } = require('./toolchain-shadow-qualification.cjs')
 const {
@@ -72,16 +73,30 @@ function treeIdentity(root) {
     return sha256(canonicalJsonBytes({ exists: true, entries }))
 }
 
+function expectedQualificationType(expectation) {
+    return expectation.qualification.type ?? QUALIFICATION_TYPE
+}
+
+function candidateContractRoot(subjectRoot, expectation, toolRoot = path.resolve(__dirname, '..')) {
+    return expectedQualificationType(expectation) === REAL_GLOBAL_QUALIFICATION_TYPE
+        ? path.resolve(toolRoot) : path.resolve(subjectRoot)
+}
+
+function candidateContractVersion(expectation) {
+    return expectedQualificationType(expectation) === REAL_GLOBAL_QUALIFICATION_TYPE ? 2 : 1
+}
+
 function assertCompatible(verified, expectation) {
     const expectedSubject = expectation.qualification.subject
     const expectedCompatibility = expectation.qualification.compatibility
     const support = verified.qualification.support
     const finalManifest = verified.qualification.finalManifest
+    const qualificationType = expectedQualificationType(expectation)
     if (verified.effectiveEntry.action !== 'accept'
         || verified.effectiveEntry.disposition !== 'accepted-qualification'
-        || verified.effectiveEntry.qualificationType !== QUALIFICATION_TYPE
+        || verified.effectiveEntry.qualificationType !== qualificationType
         || finalManifest.disposition !== 'accepted-qualification'
-        || finalManifest.qualificationType !== QUALIFICATION_TYPE) {
+        || finalManifest.qualificationType !== qualificationType) {
         fail('QUALIFICATION_NOT_ACCEPTED', 'Preflight requires a current accepted qualification of the exact candidate type')
     }
     if (!canonicalJsonBytes(finalManifest.subject).equals(canonicalJsonBytes(expectedSubject))) {
@@ -106,7 +121,12 @@ function assertCompatible(verified, expectation) {
 
 function candidateDomain(subjectRoot, expectation) {
     if (expectation.candidateImpact.affected !== true) return null
-    const compiled = loadToolchainShadowDeclaration(subjectRoot)
+    if (expectedQualificationType(expectation) !== REAL_GLOBAL_QUALIFICATION_TYPE) {
+        return { legacyQualificationIneligibleForV2Admission: true }
+    }
+    const compiled = loadToolchainShadowDeclaration(candidateContractRoot(subjectRoot, expectation), {
+        contractVersion: candidateContractVersion(expectation),
+    })
     return {
         candidateId: compiled.pack.id,
         localMasksExpected: 2,
@@ -182,6 +202,7 @@ function runPreflight({ storeRoot, expectation, checkedAt, subjectRoot, operatin
             expectedSubject: expected.qualification.subject,
             requireCurrentRef: true,
             subjectRoot,
+            expectedQualificationType: expectedQualificationType(expected),
         })
         assertCompatible(verified, expected)
         durable = verified
@@ -197,7 +218,11 @@ function runPreflight({ storeRoot, expectation, checkedAt, subjectRoot, operatin
                 || (customVerifier && dependencies.inspectDurableAcceptedQualification === undefined)
                 ? () => { throw error }
                 : (dependencies.inspectDurableAcceptedQualification ?? inspectDurableAcceptedQualification)
-            durable = inspect({ storeRoot: resolved, expectedSubject: expected.qualification.subject })
+            durable = inspect({
+                storeRoot: resolved,
+                expectedSubject: expected.qualification.subject,
+                expectedQualificationType: expectedQualificationType(expected),
+            })
             assertCompatible({ qualification: {
                 support: durable.support,
                 finalManifest: durable.finalManifest,
@@ -312,6 +337,9 @@ function runPreflight({ storeRoot, expectation, checkedAt, subjectRoot, operatin
             boundaryClassesExpected: decision.boundaryClassesExpected,
             totalLocalCasesExpected: decision.totalLocalCasesExpected,
             operatingSampleEligible: decision.candidateOperatingSampleEligible,
+            qualificationVersion: expectedQualificationType(expected) === REAL_GLOBAL_QUALIFICATION_TYPE
+                ? 'v2' : 'v1',
+            projectionVersion: expected.qualification.projectionSchema === undefined ? 'v1' : 'v2',
         },
         operatingEnvironment: {
             provisioned: decision.operatingEnvironmentProvisioned,
@@ -365,6 +393,9 @@ module.exports = {
     OperatingCohortPreflightError,
     PREFLIGHT_SCHEMA,
     assertCompatible,
+    candidateContractRoot,
+    candidateContractVersion,
+    expectedQualificationType,
     preflightOperatingCohort,
     preflightOperatingCohortWithTestDependencies,
     treeIdentity,

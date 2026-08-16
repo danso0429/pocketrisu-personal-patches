@@ -1,0 +1,36 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "patch-toolchain-shadow-real-global-qualification-v2",
+  "title": "Toolchain shadow real-Global qualification v2",
+  "type": "object",
+  "required": [
+    "schema", "version", "recordedAt", "result", "qualificationType", "subject",
+    "sourceIdentity", "targetIdentity", "environment", "projection", "observations",
+    "receiptBindings", "checks", "acceptedPurpose", "excludedPurposes", "operatingCounts",
+    "canonicalProtection", "integrity"
+  ],
+  "properties": {
+    "schema": { "const": "patch-toolchain-shadow-real-global-qualification-v2" },
+    "version": { "const": 2 },
+    "result": { "const": "passed" },
+    "qualificationType": { "const": "patch-toolchain-shadow-real-global-qualification-v2" },
+    "projection": {
+      "type": "object",
+      "required": ["schema", "semanticFieldSetSha256"],
+      "properties": {
+        "schema": { "const": "patch-toolchain-shadow-canonical-candidate-projection-v2" },
+        "semanticFieldSetSha256": { "type": "string", "pattern": "^[0-9a-f]{64}$" }
+      },
+      "additionalProperties": false
+    },
+    "observations": {
+      "type": "object",
+      "required": [
+        "localCasesExpected", "localCasesCompleted", "boundaryConsensusPassed",
+        "globalMasksExpected", "globalMasksCompleted", "globalExecutionCount",
+        "comparisons", "matches", "mismatches"
+      ]
+    }
+  },
+  "additionalProperties": false
+}
