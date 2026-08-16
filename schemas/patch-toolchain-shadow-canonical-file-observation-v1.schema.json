@@ -1,0 +1,31 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://pocketrisu.local/schemas/patch-toolchain-shadow-canonical-file-observation-v1.schema.json",
+  "title": "Canonical managed-file semantic observation v1",
+  "oneOf": [
+    {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["schema", "path", "kind", "sha256", "mode"],
+      "properties": {
+        "schema": { "const": "patch-toolchain-shadow-canonical-file-observation-v1" },
+        "path": { "type": "string", "minLength": 1, "pattern": "^(?!/)(?!.*(?:^|/)\\.\\.(?:/|$)).+$" },
+        "kind": { "const": "missing" },
+        "sha256": { "const": null },
+        "mode": { "const": null }
+      }
+    },
+    {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["schema", "path", "kind", "sha256", "mode"],
+      "properties": {
+        "schema": { "const": "patch-toolchain-shadow-canonical-file-observation-v1" },
+        "path": { "type": "string", "minLength": 1, "pattern": "^(?!/)(?!.*(?:^|/)\\.\\.(?:/|$)).+$" },
+        "kind": { "const": "regular-file" },
+        "sha256": { "type": "string", "pattern": "^[0-9a-f]{64}$" },
+        "mode": { "type": "integer", "minimum": 0, "maximum": 4095 }
+      }
+    }
+  ]
+}

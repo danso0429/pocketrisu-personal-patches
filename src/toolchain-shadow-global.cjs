@@ -36,7 +36,12 @@ const {
     targetFreezeDescriptor,
 } = require('./verification-evidence.cjs')
 const { validateLocalShadowReceipt } = require('./toolchain-shadow-local.cjs')
-const { candidateObservationProjection } = require('./toolchain-shadow-projection.cjs')
+const {
+    candidateBoundaryConsensus,
+    candidateMappingContract,
+    candidateMaskForGlobalMask,
+    canonicalCandidateProjection,
+} = require('./toolchain-shadow-canonical-projection.cjs')
 
 const GLOBAL_PROJECTION_SCHEMA = 'patch-toolchain-shadow-global-projection-v1'
 const METADATA_PATHS = [DEFAULT_INTENT_PATH, DEFAULT_JOURNAL_PATH, DEFAULT_LOCK_PATH, DEFAULT_STATE_PATH]
@@ -68,6 +73,12 @@ function allocatedBytes(root) {
 
 function localProjectionReferences(localReceipt) {
     validateLocalShadowReceipt(localReceipt)
+    if (localReceipt.schema === 'patch-toolchain-shadow-local-receipt-v2') {
+        return candidateBoundaryConsensus(
+            localReceipt.observations,
+            localReceipt.boundaryClasses,
+        ).references
+    }
     const references = {}
     for (const mask of [0, 1]) {
         const values = localReceipt.observations
@@ -154,7 +165,8 @@ function validateGlobalProjectionReceipt(receipt) {
 
 function syntheticGlobalProjection({ localReceipt, visiblePacks, recordedAt = new Date().toISOString() }) {
     const references = localProjectionReferences(localReceipt)
-    const candidateBitIndex = visiblePacks.indexOf('toolchain-hardening')
+    const mapping = candidateMappingContract(visiblePacks)
+    const candidateBitIndex = mapping.candidateBitIndex
     if (candidateBitIndex < 0) throw new ToolchainShadowGlobalError('INVALID_GLOBAL_DOMAIN', 'Candidate is not visible')
     const observations = Array.from({ length: 4096 }, (_, mask) => {
         const candidateMask = Math.floor(mask / (2 ** candidateBitIndex)) % 2
@@ -227,7 +239,11 @@ async function runGlobalProjection({
     if (visiblePacks.length !== 12 || !visiblePacks.includes('toolchain-hardening')) {
         throw new ToolchainShadowGlobalError('INVALID_GLOBAL_DOMAIN', 'Expected exact current 12-pack visible domain')
     }
-    const candidateBitIndex = visiblePacks.indexOf('toolchain-hardening')
+    const mapping = candidateMappingContract(visiblePacks)
+    const candidateBitIndex = mapping.candidateBitIndex
+    if (inspected.catalog.every((pack) => pack.id !== 'toolchain-hardening')) {
+        throw new ToolchainShadowGlobalError('INVALID_GLOBAL_DOMAIN', 'Candidate is absent from the canonical Global catalog')
+    }
     const baseline = snapshot(target, [...inspected.managedPaths, ...METADATA_PATHS])
     const temporaryRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'toolchain-global-projection-'))
     const projectionRoot = path.join(temporaryRoot, 'target')
@@ -275,11 +291,16 @@ async function runGlobalProjection({
                 stateEncodingCache,
             })
             if (repeated.changes.length !== 0) throw new Error('Global projection repeated plan changed')
-            const candidateMask = Math.floor(mask / (2 ** candidateBitIndex)) % 2
-            const candidateProjection = candidateObservationProjection({
+            const candidateMask = candidateMaskForGlobalMask(mask, mapping)
+            const candidateProjection = canonicalCandidateProjection({
                 mask: candidateMask,
-                snapshot: snapshot(projectionRoot, MANAGED_PATHS),
+                root: projectionRoot,
                 state: transition.state,
+                catalog: inspected.catalog,
+                target: {
+                    packageName: inspected.pkg.name,
+                    packageVersion: inspected.pkg.version,
+                },
             })
             phase = 'revert-plan'
             const reverted = planTransition({

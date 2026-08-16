@@ -29,8 +29,13 @@ const {
     targetFreezeDescriptor,
 } = require('./verification-evidence.cjs')
 const { canonicalSha256 } = require('./operating-cohort-identity.cjs')
+const {
+    candidateBoundaryConsensus,
+    validateCanonicalCandidateProjection,
+} = require('./toolchain-shadow-canonical-projection.cjs')
 
-const LOCAL_RECEIPT_SCHEMA = 'patch-toolchain-shadow-local-receipt-v1'
+const LEGACY_LOCAL_RECEIPT_SCHEMA = 'patch-toolchain-shadow-local-receipt-v1'
+const LOCAL_RECEIPT_SCHEMA = 'patch-toolchain-shadow-local-receipt-v2'
 const DISPOSITIONS = Object.freeze(['synthetic-known-answer', 'dry-run', 'material-shadow', 'defect-reproduction'])
 const SYNTHETIC_FAULTS = Object.freeze([
     'apply-failure',
@@ -114,7 +119,9 @@ function spawnMask({ sourceRoot, projectionRoot, mask, boundaryClassId, declarat
 }
 
 function validateLocalShadowReceipt(receipt) {
-    if (!verifyDocumentIntegrity(receipt) || receipt.schema !== LOCAL_RECEIPT_SCHEMA) {
+    const legacy = receipt?.schema === LEGACY_LOCAL_RECEIPT_SCHEMA
+    if (!verifyDocumentIntegrity(receipt)
+        || (!legacy && receipt.schema !== LOCAL_RECEIPT_SCHEMA)) {
         throw new ToolchainShadowLocalError('CORRUPT_LOCAL_RECEIPT', 'Local receipt integrity or schema is invalid')
     }
     if (!DISPOSITIONS.includes(receipt.disposition)) {
@@ -167,7 +174,9 @@ function validateLocalShadowReceipt(receipt) {
     const processes = new Set()
     const projections = new Set()
     for (const observation of receipt.observations) {
-        if (!observation || observation.schema !== 'patch-toolchain-shadow-mask-observation-v1'
+        if (!observation || observation.schema !== (legacy
+            ? 'patch-toolchain-shadow-mask-observation-v1'
+            : 'patch-toolchain-shadow-mask-observation-v2')
             || !/^[0-9a-f-]{36}$/.test(observation.processInstanceId ?? '')
             || !/^[0-9a-f-]{36}$/.test(observation.projectionId ?? '')
             || !Number.isInteger(observation.workerPid) || observation.workerPid <= 0
@@ -191,6 +200,15 @@ function validateLocalShadowReceipt(receipt) {
             ? [...MANAGED_PATHS, STATE_PATHS.find((entry) => entry.endsWith('/state.json'))].sort()
             : []
         const { projectionSha256, ...projectionPayload } = observation.candidateProjection ?? {}
+        if (!legacy) validateCanonicalCandidateProjection(observation.candidateProjection)
+        const projectionValid = legacy
+            ? (observation.candidateProjection?.mask === observation.mask
+                && observation.candidateProjection?.active === (observation.mask === 1)
+                && /^[0-9a-f]{64}$/.test(observation.candidateProjection?.filesSha256 ?? '')
+                && /^[0-9a-f]{64}$/.test(observation.candidateProjection?.stateSha256 ?? '')
+                && projectionSha256 === sha256(canonicalJson(projectionPayload)))
+            : (observation.candidateProjection?.mask === observation.mask
+                && observation.candidateProjection?.active === (observation.mask === 1))
         if (canonicalJson(observation.selectedPackIds) !== canonicalJson(selected)
             || observation.apply?.status !== expectedStatus
             || canonicalJson(Object.keys(observation.apply?.paths ?? {}).sort())
@@ -203,11 +221,7 @@ function validateLocalShadowReceipt(receipt) {
             || observation.symbolObservation?.mask !== observation.mask
             || observation.symbolObservation?.getterCalls !== 0
             || observation.symbolObservation?.safeStructuredCloneProvided !== true
-            || observation.candidateProjection?.mask !== observation.mask
-            || observation.candidateProjection?.active !== (observation.mask === 1)
-            || !/^[0-9a-f]{64}$/.test(observation.candidateProjection?.filesSha256 ?? '')
-            || !/^[0-9a-f]{64}$/.test(observation.candidateProjection?.stateSha256 ?? '')
-            || projectionSha256 !== sha256(canonicalJson(projectionPayload))
+            || !projectionValid
             || observation.capabilityReceipt?.schema !== 'patch-toolchain-capability-receipt-v1'
             || !/^[0-9a-f]{64}$/.test(observation.capabilityReceipt?.receiptSha256 ?? '')
             || observation.restoration.restored !== true
@@ -215,6 +229,17 @@ function validateLocalShadowReceipt(receipt) {
             || observation.restoration.remainingArtifacts.length !== 0) {
             throw new ToolchainShadowLocalError('FAILED_LOCAL_OBSERVATION', `${key} did not restore exactly`)
         }
+    }
+    if (!legacy) {
+        const consensus = candidateBoundaryConsensus(receipt.observations, boundaryClasses)
+        if (canonicalJson(consensus) !== canonicalJson(receipt.boundaryConsensus)) {
+            throw new ToolchainShadowLocalError(
+                'LOCAL_BOUNDARY_PROJECTION_MISMATCH',
+                'Local boundary consensus receipt differs from canonical projections',
+            )
+        }
+    } else if (receipt.boundaryConsensus !== undefined) {
+        throw new ToolchainShadowLocalError('CORRUPT_LOCAL_RECEIPT', 'Legacy receipt contains v2 boundary consensus')
     }
     if (receipt.status !== 'passed') {
         throw new ToolchainShadowLocalError('LOCAL_SHADOW_FAILED', 'Local receipt did not pass')
@@ -273,7 +298,9 @@ function sealMeasuredReceipt(payload) {
 function computeLocalRunId(receipt) {
     const { integrity, ...payload } = receipt
     return canonicalSha256({
-        schema: 'patch-toolchain-shadow-local-run-identity-v1',
+        schema: receipt.schema === LOCAL_RECEIPT_SCHEMA
+            ? 'patch-toolchain-shadow-local-run-identity-v2'
+            : 'patch-toolchain-shadow-local-run-identity-v1',
         receipt: { ...payload, localRunId: null },
     })
 }
@@ -418,6 +445,7 @@ async function runFreshLocalShadow({
             processedExecutions: observations.length,
         },
         observations,
+        boundaryConsensus: candidateBoundaryConsensus(observations, boundaryClasses),
         isolation: {
             target: 'fresh-target-projection-per-local-mask-and-boundary',
             process: 'fresh-process-per-local-mask-and-boundary',
@@ -457,6 +485,7 @@ async function runFreshLocalShadow({
 
 module.exports = {
     DISPOSITIONS,
+    LEGACY_LOCAL_RECEIPT_SCHEMA,
     LOCAL_RECEIPT_SCHEMA,
     SYNTHETIC_FAULTS,
     ToolchainShadowLocalError,

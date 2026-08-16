@@ -1,0 +1,41 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://pocketrisu.local/schemas/patch-toolchain-shadow-contract-v2.schema.json",
+  "title": "PocketRisu toolchain-hardening shadow B candidate contract v2",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema", "version", "candidate", "target", "component", "manifestExecution",
+    "operations", "state", "symbols", "boundaries", "runtimeCapabilities", "projection",
+    "fallback", "canonicalProtection", "declarationSha256"
+  ],
+  "properties": {
+    "schema": { "const": "patch-toolchain-shadow-contract-v2" },
+    "version": { "const": 2 },
+    "candidate": { "type": "object" },
+    "target": { "type": "object" },
+    "component": {
+      "type": "object",
+      "required": ["id", "packIds", "visiblePackIds", "unitIds"],
+      "properties": { "id": { "const": "component:toolchain-hardening-shadow-v2" } }
+    },
+    "manifestExecution": { "type": "object" },
+    "operations": { "type": "array", "minItems": 7, "maxItems": 7 },
+    "state": { "type": "object" },
+    "symbols": { "type": "array" },
+    "boundaries": { "type": "array" },
+    "runtimeCapabilities": { "type": "object" },
+    "projection": {
+      "const": {
+        "schema": "patch-toolchain-shadow-canonical-candidate-projection-v2",
+        "fileObservationSchema": "patch-toolchain-shadow-canonical-file-observation-v1",
+        "packIdentitySchema": "patch-toolchain-shadow-candidate-pack-identity-v1",
+        "selectionMode": "explicit-candidate-mask",
+        "candidateBitIndex": 11
+      }
+    },
+    "fallback": { "type": "object" },
+    "canonicalProtection": { "type": "object" },
+    "declarationSha256": { "type": "string", "pattern": "^[0-9a-f]{64}$" }
+  }
+}

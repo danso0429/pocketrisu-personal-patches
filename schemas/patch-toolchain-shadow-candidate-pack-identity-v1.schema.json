@@ -1,0 +1,78 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://pocketrisu.local/schemas/patch-toolchain-shadow-candidate-pack-identity-v1.schema.json",
+  "title": "Canonical toolchain candidate semantic pack identity v1",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema", "candidateId", "manifestVersion", "selectionSemantics", "userSelectable",
+    "targetApplicability", "requires", "conflicts", "supersedes", "autoWhen",
+    "contracts", "units", "managedPathOwnership", "catalogRelations",
+    "collisionConstraints", "semanticSha256"
+  ],
+  "properties": {
+    "schema": { "const": "patch-toolchain-shadow-candidate-pack-identity-v1" },
+    "candidateId": { "const": "toolchain-hardening" },
+    "manifestVersion": { "type": "string", "minLength": 1 },
+    "selectionSemantics": {
+      "const": {
+        "mode": "explicit-candidate-mask",
+        "candidateMasks": [0, 1],
+        "presetDefaultsParticipate": false
+      }
+    },
+    "userSelectable": { "const": true },
+    "targetApplicability": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["packageName", "packageVersion", "status"],
+      "properties": {
+        "packageName": { "const": "pocketrisu" },
+        "packageVersion": { "const": "1.9.0" },
+        "status": { "const": "verified" }
+      }
+    },
+    "requires": { "type": "array", "items": { "type": "string" }, "uniqueItems": true },
+    "conflicts": { "type": "array", "items": { "type": "string" }, "uniqueItems": true },
+    "supersedes": { "type": "array", "items": { "type": "string" }, "uniqueItems": true },
+    "autoWhen": {},
+    "contracts": { "type": "array" },
+    "units": {
+      "type": "array",
+      "minItems": 1,
+      "items": {
+        "type": "object",
+        "required": ["id", "declarationIndex", "path", "operation", "location", "anchorSha256", "managedSha256", "markerSha256", "requires", "before", "after", "semanticSha256"]
+      }
+    },
+    "managedPathOwnership": { "type": "array", "items": { "type": "string" }, "uniqueItems": true },
+    "catalogRelations": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["sourcePackId", "relation", "candidateId"],
+        "properties": {
+          "sourcePackId": { "type": "string", "minLength": 1 },
+          "relation": { "enum": ["requires", "conflicts", "supersedes", "autoWhen.allOf", "autoWhen.anyOf"] },
+          "candidateId": { "const": "toolchain-hardening" }
+        }
+      }
+    },
+    "collisionConstraints": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["path", "candidateUnitId", "otherPackId", "otherUnitId"],
+        "properties": {
+          "path": { "type": "string", "minLength": 1 },
+          "candidateUnitId": { "type": "string", "minLength": 1 },
+          "otherPackId": { "type": "string", "minLength": 1 },
+          "otherUnitId": { "type": "string", "minLength": 1 }
+        }
+      }
+    },
+    "semanticSha256": { "type": "string", "pattern": "^[0-9a-f]{64}$" }
+  }
+}

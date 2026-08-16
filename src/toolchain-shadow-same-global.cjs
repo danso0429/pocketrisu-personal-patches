@@ -1,6 +1,7 @@
 'use strict'
 
 const crypto = require('node:crypto')
+const { candidateBoundaryConsensus } = require('./toolchain-shadow-canonical-projection.cjs')
 
 const REFERENCE_SCHEMA = 'patch-toolchain-shadow-same-global-reference-v1'
 const COMPARISON_SCHEMA = 'patch-toolchain-shadow-same-global-comparison-v1'
@@ -43,9 +44,18 @@ function exactKeys(value, expected, label) {
 }
 
 function localProjectionReferences(localReceipt) {
-    if (!localReceipt || localReceipt.schema !== 'patch-toolchain-shadow-local-receipt-v1'
+    if (!localReceipt || ![
+        'patch-toolchain-shadow-local-receipt-v1',
+        'patch-toolchain-shadow-local-receipt-v2',
+    ].includes(localReceipt.schema)
         || !Array.isArray(localReceipt.observations)) {
         fail('INVALID_LOCAL_REFERENCE', 'Local shadow receipt is missing or incompatible')
+    }
+    if (localReceipt.schema === 'patch-toolchain-shadow-local-receipt-v2') {
+        return candidateBoundaryConsensus(
+            localReceipt.observations,
+            localReceipt.boundaryClasses,
+        ).references
     }
     const references = {}
     for (const mask of [0, 1]) {

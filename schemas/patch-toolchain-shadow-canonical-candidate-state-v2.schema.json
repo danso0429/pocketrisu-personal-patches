@@ -1,0 +1,55 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://pocketrisu.local/schemas/patch-toolchain-shadow-canonical-candidate-state-v2.schema.json",
+  "title": "Canonical toolchain shadow candidate state v2",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema", "active", "selection", "relationState", "pack", "unitOrder",
+    "units", "ownedManagedPaths", "persistedFiles"
+  ],
+  "properties": {
+    "schema": { "const": "patch-toolchain-shadow-canonical-candidate-state-v2" },
+    "active": { "type": "boolean" },
+    "selection": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["effectiveRequested", "resolvedIds", "autoAdded", "dependencyAdded"],
+      "properties": {
+        "effectiveRequested": { "type": "array", "items": { "const": "toolchain-hardening" }, "maxItems": 1 },
+        "resolvedIds": { "type": "array", "items": { "const": "toolchain-hardening" }, "maxItems": 1 },
+        "autoAdded": { "type": "array", "items": { "const": "toolchain-hardening" }, "maxItems": 1 },
+        "dependencyAdded": { "type": "array", "items": { "const": "toolchain-hardening" }, "maxItems": 1 }
+      }
+    },
+    "relationState": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["candidateAutoAdded", "candidateDependencyAdded", "collisions"],
+      "properties": {
+        "candidateAutoAdded": { "const": false },
+        "candidateDependencyAdded": { "const": false },
+        "collisions": { "type": "array" }
+      }
+    },
+    "pack": {
+      "oneOf": [
+        { "type": "null" },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["candidateId", "manifestVersion", "semanticSha256"],
+          "properties": {
+            "candidateId": { "const": "toolchain-hardening" },
+            "manifestVersion": { "type": "string", "minLength": 1 },
+            "semanticSha256": { "type": "string", "pattern": "^[0-9a-f]{64}$" }
+          }
+        }
+      ]
+    },
+    "unitOrder": { "type": "array", "items": { "type": "string", "minLength": 1 }, "uniqueItems": true },
+    "units": { "type": "array" },
+    "ownedManagedPaths": { "type": "array", "items": { "type": "string", "minLength": 1 }, "uniqueItems": true },
+    "persistedFiles": { "type": "array" }
+  }
+}

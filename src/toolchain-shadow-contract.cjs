@@ -2,12 +2,14 @@
 
 const fs = require('node:fs')
 const path = require('node:path')
+const { loadCatalog } = require('./catalog.cjs')
 const { canonicalJson } = require('./verification-receipts.cjs')
 const { sha256 } = require('./verification-evidence.cjs')
+const { CANONICAL_MANAGED_PATHS } = require('./toolchain-shadow-canonical-projection.cjs')
 
-const CONTRACT_SCHEMA = 'patch-toolchain-shadow-contract-v1'
-const DECLARATION_PATH = 'contracts/toolchain-hardening-shadow-v1.json'
-const MANAGED_PATHS = Object.freeze(['package.json', 'pnpm-lock.yaml', 'vitest.setup.ts'])
+const CONTRACT_SCHEMA = 'patch-toolchain-shadow-contract-v2'
+const DECLARATION_PATH = 'contracts/toolchain-hardening-shadow-v2.json'
+const MANAGED_PATHS = CANONICAL_MANAGED_PATHS
 const STATE_PATHS = Object.freeze([
     'save/pocketrisu-patches/intent.json',
     'save/pocketrisu-patches/lock.json',
@@ -214,10 +216,10 @@ function validateToolchainShadowDeclaration(declaration, {
     const root = fs.realpathSync(path.resolve(repositoryRoot))
     exactKeys(declaration, [
         'schema', 'version', 'candidate', 'target', 'component', 'manifestExecution',
-        'operations', 'state', 'symbols', 'boundaries', 'runtimeCapabilities', 'fallback',
+        'operations', 'state', 'symbols', 'boundaries', 'runtimeCapabilities', 'projection', 'fallback',
         'canonicalProtection', 'declarationSha256',
     ], 'declaration')
-    if (declaration.schema !== CONTRACT_SCHEMA || declaration.version !== 1) {
+    if (declaration.schema !== CONTRACT_SCHEMA || declaration.version !== 2) {
         throw new ToolchainShadowContractError('UNKNOWN_DECLARATION_SCHEMA', 'Unknown shadow contract schema')
     }
     if (!/^[0-9a-f]{64}$/.test(declaration.declarationSha256)
@@ -235,7 +237,7 @@ function validateToolchainShadowDeclaration(declaration, {
 
     validateTargetFiles(declaration.target, targetRoot)
     exactKeys(declaration.component, ['id', 'packIds', 'visiblePackIds', 'unitIds'], 'component')
-    if (declaration.component.id !== 'component:toolchain-hardening-shadow-v1'
+    if (declaration.component.id !== 'component:toolchain-hardening-shadow-v2'
         || canonicalJson(declaration.component.packIds) !== canonicalJson(['toolchain-hardening'])
         || canonicalJson(declaration.component.visiblePackIds) !== canonicalJson(['toolchain-hardening'])) {
         throw new ToolchainShadowContractError('INVALID_COMPONENT_MEMBERSHIP', 'Component membership changed')
@@ -329,6 +331,16 @@ function validateToolchainShadowDeclaration(declaration, {
             throw new ToolchainShadowContractError('UNSEALED_RUNTIME_CAPABILITY', `Missing deny rule for ${prefix}`)
         }
     }
+    exactKeys(declaration.projection, [
+        'schema', 'fileObservationSchema', 'packIdentitySchema', 'selectionMode', 'candidateBitIndex',
+    ], 'projection')
+    if (canonicalJson(declaration.projection) !== canonicalJson({
+        schema: 'patch-toolchain-shadow-canonical-candidate-projection-v2',
+        fileObservationSchema: 'patch-toolchain-shadow-canonical-file-observation-v1',
+        packIdentitySchema: 'patch-toolchain-shadow-candidate-pack-identity-v1',
+        selectionMode: 'explicit-candidate-mask',
+        candidateBitIndex: 11,
+    })) throw new ToolchainShadowContractError('INVALID_PROJECTION_CONTRACT', 'Canonical projection contract differs')
     exactKeys(declaration.fallback, ['required', 'gate', 'on'], 'fallback')
     if (declaration.fallback.required !== true || declaration.fallback.gate !== 'Global Exhaustive') {
         throw new ToolchainShadowContractError('MISSING_GLOBAL_FALLBACK', 'Global Exhaustive fallback is not mandatory')
@@ -348,8 +360,12 @@ function validateToolchainShadowDeclaration(declaration, {
         c1Authorized: false,
     })) throw new ToolchainShadowContractError('CANONICAL_PROTECTION_WEAKENED', 'Canonical protection changed')
 
+    const catalog = loadCatalog(root)
+    const manifest = catalog.find((pack) => pack.id === declaration.candidate.packId)
+    if (manifest === undefined) {
+        throw new ToolchainShadowContractError('CANONICAL_MANIFEST_MISMATCH', 'Canonical candidate is absent from the full catalog')
+    }
     if (compareCanonicalManifest) {
-        const manifest = require(path.join(root, 'patches/toolchain-hardening/manifest.cjs'))
         if (manifest.id !== declaration.candidate.packId || manifest.version !== declaration.candidate.manifestVersion
             || manifest.units.length !== materializedUnits.length) {
             throw new ToolchainShadowContractError('CANONICAL_MANIFEST_MISMATCH', 'Canonical candidate identity differs')
@@ -365,14 +381,8 @@ function validateToolchainShadowDeclaration(declaration, {
     return {
         declaration,
         declarationSha256: declaration.declarationSha256,
-        pack: {
-            id: declaration.candidate.packId,
-            title: 'Toolchain hardening',
-            version: declaration.candidate.manifestVersion,
-            targets: { pocketrisu: { verified: ['1.9.0'], reviewing: [] } },
-            userSelectable: true,
-            units: materializedUnits,
-        },
+        catalog,
+        pack: manifest,
         boundaryClassIds: [...BOUNDARY_CLASS_IDS],
         managedPaths: [...MANAGED_PATHS],
         statePaths: [...STATE_PATHS],

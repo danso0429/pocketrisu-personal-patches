@@ -3,16 +3,24 @@
 const fs = require('node:fs')
 const os = require('node:os')
 const path = require('node:path')
-const {
-    declarationHash,
-    loadToolchainShadowDeclaration,
-    validateToolchainShadowDeclaration,
-} = require('./toolchain-shadow-contract.cjs')
+const currentContract = require('./toolchain-shadow-contract.cjs')
 const { contentTreeDescriptor, sha256 } = require('./verification-evidence.cjs')
+
+function contractImplementation(repositoryRoot) {
+    const root = fs.realpathSync(path.resolve(repositoryRoot))
+    const currentRoot = fs.realpathSync(path.resolve(__dirname, '..'))
+    if (root === currentRoot) return currentContract
+    const sourceContract = path.join(root, 'src/toolchain-shadow-contract.cjs')
+    if (!fs.existsSync(sourceContract)) {
+        throw new Error('Frozen subject does not contain its historical shadow contract implementation')
+    }
+    return require(sourceContract)
+}
 
 function createToolchainKnownAnswerTarget(repositoryRoot) {
     const root = fs.mkdtempSync(path.join(os.tmpdir(), 'toolchain-shadow-known-target-'))
-    const current = loadToolchainShadowDeclaration(repositoryRoot)
+    const contract = contractImplementation(repositoryRoot)
+    const current = contract.loadToolchainShadowDeclaration(repositoryRoot)
     const byId = new Map(current.pack.units.map((unit) => [unit.id, unit]))
     const files = {
         'package.json': '{\n  "name": "pocketrisu",\n  "version": "1.9.0",\n  "pnpm": {\n    "onlyBuiltDependencies": []\n  }\n}\n',
@@ -41,8 +49,8 @@ function createToolchainKnownAnswerTarget(repositoryRoot) {
         mode: 0o600,
     }))
     declaration.target.applicationTreeSha256 = contentTreeDescriptor(root).rootSha256
-    declaration.declarationSha256 = declarationHash(declaration)
-    const compiled = validateToolchainShadowDeclaration(declaration, {
+    declaration.declarationSha256 = contract.declarationHash(declaration)
+    const compiled = contract.validateToolchainShadowDeclaration(declaration, {
         repositoryRoot,
         targetRoot: root,
     })

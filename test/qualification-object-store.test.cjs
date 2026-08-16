@@ -27,7 +27,7 @@ const externalParent = path.resolve(repositoryRoot, '../..')
 const integritySentinels = [
     path.join(repositoryRoot, 'scripts/verify-all-combinations.cjs'),
     path.join(repositoryRoot, 'src/c0-policy.cjs'),
-    path.join(repositoryRoot, 'contracts/toolchain-hardening-shadow-v1.json'),
+    path.join(repositoryRoot, 'contracts/toolchain-hardening-shadow-v2.json'),
     path.join(targetRoot, 'package.json'),
 ].filter((file) => fs.existsSync(file))
 const initialSentinelHashes = new Map(integritySentinels.map((file) => [file, fileSha256(file)]))

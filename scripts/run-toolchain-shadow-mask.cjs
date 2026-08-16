@@ -22,7 +22,7 @@ const {
 } = require('../src/toolchain-shadow-contract.cjs')
 const { canonicalJson } = require('../src/verification-receipts.cjs')
 const { sha256 } = require('../src/verification-evidence.cjs')
-const { candidateObservationProjection } = require('../src/toolchain-shadow-projection.cjs')
+const { canonicalCandidateProjection } = require('../src/toolchain-shadow-canonical-projection.cjs')
 
 const SYNTHETIC_FAULTS = new Set([
     null,
@@ -225,13 +225,15 @@ function main() {
         const cpu = process.cpuUsage(cpuStarted)
         const wallMs = Number(process.hrtime.bigint() - wallStarted) / 1e6
         const resourceUsage = process.resourceUsage()
-        const candidateProjection = candidateObservationProjection({
+        const candidateProjection = canonicalCandidateProjection({
             mask: input.mask,
-            snapshot: applied,
+            root: input.targetRoot,
             state: transition.state,
+            catalog: compiled.catalog,
+            target: transition.target,
         })
         process.stdout.write(`${JSON.stringify({
-            schema: 'patch-toolchain-shadow-mask-observation-v1',
+            schema: 'patch-toolchain-shadow-mask-observation-v2',
             processInstanceId: crypto.randomUUID(),
             workerPid: process.pid,
             mask: input.mask,

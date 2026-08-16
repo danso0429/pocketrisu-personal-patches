@@ -30,12 +30,15 @@ const {
     createCompositionCache,
     createPairAnalysisCache,
 } = require('../src/compose.cjs')
-const { candidateObservationProjection } = require('../src/toolchain-shadow-projection.cjs')
+const {
+    candidateMappingContract,
+    candidateMaskForGlobalMask,
+    canonicalCandidateProjection,
+} = require('../src/toolchain-shadow-canonical-projection.cjs')
 const {
     buildSameGlobalComparison,
     validateSameGlobalReference,
 } = require('../src/toolchain-shadow-same-global.cjs')
-const { MANAGED_PATHS: TOOLCHAIN_MANAGED_PATHS } = require('../src/toolchain-shadow-contract.cjs')
 
 const WORKER_HISTORY_MODEL = Object.freeze({
     schema: 'patch-combination-worker-history-v1',
@@ -212,6 +215,7 @@ function verifyShard({
     toolchainShadowReference = null,
 }) {
     const {
+        pkg,
         catalog,
         compatibility,
         visible,
@@ -227,11 +231,10 @@ function verifyShard({
     const assignedMasks = workerMaskSequence(totalSelections, shardIndex, shardCount)
     const processedMasks = []
     const toolchainShadowObservations = []
-    const candidateBitIndex = toolchainShadowReference === null
-        ? null
-        : visible.indexOf(toolchainShadowReference.candidateId)
-    if (toolchainShadowReference !== null && candidateBitIndex < 0) {
-        throw new Error('Toolchain shadow candidate is absent from the canonical Global domain')
+    const mapping = toolchainShadowReference === null ? null : candidateMappingContract(visible)
+    if (toolchainShadowReference !== null
+        && catalog.every((pack) => pack.id !== toolchainShadowReference.candidateId)) {
+        throw new Error('Toolchain shadow candidate is absent from the canonical Global catalog')
     }
     const compositionCache = createCompositionCache()
     const packEtagCache = createPackEtagCache()
@@ -300,11 +303,13 @@ function verifyShard({
             }
 
             if (toolchainShadowReference !== null) {
-                const candidateMask = Math.floor(mask / (2 ** candidateBitIndex)) % 2
-                const projection = candidateObservationProjection({
+                const candidateMask = candidateMaskForGlobalMask(mask, mapping)
+                const projection = canonicalCandidateProjection({
                     mask: candidateMask,
-                    snapshot: snapshot(root, TOOLCHAIN_MANAGED_PATHS),
+                    root,
                     state: transition.state,
+                    catalog,
+                    target: { packageName: pkg.name, packageVersion: pkg.version },
                 })
                 toolchainShadowObservations.push({
                     mask,
