@@ -8,14 +8,17 @@ const { loadCatalog } = require('../src/catalog.cjs')
 const { applyTransition, planTransition } = require('../src/manager.cjs')
 const { verifyShard } = require('../scripts/verify-all-combinations.cjs')
 const {
+    COHERENT_OBSERVATION_PHASE,
     candidateBoundaryConsensus,
     candidateMappingContract,
     canonicalCandidatePackIdentity,
     canonicalCandidateProjection,
     canonicalFileObservation,
+    canonicalManagedFileBaseline,
     hashCanonicalCandidateProjection,
     validateCanonicalFileObservation,
     validateGlobalCandidateMapping,
+    validateProjectionSnapshotCoherence,
 } = require('../src/toolchain-shadow-canonical-projection.cjs')
 const { createToolchainKnownAnswerTarget } = require('../src/toolchain-shadow-known-answer.cjs')
 
@@ -23,6 +26,7 @@ const ROOT = path.resolve(__dirname, '..')
 const BOUNDARIES = ['a', 'b', 'c', 'd']
 
 function project(target, mask, catalog = loadCatalog(ROOT)) {
+    const baselineManagedFiles = canonicalManagedFileBaseline(target.root)
     const selected = mask === 1 ? ['toolchain-hardening'] : []
     const transition = planTransition({ root: target.root, catalog, packIds: selected, profile: 'test' })
     applyTransition({ root: target.root, transition })
@@ -32,6 +36,8 @@ function project(target, mask, catalog = loadCatalog(ROOT)) {
         state: transition.state,
         catalog,
         target: transition.target,
+        baselineManagedFiles,
+        observationPhase: COHERENT_OBSERVATION_PHASE,
     })
 }
 
@@ -73,6 +79,7 @@ test('local and full-catalog paths derive one canonical projection independent o
     const global = createToolchainKnownAnswerTarget(ROOT)
     t.after(() => fs.rmSync(local.root, { recursive: true, force: true }))
     t.after(() => fs.rmSync(global.root, { recursive: true, force: true }))
+    const globalBaseline = canonicalManagedFileBaseline(global.root)
     const localProjection = project(local, 1)
     const globalProjection = project(global, 1, loadCatalog(ROOT))
     assert.deepEqual(localProjection, globalProjection)
@@ -86,11 +93,69 @@ test('local and full-catalog paths derive one canonical projection independent o
         }).state,
         catalog: loadCatalog(ROOT),
         target: { packageName: 'pocketrisu', packageVersion: '1.9.0' },
+        baselineManagedFiles: globalBaseline,
         runId: 'ignored-run',
         receiptId: 'ignored-receipt',
         executionAttemptId: 'ignored-attempt',
         temporaryRoot: '/ignored',
     }).projectionSha256, globalProjection.projectionSha256)
+})
+
+test('coherent snapshot rejects restored-file/active-state and applied-file/inactive-state hybrids', (t) => {
+    const offTarget = createToolchainKnownAnswerTarget(ROOT)
+    const onTarget = createToolchainKnownAnswerTarget(ROOT)
+    t.after(() => fs.rmSync(offTarget.root, { recursive: true, force: true }))
+    t.after(() => fs.rmSync(onTarget.root, { recursive: true, force: true }))
+    const baseline = canonicalManagedFileBaseline(offTarget.root)
+    const off = project(offTarget, 0)
+    const on = project(onTarget, 1)
+
+    const activeWithRestoredFiles = structuredClone(on)
+    activeWithRestoredFiles.managedFiles = structuredClone(baseline)
+    activeWithRestoredFiles.projectionSha256 = hashCanonicalCandidateProjection(activeWithRestoredFiles)
+    assert.throws(
+        () => validateProjectionSnapshotCoherence(activeWithRestoredFiles, {
+            baselineManagedFiles: baseline,
+            observationPhase: COHERENT_OBSERVATION_PHASE,
+        }),
+        (error) => error.code === 'INCOHERENT_CANDIDATE_PROJECTION_SNAPSHOT',
+    )
+
+    const inactiveWithAppliedFiles = structuredClone(off)
+    inactiveWithAppliedFiles.managedFiles = structuredClone(on.managedFiles)
+    inactiveWithAppliedFiles.projectionSha256 = hashCanonicalCandidateProjection(inactiveWithAppliedFiles)
+    assert.throws(
+        () => validateProjectionSnapshotCoherence(inactiveWithAppliedFiles, {
+            baselineManagedFiles: baseline,
+            observationPhase: COHERENT_OBSERVATION_PHASE,
+        }),
+        (error) => error.code === 'INCOHERENT_CANDIDATE_PROJECTION_SNAPSHOT',
+    )
+})
+
+test('active projection binds the three former regression files to applied persisted outputs', (t) => {
+    const target = createToolchainKnownAnswerTarget(ROOT)
+    t.after(() => fs.rmSync(target.root, { recursive: true, force: true }))
+    const projection = project(target, 1)
+    const outputs = new Map(projection.candidateState.persistedFiles
+        .map((file) => [file.path, [file.outputSha256, file.outputMode]]))
+    assert.deepEqual([...outputs.keys()], ['package.json', 'pnpm-lock.yaml', 'vitest.setup.ts'])
+    for (const file of projection.managedFiles) {
+        assert.deepEqual([file.sha256, file.mode], outputs.get(file.path))
+    }
+})
+
+test('local runner captures the coherent projection before revert and still validates restoration', () => {
+    const source = fs.readFileSync(path.join(ROOT, 'scripts/run-toolchain-shadow-mask.cjs'), 'utf8')
+    const capture = source.indexOf("phase = 'projection-capture'")
+    const revertPlan = source.indexOf("phase = 'revert-plan'")
+    const revertApply = source.indexOf("phase = 'revert-apply'")
+    const restoration = source.indexOf("phase = 'restoration'")
+    assert.ok(capture > source.indexOf("phase = 'repeated-plan'"))
+    assert.ok(capture < revertPlan)
+    assert.ok(revertPlan < revertApply)
+    assert.ok(revertApply < restoration)
+    assert.match(source, /canonicalJson\(restoredSnapshot\) === canonicalJson\(baseline\)/)
 })
 
 test('pack identity excludes raw ETag source-format differences but binds semantic changes', () => {
@@ -229,16 +294,24 @@ test('canonical Global verifier emits the shared projection for both candidate m
         shardCount: 4096,
         toolchainShadowReference: reference,
     })
-    assert.deepEqual(off.toolchainShadowObservations, [{
+    assert.equal(off.toolchainShadowObservations.length, 1)
+    assert.deepEqual({ ...off.toolchainShadowObservations[0], candidateProjection: undefined }, {
         mask: 0,
         candidateMask: 0,
         projectionSha256: references[0],
+        projectionObservationPhase: COHERENT_OBSERVATION_PHASE,
+        candidateProjection: undefined,
         matchesLocal: true,
-    }])
-    assert.deepEqual(on.toolchainShadowObservations, [{
+    })
+    assert.deepEqual(off.toolchainShadowObservations[0].candidateProjection.projectionSha256, references[0])
+    assert.equal(on.toolchainShadowObservations.length, 1)
+    assert.deepEqual({ ...on.toolchainShadowObservations[0], candidateProjection: undefined }, {
         mask: 2048,
         candidateMask: 1,
         projectionSha256: references[1],
+        projectionObservationPhase: COHERENT_OBSERVATION_PHASE,
+        candidateProjection: undefined,
         matchesLocal: true,
-    }])
+    })
+    assert.deepEqual(on.toolchainShadowObservations[0].candidateProjection.projectionSha256, references[1])
 })

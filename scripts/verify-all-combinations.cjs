@@ -31,9 +31,11 @@ const {
     createPairAnalysisCache,
 } = require('../src/compose.cjs')
 const {
+    COHERENT_OBSERVATION_PHASE,
     candidateMappingContract,
     candidateMaskForGlobalMask,
     canonicalCandidateProjection,
+    canonicalManagedFileBaseline,
 } = require('../src/toolchain-shadow-canonical-projection.cjs')
 const {
     buildSameGlobalComparison,
@@ -226,11 +228,15 @@ function verifyShard({
         throw new Error('Visible pack count exceeds safe exhaustive selection indexing')
     }
     const baseline = snapshot(root, managedPaths)
+    const candidateBaseline = toolchainShadowReference === null
+        ? null
+        : canonicalManagedFileBaseline(root)
     const graphs = new Set()
     let maximumResolvedUnits = 0
     const assignedMasks = workerMaskSequence(totalSelections, shardIndex, shardCount)
     const processedMasks = []
     const toolchainShadowObservations = []
+    const sampledCandidateMasks = new Set()
     const mapping = toolchainShadowReference === null ? null : candidateMappingContract(visible)
     if (toolchainShadowReference !== null
         && catalog.every((pack) => pack.id !== toolchainShadowReference.candidateId)) {
@@ -310,11 +316,17 @@ function verifyShard({
                     state: transition.state,
                     catalog,
                     target: { packageName: pkg.name, packageVersion: pkg.version },
+                    baselineManagedFiles: candidateBaseline,
+                    observationPhase: COHERENT_OBSERVATION_PHASE,
                 })
+                const retainCanonicalPreimage = !sampledCandidateMasks.has(candidateMask)
+                sampledCandidateMasks.add(candidateMask)
                 toolchainShadowObservations.push({
                     mask,
                     candidateMask,
                     projectionSha256: projection.projectionSha256,
+                    projectionObservationPhase: COHERENT_OBSERVATION_PHASE,
+                    ...(retainCanonicalPreimage ? { candidateProjection: projection } : {}),
                     matchesLocal: projection.projectionSha256
                         === toolchainShadowReference.references[String(candidateMask)],
                 })

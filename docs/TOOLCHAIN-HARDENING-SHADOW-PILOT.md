@@ -193,6 +193,22 @@ temporary roots, run/attempt IDs, receipt IDs, provisioning paths, worker metada
 timestamps and resource measurements remain diagnostic or execution evidence and do
 not enter semantic equality.
 
+The one admitted observation phase is
+`post-apply-post-status-post-zero-change-replan-pre-revert`. Local and Global both
+capture the canonical projection at that phase and restore afterward. The shared
+constructor requires a pre-apply canonical baseline: an active candidate must pair
+managed-file observations with its persisted output hashes/modes, while an inactive
+candidate must pair them with that baseline. A restored-files/active-state or
+applied-files/inactive-state hybrid fails closed as
+`INCOHERENT_CANDIDATE_PROJECTION_SNAPSHOT`; restoration verification still runs after
+capture.
+
+V2 same-Global evidence retains two local canonical preimages and one bounded Global
+sample per candidate mask. Each sample contains the semantic candidate object needed
+to recompute its projection SHA-256 directly. Per-mask observations retain hashes and
+mapping facts, so preimage retention stays bounded rather than copying a complete
+candidate object into every Global mask record.
+
 The four boundary cases remain independent executions. Each candidate mask obtains a
 reference only after all four canonical projection byte strings agree. The mapping is
 fixed to candidate bit 11 in the sorted 12-pack Global domain, with 2,048 off and

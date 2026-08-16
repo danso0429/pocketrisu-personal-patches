@@ -11,6 +11,8 @@ const STATE_PROJECTION_SCHEMA = 'patch-toolchain-shadow-canonical-candidate-stat
 const PROJECTION_SCHEMA = 'patch-toolchain-shadow-canonical-candidate-projection-v2'
 const BOUNDARY_CONSENSUS_SCHEMA = 'patch-toolchain-shadow-boundary-consensus-v2'
 const MAPPING_SCHEMA = 'patch-toolchain-shadow-global-mapping-v2'
+const SNAPSHOT_COHERENCE_SCHEMA = 'patch-toolchain-shadow-projection-snapshot-coherence-v1'
+const COHERENT_OBSERVATION_PHASE = 'post-apply-post-status-post-zero-change-replan-pre-revert'
 const SHA256_PATTERN = /^[0-9a-f]{64}$/
 const MANAGED_PATHS = Object.freeze(['package.json', 'pnpm-lock.yaml', 'vitest.setup.ts'])
 
@@ -156,6 +158,84 @@ function canonicalFileObservation({ root, relativePath }) {
         sha256: sha256(fs.readFileSync(absolute)),
         mode: stat.mode & 0o7777,
     })
+}
+
+function canonicalManagedFileBaseline(root) {
+    return MANAGED_PATHS.map((relativePath) => canonicalFileObservation({ root, relativePath }))
+}
+
+function validateManagedFileDomain(files, label) {
+    if (!Array.isArray(files)
+        || canonicalJson(files.map((file) => file?.path)) !== canonicalJson(MANAGED_PATHS)) {
+        fail('INCOHERENT_CANDIDATE_PROJECTION_SNAPSHOT', `${label} managed-file domain differs`)
+    }
+    for (const file of files) validateCanonicalFileObservation(file)
+    return files
+}
+
+function validateProjectionSnapshotCoherence(projection, {
+    baselineManagedFiles = null,
+    observationPhase = COHERENT_OBSERVATION_PHASE,
+} = {}) {
+    if (observationPhase !== COHERENT_OBSERVATION_PHASE) {
+        fail('INCOHERENT_CANDIDATE_PROJECTION_SNAPSHOT', 'Candidate projection observation phase differs', {
+            expected: COHERENT_OBSERVATION_PHASE,
+            observed: observationPhase,
+        })
+    }
+    validateManagedFileDomain(projection?.managedFiles, 'observed')
+    const baseline = baselineManagedFiles === null
+        ? null
+        : validateManagedFileDomain(baselineManagedFiles, 'baseline')
+    const expectedFiles = projection?.active
+        ? (projection.candidateState?.persistedFiles ?? []).map((file) => ({
+            schema: FILE_OBSERVATION_SCHEMA,
+            path: file.path,
+            kind: 'regular-file',
+            sha256: file.outputSha256,
+            mode: file.outputMode,
+        }))
+        : baseline
+    if (projection?.active && baseline !== null) {
+        const persisted = projection.candidateState?.persistedFiles ?? []
+        for (const file of persisted) {
+            const baselineFile = baseline.find((entry) => entry.path === file.path)
+            if (baselineFile?.kind !== 'regular-file'
+                || baselineFile.sha256 !== file.baselineSha256) {
+                fail('INCOHERENT_CANDIDATE_PROJECTION_SNAPSHOT', `${file.path} baseline differs from active state`, {
+                    path: file.path,
+                    baseline: baselineFile ?? null,
+                    stateBaselineSha256: file.baselineSha256,
+                })
+            }
+        }
+    }
+    if (expectedFiles === null) {
+        return {
+            schema: SNAPSHOT_COHERENCE_SCHEMA,
+            observationPhase,
+            active: projection.active,
+            baselineVerified: false,
+            passed: true,
+        }
+    }
+    validateManagedFileDomain(expectedFiles, projection.active ? 'active-state output' : 'inactive baseline')
+    if (canonicalJson(projection.managedFiles) !== canonicalJson(expectedFiles)) {
+        fail('INCOHERENT_CANDIDATE_PROJECTION_SNAPSHOT', projection.active
+            ? 'Active candidate state is paired with non-applied managed files'
+            : 'Inactive candidate state is paired with non-baseline managed files', {
+            active: projection.active,
+            expectedFiles,
+            observedFiles: projection.managedFiles,
+        })
+    }
+    return {
+        schema: SNAPSHOT_COHERENCE_SCHEMA,
+        observationPhase,
+        active: projection.active,
+        baselineVerified: baseline !== null,
+        passed: true,
+    }
 }
 
 function semanticUnit(unit, declarationIndex = null) {
@@ -505,6 +585,7 @@ function validateCanonicalCandidateProjection(projection) {
         mask: projection.mask,
         packIdentity: projection.packIdentity,
     })
+    validateProjectionSnapshotCoherence(projection)
     if (!SHA256_PATTERN.test(projection.projectionSha256 ?? '')
         || hashCanonicalCandidateProjection(projection) !== projection.projectionSha256) {
         fail('INVALID_CANONICAL_PROJECTION', 'Canonical candidate projection SHA-256 differs')
@@ -512,8 +593,19 @@ function validateCanonicalCandidateProjection(projection) {
     return projection
 }
 
-function canonicalCandidateProjection({ mask, root, state, catalog, target }) {
+function canonicalCandidateProjection({
+    mask,
+    root,
+    state,
+    catalog,
+    target,
+    baselineManagedFiles,
+    observationPhase = COHERENT_OBSERVATION_PHASE,
+}) {
     if (![0, 1].includes(mask)) fail('INVALID_CANDIDATE_MASK', 'Candidate mask must be 0 or 1')
+    if (!Array.isArray(baselineManagedFiles)) {
+        fail('INCOHERENT_CANDIDATE_PROJECTION_SNAPSHOT', 'Canonical baseline is required before projection')
+    }
     const packIdentity = canonicalCandidatePackIdentity({ catalog, target })
     const payload = {
         schema: PROJECTION_SCHEMA,
@@ -530,10 +622,12 @@ function canonicalCandidateProjection({ mask, root, state, catalog, target }) {
         candidateState: canonicalCandidateStateProjection({ mask, state, packIdentity }),
         semanticFieldSetSha256: SEMANTIC_FIELD_SET_SHA256,
     }
-    return validateCanonicalCandidateProjection({
+    const projection = validateCanonicalCandidateProjection({
         ...payload,
         projectionSha256: sha256(canonicalJson(payload)),
     })
+    validateProjectionSnapshotCoherence(projection, { baselineManagedFiles, observationPhase })
+    return projection
 }
 
 function candidateBoundaryConsensus(observations, boundaryClassIds) {
@@ -626,10 +720,12 @@ module.exports = {
     BOUNDARY_CONSENSUS_SCHEMA,
     CANONICAL_MANAGED_PATHS: MANAGED_PATHS,
     CANDIDATE_ID,
+    COHERENT_OBSERVATION_PHASE,
     FILE_OBSERVATION_SCHEMA,
     MAPPING_SCHEMA,
     PACK_IDENTITY_SCHEMA,
     PROJECTION_SCHEMA,
+    SNAPSHOT_COHERENCE_SCHEMA,
     SEMANTIC_FIELD_SET,
     SEMANTIC_FIELD_SET_SHA256,
     STATE_PROJECTION_SCHEMA,
@@ -641,10 +737,12 @@ module.exports = {
     canonicalCandidateProjection,
     canonicalCandidateStateProjection,
     canonicalFileObservation,
+    canonicalManagedFileBaseline,
     hashCanonicalCandidateProjection,
     validateCanonicalCandidatePackIdentity,
     validateCanonicalCandidateStateProjection,
     validateCanonicalCandidateProjection,
     validateCanonicalFileObservation,
     validateGlobalCandidateMapping,
+    validateProjectionSnapshotCoherence,
 }

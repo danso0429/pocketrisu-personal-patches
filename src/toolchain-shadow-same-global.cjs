@@ -2,11 +2,13 @@
 
 const crypto = require('node:crypto')
 const {
+    COHERENT_OBSERVATION_PHASE,
     PROJECTION_SCHEMA,
     SEMANTIC_FIELD_SET_SHA256,
     candidateBoundaryConsensus,
     candidateMappingContract,
     candidateMaskForGlobalMask,
+    validateCanonicalCandidateProjection,
     validateGlobalCandidateMapping,
 } = require('./toolchain-shadow-canonical-projection.cjs')
 
@@ -14,6 +16,7 @@ const REFERENCE_SCHEMA = 'patch-toolchain-shadow-same-global-reference-v1'
 const COMPARISON_SCHEMA = 'patch-toolchain-shadow-same-global-comparison-v1'
 const REFERENCE_V2_SCHEMA = 'patch-toolchain-shadow-same-global-reference-v2'
 const COMPARISON_V2_SCHEMA = 'patch-toolchain-shadow-same-global-comparison-v2'
+const PREIMAGE_EVIDENCE_SCHEMA = 'patch-toolchain-shadow-canonical-projection-preimages-v1'
 const SHA256_PATTERN = /^[0-9a-f]{64}$/
 
 class ToolchainShadowSameGlobalError extends Error {
@@ -80,6 +83,31 @@ function localProjectionReferences(localReceipt) {
     return references
 }
 
+function localProjectionPreimages(localReceipt) {
+    const references = localProjectionReferences(localReceipt)
+    const preimages = {}
+    for (const mask of [0, 1]) {
+        const projection = localReceipt.observations.find((entry) => entry.mask === mask)?.candidateProjection
+        validateCanonicalCandidateProjection(projection)
+        if (projection.projectionSha256 !== references[String(mask)]) {
+            fail('INVALID_LOCAL_REFERENCE', `Local mask ${mask} preimage differs from its consensus hash`)
+        }
+        preimages[String(mask)] = projection
+    }
+    return preimages
+}
+
+function validateProjectionPreimages(preimages, references) {
+    exactKeys(preimages, ['0', '1'], 'V2 local canonical projection preimages')
+    for (const mask of [0, 1]) {
+        const projection = validateCanonicalCandidateProjection(preimages[String(mask)])
+        if (projection.mask !== mask || projection.projectionSha256 !== references[String(mask)]) {
+            fail('INVALID_LOCAL_REFERENCE', `Local mask ${mask} canonical preimage binding differs`)
+        }
+    }
+    return preimages
+}
+
 function buildSameGlobalReference({ localReceipt, materialDeclarationSha256 = null }) {
     if (localReceipt?.schema === 'patch-toolchain-shadow-local-receipt-v2') {
         if (!SHA256_PATTERN.test(localReceipt?.integrity?.payloadSha256 ?? '')
@@ -108,6 +136,7 @@ function buildSameGlobalReference({ localReceipt, materialDeclarationSha256 = nu
                 localRunId: localReceipt.localRunId,
             } : {}),
             references: localProjectionReferences(localReceipt),
+            referenceProjections: localProjectionPreimages(localReceipt),
         })
     }
     if (!SHA256_PATTERN.test(materialDeclarationSha256 ?? '')
@@ -139,14 +168,21 @@ function validateSameGlobalReference(reference) {
             'projectionSchema', 'semanticFieldSetSha256', 'localReceiptPayloadSha256',
             'references',
         ]
+        const qualificationKeysWithPreimages = [...qualificationKeys, 'referenceProjections']
         const operatingKeys = [
             ...qualificationKeys, 'materialDeclarationSha256', 'materialInputKey', 'cohortId',
             'executionAttemptId', 'frozenDeclarationSha256', 'localRunId',
         ]
+        const operatingKeysWithPreimages = [
+            ...qualificationKeysWithPreimages, 'materialDeclarationSha256', 'materialInputKey', 'cohortId',
+            'executionAttemptId', 'frozenDeclarationSha256', 'localRunId',
+        ]
         const actualKeys = Object.keys(reference ?? {}).sort()
         const operating = reference.context === 'material-operating'
-        const expectedKeys = operating ? operatingKeys : qualificationKeys
-        if (canonicalJson(actualKeys) !== canonicalJson(expectedKeys.sort())
+        const legacyExpectedKeys = operating ? operatingKeys : qualificationKeys
+        const preimageExpectedKeys = operating ? operatingKeysWithPreimages : qualificationKeysWithPreimages
+        const hasPreimages = canonicalJson(actualKeys) === canonicalJson(preimageExpectedKeys.sort())
+        if (!hasPreimages && canonicalJson(actualKeys) !== canonicalJson(legacyExpectedKeys.sort())
             || !['real-global-qualification', 'material-operating'].includes(reference.context)
             || reference.candidateId !== 'toolchain-hardening'
             || reference.projectionSchema !== PROJECTION_SCHEMA
@@ -167,6 +203,7 @@ function validateSameGlobalReference(reference) {
         if (Object.values(reference.references).some((value) => !SHA256_PATTERN.test(value ?? ''))) {
             fail('INVALID_LOCAL_REFERENCE', 'V2 same-Global projection hash is invalid')
         }
+        if (hasPreimages) validateProjectionPreimages(reference.referenceProjections, reference.references)
         return reference
     }
     const legacyKeys = [
@@ -200,7 +237,7 @@ function validateSameGlobalReference(reference) {
     return reference
 }
 
-function buildSameGlobalComparison({ reference, visiblePacks, observations }) {
+function buildSameGlobalComparison({ reference, visiblePacks, observations, projectionPreimages = null }) {
     validateSameGlobalReference(reference)
     if (reference.schema === REFERENCE_V2_SCHEMA) {
         const mapping = candidateMappingContract(visiblePacks)
@@ -208,6 +245,8 @@ function buildSameGlobalComparison({ reference, visiblePacks, observations }) {
             fail('INCOMPLETE_SAME_GLOBAL_COMPARISON', 'V2 observations do not cover the Global domain')
         }
         const ordered = [...observations].sort((left, right) => left.mask - right.mask)
+        const preimageAware = reference.referenceProjections !== undefined
+        const observedSamples = {}
         const normalized = ordered.map((observation, mask) => {
             const candidateMask = candidateMaskForGlobalMask(mask, mapping)
             const matchesLocal = observation?.projectionSha256 === reference.references[String(candidateMask)]
@@ -216,9 +255,66 @@ function buildSameGlobalComparison({ reference, visiblePacks, observations }) {
                 || observation.matchesLocal !== matchesLocal) {
                 fail('INVALID_SAME_GLOBAL_OBSERVATION', `V2 same-Global observation ${mask} is invalid`)
             }
+            if (preimageAware) {
+                if (observation.projectionObservationPhase !== COHERENT_OBSERVATION_PHASE) {
+                    fail('INVALID_SAME_GLOBAL_OBSERVATION', `V2 observation ${mask} phase differs`)
+                }
+                if (observation.candidateProjection !== undefined) {
+                    const projection = validateCanonicalCandidateProjection(observation.candidateProjection)
+                    if (projection.mask !== candidateMask
+                        || projection.projectionSha256 !== observation.projectionSha256) {
+                        fail('INVALID_SAME_GLOBAL_OBSERVATION', `V2 observation ${mask} preimage differs`)
+                    }
+                    if (observedSamples[String(candidateMask)] === undefined) {
+                        observedSamples[String(candidateMask)] = {
+                            globalMask: mask,
+                            candidateMask,
+                            projection,
+                        }
+                    }
+                }
+                return {
+                    mask,
+                    candidateMask,
+                    projectionSha256: observation.projectionSha256,
+                    projectionObservationPhase: observation.projectionObservationPhase,
+                    matchesLocal,
+                }
+            }
             return observation
         })
         validateGlobalCandidateMapping({ visiblePacks, observations: normalized })
+        let boundedPreimages
+        if (preimageAware) {
+            const supplied = projectionPreimages?.globalSamples ?? null
+            const globalSamples = supplied ?? observedSamples
+            exactKeys(globalSamples, ['0', '1'], 'V2 Global canonical projection samples')
+            for (const mask of [0, 1]) {
+                const sample = globalSamples[String(mask)]
+                exactKeys(sample, ['globalMask', 'candidateMask', 'projection'], 'V2 Global projection sample')
+                const projection = validateCanonicalCandidateProjection(sample.projection)
+                if (sample.candidateMask !== mask || projection.mask !== mask
+                    || candidateMaskForGlobalMask(sample.globalMask, mapping) !== mask) {
+                    fail('INVALID_SAME_GLOBAL_OBSERVATION', `V2 Global mask ${sample.globalMask} sample differs`)
+                }
+                const observation = normalized[sample.globalMask]
+                if (observation?.projectionSha256 !== projection.projectionSha256) {
+                    fail('INVALID_SAME_GLOBAL_OBSERVATION', `V2 Global mask ${sample.globalMask} sample hash differs`)
+                }
+            }
+            boundedPreimages = {
+                schema: PREIMAGE_EVIDENCE_SCHEMA,
+                observationPhase: COHERENT_OBSERVATION_PHASE,
+                localReferences: reference.referenceProjections,
+                globalSamples,
+            }
+            if (projectionPreimages !== null
+                && canonicalJson(projectionPreimages) !== canonicalJson(boundedPreimages)) {
+                fail('INVALID_SAME_GLOBAL_EVIDENCE', 'V2 retained projection preimages differ')
+            }
+        } else if (projectionPreimages !== null) {
+            fail('INVALID_SAME_GLOBAL_EVIDENCE', 'Legacy V2 comparison unexpectedly retains projection preimages')
+        }
         const mismatches = normalized.filter((observation) => observation.matchesLocal !== true).length
         return {
             schema: COMPARISON_V2_SCHEMA,
@@ -238,6 +334,7 @@ function buildSameGlobalComparison({ reference, visiblePacks, observations }) {
                 localRunId: reference.localRunId,
             } : {}),
             localReferences: { ...reference.references },
+            ...(preimageAware ? { projectionPreimages: boundedPreimages } : {}),
             globalExecutionSource: 'canonical-global-exhaustive-same-execution',
             coverage: {
                 rawMasks: mapping.rawMasks,
@@ -313,13 +410,21 @@ function validateSameGlobalComparison(comparison, result) {
             'localReferences', 'globalExecutionSource', 'coverage', 'observations', 'matches',
             'mismatches', 'status',
         ]
+        const qualificationKeysWithPreimages = [...qualificationKeys, 'projectionPreimages']
         const operatingKeys = [
             ...qualificationKeys, 'materialDeclarationSha256', 'materialInputKey', 'cohortId',
             'executionAttemptId', 'frozenDeclarationSha256', 'localRunId',
         ]
+        const operatingKeysWithPreimages = [
+            ...qualificationKeysWithPreimages, 'materialDeclarationSha256', 'materialInputKey', 'cohortId',
+            'executionAttemptId', 'frozenDeclarationSha256', 'localRunId',
+        ]
         const operating = comparison.context === 'material-operating'
-        if (canonicalJson(Object.keys(comparison ?? {}).sort())
-            !== canonicalJson((operating ? operatingKeys : qualificationKeys).sort())) {
+        const actualKeys = Object.keys(comparison ?? {}).sort()
+        const legacyExpectedKeys = operating ? operatingKeys : qualificationKeys
+        const preimageExpectedKeys = operating ? operatingKeysWithPreimages : qualificationKeysWithPreimages
+        const hasPreimages = canonicalJson(actualKeys) === canonicalJson(preimageExpectedKeys.sort())
+        if (!hasPreimages && canonicalJson(actualKeys) !== canonicalJson(legacyExpectedKeys.sort())) {
             fail('INVALID_SAME_GLOBAL_EVIDENCE', 'V2 same-Global comparison keys differ')
         }
         const reference = {
@@ -339,11 +444,15 @@ function validateSameGlobalComparison(comparison, result) {
                 localRunId: comparison.localRunId,
             } : {}),
             references: comparison.localReferences,
+            ...(hasPreimages ? {
+                referenceProjections: comparison.projectionPreimages.localReferences,
+            } : {}),
         }
         const rebuilt = buildSameGlobalComparison({
             reference,
             visiblePacks: result.visiblePacks,
             observations: comparison.observations,
+            projectionPreimages: hasPreimages ? comparison.projectionPreimages : null,
         })
         if (canonicalJson(rebuilt) !== canonicalJson(comparison)
             || comparison.coverage.rawMasks !== result.rawSelections
@@ -399,6 +508,7 @@ function validateSameGlobalComparison(comparison, result) {
 function sameGlobalReferenceFromComparison(comparison) {
     if (comparison?.schema === COMPARISON_V2_SCHEMA) {
         const operating = comparison.context === 'material-operating'
+        const hasPreimages = comparison.projectionPreimages !== undefined
         return validateSameGlobalReference({
             schema: REFERENCE_V2_SCHEMA,
             context: comparison.context,
@@ -416,6 +526,9 @@ function sameGlobalReferenceFromComparison(comparison) {
                 localRunId: comparison.localRunId,
             } : {}),
             references: comparison.localReferences,
+            ...(hasPreimages ? {
+                referenceProjections: comparison.projectionPreimages.localReferences,
+            } : {}),
         })
     }
     const operating = comparison?.cohortId !== undefined
@@ -439,6 +552,7 @@ function sameGlobalReferenceFromComparison(comparison) {
 module.exports = {
     COMPARISON_SCHEMA,
     COMPARISON_V2_SCHEMA,
+    PREIMAGE_EVIDENCE_SCHEMA,
     REFERENCE_SCHEMA,
     REFERENCE_V2_SCHEMA,
     ToolchainShadowSameGlobalError,

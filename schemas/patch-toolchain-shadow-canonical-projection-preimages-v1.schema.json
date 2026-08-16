@@ -1,0 +1,44 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://pocketrisu.local/schemas/patch-toolchain-shadow-canonical-projection-preimages-v1.schema.json",
+  "title": "Bounded canonical toolchain-shadow projection preimages v1",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schema", "observationPhase", "localReferences", "globalSamples"],
+  "properties": {
+    "schema": { "const": "patch-toolchain-shadow-canonical-projection-preimages-v1" },
+    "observationPhase": {
+      "const": "post-apply-post-status-post-zero-change-replan-pre-revert"
+    },
+    "localReferences": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["0", "1"],
+      "properties": {
+        "0": { "$ref": "patch-toolchain-shadow-canonical-candidate-projection-v2.schema.json" },
+        "1": { "$ref": "patch-toolchain-shadow-canonical-candidate-projection-v2.schema.json" }
+      }
+    },
+    "globalSamples": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["0", "1"],
+      "properties": {
+        "0": { "$ref": "#/$defs/sample" },
+        "1": { "$ref": "#/$defs/sample" }
+      }
+    }
+  },
+  "$defs": {
+    "sample": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["globalMask", "candidateMask", "projection"],
+      "properties": {
+        "globalMask": { "type": "integer", "minimum": 0, "maximum": 4095 },
+        "candidateMask": { "enum": [0, 1] },
+        "projection": { "$ref": "patch-toolchain-shadow-canonical-candidate-projection-v2.schema.json" }
+      }
+    }
+  }
+}

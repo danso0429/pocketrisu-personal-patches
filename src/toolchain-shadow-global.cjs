@@ -37,10 +37,13 @@ const {
 } = require('./verification-evidence.cjs')
 const { validateLocalShadowReceipt } = require('./toolchain-shadow-local.cjs')
 const {
+    COHERENT_OBSERVATION_PHASE,
     candidateBoundaryConsensus,
     candidateMappingContract,
     candidateMaskForGlobalMask,
     canonicalCandidateProjection,
+    canonicalManagedFileBaseline,
+    validateCanonicalCandidateProjection,
 } = require('./toolchain-shadow-canonical-projection.cjs')
 
 const GLOBAL_PROJECTION_SCHEMA = 'patch-toolchain-shadow-global-projection-v1'
@@ -127,10 +130,22 @@ function validateGlobalProjectionReceipt(receipt) {
         const candidateMask = Math.floor(mask / (2 ** receipt.candidateBitIndex)) % 2
         if (observation?.mask !== mask || observation.candidateMask !== candidateMask
             || !/^[0-9a-f]{64}$/.test(observation.projectionSha256 ?? '')
+            || (observation.projectionObservationPhase !== undefined
+                && observation.projectionObservationPhase !== COHERENT_OBSERVATION_PHASE)
             || observation.repeatedPlanChangeCount !== 0
             || observation.restored !== true
             || typeof observation.matchesLocal !== 'boolean') {
             throw new ToolchainShadowGlobalError('INVALID_GLOBAL_OBSERVATION', `Global projection mask ${mask} is invalid`)
+        }
+        if (observation.candidateProjection !== undefined) {
+            const projection = validateCanonicalCandidateProjection(observation.candidateProjection)
+            if (projection.mask !== candidateMask
+                || projection.projectionSha256 !== observation.projectionSha256) {
+                throw new ToolchainShadowGlobalError(
+                    'INVALID_GLOBAL_OBSERVATION',
+                    `Global projection mask ${mask} preimage is invalid`,
+                )
+            }
         }
         if (candidateMask === 0) off += 1
         else on += 1
@@ -260,6 +275,8 @@ async function runGlobalProjection({
         const pairAnalysisCache = createPairAnalysisCache()
         const packEtagCache = createPackEtagCache()
         const stateEncodingCache = createStateEncodingCache()
+        const candidateBaseline = canonicalManagedFileBaseline(projectionRoot)
+        const sampledCandidateMasks = new Set()
         for (let mask = 0; mask < 4096; mask += 1) {
             currentMask = mask
             const selected = visiblePacks.filter((_, index) => Math.floor(mask / (2 ** index)) % 2 === 1)
@@ -301,6 +318,8 @@ async function runGlobalProjection({
                     packageName: inspected.pkg.name,
                     packageVersion: inspected.pkg.version,
                 },
+                baselineManagedFiles: candidateBaseline,
+                observationPhase: COHERENT_OBSERVATION_PHASE,
             })
             phase = 'revert-plan'
             const reverted = planTransition({
@@ -325,12 +344,17 @@ async function runGlobalProjection({
                 mask,
                 candidateMask,
                 projectionSha256: candidateProjection.projectionSha256,
+                projectionObservationPhase: COHERENT_OBSERVATION_PHASE,
+                ...(!sampledCandidateMasks.has(candidateMask)
+                    ? { candidateProjection }
+                    : {}),
                 status: observedStatus,
                 repeatedPlanChangeCount: repeated.changes.length,
                 revertPlanChangeCount: reverted.changes.length,
                 restored,
                 matchesLocal: candidateProjection.projectionSha256 === references[candidateMask],
             })
+            sampledCandidateMasks.add(candidateMask)
         }
         const mismatches = observations.filter((entry) => !entry.matchesLocal).length
         const sourceAfter = await sourceFreezeDescriptor(source)

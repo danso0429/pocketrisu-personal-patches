@@ -22,7 +22,11 @@ const {
 } = require('../src/toolchain-shadow-contract.cjs')
 const { canonicalJson } = require('../src/verification-receipts.cjs')
 const { sha256 } = require('../src/verification-evidence.cjs')
-const { canonicalCandidateProjection } = require('../src/toolchain-shadow-canonical-projection.cjs')
+const {
+    COHERENT_OBSERVATION_PHASE,
+    canonicalCandidateProjection,
+    canonicalManagedFileBaseline,
+} = require('../src/toolchain-shadow-canonical-projection.cjs')
 
 const SYNTHETIC_FAULTS = new Set([
     null,
@@ -145,6 +149,7 @@ function main() {
     })
     const paths = [...compiled.managedPaths, ...METADATA_PATHS]
     const baseline = snapshot(input.targetRoot, paths)
+    const canonicalBaseline = canonicalManagedFileBaseline(input.targetRoot)
     const baselineBytes = allocatedBytes(input.targetRoot)
     let peakBytes = baselineBytes
     const cpuStarted = process.cpuUsage()
@@ -199,6 +204,16 @@ function main() {
             throw Object.assign(new Error('Synthetic repeated-plan failure'), { code: 'SYNTHETIC_REPEATED_PLAN_FAILURE' })
         }
         if (repeated.changes.length !== 0) throw new Error('Same-selection re-plan was not zero-change')
+        phase = 'projection-capture'
+        const candidateProjection = canonicalCandidateProjection({
+            mask: input.mask,
+            root: input.targetRoot,
+            state: transition.state,
+            catalog: compiled.catalog,
+            target: transition.target,
+            baselineManagedFiles: canonicalBaseline,
+            observationPhase: COHERENT_OBSERVATION_PHASE,
+        })
         phase = 'revert-plan'
         const reverted = planTransition({
             root: input.targetRoot,
@@ -225,13 +240,6 @@ function main() {
         const cpu = process.cpuUsage(cpuStarted)
         const wallMs = Number(process.hrtime.bigint() - wallStarted) / 1e6
         const resourceUsage = process.resourceUsage()
-        const candidateProjection = canonicalCandidateProjection({
-            mask: input.mask,
-            root: input.targetRoot,
-            state: transition.state,
-            catalog: compiled.catalog,
-            target: transition.target,
-        })
         process.stdout.write(`${JSON.stringify({
             schema: 'patch-toolchain-shadow-mask-observation-v2',
             processInstanceId: crypto.randomUUID(),
@@ -250,6 +258,7 @@ function main() {
             apply: { status: observedStatus, paths: applied },
             symbolObservation,
             candidateProjection,
+            projectionObservationPhase: COHERENT_OBSERVATION_PHASE,
             capabilityReceipt,
             repeatedPlan: { changeCount: repeated.changes.length },
             revert: { changeCount: reverted.changes.length },

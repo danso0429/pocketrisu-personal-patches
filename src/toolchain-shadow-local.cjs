@@ -30,6 +30,7 @@ const {
 } = require('./verification-evidence.cjs')
 const { canonicalSha256 } = require('./operating-cohort-identity.cjs')
 const {
+    COHERENT_OBSERVATION_PHASE,
     candidateBoundaryConsensus,
     validateCanonicalCandidateProjection,
 } = require('./toolchain-shadow-canonical-projection.cjs')
@@ -211,7 +212,9 @@ function validateLocalShadowReceipt(receipt) {
                 && /^[0-9a-f]{64}$/.test(observation.candidateProjection?.stateSha256 ?? '')
                 && projectionSha256 === sha256(canonicalJson(projectionPayload)))
             : (observation.candidateProjection?.mask === observation.mask
-                && observation.candidateProjection?.active === (observation.mask === 1))
+                && observation.candidateProjection?.active === (observation.mask === 1)
+                && (observation.projectionObservationPhase === undefined
+                    || observation.projectionObservationPhase === COHERENT_OBSERVATION_PHASE))
         if (canonicalJson(observation.selectedPackIds) !== canonicalJson(selected)
             || observation.apply?.status !== expectedStatus
             || canonicalJson(Object.keys(observation.apply?.paths ?? {}).sort())

@@ -9,6 +9,13 @@ const {
     validateLocalShadowReceipt,
 } = require('../src/toolchain-shadow-local.cjs')
 const { createToolchainKnownAnswerTarget } = require('../src/toolchain-shadow-known-answer.cjs')
+const { COHERENT_OBSERVATION_PHASE } = require('../src/toolchain-shadow-canonical-projection.cjs')
+const { loadCatalog } = require('../src/catalog.cjs')
+const {
+    buildSameGlobalComparison,
+    buildSameGlobalReference,
+    validateSameGlobalComparison,
+} = require('../src/toolchain-shadow-same-global.cjs')
 const { canonicalJson, sealDocument } = require('../src/verification-receipts.cjs')
 
 const ROOT = path.resolve(__dirname, '..')
@@ -47,11 +54,52 @@ test('known-answer local route executes exact off/on masks across all boundaries
         assert.equal(new Set(receipt.observations.map((entry) => entry.processInstanceId)).size, 8)
         assert.equal(new Set(receipt.observations.map((entry) => entry.projectionId)).size, 8)
         assert.ok(receipt.observations.every((entry) => entry.restoration.restored))
+        assert.ok(receipt.observations.every((entry) =>
+            entry.projectionObservationPhase === COHERENT_OBSERVATION_PHASE))
+        const active = receipt.observations.find((entry) => entry.mask === 1)
+        const outputs = new Map(active.candidateProjection.candidateState.persistedFiles
+            .map((file) => [file.path, [file.outputSha256, file.outputMode]]))
+        assert.deepEqual(active.candidateProjection.managedFiles.map((file) =>
+            [file.path, file.sha256, file.mode]), [
+            ['package.json', ...outputs.get('package.json')],
+            ['pnpm-lock.yaml', ...outputs.get('pnpm-lock.yaml')],
+            ['vitest.setup.ts', ...outputs.get('vitest.setup.ts')],
+        ])
+        assert.ok(receipt.observations.every((entry) => entry.restoration.remainingArtifacts.length === 0))
         assert.equal(receipt.candidate.productionClass, 'G')
         assert.equal(receipt.canonicalProtection.canonicalMasksSkipped, 0)
         assert.deepEqual(receipt.operatingCohort, operatingCohort)
         assert.match(receipt.localRunId, /^[0-9a-f]{64}$/)
         assert.equal(validateLocalShadowReceipt(receipt), receipt)
+        const reference = buildSameGlobalReference({
+            localReceipt: receipt,
+            materialDeclarationSha256: '5'.repeat(64),
+        })
+        assert.deepEqual(Object.keys(reference.referenceProjections), ['0', '1'])
+        const visiblePacks = loadCatalog(ROOT).filter((pack) => pack.userSelectable !== false)
+            .map((pack) => pack.id).sort()
+        const globalObservations = Array.from({ length: 4096 }, (_, mask) => {
+            const candidateMask = Math.floor(mask / (2 ** 11)) % 2
+            return {
+                mask,
+                candidateMask,
+                projectionSha256: reference.references[String(candidateMask)],
+                projectionObservationPhase: COHERENT_OBSERVATION_PHASE,
+                ...([0, 2048].includes(mask) ? {
+                    candidateProjection: reference.referenceProjections[String(candidateMask)],
+                } : {}),
+                matchesLocal: true,
+            }
+        })
+        const comparison = buildSameGlobalComparison({
+            reference,
+            visiblePacks,
+            observations: globalObservations,
+        })
+        assert.deepEqual(Object.keys(comparison.projectionPreimages.globalSamples), ['0', '1'])
+        assert.equal(validateSameGlobalComparison(comparison, {
+            visiblePacks, rawSelections: 4096, verifiedSelections: 4096,
+        }), comparison)
     } finally {
         fs.rmSync(target.root, { recursive: true, force: true })
     }
