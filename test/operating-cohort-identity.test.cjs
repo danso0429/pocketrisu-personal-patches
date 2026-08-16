@@ -30,7 +30,7 @@ const {
     validateIncidentChain,
     validateIncidentBundleBinding,
 } = require('../src/c0-ledgers.cjs')
-const { sealDocument } = require('../src/verification-receipts.cjs')
+const { canonicalJson, sealDocument } = require('../src/verification-receipts.cjs')
 const {
     buildOperatingGateEvidence,
     validateOperatingGateEvidence,
@@ -181,7 +181,7 @@ function evidenceBundle(identity, frozenRecord, {
         frozenDeclarationObjectSha256: frozenRecord.frozenSha256,
         frozenDeclaration: structuredClone(frozenRecord.frozen),
         cohort: {
-            identitySchema: 'patch-operating-cohort-identity-v2',
+            identitySchema: identity.cohort.identity.schema,
             materialInputKey: identity.materialInput.materialInputKey,
             cohortId: identity.cohort.cohortId,
             executionAttemptId: frozenRecord.attempt.executionAttemptId,
@@ -239,6 +239,113 @@ test('materialInputKey and cohortId are canonical and deterministic', () => {
     assert.equal(first.materialInput.materialInputKey, second.materialInput.materialInputKey)
     assert.equal(first.cohort.cohortId, second.cohort.cohortId)
     assert.deepEqual(validateFrozenCohortDeclaration(freeze(first).frozen), freeze(first).frozen)
+})
+
+test('material identity stays stable across qualification-only declaration versions', () => {
+    const v1 = materialDeclaration()
+    const v2 = structuredClone(v1)
+    v2.schema = 'patch-operating-cohort-material-declaration-v2'
+    v2.version = 2
+    v2.declarationId = 'first-material-c0-toolchain-hardening-v2'
+    v2.qualification = {
+        type: 'patch-toolchain-shadow-real-global-qualification-v2',
+        projectionSchema: 'patch-toolchain-shadow-canonical-candidate-projection-v2',
+        subject: {
+            ...v2.qualification.subject,
+            qualificationToolCommit: '9'.repeat(40),
+            contractSha256: HASH('8'),
+            compiledDeclarationSha256: HASH('7'),
+        },
+        compatibility: Object.fromEntries(Object.keys(v2.qualification.compatibility)
+            .map((key) => [key, HASH('6')])),
+    }
+    v2.declarationSha256 = declarationHash(v2)
+    const governance = makeIdentity().governance
+    const first = buildMaterialInputIdentity({ declaration: v1, governance })
+    const second = buildMaterialInputIdentity({ declaration: v2, governance })
+    assert.equal(first.materialInputKey, second.materialInputKey)
+    assert.equal(first.identity.schema, 'patch-operating-material-input-identity-v2')
+    assert.equal(first.identity.materialDeclaration, undefined)
+})
+
+test('material identity changes for actual subject, target, or candidate-impact semantics', () => {
+    const base = materialDeclaration()
+    const governance = makeIdentity().governance
+    const key = buildMaterialInputIdentity({ declaration: base, governance }).materialInputKey
+    for (const mutate of [
+        (value) => { value.qualification.subject.implementationCommit = '1'.repeat(40) },
+        (value) => { value.qualification.subject.targetCommit = '2'.repeat(40) },
+        (value) => { value.qualification.subject.targetApplicationTreeSha256 = HASH('3') },
+        (value) => {
+            value.candidateImpact = {
+                affected: false, candidateId: null, reason: 'candidate-unaffected',
+            }
+        },
+    ]) {
+        const changed = structuredClone(base)
+        mutate(changed)
+        changed.declarationSha256 = declarationHash(changed)
+        assert.notEqual(buildMaterialInputIdentity({ declaration: changed, governance }).materialInputKey, key)
+    }
+})
+
+test('historical material-v1/cohort-v2 frozen identities remain interpretable', () => {
+    const current = makeIdentity()
+    const declaration = current.declaration
+    const legacyMaterialIdentity = {
+        schema: 'patch-operating-material-input-identity-v1',
+        materialDeclaration: structuredClone(declaration),
+        classification: {
+            changeClass: declaration.changeClass,
+            stableRelease: declaration.stableRelease,
+            releaseCandidate: declaration.releaseCandidate,
+            materialReason: declaration.materialReason,
+        },
+        governance: {
+            ...current.governance,
+            policySha256: declaration.qualification.subject.policySha256,
+        },
+        qualifiedSubject: {
+            implementationCommit: declaration.qualification.subject.implementationCommit,
+        },
+        target: {
+            commit: declaration.qualification.subject.targetCommit,
+            applicationTreeSha256: declaration.qualification.subject.targetApplicationTreeSha256,
+        },
+        candidateImpact: structuredClone(declaration.candidateImpact),
+    }
+    const legacyMaterial = {
+        identity: legacyMaterialIdentity,
+        materialInputKey: sha256(canonicalJson(legacyMaterialIdentity)),
+    }
+    const legacyCohortIdentity = structuredClone(current.cohort.identity)
+    legacyCohortIdentity.schema = 'patch-operating-cohort-identity-v2'
+    legacyCohortIdentity.materialInputKey = legacyMaterial.materialInputKey
+    delete legacyCohortIdentity.verificationInputKey
+    const legacyCohort = {
+        identity: legacyCohortIdentity,
+        cohortId: sha256(canonicalJson(legacyCohortIdentity)),
+    }
+    const attempt = createExecutionAttempt({
+        cohortId: legacyCohort.cohortId,
+        toolingCommit: TOOLING_COMMIT,
+        nonce: '00000000-0000-4000-8000-000000000055',
+        createdAt: '2026-08-15T00:00:55.000Z',
+        creator: 'historical-identity-compatibility-test',
+    })
+    const frozen = buildFrozenCohortDeclaration({
+        materialInput: legacyMaterial,
+        cohort: legacyCohort,
+        attempt,
+        declaration,
+        routeDecision: current.routeDecision,
+        materialClassification: {
+            sameInputCohortFound: false,
+            materiallyDistinct: true,
+            repeatedPerformanceTrial: false,
+        },
+    })
+    assert.equal(validateFrozenCohortDeclaration(frozen), frozen)
 })
 
 test('the material freeze path publishes every execution identity before doing work', async (t) => {
@@ -394,15 +501,31 @@ test('semantic material inputs and verification-contract inputs invalidate the i
         (value) => { value.qualification.subject.implementationCommit = '1'.repeat(40) },
         (value) => { value.qualification.subject.policySha256 = HASH('8') },
         (value) => { value.qualification.subject.targetCommit = '2'.repeat(40) },
-        (value) => { value.qualification.subject.contractSha256 = HASH('8') },
-        (value) => { value.qualification.subject.compiledDeclarationSha256 = HASH('8') },
-        (value) => { value.environment.id = 'toolchain:test-changed' },
     ]) {
         const changedDeclaration = materialDeclaration()
         mutate(changedDeclaration)
         changedDeclaration.declarationSha256 = declarationHash(changedDeclaration)
         const changed = makeIdentity({ declaration: changedDeclaration })
         assert.notEqual(changed.materialInput.materialInputKey, base.materialInput.materialInputKey)
+        assert.notEqual(changed.cohort.cohortId, base.cohort.cohortId)
+    }
+    for (const mutate of [
+        (value) => { value.qualification.subject.qualificationToolCommit = '3'.repeat(40) },
+        (value) => { value.qualification.subject.contractSha256 = HASH('8') },
+        (value) => { value.qualification.subject.compiledDeclarationSha256 = HASH('8') },
+        (value) => { value.qualification.compatibility.subjectSchemasSha256 = HASH('8') },
+        (value) => { value.qualification.compatibility.qualificationSchemasSha256 = HASH('8') },
+        (value) => { value.qualification.compatibility.localRouteSha256 = HASH('8') },
+        (value) => { value.qualification.compatibility.globalProjectionRouteSha256 = HASH('8') },
+        (value) => { value.environment.id = 'toolchain:test-changed' },
+    ]) {
+        const changedDeclaration = materialDeclaration()
+        mutate(changedDeclaration)
+        changedDeclaration.declarationSha256 = declarationHash(changedDeclaration)
+        const changed = makeIdentity({ declaration: changedDeclaration })
+        assert.equal(changed.materialInput.materialInputKey, base.materialInput.materialInputKey)
+        assert.notEqual(changed.cohort.identity.verificationInputKey,
+            base.cohort.identity.verificationInputKey)
         assert.notEqual(changed.cohort.cohortId, base.cohort.cohortId)
     }
     const qualificationChanged = makeIdentity({ qualificationIdentity: {
@@ -420,6 +543,8 @@ test('tooling-only observation-contract change keeps material input and changes 
     const base = makeIdentity()
     const toolingChanged = makeIdentity({ toolingStatus: HASH('9') })
     assert.equal(toolingChanged.materialInput.materialInputKey, base.materialInput.materialInputKey)
+    assert.notEqual(toolingChanged.cohort.identity.verificationInputKey,
+        base.cohort.identity.verificationInputKey)
     assert.notEqual(toolingChanged.cohort.cohortId, base.cohort.cohortId)
 })
 

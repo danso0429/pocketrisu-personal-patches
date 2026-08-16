@@ -1,0 +1,33 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://pocketrisu.local/schemas/patch-toolchain-shadow-qualification-run-accounting-v1.schema.json",
+  "title": "Toolchain shadow qualification run accounting v1",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema", "status", "localLaunches", "localCasesCompleted", "globalLaunches",
+    "globalMasksCompleted", "successReportPresent", "successReportUsedAsSoleCountSource"
+  ],
+  "properties": {
+    "schema": { "const": "patch-toolchain-shadow-qualification-run-accounting-v1" },
+    "status": { "enum": ["passed", "failed"] },
+    "localLaunches": { "$ref": "#/$defs/count" },
+    "localCasesCompleted": { "$ref": "#/$defs/count" },
+    "globalLaunches": { "$ref": "#/$defs/count" },
+    "globalMasksCompleted": { "$ref": "#/$defs/count" },
+    "successReportPresent": { "type": "boolean" },
+    "successReportUsedAsSoleCountSource": { "const": false }
+  },
+  "$defs": {
+    "count": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["knowledge", "value", "source"],
+      "properties": {
+        "knowledge": { "enum": ["known", "unknown"] },
+        "value": { "type": ["integer", "null"], "minimum": 0 },
+        "source": { "type": "string", "minLength": 1 }
+      }
+    }
+  }
+}

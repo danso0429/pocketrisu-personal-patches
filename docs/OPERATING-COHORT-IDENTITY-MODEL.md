@@ -19,7 +19,8 @@ fabricated for it, and it is not a production defect or maturity denominator.
 
 | Field | Identity class | Producer and consumers after remediation |
 | --- | --- | --- |
-| `materialInputKey` | pre-execution semantic input | Canonical material declaration and classification authority; same-input classification, C0 ledger maturity and candidate sample ledger |
+| `materialInputKey` | pre-execution semantic input | Versioned material-semantic projection: classification, frozen subject implementation, policy/governance authority, target and candidate impact; same-input classification, C0 ledger maturity and candidate sample ledger |
+| `verificationInputKey` | pre-execution verification-contract input | Exact full declaration hash, route, accepted qualification, candidate contract/declaration, verifier/tooling, schedule/history, environment, isolation and local domain; cohort identity and frozen declaration |
 | `sameInputCohortFound` | pre-execution semantic classification | Accepted v2 ledger lookup by `materialInputKey`; frozen declaration |
 | `materiallyDistinct` | pre-execution semantic classification | Same-input classifier; frozen declaration and ledgers |
 | `cohortId` | pre-execution execution-contract input | Material key plus exact route, authority, qualification, verification, schedule/history, jobs, isolation, environment and local domain; every attempt receipt and linkage |
@@ -44,18 +45,22 @@ The removed backward flows were:
 - completed Global receipt and resource results → v1 bundle `runId` →
   candidate linkage's alleged Global run ID.
 
-No post-execution field is an input to the v2 `cohortId`.
+No post-execution field is an input to the operating `cohortId`. New declarations
+use material-input identity v2 and cohort identity v3. Historical material-input v1
+and cohort v2 objects remain immutable and are validated under their original pair.
 
 ## Identity invalidation matrix
 
 | Independent change | `materialInputKey` | `cohortId` |
 | --- | --- | --- |
 | subject identity | changes | changes |
-| canonical material declaration bytes | changes | changes |
+| material classification/subject/target/candidate-impact semantics | changes | changes |
 | policy or governance material authority | changes | changes |
 | target identity named by the material declaration | changes | changes |
-| candidate impact, contract or compiled declaration in the material declaration | changes | changes |
-| semantic environment in the material declaration | changes | changes |
+| qualification type/schema/tool commit only | unchanged | changes |
+| candidate verification contract or compiled declaration only | unchanged | changes |
+| subject/qualification/evidence schema graph only | unchanged | changes |
+| semantic environment verification contract only | unchanged | changes |
 | verification-time provisioning/admission semantics only | unchanged | changes |
 | random task-scoped provisioning path or its receipt timestamp | unchanged | unchanged |
 | accepted qualification registry/final-manifest identity only | unchanged | changes |
@@ -66,10 +71,11 @@ No post-execution field is an input to the v2 `cohortId`.
 | local/Global receipts, run IDs, actual worker history, resources or timestamps | unchanged | unchanged |
 | separately authorized retry | unchanged | unchanged; only `executionAttemptId` changes |
 
-The current material declaration itself contains fixed environment and Global
-contract fields. Changing those declaration bytes is a material-input change;
-changing only the execution contract outside an unchanged declaration affects
-`cohortId` alone.
+The full material declaration remains exact verification evidence and is bound by
+`verificationInputKey`, even when its qualification, environment or Global-contract
+fields change. Those fields do not change the material patch-development input by
+themselves. A declaration change that alters its projected subject, policy,
+governance, target, classification or candidate-impact semantics changes both keys.
 
 The admitted operating toolchain is provisioned before a retry is frozen. Its
 exact temporary root, resolved executables, hashes, PATH-resolution hashes and
@@ -116,6 +122,14 @@ A failed early admission publishes
 `patch-operating-build-boundary-failure-v1`, retaining expected/observed field
 diffs while recording zero local cases, no Global claim and zero Global
 executions.
+
+Qualification run accounting is derived first from retained local/Global receipts,
+then from a durable state written before each launch. A success-only stdout report is
+supplemental and is never the sole source for launch counts. Missing evidence is
+reported as `unknown`; exact zero is reported only when the pre-launch execution
+state proves zero. Thus a comparison failure after eight local cases and one Global
+execution cannot be summarized as zero merely because the success report was never
+emitted.
 
 The first material attempt from tooling commit `8f3f522068c76bd81bbf9466e278512666aaaee4`
 predates this receipt. It remains immutable: local coverage was 0/8 and its

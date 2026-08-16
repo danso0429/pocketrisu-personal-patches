@@ -18,7 +18,9 @@
       "additionalProperties": false,
       "required": ["identitySchema", "materialInputKey", "cohortId", "executionAttemptId", "trialId", "cohortClass", "materiallyDistinct", "repeatedPerformanceTrial", "productionEligible", "syntheticMutation", "identity"],
       "properties": {
-        "identitySchema": { "const": "patch-operating-cohort-identity-v2" },
+        "identitySchema": {
+          "enum": ["patch-operating-cohort-identity-v2", "patch-operating-cohort-identity-v3"]
+        },
         "materialInputKey": { "$ref": "#/$defs/hash" },
         "cohortId": { "$ref": "#/$defs/hash" },
         "executionAttemptId": { "$ref": "#/$defs/hash" },

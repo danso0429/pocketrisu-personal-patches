@@ -47,6 +47,10 @@ const {
     runChild,
     writeJsonAtomic,
 } = require('../src/verification-evidence.cjs')
+const {
+    EXECUTION_STATE_SCHEMA,
+    accountingFromOutputDirectory,
+} = require('../src/toolchain-shadow-qualification-run-accounting.cjs')
 
 function parseArgs(argv) {
     const options = { toolRoot: path.resolve(__dirname, '..'), jobs: null }
@@ -99,6 +103,8 @@ async function main(argv = process.argv) {
         global: 'global-receipt.json', registration: 'registration.json',
         operatingProvisioning: 'operating-preflight-provisioning.json',
         operatingPreflight: 'operating-preflight.json',
+        executionState: 'execution-state.json',
+        accounting: 'run-accounting.json',
     }).map(([key, name]) => [key, path.join(options.outputDirectory, name)]))
     const identityResult = requireSuccessfulChild(await runChild(process.execPath, [
         path.join(__dirname, 'build-toolchain-shadow-v2-identities.cjs'),
@@ -114,6 +120,19 @@ async function main(argv = process.argv) {
     let provisioned = null
     let localLaunches = 0
     let globalLaunches = 0
+    const executionState = {
+        schema: EXECUTION_STATE_SCHEMA,
+        status: 'running',
+        phase: 'initialized-before-execution',
+        local: { launches: 0, casesCompleted: null, receiptRetained: false },
+        global: { launches: 0, masksCompleted: null, receiptRetained: false },
+        failure: null,
+    }
+    const persistExecutionState = (phase) => {
+        executionState.phase = phase
+        writeJsonAtomic(files.executionState, executionState)
+    }
+    persistExecutionState(executionState.phase)
     try {
         provisioned = await provisionRealGlobalQualificationEnvironment({
             context: subject,
@@ -127,6 +146,8 @@ async function main(argv = process.argv) {
         try {
             if (localLaunches !== 0) throw new Error('Second local qualification launch is forbidden')
             localLaunches += 1
+            executionState.local.launches = localLaunches
+            persistExecutionState('local-launch-recorded-before-execution')
             localReceipt = await runFreshLocalShadow({
                 sourceRoot: options.toolRoot,
                 targetRoot: options.targetRoot,
@@ -138,10 +159,15 @@ async function main(argv = process.argv) {
         }
         validateLocalShadowReceipt(localReceipt)
         writeJsonAtomic(files.local, localReceipt)
+        executionState.local.casesCompleted = localReceipt.coverage.processedExecutions
+        executionState.local.receiptRetained = true
+        persistExecutionState('local-receipt-retained')
         const reference = buildSameGlobalReference({ localReceipt })
         writeJsonAtomic(files.reference, reference)
         if (globalLaunches !== 0) throw new Error('Second Global qualification launch is forbidden')
         globalLaunches += 1
+        executionState.global.launches = globalLaunches
+        persistExecutionState('global-launch-recorded-before-execution')
         const globalArgs = [
             path.join(__dirname, 'run-verification-evidence.cjs'),
             '--root', options.targetRoot, '--output', files.global,
@@ -155,6 +181,9 @@ async function main(argv = process.argv) {
             maxOutputBytes: 16 * 1024 * 1024,
         }), 'real Global qualification')
         const globalReceipt = parseJsonStrict(fs.readFileSync(files.global), 'v2 Global receipt')
+        executionState.global.masksCompleted = globalReceipt.verifierResult?.verifiedSelections ?? null
+        executionState.global.receiptRetained = true
+        persistExecutionState('global-receipt-retained')
         const evaluation = evaluateExecutionReceipt(globalReceipt)
         const comparison = globalReceipt.verifierResult?.toolchainShadowComparison
         validateSameGlobalComparison(comparison, globalReceipt.verifierResult)
@@ -248,6 +277,10 @@ async function main(argv = process.argv) {
         } finally {
             if (operatingProvisioned !== null) cleanupProvisionedEnvironment(operatingProvisioned.root)
         }
+        executionState.status = 'passed'
+        persistExecutionState('completed')
+        const accounting = accountingFromOutputDirectory(options.outputDirectory, { status: 'passed' })
+        writeJsonAtomic(files.accounting, accounting)
         const report = {
             schema: 'patch-toolchain-shadow-real-global-qualification-run-v2',
             status: 'passed',
@@ -291,10 +324,35 @@ async function main(argv = process.argv) {
             materialCohortsAccepted: 0,
             candidateOperatingSamplesAccepted: 0,
             identityResultSha256: sha256(identityResult.stdout),
+            executionAccounting: accounting,
             outputs: files,
         }
         process.stdout.write(`${JSON.stringify(report)}\n`)
         return report
+    } catch (error) {
+        executionState.status = 'failed'
+        executionState.failure = {
+            code: String(error.code ?? 'QUALIFICATION_FAILED'),
+            message: String(error.message),
+        }
+        persistExecutionState(`failed:${executionState.phase}`)
+        let accounting = null
+        try {
+            accounting = accountingFromOutputDirectory(options.outputDirectory, { status: 'failed' })
+            writeJsonAtomic(files.accounting, accounting)
+        } catch (accountingError) {
+            error.accountingError = {
+                code: accountingError.code ?? null,
+                message: accountingError.message,
+            }
+        }
+        error.details = {
+            ...(error.details && typeof error.details === 'object' ? error.details : {}),
+            executionAccounting: accounting,
+            accountingPath: files.accounting,
+            executionStatePath: files.executionState,
+        }
+        throw error
     } finally {
         if (provisioned !== null) {
             const resolved = path.resolve(provisioned.root)

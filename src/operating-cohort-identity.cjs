@@ -24,8 +24,12 @@ const {
     validateProvisioningReceipt,
 } = require('./operating-build-environment.cjs')
 
-const MATERIAL_INPUT_IDENTITY_SCHEMA = 'patch-operating-material-input-identity-v1'
-const COHORT_IDENTITY_SCHEMA = 'patch-operating-cohort-identity-v2'
+const LEGACY_MATERIAL_INPUT_IDENTITY_SCHEMA = 'patch-operating-material-input-identity-v1'
+const MATERIAL_INPUT_IDENTITY_SCHEMA = 'patch-operating-material-input-identity-v2'
+const MATERIAL_SEMANTICS_SCHEMA = 'patch-operating-material-semantics-v1'
+const LEGACY_COHORT_IDENTITY_SCHEMA = 'patch-operating-cohort-identity-v2'
+const COHORT_IDENTITY_SCHEMA = 'patch-operating-cohort-identity-v3'
+const VERIFICATION_INPUT_IDENTITY_SCHEMA = 'patch-operating-verification-input-identity-v1'
 const EXECUTION_ATTEMPT_SCHEMA = 'patch-operating-execution-attempt-v1'
 const FROZEN_DECLARATION_SCHEMA = 'patch-operating-cohort-frozen-declaration-v1'
 const FROZEN_DECLARATION_REF_SCHEMA = 'patch-operating-cohort-frozen-declaration-ref-v1'
@@ -91,29 +95,133 @@ function buildMaterialInputIdentity({ declaration, governance }) {
     }
     const identity = {
         schema: MATERIAL_INPUT_IDENTITY_SCHEMA,
-        materialDeclaration: structuredClone(declaration),
-        classification: {
+        materialSemantics: {
+            schema: MATERIAL_SEMANTICS_SCHEMA,
             changeClass: declaration.changeClass,
             stableRelease: declaration.stableRelease,
             releaseCandidate: declaration.releaseCandidate,
             materialReason: declaration.materialReason,
+            governance: {
+                ...governance,
+                policySha256: declaration.qualification.subject.policySha256,
+            },
+            qualifiedSubject: {
+                implementationCommit: declaration.qualification.subject.implementationCommit,
+            },
+            target: {
+                commit: declaration.qualification.subject.targetCommit,
+                applicationTreeSha256: declaration.qualification.subject.targetApplicationTreeSha256,
+            },
+            candidateImpact: structuredClone(declaration.candidateImpact),
         },
-        governance: {
-            ...governance,
-            policySha256: declaration.qualification.subject.policySha256,
-        },
-        qualifiedSubject: {
-            implementationCommit: declaration.qualification.subject.implementationCommit,
-        },
-        target: {
-            commit: declaration.qualification.subject.targetCommit,
-            applicationTreeSha256: declaration.qualification.subject.targetApplicationTreeSha256,
-        },
-        candidateImpact: structuredClone(declaration.candidateImpact),
     }
     return {
         identity,
         materialInputKey: canonicalSha256(identity),
+    }
+}
+
+function validateMaterialInputIdentity(identity) {
+    if (identity?.schema === LEGACY_MATERIAL_INPUT_IDENTITY_SCHEMA) {
+        validateMaterialDeclaration(identity.materialDeclaration)
+        return identity
+    }
+    exactKeys(identity, ['schema', 'materialSemantics'], 'material semantic identity')
+    const material = identity.materialSemantics
+    exactKeys(material, [
+        'schema', 'changeClass', 'stableRelease', 'releaseCandidate', 'materialReason',
+        'governance', 'qualifiedSubject', 'target', 'candidateImpact',
+    ], 'material semantics')
+    if (material.schema !== MATERIAL_SEMANTICS_SCHEMA
+        || !['patch', 'relation', 'core', 'audit', 'stable-release'].includes(material.changeClass)
+        || material.stableRelease !== (material.changeClass === 'stable-release')
+        || typeof material.releaseCandidate !== 'string' || material.releaseCandidate.length === 0
+        || typeof material.materialReason !== 'string' || material.materialReason.length === 0) {
+        fail('INVALID_MATERIAL_INPUT', 'Material semantic classification is invalid')
+    }
+    exactKeys(material.governance, [
+        'repository', 'commit', 'statusVersion', 'policySha256',
+    ], 'material semantic governance')
+    exactKeys(material.qualifiedSubject, ['implementationCommit'], 'material semantic subject')
+    exactKeys(material.target, ['commit', 'applicationTreeSha256'], 'material semantic target')
+    exactKeys(material.candidateImpact, ['affected', 'candidateId', 'reason'], 'material semantic candidate impact')
+    validateCommit(material.governance.commit, 'material semantic governance commit')
+    validateCommit(material.qualifiedSubject.implementationCommit, 'material semantic subject commit')
+    validateCommit(material.target.commit, 'material semantic target commit')
+    validateSha(material.governance.policySha256, 'material semantic policy')
+    validateSha(material.target.applicationTreeSha256, 'material semantic target tree')
+    if (typeof material.governance.repository !== 'string' || material.governance.repository.length === 0
+        || !Number.isSafeInteger(material.governance.statusVersion)
+        || typeof material.candidateImpact.affected !== 'boolean') {
+        fail('INVALID_MATERIAL_INPUT', 'Material semantic authority or impact is invalid')
+    }
+    return identity
+}
+
+function buildVerificationInputIdentity({
+    declaration,
+    governance,
+    routeDecision,
+    qualification,
+    tooling,
+    verificationIdentities,
+    jobs,
+    localDomain,
+}) {
+    const identity = {
+        schema: VERIFICATION_INPUT_IDENTITY_SCHEMA,
+        materialDeclarationSha256: declaration.declarationSha256,
+        routeContract: {
+            schema: routeDecision.schema,
+            version: 1,
+            routeId: routeDecision.routeId,
+            decisionSha256: routeDecision.decisionSha256,
+        },
+        authority: {
+            governance: structuredClone(governance),
+            policySha256: declaration.qualification.subject.policySha256,
+        },
+        qualification,
+        candidate: {
+            affected: routeDecision.candidateAffected,
+            candidateId: routeDecision.candidateId,
+            contractSha256: declaration.qualification.subject.contractSha256,
+            compiledDeclarationSha256: declaration.qualification.subject.compiledDeclarationSha256,
+            qualificationCompatibility: structuredClone(declaration.qualification.compatibility),
+            localDomain: structuredClone(localDomain),
+        },
+        verification: {
+            tooling: structuredClone(tooling),
+            canonicalGlobalVerifier: structuredClone(verificationIdentities.canonicalGlobalVerifier),
+            candidateLocalVerifier: structuredClone(verificationIdentities.candidateLocalVerifier),
+            operatingBuildEnvironmentContract: operatingBuildEnvironmentContract(),
+        },
+        canonicalGlobalContract: {
+            canonicalGate: declaration.globalContract.canonicalGate,
+            scheduleHistoryContract: scheduleHistoryContract(declaration, jobs),
+            globalExecutionsExpected: routeDecision.globalExecutionsExpected,
+        },
+        localIsolationContract: localIsolationContract(),
+        environmentContract: structuredClone(declaration.environment),
+    }
+    return {
+        identity,
+        verificationInputKey: canonicalSha256(identity),
+    }
+}
+
+function verificationInputIdentityFromCohort(identity) {
+    return {
+        schema: VERIFICATION_INPUT_IDENTITY_SCHEMA,
+        materialDeclarationSha256: identity.materialDeclarationSha256,
+        routeContract: structuredClone(identity.routeContract),
+        authority: structuredClone(identity.authority),
+        qualification: structuredClone(identity.qualification),
+        candidate: structuredClone(identity.candidate),
+        verification: structuredClone(identity.verification),
+        canonicalGlobalContract: structuredClone(identity.canonicalGlobalContract),
+        localIsolationContract: structuredClone(identity.localIsolationContract),
+        environmentContract: structuredClone(identity.environmentContract),
     }
 }
 
@@ -198,6 +306,7 @@ function buildCohortIdentity({
     validateMaterialDeclaration(declaration)
     validateRouteDecision(routeDecision, { declaration, ...routeDecisionInputs })
     validateSha(materialInput?.materialInputKey, 'materialInputKey')
+    validateMaterialInputIdentity(materialInput.identity)
     if (canonicalSha256(materialInput.identity) !== materialInput.materialInputKey
         || materialInput.identity.schema !== MATERIAL_INPUT_IDENTITY_SCHEMA) {
         fail('MATERIAL_INPUT_KEY_MISMATCH', 'Material input identity differs from its key')
@@ -217,9 +326,21 @@ function buildCohortIdentity({
         || localDomain.totalLocalCases !== routeDecision.totalLocalCasesExpected) {
         fail('LOCAL_DOMAIN_MISMATCH', 'Frozen local domain differs from the machine route')
     }
+    const acceptedQualification = qualificationIdentity(preflight)
+    const verificationInput = buildVerificationInputIdentity({
+        declaration,
+        governance,
+        routeDecision,
+        qualification: acceptedQualification,
+        tooling,
+        verificationIdentities,
+        jobs,
+        localDomain,
+    })
     const identity = {
         schema: COHORT_IDENTITY_SCHEMA,
         materialInputKey: materialInput.materialInputKey,
+        verificationInputKey: verificationInput.verificationInputKey,
         materialDeclarationSha256: declaration.declarationSha256,
         routeContract: {
             schema: routeDecision.schema,
@@ -238,7 +359,7 @@ function buildCohortIdentity({
             commit: declaration.qualification.subject.targetCommit,
             applicationTreeSha256: declaration.qualification.subject.targetApplicationTreeSha256,
         },
-        qualification: qualificationIdentity(preflight),
+        qualification: acceptedQualification,
         candidate: {
             affected: routeDecision.candidateAffected,
             candidateId: routeDecision.candidateId,
@@ -260,6 +381,10 @@ function buildCohortIdentity({
         },
         localIsolationContract: localIsolationContract(),
         environmentContract: structuredClone(declaration.environment),
+    }
+    if (canonicalSha256(verificationInputIdentityFromCohort(identity))
+        !== verificationInput.verificationInputKey) {
+        fail('VERIFICATION_INPUT_KEY_MISMATCH', 'Verification input identity projection differs from its key')
     }
     return {
         identity,
@@ -371,9 +496,12 @@ function validateFrozenCohortDeclaration(document) {
     for (const key of ['materialInputKey', 'cohortId', 'executionAttemptId', 'materialDeclarationSha256']) {
         validateSha(document[key], `frozen declaration ${key}`)
     }
-    validateMaterialDeclaration(document.materialInputIdentity?.materialDeclaration)
-    if (document.materialInputIdentity?.schema !== MATERIAL_INPUT_IDENTITY_SCHEMA
-        || document.cohortIdentity?.schema !== COHORT_IDENTITY_SCHEMA
+    validateMaterialInputIdentity(document.materialInputIdentity)
+    const legacyIdentity = document.materialInputIdentity?.schema === LEGACY_MATERIAL_INPUT_IDENTITY_SCHEMA
+    const expectedCohortSchema = legacyIdentity
+        ? LEGACY_COHORT_IDENTITY_SCHEMA
+        : COHORT_IDENTITY_SCHEMA
+    if (document.cohortIdentity?.schema !== expectedCohortSchema
         || document.executionAttempt?.schema !== EXECUTION_ATTEMPT_SCHEMA
         || canonicalSha256(document.materialInputIdentity) !== document.materialInputKey
         || canonicalSha256(document.cohortIdentity) !== document.cohortId
@@ -381,8 +509,11 @@ function validateFrozenCohortDeclaration(document) {
         || document.cohortIdentity.materialInputKey !== document.materialInputKey
         || document.executionAttempt.cohortId !== document.cohortId
         || document.cohortIdentity.materialDeclarationSha256 !== document.materialDeclarationSha256
-        || document.materialInputIdentity.materialDeclaration.declarationSha256
-            !== document.materialDeclarationSha256
+        || (legacyIdentity && document.materialInputIdentity.materialDeclaration.declarationSha256
+            !== document.materialDeclarationSha256)
+        || (!legacyIdentity && (document.cohortIdentity.verificationInputKey === undefined
+            || canonicalSha256(verificationInputIdentityFromCohort(document.cohortIdentity))
+                !== document.cohortIdentity.verificationInputKey))
         || typeof document.materialClassification?.sameInputCohortFound !== 'boolean'
         || typeof document.materialClassification?.materiallyDistinct !== 'boolean'
         || typeof document.materialClassification?.repeatedPerformanceTrial !== 'boolean'
@@ -733,11 +864,15 @@ module.exports = {
     FROZEN_DECLARATION_REF_SCHEMA,
     FROZEN_DECLARATION_SCHEMA,
     GLOBAL_LAUNCH_CLAIM_SCHEMA,
+    LEGACY_COHORT_IDENTITY_SCHEMA,
+    LEGACY_MATERIAL_INPUT_IDENTITY_SCHEMA,
     MATERIAL_INPUT_IDENTITY_SCHEMA,
+    MATERIAL_SEMANTICS_SCHEMA,
     OperatingCohortIdentityError,
     buildCohortIdentity,
     buildFrozenCohortDeclaration,
     buildMaterialInputIdentity,
+    buildVerificationInputIdentity,
     buildVerificationIdentities,
     canonicalSha256,
     claimGlobalLaunch,
@@ -754,5 +889,8 @@ module.exports = {
     scheduleHistoryContract,
     validateFrozenCohortDeclaration,
     validateGlobalLaunchClaim,
+    validateMaterialInputIdentity,
     validateOperatingCohortBinding,
+    VERIFICATION_INPUT_IDENTITY_SCHEMA,
+    verificationInputIdentityFromCohort,
 }

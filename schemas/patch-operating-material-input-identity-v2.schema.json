@@ -1,0 +1,30 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://pocketrisu.local/schemas/patch-operating-material-input-identity-v2.schema.json",
+  "title": "Operating material semantic input identity v2",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schema", "materialSemantics"],
+  "properties": {
+    "schema": { "const": "patch-operating-material-input-identity-v2" },
+    "materialSemantics": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "schema", "changeClass", "stableRelease", "releaseCandidate", "materialReason",
+        "governance", "qualifiedSubject", "target", "candidateImpact"
+      ],
+      "properties": {
+        "schema": { "const": "patch-operating-material-semantics-v1" },
+        "changeClass": { "enum": ["patch", "relation", "core", "audit", "stable-release"] },
+        "stableRelease": { "type": "boolean" },
+        "releaseCandidate": { "type": "string", "minLength": 1 },
+        "materialReason": { "type": "string", "minLength": 1 },
+        "governance": { "type": "object" },
+        "qualifiedSubject": { "type": "object" },
+        "target": { "type": "object" },
+        "candidateImpact": { "type": "object" }
+      }
+    }
+  }
+}

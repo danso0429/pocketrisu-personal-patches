@@ -22,6 +22,7 @@ const {
 } = require('./c0-retention.cjs')
 const {
     COHORT_IDENTITY_SCHEMA: OPERATING_COHORT_IDENTITY_SCHEMA,
+    LEGACY_COHORT_IDENTITY_SCHEMA: LEGACY_OPERATING_COHORT_IDENTITY_SCHEMA,
     computeEvidenceBundleId,
     validateFrozenCohortDeclaration,
     validateGlobalLaunchClaim,
@@ -38,6 +39,10 @@ const COHORT_CLASSES = Object.freeze(['stable-release', 'patch', 'relation', 'co
 const GATE_RESULTS = Object.freeze(['passed', 'failed', 'incomplete', 'not-run', 'not-applicable'])
 const SHA256_PATTERN = /^[0-9a-f]{64}$/
 const COMMIT_PATTERN = /^[0-9a-f]{40}$/
+const OPERATING_COHORT_IDENTITY_SCHEMAS = Object.freeze([
+    LEGACY_OPERATING_COHORT_IDENTITY_SCHEMA,
+    OPERATING_COHORT_IDENTITY_SCHEMA,
+])
 
 function canonicalSha256(value) {
     return sha256(canonicalJson(value))
@@ -1006,7 +1011,9 @@ function validateOperatingCohort(bundle, receipt, localEvidence, globalLaunchCla
         'trialId', 'cohortClass', 'materiallyDistinct', 'repeatedPerformanceTrial',
         'productionEligible', 'syntheticMutation', 'identity',
     ], 'operating cohort', errors)) return
-    if (cohort.identitySchema !== OPERATING_COHORT_IDENTITY_SCHEMA) errors.push('operating cohort identity schema is invalid')
+    if (!OPERATING_COHORT_IDENTITY_SCHEMAS.includes(cohort.identitySchema)) {
+        errors.push('operating cohort identity schema is invalid')
+    }
     for (const key of ['materialInputKey', 'cohortId', 'executionAttemptId']) {
         validateSha256(cohort[key], `operating cohort ${key}`, errors)
     }

@@ -1,0 +1,18 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://pocketrisu.local/schemas/patch-operating-cohort-identity-v3.schema.json",
+  "title": "Operating verification cohort identity v3",
+  "type": "object",
+  "required": [
+    "schema", "materialInputKey", "verificationInputKey", "materialDeclarationSha256",
+    "routeContract", "authority", "subject", "target", "qualification", "candidate",
+    "verification", "canonicalGlobalContract", "localIsolationContract", "environmentContract"
+  ],
+  "properties": {
+    "schema": { "const": "patch-operating-cohort-identity-v3" },
+    "materialInputKey": { "type": "string", "pattern": "^[0-9a-f]{64}$" },
+    "verificationInputKey": { "type": "string", "pattern": "^[0-9a-f]{64}$" },
+    "materialDeclarationSha256": { "type": "string", "pattern": "^[0-9a-f]{64}$" }
+  },
+  "additionalProperties": true
+}

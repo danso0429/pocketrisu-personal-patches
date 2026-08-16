@@ -1,0 +1,51 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://pocketrisu.local/schemas/patch-toolchain-shadow-qualification-execution-state-v1.schema.json",
+  "title": "Toolchain shadow qualification execution state v1",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schema", "status", "phase", "local", "global", "failure"],
+  "properties": {
+    "schema": { "const": "patch-toolchain-shadow-qualification-execution-state-v1" },
+    "status": { "enum": ["running", "passed", "failed"] },
+    "phase": { "type": "string", "minLength": 1 },
+    "local": { "$ref": "#/$defs/local" },
+    "global": { "$ref": "#/$defs/global" },
+    "failure": {
+      "oneOf": [
+        { "type": "null" },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["code", "message"],
+          "properties": {
+            "code": { "type": "string", "minLength": 1 },
+            "message": { "type": "string" }
+          }
+        }
+      ]
+    }
+  },
+  "$defs": {
+    "local": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["launches", "casesCompleted", "receiptRetained"],
+      "properties": {
+        "launches": { "enum": [0, 1] },
+        "casesCompleted": { "type": ["integer", "null"], "minimum": 0 },
+        "receiptRetained": { "type": "boolean" }
+      }
+    },
+    "global": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["launches", "masksCompleted", "receiptRetained"],
+      "properties": {
+        "launches": { "enum": [0, 1] },
+        "masksCompleted": { "type": ["integer", "null"], "minimum": 0 },
+        "receiptRetained": { "type": "boolean" }
+      }
+    }
+  }
+}
