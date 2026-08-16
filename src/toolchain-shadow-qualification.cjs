@@ -2,7 +2,6 @@
 
 const crypto = require('node:crypto')
 const fs = require('node:fs')
-const os = require('node:os')
 const path = require('node:path')
 const {
     canonicalJsonBytes,
@@ -37,6 +36,9 @@ const {
 const {
     validateGlobalProjectionReceipt,
 } = require('./toolchain-shadow-global.cjs')
+const {
+    provisionExactPnpm: provisionExactPnpmCommon,
+} = require('./operating-build-environment.cjs')
 
 const SUPPORT_SCHEMA = 'patch-toolchain-shadow-pilot-closure-support-v1'
 const CLOSURE_SCHEMA = 'toolchain-shadow-pilot-closure-receipt-v1'
@@ -366,35 +368,8 @@ async function observeExactPnpm(pnpmExecutable, provisioning) {
     }
 }
 
-async function provisionExactPnpm({ temporaryParent = os.tmpdir() } = {}) {
-    const root = fs.mkdtempSync(path.join(temporaryParent, 'qualification-pnpm-10.34.1-'))
-    const args = [
-        'install', '--prefix', root, '--no-package-lock', '--ignore-scripts',
-        '--no-audit', '--no-fund', 'pnpm@10.34.1',
-    ]
-    const result = await runChild('npm', args, { maxOutputBytes: 32 * 1024 * 1024 })
-    if (result.spawnError !== null || result.outputError !== null || result.exitCode !== 0 || result.signal !== null) {
-        fail('PNPM_PROVISIONING_FAILED', 'Task-scoped pnpm provisioning failed; temporary root retained', {
-            root, args, result,
-        })
-    }
-    const executable = path.join(root, 'node_modules/.bin/pnpm')
-    if (!fs.existsSync(executable)) fail('PNPM_PROVISIONING_FAILED', 'Task-scoped pnpm executable is missing', { root })
-    return {
-        root,
-        executable,
-        binDirectory: path.dirname(executable),
-        receipt: {
-            method: 'unique-task-scoped-temporary-installation',
-            command: { executable: 'npm', args },
-            installStdoutSha256: sha256(result.stdout),
-            installStderrSha256: sha256(result.stderr),
-            installExitCode: result.exitCode,
-            repositoryMutationAllowed: false,
-            lockfileMutationAllowed: false,
-            cleanupRequired: true,
-        },
-    }
+async function provisionExactPnpm(options = {}) {
+    return provisionExactPnpmCommon({ ...options, purpose: 'qualification' })
 }
 
 function validateCanonicalProtection(protection) {

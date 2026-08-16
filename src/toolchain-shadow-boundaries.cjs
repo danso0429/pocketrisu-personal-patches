@@ -253,18 +253,35 @@ function executeLocalStorageBoundary({ source, mask, classId, anchorSha256, mana
 
 function validateBuildBoundary(observed) {
     exactKeys(observed, ['id', 'nodeVersion', 'platform', 'architecture', 'libc', 'pnpmVersion'], 'build boundary')
-    if (canonicalJson(observed) !== canonicalJson(BUILD_BOUNDARY_CLASS)) {
+    const comparison = compareBuildBoundaries(BUILD_BOUNDARY_CLASS, observed)
+    if (!comparison.equal) {
         throw new ToolchainShadowBoundaryError('BUILD_BOUNDARY_MISMATCH', 'Build environment is not admitted', {
             expected: BUILD_BOUNDARY_CLASS,
             observed,
+            comparison,
         })
     }
     return observed
 }
 
-function observeBuildBoundary() {
-    const result = childProcess.spawnSync('pnpm', ['--version'], {
+function compareBuildBoundaries(expected, observed) {
+    const fields = Object.fromEntries([
+        'id', 'nodeVersion', 'pnpmVersion', 'platform', 'architecture', 'libc',
+    ].map((field) => [field, {
+        expected: expected?.[field] ?? null,
+        observed: observed?.[field] ?? null,
+        equal: expected?.[field] === observed?.[field],
+    }]))
+    return {
+        equal: Object.values(fields).every((field) => field.equal),
+        fields,
+    }
+}
+
+function observeBuildBoundary({ pnpmExecutable = 'pnpm', env = process.env } = {}) {
+    const result = childProcess.spawnSync(pnpmExecutable, ['--version'], {
         encoding: 'utf8',
+        env,
         timeout: 10_000,
         windowsHide: true,
     })
@@ -278,6 +295,7 @@ function observeBuildBoundary() {
                 code: result.error.code ?? null,
                 message: result.error.message,
             },
+            pnpmExecutable,
             stdout: result.stdout ?? null,
             stderr: result.stderr ?? null,
         })
@@ -375,6 +393,7 @@ module.exports = {
     CAPABILITY_KINDS,
     RUNTIME_MODULES,
     ToolchainShadowBoundaryError,
+    compareBuildBoundaries,
     enumerateBoundaryClasses,
     executeLocalStorageBoundary,
     newProcessInstanceId,

@@ -18,6 +18,7 @@ const PROTECTED_DISPOSITIONS = new Set([
     'incomplete',
     'invalid',
     'defect-reproduction',
+    'pre-material-failed',
 ])
 
 function validateHash(value, label = 'object hash') {
@@ -212,6 +213,16 @@ function extractObjectReferences(document) {
             optionalReference(gate.receiptObjectSha256, 'operating gate receipt reference', references)
             optionalReference(gate.detailsSha256, 'operating gate detail reference', references)
         }
+    } else if (schema === 'patch-operating-build-environment-binding-v1') {
+        optionalReference(document.frozenDeclarationObjectSha256,
+            'operating environment frozen declaration reference', references)
+        optionalReference(document.provisioningReceiptObjectSha256,
+            'operating environment provisioning receipt reference', references)
+    } else if (schema === 'patch-operating-build-boundary-failure-v1') {
+        optionalReference(document.operatingCohort?.frozenDeclarationSha256,
+            'pre-material failure frozen declaration reference', references)
+        optionalReference(document.provisioningReceiptSha256,
+            'pre-material failure provisioning receipt reference', references)
     } else if (schema === 'patch-toolchain-shadow-operating-sample-ledger-v1') {
         optionalReference(document.baseLedgerObjectSha256,
             'candidate operating-sample base ledger reference', references)
@@ -246,9 +257,12 @@ function automaticallyProtected(document) {
         || ['patch-c0-incident-record-v1', 'patch-c0-incident-record-v2'].includes(document?.schema)
         || document?.schema === 'patch-toolchain-shadow-incident-v1'
         || document?.schema === 'patch-toolchain-shadow-local-failure-v1'
+        || document?.schema === 'patch-operating-build-boundary-failure-v1'
         || ['patch-c0-stable-release-ledger-v1', 'patch-c0-stable-release-ledger-v2',
             'patch-operating-cohort-frozen-declaration-v1',
             'patch-operating-cohort-gate-evidence-v1',
+            'patch-operating-build-environment-provisioning-v1',
+            'patch-operating-build-environment-binding-v1',
             'patch-operating-global-launch-claim-v1'].includes(document?.schema)
 }
 

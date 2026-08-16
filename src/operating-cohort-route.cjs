@@ -157,6 +157,8 @@ function decideOperatingCohortRoute({
     qualificationState = null,
     freshVerification = 'not-required',
     candidateDomain = null,
+    operatingEnvironmentProvisioned = false,
+    operatingBuildBoundaryVerification = 'not-checked',
 }) {
     validateMaterialDeclaration(declaration)
     const affected = declaration.candidateImpact.affected
@@ -170,7 +172,20 @@ function decideOperatingCohortRoute({
             ? 'fresh-qualification-verification-environment-unavailable'
             : 'fresh-qualification-verification-failed')
         : null
-    const blockers = environmentBlocker === null ? [] : [environmentBlocker]
+    const operatingProvisioningBlocker = compatible && operatingEnvironmentProvisioned !== true
+        ? 'operating-environment-not-provisioned'
+        : null
+    const operatingBoundaryBlocker = compatible && operatingEnvironmentProvisioned === true
+        && operatingBuildBoundaryVerification !== 'passed'
+        ? (operatingBuildBoundaryVerification === 'failed'
+            ? 'operating-build-boundary-verification-failed'
+            : 'operating-build-boundary-verification-not-checked')
+        : null
+    const blockers = [
+        environmentBlocker,
+        operatingProvisioningBlocker,
+        operatingBoundaryBlocker,
+    ].filter((value) => value !== null)
     const result = {
         schema: ROUTE_DECISION_SCHEMA,
         routeId,
@@ -189,6 +204,9 @@ function decideOperatingCohortRoute({
         boundaryClassesExpected: compatible ? 4 : 0,
         totalLocalCasesExpected: compatible ? 8 : 0,
         globalExecutionsExpected: 1,
+        qualificationFreshVerification: freshVerification,
+        operatingEnvironmentProvisioned: compatible ? operatingEnvironmentProvisioned === true : null,
+        operatingBuildBoundaryVerification: compatible ? operatingBuildBoundaryVerification : 'not-required',
         materialDeclarationSha256: declaration.declarationSha256,
         safeToExecute: blockers.length === 0,
         blockers,

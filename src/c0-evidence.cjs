@@ -424,6 +424,9 @@ const C0_SCHEMA_FILES = Object.freeze([
     'schemas/patch-c0-review-trigger-v1.schema.json',
     'schemas/patch-c0-stable-release-ledger-v1.schema.json',
     'schemas/patch-c0-stable-release-ledger-v2.schema.json',
+    'schemas/patch-operating-build-boundary-failure-v1.schema.json',
+    'schemas/patch-operating-build-environment-binding-v1.schema.json',
+    'schemas/patch-operating-build-environment-provisioning-v1.schema.json',
     'schemas/patch-operating-cohort-frozen-declaration-v1.schema.json',
     'schemas/patch-operating-cohort-gate-evidence-v1.schema.json',
     'schemas/patch-operating-cohort-material-declaration-v1.schema.json',
@@ -1081,6 +1084,7 @@ function validateOperatingCohort(bundle, receipt, localEvidence, globalLaunchCla
                 acceptanceErrors.push('candidate same-Global differential did not pass')
             }
         } else if (attempt.localEvidenceKind === 'failure') {
+            const buildBoundaryFailure = localEvidence?.code === 'BUILD_BOUNDARY_MISMATCH'
             if (!verifyDocumentIntegrity(localEvidence)
                 || localEvidence?.schema !== 'patch-toolchain-shadow-local-failure-v1'
                 || localEvidence?.status !== 'failed'
@@ -1091,6 +1095,23 @@ function validateOperatingCohort(bundle, receipt, localEvidence, globalLaunchCla
                 || attempt.differentialUnexpectedMismatches !== null || comparison !== undefined) {
                 errors.push('local failure evidence differs from the frozen attempt')
             }
+            if (buildBoundaryFailure && (
+                localEvidence?.details?.expected === undefined
+                || localEvidence?.details?.observed === undefined
+                || localEvidence?.details?.comparison === undefined
+                || typeof localEvidence?.details?.nodeExecutable !== 'string'
+                || !SHA256_PATTERN.test(localEvidence?.details?.nodeExecutableSha256 ?? '')
+                || typeof localEvidence?.details?.pnpmExecutable !== 'string'
+                || !SHA256_PATTERN.test(localEvidence?.details?.pnpmExecutableSha256 ?? '')
+                || localEvidence?.details?.resolution === undefined
+                || !SHA256_PATTERN.test(
+                    localEvidence?.details?.provisioningIdentity?.integrityPayloadSha256 ?? '',
+                )
+                || localEvidence?.executionState?.casesStarted !== 0
+                || localEvidence?.executionState?.casesCompleted !== 0
+                || localEvidence?.executionState?.globalLaunchClaim !== 'absent'
+                || localEvidence?.executionState?.globalExecutions !== 0
+            )) errors.push('local build-boundary failure diagnostics were not retained')
             acceptanceErrors.push('candidate local shadow failed')
         } else {
             errors.push('attempt local evidence kind is invalid')

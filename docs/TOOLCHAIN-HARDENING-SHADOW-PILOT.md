@@ -36,6 +36,14 @@ The versioned declaration is
 The supported build boundary is exact Linux arm64/glibc, Node v25.9.0, and pnpm
 10.34.1. A different package/lock baseline, build boundary, target tree, declaration,
 or runtime capability falls back to Global Exhaustive and is not locally admitted.
+For material operation, pnpm 10.34.1 is installed in a unique task-scoped
+location before the cohort attempt is frozen. The runner prepends that location
+to PATH, records both launcher and resolved executable hashes, and revalidates
+the exact boundary before any local case or Global claim. Accepted qualification
+verification and this current-host admission are distinct machine fields.
+`BUILD_BOUNDARY_MISMATCH` evidence retains expected/observed boundary objects,
+per-field differences and executable-resolution data through failure
+publication instead of collapsing to an error code.
 
 ## Local domain and isolation
 

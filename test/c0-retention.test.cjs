@@ -139,3 +139,31 @@ test('retention planning rejects missing references instead of hiding them', (t)
         /missing reference/,
     )
 })
+
+test('operating provisioning, binding and pre-material failure remain protected with their roots', (t) => {
+    const store = temporaryStore(t, 'c0-retention-operating-boundary-')
+    const frozen = publishEvidenceObject(store, sealDocument({
+        schema: 'patch-operating-cohort-frozen-declaration-v1',
+        disposition: 'declared-pending',
+    }))
+    const provisioning = publishEvidenceObject(store, sealDocument({
+        schema: 'patch-operating-build-environment-provisioning-v1',
+    }))
+    const binding = publishEvidenceObject(store, sealDocument({
+        schema: 'patch-operating-build-environment-binding-v1',
+        frozenDeclarationObjectSha256: frozen.objectSha256,
+        provisioningReceiptObjectSha256: provisioning.objectSha256,
+    }))
+    const failure = publishEvidenceObject(store, sealDocument({
+        schema: 'patch-operating-build-boundary-failure-v1',
+        disposition: 'pre-material-failed',
+        operatingCohort: { frozenDeclarationSha256: frozen.objectSha256 },
+        provisioningReceiptSha256: provisioning.objectSha256,
+    }))
+    const plan = planC0EvidenceRetention({ storeRoot: store })
+    for (const object of [frozen, provisioning, binding, failure]) {
+        const entry = plan.objects.find((value) => value.sha256 === object.objectSha256)
+        assert.equal(entry.protected, true)
+        assert.equal(entry.action, 'retain')
+    }
+})

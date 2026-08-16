@@ -56,6 +56,8 @@ No post-execution field is an input to the v2 `cohortId`.
 | target identity named by the material declaration | changes | changes |
 | candidate impact, contract or compiled declaration in the material declaration | changes | changes |
 | semantic environment in the material declaration | changes | changes |
+| verification-time provisioning/admission semantics only | unchanged | changes |
+| random task-scoped provisioning path or its receipt timestamp | unchanged | unchanged |
 | accepted qualification registry/final-manifest identity only | unchanged | changes |
 | route contract schema/decision only | unchanged | changes |
 | local domain or isolation contract only | unchanged | changes |
@@ -68,6 +70,15 @@ The current material declaration itself contains fixed environment and Global
 contract fields. Changing those declaration bytes is a material-input change;
 changing only the execution contract outside an unchanged declaration affects
 `cohortId` alone.
+
+The admitted operating toolchain is provisioned before a retry is frozen. Its
+exact temporary root, resolved executables, hashes, PATH-resolution hashes and
+observation timestamp are attempt evidence and never feed `materialInputKey`
+or `cohortId`. The provisioning method and build-boundary admission code are
+verification semantics, so changing that code changes the verifier/tooling
+identity in `cohortId`. A retry after such a change retains the same material
+key, receives the newly derived cohort ID, and always receives a new attempt
+ID.
 
 ## Lifecycle and failure rules
 
@@ -85,3 +96,31 @@ passing combined bundle and exact v2 linkage can enter both ledgers.
 Operating incident v2 records retain the material, cohort, attempt, bundle,
 local-run and Global-run layers separately; historical incident v1 records are
 not reinterpreted.
+
+Before focused/local/Global execution, the attempt also has an append-only
+`patch-operating-build-environment-binding-v1`. It references the durable
+`patch-operating-build-environment-provisioning-v1` receipt and the frozen
+declaration. The receipt records the exact requested and observed Node/pnpm,
+resolved executable identities, platform/architecture/libc, safe PATH
+resolution hashes, per-field boundary comparison and cleanup contract. The
+task-scoped executable remains available through the material process tree and
+is cleaned only after that attempt no longer needs it; its content-addressed
+receipt remains.
+
+Qualification-registry verification and current-host admission are separate
+gates. A valid accepted qualification proves the registered evidence chain;
+it does not prove the ambient or provisioned executable currently selected for
+a material process. `safeToExecute` therefore requires both a fresh
+qualification verification and a passed operating build-boundary verification.
+A failed early admission publishes
+`patch-operating-build-boundary-failure-v1`, retaining expected/observed field
+diffs while recording zero local cases, no Global claim and zero Global
+executions.
+
+The first material attempt from tooling commit `8f3f522068c76bd81bbf9466e278512666aaaee4`
+predates this receipt. It remains immutable: local coverage was 0/8 and its
+single Global execution passed 4,096/4,096, but the exact historical pnpm,
+libc, PATH and resolved executable were not retained. Current ambient-host
+observations are supporting forensics only and are not retrofitted into that
+attempt. Its Global receipt is historical evidence bound to its failed attempt
+and cannot satisfy same-Global linkage for a new attempt.

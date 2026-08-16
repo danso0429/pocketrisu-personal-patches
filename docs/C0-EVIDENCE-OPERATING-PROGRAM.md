@@ -43,7 +43,8 @@ preflight and the material runner. Candidate impact comes only from the sealed
 versioned material declaration; it is never inferred from prompt prose.
 
 The combined route publishes an immutable pre-execution declaration, verifies
-the accepted qualification, and binds focused-gate evidence to that frozen
+the accepted qualification, provisions and admits the exact operating build
+boundary, and binds focused-gate evidence to that frozen
 attempt before it runs the isolated local shadow and invokes canonical Global
 Exhaustive exactly once. The same Global workers emit
 supplemental candidate projections after apply/status/re-plan and before
@@ -59,6 +60,9 @@ schemas remain valid for historical evidence:
 ```text
 patch-operating-cohort-frozen-declaration-v1
 patch-operating-cohort-gate-evidence-v1
+patch-operating-build-environment-provisioning-v1
+patch-operating-build-environment-binding-v1
+patch-operating-build-boundary-failure-v1
 patch-operating-global-launch-claim-v1
 patch-c0-evidence-bundle-v2
 patch-c0-cohort-ledger-v2
@@ -154,10 +158,30 @@ ID, evidence bundle, receipt, wall time or trial ID changed.
 
 Run `npm run evidence:c0:freeze` first with the exact material declaration,
 authority, accepted qualification store, qualified subject and pristine
-target. It publishes `patch-operating-cohort-frozen-declaration-v1` and returns
+target. The freeze path installs pnpm 10.34.1 in a unique task-scoped location,
+observes Node v25.9.0 plus Linux/arm64/glibc, publishes its durable receipt and
+binds that exact provisioned executable to the new attempt. It does not use an
+ambient pnpm selected from PATH. It publishes
+`patch-operating-cohort-frozen-declaration-v1` and returns
 non-null material, cohort, attempt and declaration identities without running
 a gate, local case or Global mask. A pending declaration changes no maturity
 count.
+
+The material runner reloads the append-only environment binding and rechecks
+the current process against the admitted boundary before focused evidence is
+consumed, before a local case, and before a Global launch claim. Its process
+tree receives the provisioned pnpm directory at the front of PATH. A missing,
+changed or mismatched executable fails closed with durable expected/observed
+details and exactly zero material local cases, zero Global claims and zero
+Global executions. Fresh qualification verification is reported separately;
+it cannot substitute for this current-host admission.
+
+`npm run qualification:operating-boundary:preflight -- ...` is the
+non-material host proof for the provisioning path. It installs and observes
+the exact toolchain, compares source/target state before and after, emits a
+receipt, cleans the task-scoped installation, and reports zero local
+executions, zero Global claims and zero Global executions. It does not freeze
+or accept an operating attempt.
 
 After focused gates finish, seal their result list with
 `npm run evidence:c0:seal-gates`, the frozen declaration object hash and

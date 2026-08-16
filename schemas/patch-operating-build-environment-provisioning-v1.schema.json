@@ -1,0 +1,128 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://pocketrisu.local/schemas/patch-operating-build-environment-provisioning-v1.schema.json",
+  "title": "PocketRisu material operating build-environment provisioning receipt v1",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schema", "version", "status", "createdAt", "provisioning", "requested", "node", "pnpm", "runtime", "resolution", "expectedBoundary", "observedBoundary", "boundaryComparison", "identities", "cleanup", "integrity"],
+  "properties": {
+    "schema": { "const": "patch-operating-build-environment-provisioning-v1" },
+    "version": { "const": 1 },
+    "status": { "enum": ["passed", "failed"] },
+    "createdAt": { "type": "string", "format": "date-time" },
+    "provisioning": {
+      "type": "object",
+      "required": ["method", "methodVersion", "command", "installStdoutSha256", "installStderrSha256", "installExitCode", "repositoryMutationAllowed", "lockfileMutationAllowed", "cleanupRequired"],
+      "properties": {
+        "method": { "const": "unique-task-scoped-temporary-installation" },
+        "methodVersion": { "const": "exact-task-scoped-pnpm-v1" },
+        "command": { "type": "object" },
+        "installStdoutSha256": { "$ref": "#/$defs/hash" },
+        "installStderrSha256": { "$ref": "#/$defs/hash" },
+        "installExitCode": { "const": 0 },
+        "repositoryMutationAllowed": { "const": false },
+        "lockfileMutationAllowed": { "const": false },
+        "cleanupRequired": { "const": true }
+      },
+      "additionalProperties": false
+    },
+    "requested": { "$ref": "#/$defs/requested" },
+    "node": { "$ref": "#/$defs/node" },
+    "pnpm": { "$ref": "#/$defs/pnpm" },
+    "runtime": { "$ref": "#/$defs/runtime" },
+    "resolution": { "$ref": "#/$defs/resolution" },
+    "expectedBoundary": { "$ref": "#/$defs/boundary" },
+    "observedBoundary": { "$ref": "#/$defs/boundary" },
+    "boundaryComparison": { "$ref": "#/$defs/comparison" },
+    "identities": { "$ref": "#/$defs/identities" },
+    "cleanup": { "$ref": "#/$defs/cleanup" },
+    "integrity": { "type": "object" }
+  },
+  "$defs": {
+    "hash": { "type": "string", "pattern": "^[0-9a-f]{64}$" },
+    "commit": { "type": "string", "pattern": "^[0-9a-f]{40}$" },
+    "requested": {
+      "type": "object", "additionalProperties": false,
+      "required": ["nodeVersion", "pnpmVersion"],
+      "properties": { "nodeVersion": { "const": "v25.9.0" }, "pnpmVersion": { "const": "10.34.1" } }
+    },
+    "node": {
+      "type": "object", "additionalProperties": false,
+      "required": ["version", "executable", "executableSha256"],
+      "properties": { "version": { "type": "string" }, "executable": { "type": "string" }, "executableSha256": { "$ref": "#/$defs/hash" } }
+    },
+    "pnpm": {
+      "type": "object", "additionalProperties": false,
+      "required": ["requestedVersion", "observedVersion", "launcherExecutable", "resolvedExecutable", "executableSha256"],
+      "properties": {
+        "requestedVersion": { "const": "10.34.1" }, "observedVersion": { "type": "string" },
+        "launcherExecutable": { "type": "string" }, "resolvedExecutable": { "type": "string" },
+        "executableSha256": { "$ref": "#/$defs/hash" }
+      }
+    },
+    "runtime": {
+      "type": "object", "additionalProperties": false,
+      "required": ["platform", "architecture", "libc", "libcVersionRuntime"],
+      "properties": {
+        "platform": { "type": "string" }, "architecture": { "type": "string" }, "libc": { "type": "string" },
+        "libcVersionRuntime": { "oneOf": [{ "type": "string" }, { "type": "null" }] }
+      }
+    },
+    "resolution": {
+      "type": "object", "additionalProperties": false,
+      "required": ["strategy", "temporaryRoot", "temporaryRootIdentitySha256", "provisionedBinDirectory", "pathPrepend", "ambientPathSha256", "effectivePathSha256"],
+      "properties": {
+        "strategy": { "const": "explicit-provisioned-executable-with-prepended-path-v1" },
+        "temporaryRoot": { "type": "string" }, "temporaryRootIdentitySha256": { "$ref": "#/$defs/hash" },
+        "provisionedBinDirectory": { "type": "string" }, "pathPrepend": { "type": "string" },
+        "ambientPathSha256": { "$ref": "#/$defs/hash" }, "effectivePathSha256": { "$ref": "#/$defs/hash" }
+      }
+    },
+    "boundary": {
+      "type": "object", "additionalProperties": false,
+      "required": ["id", "nodeVersion", "platform", "architecture", "libc", "pnpmVersion"],
+      "properties": {
+        "id": { "type": "string" }, "nodeVersion": { "type": "string" }, "platform": { "type": "string" },
+        "architecture": { "type": "string" }, "libc": { "type": "string" }, "pnpmVersion": { "type": "string" }
+      }
+    },
+    "comparisonField": {
+      "type": "object", "additionalProperties": false,
+      "required": ["expected", "observed", "equal"],
+      "properties": { "expected": {}, "observed": {}, "equal": { "type": "boolean" } }
+    },
+    "comparison": {
+      "type": "object", "additionalProperties": false,
+      "required": ["equal", "fields"],
+      "properties": {
+        "equal": { "type": "boolean" },
+        "fields": {
+          "type": "object", "additionalProperties": false,
+          "required": ["id", "nodeVersion", "pnpmVersion", "platform", "architecture", "libc"],
+          "properties": {
+            "id": { "$ref": "#/$defs/comparisonField" }, "nodeVersion": { "$ref": "#/$defs/comparisonField" },
+            "pnpmVersion": { "$ref": "#/$defs/comparisonField" }, "platform": { "$ref": "#/$defs/comparisonField" },
+            "architecture": { "$ref": "#/$defs/comparisonField" }, "libc": { "$ref": "#/$defs/comparisonField" }
+          }
+        }
+      }
+    },
+    "identities": {
+      "type": "object", "additionalProperties": false,
+      "required": ["subjectCommit", "toolingCommit", "toolingStatusSha256", "targetCommit", "targetApplicationTreeSha256"],
+      "properties": {
+        "subjectCommit": { "$ref": "#/$defs/commit" }, "toolingCommit": { "$ref": "#/$defs/commit" },
+        "toolingStatusSha256": { "$ref": "#/$defs/hash" },
+        "targetCommit": { "$ref": "#/$defs/commit" }, "targetApplicationTreeSha256": { "$ref": "#/$defs/hash" }
+      }
+    },
+    "cleanup": {
+      "type": "object", "additionalProperties": false,
+      "required": ["required", "eligibleOnlyAfterAttemptNoLongerNeedsExecutable", "durableReceiptSurvivesCleanup"],
+      "properties": {
+        "required": { "const": true }, "eligibleOnlyAfterAttemptNoLongerNeedsExecutable": { "const": true },
+        "durableReceiptSurvivesCleanup": { "const": true }
+      }
+    }
+  }
+}

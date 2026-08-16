@@ -52,6 +52,8 @@ function decide(value, overrides = {}) {
         qualificationState: qualification(value),
         freshVerification: 'passed',
         candidateDomain: domain(value),
+        operatingEnvironmentProvisioned: true,
+        operatingBuildBoundaryVerification: 'passed',
         ...overrides,
     })
 }
@@ -64,6 +66,18 @@ test('candidate-unaffected material cohort selects one Global and zero local cas
     assert.equal(result.routeId, ROUTE_GLOBAL)
     assert.equal(result.globalExecutionsExpected, 1)
     assert.equal(result.totalLocalCasesExpected, 0)
+})
+
+test('qualification success and operating-boundary failure remain distinct and fail closed', () => {
+    const value = declaration()
+    const result = decide(value, {
+        operatingEnvironmentProvisioned: true,
+        operatingBuildBoundaryVerification: 'failed',
+    })
+    assert.equal(result.qualificationFreshVerification, 'passed')
+    assert.equal(result.operatingBuildBoundaryVerification, 'failed')
+    assert.equal(result.safeToExecute, false)
+    assert.deepEqual(result.blockers, ['operating-build-boundary-verification-failed'])
 })
 
 test('exact qualified affected toolchain candidate selects one Global plus eight local cases', () => {

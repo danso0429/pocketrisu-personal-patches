@@ -57,12 +57,18 @@ const {
     buildMaterialInputIdentity,
     buildVerificationIdentities,
     claimGlobalLaunch,
+    loadOperatingEnvironmentForAttempt,
     validateFrozenCohortDeclaration,
 } = require('../src/operating-cohort-identity.cjs')
 const {
     buildOperatingGateEvidence,
     validateOperatingGateEvidence,
 } = require('../src/operating-cohort-gates.cjs')
+const {
+    buildOperatingBoundaryFailure,
+    cleanupProvisionedEnvironment,
+    verifyCurrentOperatingBuildEnvironment,
+} = require('../src/operating-build-environment.cjs')
 
 const DEFAULT_GOVERNANCE_REPOSITORY = 'https://github.com/danso0429/patch-verification-governance'
 const GNU_TIME = '/usr/bin/time'
@@ -439,6 +445,72 @@ function publishLocalEvidenceBeforeGlobal({ store, localReceipt, localFailure })
     return localEvidence === null ? null : publishEvidenceObject(store, localEvidence)
 }
 
+function buildLocalFailureDetails(error, operatingEnvironmentReceipt) {
+    if (error.code !== 'BUILD_BOUNDARY_MISMATCH' || operatingEnvironmentReceipt === null) {
+        return error.details ?? null
+    }
+    return {
+        ...(error.details ?? {}),
+        nodeExecutable: operatingEnvironmentReceipt.node.executable,
+        nodeExecutableSha256: operatingEnvironmentReceipt.node.executableSha256,
+        pnpmExecutable: operatingEnvironmentReceipt.pnpm.resolvedExecutable,
+        pnpmExecutableSha256: operatingEnvironmentReceipt.pnpm.executableSha256,
+        resolution: operatingEnvironmentReceipt.resolution,
+        provisioningIdentity: {
+            schema: operatingEnvironmentReceipt.schema,
+            integrityPayloadSha256: operatingEnvironmentReceipt.integrity.payloadSha256,
+        },
+    }
+}
+
+function publishPreMaterialFailure({
+    store,
+    bundleOutput,
+    localShadowOutput,
+    frozenDeclaration,
+    frozenDeclarationObjectSha256,
+    provisioningReceiptObjectSha256,
+    error,
+    operatingPreflight,
+    emitResult = true,
+}) {
+    const failure = buildOperatingBoundaryFailure({
+        error,
+        frozenDeclaration,
+        frozenDeclarationSha256: frozenDeclarationObjectSha256,
+        provisioningReceiptSha256: provisioningReceiptObjectSha256,
+    })
+    const publication = publishEvidenceObject(store, failure)
+    writeJsonAtomic(bundleOutput, failure)
+    if (localShadowOutput !== null) writeJsonAtomic(localShadowOutput, failure)
+    const result = {
+        schema: 'patch-c0-pre-material-failure-result-v1',
+        status: 'failed-before-material-execution',
+        code: failure.code,
+        materialInputKey: frozenDeclaration?.materialInputKey ?? null,
+        cohortId: frozenDeclaration?.cohortId ?? null,
+        executionAttemptId: frozenDeclaration?.executionAttemptId ?? null,
+        evidenceBundleId: failure.evidenceBundleId,
+        failureObjectSha256: publication.objectSha256,
+        bundle: bundleOutput,
+        localShadowReceipt: localShadowOutput,
+        globalReceipt: null,
+        operatingPreflight,
+        localCasesStarted: 0,
+        localCasesCompleted: 0,
+        globalLaunchClaims: 0,
+        globalExecutions: 0,
+        materialCohortAccepted: false,
+        candidateOperatingSampleAccepted: false,
+        publication,
+    }
+    if (emitResult) {
+        process.stdout.write(`${JSON.stringify(result)}\n`)
+        process.exitCode = 1
+    }
+    return { failure, result }
+}
+
 async function internalCapture(request) {
     const wrapperCpuStart = process.cpuUsage()
     const sourceRoot = request.sourceRoot
@@ -461,6 +533,11 @@ async function internalCapture(request) {
                 targetRoot: request.root,
                 disposition: 'material-shadow',
                 operatingCohort,
+                buildBoundaryObserver: () => require('../src/toolchain-shadow-boundaries.cjs')
+                    .observeBuildBoundary({
+                        pnpmExecutable: request.operatingEnvironmentReceipt.pnpm.launcherExecutable,
+                        env: process.env,
+                    }),
             })
             sameGlobalReference = buildSameGlobalReference({
                 localReceipt,
@@ -471,11 +548,27 @@ async function internalCapture(request) {
                 frozenDeclarationSha256: operatingCohort?.frozenDeclarationSha256 ?? null,
             })
         } catch (error) {
+            const preCaseBoundaryFailure = ['BUILD_BOUNDARY_MISMATCH',
+                'BUILD_BOUNDARY_OBSERVATION_FAILED'].includes(error.code)
+            const localFailureDetails = buildLocalFailureDetails(
+                error,
+                request.operatingEnvironmentReceipt,
+            )
             localFailure = sealDocument({
                 schema: 'patch-toolchain-shadow-local-failure-v1',
                 status: 'failed',
                 code: error.code ?? 'UNKNOWN_LOCAL_SHADOW_FAILURE',
                 message: error.message,
+                details: localFailureDetails,
+                phase: error.code === 'BUILD_BOUNDARY_MISMATCH'
+                    ? 'local-runtime-build-boundary-admission'
+                    : 'local-shadow',
+                executionState: {
+                    casesStarted: preCaseBoundaryFailure ? 0 : null,
+                    casesCompleted: preCaseBoundaryFailure ? 0 : null,
+                    globalLaunchClaim: 'absent',
+                    globalExecutions: 0,
+                },
                 materialDeclarationSha256: request.materialDeclaration.declarationSha256,
                 ...(operatingCohort === null ? {} : { operatingCohort }),
                 recordedAt: new Date().toISOString(),
@@ -599,19 +692,96 @@ async function main(argv = process.argv) {
     let frozenDeclaration = null
     let frozenDeclarationObjectSha256 = null
     let operatingGateEvidence = null
+    let operatingEnvironment = null
+    let currentOperatingEnvironment = null
+    const bundleOutput = assertOutputOutsideInputs(options.bundle, [sourceRoot, options.root])
+    const receiptOutput = assertOutputOutsideInputs(options.globalReceipt, [sourceRoot, options.root])
+    const localShadowOutput = options.localShadowReceipt === undefined
+        ? null
+        : assertOutputOutsideInputs(options.localShadowReceipt, [sourceRoot, options.root])
+    const candidateLinkageOutput = options.candidateLinkage === undefined
+        ? null
+        : assertOutputOutsideInputs(options.candidateLinkage, [sourceRoot, options.root])
+    if (bundleOutput === receiptOutput) throw new Error('Bundle and Global receipt outputs must differ')
+    if (pathIsInside(options.store, sourceRoot) || pathIsInside(options.store, options.root)) {
+        throw new Error('Evidence store must be outside source and target input roots')
+    }
+    if ([bundleOutput, receiptOutput, localShadowOutput, candidateLinkageOutput]
+        .filter((value) => value !== null).some((value) => fs.existsSync(value))) {
+        throw new Error('Evidence outputs already exist; immutable outputs are never overwritten')
+    }
     if (options.syntheticResult === null) {
         materialDeclaration = JSON.parse(fs.readFileSync(options.operatingExpectation, 'utf8'))
+        const frozenRecord = loadEvidenceObject(options.store, options.frozenDeclaration)
+        frozenDeclaration = validateFrozenCohortDeclaration(frozenRecord.document)
+        frozenDeclarationObjectSha256 = frozenRecord.objectSha256
+        let preMaterialError = null
+        try {
+            operatingEnvironment = loadOperatingEnvironmentForAttempt({
+                storeRoot: options.store,
+                frozenDeclaration,
+                frozenDeclarationObjectSha256,
+                requireExecutable: true,
+            })
+            currentOperatingEnvironment = verifyCurrentOperatingBuildEnvironment(
+                operatingEnvironment.receipt,
+            )
+        } catch (error) {
+            preMaterialError = error
+        }
         operatingPreflight = preflightOperatingCohort({
             storeRoot: options.qualificationStore,
             expectation: materialDeclaration,
             subjectRoot: options.qualifiedSubjectRoot,
+            operatingEnvironmentReceipt: preMaterialError === null
+                ? operatingEnvironment.receipt
+                : null,
         })
         routeDecision = validateRouteDecision(operatingPreflight.machineRouteDecision, {
             declaration: materialDeclaration,
             ...operatingPreflight.routeDecisionInputs,
         })
-        if (!routeDecision.safeToExecute) {
-            throw new Error(`Operating route is not safe to execute: ${routeDecision.blockers.join(', ')}`)
+        if (preMaterialError !== null || !routeDecision.safeToExecute) {
+            const error = preMaterialError ?? Object.assign(
+                new Error(`Operating route is not safe to execute: ${routeDecision.blockers.join(', ')}`),
+                {
+                    code: 'OPERATING_PREFLIGHT_BLOCKED',
+                    details: {
+                        phase: 'pre-material-operating-route-admission',
+                        blockers: routeDecision.blockers,
+                        qualificationFreshVerification:
+                            operatingPreflight.freshVerificationInCurrentExecutionEnvironment,
+                        operatingEnvironmentProvisioned: routeDecision.operatingEnvironmentProvisioned,
+                        operatingBuildBoundaryVerification:
+                            routeDecision.operatingBuildBoundaryVerification,
+                        casesStarted: 0,
+                        globalLaunchClaimState: 'absent',
+                        globalExecutions: 0,
+                    },
+                },
+            )
+            const publishedFailure = publishPreMaterialFailure({
+                store: options.store,
+                bundleOutput,
+                localShadowOutput,
+                frozenDeclaration,
+                frozenDeclarationObjectSha256,
+                provisioningReceiptObjectSha256:
+                    operatingEnvironment?.receiptObjectSha256
+                        ?? preMaterialError?.details?.provisioningReceiptObjectSha256
+                        ?? null,
+                error,
+                operatingPreflight,
+                emitResult: false,
+            })
+            publishedFailure.result.operatingEnvironmentCleaned = operatingEnvironment === null
+                ? null
+                : cleanupProvisionedEnvironment(
+                    operatingEnvironment.receipt.resolution.temporaryRoot,
+                )
+            process.stdout.write(`${JSON.stringify(publishedFailure.result)}\n`)
+            process.exitCode = 1
+            return publishedFailure
         }
         if (routeDecision.routeId === ROUTE_COMBINED
             && (!options.localShadowReceipt || !options.candidateLinkage)) {
@@ -621,9 +791,6 @@ async function main(argv = process.argv) {
             && (options.localShadowReceipt || options.candidateLinkage)) {
             throw new Error('Global-only material route cannot request candidate shadow outputs')
         }
-        const frozenRecord = loadEvidenceObject(options.store, options.frozenDeclaration)
-        frozenDeclaration = validateFrozenCohortDeclaration(frozenRecord.document)
-        frozenDeclarationObjectSha256 = frozenRecord.objectSha256
         if (frozenDeclaration.materialDeclarationSha256 !== materialDeclaration.declarationSha256
             || frozenDeclaration.route.routeId !== routeDecision.routeId
             || frozenDeclaration.route.decisionSha256 !== routeDecision.decisionSha256
@@ -652,22 +819,6 @@ async function main(argv = process.argv) {
         if (options.focusedGates === null) {
             throw new Error('Material C0 execution requires frozen focused-gate evidence')
         }
-    }
-    const bundleOutput = assertOutputOutsideInputs(options.bundle, [sourceRoot, options.root])
-    const receiptOutput = assertOutputOutsideInputs(options.globalReceipt, [sourceRoot, options.root])
-    const localShadowOutput = options.localShadowReceipt === undefined
-        ? null
-        : assertOutputOutsideInputs(options.localShadowReceipt, [sourceRoot, options.root])
-    const candidateLinkageOutput = options.candidateLinkage === undefined
-        ? null
-        : assertOutputOutsideInputs(options.candidateLinkage, [sourceRoot, options.root])
-    if (bundleOutput === receiptOutput) throw new Error('Bundle and Global receipt outputs must differ')
-    if (pathIsInside(options.store, sourceRoot) || pathIsInside(options.store, options.root)) {
-        throw new Error('Evidence store must be outside source and target input roots')
-    }
-    if ([bundleOutput, receiptOutput, localShadowOutput, candidateLinkageOutput]
-        .filter((value) => value !== null).some((value) => fs.existsSync(value))) {
-        throw new Error('Evidence outputs already exist; immutable outputs are never overwritten')
     }
     if (!fs.existsSync(GNU_TIME)) throw new Error(`${GNU_TIME} is required for process-group resource capture`)
     if (frozenDeclaration !== null) {
@@ -710,6 +861,7 @@ async function main(argv = process.argv) {
         store: options.store,
         frozenDeclaration,
         frozenDeclarationObjectSha256,
+        operatingEnvironmentReceipt: operatingEnvironment?.receipt ?? null,
     })
     const measured = await runMeasuredWrapper(process.execPath, [
         path.resolve(__filename),
@@ -719,9 +871,20 @@ async function main(argv = process.argv) {
         internalResultFile,
     ], {
         cwd: sourceRoot,
-        env: { ...process.env, TMPDIR: temporaryRoot, TMP: temporaryRoot, TEMP: temporaryRoot },
+        env: {
+            ...(currentOperatingEnvironment?.effectiveEnv ?? process.env),
+            TMPDIR: temporaryRoot,
+            TMP: temporaryRoot,
+            TEMP: temporaryRoot,
+        },
         temporaryRoot,
     })
+    let operatingEnvironmentCleaned = null
+    if (operatingEnvironment !== null) {
+        operatingEnvironmentCleaned = cleanupProvisionedEnvironment(
+            operatingEnvironment.receipt.resolution.temporaryRoot,
+        )
+    }
     if (measured.spawnError !== null || measured.exitCode !== 0 || measured.signal !== null || measured.stderr !== '') {
         throw new Error(`C0 evidence capture wrapper failed: ${JSON.stringify({
             exitCode: measured.exitCode,
@@ -892,6 +1055,12 @@ async function main(argv = process.argv) {
         runKind,
         route: routeDecision,
         operatingPreflight,
+        operatingEnvironment: operatingEnvironment === null ? null : {
+            provisioningReceiptObjectSha256: operatingEnvironment.receiptObjectSha256,
+            bindingObjectSha256: operatingEnvironment.bindingObjectSha256,
+            currentBuildBoundaryVerification: currentOperatingEnvironment.status,
+            provisionedEnvironmentCleaned: operatingEnvironmentCleaned,
+        },
         localShadowReceipt: localShadowOutput,
         candidateLinkage: candidateLinkageOutput,
         temporaryRetained,
@@ -931,6 +1100,7 @@ if (require.main === module) {
 
 module.exports = {
     allocatedDirectoryBytes,
+    buildLocalFailureDetails,
     implementationRepository,
     internalCapture,
     main,
@@ -938,5 +1108,6 @@ module.exports = {
     parseArgs,
     parseGnuTime,
     publishLocalEvidenceBeforeGlobal,
+    publishPreMaterialFailure,
     runMeasuredWrapper,
 }

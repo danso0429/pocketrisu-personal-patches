@@ -23,6 +23,10 @@ const {
     decideOperatingCohortRoute,
     validateMaterialDeclaration,
 } = require('./operating-cohort-route.cjs')
+const {
+    operatingEnvironmentRouteInput,
+    verifyCurrentOperatingBuildEnvironment,
+} = require('./operating-build-environment.cjs')
 
 const PREFLIGHT_SCHEMA = 'qualification-operating-cohort-preflight-v1'
 const EXPECTATION_SCHEMA = MATERIAL_DECLARATION_SCHEMA
@@ -159,7 +163,7 @@ function reasonFor(error) {
     return `invalid-durable-qualification:${error?.code ?? 'unknown'}`
 }
 
-function runPreflight({ storeRoot, expectation, checkedAt, subjectRoot, dependencies }) {
+function runPreflight({ storeRoot, expectation, checkedAt, subjectRoot, operatingEnvironmentReceipt, dependencies }) {
     const resolved = path.resolve(storeRoot)
     const expected = validateExpectation(expectation)
     const before = treeIdentity(resolved)
@@ -219,11 +223,30 @@ function runPreflight({ storeRoot, expectation, checkedAt, subjectRoot, dependen
     try { domain = candidateDomain(subjectRoot, expected) } catch (error) {
         domain = { derivationError: error.code ?? error.message }
     }
+    let operatingEnvironment = operatingEnvironmentRouteInput(operatingEnvironmentReceipt, {
+        subjectCommit: expected.qualification.subject.implementationCommit,
+        targetCommit: expected.qualification.subject.targetCommit,
+        targetApplicationTreeSha256: expected.qualification.subject.targetApplicationTreeSha256,
+    })
+    let operatingEnvironmentFailure = null
+    if (operatingEnvironment.operatingEnvironmentProvisioned) {
+        try {
+            (dependencies.verifyCurrentOperatingBuildEnvironment
+                ?? verifyCurrentOperatingBuildEnvironment)(operatingEnvironmentReceipt)
+        } catch (error) {
+            operatingEnvironmentFailure = error
+            operatingEnvironment = {
+                operatingEnvironmentProvisioned: true,
+                operatingBuildBoundaryVerification: 'failed',
+            }
+        }
+    }
     const decision = decideOperatingCohortRoute({
         declaration: expected,
         qualificationState,
         freshVerification,
         candidateDomain: domain,
+        ...operatingEnvironment,
     })
     const identity = report.identity
     const reason = qualificationState.accepted
@@ -270,6 +293,7 @@ function runPreflight({ storeRoot, expectation, checkedAt, subjectRoot, dependen
             qualificationState,
             freshVerification,
             candidateDomain: domain,
+            ...operatingEnvironment,
         },
         cohort: {
             materiallyDistinct: decision.materiallyDistinct,
@@ -289,6 +313,15 @@ function runPreflight({ storeRoot, expectation, checkedAt, subjectRoot, dependen
             totalLocalCasesExpected: decision.totalLocalCasesExpected,
             operatingSampleEligible: decision.candidateOperatingSampleEligible,
         },
+        operatingEnvironment: {
+            provisioned: decision.operatingEnvironmentProvisioned,
+            buildBoundaryVerification: decision.operatingBuildBoundaryVerification,
+            failure: operatingEnvironmentFailure === null ? null : {
+                code: operatingEnvironmentFailure.code ?? 'UNKNOWN',
+                message: operatingEnvironmentFailure.message,
+                details: operatingEnvironmentFailure.details ?? null,
+            },
+        },
         blockers: decision.blockers,
         operatingCounts: { ...OPERATING_COUNTS },
         canonicalProtection: { ...CANONICAL_PROTECTION },
@@ -301,20 +334,30 @@ function runPreflight({ storeRoot, expectation, checkedAt, subjectRoot, dependen
     return report
 }
 
-function preflightOperatingCohort({ storeRoot, expectation, subjectRoot, checkedAt = new Date().toISOString() }) {
+function preflightOperatingCohort({
+    storeRoot,
+    expectation,
+    subjectRoot,
+    operatingEnvironmentReceipt = null,
+    checkedAt = new Date().toISOString(),
+}) {
     return runPreflight({
         storeRoot,
         expectation,
         subjectRoot,
+        operatingEnvironmentReceipt,
         checkedAt,
         dependencies: { verifyQualificationRegistry, loadStoreIdentity },
     })
 }
 
 function preflightOperatingCohortWithTestDependencies({
-    storeRoot, expectation, subjectRoot = null, checkedAt = new Date().toISOString(), dependencies,
+    storeRoot, expectation, subjectRoot = null, operatingEnvironmentReceipt = null,
+    checkedAt = new Date().toISOString(), dependencies,
 }) {
-    return runPreflight({ storeRoot, expectation, subjectRoot, checkedAt, dependencies })
+    return runPreflight({
+        storeRoot, expectation, subjectRoot, operatingEnvironmentReceipt, checkedAt, dependencies,
+    })
 }
 
 module.exports = {

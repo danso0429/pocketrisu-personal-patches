@@ -12,12 +12,19 @@ const {
     classifyMaterialDistinctness,
     createExecutionAttempt,
     publishFrozenCohortDeclaration,
+    publishOperatingEnvironmentForAttempt,
 } = require('../src/operating-cohort-identity.cjs')
 const { preflightOperatingCohort } = require('../src/operating-cohort-preflight.cjs')
 const { loadToolchainShadowDeclaration } = require('../src/toolchain-shadow-contract.cjs')
 const { captureInputFreeze, sha256, writeJsonAtomic } = require('../src/verification-evidence.cjs')
 const { listEvidenceObjects } = require('../src/c0-retention.cjs')
 const { validateCohortLedger } = require('../src/c0-ledgers.cjs')
+const {
+    buildOperatingBoundaryFailure,
+    cleanupProvisionedEnvironment,
+    provisionOperatingBuildEnvironment,
+} = require('../src/operating-build-environment.cjs')
+const { publishEvidenceObject } = require('../src/c0-retention.cjs')
 
 const DEFAULT_GOVERNANCE_REPOSITORY = 'https://github.com/danso0429/patch-verification-governance'
 
@@ -34,6 +41,7 @@ function parseArgs(argv) {
         jobs: null,
         materiallyDistinct: true,
         repeatedPerformanceTrial: false,
+        temporaryParent: null,
     }
     for (let index = 2; index < argv.length; index += 1) {
         const flag = argv[index]
@@ -51,6 +59,7 @@ function parseArgs(argv) {
         else if (flag === '--governance-status-version') options.governanceStatusVersion = positiveInteger(next(), flag)
         else if (flag === '--jobs') options.jobs = positiveInteger(next(), flag)
         else if (flag === '--output') options.output = path.resolve(next())
+        else if (flag === '--temporary-parent') options.temporaryParent = path.resolve(next())
         else if (flag === '--attempt-created-at') options.attemptCreatedAt = next()
         else if (flag === '--attempt-nonce') options.attemptNonce = next()
         else if (flag === '--repeated-performance-trial') {
@@ -66,6 +75,13 @@ function parseArgs(argv) {
     if (!/^[0-9a-f]{40}$/.test(options.governanceCommit)) throw new Error('--governance-commit is invalid')
     if (!fs.existsSync(path.dirname(options.output)) || fs.existsSync(options.output)) {
         throw new Error('Freeze output parent must exist and output must be new')
+    }
+    if (options.temporaryParent === null) {
+        options.temporaryParent = path.join(path.dirname(options.store), 'operating-environments')
+    }
+    fs.mkdirSync(options.temporaryParent, { recursive: true, mode: 0o700 })
+    if (!fs.statSync(options.temporaryParent).isDirectory()) {
+        throw new Error('--temporary-parent must name a directory')
     }
     return options
 }
@@ -94,15 +110,6 @@ function acceptedEntries(storeRoot) {
 async function freezeOperatingCohort(options, dependencies = {}) {
     const sourceRoot = path.resolve(__dirname, '..')
     const declaration = JSON.parse(fs.readFileSync(options.expectation, 'utf8'))
-    const preflight = (dependencies.preflightOperatingCohort ?? preflightOperatingCohort)({
-        storeRoot: options.qualificationStore,
-        expectation: declaration,
-        subjectRoot: options.subjectRoot,
-    })
-    const routeDecision = preflight.machineRouteDecision
-    if (!routeDecision.safeToExecute) {
-        throw new Error(`Operating route is not safe to freeze: ${routeDecision.blockers.join(', ')}`)
-    }
     const freeze = await (dependencies.captureInputFreeze ?? captureInputFreeze)({
         sourceRoot,
         targetRoot: options.targetRoot,
@@ -117,84 +124,167 @@ async function freezeOperatingCohort(options, dependencies = {}) {
             !== declaration.qualification.subject.targetApplicationTreeSha256) {
         throw new Error('Target identity differs before cohort freeze')
     }
-    const compiled = (dependencies.loadToolchainShadowDeclaration
-        ?? loadToolchainShadowDeclaration)(options.subjectRoot, { targetRoot: options.targetRoot })
-    const localDomain = routeDecision.totalLocalCasesExpected === 0 ? {
-        candidateId: null,
-        masks: [],
-        boundaryClasses: [],
-        totalLocalCases: 0,
-    } : {
-        candidateId: compiled.pack.id,
-        masks: [0, 1],
-        boundaryClasses: [...compiled.boundaryClassIds],
-        totalLocalCases: 2 * compiled.boundaryClassIds.length,
-    }
-    const governance = {
-        repository: options.governanceRepository,
-        commit: options.governanceCommit,
-        statusVersion: options.governanceStatusVersion,
-    }
-    const materialInput = buildMaterialInputIdentity({ declaration, governance })
-    const classification = classifyMaterialDistinctness({
-        materialInputKey: materialInput.materialInputKey,
-        acceptedEntries: (dependencies.acceptedEntries ?? acceptedEntries)(options.store),
-        requestedMateriallyDistinct: options.materiallyDistinct,
-        requestedRepeatedPerformanceTrial: options.repeatedPerformanceTrial,
-    })
     const tooling = {
         repository: (dependencies.toolingRepository ?? toolingRepository)(sourceRoot),
         commit: freeze.source.git.commit,
         statusSha256: sha256(freeze.source.git.status),
     }
-    const cohort = buildCohortIdentity({
-        declaration,
-        governance,
-        routeDecision,
-        routeDecisionInputs: preflight.routeDecisionInputs,
-        preflight,
-        materialInput,
-        tooling,
-        verificationIdentities: (dependencies.buildVerificationIdentities
-            ?? buildVerificationIdentities)(sourceRoot),
-        jobs: options.jobs,
-        localDomain,
-    })
-    const attempt = createExecutionAttempt({
-        cohortId: cohort.cohortId,
-        toolingCommit: tooling.commit,
-        createdAt: options.attemptCreatedAt,
-        nonce: options.attemptNonce,
-        creator: 'scripts/freeze-operating-cohort.cjs',
-    })
-    const frozenDeclaration = buildFrozenCohortDeclaration({
-        materialInput,
-        cohort,
-        attempt,
-        declaration,
-        routeDecision,
-        materialClassification: classification,
-    })
-    const published = publishFrozenCohortDeclaration(options.store, frozenDeclaration)
-    writeJsonAtomic(options.output, frozenDeclaration)
-    return {
-        schema: 'patch-operating-cohort-freeze-result-v1',
-        output: options.output,
-        materialInputKey: materialInput.materialInputKey,
-        cohortId: cohort.cohortId,
-        executionAttemptId: attempt.executionAttemptId,
-        frozenDeclarationSha256: published.publication.objectSha256,
-        routeId: routeDecision.routeId,
-        globalExecutionsExpected: routeDecision.globalExecutionsExpected,
-        localCasesExpected: routeDecision.totalLocalCasesExpected,
-        safeToExecute: routeDecision.safeToExecute,
-        sameInputCohortFound: classification.sameInputCohortFound,
-        materiallyDistinct: classification.materiallyDistinct,
-        repeatedPerformanceTrial: classification.repeatedPerformanceTrial,
-        localExecutionsPerformed: 0,
-        globalExecutionsPerformed: 0,
-        publication: published,
-        preflight,
+    let provisioned
+    try {
+        provisioned = await (dependencies.provisionOperatingBuildEnvironment
+            ?? provisionOperatingBuildEnvironment)({
+            temporaryParent: options.temporaryParent,
+            context: {
+                subjectCommit: declaration.qualification.subject.implementationCommit,
+                toolingCommit: tooling.commit,
+                toolingStatusSha256: tooling.statusSha256,
+                targetCommit: declaration.qualification.subject.targetCommit,
+                targetApplicationTreeSha256: declaration.qualification.subject.targetApplicationTreeSha256,
+            },
+        })
+    } catch (error) {
+        const failure = buildOperatingBoundaryFailure({
+            error,
+            frozenDeclaration: null,
+            frozenDeclarationSha256: null,
+        })
+        const publication = publishEvidenceObject(options.store, failure)
+        error.details = {
+            ...(error.details ?? {}),
+            preMaterialFailureObjectSha256: publication.objectSha256,
+            localCasesStarted: 0,
+            globalLaunchClaimState: 'absent',
+            globalExecutions: 0,
+        }
+        throw error
+    }
+    let environmentBound = false
+    try {
+        const postProvisionFreeze = await (dependencies.captureInputFreeze ?? captureInputFreeze)({
+            sourceRoot,
+            targetRoot: options.targetRoot,
+        })
+        if (JSON.stringify(postProvisionFreeze) !== JSON.stringify(freeze)) {
+            throw new Error('Operating environment provisioning mutated a frozen repository input')
+        }
+        const preflight = (dependencies.preflightOperatingCohort ?? preflightOperatingCohort)({
+            storeRoot: options.qualificationStore,
+            expectation: declaration,
+            subjectRoot: options.subjectRoot,
+            operatingEnvironmentReceipt: provisioned.receipt,
+        })
+        const routeDecision = preflight.machineRouteDecision
+        if (!routeDecision.safeToExecute) {
+            throw new Error(`Operating route is not safe to freeze: ${routeDecision.blockers.join(', ')}`)
+        }
+        const compiled = (dependencies.loadToolchainShadowDeclaration
+            ?? loadToolchainShadowDeclaration)(options.subjectRoot, { targetRoot: options.targetRoot })
+        const localDomain = routeDecision.totalLocalCasesExpected === 0 ? {
+            candidateId: null,
+            masks: [],
+            boundaryClasses: [],
+            totalLocalCases: 0,
+        } : {
+            candidateId: compiled.pack.id,
+            masks: [0, 1],
+            boundaryClasses: [...compiled.boundaryClassIds],
+            totalLocalCases: 2 * compiled.boundaryClassIds.length,
+        }
+        const governance = {
+            repository: options.governanceRepository,
+            commit: options.governanceCommit,
+            statusVersion: options.governanceStatusVersion,
+        }
+        const materialInput = buildMaterialInputIdentity({ declaration, governance })
+        const classification = classifyMaterialDistinctness({
+            materialInputKey: materialInput.materialInputKey,
+            acceptedEntries: (dependencies.acceptedEntries ?? acceptedEntries)(options.store),
+            requestedMateriallyDistinct: options.materiallyDistinct,
+            requestedRepeatedPerformanceTrial: options.repeatedPerformanceTrial,
+        })
+        const cohort = buildCohortIdentity({
+            declaration,
+            governance,
+            routeDecision,
+            routeDecisionInputs: preflight.routeDecisionInputs,
+            preflight,
+            materialInput,
+            tooling,
+            verificationIdentities: (dependencies.buildVerificationIdentities
+                ?? buildVerificationIdentities)(sourceRoot),
+            jobs: options.jobs,
+            localDomain,
+        })
+        const attempt = createExecutionAttempt({
+            cohortId: cohort.cohortId,
+            toolingCommit: tooling.commit,
+            createdAt: options.attemptCreatedAt,
+            nonce: options.attemptNonce,
+            creator: 'scripts/freeze-operating-cohort.cjs',
+        })
+        const frozenDeclaration = buildFrozenCohortDeclaration({
+            materialInput,
+            cohort,
+            attempt,
+            declaration,
+            routeDecision,
+            materialClassification: classification,
+        })
+        const published = publishFrozenCohortDeclaration(options.store, frozenDeclaration)
+        const operatingEnvironment = (dependencies.publishOperatingEnvironmentForAttempt
+            ?? publishOperatingEnvironmentForAttempt)({
+            storeRoot: options.store,
+            frozenDeclaration,
+            frozenDeclarationObjectSha256: published.publication.objectSha256,
+            provisioningReceipt: provisioned.receipt,
+        })
+        environmentBound = true
+        writeJsonAtomic(options.output, frozenDeclaration)
+        return {
+            schema: 'patch-operating-cohort-freeze-result-v1',
+            output: options.output,
+            materialInputKey: materialInput.materialInputKey,
+            cohortId: cohort.cohortId,
+            executionAttemptId: attempt.executionAttemptId,
+            frozenDeclarationSha256: published.publication.objectSha256,
+            routeId: routeDecision.routeId,
+            globalExecutionsExpected: routeDecision.globalExecutionsExpected,
+            localCasesExpected: routeDecision.totalLocalCasesExpected,
+            safeToExecute: routeDecision.safeToExecute,
+            sameInputCohortFound: classification.sameInputCohortFound,
+            materiallyDistinct: classification.materiallyDistinct,
+            repeatedPerformanceTrial: classification.repeatedPerformanceTrial,
+            localExecutionsPerformed: 0,
+            globalExecutionsPerformed: 0,
+            publication: published,
+            operatingEnvironment: {
+                provisioningReceiptSha256: operatingEnvironment.receiptPublication.objectSha256,
+                bindingSha256: operatingEnvironment.bindingPublication.objectSha256,
+                pnpmExecutable: provisioned.receipt.pnpm.resolvedExecutable,
+                pnpmExecutableSha256: provisioned.receipt.pnpm.executableSha256,
+                operatingBuildBoundaryVerification: 'passed',
+                cleanupDeferredUntilAttemptCompletion: true,
+            },
+            preflight,
+        }
+    } catch (error) {
+        if (!environmentBound) {
+            const publication = publishEvidenceObject(options.store, provisioned.receipt)
+            try { cleanupProvisionedEnvironment(provisioned.root) } catch (cleanupError) {
+                error.details = {
+                    ...(error.details ?? {}),
+                    provisioningReceiptObjectSha256: publication.objectSha256,
+                    cleanupError: cleanupError.message,
+                }
+                throw error
+            }
+            error.details = {
+                ...(error.details ?? {}),
+                provisioningReceiptObjectSha256: publication.objectSha256,
+                provisioningRootCleaned: true,
+            }
+        }
+        throw error
     }
 }
 

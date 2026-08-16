@@ -18,6 +18,11 @@ const {
     validateRouteDecision,
 } = require('./operating-cohort-route.cjs')
 const { sha256 } = require('./verification-evidence.cjs')
+const {
+    OPERATING_PROVISIONING_BINDING_SCHEMA,
+    operatingBuildEnvironmentContract,
+    validateProvisioningReceipt,
+} = require('./operating-build-environment.cjs')
 
 const MATERIAL_INPUT_IDENTITY_SCHEMA = 'patch-operating-material-input-identity-v1'
 const COHORT_IDENTITY_SCHEMA = 'patch-operating-cohort-identity-v2'
@@ -122,6 +127,7 @@ function buildVerificationIdentities(sourceRoot) {
         ], 'patch-operating-global-verifier-identity-v1'),
         candidateLocalVerifier: fileSetIdentity(root, [
             'scripts/run-toolchain-shadow-mask.cjs',
+            'src/operating-build-environment.cjs',
             'src/toolchain-shadow-boundaries.cjs',
             'src/toolchain-shadow-local.cjs',
             'src/toolchain-shadow-same-global.cjs',
@@ -241,6 +247,7 @@ function buildCohortIdentity({
             tooling: structuredClone(tooling),
             canonicalGlobalVerifier: structuredClone(verificationIdentities.canonicalGlobalVerifier),
             candidateLocalVerifier: structuredClone(verificationIdentities.candidateLocalVerifier),
+            operatingBuildEnvironmentContract: operatingBuildEnvironmentContract(),
         },
         canonicalGlobalContract: {
             canonicalGate: declaration.globalContract.canonicalGate,
@@ -508,6 +515,123 @@ function publishFrozenCohortDeclaration(storeRoot, declaration) {
     return { publication, reference, refPublication }
 }
 
+function operatingEnvironmentRefPath(storeRoot, executionAttemptId) {
+    return path.join(attemptDirectory(storeRoot, executionAttemptId), 'operating-environment.ref.json')
+}
+
+function publishOperatingEnvironmentForAttempt({
+    storeRoot,
+    frozenDeclaration,
+    frozenDeclarationObjectSha256,
+    provisioningReceipt,
+}) {
+    validateFrozenCohortDeclaration(frozenDeclaration)
+    validateSha(frozenDeclarationObjectSha256, 'operating environment frozen declaration hash')
+    validateProvisioningReceipt(provisioningReceipt, { requireExecutable: true })
+    if (provisioningReceipt.status !== 'passed') {
+        fail('OPERATING_BUILD_BOUNDARY_NOT_ADMITTED', 'A failed operating environment cannot be bound as execution-ready')
+    }
+    if (objectSha256(frozenDeclaration) !== frozenDeclarationObjectSha256
+        || provisioningReceipt.identities.subjectCommit !== frozenDeclaration.subject.implementationCommit
+        || provisioningReceipt.identities.toolingCommit
+            !== frozenDeclaration.executionAttempt.provenance.toolingCommit
+        || provisioningReceipt.identities.toolingStatusSha256
+            !== frozenDeclaration.cohortIdentity.verification.tooling.statusSha256
+        || provisioningReceipt.identities.targetCommit !== frozenDeclaration.target.commit
+        || provisioningReceipt.identities.targetApplicationTreeSha256
+            !== frozenDeclaration.target.applicationTreeSha256) {
+        fail('OPERATING_ENVIRONMENT_IDENTITY_MISMATCH', 'Operating environment does not bind the frozen attempt identities')
+    }
+    const receiptPublication = publishEvidenceObject(storeRoot, provisioningReceipt)
+    const binding = sealDocument({
+        schema: OPERATING_PROVISIONING_BINDING_SCHEMA,
+        materialInputKey: frozenDeclaration.materialInputKey,
+        cohortId: frozenDeclaration.cohortId,
+        executionAttemptId: frozenDeclaration.executionAttemptId,
+        frozenDeclarationObjectSha256,
+        provisioningReceiptObjectSha256: receiptPublication.objectSha256,
+        state: 'provisioned-boundary-passed-before-execution',
+    })
+    const bindingPublication = publishEvidenceObject(storeRoot, binding)
+    const file = operatingEnvironmentRefPath(storeRoot, frozenDeclaration.executionAttemptId)
+    const appendOnlyPublication = writeAppendOnlyJson(file, binding)
+    return {
+        receipt: provisioningReceipt,
+        receiptPublication,
+        binding,
+        bindingPublication,
+        appendOnlyPublication,
+    }
+}
+
+function loadOperatingEnvironmentForAttempt({
+    storeRoot,
+    frozenDeclaration,
+    frozenDeclarationObjectSha256,
+    requireExecutable = true,
+}) {
+    validateFrozenCohortDeclaration(frozenDeclaration)
+    const file = operatingEnvironmentRefPath(storeRoot, frozenDeclaration.executionAttemptId)
+    let binding
+    try { binding = JSON.parse(fs.readFileSync(file, 'utf8')) } catch (error) {
+        fail('OPERATING_ENVIRONMENT_BINDING_MISSING', 'Frozen execution attempt has no operating environment binding', {
+            file,
+            cause: error.message,
+        })
+    }
+    exactKeys(binding, [
+        'schema', 'materialInputKey', 'cohortId', 'executionAttemptId',
+        'frozenDeclarationObjectSha256', 'provisioningReceiptObjectSha256',
+        'state', 'integrity',
+    ], 'operating environment binding')
+    if (!verifyDocumentIntegrity(binding)
+        || binding.schema !== OPERATING_PROVISIONING_BINDING_SCHEMA
+        || binding.materialInputKey !== frozenDeclaration.materialInputKey
+        || binding.cohortId !== frozenDeclaration.cohortId
+        || binding.executionAttemptId !== frozenDeclaration.executionAttemptId
+        || binding.frozenDeclarationObjectSha256 !== frozenDeclarationObjectSha256
+        || !SHA256_PATTERN.test(binding.provisioningReceiptObjectSha256 ?? '')
+        || binding.state !== 'provisioned-boundary-passed-before-execution') {
+        fail('INVALID_OPERATING_ENVIRONMENT_BINDING', 'Operating environment binding differs from the frozen attempt')
+    }
+    const bindingObjectSha256 = objectSha256(binding)
+    const bindingRecord = require('./c0-retention.cjs').loadEvidenceObject(
+        storeRoot,
+        bindingObjectSha256,
+    )
+    if (canonicalJson(bindingRecord.document) !== canonicalJson(binding)) {
+        fail('INVALID_OPERATING_ENVIRONMENT_BINDING', 'Append-only environment binding differs from its evidence object')
+    }
+    const receiptRecord = require('./c0-retention.cjs').loadEvidenceObject(
+        storeRoot,
+        binding.provisioningReceiptObjectSha256,
+    )
+    try {
+        validateProvisioningReceipt(receiptRecord.document, { requireExecutable })
+    } catch (error) {
+        error.details = {
+            ...(error.details ?? {}),
+            provisioningReceiptObjectSha256: receiptRecord.objectSha256,
+            operatingEnvironmentBindingObjectSha256: objectSha256(binding),
+            phase: 'pre-material-operating-environment-binding-validation',
+            casesStarted: 0,
+            globalLaunchClaimState: 'absent',
+            globalExecutions: 0,
+        }
+        throw error
+    }
+    if (receiptRecord.document.status !== 'passed') {
+        fail('OPERATING_BUILD_BOUNDARY_NOT_ADMITTED', 'Bound operating environment did not pass admission')
+    }
+    return {
+        binding,
+        bindingObjectSha256,
+        bindingPath: file,
+        receipt: receiptRecord.document,
+        receiptObjectSha256: receiptRecord.objectSha256,
+    }
+}
+
 function globalLaunchClaimPath(storeRoot, executionAttemptId) {
     return path.join(attemptDirectory(storeRoot, executionAttemptId), 'global-launch-1.claim.json')
 }
@@ -617,9 +741,12 @@ module.exports = {
     computeEvidenceBundleId,
     createExecutionAttempt,
     globalLaunchClaimPath,
+    loadOperatingEnvironmentForAttempt,
     localIsolationContract,
     operatingCohortBinding,
+    operatingEnvironmentRefPath,
     publishFrozenCohortDeclaration,
+    publishOperatingEnvironmentForAttempt,
     scheduleHistoryContract,
     validateFrozenCohortDeclaration,
     validateGlobalLaunchClaim,

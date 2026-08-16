@@ -65,7 +65,7 @@ function spawnMask({ sourceRoot, projectionRoot, mask, boundaryClassId, declarat
     const worker = path.join(sourceRoot, 'scripts/run-toolchain-shadow-mask.cjs')
     const result = childProcess.spawnSync(process.execPath, [worker], {
         cwd: sourceRoot,
-        env: { LANG: 'C', LC_ALL: 'C', TZ: 'UTC' },
+        env: { LANG: 'C', LC_ALL: 'C', TZ: 'UTC', PATH: process.env.PATH ?? '' },
         encoding: 'utf8',
         input: JSON.stringify({
             sourceRoot,

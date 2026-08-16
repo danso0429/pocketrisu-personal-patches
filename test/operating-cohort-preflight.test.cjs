@@ -38,6 +38,8 @@ const {
 } = require('../src/toolchain-shadow-qualification.cjs')
 const { runChild } = require('../src/verification-evidence.cjs')
 const { declarationHash } = require('../src/operating-cohort-route.cjs')
+const { compareBuildBoundaries } = require('../src/toolchain-shadow-boundaries.cjs')
+const { sealDocument } = require('../src/verification-receipts.cjs')
 
 const repositoryRoot = path.resolve(__dirname, '..')
 const fixtureParent = path.resolve(repositoryRoot, '../..')
@@ -290,14 +292,78 @@ function acceptedVerification(overrides = {}) {
     return Object.assign(verified, overrides)
 }
 
-function runWith(t, verified = acceptedVerification(), expected = expectation()) {
+function operatingReceipt() {
+    const expected = expectation()
+    const comparison = compareBuildBoundaries(BUILD_BOUNDARY_CLASS, BUILD_BOUNDARY_CLASS)
+    return sealDocument({
+        schema: 'patch-operating-build-environment-provisioning-v1',
+        version: 1,
+        status: 'passed',
+        createdAt: '2026-08-15T11:00:00.000Z',
+        provisioning: {
+            method: 'unique-task-scoped-temporary-installation',
+            methodVersion: 'exact-task-scoped-pnpm-v1',
+            command: { executable: 'npm', args: [
+                'install', '--prefix', '/task', '--no-package-lock', '--ignore-scripts',
+                '--no-audit', '--no-fund', 'pnpm@10.34.1',
+            ] },
+            installStdoutSha256: 'a'.repeat(64),
+            installStderrSha256: 'b'.repeat(64),
+            installExitCode: 0,
+            repositoryMutationAllowed: false,
+            lockfileMutationAllowed: false,
+            cleanupRequired: true,
+        },
+        requested: { nodeVersion: 'v25.9.0', pnpmVersion: '10.34.1' },
+        node: { version: 'v25.9.0', executable: '/node', executableSha256: 'c'.repeat(64) },
+        pnpm: {
+            requestedVersion: '10.34.1', observedVersion: '10.34.1',
+            launcherExecutable: '/task/node_modules/.bin/pnpm',
+            resolvedExecutable: '/task/node_modules/pnpm/bin/pnpm.cjs',
+            executableSha256: 'd'.repeat(64),
+        },
+        runtime: { platform: 'linux', architecture: 'arm64', libc: 'glibc', libcVersionRuntime: '2.39' },
+        resolution: {
+            strategy: 'explicit-provisioned-executable-with-prepended-path-v1',
+            temporaryRoot: '/task',
+            temporaryRootIdentitySha256: sha256(canonicalJsonBytes({
+                purpose: 'material-operating-cohort', root: '/task',
+            })),
+            provisionedBinDirectory: '/task/node_modules/.bin',
+            pathPrepend: '/task/node_modules/.bin',
+            ambientPathSha256: 'f'.repeat(64), effectivePathSha256: '0'.repeat(64),
+        },
+        expectedBoundary: { ...BUILD_BOUNDARY_CLASS },
+        observedBoundary: { ...BUILD_BOUNDARY_CLASS },
+        boundaryComparison: comparison,
+        identities: {
+            subjectCommit: expected.qualification.subject.implementationCommit,
+            toolingCommit: '2'.repeat(40),
+            toolingStatusSha256: 'e'.repeat(64),
+            targetCommit: expected.qualification.subject.targetCommit,
+            targetApplicationTreeSha256:
+                expected.qualification.subject.targetApplicationTreeSha256,
+        },
+        cleanup: {
+            required: true,
+            eligibleOnlyAfterAttemptNoLongerNeedsExecutable: true,
+            durableReceiptSurvivesCleanup: true,
+        },
+    })
+}
+
+function runWith(t, verified = acceptedVerification(), expected = expectation(), receipt = null) {
     const { storeRoot } = fixture(t)
     const result = preflightOperatingCohortWithTestDependencies({
         storeRoot,
         expectation: expected,
         subjectRoot,
+        operatingEnvironmentReceipt: receipt,
         checkedAt: '2026-08-15T11:00:01.000Z',
-        dependencies: { verifyQualificationRegistry: () => verified },
+        dependencies: {
+            verifyQualificationRegistry: () => verified,
+            verifyCurrentOperatingBuildEnvironment: () => ({ status: 'passed' }),
+        },
     })
     return { storeRoot, result }
 }
@@ -308,6 +374,17 @@ test('valid durable compatible qualification permits shadow-cohort prompt constr
     assert.equal(result.reason, 'accepted-durable-compatible-qualification')
     assert.equal(result.readOnly, true)
     assert.equal(result.automaticallyAuthorizesC1, false)
+    assert.equal(result.route.safeToExecute, false)
+    assert.deepEqual(result.blockers, ['operating-environment-not-provisioned'])
+})
+
+test('preflight reports the combined route executable only after exact operating admission', (t) => {
+    const { result } = runWith(t, acceptedVerification(), expectation(), operatingReceipt())
+    assert.equal(result.freshVerificationInCurrentExecutionEnvironment, 'passed')
+    assert.equal(result.operatingEnvironment.provisioned, true)
+    assert.equal(result.operatingEnvironment.buildBoundaryVerification, 'passed')
+    assert.equal(result.route.safeToExecute, true)
+    assert.deepEqual(result.blockers, [])
 })
 
 test('managed nested-spawn EPERM preserves accepted state but blocks material execution', (t) => {
@@ -337,7 +414,10 @@ test('managed nested-spawn EPERM preserves accepted state but blocks material ex
     assert.equal(result.route.routeId, 'material-c0-global-plus-toolchain-shadow')
     assert.equal(result.route.globalExecutionsExpected, 1)
     assert.equal(result.route.safeToExecute, false)
-    assert.deepEqual(result.blockers, ['fresh-qualification-verification-environment-unavailable'])
+    assert.deepEqual(result.blockers, [
+        'fresh-qualification-verification-environment-unavailable',
+        'operating-environment-not-provisioned',
+    ])
 })
 
 test('real store-to-registry-to-independent-verifier-to-production-preflight chain passes', async (t) => {

@@ -12,8 +12,10 @@ const {
     claimGlobalLaunch,
     classifyMaterialDistinctness,
     createExecutionAttempt,
+    loadOperatingEnvironmentForAttempt,
     operatingCohortBinding,
     publishFrozenCohortDeclaration,
+    publishOperatingEnvironmentForAttempt,
     validateFrozenCohortDeclaration,
     validateOperatingCohortBinding,
 } = require('../src/operating-cohort-identity.cjs')
@@ -35,6 +37,10 @@ const {
 } = require('../src/operating-cohort-gates.cjs')
 const { loadEvidenceObject, objectSha256 } = require('../src/c0-retention.cjs')
 const { sha256 } = require('../src/verification-evidence.cjs')
+const {
+    buildProvisioningReceipt,
+    runtimeObservation,
+} = require('../src/operating-build-environment.cjs')
 const {
     declarationHash,
     decideOperatingCohortRoute,
@@ -71,6 +77,8 @@ function routeInputs(declaration) {
             environment: structuredClone(declaration.environment),
         },
         freshVerification: 'passed',
+        operatingEnvironmentProvisioned: true,
+        operatingBuildBoundaryVerification: 'passed',
         candidateDomain: {
             candidateId: 'toolchain-hardening',
             localMasksExpected: 2,
@@ -279,6 +287,20 @@ test('the material freeze path publishes every execution identity before doing w
         buildVerificationIdentities: () => structuredClone(identity.cohort.identity.verification),
         toolingRepository: () => identity.cohort.identity.verification.tooling.repository,
         acceptedEntries: () => [],
+        provisionOperatingBuildEnvironment: async () => ({
+            root: path.join(store, 'synthetic-operating-environment'),
+            receipt: {
+                synthetic: true,
+                pnpm: {
+                    resolvedExecutable: '/synthetic/pnpm',
+                    executableSha256: HASH('a'),
+                },
+            },
+        }),
+        publishOperatingEnvironmentForAttempt: () => ({
+            receiptPublication: { objectSha256: HASH('8') },
+            bindingPublication: { objectSha256: HASH('9') },
+        }),
     })
     const document = JSON.parse(fs.readFileSync(output, 'utf8'))
     assert.equal(result.materialInputKey, document.materialInputKey)
@@ -487,6 +509,82 @@ test('Global launch claim closes the unknown-outcome crash window', (t) => {
         frozenDeclarationObjectSha256: publication.publication.objectSha256,
         claimedAt: '2026-08-15T03:00:01.000Z',
     }), (error) => error.code === 'SECOND_GLOBAL_LAUNCH_FORBIDDEN')
+})
+
+test('operating provisioning receipt is append-only bound to one exact attempt', (t) => {
+    const store = fs.mkdtempSync(path.join(os.tmpdir(), 'cohort-operating-environment-'))
+    t.after(() => fs.rmSync(store, { recursive: true, force: true }))
+    const identity = makeIdentity()
+    const record = freeze(identity)
+    const frozenPublication = publishFrozenCohortDeclaration(store, record.frozen)
+    const provisionRoot = path.join(store, 'operating-pnpm-10.34.1-test')
+    const bin = path.join(provisionRoot, 'node_modules', '.bin')
+    fs.mkdirSync(bin, { recursive: true })
+    const pnpm = path.join(bin, 'pnpm')
+    fs.writeFileSync(pnpm, '#!/usr/bin/env node\n', { mode: 0o700 })
+    const observation = runtimeObservation({
+        pnpmExecutable: pnpm,
+        spawnSync: () => ({
+            error: undefined, signal: null, status: 0, stdout: '10.34.1\n', stderr: '',
+        }),
+        nodeVersion: 'v25.9.0',
+        platform: 'linux',
+        architecture: 'arm64',
+        reportHeader: { glibcVersionRuntime: '2.39' },
+    })
+    const receipt = buildProvisioningReceipt({
+        provisioned: {
+            root: provisionRoot,
+            executable: pnpm,
+            binDirectory: bin,
+            receipt: {
+                method: 'unique-task-scoped-temporary-installation',
+                methodVersion: 'exact-task-scoped-pnpm-v1',
+                command: { executable: 'npm', args: [
+                    'install', '--prefix', provisionRoot, '--no-package-lock', '--ignore-scripts',
+                    '--no-audit', '--no-fund', 'pnpm@10.34.1',
+                ] },
+                installStdoutSha256: HASH('1'), installStderrSha256: HASH('2'),
+                installExitCode: 0, repositoryMutationAllowed: false,
+                lockfileMutationAllowed: false, cleanupRequired: true,
+            },
+        },
+        observation,
+        context: {
+            subjectCommit: record.frozen.subject.implementationCommit,
+            toolingCommit: record.frozen.executionAttempt.provenance.toolingCommit,
+            toolingStatusSha256:
+                record.frozen.cohortIdentity.verification.tooling.statusSha256,
+            targetCommit: record.frozen.target.commit,
+            targetApplicationTreeSha256: record.frozen.target.applicationTreeSha256,
+        },
+        ambientPath: '/ambient',
+        effectivePath: `${bin}${path.delimiter}/ambient`,
+        createdAt: '2026-08-15T03:00:00.000Z',
+    })
+    const published = publishOperatingEnvironmentForAttempt({
+        storeRoot: store,
+        frozenDeclaration: record.frozen,
+        frozenDeclarationObjectSha256: frozenPublication.publication.objectSha256,
+        provisioningReceipt: receipt,
+    })
+    const loaded = loadOperatingEnvironmentForAttempt({
+        storeRoot: store,
+        frozenDeclaration: record.frozen,
+        frozenDeclarationObjectSha256: frozenPublication.publication.objectSha256,
+        requireExecutable: true,
+    })
+    assert.equal(loaded.receiptObjectSha256, published.receiptPublication.objectSha256)
+    const retry = freeze(identity, {
+        nonce: '00000000-0000-4000-8000-000000000007',
+        createdAt: '2026-08-15T03:00:01.000Z',
+    })
+    assert.throws(() => loadOperatingEnvironmentForAttempt({
+        storeRoot: store,
+        frozenDeclaration: retry.frozen,
+        frozenDeclarationObjectSha256: objectSha256(retry.frozen),
+        requireExecutable: true,
+    }), (error) => error.code === 'OPERATING_ENVIRONMENT_BINDING_MISSING')
 })
 
 test('focused gate evidence is frozen to the attempt before execution', () => {

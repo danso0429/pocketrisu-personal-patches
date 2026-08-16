@@ -1,0 +1,19 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://pocketrisu.local/schemas/patch-operating-build-environment-binding-v1.schema.json",
+  "title": "PocketRisu operating build-environment attempt binding v1",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schema", "materialInputKey", "cohortId", "executionAttemptId", "frozenDeclarationObjectSha256", "provisioningReceiptObjectSha256", "state", "integrity"],
+  "properties": {
+    "schema": { "const": "patch-operating-build-environment-binding-v1" },
+    "materialInputKey": { "$ref": "#/$defs/hash" },
+    "cohortId": { "$ref": "#/$defs/hash" },
+    "executionAttemptId": { "$ref": "#/$defs/hash" },
+    "frozenDeclarationObjectSha256": { "$ref": "#/$defs/hash" },
+    "provisioningReceiptObjectSha256": { "$ref": "#/$defs/hash" },
+    "state": { "const": "provisioned-boundary-passed-before-execution" },
+    "integrity": { "type": "object" }
+  },
+  "$defs": { "hash": { "type": "string", "pattern": "^[0-9a-f]{64}$" } }
+}

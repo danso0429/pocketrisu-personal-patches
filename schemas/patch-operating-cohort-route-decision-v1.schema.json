@@ -4,7 +4,7 @@
   "title": "PocketRisu operating cohort route decision v1",
   "type": "object",
   "additionalProperties": false,
-  "required": ["schema", "routeId", "cohortType", "changeClass", "materiallyDistinct", "stableRelease", "candidateAffected", "candidateId", "candidateQualificationCompatible", "candidateExecutionReason", "candidateExecutionSkipped", "candidateOperatingSampleEligible", "candidateSkipReason", "localMasksExpected", "boundaryClassesExpected", "totalLocalCasesExpected", "globalExecutionsExpected", "materialDeclarationSha256", "safeToExecute", "blockers", "decisionSha256"],
+  "required": ["schema", "routeId", "cohortType", "changeClass", "materiallyDistinct", "stableRelease", "candidateAffected", "candidateId", "candidateQualificationCompatible", "candidateExecutionReason", "candidateExecutionSkipped", "candidateOperatingSampleEligible", "candidateSkipReason", "localMasksExpected", "boundaryClassesExpected", "totalLocalCasesExpected", "globalExecutionsExpected", "qualificationFreshVerification", "operatingEnvironmentProvisioned", "operatingBuildBoundaryVerification", "materialDeclarationSha256", "safeToExecute", "blockers", "decisionSha256"],
   "properties": {
     "schema": { "const": "patch-operating-cohort-route-decision-v1" },
     "routeId": { "enum": ["material-c0-global", "material-c0-global-plus-toolchain-shadow"] },
@@ -23,6 +23,9 @@
     "boundaryClassesExpected": { "enum": [0, 4] },
     "totalLocalCasesExpected": { "enum": [0, 8] },
     "globalExecutionsExpected": { "const": 1 },
+    "qualificationFreshVerification": { "enum": ["passed", "failed", "environment-unavailable", "not-required"] },
+    "operatingEnvironmentProvisioned": { "oneOf": [{ "type": "boolean" }, { "type": "null" }] },
+    "operatingBuildBoundaryVerification": { "enum": ["passed", "failed", "not-checked", "not-required"] },
     "materialDeclarationSha256": { "type": "string", "pattern": "^[0-9a-f]{64}$" },
     "safeToExecute": { "type": "boolean" },
     "blockers": { "type": "array", "items": { "type": "string", "minLength": 1 }, "uniqueItems": true },

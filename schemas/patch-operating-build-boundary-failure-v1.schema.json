@@ -1,0 +1,32 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://pocketrisu.local/schemas/patch-operating-build-boundary-failure-v1.schema.json",
+  "title": "PocketRisu pre-material operating build-boundary failure v1",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schema", "evidenceBundleId", "disposition", "status", "recordedAt", "phase", "code", "message", "operatingCohort", "provisioningReceiptSha256", "details", "executionState", "canonicalProtection", "integrity"],
+  "properties": {
+    "schema": { "const": "patch-operating-build-boundary-failure-v1" },
+    "evidenceBundleId": { "$ref": "#/$defs/hash" },
+    "disposition": { "const": "pre-material-failed" },
+    "status": { "const": "failed" },
+    "recordedAt": { "type": "string", "format": "date-time" },
+    "phase": { "type": "string", "minLength": 1 },
+    "code": { "type": "string", "minLength": 1 },
+    "message": { "type": "string", "minLength": 1 },
+    "operatingCohort": { "oneOf": [{ "type": "object" }, { "type": "null" }] },
+    "provisioningReceiptSha256": { "oneOf": [{ "$ref": "#/$defs/hash" }, { "type": "null" }] },
+    "details": { "type": "object" },
+    "executionState": {
+      "type": "object", "additionalProperties": false,
+      "required": ["localCasesStarted", "localCasesCompleted", "globalLaunchClaim", "globalExecutions"],
+      "properties": {
+        "localCasesStarted": { "const": 0 }, "localCasesCompleted": { "const": 0 },
+        "globalLaunchClaim": { "const": "absent" }, "globalExecutions": { "const": 0 }
+      }
+    },
+    "canonicalProtection": { "type": "object" },
+    "integrity": { "type": "object" }
+  },
+  "$defs": { "hash": { "type": "string", "pattern": "^[0-9a-f]{64}$" } }
+}
