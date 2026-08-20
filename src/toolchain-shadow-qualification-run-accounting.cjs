@@ -3,9 +3,15 @@
 const fs = require('node:fs')
 const path = require('node:path')
 const { canonicalJson } = require('./verification-receipts.cjs')
+const {
+    EXECUTION_STATE_SCHEMA,
+    QUALIFICATION_RUN_IDENTITY_SCHEMA,
+    validateExecutionState: validateExecutionStateV2,
+    validateQualificationRunIdentity,
+} = require('./toolchain-shadow-qualification-execution-state.cjs')
 
 const ACCOUNTING_SCHEMA = 'patch-toolchain-shadow-qualification-run-accounting-v1'
-const EXECUTION_STATE_SCHEMA = 'patch-toolchain-shadow-qualification-execution-state-v1'
+const LEGACY_EXECUTION_STATE_SCHEMA = 'patch-toolchain-shadow-qualification-execution-state-v1'
 const KNOWLEDGE = Object.freeze(['known', 'unknown'])
 
 class ToolchainShadowQualificationAccountingError extends Error {
@@ -50,9 +56,9 @@ function validateCount(count, label) {
     return count
 }
 
-function validateExecutionState(state) {
+function validateLegacyExecutionState(state) {
     exactKeys(state, ['schema', 'status', 'phase', 'local', 'global', 'failure'], 'qualification execution state')
-    if (state.schema !== EXECUTION_STATE_SCHEMA
+    if (state.schema !== LEGACY_EXECUTION_STATE_SCHEMA
         || !['running', 'passed', 'failed'].includes(state.status)
         || typeof state.phase !== 'string' || state.phase.length === 0) {
         fail('INVALID_QUALIFICATION_EXECUTION_STATE', 'Qualification execution state identity differs')
@@ -74,6 +80,28 @@ function validateExecutionState(state) {
         fail('INVALID_QUALIFICATION_EXECUTION_STATE', 'Qualification execution retention state differs')
     }
     return state
+}
+
+function validateExecutionState(state, { runIdentity = null } = {}) {
+    if (state?.schema === LEGACY_EXECUTION_STATE_SCHEMA) {
+        if (runIdentity !== null) {
+            fail('QUALIFICATION_ACCOUNTING_CONTRADICTION', 'Legacy execution state cannot bind a v2 qualification run identity')
+        }
+        return validateLegacyExecutionState(state)
+    }
+    if (state?.schema !== EXECUTION_STATE_SCHEMA) {
+        fail('INVALID_QUALIFICATION_EXECUTION_STATE', 'Qualification execution state schema is unknown')
+    }
+    if (runIdentity === null) {
+        fail('MISSING_QUALIFICATION_RUN_IDENTITY', 'V2 execution state requires its immutable qualification run identity')
+    }
+    try {
+        validateQualificationRunIdentity(runIdentity)
+        return validateExecutionStateV2(state, { runIdentity })
+    } catch (error) {
+        if (error.code) throw error
+        fail('INVALID_QUALIFICATION_EXECUTION_STATE', error.message)
+    }
 }
 
 function receiptCount(receipt, kind) {
@@ -98,6 +126,7 @@ function receiptCount(receipt, kind) {
 function buildQualificationRunAccounting({
     status,
     executionState = null,
+    runIdentity = null,
     localReceipt = null,
     globalReceipt = null,
     successReport = null,
@@ -105,11 +134,18 @@ function buildQualificationRunAccounting({
     if (!['passed', 'failed'].includes(status)) {
         fail('INVALID_QUALIFICATION_RUN_ACCOUNTING', 'Final qualification status is invalid')
     }
-    const state = executionState === null ? null : validateExecutionState(executionState)
+    if (runIdentity !== null && runIdentity.schema !== QUALIFICATION_RUN_IDENTITY_SCHEMA) {
+        fail('INVALID_QUALIFICATION_RUN_IDENTITY', 'Qualification run identity schema differs')
+    }
+    const state = executionState === null
+        ? null
+        : validateExecutionState(executionState, { runIdentity })
     const localCases = receiptCount(localReceipt, 'local')
     const globalMasks = receiptCount(globalReceipt, 'global')
     if (state !== null && ((localReceipt !== null && state.local.launches !== 1)
         || (globalReceipt !== null && state.global.launches !== 1)
+        || (localReceipt !== null) !== state.local.receiptRetained
+        || (globalReceipt !== null) !== state.global.receiptRetained
         || (localCases !== null && state.local.casesCompleted !== null
             && state.local.casesCompleted !== localCases)
         || (globalMasks !== null && state.global.masksCompleted !== null
@@ -167,6 +203,7 @@ function accountingFromOutputDirectory(outputDirectory, { status, successReport 
     const root = path.resolve(outputDirectory)
     return buildQualificationRunAccounting({
         status,
+        runIdentity: readJsonIfPresent(path.join(root, 'qualification-run.json')),
         executionState: readJsonIfPresent(path.join(root, 'execution-state.json')),
         localReceipt: readJsonIfPresent(path.join(root, 'local-receipt.json')),
         globalReceipt: readJsonIfPresent(path.join(root, 'global-receipt.json')),
@@ -177,6 +214,7 @@ function accountingFromOutputDirectory(outputDirectory, { status, successReport 
 module.exports = {
     ACCOUNTING_SCHEMA,
     EXECUTION_STATE_SCHEMA,
+    LEGACY_EXECUTION_STATE_SCHEMA,
     ToolchainShadowQualificationAccountingError,
     accountingFromOutputDirectory,
     buildQualificationRunAccounting,

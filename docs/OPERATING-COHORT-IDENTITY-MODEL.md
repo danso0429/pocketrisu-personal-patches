@@ -131,6 +131,18 @@ state proves zero. Thus a comparison failure after eight local cases and one Glo
 execution cannot be summarized as zero merely because the success report was never
 emitted.
 
+The current qualification checkpoint is
+`patch-toolchain-shadow-qualification-execution-state-v2`. It is mutable task-local
+operational state, not accepted qualification evidence. One immutable
+`patch-toolchain-shadow-qualification-run-identity-v1` binds every revision to the
+same run and authority. Revisions advance by an exact predecessor phase and sequence;
+launch, receipt and completion facts may change only at their declared milestone.
+Publication uses a dedicated same-directory fsync-and-rename writer for
+`execution-state.json`. Immutable receipts and manifests continue to use the
+create-once `writeJsonAtomic` path. A missing checkpoint yields unknown accounting,
+while a checkpoint/receipt contradiction fails closed. Checkpoints authorize no
+automatic resume or retry.
+
 The first material attempt from tooling commit `8f3f522068c76bd81bbf9466e278512666aaaee4`
 predates this receipt. It remains immutable: local coverage was 0/8 and its
 single Global execution passed 4,096/4,096, but the exact historical pnpm,

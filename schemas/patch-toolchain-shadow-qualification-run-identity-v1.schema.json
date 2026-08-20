@@ -1,0 +1,46 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://pocketrisu.local/schemas/patch-toolchain-shadow-qualification-run-identity-v1.schema.json",
+  "title": "Toolchain shadow qualification run identity v1",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schema", "qualificationRunId", "createdAt", "nonce", "bindings", "integrity"],
+  "properties": {
+    "schema": { "const": "patch-toolchain-shadow-qualification-run-identity-v1" },
+    "qualificationRunId": { "$ref": "#/$defs/hash" },
+    "createdAt": { "type": "string", "format": "date-time" },
+    "nonce": { "type": "string", "format": "uuid" },
+    "bindings": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "qualificationInputSha256", "implementationCommit", "qualificationToolCommit",
+        "policySha256", "contractSha256", "compiledDeclarationSha256", "targetCommit",
+        "targetApplicationTreeSha256"
+      ],
+      "properties": {
+        "qualificationInputSha256": { "$ref": "#/$defs/hash" },
+        "implementationCommit": { "$ref": "#/$defs/commit" },
+        "qualificationToolCommit": { "$ref": "#/$defs/commit" },
+        "policySha256": { "$ref": "#/$defs/hash" },
+        "contractSha256": { "$ref": "#/$defs/hash" },
+        "compiledDeclarationSha256": { "$ref": "#/$defs/hash" },
+        "targetCommit": { "$ref": "#/$defs/commit" },
+        "targetApplicationTreeSha256": { "$ref": "#/$defs/hash" }
+      }
+    },
+    "integrity": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["schema", "payloadSha256"],
+      "properties": {
+        "schema": { "const": "patch-toolchain-shadow-qualification-run-identity-integrity-v1" },
+        "payloadSha256": { "$ref": "#/$defs/hash" }
+      }
+    }
+  },
+  "$defs": {
+    "hash": { "type": "string", "pattern": "^[0-9a-f]{64}$" },
+    "commit": { "type": "string", "pattern": "^[0-9a-f]{40}$" }
+  }
+}

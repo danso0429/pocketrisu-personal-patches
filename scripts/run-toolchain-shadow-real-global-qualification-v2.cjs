@@ -48,9 +48,15 @@ const {
     writeJsonAtomic,
 } = require('../src/verification-evidence.cjs')
 const {
-    EXECUTION_STATE_SCHEMA,
     accountingFromOutputDirectory,
 } = require('../src/toolchain-shadow-qualification-run-accounting.cjs')
+const {
+    buildQualificationRunIdentity,
+    createInitialExecutionState,
+    persistQualificationExecutionState,
+    preservePrimaryError,
+    transitionExecutionState,
+} = require('../src/toolchain-shadow-qualification-execution-state.cjs')
 
 function parseArgs(argv) {
     const options = { toolRoot: path.resolve(__dirname, '..'), jobs: null }
@@ -103,6 +109,7 @@ async function main(argv = process.argv) {
         global: 'global-receipt.json', registration: 'registration.json',
         operatingProvisioning: 'operating-preflight-provisioning.json',
         operatingPreflight: 'operating-preflight.json',
+        qualificationRun: 'qualification-run.json',
         executionState: 'execution-state.json',
         accounting: 'run-accounting.json',
     }).map(([key, name]) => [key, path.join(options.outputDirectory, name)]))
@@ -114,25 +121,38 @@ async function main(argv = process.argv) {
         '--material-declaration-output', files.materialDeclaration,
     ], { cwd: options.toolRoot, maxOutputBytes: 8 * 1024 * 1024 }), 'identity construction')
     const subject = parseJsonStrict(fs.readFileSync(files.subject), 'v2 subject')
+    const sourceIdentity = parseJsonStrict(fs.readFileSync(files.sourceIdentity), 'v2 source identity')
+    const materialDeclaration = parseJsonStrict(
+        fs.readFileSync(files.materialDeclaration), 'v2 material declaration',
+    )
     const current = resolveVerifiedQualificationRegistryHead(options.storeRoot)
     const existing = effectiveRegistryEntry(current.registry, subject, REAL_GLOBAL_QUALIFICATION_TYPE)
     if (existing.state !== 'not-found') throw new Error('V2 qualification already has a registry disposition')
     let provisioned = null
     let localLaunches = 0
     let globalLaunches = 0
-    const executionState = {
-        schema: EXECUTION_STATE_SCHEMA,
-        status: 'running',
-        phase: 'initialized-before-execution',
-        local: { launches: 0, casesCompleted: null, receiptRetained: false },
-        global: { launches: 0, masksCompleted: null, receiptRetained: false },
-        failure: null,
+    const qualificationRun = buildQualificationRunIdentity({
+        subject, sourceIdentity, materialDeclaration,
+    })
+    writeJsonAtomic(files.qualificationRun, qualificationRun)
+    let executionState = createInitialExecutionState({ runIdentity: qualificationRun })
+    persistQualificationExecutionState(files.executionState, {
+        next: executionState,
+        runIdentity: qualificationRun,
+    })
+    const advanceExecutionState = (transition) => {
+        const next = transitionExecutionState(executionState, {
+            ...transition,
+            runIdentity: qualificationRun,
+        })
+        persistQualificationExecutionState(files.executionState, {
+            previous: executionState,
+            next,
+            runIdentity: qualificationRun,
+        })
+        executionState = next
+        return executionState
     }
-    const persistExecutionState = (phase) => {
-        executionState.phase = phase
-        writeJsonAtomic(files.executionState, executionState)
-    }
-    persistExecutionState(executionState.phase)
     try {
         provisioned = await provisionRealGlobalQualificationEnvironment({
             context: subject,
@@ -140,14 +160,20 @@ async function main(argv = process.argv) {
         })
         writeJsonAtomic(files.provisioning, provisioned.receipt)
         validateProvisioningReceipt(provisioned.receipt, { requireExecutable: true })
+        advanceExecutionState({
+            phase: 'provisioning-retained',
+            provisioningReceiptSha256: sha256(canonicalJsonBytes(provisioned.receipt)),
+        })
         const originalPath = process.env.PATH
         process.env.PATH = provisioned.env.PATH
         let localReceipt
         try {
             if (localLaunches !== 0) throw new Error('Second local qualification launch is forbidden')
-            localLaunches += 1
-            executionState.local.launches = localLaunches
-            persistExecutionState('local-launch-recorded-before-execution')
+            advanceExecutionState({
+                phase: 'local-launch-recorded-before-execution',
+                local: { ...executionState.local, launches: 1 },
+            })
+            localLaunches = 1
             localReceipt = await runFreshLocalShadow({
                 sourceRoot: options.toolRoot,
                 targetRoot: options.targetRoot,
@@ -159,15 +185,22 @@ async function main(argv = process.argv) {
         }
         validateLocalShadowReceipt(localReceipt)
         writeJsonAtomic(files.local, localReceipt)
-        executionState.local.casesCompleted = localReceipt.coverage.processedExecutions
-        executionState.local.receiptRetained = true
-        persistExecutionState('local-receipt-retained')
+        advanceExecutionState({
+            phase: 'local-receipt-retained',
+            local: {
+                launches: 1,
+                casesCompleted: localReceipt.coverage.processedExecutions,
+                receiptRetained: true,
+            },
+        })
         const reference = buildSameGlobalReference({ localReceipt })
         writeJsonAtomic(files.reference, reference)
         if (globalLaunches !== 0) throw new Error('Second Global qualification launch is forbidden')
-        globalLaunches += 1
-        executionState.global.launches = globalLaunches
-        persistExecutionState('global-launch-recorded-before-execution')
+        advanceExecutionState({
+            phase: 'global-launch-recorded-before-execution',
+            global: { ...executionState.global, launches: 1 },
+        })
+        globalLaunches = 1
         const globalArgs = [
             path.join(__dirname, 'run-verification-evidence.cjs'),
             '--root', options.targetRoot, '--output', files.global,
@@ -181,9 +214,14 @@ async function main(argv = process.argv) {
             maxOutputBytes: 16 * 1024 * 1024,
         }), 'real Global qualification')
         const globalReceipt = parseJsonStrict(fs.readFileSync(files.global), 'v2 Global receipt')
-        executionState.global.masksCompleted = globalReceipt.verifierResult?.verifiedSelections ?? null
-        executionState.global.receiptRetained = true
-        persistExecutionState('global-receipt-retained')
+        advanceExecutionState({
+            phase: 'global-receipt-retained',
+            global: {
+                launches: 1,
+                masksCompleted: globalReceipt.verifierResult?.verifiedSelections ?? null,
+                receiptRetained: true,
+            },
+        })
         const evaluation = evaluateExecutionReceipt(globalReceipt)
         const comparison = globalReceipt.verifierResult?.toolchainShadowComparison
         validateSameGlobalComparison(comparison, globalReceipt.verifierResult)
@@ -191,6 +229,8 @@ async function main(argv = process.argv) {
             || comparison.status !== 'passed' || comparison.mismatches !== 0) {
             throw new Error('V2 real-Global qualification comparison did not pass')
         }
+        advanceExecutionState({ phase: 'comparison-passed' })
+        advanceExecutionState({ phase: 'verification-and-registration-started' })
         const registrationResult = requireSuccessfulChild(await runChild(process.execPath, [
             path.join(__dirname, 'register-toolchain-shadow-real-global-qualification-v2.cjs'),
             '--store', options.storeRoot, '--subject', files.subject,
@@ -203,9 +243,7 @@ async function main(argv = process.argv) {
         }), 'v2 qualification registration')
         const registration = parseJsonStrict(registrationResult.stdout, 'v2 registration report')
         writeJsonAtomic(files.registration, registration)
-        const materialDeclaration = parseJsonStrict(
-            fs.readFileSync(files.materialDeclaration), 'v2 material declaration',
-        )
+        advanceExecutionState({ phase: 'registration-complete' })
         let operatingProvisioned = null
         let operatingPreflight
         let materialInput
@@ -274,11 +312,11 @@ async function main(argv = process.argv) {
                 localDomain,
             })
             writeJsonAtomic(files.operatingPreflight, operatingPreflight)
+            advanceExecutionState({ phase: 'operating-preflight-complete' })
         } finally {
             if (operatingProvisioned !== null) cleanupProvisionedEnvironment(operatingProvisioned.root)
         }
-        executionState.status = 'passed'
-        persistExecutionState('completed')
+        advanceExecutionState({ phase: 'completed' })
         const accounting = accountingFromOutputDirectory(options.outputDirectory, { status: 'passed' })
         writeJsonAtomic(files.accounting, accounting)
         const report = {
@@ -324,35 +362,49 @@ async function main(argv = process.argv) {
             materialCohortsAccepted: 0,
             candidateOperatingSamplesAccepted: 0,
             identityResultSha256: sha256(identityResult.stdout),
+            qualificationRunId: qualificationRun.qualificationRunId,
             executionAccounting: accounting,
             outputs: files,
         }
         process.stdout.write(`${JSON.stringify(report)}\n`)
         return report
     } catch (error) {
-        executionState.status = 'failed'
-        executionState.failure = {
-            code: String(error.code ?? 'QUALIFICATION_FAILED'),
-            message: String(error.message),
+        const primaryError = error
+        if (!['completed', 'failed'].includes(executionState.phase)) {
+            try {
+                advanceExecutionState({
+                    phase: 'failed',
+                    failure: {
+                        code: String(primaryError.code ?? 'QUALIFICATION_FAILED'),
+                        message: String(primaryError.message),
+                    },
+                })
+            } catch (persistenceError) {
+                preservePrimaryError(primaryError, persistenceError)
+            }
         }
-        persistExecutionState(`failed:${executionState.phase}`)
         let accounting = null
+        let accountingFailure = null
         try {
             accounting = accountingFromOutputDirectory(options.outputDirectory, { status: 'failed' })
             writeJsonAtomic(files.accounting, accounting)
         } catch (accountingError) {
-            error.accountingError = {
+            accountingFailure = {
                 code: accountingError.code ?? null,
                 message: accountingError.message,
             }
         }
-        error.details = {
-            ...(error.details && typeof error.details === 'object' ? error.details : {}),
+        primaryError.details = {
+            ...(primaryError.details && typeof primaryError.details === 'object'
+                ? primaryError.details
+                : {}),
             executionAccounting: accounting,
             accountingPath: files.accounting,
             executionStatePath: files.executionState,
+            qualificationRunPath: files.qualificationRun,
+            accountingFailure,
         }
-        throw error
+        throw primaryError
     } finally {
         if (provisioned !== null) {
             const resolved = path.resolve(provisioned.root)

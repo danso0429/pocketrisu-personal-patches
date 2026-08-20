@@ -225,3 +225,13 @@ operating sample, certificate, skipped mask, state migration or C1 authority.
 Historical v1 qualification remains immutable and independently verifiable, but it is
 not compatible with v2 operating admission. A v2 material preflight requires the v2
 qualification type and projection schema explicitly.
+
+The v2 qualification orchestrator publishes an immutable qualification-run identity
+and an atomically replaceable `execution-state.json` checkpoint. The checkpoint is
+advanced before each local or Global launch and after each create-once receipt is
+retained. Every update requires the same run identity, the exact predecessor
+sequence, an allowed forward phase and monotonic execution facts. The mutable writer
+is restricted to `execution-state.json`; it does not replace provisioning, local,
+Global, comparison, validation, registration or manifest evidence. A failed attempt
+is preserved for inspection and accounting and is never resumed or retried
+automatically.
