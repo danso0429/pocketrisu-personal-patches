@@ -38,8 +38,8 @@ export class CharXArchiveError extends Error {
 }
 
 export interface CharXSource {
-    kind: 'file' | 'bytes'
-    value: File | Uint8Array
+    kind: 'file' | 'blob' | 'bytes'
+    value: File | Blob | Uint8Array
     container: CharXContainerHint
 }
 
@@ -179,6 +179,11 @@ async function asArchiveBlob(source: CharXSource): Promise<Blob> {
     if (source.kind === 'file') {
         if (typeof File === 'undefined' || !(source.value instanceof File)) {
             throw new CharXArchiveError('CHARX_UNSUPPORTED_ARCHIVE', 'CharX file source is invalid')
+        }
+        blob = source.value
+    } else if (source.kind === 'blob') {
+        if (typeof Blob === 'undefined' || !(source.value instanceof Blob)) {
+            throw new CharXArchiveError('CHARX_UNSUPPORTED_ARCHIVE', 'CharX blob source is invalid')
         }
         blob = source.value
     } else {

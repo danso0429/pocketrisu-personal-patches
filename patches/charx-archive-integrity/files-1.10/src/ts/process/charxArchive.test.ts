@@ -90,6 +90,22 @@ describe('independent CharX fixture oracle', () => {
             await archive.close()
         }
     })
+
+    test('seekable Blob random access never calls whole-blob arrayBuffer', async () => {
+        class SliceOnlyBlob extends Blob {
+            override arrayBuffer(): Promise<ArrayBuffer> {
+                throw new Error('whole-blob arrayBuffer must not be called')
+            }
+        }
+        const fixture = buildFixtureArchive(validEntries([{ name: 'assets/a.bin', data: 'blob-slice-only' }]))
+        const blob = new SliceOnlyBlob([fixture.bytes])
+        const archive = await openCharXArchive({ kind: 'blob', value: blob, container: 'zip' })
+        try {
+            expect(new TextDecoder().decode(await archive.extract(archive.assets[0]))).toBe('blob-slice-only')
+        } finally {
+            await archive.close()
+        }
+    })
 })
 
 describe('CharX structural, semantic, and resource policy', () => {
