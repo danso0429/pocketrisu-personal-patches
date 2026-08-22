@@ -64,7 +64,7 @@ class Cursor {
     }
 }
 
-function validateModule(value: unknown): asserts value is RisuModule {
+export function validateRisuModule(value: unknown): asserts value is RisuModule {
     if (!value || typeof value !== 'object') {
         throw new RisuModuleImportError('RISUM_INVALID_MODULE', 'RisuM main record has no module object')
     }
@@ -91,19 +91,7 @@ function validateModule(value: unknown): asserts value is RisuModule {
     }
 }
 
-export async function prepareRisuModule(input: Uint8Array): Promise<PreparedRisuModule> {
-    const cursor = new Cursor(input)
-    if (cursor.byte() !== 111) {
-        throw new RisuModuleImportError('RISUM_INVALID_FORMAT', 'Invalid RisuM magic number')
-    }
-    if (cursor.byte() !== 0) {
-        throw new RisuModuleImportError('RISUM_UNSUPPORTED_VERSION', 'Unsupported RisuM version')
-    }
-    const mainLength = cursor.uint32()
-    if (mainLength === 0 || mainLength > RISUM_LIMITS.mainRecordBytes) {
-        throw new RisuModuleImportError('RISUM_LIMIT_EXCEEDED', 'RisuM main record exceeds the limit')
-    }
-    const mainEncoded = cursor.data(mainLength)
+export async function decodeRisuModuleMain(mainEncoded: Uint8Array): Promise<RisuModule> {
     let envelope: unknown
     try {
         const decoded = await decodeRPack(mainEncoded)
@@ -123,7 +111,51 @@ export async function prepareRisuModule(input: Uint8Array): Promise<PreparedRisu
         throw new RisuModuleImportError('RISUM_INVALID_MODULE', 'RisuM envelope type is invalid')
     }
     const module = (envelope as { module?: unknown }).module
-    validateModule(module)
+    validateRisuModule(module)
+    return module
+}
+
+export async function decodeRisuModuleAsset(
+    encoded: Uint8Array,
+    index: number,
+    total: number,
+): Promise<Uint8Array> {
+    let decoded: Uint8Array
+    try {
+        decoded = await decodeRPack(encoded)
+    } catch (error) {
+        throw new RisuModuleImportError(
+            'RISUM_ASSET_DECODE_FAILED',
+            `Failed to decode RisuM asset ${index + 1} of ${total}`,
+            { cause: error },
+        )
+    }
+    if (decoded.byteLength > RISUM_LIMITS.assetRecordBytes) {
+        throw new RisuModuleImportError('RISUM_LIMIT_EXCEEDED', 'Decoded RisuM asset exceeds the limit')
+    }
+    return decoded
+}
+
+export function validateRisuModuleAssetCount(module: RisuModule, assetCount: number): void {
+    if (assetCount !== (module.assets?.length ?? 0)) {
+        throw new RisuModuleImportError('RISUM_ASSET_METADATA', 'RisuM asset count does not match its metadata')
+    }
+}
+
+export async function prepareRisuModule(input: Uint8Array): Promise<PreparedRisuModule> {
+    const cursor = new Cursor(input)
+    if (cursor.byte() !== 111) {
+        throw new RisuModuleImportError('RISUM_INVALID_FORMAT', 'Invalid RisuM magic number')
+    }
+    if (cursor.byte() !== 0) {
+        throw new RisuModuleImportError('RISUM_UNSUPPORTED_VERSION', 'Unsupported RisuM version')
+    }
+    const mainLength = cursor.uint32()
+    if (mainLength === 0 || mainLength > RISUM_LIMITS.mainRecordBytes) {
+        throw new RisuModuleImportError('RISUM_LIMIT_EXCEEDED', 'RisuM main record exceeds the limit')
+    }
+    const mainEncoded = cursor.data(mainLength)
+    const module = await decodeRisuModuleMain(mainEncoded)
 
     const encodedAssets: Uint8Array[] = []
     let totalEncodedAssetBytes = 0
@@ -149,9 +181,7 @@ export async function prepareRisuModule(input: Uint8Array): Promise<PreparedRisu
     if (cursor.remaining !== 0) {
         throw new RisuModuleImportError('RISUM_INVALID_FORMAT', 'RisuM has trailing data after its terminal marker')
     }
-    if (encodedAssets.length !== (module.assets?.length ?? 0)) {
-        throw new RisuModuleImportError('RISUM_ASSET_METADATA', 'RisuM asset count does not match its metadata')
-    }
+    validateRisuModuleAssetCount(module, encodedAssets.length)
     return {
         module,
         encodedAssets: Object.freeze(encodedAssets),
@@ -172,19 +202,7 @@ export async function materializeRisuModule(
     }
     const total = prepared.encodedAssets.length
     for (let index = 0; index < total; index += 1) {
-        let decoded: Uint8Array
-        try {
-            decoded = await decodeRPack(prepared.encodedAssets[index])
-        } catch (error) {
-            throw new RisuModuleImportError(
-                'RISUM_ASSET_DECODE_FAILED',
-                `Failed to decode RisuM asset ${index + 1} of ${total}`,
-                { cause: error },
-            )
-        }
-        if (decoded.byteLength > RISUM_LIMITS.assetRecordBytes) {
-            throw new RisuModuleImportError('RISUM_LIMIT_EXCEEDED', 'Decoded RisuM asset exceeds the limit')
-        }
+        const decoded = await decodeRisuModuleAsset(prepared.encodedAssets[index], index, total)
         try {
             module.assets![index][1] = await options.saveAsset(decoded)
         } catch (error) {

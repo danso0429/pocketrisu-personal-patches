@@ -13,7 +13,7 @@ const target181Through110 = { pocketrisu: ['1.8.1', '1.9.0', '1.10.0'] }
 module.exports = {
     id: 'character-import-ux',
     title: 'Non-blocking character and module import',
-    version: '0.2.1',
+    version: '0.2.2',
     targets: {
         pocketrisu: {
             verified: ['1.8.1', '1.9.0'],

@@ -18,7 +18,7 @@ const manifest = require('../patches/character-import-ux/manifest.cjs')
 
 test('character and module import share one lazy-chat-dependent feature pack', () => {
     assert.equal(manifest.id, 'character-import-ux')
-    assert.equal(manifest.version, '0.2.1')
+    assert.equal(manifest.version, '0.2.2')
     assert.equal(manifest.title, 'Non-blocking character and module import')
     assert.deepEqual(manifest.targets, {
         pocketrisu: {
@@ -96,7 +96,8 @@ test('ordinary imports use one reactive toast body and server-confirmed success'
 test('module imports have one staged parser, central commit, and confirmed persistence path', () => {
     assert.match(risumImport, /prepareRisuModule/)
     assert.match(risumImport, /materializeRisuModule/)
-    assert.match(risumImport, /encodedAssets\.length !== \(module\.assets\?\.length \?\? 0\)/)
+    assert.match(risumImport, /validateRisuModuleAssetCount\(module, encodedAssets\.length\)/)
+    assert.match(risumImport, /assetCount !== \(module\.assets\?\.length \?\? 0\)/)
     assert.doesNotMatch(risumImport, /alertWait|alertClear|notifySuccess|db\.modules\.push/)
     assert.match(moduleImport, /createModuleImportOrchestrator/)
     assert.match(moduleImport, /modules\.push\(imported\)/)
