@@ -61,6 +61,20 @@ test('lazy chat pack includes CAS, WAL, reconciliation, and safe hydration bound
     assert.match(importedCharacterSave, /queueTrackedChat\(chaId, chat\.id\)/)
     assert.match(importedCharacterSave, /lastConfirmedServerDb/)
     assert.match(importedCharacterSave, /forageStorage\.flushDatabase\(\)/)
+    for (const globalApiSource of [
+        payload('src/ts/globalApi.svelte.ts'),
+        payload190('src/ts/globalApi.svelte.ts'),
+        payload1100('src/ts/globalApi.svelte.ts'),
+    ]) {
+        const importedModuleSave = globalApiSource.slice(
+            globalApiSource.indexOf('requestImportedModuleSaveImpl = async'),
+            globalApiSource.indexOf('requestChatSaveImpl = async'),
+        )
+        assert.match(globalApiSource, /export function requestImportedModuleSave\(moduleId: string\)/)
+        assert.match(importedModuleSave, /changeTracker\.modules = true/)
+        assert.match(importedModuleSave, /lastConfirmedServerDb\?\.modules\?\.some/)
+        assert.match(importedModuleSave, /forageStorage\.flushDatabase\(\)/)
+    }
     assert.match(payload('src/ts/storage/conflictRebase.ts'), /mergeThreeWayValue/)
     assert.match(payload('src/ts/plugins/apiV3/pluginChatAccess.ts'), /hydrateChat/)
     assert.match(payload('src/ts/plugins/apiV3/pluginChatAccess.ts'), /getDatabaseWithChatMetadata/)

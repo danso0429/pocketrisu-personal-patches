@@ -12,7 +12,7 @@ const DEFAULT_TARGETS = Object.freeze({
 const PROFILES = Object.freeze({
     features: Object.freeze({
         id: 'features',
-        description: 'Lazy chat synchronization, startup cache, persona and character organization, non-blocking character import, and personal settings; bg-preserve stays external.',
+        description: 'Lazy chat synchronization, startup cache, persona and character organization, non-blocking character and module import, and personal settings; bg-preserve stays external.',
     }),
     hardening: Object.freeze({
         id: 'hardening',

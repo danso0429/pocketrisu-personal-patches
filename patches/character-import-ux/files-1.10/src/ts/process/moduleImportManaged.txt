@@ -1,0 +1,64 @@
+const runModuleImport = createModuleImportOrchestrator({
+    prepareRisu: prepareRisuModule,
+    materializeRisu: (prepared, onProgress) => materializeRisuModule(prepared, {
+        saveAsset: (data) => saveAsset(data),
+        onProgress,
+    }),
+    async importCharacter(source, reporter) {
+        const imported = await importCharacterProcess({
+            name: source.name,
+            data: source.data,
+            returnCharacter: true,
+            progressReporter: reporter,
+        })
+        if (!imported || typeof imported === 'number') return { status: 'cancelled' }
+        return { status: 'imported', character: imported }
+    },
+    convertCharacter: convertCharacterToModule,
+    convertLorebook: (entries) => convertExternalLorebook(entries as any),
+    confirmLowLevel: () => alertConfirm(language.lowLevelAccessConfirm),
+    getModules: () => getDatabase().modules,
+    persistModule: (moduleId) => requestImportedModuleSave(moduleId),
+    freshId: () => v4(),
+    formatProgress: formatImportProgress,
+    successMessage: language.successImport,
+})
+
+export async function readModule(
+    buf: Buffer,
+    options: { onProgress?: (completed: number, total: number) => void } = {},
+): Promise<RisuModule> {
+    const prepared = await prepareRisuModule(buf)
+    const module = await materializeRisuModule(prepared, {
+        saveAsset: (data) => saveAsset(data),
+        onProgress: options.onProgress,
+    })
+    return { ...module, id: v4() }
+}
+export async function importModuleSource(source: ModuleImportSource): Promise<ModuleImportResult> {
+    const job = beginModuleImport()
+    if (!job) return { status: 'cancelled' }
+    return runModuleImport(source, job)
+}
+
+export async function importModule(): Promise<ModuleImportResult> {
+    const reservation = reserveImport('module')
+    if (!reservation) return { status: 'cancelled' }
+
+    let file: File | null
+    try {
+        file = await selectModuleImportFile(['json', 'lorebook', 'risum', 'charx'])
+    } catch (error) {
+        const job = reservation.activate('Opening module picker failed.')
+        if (job) job.fail(error)
+        else reservation.cancel()
+        return { status: 'failed', error, committed: false }
+    }
+    if (!file) {
+        reservation.cancel()
+        return { status: 'cancelled' }
+    }
+    const job = reservation.activate('Reading module file...')
+    if (!job) return { status: 'cancelled' }
+    return runModuleImport({ name: file.name, data: file, origin: 'picker' }, job)
+}

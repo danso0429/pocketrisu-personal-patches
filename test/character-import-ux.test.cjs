@@ -12,11 +12,14 @@ const source = read('files/src/ts/characterCards.ts')
 const anchor = read('anchors/src/ts/characterCards.ts')
 const state = read('files/src/ts/characterImportState.ts')
 const toastComponent = read('files/src/lib/Others/CharacterImportToast.svelte')
+const moduleImport = read('files-1.10/src/ts/process/moduleImport.ts')
+const risumImport = read('files-1.10/src/ts/process/risumImport.ts')
 const manifest = require('../patches/character-import-ux/manifest.cjs')
 
-test('character import UX is a separate lazy-chat-dependent feature pack', () => {
+test('character and module import share one lazy-chat-dependent feature pack', () => {
     assert.equal(manifest.id, 'character-import-ux')
-    assert.equal(manifest.version, '0.1.2')
+    assert.equal(manifest.version, '0.2.0')
+    assert.equal(manifest.title, 'Non-blocking character and module import')
     assert.deepEqual(manifest.targets, {
         pocketrisu: {
             verified: ['1.8.1', '1.9.0'],
@@ -75,6 +78,9 @@ test('ordinary imports use one reactive toast body and server-confirmed success'
     assert.match(source, /if \(imported\.length === 0\) \{\s*job\.dismiss\(\)\s*return null/)
     assert.doesNotMatch(source, /notifySuccess\(language\.importedCharacter\)/)
     assert.match(state, /toast\.custom\(CharacterImportToast/)
+    assert.match(state, /reserveImport/)
+    assert.match(state, /beginModuleImport/)
+    assert.match(state, /active: \{ token: symbol; kind: ImportKind/)
     assert.match(state, /status\.set\(/)
     assert.doesNotMatch(state, /toast\.loading/)
     assert.match(state, /duration: Number\.POSITIVE_INFINITY/)
@@ -85,6 +91,32 @@ test('ordinary imports use one reactive toast body and server-confirmed success'
         (unit) => unit.id === 'character-import-ux:toast'
             && unit.file === 'src/lib/Others/CharacterImportToast.svelte',
     ))
+})
+
+test('module imports have one staged parser, central commit, and confirmed persistence path', () => {
+    assert.match(risumImport, /prepareRisuModule/)
+    assert.match(risumImport, /materializeRisuModule/)
+    assert.match(risumImport, /encodedAssets\.length !== \(module\.assets\?\.length \?\? 0\)/)
+    assert.doesNotMatch(risumImport, /alertWait|alertClear|notifySuccess|db\.modules\.push/)
+    assert.match(moduleImport, /createModuleImportOrchestrator/)
+    assert.match(moduleImport, /modules\.push\(imported\)/)
+    assert.match(moduleImport, /await deps\.persistModule\(imported\.id\)/)
+    assert.match(moduleImport, /job\.succeed\(deps\.successMessage\)/)
+    assert.match(moduleImport, /committed: boolean/)
+    assert.ok(manifest.units.some((unit) =>
+        unit.id === 'character-import-ux:modules-terminal-import'
+        && unit.targetVersions.pocketrisu.includes('1.10.0')
+    ))
+})
+
+test('share transport serves the cached module on GET and resolves relative cache URLs', () => {
+    const getRoute = manifest.units.find((unit) => unit.id === 'character-import-ux:share-get-route')
+    const cacheBase = manifest.units.find((unit) => unit.id === 'character-import-ux:share-cache-url-base')
+    const cacheMiss = manifest.units.find((unit) => unit.id === 'character-import-ux:share-cache-miss')
+    assert.match(getRoute.content, /event\.request\.method === 'GET'/)
+    assert.match(getRoute.content, /getSource\(url\)/)
+    assert.match(cacheBase.content, /self\.location\.origin/)
+    assert.match(cacheMiss.content, /status: 404/)
 })
 
 test('asset progress stays in the same title with stable-width counters', () => {

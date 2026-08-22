@@ -1,0 +1,238 @@
+export async function readModule(buf:Buffer):Promise<RisuModule> {
+    let pos = 0
+
+    const readLength = () => {
+        const len = buf.readUInt32LE(pos)
+        pos += 4
+        return len
+    }
+    const readByte = () => {
+        const byte = buf.readUInt8(pos)
+        pos += 1
+        return byte
+    }
+    const readData = (len:number) => {
+        const data = buf.subarray(pos, pos + len)
+        pos += len
+        return data
+    }
+
+    if(readByte() !== 111){
+        console.error("Invalid magic number")
+        alertError(language.errors.noData)
+        return
+    }
+    if(readByte() !== 0){ //Version check
+        console.error("Invalid version")
+        alertError(language.errors.noData)
+        return
+    }
+
+    const mainLen = readLength()
+    const mainData = readData(mainLen)
+    const main:{
+        type:'risuModule'
+        module:RisuModule
+    } = JSON.parse(Buffer.from(await decodeRPack(mainData)).toString())
+
+    if(main.type !== 'risuModule'){
+        console.error("Invalid module type")
+        alertError(language.errors.noData)
+        return
+    }
+
+    let module = main.module
+
+    const maxConcurrentAssetSaves = 10
+    const retryDelayMs = 5000
+    const maxRetries = 3
+    const totalAssets = module.assets?.length ?? 0
+    let completed = 0
+
+    type AssetTask = {
+        index: number
+        data: Uint8Array
+    }
+
+    const runAssetTasks = async (tasks: AssetTask[]) => {
+        if (tasks.length === 0) {
+            return []
+        }
+        const inFlight = new Set<Promise<void>>()
+        const failed: AssetTask[] = []
+        const runTask = (task: AssetTask) => {
+            const promise = (async () => {
+                try {
+                    const decoded = await decodeRPack(task.data)
+                    if (!module.assets?.[task.index]) {
+                        throw new Error(`Missing asset metadata for index ${task.index}`)
+                    }
+                    module.assets[task.index][1] = await saveAsset(decoded)
+                    completed += 1
+                } catch (error) {
+                    failed.push(task)
+                } finally {
+                    alertWait(`Loading... (Adding Assets ${completed} / ${totalAssets})`)
+                }
+            })()
+            inFlight.add(promise)
+            promise.finally(() => inFlight.delete(promise))
+        }
+
+        for (const task of tasks) {
+            while (inFlight.size >= maxConcurrentAssetSaves) {
+                await Promise.race(inFlight)
+            }
+            runTask(task)
+        }
+
+        await Promise.all(inFlight)
+        return failed
+    }
+
+    const tasks: AssetTask[] = []
+    let i = 0
+    while(true){
+        const mark = readByte()
+        if(mark === 0){
+            break
+        }
+        if(mark !== 1){
+            alertError(language.errors.noData)
+            return
+        }
+        const len = readLength()
+        const data = readData(len)
+        tasks.push({
+            index: i,
+            data
+        })
+        i++
+    }
+
+    try {
+        let failed = await runAssetTasks(tasks)
+        let retryCount = 0
+        while (failed.length > 0 && retryCount < maxRetries) {
+            await sleep(retryDelayMs)
+            retryCount += 1
+            failed = await runAssetTasks(failed)
+        }
+        if (failed.length > 0) {
+            throw new Error(`Failed to save ${failed.length} assets`)
+        }
+    } finally {
+        alertClear()
+    }
+
+    module.id = v4()
+    return module
+}
+
+export async function importModule(){
+    const f = await selectSingleFile(['json', 'lorebook', 'risum', 'charx'])
+    if(!f){
+        return
+    }
+    let fileData = f.data
+    const db = getDatabase()
+    if(f.name.endsWith('.charx')){
+        try {
+            const buf = Buffer.from(fileData)
+            const char = await importCharacterProcess({
+                name: f.name,
+                data: buf,
+                returnCharacter: true
+            })
+            if(!char || typeof char === 'number'){
+                alertError(language.errors.noData)
+                return
+            }
+            const module = convertCharacterToModule(char)
+            db.modules.push(module)
+        } catch (error) {
+            console.error(error)
+            alertError(language.errors.noData)
+        }
+        notifySuccess(language.successImport)
+        return
+    }
+    if(f.name.endsWith('.risum')){
+        try {
+            const buf = Buffer.from(fileData)
+            const module = await readModule(buf)
+            db.modules.push(module)
+            notifySuccess(language.successImport)
+        } catch (error) {
+            console.error(error)
+            alertError(language.errors.noData)
+        }
+        return
+    }
+    try {
+        const importData = JSON.parse(Buffer.from(fileData).toString())
+        if(importData.type === 'risuModule'){
+            if(
+                (!importData.name)
+                || (!importData.id)
+            ){
+                alertError(language.errors.noData)
+                return
+            }
+            importData.id = v4()
+
+            if(importData.lowLevelAccess){
+                const conf = await alertConfirm(language.lowLevelAccessConfirm)
+                if(!conf){
+                    return false
+                }
+            }
+            db.modules.push(importData)
+            notifySuccess(language.successImport)
+            return
+        }
+        // importData.type === 'risu' in conflict with HypaV3 preset exports
+        // difference: record vs. array
+        if(importData.type === 'risu' && importData.data && Array.isArray(importData.data)){
+            const lores:loreBook[] = importData.data
+            const importModule = {
+                name: importData.name || 'Imported Lorebook',
+                description: importData.description || 'Converted from risu lorebook',
+                lorebook: lores,
+                id: v4()
+            }
+            db.modules.push(importModule)
+            notifySuccess(language.successImport)
+            return
+        }
+        if(importData.entries){
+            const lores:loreBook[] = convertExternalLorebook(importData.entries)
+            const importModule = {
+                name: importData.name || 'Imported Lorebook',
+                description: importData.description || 'Converted from external lorebook',
+                lorebook: lores,
+                id: v4()
+            }
+            db.modules.push(importModule)
+            notifySuccess(language.successImport)
+            return
+        }
+        if(importData.type === 'regex'  && importData.data){
+            const regexs:customscript[] = importData.data
+            const importModule = {
+                name: importData.name || 'Imported Regex',
+                description: importData.description || 'Converted from risu regex',
+                regex: regexs,
+                id: v4()
+            }
+            db.modules.push(importModule)
+            notifySuccess(language.successImport)
+            return
+        }
+    } catch (error) {
+        console.error(error)
+    }
+
+    alertNormal(language.errors.noData)
+}
+

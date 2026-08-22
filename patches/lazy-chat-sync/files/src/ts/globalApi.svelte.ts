@@ -258,6 +258,9 @@ let requestChatSaveImpl: ((chaId: string, chatId: string) => Promise<void> | voi
 let requestImportedCharacterSaveImpl: ((chaId: string) => Promise<void>) = async () => {
     throw new Error('character import save is not initialized')
 }
+let requestImportedModuleSaveImpl: ((moduleId: string) => Promise<void>) = async () => {
+    throw new Error('module import save is not initialized')
+}
 const pendingExplicitChats = new Map<string, [string, string]>()
 const pendingExplicitCharacters = new Set<string>()
 let markChatDirtyImpl = (chaId: string, chatId: string) => {
@@ -388,6 +391,10 @@ export function requestImmediateSave(options?: {
  */
 export function requestImportedCharacterSave(chaId: string): Promise<void> {
     return requestImportedCharacterSaveImpl(chaId)
+}
+
+export function requestImportedModuleSave(moduleId: string): Promise<void> {
+    return requestImportedModuleSaveImpl(moduleId)
 }
 
 /** Explicit dirty hook for async plugin APIs that mutate an inactive chat. */
@@ -1421,6 +1428,22 @@ export async function saveDb() {
             || expectedChatIds.some((chatId) => !confirmedChatIds.has(chatId))
         ) {
             throw new Error('Server has not confirmed the imported character yet')
+        }
+        await forageStorage.flushDatabase()
+    }
+
+    requestImportedModuleSaveImpl = async (moduleId) => {
+        const imported = getDatabase().modules?.find((module) => module?.id === moduleId)
+        if (!imported) throw new Error('Imported module is no longer present')
+
+        changeTracker.modules = true
+        changed = true
+        await tick()
+        if (saveInFlight) await saveInFlight
+        await triggerSave()
+
+        if (!lastConfirmedServerDb?.modules?.some((module) => module?.id === moduleId)) {
+            throw new Error('Server has not confirmed the imported module yet')
         }
         await forageStorage.flushDatabase()
     }

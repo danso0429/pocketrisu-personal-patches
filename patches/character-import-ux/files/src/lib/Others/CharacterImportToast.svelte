@@ -1,9 +1,9 @@
 <script lang="ts">
     import type { Readable } from 'svelte/store'
     import { CircleCheckIcon, CircleXIcon, LoaderCircleIcon } from '@lucide/svelte'
-    import type { CharacterImportToastState } from 'src/ts/characterImportState'
+    import type { ImportToastState } from 'src/ts/characterImportState'
 
-    let { status }: { status: Readable<CharacterImportToastState> } = $props()
+    let { status }: { status: Readable<ImportToastState> } = $props()
 </script>
 
 <div

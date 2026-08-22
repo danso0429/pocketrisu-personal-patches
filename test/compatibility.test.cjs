@@ -72,7 +72,7 @@ test('only the private maintainer gate may stage an explicitly reviewing target'
         assert.doesNotThrow(() => assertTargetReviewable(result))
     }))
 
-test('packs that still declare PocketRisu 1.9.0 remain explicitly verified', () =>
+test('packs qualified on PocketRisu 1.9.0 remain explicitly verified', () =>
     withRoot('1.9.0', (root) => {
         const catalog = loadCatalog()
         const eligible = catalog.filter((entry) =>
