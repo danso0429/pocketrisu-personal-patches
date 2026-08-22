@@ -35,15 +35,22 @@ async function main() {
         sourcemap: false,
         logLevel: 'silent',
         loader: { '.bin': 'dataurl' },
+        banner: {
+            js: `import { createRequire as __createImportRequire } from 'node:module'; const require = __createImportRequire(import.meta.url);`,
+        },
     })
     const moduleUrl = `${pathToFileURL(outfile).href}?build=${Date.now()}`
     const loaded = await import(moduleUrl)
-    if (typeof loaded.inspectImport !== 'function' || typeof loaded.prepareImport !== 'function') {
+    if (
+        typeof loaded.inspectImport !== 'function'
+        || typeof loaded.prepareImport !== 'function'
+        || typeof loaded.preparedDigestFor !== 'function'
+    ) {
         throw new Error('background import parser bundle exports are missing')
     }
     const bytes = fs.statSync(outfile).size
     console.log(`[importParserBundle] built ${path.relative(root, outfile)} (${bytes} bytes)`)
-    console.log('[importParserBundle] load check: inspectImport=function prepareImport=function')
+    console.log('[importParserBundle] load check: inspectImport=function prepareImport=function preparedDigestFor=function')
 }
 
 main().catch(error => {

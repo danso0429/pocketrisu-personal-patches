@@ -3,6 +3,7 @@ import { openAsBlob } from 'node:fs'
 import fs from 'node:fs/promises'
 import type { FileHandle } from 'node:fs/promises'
 import path from 'node:path'
+import preparedDigestPkg from './importPreparedDigest.cjs'
 import { openCharXArchive, type CharXContainerHint } from '../../src/ts/process/charxArchive'
 import {
     characterCardRequiresLowLevel,
@@ -89,16 +90,13 @@ function validateRequest(request: ImportParserRequest): void {
     }
 }
 
-function stableValue(value: any): any {
-    if (Array.isArray(value)) return value.map(stableValue)
-    if (value && typeof value === 'object' && !(value instanceof Uint8Array)) {
-        return Object.fromEntries(Object.keys(value).sort().map(key => [key, stableValue(value[key])]))
-    }
-    return value
-}
-
-function stableDigest(value: any): string {
-    return crypto.createHash('sha256').update(JSON.stringify(stableValue(value))).digest('hex')
+export function preparedDigestFor(
+    kind: 'character' | 'module',
+    format: ImportParserRequest['format'],
+    entity: Record<string, any>,
+    assets: Array<Pick<StagedImportAsset, 'key' | 'bytes' | 'sha256'>>,
+): string {
+    return preparedDigestPkg.preparedDigestFor(kind, format, entity, assets)
 }
 
 function deterministicUuid(operationId: string, label: string): string {
@@ -485,7 +483,6 @@ export async function prepareImport(request: ImportParserRequest): Promise<Prepa
     else if (request.kind === 'module') entity = await prepareModule(request, stager)
     else entity = await prepareCharacterJson(request, stager)
     const assets = stager.result()
-    const digestAssets = assets.map(({ key, bytes, sha256 }) => ({ key, bytes, sha256 }))
-    const preparedDigest = stableDigest({ kind: request.kind, format: request.format, entity, assets: digestAssets })
+    const preparedDigest = preparedDigestFor(request.kind, request.format, entity, assets)
     return Object.freeze({ kind: request.kind, format: request.format, entity, assets, preparedDigest })
 }
