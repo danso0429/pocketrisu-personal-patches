@@ -98,7 +98,9 @@ describe('independent CharX fixture oracle', () => {
             }
         }
         const fixture = buildFixtureArchive(validEntries([{ name: 'assets/a.bin', data: 'blob-slice-only' }]))
-        const blob = new SliceOnlyBlob([fixture.bytes])
+        const blobBytes = new Uint8Array(fixture.bytes.byteLength)
+        blobBytes.set(fixture.bytes)
+        const blob = new SliceOnlyBlob([blobBytes.buffer])
         const archive = await openCharXArchive({ kind: 'blob', value: blob, container: 'zip' })
         try {
             expect(new TextDecoder().decode(await archive.extract(archive.assets[0]))).toBe('blob-slice-only')
