@@ -2,7 +2,7 @@
 
 Private, composable patch delivery for PocketRisu NodeOnly. The current
 stable release is `v0.1.7`, and its manifests target PocketRisu `v1.8.1`.
-The current development checkpoint is `v0.2.0-experimental.16`.
+The current development checkpoint is `v0.2.0-experimental.17`.
 
 ## Universal installer and compatibility presets
 
@@ -39,6 +39,7 @@ not separate implementations.
 
 | Release | What changed |
 | --- | --- |
+| `v0.2.0-experimental.17` | Keeps the 1.10 aggregate unchanged while removing the iOS Files `accept` hint that disabled proprietary `.risum` and `.module.charx` files; exact post-selection type validation and terminal persistence remain in force. |
 | `v0.2.0-experimental.16` | Rebases the rolling aggregate onto PocketRisu 1.10.0, adds central-indexed CharX integrity and one terminal module-import toast/persistence flow, preserves native purge/VACUUM/persona-duplicate behavior, and requalifies the maximum graph without publishing a stable release. |
 | `v0.2.0-experimental.15` | Adds a hidden exact-1.9 point-in-time backup source that pins one SQLite/WAL and verified filesystem epoch for native downloads, settings export/estimate, and server-file backup while retaining the selected standard or lazy storage owner. |
 | `v0.2.0-experimental.14` | Adds an exact-1.9 client/server build-stamp fence that refuses stale authoritative writes before body handling, reloads only clean tabs, and freezes dirty composer, draft, database, and generation state with recoverable unsent text. It retains the experimental.13 Personal appearance graph. |
@@ -257,6 +258,15 @@ main asset and build-stamp bytes, kept both SQLite inode/size pairs and three
 backup files unchanged with `quick_check=ok`, retained 21 delivered BG states
 with no active payload, and added no PM2 error-log bytes. No destructive live
 orphan purge was used as a probe.
+
+The `v0.2.0-experimental.17` candidate keeps that graph and changes only the
+module picker's platform hint. The picker intentionally leaves `accept`
+unset because iOS Files disables proprietary extensions that have no
+registered system document type. The central importer still rejects every
+extension outside exact `.json`, `.lorebook`, `.risum`, and `.charx` before
+reading or committing it. DOM tests select both `.risum` and compound
+`.module.charx`, while a separate compound-CharX test reaches character
+conversion, one fresh-ID commit, confirmed persistence, and one success.
 
 The `v0.2.0-experimental.11` checkpoint keeps that storage and activation
 contract while extending the chat-font enum with Noto Sans KR and Noto Serif

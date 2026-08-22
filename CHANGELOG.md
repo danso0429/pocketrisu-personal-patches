@@ -2,6 +2,19 @@
 
 ## Unreleased
 
+## 0.2.0-experimental.17
+
+- Leave the module import picker's `accept` hint unset so iOS Files does not
+  disable the proprietary `.risum` and `.charx` extensions. Keep exact
+  `.json` / `.lorebook` / `.risum` / `.charx` validation in the central
+  importer after selection, so broad picker visibility does not broaden the
+  accepted or persisted formats.
+- Add DOM regressions for selectable `.risum` and compound `.module.charx`, a
+  successful compound-CharX conversion/commit path, and the existing silent
+  picker-cancel contract. The exact-1.10 disposable target passes 13 module
+  lifecycle tests, 26 adjacent RisuM/CharX/shared-owner tests, Svelte 0/0, and
+  the 7,918-module production build.
+
 ## 0.2.0-experimental.16
 
 - Rebase the rolling aggregate onto exact PocketRisu 1.10.0 while retaining
