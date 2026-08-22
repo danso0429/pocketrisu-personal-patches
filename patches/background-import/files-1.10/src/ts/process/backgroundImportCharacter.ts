@@ -13,6 +13,7 @@ export interface CharacterPreparationDependencies {
 
 export interface CharacterPreparationOptions {
     image?: Uint8Array
+    imageAsset?: string
     mode?: 'normal' | 'hub'
     assetDict?: Readonly<Record<string, string>>
     overrideLorebook?: loreBook[] | null
@@ -173,7 +174,7 @@ export async function prepareCharacterCard(
         throw importError('IMPORT_AUTHORIZATION_REQUIRED', 'Low-level character import requires authorization')
     }
 
-    let image = options.image ? await deps.saveAsset(options.image) : undefined
+    let image = options.imageAsset ?? (options.image ? await deps.saveAsset(options.image) : undefined)
     const emotions: [string, string][] = []
     const bias: [string, number][] = risu?.bias ?? []
     const viewScreen = risu?.viewScreen ?? 'none'
