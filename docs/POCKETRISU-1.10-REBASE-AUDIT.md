@@ -1,8 +1,8 @@
 # PocketRisu 1.10.0 rebase and live-cutover audit
 
-> **Status:** Official 1.10.0 remains the live base without personal patches.
-> Exact-target adaptation and aggregate automatic qualification are complete;
-> commit/push, safe live apply, and device L3 remain.
+> **Status:** Official 1.10.0 plus the `v0.2.0-experimental.16` rolling `all`
+> graph is live. Exact-target adaptation, automatic qualification, commit/push,
+> and process-first live apply are complete; device L3 and stable release remain.
 >
 > **Date:** 2026-08-22 KST
 >

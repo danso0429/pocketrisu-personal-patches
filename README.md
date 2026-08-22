@@ -248,6 +248,16 @@ existing database still requires the fresh verified snapshot or the existing
 bounded one-use acknowledgement. Stable tag/release and device L3 remain
 separate gates.
 
+The same `.16` graph is now live after an active-work-zero preflight,
+application-only rollback, process-first stop, transactional 35-pack apply,
+and rolling-all intent update. The stopped tree repeated the 1,609 frontend,
+177 server, 74 compatibility, Svelte 0/0, build, BG bundle, production-prune,
+current-status, and zero-change gates. Restart readback matched served/local
+main asset and build-stamp bytes, kept both SQLite inode/size pairs and three
+backup files unchanged with `quick_check=ok`, retained 21 delivered BG states
+with no active payload, and added no PM2 error-log bytes. No destructive live
+orphan purge was used as a probe.
+
 The `v0.2.0-experimental.11` checkpoint keeps that storage and activation
 contract while extending the chat-font enum with Noto Sans KR and Noto Serif
 KR. Both Noto choices cover the Korean, Japanese, Chinese, Latin, and extended
