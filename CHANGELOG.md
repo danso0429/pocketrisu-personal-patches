@@ -2,6 +2,38 @@
 
 ## Unreleased
 
+## 0.2.0-experimental.16
+
+- Rebase the rolling aggregate onto exact PocketRisu 1.10.0 while retaining
+  native structured-clone storage, iterative large-lorebook diffing, SQLite
+  disk-spill VACUUM, orphan purge, and reference safety.
+- Add the independent `charx-archive-integrity` hardening pack with pinned
+  zip.js 2.8.55, central-directory/local/CRC/overlap validation, explicit
+  ZIP/JPEG handling, resource bounds, terminal receipts, and synthetic
+  adversarial fixtures. Record that the reported exact original was not
+  available.
+- Expand `character-import-ux` into one shared character/module import lease.
+  Centralize picker/drop/hash/share/launch module inputs, stage RisuM parsing
+  before asset writes, preserve low-level confirmation, commit one fresh ID,
+  and wait for confirmed module persistence before the single toast succeeds.
+- Repair service-worker module share GET, prevent false CharX/RisuM success,
+  and keep post-commit persistence failures visible without deleting the
+  in-memory module or shared content-addressed assets.
+- Preserve the native 1.10 persona selection clamp and duplicate action in the
+  organizer. Union persona galleries and folder icons into the server orphan
+  purge/settings-backup walker and cover it with an exact-target compat test.
+- Fence the native purge writer and caller. Add an exact-1.10 point-in-time
+  maintenance variant that retains the 2.2× disk gate, temporary-file VACUUM,
+  both checkpoints, and pinned-reader conflict. Allow only a truly empty
+  server's first import to skip a nonexistent rollback snapshot.
+- Pass 41/41 patcher test files, 1,609 frontend tests, 177 server tests, 74
+  compatibility tests, Svelte 0/0 diagnostics, a 7,918-module build, and an
+  8,555 KB BG bundle load check. The maximum graph is 35 packs / 716 units /
+  267 managed paths with a zero-change re-plan and exact revert.
+- Skip the exhaustive raw-selection combination verifier by explicit user
+  instruction. Do not interpret the maximum-graph and focused-composition
+  passes as exhaustive subset coverage.
+
 ## 0.2.0-experimental.15
 
 - Add the hidden exact-PocketRisu-1.9 `server-backup-snapshot-core` plus exactly

@@ -2,7 +2,7 @@
 
 Private, composable patch delivery for PocketRisu NodeOnly. The current
 stable release is `v0.1.7`, and its manifests target PocketRisu `v1.8.1`.
-The current development checkpoint is `v0.2.0-experimental.15`.
+The current development checkpoint is `v0.2.0-experimental.16`.
 
 ## Universal installer and compatibility presets
 
@@ -22,10 +22,12 @@ The older named artifacts remain preset wrappers:
 
 - `pocketrisu-features.cjs` manages `lazy-chat-sync` (including startup cache),
   `persona-organizer`, `character-organizer`, `character-import-ux`,
-  `personal-settings`, and `preset-integrity`.
+  `personal-settings`, and `preset-integrity`. Character and module imports
+  share one non-blocking import lease and terminal persistence contract.
   An existing bg-preserve installation remains an external layer.
-- `pocketrisu-hardening.cjs` manages the exact-1.9
-  `client-build-fence`, `parser-hardening`, and `toolchain-hardening` packs.
+- `pocketrisu-hardening.cjs` manages `client-build-fence`,
+  `parser-hardening`, `toolchain-hardening`, and the independent
+  `charx-archive-integrity` pack.
 - `pocketrisu-all.cjs` combines the feature packs, parser and toolchain
   hardening, the client build fence,
   bg-preserve `v1.0.1`, and the `lazy-chat-bg-adapter` durable-save barrier.
@@ -37,6 +39,7 @@ not separate implementations.
 
 | Release | What changed |
 | --- | --- |
+| `v0.2.0-experimental.16` | Rebases the rolling aggregate onto PocketRisu 1.10.0, adds central-indexed CharX integrity and one terminal module-import toast/persistence flow, preserves native purge/VACUUM/persona-duplicate behavior, and requalifies the maximum graph without publishing a stable release. |
 | `v0.2.0-experimental.15` | Adds a hidden exact-1.9 point-in-time backup source that pins one SQLite/WAL and verified filesystem epoch for native downloads, settings export/estimate, and server-file backup while retaining the selected standard or lazy storage owner. |
 | `v0.2.0-experimental.14` | Adds an exact-1.9 client/server build-stamp fence that refuses stale authoritative writes before body handling, reloads only clean tabs, and freezes dirty composer, draft, database, and generation state with recoverable unsent text. It retains the experimental.13 Personal appearance graph. |
 | `v0.2.0-experimental.13` | Adds IBM Plex Sans KR, Gowun Dodum, Gowun Batang, and Hahmlet as on-demand chat-font choices. The preview is now named Font preview, stays hidden for the app-font selection, and appears immediately below Chat font for any other choice. |
@@ -210,6 +213,40 @@ database and backup metadata with both SQLite checks `ok`, left no private
 pin, and added no PM2 error-log bytes. A non-writing authenticated settings
 estimate returned 200 and released its source. Actual server-file backup,
 background/return, and P1 clean/dirty cross-build behavior remain device L3.
+
+The `v0.2.0-experimental.16` candidate targets pristine PocketRisu `1.10.0`.
+Its rolling `all` graph resolves 35 packs into 716 units across 267 managed
+paths with 12 deterministic ordering collisions. Exact apply, current status,
+zero-change re-plan, and byte/mode revert pass. The user explicitly waived the
+raw-selection combination verifier for this installation, so this checkpoint
+does not claim exhaustive subset coverage; the maximum aggregate and focused
+CharX/module/BG/toolchain compositions were still exercised directly.
+
+The aggregate candidate passes 41/41 patcher test files, 136 frontend files
+with 1,609 tests, 13 server files with 177 tests, and 74 compatibility tests
+with five environment-dependent skips. Svelte diagnostics are 0 errors and 0
+warnings, the production frontend transforms 7,918 modules, the BG
+orchestration bundle builds to 8,555 KB and loads `sendChat`, and the help-key
+audit reports no missing English/Korean keys. Four generated installers are
+syntax-valid and byte-identical across consecutive builds.
+
+CharX integrity uses pinned `@zip.js/zip.js` 2.8.55 without workers, strict
+central/local/CRC/overlap checks, bounded metadata and one-entry-at-a-time
+storage. Independent synthetic fixtures and the iPhone 4/16/48 MiB spike pass;
+the unavailable reported problem original remains explicitly unverified.
+Module import now reserves the shared character/module lease before the file
+picker, routes picker/drop/hash/share/launch inputs through one orchestrator,
+keeps low-level authorization modal, commits once with a fresh ID, and reports
+success only after the lazy storage owner confirms and flushes that module.
+
+The 1.10 rebase retains native `structuredClone`, large-lorebook iteration,
+SQLite disk-spill VACUUM, orphan purge, client-build fencing of the purge
+caller, and the native persona duplicate/clamp. The server asset walker unions
+native persona fields with organizer galleries and folder icons. Empty-server
+first import skips a meaningless pre-restore snapshot, while replacement of an
+existing database still requires the fresh verified snapshot or the existing
+bounded one-use acknowledgement. Stable tag/release and device L3 remain
+separate gates.
 
 The `v0.2.0-experimental.11` checkpoint keeps that storage and activation
 contract while extending the chat-font enum with Noto Sans KR and Noto Serif

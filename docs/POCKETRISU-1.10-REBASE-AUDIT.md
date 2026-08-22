@@ -1,7 +1,8 @@
 # PocketRisu 1.10.0 rebase and live-cutover audit
 
-> **Status:** Official 1.10.0 is live without personal patches. Target
-> qualification and patch adaptation have not started.
+> **Status:** Official 1.10.0 remains the live base without personal patches.
+> Exact-target adaptation and aggregate automatic qualification are complete;
+> commit/push, safe live apply, and device L3 remain.
 >
 > **Date:** 2026-08-22 KST
 >
@@ -9,7 +10,33 @@
 > packs/adapters, the latest live 1.9 `all` state, and the operational cutover
 > to pristine 1.10.0.
 
-## Outcome
+## Qualification addendum
+
+The initial audit below is preserved as the cutover-time diagnosis. It has now
+been acted on by `v0.2.0-experimental.16`:
+
+- CharX archive integrity and shared module-import UX were implemented and
+  pushed in separate commits;
+- exact 1.10 lazy replacements retain the native structured clone, iterative
+  large-lorebook diff, SQLite disk-spill, orphan purge, and reference guards;
+- purge is fenced at its server writer and dashboard caller;
+- native persona duplicate/clamp behavior is integrated with organizer
+  galleries/folders, including the server purge/settings-backup walker;
+- point-in-time maintenance has an exact 1.10 variant preserving the 2.2× disk
+  gate, temporary-file VACUUM, checkpoints, and pinned-reader conflict;
+- empty-server first import no longer asks for an impossible rollback snapshot,
+  while replacement restores keep the fresh-snapshot/one-use acknowledgement
+  contract; and
+- the maximum graph passes 35 packs / 716 units / 267 managed paths, 1,609
+  frontend tests, 177 server tests, 74 compatibility tests, Svelte 0/0,
+  7,918-module build, BG bundle load, zero-change re-plan, and exact revert.
+
+The user explicitly waived the exhaustive raw-selection combination verifier.
+That step in the ordered plan is therefore a recorded residual risk, not a
+claimed pass. See
+`docs/POCKETRISU-1.10-CHARX-MODULE-ALL-VALIDATION.md` for the detailed receipt.
+
+## Initial cutover outcome
 
 PocketRisu 1.10.0 is now the live base. The former 1.9 aggregate candidate was
 transactionally reverted before the source upgrade. The live patch state is
