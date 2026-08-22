@@ -20,7 +20,7 @@ test('character import UX is a separate lazy-chat-dependent feature pack', () =>
     assert.deepEqual(manifest.targets, {
         pocketrisu: {
             verified: ['1.8.1', '1.9.0'],
-            reviewing: [],
+            reviewing: ['1.10.0'],
         },
     })
     assert.equal(manifest.userSelectable, true)

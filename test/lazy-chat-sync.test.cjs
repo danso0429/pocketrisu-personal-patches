@@ -23,13 +23,20 @@ function payload190(relative) {
     )
 }
 
+function payload1100(relative) {
+    return fs.readFileSync(
+        path.join(repositoryRoot, 'patches/lazy-chat-sync/files-1.10', relative),
+        'utf8',
+    )
+}
+
 test('lazy chat pack includes CAS, WAL, reconciliation, and safe hydration boundaries', () => {
     assert.equal(lazyManifest.id, 'lazy-chat-sync')
-    assert.equal(lazyManifest.version, '0.2.0')
+    assert.equal(lazyManifest.version, '0.3.0')
     assert.deepEqual(lazyManifest.targets, {
         pocketrisu: {
             verified: ['1.8.1', '1.9.0'],
-            reviewing: [],
+            reviewing: ['1.10.0'],
         },
     })
     assert.match(payload('server/node/server.cjs'), /chatWriteJournal/)
@@ -78,7 +85,7 @@ test('lazy chat pack includes CAS, WAL, reconciliation, and safe hydration bound
     assert.match(missingPayloadNotice.content, /Your draft was kept/)
 })
 
-test('PocketRisu 1.9 replacements retain native runtime owners and lazy-chat contracts', () => {
+test('PocketRisu 1.9 and 1.10 replacements retain native runtime owners and lazy-chat contracts', () => {
     const server = payload190('server/node/server.cjs')
     const bootstrap = payload190('src/ts/bootstrap.ts')
     const globalApi = payload190('src/ts/globalApi.svelte.ts')
@@ -121,6 +128,13 @@ test('PocketRisu 1.9 replacements retain native runtime owners and lazy-chat con
     assert.match(nodeStorage, /settingsBackupEstimate/)
     assert.match(nodeStorage, /x-chat-base-revision/)
 
+    const server1100 = payload1100('server/node/server.cjs')
+    const save1100 = payload1100('src/ts/storage/risuSave.ts')
+    assert.match(server1100, /structuredClone\(dbCache\[cacheKey\]\)/)
+    assert.match(server1100, /SQLITE_TMPDIR|temp_store = FILE/)
+    assert.match(server1100, /purge-orphans/)
+    assert.match(save1100, /for \(const v of compare\(lastChar, normChar\)\)/)
+
     const versioned = lazyManifest.units.filter((unit) =>
         unit.targetVersions && [
             'server/node/server.cjs',
@@ -130,9 +144,11 @@ test('PocketRisu 1.9 replacements retain native runtime owners and lazy-chat con
             'src/ts/storage/autoStorage.ts',
             'src/ts/storage/chatStorage.ts',
             'src/ts/storage/nodeStorage.ts',
+            'src/ts/storage/risuSave.ts',
+            'src/ts/storage/risuSavePatcher.test.ts',
         ].includes(unit.file)
     )
-    assert.equal(versioned.length, 14)
+    assert.equal(versioned.length, 27)
     for (const file of new Set(versioned.map((unit) => unit.file))) {
         const variants = versioned.filter((unit) => unit.file === file)
         assert.deepEqual(
@@ -140,6 +156,7 @@ test('PocketRisu 1.9 replacements retain native runtime owners and lazy-chat con
             [
                 { pocketrisu: ['1.8.1'] },
                 { pocketrisu: ['1.9.0'] },
+                { pocketrisu: ['1.10.0'] },
             ],
         )
     }

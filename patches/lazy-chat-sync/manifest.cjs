@@ -7,6 +7,8 @@ const anchorsRoot = path.join(__dirname, 'anchors')
 const filesRoot = path.join(__dirname, 'files')
 const anchors190Root = path.join(__dirname, 'anchors-1.9')
 const files190Root = path.join(__dirname, 'files-1.9')
+const anchors1100Root = path.join(__dirname, 'anchors-1.10')
+const files1100Root = path.join(__dirname, 'files-1.10')
 const read = (root, relative) => fs.readFileSync(path.join(root, relative), 'utf8')
 
 const versionedReplacedFiles = [
@@ -17,16 +19,17 @@ const versionedReplacedFiles = [
     'src/ts/storage/autoStorage.ts',
     'src/ts/storage/chatStorage.ts',
     'src/ts/storage/nodeStorage.ts',
-]
-
-const unchangedReplacedFiles = [
-    'src/ts/storage/chatStorage.test.ts',
     'src/ts/storage/risuSave.ts',
     'src/ts/storage/risuSavePatcher.test.ts',
 ]
 
+const unchangedReplacedFiles = [
+    'src/ts/storage/chatStorage.test.ts',
+]
+
 const pocketRisu181 = { pocketrisu: ['1.8.1'] }
 const pocketRisu190 = { pocketrisu: ['1.9.0'] }
+const pocketRisu1100 = { pocketrisu: ['1.10.0'] }
 
 const ownedFiles = [
     'server/node/chatDelta.cjs',
@@ -53,11 +56,11 @@ function unitId(relative) {
 module.exports = {
     id: 'lazy-chat-sync',
     title: 'Lazy chat synchronization and startup cache',
-    version: '0.2.0',
+    version: '0.3.0',
     targets: {
         pocketrisu: {
             verified: ['1.8.1', '1.9.0'],
-            reviewing: [],
+            reviewing: ['1.10.0'],
         },
     },
     userSelectable: true,
@@ -87,6 +90,14 @@ module.exports = {
                 anchor: read(anchors190Root, relative),
                 managed: read(files190Root, relative),
                 targetVersions: pocketRisu190,
+            },
+            {
+                id: `lazy-chat-sync:replace:${unitId(relative)}:1.10`,
+                file: relative,
+                type: 'replace',
+                anchor: read(anchors1100Root, relative),
+                managed: read(files1100Root, relative),
+                targetVersions: pocketRisu1100,
             },
         ]),
         ...ownedFiles.map((relative) => ({

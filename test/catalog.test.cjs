@@ -11,9 +11,9 @@ const {
     validateProfileTransition,
 } = require('../src/catalog.cjs')
 
-test('target metadata keeps 1.8.1 verified and 1.9.0 review-only', () => {
+test('target metadata keeps 1.8.1 verified and later exact targets review-only', () => {
     assert.deepEqual(DEFAULT_TARGETS.pocketrisu.verified, ['1.8.1'])
-    assert.deepEqual(DEFAULT_TARGETS.pocketrisu.reviewing, ['1.9.0'])
+    assert.deepEqual(DEFAULT_TARGETS.pocketrisu.reviewing, ['1.9.0', '1.10.0'])
     assert.equal(Object.isFrozen(DEFAULT_TARGETS), true)
     assert.equal(Object.isFrozen(DEFAULT_TARGETS.pocketrisu), true)
     assert.equal(Object.isFrozen(DEFAULT_TARGETS.pocketrisu.verified), true)
