@@ -72,16 +72,20 @@ test('only the private maintainer gate may stage an explicitly reviewing target'
         assert.doesNotThrow(() => assertTargetReviewable(result))
     }))
 
-test('official PocketRisu 1.9.0 catalog is explicitly verified', () =>
+test('packs that still declare PocketRisu 1.9.0 remain explicitly verified', () =>
     withRoot('1.9.0', (root) => {
         const catalog = loadCatalog()
-        const expectedVerified = catalog
+        const eligible = catalog.filter((entry) =>
+            entry.targets.pocketrisu.verified.includes('1.9.0')
+            || entry.targets.pocketrisu.reviewing.includes('1.9.0')
+        )
+        const expectedVerified = eligible
             .filter((entry) => entry.targets.pocketrisu.verified.includes('1.9.0'))
             .map((entry) => entry.id)
-        const expectedReviewing = catalog
+        const expectedReviewing = eligible
             .filter((entry) => entry.targets.pocketrisu.reviewing.includes('1.9.0'))
             .map((entry) => entry.id)
-        const result = evaluateTargetCompatibility(root, catalog)
+        const result = evaluateTargetCompatibility(root, eligible)
         assert.deepEqual(expectedReviewing, [])
         assert.equal(result.status, 'verified')
         assert.deepEqual(
@@ -95,6 +99,13 @@ test('official PocketRisu 1.9.0 catalog is explicitly verified', () =>
         assert.deepEqual(result.reviewRequiredPacks, [])
         assert.doesNotThrow(() => assertTargetVerified(result))
         assert.doesNotThrow(() => assertTargetReviewable(result))
+
+        const rollingCatalog = evaluateTargetCompatibility(root, catalog)
+        assert.equal(rollingCatalog.status, 'review-required')
+        assert.deepEqual(
+            rollingCatalog.reviewRequiredPacks.map((entry) => entry.id),
+            ['charx-archive-integrity'],
+        )
     }))
 
 test('an unlisted PocketRisu patch release remains outside the maintainer gate', () =>

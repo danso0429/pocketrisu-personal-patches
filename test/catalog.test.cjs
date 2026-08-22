@@ -24,6 +24,7 @@ test('profiles share one catalog but have different ownership boundaries', () =>
     const catalog = loadCatalog()
     assert.deepEqual(catalog.map((pack) => pack.id), [
         'bg-preserve',
+        'bg-preserve-legacy-charx-adapter',
         'bg-preserve-storage-base',
         'client-build-fence',
         'client-build-fence-bg-adapter',
@@ -44,6 +45,7 @@ test('profiles share one catalog but have different ownership boundaries', () =>
         'preset-integrity',
         'parser-hardening',
         'toolchain-hardening',
+        'charx-archive-integrity',
         'kei-stream-parser-core',
         'kei-stream-parser-base-adapter',
         'kei-stream-parser-bg-adapter',
@@ -87,7 +89,7 @@ test('profiles share one catalog but have different ownership boundaries', () =>
     )
     assert.deepEqual(
         resolveProfile('hardening', catalog).defaults,
-        ['client-build-fence', 'parser-hardening', 'toolchain-hardening'],
+        ['client-build-fence', 'parser-hardening', 'toolchain-hardening', 'charx-archive-integrity'],
     )
     assert.throws(
         () => validateProfileSelection(resolveProfile('hardening', catalog), ['lazy-chat-sync']),

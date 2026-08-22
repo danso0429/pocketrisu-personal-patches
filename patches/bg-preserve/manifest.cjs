@@ -12,6 +12,7 @@ const owned = (relative) => fs.readFileSync(path.join(filesRoot, relative), 'utf
 
 const pocketRisu181 = { pocketrisu: ['1.8.1'] }
 const pocketRisu190 = { pocketrisu: ['1.9.0'] }
+const legacyCharxCauseUnit = 'bg-preserve:hook:processzip-asset-save-aggregate-cause'
 
 function replaceExact(source, anchor, replacement, label) {
     const count = source.split(anchor).length - 1
@@ -959,6 +960,7 @@ function expandRelations(unit) {
 }
 
 const units = base.units.flatMap((rawUnit) => {
+    if (rawUnit.id === legacyCharxCauseUnit) return []
     const unit = adaptUniversalUnit(adaptOwned(rawUnit))
     const create190 = variant190.get(unit.id)
     if (create190) {
@@ -1149,7 +1151,7 @@ export async function sendChatWithDirectLifecycle(
 
 module.exports = {
     ...base,
-    version: 'v1.0.1-patcher.7',
+    version: 'v1.0.1-patcher.8',
     source: 'bg-preserve-install.cjs + PocketRisu 1.9 authority adapter',
     targets: {
         pocketrisu: {

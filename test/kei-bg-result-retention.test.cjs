@@ -32,7 +32,7 @@ function sha256(value) {
 }
 
 test('K29-F05 is exact-1.9 owner-local and leaves the imported 1.8 payload unchanged', () => {
-    assert.equal(manifest.version, 'v1.0.1-patcher.7')
+    assert.equal(manifest.version, 'v1.0.1-patcher.8')
     const imported = fs.readFileSync(path.join(__dirname, '..', 'patches', 'bg-preserve.json'))
     assert.equal(sha256(imported), '06c482b32e3d3a7e045ce7b3e18b173e9af63205ac68a3dd34fef055cb29efa4')
 

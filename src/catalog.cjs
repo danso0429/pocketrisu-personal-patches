@@ -50,6 +50,7 @@ function validateProfileMetadata(catalog) {
 function loadCatalog(repositoryRoot = path.resolve(__dirname, '..')) {
     const catalog = [
         require(path.join(repositoryRoot, 'patches/bg-preserve/manifest.cjs')),
+        require(path.join(repositoryRoot, 'patches/bg-preserve-legacy-charx-adapter/manifest.cjs')),
         require(path.join(repositoryRoot, 'patches/bg-preserve-storage-base/manifest.cjs')),
         require(path.join(repositoryRoot, 'patches/client-build-fence/manifest.cjs')),
         require(path.join(repositoryRoot, 'patches/client-build-fence-bg-adapter/manifest.cjs')),
@@ -70,6 +71,7 @@ function loadCatalog(repositoryRoot = path.resolve(__dirname, '..')) {
         require(path.join(repositoryRoot, 'patches/preset-integrity/manifest.cjs')),
         require(path.join(repositoryRoot, 'patches/parser-hardening/manifest.cjs')),
         require(path.join(repositoryRoot, 'patches/toolchain-hardening/manifest.cjs')),
+        require(path.join(repositoryRoot, 'patches/charx-archive-integrity/manifest.cjs')),
         require(path.join(repositoryRoot, 'patches/kei-stream-parser-core/manifest.cjs')),
         require(path.join(repositoryRoot, 'patches/kei-stream-parser-base-adapter/manifest.cjs')),
         require(path.join(repositoryRoot, 'patches/kei-stream-parser-bg-adapter/manifest.cjs')),

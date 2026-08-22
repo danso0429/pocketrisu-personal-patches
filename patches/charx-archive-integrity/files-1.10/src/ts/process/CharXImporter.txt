@@ -1,0 +1,71 @@
+export class CharXImporter{
+    assets:{[key:string]:string} = {}
+    excludedFiles:string[] = []
+    cardData:string|undefined
+    moduleData:Uint8Array|undefined
+    alertInfo:boolean = false
+    skipSaving:boolean = false
+    hashSignal:string|undefined
+    private completionPromise?:Promise<CharXImportReceipt>
+    private onProgress?:(done:number, total:number) => void
+
+    /**
+     * High-level terminal import. Results are published only after archive
+     * validation, all selected saves, the optional module read, and reader
+     * close have settled.
+     */
+    async import(
+        data:Uint8Array|File|ReadableStream<Uint8Array>,
+        container:CharXContainerHint = 'zip',
+    ):Promise<CharXImportReceipt>{
+        if(data instanceof ReadableStream){
+            throw new CharXArchiveError(
+                'CHARX_UNSUPPORTED_ARCHIVE',
+                'Indexed CharX import requires a File or Uint8Array source',
+            )
+        }
+        this.assets = {}
+        this.cardData = undefined
+        this.moduleData = undefined
+        const operation = importCharX(charXSource(data, container), {
+            skipSaving: this.skipSaving,
+            hashSignal: this.hashSignal,
+            saveAsset: (value) => saveAsset(value),
+            hashAsset: (value) => hasher(value),
+            onProgress: (progress) => {
+                if(progress.phase !== 'saving') return
+                this.onProgress?.(progress.completedAssets, progress.totalAssets)
+                if(this.alertInfo){
+                    alertStore.set({
+                        type: 'wait',
+                        msg: `Loading... (Saving Assets ${progress.completedAssets}/${progress.totalAssets})`
+                    })
+                }
+            },
+        })
+        this.completionPromise = operation
+        const receipt = await operation
+        this.cardData = JSON.stringify(receipt.card)
+        this.moduleData = receipt.moduleData
+        this.assets = Object.fromEntries(receipt.assets)
+        return receipt
+    }
+
+    /**
+     * High-level method to parse ZIP data from various sources.
+     * Kept as an awaited compatibility facade for older callers.
+     */
+    async parse(
+        data:Uint8Array|File|ReadableStream<Uint8Array>,
+        container:CharXContainerHint = 'zip',
+    ):Promise<void>{
+        await this.import(data, container)
+    }
+
+    async done():Promise<void>{
+        if(!this.completionPromise){
+            throw new Error('parse() or import() must be called before done()')
+        }
+        await this.completionPromise
+    }
+}
