@@ -10,7 +10,7 @@ Date: 2026-08-22
   `docs/POCKETRISU-1.9-CHARX-ARCHIVE-INTEGRITY-IMPLEMENTATION-PLAN.md`.
 - Module import UX authority:
   `docs/POCKETRISU-1.9-MODULE-IMPORT-UX-IMPLEMENTATION-PLAN.md`.
-- This checkpoint is `v0.2.0-experimental.16`; it is not a stable tag or
+- This checkpoint is `v0.2.0-experimental.17`; it is not a stable tag or
   release.
 
 The user explicitly waived the exhaustive raw-selection combination verifier
@@ -136,8 +136,10 @@ All four passed `node --check`; consecutive builds were byte-identical.
 - Exact-original CharX validation remains unavailable.
 - Exhaustive raw-selection combination verification was skipped by explicit
   user instruction; this is the principal composition residual risk.
-- Physical module/CharX/persona/fence/BG iPhone L3 remains required before a
-  stable tag or release.
+- The `.17` iOS picker L3 for real `.risum` and `.module.charx` selection,
+  import, notification, and reload persistence passed. Ordinary character
+  CharX, persona, fence, and BG aggregate L3 remain before a stable tag or
+  release.
 
 ## Live application receipt
 
@@ -254,5 +256,11 @@ PM2 logrotate moved the 800,987-byte pre-transition error log into its dated
 rotation at 2026-08-23 00:00 KST while the process was stopped. The active log
 then remained at zero bytes through restart verification, so the receipt uses
 the rotated file plus zero new active-log bytes rather than claiming one
-unchanged pathname size. Physical iPhone selection and import of real `.risum`
-and `.module.charx` files remain the final check for this follow-up.
+unchanged pathname size.
+
+At 2026-08-23 00:55 KST, the user reported every requested follow-up check
+normal on the iPhone: real `.risum` and `.module.charx` files were selectable,
+the import flow and top notification completed normally, and the imported
+module remained after reload. This closes the physical picker follow-up. It
+does not close the separately scoped ordinary-character CharX, persona,
+cross-build fence, or BG background/return aggregate L3 rows.

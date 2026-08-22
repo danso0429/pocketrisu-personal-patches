@@ -261,9 +261,8 @@ orphan purge was used as a probe.
 
 The `v0.2.0-experimental.17` follow-up is live and keeps that graph while
 changing only the module picker's platform hint. The picker intentionally
-leaves `accept`
-unset because iOS Files disables proprietary extensions that have no
-registered system document type. The central importer still rejects every
+leaves `accept` unset because iOS Files disables proprietary extensions that
+have no registered system document type. The central importer still rejects every
 extension outside exact `.json`, `.lorebook`, `.risum`, and `.charx` before
 reading or committing it. DOM tests select both `.risum` and compound
 `.module.charx`, while a separate compound-CharX test reaches character
@@ -274,6 +273,10 @@ generated-installer plan. Restart readback matched the served/local main asset
 and build stamp, kept both databases and three backups unchanged, retained 21
 delivered BG states with no payload, and added no bytes to the newly rotated
 PM2 error log.
+The user then confirmed on iPhone that real `.risum` and `.module.charx` files
+were selectable, imported with the top notification, and remained after
+reload. This closes the picker follow-up L3 only; the other aggregate device
+rows still gate a stable release.
 
 The `v0.2.0-experimental.11` checkpoint keeps that storage and activation
 contract while extending the chat-font enum with Noto Sans KR and Noto Serif

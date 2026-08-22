@@ -3,7 +3,8 @@
 > **Status:** Official 1.10.0 plus the `v0.2.0-experimental.17` rolling `all`
 > graph is live. Exact-target adaptation, automatic qualification, commit/push,
 > the iOS proprietary-module picker correction, and process-first live apply are
-> complete; device L3 and stable release remain.
+> complete. The picker follow-up passed iPhone L3; the remaining aggregate
+> device L3 and stable release remain.
 >
 > **Date:** 2026-08-22 KST
 >

@@ -14,6 +14,9 @@
   picker-cancel contract. The exact-1.10 disposable target passes 13 module
   lifecycle tests, 26 adjacent RisuM/CharX/shared-owner tests, Svelte 0/0, and
   the 7,918-module production build.
+- Record the iPhone L3 pass for real `.risum` and `.module.charx` selection,
+  top-notification import, and reload persistence without promoting unrelated
+  aggregate device rows or a stable release.
 
 ## 0.2.0-experimental.16
 
