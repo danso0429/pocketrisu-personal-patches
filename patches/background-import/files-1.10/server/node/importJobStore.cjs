@@ -412,6 +412,25 @@ function createImportJobStore({ dbPath, now = Date.now } = {}) {
         })()
     }
 
+    function markReconcileRequired(operationId, { code = 'IMPORT_RECONCILIATION_REQUIRED', detail = '' } = {}) {
+        if (typeof code !== 'string' || !ERROR_CODE_PATTERN.test(code)) {
+            fail('IMPORT_ERROR_INVALID', 'Import reconciliation code is invalid')
+        }
+        return db.transaction(() => {
+            const job = requireJob(operationId)
+            if (job.state === 'reconcile-required') return job
+            if (!['prepared', 'committing'].includes(job.state)) {
+                fail('IMPORT_STATE_CONFLICT', 'Import cannot enter reconciliation')
+            }
+            db.prepare(`
+                UPDATE import_jobs
+                SET state = 'reconcile-required', error_code = ?, error_detail = ?, updated_at = ?
+                WHERE operation_id = ?
+            `).run(code, sanitizeErrorDetail(detail), now(), operationId)
+            return requireJob(operationId)
+        })()
+    }
+
     function claimResult(operationId, consumerId, ttlMs) {
         if (!validOperationId(consumerId)) fail('IMPORT_INVALID_CONSUMER', 'Invalid result consumer')
         if (!Number.isSafeInteger(ttlMs) || ttlMs <= 0) fail('IMPORT_CLAIM_INVALID', 'Invalid claim TTL')
@@ -556,6 +575,7 @@ function createImportJobStore({ dbPath, now = Date.now } = {}) {
         markPrepared,
         markCommitting,
         markCompleted,
+        markReconcileRequired,
         claimResult,
         heartbeatClaim,
         markClientReconciled,

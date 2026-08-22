@@ -60,6 +60,19 @@ function createPreparedImportStore({ root } = {}) {
         return path.join(stagingDir(operationId), 'prepared.json')
     }
 
+    function resolveAssetPath(operationId, relativePath) {
+        validateId(operationId)
+        const prefix = `${operationId}/`
+        if (typeof relativePath !== 'string' || !relativePath.startsWith(prefix)) {
+            fail('IMPORT_PREPARED_PATH_INVALID', 'Prepared asset path is invalid')
+        }
+        const basename = relativePath.slice(prefix.length)
+        if (!basename || basename.includes('/') || basename.includes('\\')) {
+            fail('IMPORT_PREPARED_PATH_INVALID', 'Prepared asset path is invalid')
+        }
+        return path.join(stagingDir(operationId), basename)
+    }
+
     async function initRoot() {
         await fsp.mkdir(root, { recursive: true, mode: 0o700 })
         const stat = await fsp.lstat(root)
@@ -178,6 +191,7 @@ function createPreparedImportStore({ root } = {}) {
     return {
         stagingDir,
         preparedPath,
+        resolveAssetPath,
         write,
         read,
         remove,

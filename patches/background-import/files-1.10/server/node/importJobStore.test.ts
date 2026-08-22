@@ -175,6 +175,33 @@ describe('durable import job store', () => {
         store.close()
     })
 
+    test('commit conflict parks a durable reconcile-required state', async () => {
+        const { store } = await owner()
+        store.createJob(coordinates())
+        store.advanceUpload('import_operation_001', 0, 4096)
+        store.beginUploadFinalization('import_operation_001', 'a'.repeat(64))
+        store.markUploaded('import_operation_001', 'a'.repeat(64))
+        store.beginInspection('import_operation_001')
+        store.finishInspection('import_operation_001', { authorizationRequired: false })
+        store.beginPreparing('import_operation_001')
+        store.markPrepared('import_operation_001', {
+            preparedDigest: 'b'.repeat(64), entityId: 'module-id',
+        })
+        store.markCommitting('import_operation_001')
+        store.markReconcileRequired('import_operation_001', {
+            code: 'IMPORT_COMMIT_CONFLICT', detail: 'same ID differs',
+        })
+        expect(store.getJob('import_operation_001')).toMatchObject({
+            state: 'reconcile-required',
+            errorCode: 'IMPORT_COMMIT_CONFLICT',
+            errorDetail: 'same ID differs',
+        })
+        expect(store.listRecoverable().map((job: any) => job.operationId))
+            .toContain('import_operation_001')
+        expectCode(() => store.markCommitting('import_operation_001'), 'IMPORT_STATE_CONFLICT')
+        store.close()
+    })
+
     test('result claim, heartbeat, reconciliation, and ACK are exact-consumer operations', async () => {
         const { store, setNow } = await owner()
         store.createJob(coordinates())
