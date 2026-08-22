@@ -1,5 +1,14 @@
 # PocketRisu Kei integration status and next plan
 
+> **Superseded live boundary — 2026-08-22 KST:** Official PocketRisu 1.10.0
+> (`98e968339d1b3f91b9dac85bb3f2ebb5f90f9d14`) is now the pristine live
+> base. The latest 1.9 `all` state was transactionally reverted before the
+> upgrade; live patch state is absent and intent is an empty custom selection.
+> No 1.9 pack is qualified for 1.10. The current investigation authority and
+> ordered rebase plan are `docs/POCKETRISU-1.10-REBASE-AUDIT.md` on
+> `codex/pocketrisu-1.10-audit`. The 1.9 status below remains historical
+> evidence and must not be read as the current live state.
+>
 > **Status date:** 2026-08-08 KST
 >
 > **Planning authority:** `docs/POCKETRISU-KEI-INTEGRATION-CATALOG.md`

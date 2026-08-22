@@ -1,5 +1,13 @@
 # PocketRisu 1.9 / Kei integration session handoff
 
+> **Superseded live boundary — 2026-08-22 KST:** The 1.9 aggregate candidate
+> described here is no longer live. It was transactionally reverted and the
+> server was moved to pristine official PocketRisu 1.10.0. Preserve this file
+> as the exact 1.9 evidence source; resume target work from
+> `docs/POCKETRISU-1.10-REBASE-AUDIT.md` on
+> `codex/pocketrisu-1.10-audit`. No current 1.9 installer is qualified for
+> 1.10, and live patch intent is an empty custom selection.
+>
 > **Handoff date:** 2026-08-08 KST
 >
 > **Next patcher branch:** `codex/pocketrisu-1.9-rebase`
