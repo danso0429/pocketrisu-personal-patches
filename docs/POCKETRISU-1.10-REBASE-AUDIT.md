@@ -1,8 +1,9 @@
 # PocketRisu 1.10.0 rebase and live-cutover audit
 
-> **Status:** Official 1.10.0 plus the `v0.2.0-experimental.16` rolling `all`
+> **Status:** Official 1.10.0 plus the `v0.2.0-experimental.17` rolling `all`
 > graph is live. Exact-target adaptation, automatic qualification, commit/push,
-> and process-first live apply are complete; device L3 and stable release remain.
+> the iOS proprietary-module picker correction, and process-first live apply are
+> complete; device L3 and stable release remain.
 >
 > **Date:** 2026-08-22 KST
 >

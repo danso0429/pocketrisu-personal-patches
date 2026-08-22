@@ -194,3 +194,65 @@ No live orphan-purge POST was issued: that endpoint is destructive if its
 guards fail. Its server/caller fence is covered by the seven-case HTTP fence
 suite, and real persona icon/gallery/folder preservation is covered by the
 exact-1.10 purge/settings-export compatibility test.
+
+## iOS proprietary module picker follow-up
+
+The first physical module-import attempt exposed a picker-boundary regression:
+iOS Files opened, enabled JSON, and disabled `.risum` plus `.module.charx`.
+Selecting an unrelated enabled JSON then reached the central parser and
+correctly failed as an unsupported module JSON format. The parser and terminal
+save flow were therefore reachable, but the browser's restrictive `accept`
+hint prevented the intended proprietary files from reaching them.
+
+`character-import-ux` 0.2.1 leaves the module file input's `accept` attribute
+unset. Exact `.json`, `.lorebook`, `.risum`, and `.charx` validation remains in
+the central importer after selection and before any read or commit; making a
+file visible in the picker does not make an unsupported extension admissible.
+
+The `v0.2.0-experimental.17` verification observed:
+
+- 41/41 patcher test files;
+- exact-1.10 disposable module lifecycle 13/13, including selectable `.risum`,
+  selectable compound `.module.charx`, silent picker cancel, and a successful
+  compound-CharX conversion / one-commit / one-success path;
+- adjacent staged RisuM, terminal CharX session, and shared import owner 26/26;
+- Svelte 0 errors / 0 warnings and a 7,918-module production build; and
+- two byte-identical, syntax-valid generations of all four installers.
+
+| Artifact | Bytes | SHA-256 |
+| --- | ---: | --- |
+| `pocketrisu-patcher.cjs` | 7,208,049 | `5781521db66d4d78dc11df2167a877fdd40694743ac6b93f20d75ea0ad9fc2bf` |
+| `pocketrisu-features.cjs` | 7,208,055 | `7edfba328c4ebb97e462b9828e130d565f8a94ac5d87da26604e6b84a9f852dc` |
+| `pocketrisu-hardening.cjs` | 7,208,056 | `b99ef4df73723962397df4be75368cd62356567168911e307fe0b4aa501da24f` |
+| `pocketrisu-all.cjs` | 7,208,050 | `c24c9bb866de26c58c7977af37c62b19c328e73691fa1ec80cf472936833ddd0` |
+
+Before the follow-up live transition, PM2 was online at PocketRisu 1.10.0 with
+active requests 0, native running jobs 0, pending sends 0, BG result payloads
+0, and all 21 BG states delivered. The new application-only rollback
+`risuai-nodeonly-v1100-all-pre-picker-fix.20260822-235320` contains 1,607 files
+/ 326,359,914 bytes, excludes `save/`, `backups/`, and `node_modules/`, and
+retains the private pre-transition state and intent separately at mode 0600.
+
+PM2 was stopped before the transactional transition. It changed only
+`src/ts/process/modules.ts`, `src/ts/process/moduleImport.ts`,
+`src/ts/process/moduleImport.test.ts`, and private patch state. The stopped live
+tree repeated the focused 39/39 tests, Svelte 0/0, 7,918-module build, 8,555 KB
+BG bundle/load check, production prune, current status, and zero-change
+716-unit generated-installer plan.
+
+After restart, PM2 reported version 1.10.0 online, unstable restarts 0, and
+active requests 0. Root returned 200; served/local
+`index-HzofH5Bv.js` matched at 2,018,974 bytes and SHA-256
+`4452ce04a4f0620d8f81ad4aeccaaf7a2982064a60c2625ca823127a0f274fb0`.
+Served/local build stamps matched at
+`1.10.0-0f3b58ff3629ca96c049d3707df7da0e88f8f616a5e0055780b0d170cbe4b0ef`.
+Both SQLite inode/size pairs and `quick_check=ok`, all three backup files and
+their aggregate bytes, the 21 delivered BG states, zero active/pending/result
+payloads, and the absence of nested `save/save` remained unchanged.
+
+PM2 logrotate moved the 800,987-byte pre-transition error log into its dated
+rotation at 2026-08-23 00:00 KST while the process was stopped. The active log
+then remained at zero bytes through restart verification, so the receipt uses
+the rotated file plus zero new active-log bytes rather than claiming one
+unchanged pathname size. Physical iPhone selection and import of real `.risum`
+and `.module.charx` files remain the final check for this follow-up.

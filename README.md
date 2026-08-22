@@ -259,14 +259,21 @@ backup files unchanged with `quick_check=ok`, retained 21 delivered BG states
 with no active payload, and added no PM2 error-log bytes. No destructive live
 orphan purge was used as a probe.
 
-The `v0.2.0-experimental.17` candidate keeps that graph and changes only the
-module picker's platform hint. The picker intentionally leaves `accept`
+The `v0.2.0-experimental.17` follow-up is live and keeps that graph while
+changing only the module picker's platform hint. The picker intentionally
+leaves `accept`
 unset because iOS Files disables proprietary extensions that have no
 registered system document type. The central importer still rejects every
 extension outside exact `.json`, `.lorebook`, `.risum`, and `.charx` before
 reading or committing it. DOM tests select both `.risum` and compound
 `.module.charx`, while a separate compound-CharX test reaches character
 conversion, one fresh-ID commit, confirmed persistence, and one success.
+The stopped live tree passed those 39 focused tests, Svelte 0/0, the
+7,918-module build, BG bundle/load, production prune, and a zero-change
+generated-installer plan. Restart readback matched the served/local main asset
+and build stamp, kept both databases and three backups unchanged, retained 21
+delivered BG states with no payload, and added no bytes to the newly rotated
+PM2 error log.
 
 The `v0.2.0-experimental.11` checkpoint keeps that storage and activation
 contract while extending the chat-font enum with Noto Sans KR and Noto Serif
