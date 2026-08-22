@@ -181,6 +181,31 @@ describe('durable import source upload', () => {
         jobStore.close()
     })
 
+    test('delivered release removes source copy without touching unrelated spool files', async () => {
+        const data = sourceBytes(4096)
+        const { root, jobStore, upload } = await setup()
+        const operationId = 'upload_release_001'
+        await upload.createJob(coordinates(operationId, data.length))
+        await upload.append(operationId, 0, data, sha(data))
+        await upload.complete(operationId, sha(data))
+        jobStore.beginInspection(operationId)
+        jobStore.finishInspection(operationId, { authorizationRequired: false })
+        jobStore.beginPreparing(operationId)
+        jobStore.markPrepared(operationId, { preparedDigest: 'b'.repeat(64), entityId: 'module-id' })
+        jobStore.markCommitting(operationId)
+        jobStore.markCompleted(operationId, { committedRevision: 'revision-1' })
+        jobStore.claimResult(operationId, 'consumer_001', 100)
+        jobStore.markClientReconciled(operationId, 'consumer_001')
+        jobStore.ackResult(operationId, 'consumer_001')
+        await fs.writeFile(path.join(root, 'spool', 'unrelated.keep'), 'preserve')
+        expect(await upload.release(operationId)).toEqual({ removed: true })
+        await expect(fs.stat(path.join(root, 'spool', `${operationId}.source`)))
+            .rejects.toMatchObject({ code: 'ENOENT' })
+        expect(await fs.readFile(path.join(root, 'spool', 'unrelated.keep'), 'utf8')).toBe('preserve')
+        expect(await upload.release(operationId)).toEqual({ removed: false })
+        jobStore.close()
+    })
+
     test('spool, partial, and completed source modes are private', async () => {
         const data = sourceBytes(4096)
         const { root, jobStore, upload } = await setup()

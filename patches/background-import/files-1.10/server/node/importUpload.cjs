@@ -300,6 +300,25 @@ function createImportUploadOwner({
         })
     }
 
+    async function release(operationId) {
+        return queue(async () => {
+            const job = jobStore.getJob(operationId)
+            if (!job) fail('IMPORT_JOB_NOT_FOUND', 'Import job not found')
+            if (!['delivered', 'failed', 'cancelled', 'incompatible-after-upgrade'].includes(job.state)) {
+                fail('IMPORT_STATE_CONFLICT', 'Import source is still active or recoverable')
+            }
+            const target = paths(operationId)
+            let removed = false
+            for (const file of [target.part, target.source]) {
+                try { await fsp.unlink(file); removed = true }
+                catch (error) { if (error.code !== 'ENOENT') throw error }
+            }
+            await init()
+            if (removed) await syncDirectory()
+            return { removed }
+        })
+    }
+
     function sourcePath(operationId) {
         const job = jobStore.getJob(operationId)
         if (!job || !SOURCE_RETAINED_STATES.has(job.state)) {
@@ -314,6 +333,7 @@ function createImportUploadOwner({
         complete,
         status,
         cancel,
+        release,
         sourcePath,
     }
 }
