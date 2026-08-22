@@ -3,9 +3,15 @@
 const fs = require('node:fs')
 const path = require('node:path')
 
-const pocketRisu190 = { pocketrisu: ['1.9.0'] }
+const pocketRisu190 = { pocketrisu: ['1.9.0', '1.10.0'] }
+const pocketRisu190Only = { pocketrisu: ['1.9.0'] }
+const pocketRisu1100 = { pocketrisu: ['1.10.0'] }
 const canonicalServer = fs.readFileSync(
     path.join(__dirname, '..', 'lazy-chat-sync', 'files-1.9', 'server', 'node', 'server.cjs'),
+    'utf8',
+)
+const canonicalServer1100 = fs.readFileSync(
+    path.join(__dirname, '..', 'lazy-chat-sync', 'files-1.10', 'server', 'node', 'server.cjs'),
     'utf8',
 )
 
@@ -16,6 +22,15 @@ function canonicalSection(start, end) {
         throw new Error('Could not locate canonical P2 server section: ' + start)
     }
     return canonicalServer.slice(startIndex, endIndex)
+}
+
+function canonicalSection1100(start, end) {
+    const startIndex = canonicalServer1100.indexOf(start)
+    const endIndex = canonicalServer1100.indexOf(end, startIndex)
+    if (startIndex < 0 || endIndex < 0) {
+        throw new Error('Could not locate canonical 1.10 P2 server section: ' + start)
+    }
+    return canonicalServer1100.slice(startIndex, endIndex)
 }
 
 function readFragment(relative, marker) {
@@ -41,7 +56,14 @@ function createServerBackupSnapshotAdapterManifest({ id, title, lazyChat }) {
         'client-build-fence:server-session-advertise:1.9',
         'kei-backup-restore-safety-standard-adapter:snapshot-restore-error-code:1.9',
         'kei-backup-restore-safety-lazy-adapter:snapshot-restore-error-code:1.9',
-        ...(lazyChat ? ['lazy-chat-sync:replace:server:node:server-cjs:1.9'] : []),
+        'kei-backup-restore-safety-lazy-adapter:server-restore-error-code:1.9',
+        'bg-preserve:hook:server-cjs-stream-reader-import',
+        'bg-preserve:hook:server-cjs-mark-user-stream-cancel',
+        'bg-preserve:hook:server-cjs-register-routes:1.9',
+        ...(lazyChat ? [
+            'lazy-chat-sync:replace:server:node:server-cjs:1.9',
+            'lazy-chat-sync:replace:server:node:server-cjs:1.10',
+        ] : []),
     ]
     const helperFragment = fs.readFileSync(
         path.join(__dirname, 'fragments', 'server-helpers.cjs.txt'),
@@ -162,6 +184,7 @@ ${helperFragment}/* ${marker('server-source-lifecycle')}:END */
             managed: readFragment('maintenance-gate.cjs.txt', marker('maintenance-gate')),
             markerNeedle: marker('maintenance-gate') + ':START',
             requires: [prefix + 'compression-storage-queue:1.9'],
+            targetVersions: pocketRisu190Only,
         },
         {
             id: prefix + 'startup-pin-sweep:1.9',
@@ -179,18 +202,53 @@ ${helperFragment}/* ${marker('server-source-lifecycle')}:END */
 `,
             markerNeedle: marker('startup-pin-sweep'),
             requires: [prefix + 'maintenance-gate:1.9'],
+            targetVersions: pocketRisu190Only,
         },
-    ].map((unit) => appendAfter({ ...unit, targetVersions: pocketRisu190 }, serverAfter))
+        {
+            id: prefix + 'maintenance-gate:1.10',
+            file: 'server/node/server.cjs',
+            type: 'replace',
+            anchor: canonicalSection1100(
+                "app.post('/api/db/optimize', async (req, res, next) => {",
+                '// ── Snapshot list (database/dbbackup-* keys) ─────────────────────────────────',
+            ),
+            managed: readFragment('maintenance-gate-1.10.cjs.txt', marker('maintenance-gate-1.10')),
+            markerNeedle: marker('maintenance-gate-1.10') + ':START',
+            requires: [prefix + 'compression-storage-queue:1.9'],
+            targetVersions: pocketRisu1100,
+        },
+        {
+            id: prefix + 'startup-pin-sweep:1.10',
+            file: 'server/node/server.cjs',
+            type: 'replace',
+            anchor: `async function startServer() {
+    try {
+        await migrateInlaysToFilesystem();
+`,
+            managed: `async function startServer() {
+    try {
+        /* ${marker('startup-pin-sweep-1.10')} */
+        await backupSourceManager.sweep();
+        await migrateInlaysToFilesystem();
+`,
+            markerNeedle: marker('startup-pin-sweep-1.10'),
+            requires: [prefix + 'maintenance-gate:1.10'],
+            targetVersions: pocketRisu1100,
+        },
+    ].map((unit) => appendAfter({
+        ...unit,
+        targetVersions: unit.targetVersions ?? pocketRisu190,
+    }, serverAfter))
 
     return {
         id,
         title,
-        version: '0.1.0',
+        version: '0.2.0',
         userSelectable: false,
         targets: {
             pocketrisu: {
                 verified: ['1.9.0'],
-                reviewing: [],
+            reviewing: ['1.10.0'],
             },
         },
         requires: lazyChat

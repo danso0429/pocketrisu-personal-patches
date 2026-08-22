@@ -7,7 +7,7 @@ const filesRoot = path.join(__dirname, 'files')
 const files190Root = path.join(__dirname, 'files-1.9')
 const read = (root, relative) => fs.readFileSync(path.join(root, relative), 'utf8')
 const pocketRisu181 = { pocketrisu: ['1.8.1'] }
-const pocketRisu190 = { pocketrisu: ['1.9.0'] }
+const pocketRisu190 = { pocketrisu: ['1.9.0', '1.10.0'] }
 
 const units181 = [
     {
@@ -217,11 +217,11 @@ const units190 = [
 module.exports = {
     id: 'preset-integrity',
     title: 'Prompt preset integrity',
-    version: '0.2.1',
+    version: '0.2.2',
     targets: {
         pocketrisu: {
             verified: ['1.8.1', '1.9.0'],
-            reviewing: [],
+            reviewing: ['1.10.0'],
         },
     },
     userSelectable: true,

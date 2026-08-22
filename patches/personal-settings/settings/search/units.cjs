@@ -3,7 +3,7 @@
 const { managedTypeScript } = require('../../manifest-helpers.cjs')
 
 const targetVersions = {
-    pocketrisu: ['1.9.0'],
+    pocketrisu: ['1.9.0', '1.10.0'],
 }
 
 module.exports = [

@@ -5,7 +5,7 @@ const path = require('node:path')
 
 const filesRoot = path.join(__dirname, 'files')
 const owned = (relative) => fs.readFileSync(path.join(filesRoot, relative), 'utf8')
-const pocketRisu190 = { pocketrisu: ['1.9.0'] }
+const pocketRisu190 = { pocketrisu: ['1.9.0', '1.10.0'] }
 const nodeStorageOwnerUnits = [
     'startup-cache:node-patch-journal',
     'lazy-chat-sync:replace:src:ts:storage:nodeStorage-ts:1.9',
@@ -35,11 +35,11 @@ const globalApiOwnerUnits = [
 module.exports = {
     id: 'client-build-fence',
     title: 'Client build write fence',
-    version: '0.1.0',
+    version: '0.1.1',
     targets: {
         pocketrisu: {
             verified: ['1.9.0'],
-            reviewing: [],
+            reviewing: ['1.10.0'],
         },
     },
     userSelectable: true,
@@ -711,6 +711,15 @@ function cancelPending() {
             content: "            const res = await clientBuildFetch('/api/db/optimize', {\n",
             requires: ['client-build-fence:system-dashboard-wal:1.9'],
             targetVersions: pocketRisu190,
+        },
+        {
+            id: 'client-build-fence:system-dashboard-purge:1.10',
+            file: 'src/lib/Setting/Pages/SystemDashboard.svelte',
+            type: 'replace',
+            anchor: "            const res = await fetch('/api/db/assets/purge-orphans', {\n",
+            content: "            const res = await clientBuildFetch('/api/db/assets/purge-orphans', {\n",
+            requires: ['client-build-fence:system-dashboard-optimize:1.9'],
+            targetVersions: { pocketrisu: ['1.10.0'] },
         },
         {
             id: 'client-build-fence:inlay-import:1.9',

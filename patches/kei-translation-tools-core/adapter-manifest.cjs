@@ -1,7 +1,7 @@
 'use strict'
 
 const pocketRisu181 = { pocketrisu: ['1.8.1'] }
-const pocketRisu190 = { pocketrisu: ['1.9.0'] }
+const pocketRisu190 = { pocketrisu: ['1.9.0', '1.10.0'] }
 
 function createTranslationToolsAdapterManifest({
     id,
@@ -23,7 +23,7 @@ function createTranslationToolsAdapterManifest({
     const manifest181 = {
         id,
         title,
-        version: '0.2.0',
+        version: '0.2.1',
         userSelectable: false,
         requires: bgPreserve
             ? [
@@ -1478,7 +1478,7 @@ export type {
         targets: {
             pocketrisu: {
                 verified: ['1.8.1', '1.9.0'],
-                reviewing: [],
+            reviewing: ['1.10.0'],
             },
         },
         units: [

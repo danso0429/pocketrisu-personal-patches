@@ -11,7 +11,7 @@ const filesRoot = path.join(__dirname, 'files')
 const owned = (relative) => fs.readFileSync(path.join(filesRoot, relative), 'utf8')
 
 const pocketRisu181 = { pocketrisu: ['1.8.1'] }
-const pocketRisu190 = { pocketrisu: ['1.9.0'] }
+const pocketRisu190 = { pocketrisu: ['1.9.0', '1.10.0'] }
 const legacyCharxCauseUnit = 'bg-preserve:hook:processzip-asset-save-aggregate-cause'
 
 function replaceExact(source, anchor, replacement, label) {
@@ -1151,12 +1151,12 @@ export async function sendChatWithDirectLifecycle(
 
 module.exports = {
     ...base,
-    version: 'v1.0.1-patcher.8',
+    version: 'v1.0.1-patcher.9',
     source: 'bg-preserve-install.cjs + PocketRisu 1.9 authority adapter',
     targets: {
         pocketrisu: {
             verified: ['1.8.1', '1.9.0'],
-            reviewing: [],
+            reviewing: ['1.10.0'],
         },
     },
     units,

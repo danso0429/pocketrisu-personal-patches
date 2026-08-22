@@ -1,15 +1,15 @@
 'use strict'
 
-const pocketRisu190 = { pocketrisu: ['1.9.0'] }
+const pocketRisu190 = { pocketrisu: ['1.9.0', '1.10.0'] }
 
 module.exports = {
     id: 'client-build-fence-kei-adapter',
     title: 'Client build fence Kei snapshot adapter',
-    version: '0.1.0',
+    version: '0.1.1',
     targets: {
         pocketrisu: {
             verified: ['1.9.0'],
-            reviewing: [],
+            reviewing: ['1.10.0'],
         },
     },
     userSelectable: false,

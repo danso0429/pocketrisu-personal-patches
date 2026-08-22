@@ -80,6 +80,7 @@ test('server fence covers storage and destructive recovery transitions but not r
     assert.equal(writer('DELETE', '/api/pending-sends/chat'), true)
     assert.equal(writer('POST', '/api/bg-sub-result/job/ack'), true)
     assert.equal(writer('POST', '/api/bg-stream-draft/delete'), true)
+    assert.equal(writer('POST', '/api/db/assets/purge-orphans'), true)
     assert.equal(writer('DELETE', '/proxy-stream-jobs/job'), true)
     assert.equal(writer('DELETE', '/api/bg-orchestrate-result/op/result'), true)
     assert.equal(writer('GET', '/api/read'), false)
@@ -132,6 +133,15 @@ test('destructive native and BG recovery calls carry the same build stamp as sto
     assert.match(bgText, /clientBuildFetch\(`\/proxy-stream-jobs\/\$\{encodeURIComponent\(jobId\)\}`/)
     assert.match(bgText, /clientBuildFetch\(SERVER_PATH \+ '\/delete'/)
     assert.match(bgText, /return await clientBuildFetch\(url/)
+})
+
+test('exact 1.10 orphan purge is fenced at both server and dashboard caller', () => {
+    const purge = core.units.find((unit) =>
+        unit.id === 'client-build-fence:system-dashboard-purge:1.10'
+    )
+    assert.ok(purge)
+    assert.match(purge.content, /clientBuildFetch\('\/api\/db\/assets\/purge-orphans'/)
+    assert.deepEqual(purge.targetVersions, { pocketrisu: ['1.10.0'] })
 })
 
 test('build artifact, middleware order, and every manifest payload affect the pack ETags', () => {

@@ -23,6 +23,7 @@ const EXACT_WRITER_ROUTES = new Set([
     'POST /api/migrate/save-folder/cleanup/scan',
     'POST /api/migrate/save-folder/cleanup/execute',
     'POST /api/db/optimize',
+    'POST /api/db/assets/purge-orphans',
     'POST /api/db/wal-checkpoint',
     'PUT /api/db/snapshots/limits',
     'DELETE /api/db/snapshots',

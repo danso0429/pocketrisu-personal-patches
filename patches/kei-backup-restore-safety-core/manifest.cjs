@@ -5,16 +5,16 @@ const path = require('node:path')
 
 const filesRoot = path.join(__dirname, 'files')
 const owned = (relative) => fs.readFileSync(path.join(filesRoot, relative), 'utf8')
-const pocketRisu190 = { pocketrisu: ['1.9.0'] }
+const pocketRisu190 = { pocketrisu: ['1.9.0', '1.10.0'] }
 
 module.exports = {
     id: 'kei-backup-restore-safety-core',
     title: 'PocketRisu Kei fresh pre-restore snapshot safety',
-    version: '0.1.0',
+    version: '0.2.0',
     targets: {
         pocketrisu: {
             verified: ['1.8.1', '1.9.0'],
-            reviewing: [],
+            reviewing: ['1.10.0'],
         },
     },
     userSelectable: false,

@@ -10,10 +10,10 @@ const manifest = require('../patches/preset-integrity/manifest.cjs')
 
 test('preset integrity is a separate default pack with load, save, and UI guards', () => {
     assert.equal(manifest.id, 'preset-integrity')
-    assert.equal(manifest.version, '0.2.1')
+    assert.equal(manifest.version, '0.2.2')
     assert.deepEqual(manifest.targets.pocketrisu, {
         verified: ['1.8.1', '1.9.0'],
-        reviewing: [],
+            reviewing: ['1.10.0'],
     })
     assert.deepEqual(
         manifest.units

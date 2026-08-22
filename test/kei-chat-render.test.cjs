@@ -27,7 +27,7 @@ test('K14 keeps its pure core and graph-specific adapters internal', () => {
         assert.deepEqual(pack.targets, {
             pocketrisu: {
                 verified: ['1.8.1', '1.9.0'],
-                reviewing: [],
+            reviewing: ['1.10.0'],
             },
         })
     }
@@ -143,9 +143,10 @@ test('K14 reuses the native 1.9 streaming renderer and adds only missing guarant
         assert.equal(units181.length, 20)
         assert.equal(units190.length, 16)
         assert.equal(
-            adapter.units.every((unit) =>
-                unit.targetVersions?.pocketrisu?.length === 1
-            ),
+            adapter.units.every((unit) => {
+                const versions = unit.targetVersions?.pocketrisu
+                return versions?.length === 1 || versions?.join(',') === '1.9.0,1.10.0'
+            }),
             true,
         )
 

@@ -9,6 +9,10 @@ const source = fs.readFileSync(path.join(
     __dirname,
     '../patches/persona-organizer/files/src/lib/Setting/Pages/PersonaSettings.svelte',
 ), 'utf8')
+const source1100 = fs.readFileSync(path.join(
+    __dirname,
+    '../patches/persona-organizer/files-1.10/src/lib/Setting/Pages/PersonaSettings.svelte',
+), 'utf8')
 const pickerSource = fs.readFileSync(path.join(
     __dirname,
     '../patches/persona-organizer/files/src/lib/Setting/listedPersona.svelte',
@@ -50,11 +54,11 @@ test('folder images use shared asset storage and can return to the default icon'
         (unit) => unit.id === 'persona-organizer:folder-interface',
     )
 
-    assert.equal(manifest.version, '0.11.0')
+    assert.equal(manifest.version, '0.11.1')
     assert.deepEqual(manifest.targets, {
         pocketrisu: {
             verified: ['1.8.1', '1.9.0'],
-            reviewing: [],
+            reviewing: ['1.10.0'],
         },
     })
     assert.match(normalization.content, /typeof folder\.icon !== 'string'\) folder\.icon = ''/)
@@ -137,6 +141,10 @@ test('the persona plus menu is local, closable, and preserves create and import 
     assert.match(source, /function createPersona\(\): void \{[\s\S]*name: "New Persona"[\s\S]*folderId: activeFolderId \?\? undefined/)
     assert.match(source, /async function importPersonaFromDialog\(\): Promise<void> \{[\s\S]*await importUserPersona\(activeFolderId \?\? undefined\)/)
     assert.doesNotMatch(source, /alertSelect/)
+    assert.match(source1100, /function duplicatePersona\(\): void/)
+    assert.match(source1100, /name: `\$\{clone\.name\} \(Copy\)`/)
+    assert.match(source1100, /\{language\.personaDuplicate\}/)
+    assert.match(source1100, /DBState\.db\.selectedPersona = 0/)
 })
 
 test('persona organizer owns exactly the settings editor and native selection popup', () => {
@@ -144,7 +152,7 @@ test('persona organizer owns exactly the settings editor and native selection po
         (unit) => unit.type === 'replace' && unit.file.endsWith('.svelte'),
     )
     assert.deepEqual(
-        replacementUnits.map((unit) => unit.file),
+        [...new Set(replacementUnits.map((unit) => unit.file))],
         [
             'src/lib/Setting/listedPersona.svelte',
             'src/lib/Setting/Pages/PersonaSettings.svelte',
@@ -306,6 +314,17 @@ test('persona and folder image references survive cleanup, replacement, and part
     assert.deepEqual(server190.targetVersions, { pocketrisu: ['1.9.0'] })
     assert.match(unit('persona-organizer:backup-gallery-assets').content, /persona\.imageGallery/)
     assert.match(unit('persona-organizer:backup-gallery-assets').content, /folder\.icon/)
+})
+
+test('exact 1.10 server orphan walker unions native and organizer persona references', () => {
+    const unit = manifest.units.find((candidate) =>
+        candidate.id === 'persona-organizer:server-gallery-assets-1.10'
+    )
+    assert.ok(unit)
+    assert.match(unit.content, /add\(p\?\.image\)/)
+    assert.match(unit.content, /p\?\.imageGallery/)
+    assert.match(unit.content, /dbObj\.personaFolders/)
+    assert.match(unit.content, /embedded\?\.assets/)
 })
 
 test('persona organizer does not replace the database or plugin array', () => {

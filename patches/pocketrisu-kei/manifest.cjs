@@ -3,12 +3,12 @@
 module.exports = {
     id: 'pocketrisu-kei',
     title: 'PocketRisu Kei integration',
-    version: '0.12.0',
+    version: '0.13.0',
     userSelectable: true,
     targets: {
         pocketrisu: {
             verified: ['1.8.1', '1.9.0'],
-            reviewing: [],
+            reviewing: ['1.10.0'],
         },
     },
     requires: [

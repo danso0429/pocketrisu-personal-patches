@@ -10,12 +10,12 @@ const owned = (relative) =>
 module.exports = {
     id: 'kei-hypa-tools-core',
     title: 'PocketRisu Kei HypaMemory manual tools core',
-    version: '0.2.0',
+    version: '0.2.1',
     userSelectable: false,
     targets: {
         pocketrisu: {
             verified: ['1.8.1', '1.9.0'],
-            reviewing: [],
+            reviewing: ['1.10.0'],
         },
     },
     units: [

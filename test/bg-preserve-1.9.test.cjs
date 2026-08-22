@@ -34,11 +34,11 @@ function owned(file) {
 
 test('BG pack keeps exact 1.8 support and verifies its target-scoped 1.9 graph', () => {
     assert.equal(manifest.id, 'bg-preserve')
-    assert.equal(manifest.version, 'v1.0.1-patcher.8')
+    assert.equal(manifest.version, 'v1.0.1-patcher.9')
     assert.deepEqual(manifest.targets, {
         pocketrisu: {
             verified: ['1.8.1', '1.9.0'],
-            reviewing: [],
+            reviewing: ['1.10.0'],
         },
     })
     assert.equal(active(target181).some((candidate) => candidate.id.endsWith(':1.9')), false)
@@ -61,7 +61,7 @@ test('1.9 drops upstream-equivalent or obsolete host hooks', () => {
 test('1.9 native generation state delegates only its client lease to BG busy state', () => {
     const importUnit = unit('bg-preserve:hook:index-unified-generation-busy-import:1.9')
     const storeUnit = unit('bg-preserve:hook:index-unified-generation-busy:1.9')
-    assert.deepEqual(importUnit.targetVersions, { pocketrisu: ['1.9.0'] })
+    assert.deepEqual(importUnit.targetVersions, { pocketrisu: ['1.9.0', '1.10.0'] })
     assert.equal(storeUnit.file, 'src/ts/process/generationState.ts')
     assert.match(importUnit.content, /doingChat as unifiedDoingChat/)
     assert.match(storeUnit.managed, /export const doingChat = unifiedDoingChat/)

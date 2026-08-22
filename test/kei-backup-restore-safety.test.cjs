@@ -27,7 +27,7 @@ test('K26 restore safety is a hidden exact-1.9 core with one resolved storage ad
     assert.equal(core.userSelectable, false)
     assert.equal(standard.userSelectable, false)
     assert.equal(lazy.userSelectable, false)
-    assert.equal(meta.version, '0.12.0')
+    assert.equal(meta.version, '0.13.0')
     assert.equal(meta.requires.includes(core.id), true)
 
     const baseGraph = resolveSelection(catalog, [meta.id])
@@ -97,6 +97,8 @@ test('K26 force-new snapshot keeps ordinary throttle and all three destructive c
     assert.match(combined, /restoreTarget: 'server:' \+ filename/)
     assert.match(combined, /restoreTarget: 'snapshot:' \+ key/)
     assert.match(combined, /createDeferredAsyncIterable/)
+    assert.match(combined, /if \(kvSize\(DB_BLOB_KEY\) !== null\)/)
+    assert.match(combined, /A pristine server has nothing to overwrite/)
     assert.match(combined, /restoreSnapshotValue/)
     assert.match(lazyServer190, /commitSnapshotRestore\(\{/)
     assert.match(lazyServer190, /runTransaction: \(operation\) => sqliteDb\.transaction\(operation\)\(\)/)

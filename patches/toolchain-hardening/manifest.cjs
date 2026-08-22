@@ -10,11 +10,11 @@ const read = (root, relative) => fs.readFileSync(path.join(root, relative), 'utf
 module.exports = {
     id: 'toolchain-hardening',
     title: 'Toolchain hardening',
-    version: '0.1.3',
+    version: '0.1.4',
     targets: {
         pocketrisu: {
             verified: ['1.8.1', '1.9.0'],
-            reviewing: [],
+            reviewing: ['1.10.0'],
         },
     },
     userSelectable: true,

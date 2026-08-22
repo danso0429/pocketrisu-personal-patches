@@ -1,6 +1,6 @@
 'use strict'
 
-const pocketRisu190 = { pocketrisu: ['1.9.0'] }
+const pocketRisu190 = { pocketrisu: ['1.9.0', '1.10.0'] }
 
 function appendAfter(unit, ids) {
     if (ids.length === 0) return unit
@@ -274,20 +274,25 @@ async function importBackupFromSource(dataSource, {
     restoreTarget,
 } = {}) {
     /* ${marker('import-preflight-fresh-snapshot')}:START */
-    await prepareFreshRestoreSnapshot({
-        confirmationOwner: restoreConfirmationOwner,
-        confirmationHeaders: restoreConfirmationHeaders,
-        restoreTarget,
-        flushPendingDb: () => flushPendingDb({
-            createBackup: false,
-            ${lazyChat ? 'reconcileForFreshSnapshot: true,' : ''}
-        }),
-        createFreshSnapshot: (snapshotState) => {
-            ${lazyChat ? 'requireLazyChatSnapshotCompleteness(snapshotState);' : ''}
-            return createBackupAndRotate({ force: true });
-        },
-        logger,
-    });
+    // A pristine server has nothing to overwrite and therefore no rollback
+    // point to create. Every import over an existing database still requires
+    // the fresh, verified snapshot (or an explicit one-use acknowledgement).
+    if (kvSize(DB_BLOB_KEY) !== null) {
+        await prepareFreshRestoreSnapshot({
+            confirmationOwner: restoreConfirmationOwner,
+            confirmationHeaders: restoreConfirmationHeaders,
+            restoreTarget,
+            flushPendingDb: () => flushPendingDb({
+                createBackup: false,
+                ${lazyChat ? 'reconcileForFreshSnapshot: true,' : ''}
+            }),
+            createFreshSnapshot: (snapshotState) => {
+                ${lazyChat ? 'requireLazyChatSnapshotCompleteness(snapshotState);' : ''}
+                return createBackupAndRotate({ force: true });
+            },
+            logger,
+        });
+    }
     /* ${marker('import-preflight-fresh-snapshot')}:END */
 `,
             markerNeedle: marker('import-option'),
@@ -812,12 +817,12 @@ import type { RestoreSafetyOptions } from "./restoreSafety"
     return {
         id,
         title,
-        version: '0.1.0',
+        version: '0.2.0',
         userSelectable: false,
         targets: {
             pocketrisu: {
                 verified: ['1.8.1', '1.9.0'],
-                reviewing: [],
+            reviewing: ['1.10.0'],
             },
         },
         requires: lazyChat

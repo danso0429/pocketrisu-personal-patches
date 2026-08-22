@@ -192,7 +192,7 @@ test('BG adapter preserves semantic revisions and adds only the durable flush ba
     assert.deepEqual(bgAdapter.targets, {
         pocketrisu: {
             verified: ['1.8.1', '1.9.0'],
-            reviewing: [],
+            reviewing: ['1.10.0'],
         },
     })
     const flush = bgAdapter.units.find((unit) =>

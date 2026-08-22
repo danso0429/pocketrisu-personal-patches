@@ -5,17 +5,17 @@ const path = require('node:path')
 
 const filesRoot = path.join(__dirname, 'files')
 const read = (relative) => fs.readFileSync(path.join(filesRoot, relative), 'utf8')
-const pocketRisu190 = { pocketrisu: ['1.9.0'] }
+const pocketRisu190 = { pocketrisu: ['1.9.0', '1.10.0'] }
 
 module.exports = {
     id: 'server-backup-snapshot-core',
     title: 'Point-in-time server backup source core',
-    version: '0.1.0',
+    version: '0.1.1',
     userSelectable: false,
     targets: {
         pocketrisu: {
             verified: ['1.9.0'],
-            reviewing: [],
+            reviewing: ['1.10.0'],
         },
     },
     requires: ['client-build-fence'],

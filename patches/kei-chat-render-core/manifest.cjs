@@ -9,12 +9,12 @@ const owned = (relative) => fs.readFileSync(path.join(filesRoot, relative), 'utf
 module.exports = {
     id: 'kei-chat-render-core',
     title: 'PocketRisu Kei streaming chat render core',
-    version: '0.2.0',
+    version: '0.2.1',
     userSelectable: false,
     targets: {
         pocketrisu: {
             verified: ['1.8.1', '1.9.0'],
-            reviewing: [],
+            reviewing: ['1.10.0'],
         },
     },
     units: [

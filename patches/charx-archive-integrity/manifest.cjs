@@ -153,7 +153,10 @@ module.exports = {
             type: 'replace',
             anchor: `    let db = getDatabase()\n    db.statics.imports += 1\n\n    if(f.name.endsWith('charx') || f.name.endsWith('jpg') || f.name.endsWith('jpeg')){\n`,
             content: `    let db = getDatabase()\n\n    if(f.name.endsWith('charx') || f.name.endsWith('jpg') || f.name.endsWith('jpeg')){\n`,
-            after: ['character-import-ux:character-cards'],
+            after: [
+                'character-import-ux:character-cards',
+                'personal-settings:realm-import-navigation',
+            ],
             requires: ['charx-archive-integrity:processzip-importer:1.10'],
             targetVersions: target1100,
         },

@@ -1,5 +1,7 @@
 'use strict'
 
+const fs = require('node:fs')
+const path = require('node:path')
 const test = require('node:test')
 const assert = require('node:assert/strict')
 
@@ -117,6 +119,25 @@ test('P2 pins one WAL reader and filesystem source for both backup destinations'
         assert.match(text, /BACKUP_SOURCE_MAINTENANCE_BUSY/)
         assert.match(text, /await destroyBackupWritable\(writeStream\)/)
     }
+})
+
+test('exact 1.10 maintenance guard preserves purge, disk-spill, and both checkpoint barriers', () => {
+    const fragment = fs.readFileSync(path.join(
+        __dirname,
+        '../patches/server-backup-snapshot-core/fragments/maintenance-gate-1.10.cjs.txt',
+    ), 'utf8')
+    assert.match(fragment, /preDbSize \* 2\.2/)
+    assert.match(fragment, /temp_store = FILE/)
+    assert.match(fragment, /temp_store = MEMORY/)
+    assert.equal((fragment.match(/pointInTimeBackupMaintenanceConflict\(\)/g) ?? []).length, 2)
+    assert.equal((fragment.match(/BACKUP_SOURCE_MAINTENANCE_BUSY/g) ?? []).length, 2)
+    assert.match(fragment, /post-VACUUM checkpoint failed/)
+
+    const lazy1100 = lazy.units.filter((unit) =>
+        unit.targetVersions?.pocketrisu?.includes('1.10.0')
+    )
+    assert.ok(lazy1100.some((unit) => unit.id.endsWith('maintenance-gate:1.10')))
+    assert.ok(lazy1100.some((unit) => unit.id.endsWith('startup-pin-sweep:1.10')))
 })
 
 test('every P2 core and adapter payload contributes to its pack ETag', () => {

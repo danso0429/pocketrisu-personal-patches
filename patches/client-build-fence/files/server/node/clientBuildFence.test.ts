@@ -104,6 +104,7 @@ describe('client build writer admission', () => {
     expect(isWriterRoute({ method: 'DELETE', path: '/api/pending-sends/chat-1/' })).toBe(true)
     expect(isWriterRoute({ method: 'POST', path: '/api/bg-sub-result/job-1/ack' })).toBe(true)
     expect(isWriterRoute({ method: 'POST', path: '/api/bg-stream-draft/delete' })).toBe(true)
+    expect(isWriterRoute({ method: 'POST', path: '/api/db/assets/purge-orphans' })).toBe(true)
     expect(isWriterRoute({ method: 'DELETE', path: '/api/bg-orchestrate-result/op/result' })).toBe(true)
     expect(isWriterRoute({ method: 'GET', path: '/api/read' })).toBe(false)
     expect(isWriterRoute({ method: 'POST', path: '/api/db/flush' })).toBe(false)

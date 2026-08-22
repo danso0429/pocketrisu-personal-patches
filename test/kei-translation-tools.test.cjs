@@ -32,7 +32,7 @@ test('K12 keeps one internal core and exactly one base/bg adapter', () => {
         assert.deepEqual(pack.targets, {
             pocketrisu: {
                 verified: ['1.8.1', '1.9.0'],
-                reviewing: [],
+            reviewing: ['1.10.0'],
             },
         })
     }
@@ -97,9 +97,10 @@ test('K12 selects one exact adapter graph for each supported PocketRisu', () => 
             true,
         )
         assert.equal(
-            adapter.units.every((unit) =>
-                unit.targetVersions.pocketrisu.length === 1
-            ),
+            adapter.units.every((unit) => {
+                const versions = unit.targetVersions.pocketrisu
+                return versions.length === 1 || versions.join(',') === '1.9.0,1.10.0'
+            }),
             true,
         )
 

@@ -29,7 +29,7 @@ test('K11 keeps one internal core and exactly one base/bg adapter', () => {
         assert.deepEqual(pack.targets, {
             pocketrisu: {
                 verified: ['1.8.1', '1.9.0'],
-                reviewing: [],
+            reviewing: ['1.10.0'],
             },
         })
     }
@@ -48,8 +48,8 @@ test('K11 keeps one internal core and exactly one base/bg adapter', () => {
     ])
     assert.deepEqual(bg.conflicts, ['kei-hypa-tools-base-adapter'])
     assert.equal(meta.requires.includes(core.id), true)
-    assert.equal(base.version, '0.2.1')
-    assert.equal(bg.version, '0.2.1')
+    assert.equal(base.version, '0.2.2')
+    assert.equal(bg.version, '0.2.2')
 
     const catalog = loadCatalog()
     const absent = resolveSelection(catalog, ['bg-preserve'])
@@ -92,9 +92,10 @@ test('K11 owns only its deterministic selection and manual panel code', () => {
         assert.equal(units181.length, 20)
         assert.equal(units190.length, 18)
         assert.equal(
-            adapter.units.every((unit) =>
-                unit.targetVersions?.pocketrisu?.length === 1
-            ),
+            adapter.units.every((unit) => {
+                const versions = unit.targetVersions?.pocketrisu
+                return versions?.length === 1 || versions?.join(',') === '1.9.0,1.10.0'
+            }),
             true,
         )
         assert.deepEqual(

@@ -1,7 +1,7 @@
 'use strict'
 
 const pocketRisu181 = { pocketrisu: ['1.8.1'] }
-const pocketRisu190 = { pocketrisu: ['1.9.0'] }
+const pocketRisu190 = { pocketrisu: ['1.9.0', '1.10.0'] }
 
 function createPartialEditAdapterManifest({
     id,
@@ -579,12 +579,12 @@ function createPartialEditAdapterManifest({
     return {
         id,
         title,
-        version: '0.2.0',
+        version: '0.2.1',
         userSelectable: false,
         targets: {
             pocketrisu: {
                 verified: ['1.8.1', '1.9.0'],
-                reviewing: [],
+            reviewing: ['1.10.0'],
             },
         },
         requires: bgPreserve

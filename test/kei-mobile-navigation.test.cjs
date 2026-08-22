@@ -32,13 +32,13 @@ test('K16 keeps its core and base/lazy adapters internal', () => {
     assert.equal(core.userSelectable, false)
     assert.equal(base.userSelectable, false)
     assert.equal(lazy.userSelectable, false)
-    assert.equal(base.version, '0.2.1')
-    assert.equal(lazy.version, '0.2.1')
+    assert.equal(base.version, '0.2.2')
+    assert.equal(lazy.version, '0.2.2')
     for (const pack of [core, base, lazy]) {
         assert.deepEqual(pack.targets, {
             pocketrisu: {
                 verified: ['1.8.1', '1.9.0'],
-                reviewing: [],
+            reviewing: ['1.10.0'],
             },
         })
     }
@@ -185,9 +185,10 @@ test('K16 adapters preserve existing hotkeys and harden pointer cleanup', () => 
         assert.equal(new Set(units181.map((unit) => unit.file)).size, 11)
         assert.equal(new Set(units190.map((unit) => unit.file)).size, 12)
         assert.equal(
-            adapter.units.every((unit) =>
-                unit.targetVersions?.pocketrisu?.length === 1
-            ),
+            adapter.units.every((unit) => {
+                const versions = unit.targetVersions?.pocketrisu
+                return versions?.length === 1 || versions?.join(',') === '1.9.0,1.10.0'
+            }),
             true,
         )
 

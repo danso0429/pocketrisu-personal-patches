@@ -183,6 +183,7 @@ module.exports = {
                 'charx-archive-integrity:character-asset-map:1.10',
                 'charx-archive-integrity:character-commit-boundary:1.10',
                 'charx-archive-integrity:non-charx-counter:1.10',
+                'personal-settings:realm-import-navigation',
             ],
             requires: ['character-import-ux:modules-terminal-import'],
             targetVersions: target181Through110,
