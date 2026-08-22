@@ -18,7 +18,7 @@ const manifest = require('../patches/character-import-ux/manifest.cjs')
 
 test('character and module import share one lazy-chat-dependent feature pack', () => {
     assert.equal(manifest.id, 'character-import-ux')
-    assert.equal(manifest.version, '0.2.0')
+    assert.equal(manifest.version, '0.2.1')
     assert.equal(manifest.title, 'Non-blocking character and module import')
     assert.deepEqual(manifest.targets, {
         pocketrisu: {
@@ -103,6 +103,7 @@ test('module imports have one staged parser, central commit, and confirmed persi
     assert.match(moduleImport, /await deps\.persistModule\(imported\.id\)/)
     assert.match(moduleImport, /job\.succeed\(deps\.successMessage\)/)
     assert.match(moduleImport, /committed: boolean/)
+    assert.doesNotMatch(moduleImport, /input\.accept\s*=/)
     assert.ok(manifest.units.some((unit) =>
         unit.id === 'character-import-ux:modules-terminal-import'
         && unit.targetVersions.pocketrisu.includes('1.10.0')

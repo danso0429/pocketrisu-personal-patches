@@ -47,7 +47,7 @@ export async function importModule(): Promise<ModuleImportResult> {
 
     let file: File | null
     try {
-        file = await selectModuleImportFile(['json', 'lorebook', 'risum', 'charx'])
+        file = await selectModuleImportFile()
     } catch (error) {
         const job = reservation.activate('Opening module picker failed.')
         if (job) job.fail(error)

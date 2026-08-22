@@ -131,6 +131,21 @@ describe('central module import lifecycle', () => {
         expect(events.some(event => event.startsWith('success:'))).toBe(false)
     })
 
+    test('compound .module.charx commits through character conversion', async () => {
+        const file = new File(['archive'], 'example.module.charx')
+        const setup = dependencies()
+        const { job, events } = jobRecorder()
+        const result = await createModuleImportOrchestrator(setup.deps)({
+            name: file.name,
+            data: file,
+            origin: 'picker',
+        }, job)
+        expect(result.status).toBe('imported')
+        expect(setup.order).toEqual(['character', 'convert', 'persist:fresh-id'])
+        expect(setup.modules).toHaveLength(1)
+        expect(events.filter(event => event.startsWith('success:'))).toHaveLength(1)
+    })
+
     test.each([
         ['module JSON', 'module.json', { type: 'risuModule', name: 'Module', description: '', id: 'old' }],
         ['Risu lorebook', 'module.lorebook', { type: 'risu', name: 'Lore', data: [] }],
@@ -159,8 +174,23 @@ describe('central module import lifecycle', () => {
         expect(persist).not.toHaveBeenCalled()
     })
 
+    test.each(['example.risum', 'example.module.charx'])(
+        'native picker leaves proprietary %s selectable',
+        async (name) => {
+            const operation = selectModuleImportFile(document)
+            const input = document.querySelector('input[type=file]')!
+            const file = new File(['module'], name)
+            expect(input).not.toBeNull()
+            expect(input.hasAttribute('accept')).toBe(false)
+            Object.defineProperty(input, 'files', { value: [file], configurable: true })
+            input.dispatchEvent(new Event('change'))
+            await expect(operation).resolves.toBe(file)
+            expect(document.body.contains(input)).toBe(false)
+        },
+    )
+
     test('native picker cancel settles once and removes its temporary input', async () => {
-        const operation = selectModuleImportFile(['json', 'risum'], document)
+        const operation = selectModuleImportFile(document)
         const input = document.querySelector('input[type=file]')!
         expect(input).not.toBeNull()
         input.dispatchEvent(new Event('cancel'))

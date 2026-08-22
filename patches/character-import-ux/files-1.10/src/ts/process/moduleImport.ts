@@ -178,13 +178,14 @@ export function createModuleImportOrchestrator(deps: ModuleImportDependencies) {
 }
 
 export function selectModuleImportFile(
-    extensions: readonly string[],
     ownerDocument: Document = document,
 ): Promise<File | null> {
     return new Promise((resolve, reject) => {
         const input = ownerDocument.createElement('input')
         input.type = 'file'
-        input.accept = extensions.map(extension => `.${extension.toLowerCase()}`).join(',')
+        // Do not set accept: iOS Files maps proprietary extensions through
+        // registered system types and disables .risum/.charx when none exists.
+        // The central importer still validates the exact extension before read.
         let settled = false
         const finish = (value: File | null, error?: unknown) => {
             if (settled) return
