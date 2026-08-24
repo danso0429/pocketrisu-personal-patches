@@ -85,6 +85,7 @@ test('server fence covers storage and destructive recovery transitions but not r
     assert.equal(writer('PUT', '/api/import-jobs/op-123456/source'), true)
     assert.equal(writer('POST', '/api/import-jobs/op-123456/source/complete'), true)
     assert.equal(writer('POST', '/api/import-jobs/op-123456/authorize'), true)
+    assert.equal(writer('POST', '/api/import-jobs/op-123456/result/claim'), true)
     assert.equal(writer('POST', '/api/import-jobs/op-123456/claim/heartbeat'), true)
     assert.equal(writer('POST', '/api/import-jobs/op-123456/reconciled'), true)
     assert.equal(writer('POST', '/api/import-jobs/op-123456/ack'), true)

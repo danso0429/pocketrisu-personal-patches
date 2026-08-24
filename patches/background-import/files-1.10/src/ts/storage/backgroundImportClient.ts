@@ -268,7 +268,10 @@ export function createBackgroundImportApi(fetcher: BackgroundImportFetch) {
         sourceSize: number
         origin: BackgroundImportOrigin
     }): Promise<BackgroundImportJob> {
-        return requireJson(await fetcher('/api/import-jobs', contentJson(input)), 'Could not create import')
+        return requireJson(await fetcher('/api/import-jobs', contentJson({
+            ...input,
+            protocolVersion: BACKGROUND_IMPORT_PROTOCOL_VERSION,
+        })), 'Could not create import')
     }
 
     async function status(operationId: string): Promise<BackgroundImportJob> {
@@ -318,9 +321,9 @@ export function createBackgroundImportApi(fetcher: BackgroundImportFetch) {
     }
 
     async function claim(operationId: string, consumerId: string): Promise<BackgroundImportResult> {
-        const query = new URLSearchParams({ consumerId })
         return requireJson(await fetcher(
-            `/api/import-jobs/${encodeURIComponent(operationId)}/result?${query}`,
+            `/api/import-jobs/${encodeURIComponent(operationId)}/result/claim`,
+            contentJson({ consumerId }),
         ), 'Could not claim import result')
     }
 

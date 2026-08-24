@@ -109,6 +109,7 @@ describe('client build writer admission', () => {
     expect(isWriterRoute({ method: 'PUT', path: '/api/import-jobs/op-123456/source' })).toBe(true)
     expect(isWriterRoute({ method: 'POST', path: '/api/import-jobs/op-123456/source/complete' })).toBe(true)
     expect(isWriterRoute({ method: 'POST', path: '/api/import-jobs/op-123456/authorize' })).toBe(true)
+    expect(isWriterRoute({ method: 'POST', path: '/api/import-jobs/op-123456/result/claim' })).toBe(true)
     expect(isWriterRoute({ method: 'POST', path: '/api/import-jobs/op-123456/claim/heartbeat' })).toBe(true)
     expect(isWriterRoute({ method: 'POST', path: '/api/import-jobs/op-123456/reconciled' })).toBe(true)
     expect(isWriterRoute({ method: 'POST', path: '/api/import-jobs/op-123456/ack' })).toBe(true)

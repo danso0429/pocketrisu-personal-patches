@@ -213,8 +213,8 @@ describe('background import client protocol', () => {
         const fetcher = async (input: RequestInfo | URL, init: RequestInit = {}) => {
             const url = new URL(String(input), 'https://local.invalid')
             calls.push(`${init.method ?? 'GET'} ${url.pathname}`)
-            if (url.pathname.endsWith('/result')) {
-                expect(url.searchParams.get('consumerId')).toBe('consumer_001')
+            if (url.pathname.endsWith('/result/claim')) {
+                expect(JSON.parse(String(init.body)).consumerId).toBe('consumer_001')
                 return Response.json({ claimed: true, job: base, entity: { id: 'module-id' } })
             }
             const state = url.pathname.endsWith('/ack') ? 'delivered' : 'client-reconciled'
@@ -225,7 +225,7 @@ describe('background import client protocol', () => {
         expect((await api.reconciled(base.operationId, 'consumer_001')).state).toBe('client-reconciled')
         expect((await api.ack(base.operationId, 'consumer_001')).state).toBe('delivered')
         expect(calls).toEqual([
-            'GET /api/import-jobs/claim_operation_001/result',
+            'POST /api/import-jobs/claim_operation_001/result/claim',
             'POST /api/import-jobs/claim_operation_001/reconciled',
             'POST /api/import-jobs/claim_operation_001/ack',
         ])

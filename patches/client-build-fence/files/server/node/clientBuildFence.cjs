@@ -73,7 +73,7 @@ function isWriterRoute(req) {
     if (method === 'POST' && /^\/api\/bg-sub-result\/[^/]+\/ack$/.test(requestPath)) return true;
     if (method === 'PUT' && /^\/api\/import-jobs\/[^/]+\/source$/.test(requestPath)) return true;
     if (method === 'POST'
-        && /^\/api\/import-jobs\/[^/]+\/(?:source\/complete|authorize|claim\/heartbeat|reconciled|ack)$/.test(requestPath)) return true;
+        && /^\/api\/import-jobs\/[^/]+\/(?:source\/complete|authorize|result\/claim|claim\/heartbeat|reconciled|ack)$/.test(requestPath)) return true;
     if (method === 'DELETE' && /^\/api\/import-jobs\/[^/]+$/.test(requestPath)) return true;
     if (method === 'DELETE' && /^\/proxy-stream-jobs\/[^/]+$/.test(requestPath)) return true;
     if (method === 'DELETE' && /^\/api\/bg-orchestrate\/[^/]+$/.test(requestPath)) return true;
