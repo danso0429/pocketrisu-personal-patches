@@ -35,10 +35,13 @@ const ownedPaths = [
     'src/ts/process/backgroundImportRisuM.test.ts',
     'src/ts/process/backgroundImportRisuM.ts',
     'src/ts/process/backgroundImportSource.ts',
+    'src/ts/backgroundImport.ts',
     'src/ts/storage/backgroundImportClient.test.ts',
     'src/ts/storage/backgroundImportClient.ts',
     'src/ts/storage/backgroundImportReconcile.test.ts',
     'src/ts/storage/backgroundImportReconcile.ts',
+    'src/ts/storage/backgroundImportRuntime.test.ts',
+    'src/ts/storage/backgroundImportRuntime.ts',
 ]
 
 function ownedId(relative) {
@@ -139,7 +142,7 @@ app.use(backgroundImportManager.replacementGuard);
 module.exports = {
     id: 'background-import',
     title: 'Durable background character and module import',
-    version: '0.1.1',
+    version: '0.2.0',
     targets: {
         pocketrisu: {
             verified: [],
@@ -239,6 +242,279 @@ module.exports = {
                 'bg-preserve:hook:server-cjs-register-routes:1.9',
                 'kei-backup-restore-safety-lazy-adapter:snapshot-restore-error-code:1.9',
             ],
+            targetVersions: target110,
+        },
+        {
+            id: 'background-import:node-fetch-bridge:1.10',
+            file: 'src/ts/storage/nodeStorage.ts',
+            type: 'insert',
+            where: 'before',
+            anchor: '    private databaseReadHeaders(): Record<string, string> {\n',
+            content: `    async importJobFetch(input: RequestInfo | URL, init: RequestInit = {}): Promise<Response> {
+        return this.authFetch(input, init)
+    }
+
+`,
+            requires: [
+                ownedId('src/ts/storage/backgroundImportClient.ts'),
+                'lazy-chat-sync:replace:src:ts:storage:nodeStorage-ts:1.10',
+                'client-build-fence:node-migration-xhr-response:1.9',
+            ],
+            after: [
+                'lazy-chat-bg-adapter:asset-upload-error-detail',
+                'kei-backup-restore-safety-lazy-adapter:node-server-stream-error:1.9',
+                'client-build-fence-kei-lazy-storage-adapter:backup-xhr-response:1.9',
+            ],
+            targetVersions: target110,
+        },
+        {
+            id: 'background-import:auto-fetch-bridge:1.10',
+            file: 'src/ts/storage/autoStorage.ts',
+            type: 'insert',
+            where: 'before',
+            anchor: `    async exportBackup(opts?: ExportBackupOptions) {
+`,
+            content: `    async importJobFetch(input: RequestInfo | URL, init: RequestInit = {}): Promise<Response> {
+        await this.Init()
+        return this.realStorage.importJobFetch(input, init)
+    }
+
+`,
+            requires: [
+                'background-import:node-fetch-bridge:1.10',
+                'lazy-chat-sync:replace:src:ts:storage:autoStorage-ts:1.10',
+            ],
+            after: ['kei-backup-restore-safety-lazy-adapter:auto-server-option:1.9'],
+            targetVersions: target110,
+        },
+        {
+            id: 'background-import:reporter-safe-type:1.10',
+            file: 'src/ts/characterImportState.ts',
+            type: 'insert',
+            where: 'after',
+            anchor: `export interface ImportJob extends ImportProgressReporter {
+`,
+            content: `    backgroundSafe(message: string, description?: string): void
+`,
+            requires: [
+                ownedId('src/ts/storage/backgroundImportRuntime.ts'),
+                'character-import-ux:state',
+            ],
+            targetVersions: target110,
+        },
+        {
+            id: 'background-import:reporter-safe-runtime:1.10',
+            file: 'src/ts/characterImportState.ts',
+            type: 'insert',
+            where: 'before',
+            anchor: `        succeed(message, description) {
+`,
+            content: `        backgroundSafe(message, description) {
+            if (active?.token !== token) return
+            detachNavigationGuard()
+            status.set({ phase: 'loading', message, description })
+        },
+`,
+            requires: ['background-import:reporter-safe-type:1.10'],
+            targetVersions: target110,
+        },
+        {
+            id: 'background-import:module-test-reporter-safe:1.10',
+            file: 'src/ts/process/moduleImport.test.ts',
+            type: 'insert',
+            where: 'after',
+            anchor: `        update(message) { events.push(\`update:\${message}\`) },
+`,
+            content: `        backgroundSafe(message) { events.push(\`safe:\${message}\`) },
+`,
+            requires: [
+                'background-import:reporter-safe-type:1.10',
+                'character-import-ux:module-import-tests',
+            ],
+            targetVersions: target110,
+        },
+        {
+            id: 'background-import:global-reconcile-import:1.10',
+            file: 'src/ts/globalApi.svelte.ts',
+            type: 'insert',
+            where: 'after',
+            anchor: `import { findTrackedDeletionConflict, jsonValuesEqual, mergeThreeWayValue, mergeTrackedChanges } from "./storage/conflictRebase";
+`,
+            content: `import {
+    preserveCommittedImport,
+    requireCommittedImport,
+    type BackgroundImportEntityCoordinate,
+} from "./storage/backgroundImportReconcile";
+`,
+            requires: [
+                ownedId('src/ts/storage/backgroundImportReconcile.ts'),
+                'lazy-chat-sync:replace:src:ts:globalApi-svelte-ts:1.10',
+            ],
+            after: ['client-build-fence:global-proxy-stream-abort:1.9'],
+            targetVersions: target110,
+        },
+        {
+            id: 'background-import:global-reconcile-api:1.10',
+            file: 'src/ts/globalApi.svelte.ts',
+            type: 'insert',
+            where: 'after',
+            anchor: `export function requestImportedModuleSave(moduleId: string): Promise<void> {
+    return requestImportedModuleSaveImpl(moduleId)
+}
+`,
+            content: `
+let reconcileBackgroundImportImpl: (
+    coordinate: BackgroundImportEntityCoordinate,
+) => Promise<void> = async () => {
+    throw new Error('background import reconciliation is not initialized')
+}
+let resolveBackgroundImportReconciliation!: () => void
+const backgroundImportReconciliationReady = new Promise<void>(resolve => {
+    resolveBackgroundImportReconciliation = resolve
+})
+export function waitForBackgroundImportReconciliation(): Promise<void> {
+    return backgroundImportReconciliationReady
+}
+export async function reconcileBackgroundImport(
+    coordinate: BackgroundImportEntityCoordinate,
+): Promise<void> {
+    await backgroundImportReconciliationReady
+    return reconcileBackgroundImportImpl(coordinate)
+}
+`,
+            requires: ['background-import:global-reconcile-import:1.10'],
+            targetVersions: target110,
+        },
+        {
+            id: 'background-import:global-rebase-coordinate:1.10',
+            file: 'src/ts/globalApi.svelte.ts',
+            type: 'replace',
+            anchor: `    async function rebaseTrackedLocalChangesOnLatestServerDb(db: Database, toSave: toSaveType) {
+`,
+            content: `    async function rebaseTrackedLocalChangesOnLatestServerDb(
+        db: Database,
+        toSave: toSaveType,
+        requiredImport?: BackgroundImportEntityCoordinate,
+    ) {
+`,
+            requires: ['background-import:global-reconcile-api:1.10'],
+            targetVersions: target110,
+        },
+        {
+            id: 'background-import:global-rebase-preserve:1.10',
+            file: 'src/ts/globalApi.svelte.ts',
+            type: 'replace',
+            anchor: `            const mergedDb = mergeThreeWayValue(
+                previousServerBaseline,
+                localDb,
+                latestDb,
+            ) as Database
+`,
+            content: `            let mergedDb = mergeThreeWayValue(
+                previousServerBaseline,
+                localDb,
+                latestDb,
+            ) as Database
+            if (requiredImport) {
+                mergedDb = preserveCommittedImport({
+                    base: previousServerBaseline,
+                    local: localDb,
+                    latest: latestDb,
+                    merged: mergedDb,
+                    coordinate: requiredImport,
+                })
+            }
+`,
+            requires: ['background-import:global-rebase-coordinate:1.10'],
+            targetVersions: target110,
+        },
+        {
+            id: 'background-import:global-reconcile-runtime:1.10',
+            file: 'src/ts/globalApi.svelte.ts',
+            type: 'insert',
+            where: 'before',
+            anchor: `    requestImportedCharacterSaveImpl = async (chaId) => {
+`,
+            content: `    reconcileBackgroundImportImpl = async (coordinate) => {
+        if (
+            !coordinate
+            || !['module', 'character'].includes(coordinate.kind)
+            || typeof coordinate.entityId !== 'string'
+            || coordinate.entityId.length === 0
+            || typeof coordinate.committedRevision !== 'string'
+            || coordinate.committedRevision.length === 0
+        ) {
+            throw new Error('Invalid background import reconciliation coordinate')
+        }
+        await tick()
+        if (saveInFlight) await saveInFlight
+        const pending = safeStructuredClone(changeTracker)
+        await rebaseTrackedLocalChangesOnLatestServerDb(
+            getDatabase(),
+            pending,
+            coordinate,
+        )
+        const imported = requireCommittedImport(getDatabase(), coordinate)
+        if (coordinate.kind === 'character') {
+            for (let index = 0; index < (imported.chats ?? []).length; index++) {
+                const hydrated = await ensureChatHydrated(imported.chats, index, coordinate.entityId)
+                if (!hydrated) throw new Error('Imported character chat could not be hydrated')
+            }
+        }
+        if (hasTrackedChanges(changeTracker)) {
+            let strictOutcome: 'saved' | 'retry' | 'noop' = 'saved'
+            await triggerSave({
+                rejectOnError: true,
+                onResult: (result: 'saved' | 'retry' | 'noop') => { strictOutcome = result },
+            } as any)
+            if (strictOutcome !== 'saved') {
+                throw new Error('Local changes were retained for a later reconciliation retry')
+            }
+        }
+        requireCommittedImport(lastConfirmedServerDb, coordinate)
+    }
+    resolveBackgroundImportReconciliation()
+
+`,
+            requires: ['background-import:global-rebase-preserve:1.10'],
+            after: [
+                'bg-preserve:hook:globalapi-durable-save-impl',
+                'lazy-chat-bg-adapter:durable-flush',
+            ],
+            targetVersions: target110,
+        },
+        {
+            id: 'background-import:bootstrap-import:1.10',
+            file: 'src/ts/bootstrap.ts',
+            type: 'insert',
+            where: 'after',
+            anchor: `import { initModelJobRecovery } from "./process/request/jobRecovery";
+`,
+            content: `import { initBackgroundImportRecovery } from "./backgroundImport";
+`,
+            requires: [
+                ownedId('src/ts/backgroundImport.ts'),
+                'background-import:auto-fetch-bridge:1.10',
+                'background-import:global-reconcile-runtime:1.10',
+                'background-import:reporter-safe-runtime:1.10',
+                'lazy-chat-sync:replace:src:ts:bootstrap-ts:1.10',
+            ],
+            after: [
+                'kei-mobile-navigation-lazy-adapter:bootstrap-imports',
+                'kei-mobile-navigation-lazy-adapter:bootstrap-imports:1.9',
+            ],
+            targetVersions: target110,
+        },
+        {
+            id: 'background-import:bootstrap-recovery:1.10',
+            file: 'src/ts/bootstrap.ts',
+            type: 'insert',
+            where: 'after',
+            anchor: `            saveDb()
+`,
+            content: `            initBackgroundImportRecovery()
+`,
+            requires: ['background-import:bootstrap-import:1.10'],
             targetVersions: target110,
         },
     ],

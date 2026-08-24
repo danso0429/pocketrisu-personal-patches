@@ -12,7 +12,7 @@ const manifest = require('../patches/background-import/manifest.cjs')
 
 test('background import is visible exact-1.10 review scope without rolling-all admission', () => {
     assert.equal(manifest.id, 'background-import')
-    assert.equal(manifest.version, '0.1.1')
+    assert.equal(manifest.version, '0.2.0')
     assert.equal(manifest.userSelectable, true)
     assert.equal(manifest.allDefault, false)
     assert.deepEqual(manifest.presetDefaults, [])
@@ -73,4 +73,23 @@ test('server hooks authenticate and bound upload bodies before durable routes gu
     assert.match(register.content, /app\.use\(backgroundImportManager\.replacementGuard\)/)
     assert.match(register.content, /maxChunkBytes: 1024 \* 1024/)
     assert.match(register.content, /stagedBytes: 1024 \* 1024 \* 1024/)
+})
+
+test('client hooks retain auth, token-scoped handoff, canonical rebase, and boot ordering', () => {
+    const byId = new Map(manifest.units.map((unit) => [unit.id, unit]))
+    assert.match(byId.get('background-import:node-fetch-bridge:1.10').content, /this\.authFetch/)
+    assert.match(byId.get('background-import:auto-fetch-bridge:1.10').content, /await this\.Init\(\)/)
+    const safe = byId.get('background-import:reporter-safe-runtime:1.10').content
+    assert.match(safe, /active\?\.token !== token/)
+    assert.match(safe, /detachNavigationGuard\(\)/)
+    const preserve = byId.get('background-import:global-rebase-preserve:1.10').content
+    assert.match(preserve, /preserveCommittedImport/)
+    const reconcile = byId.get('background-import:global-reconcile-runtime:1.10').content
+    assert.match(reconcile, /rebaseTrackedLocalChangesOnLatestServerDb/)
+    assert.match(reconcile, /ensureChatHydrated/)
+    assert.match(reconcile, /rejectOnError: true/)
+    assert.match(reconcile, /requireCommittedImport\(lastConfirmedServerDb/)
+    const boot = byId.get('background-import:bootstrap-recovery:1.10')
+    assert.equal(boot.where, 'after')
+    assert.equal(boot.anchor, '            saveDb()\n')
 })
