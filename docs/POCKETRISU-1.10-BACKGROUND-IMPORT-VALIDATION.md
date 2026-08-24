@@ -1,20 +1,24 @@
 # PocketRisu 1.10 background import validation
 
-> **2026-08-24 delivery overlay:** the WebKit-resume follow-up is
-> `background-import` 0.3.3, and `0.2.0-experimental.20` includes it in the
-> complete all-or-nothing graph. The focused/runtime evidence below remains
-> the admission basis; raw selectable combinations are retired.
-
-> **Status:** automatic qualification and safe live apply passed; device L3
-> remains a separate gate
+> **Status:** historical qualification evidence; safely rolled back after the
+> device UX gate found the upload path slower and less convenient
 >
 > **Recorded:** 2026-08-24 KST
 >
 > **Target:** exact PocketRisu 1.10.0 (`98e9683`)
 >
-> **Pack:** `background-import` 0.3.2
+> **Pack:** `background-import` 0.3.3, retired from the catalog
 >
-> **Patcher checkpoint:** `v0.2.0-experimental.19`
+> **Patcher checkpoint:** `v0.2.0-experimental.20` rollback
+
+## 0. Current disposition
+
+The implementation and fault-injection results below remain valid historical
+mechanism evidence. They no longer describe an admitted or live feature.
+`background-import` is absent from the catalog and generated installers, and
+its shared CharX, RisuM, and client-fence payload changes were restored to the
+pre-background versions. Ordinary character and module imports again use their
+foreground owners.
 
 ## 1. Authority and scope
 
@@ -417,3 +421,73 @@ After restart:
 No import job, source bytes, user data, BG result, or generation was cancelled
 or deleted. The user can select the same CharX file to resume this exact
 operation under the new transport recovery logic.
+
+## 10. Device UX rollback receipt
+
+The follow-up removed the false terminal error, but physical-device use still
+found the resumable upload materially slower and less convenient than the
+foreground importer. The user therefore chose to retire the whole
+background-import experiment rather than keep optimizing its transport.
+
+Immediately before rollback:
+
+- PM2 1.10.0 was online with unstable restarts 0 and active requests 0;
+- native active model jobs and pending sends were 0 / 0;
+- BG durable states were 221 delivered / two cancelled, with zero result
+  payloads;
+- main/model/import SQLite each returned `quick_check=ok`;
+- the module CharX operation remained `receiving` with no typed error at
+  11,534,336 / 31,705,288 bytes, and its mode-0600 `.part` file had the exact
+  same 11,534,336-byte length;
+- main/model/import database inodes were 786453 / 872636 / 875700;
+- three backups totalled 3,002,439,949 bytes;
+- nested `save/save` and a patch transaction journal were absent.
+
+PM2 was stopped before filesystem mutation. The entire experimental
+application tree moved to the recoverable path
+`risuai-nodeonly-bg-rolled-back.20260824-132710`, including mode-0600 copies
+of its state and intent. The independently verified pre-background tree then
+took the live path, and the unchanged live `save/` and `backups/` moved into
+it by same-filesystem rename. The exact pre-background state and rolling-all
+intent were restored at mode 0600.
+
+While stopped:
+
+- all 267 managed paths matched their stored output hash and mode;
+- the graph was 35 packs / 716 units / 267 paths with no
+  `background-import`;
+- source/server/dist contained no background import owner or route;
+- the three databases remained `quick_check=ok`;
+- database, partial-source, and backup inodes/bytes were unchanged;
+- the receiving operation and partial source were preserved, not failed,
+  cancelled, acknowledged, or deleted.
+
+After restart:
+
+- PM2 remained PocketRisu 1.10.0, online with unstable restarts 0 and active
+  requests 0;
+- root returned 200 and `/api/import-jobs-diagnostics` returned 404;
+- served/local `index-HzofH5Bv.js` matched at 2,018,974 bytes and SHA-256
+  `4452ce04a4f0620d8f81ad4aeccaaf7a2982064a60c2625ca823127a0f274fb0`;
+- build stamp matched the pre-background value
+  `1.10.0-0f3b58ff3629ca96c049d3707df7da0e88f8f616a5e0055780b0d170cbe4b0ef`;
+- the PM2 error log remained 6,151,722 bytes, a zero-byte rollback delta;
+- all database checks, identities, backups, and the 11,534,336-byte inert
+  source remained unchanged.
+
+The `0.2.0-experimental.20` patcher removes the pack from the catalog and
+installers, restores every background-only shared payload to its
+pre-background version, and retains the experimental source/tests only as an
+audit artifact. The exact-1.10 all graph is again 35 packs / 716 units /
+267 source paths with 12 deterministic collisions. Its disposable
+apply/current/zero-change re-plan/revert cycle restored every tracked byte and
+mode. The explicitly waived exhaustive combination verifier was not run.
+
+Two consecutive `0.2.0-experimental.20` installer builds were byte-identical,
+mode 0700, and syntax-valid. The retired features/hardening artifacts were
+removed.
+
+| Artifact | Bytes | SHA-256 |
+| --- | ---: | --- |
+| `pocketrisu-patcher.cjs` | 7,197,627 | `23116c067f1c8b919d2106be5cc65304b14b6d6cc0f30fd4ee12f9342d201b20` |
+| `pocketrisu-all.cjs` | 7,197,627 | `23116c067f1c8b919d2106be5cc65304b14b6d6cc0f30fd4ee12f9342d201b20` |

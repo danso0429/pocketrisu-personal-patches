@@ -7,10 +7,14 @@
 - Make distributed patch delivery all-or-nothing. `plan`, `apply`, and `stage`
   resolve the complete admitted graph; `revert` removes it in full. Keep
   `--all` and `pocketrisu-all.cjs` only as compatibility aliases.
-- Admit durable `background-import` into the complete set so policy migration
-  preserves the live 14-root-pack feature set. Convert every non-empty legacy,
-  custom, features, or hardening intent to enabled rolling `all`; retain only
-  an empty custom intent as disabled.
+- Retire `background-import` after physical iPhone use found its upload path
+  slower and less convenient than foreground import. Remove it from the
+  catalog and generated installers while retaining source/tests as an audit
+  artifact, and allow its old owner ID only at the state-transition boundary.
+- Restore the pre-background `character-import-ux 0.2.1`,
+  `charx-archive-integrity 0.1.0`, `client-build-fence 0.1.1`, and standard
+  fence-adapter payloads. Remove the background parser qualification hook and
+  import-route fence entries.
 - Remove interactive `configure`, `--packs`, `--preset`, narrow
   features/hardening installers, preset-default metadata, the exhaustive raw
   selection verifier, its package command, and its CI job. Retain internal
@@ -26,17 +30,23 @@
   the project-owned bg-preserve source. Expand third-party notices with exact
   revisions and distinguish code adaptation from research references.
 - Pass 41/41 patcher test files. On an exact PocketRisu 1.10 scratch tree, the
-  complete graph requested 14 root packs, resolved 36 packs/adapters, changed
-  305 files, re-planned with zero changes, reported current enabled delivery,
-  and restored tracked source exactly on full revert.
+  complete graph requested 13 root packs, resolved 35 packs/adapters, changed
+  267 source paths plus state/intent, re-planned with zero changes, reported
+  current enabled delivery, and restored tracked source exactly on full
+  revert. The user-requested exhaustive combination verifier remains skipped.
 - Generate only the primary installer and byte-identical `all` compatibility
-  alias. Two consecutive builds produced 7,590,346-byte artifacts with
-  SHA-256 `e524e90b797e1c2595a2bfe3a6ffd73ceb602c5696004e21dbd1412e053a2c98`;
+  alias. Two consecutive builds produced 7,197,627-byte mode-0700 artifacts
+  with SHA-256
+  `23116c067f1c8b919d2106be5cc65304b14b6d6cc0f30fd4ee12f9342d201b20`;
   both pass CJS syntax checks.
 - Retarget CI from the former 1.8 subset-compatible graph to exact PocketRisu
   1.10. The generated installer proves plan/status while the source-only
   maintainer gate performs under-review apply/revert; ordinary distributed
   apply remains fail-closed until every pack moves from reviewing to verified.
+- Roll live PocketRisu back process-first to the exact pre-background
+  35-pack / 716-unit / 267-path application. Preserve all databases, backups,
+  BG state, and the 11,534,336-byte partial import source; leave the receiving
+  job inert instead of cancelling or deleting it.
 
 ## 0.2.0-experimental.19
 

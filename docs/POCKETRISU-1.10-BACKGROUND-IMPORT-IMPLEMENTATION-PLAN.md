@@ -1,12 +1,8 @@
 # PocketRisu 1.10 durable background import implementation plan
 
-> **2026-08-24 delivery overlay:** `0.2.0-experimental.20` admits this pack to
-> the single complete all-or-nothing set. References below to custom selection,
-> `allDefault: false`, or exhaustive combinations describe the earlier
-> qualification phase.
-
-> **Status:** implemented and safely applied as an experimental live candidate;
-> automatic/live gates passed and device L3 remains pending
+> **Status:** historical implementation authority; the experiment was retired
+> and safely rolled back after device use found its upload path slower and
+> less convenient than foreground import
 >
 > **Recorded:** 2026-08-23 KST
 >
@@ -26,9 +22,12 @@ module imports to continue after an iPhone tab or Home Screen PWA moves to the
 background. It extends, but does not replace, the existing CharX integrity and
 terminal module/character import contracts.
 
-No application source, patch manifest, generated installer, live source,
-database, asset, job state, or user file was changed while creating this plan.
-Implementation requires a later explicit user instruction.
+The plan was subsequently implemented as an experimental pack, qualified, and
+applied. Its retained design and evidence are historical: as of
+`v0.2.0-experimental.20`, the pack is absent from the catalog and live uses
+the pre-background foreground import path. The rollback did not delete its
+partial source, operational row, imported entity, database, backup, or BG
+state.
 
 ## 0. Authority and resume boundary
 

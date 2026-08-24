@@ -9,8 +9,8 @@ The current development checkpoint is `v0.2.0-experimental.20`.
 `pocketrisu-patcher.cjs` applies one complete admitted set or reverts it in
 full. `plan`, `apply`, and `stage` always resolve bg-preserve, lazy storage,
 organizers, import UX, Personal settings, parser/toolchain hardening, CharX
-integrity, durable background import, the admitted Kei capabilities, and all
-matching integration adapters. `configure`, `--packs`, `--preset`, and the
+integrity, the admitted Kei capabilities, and all matching integration
+adapters. `configure`, `--packs`, `--preset`, and the
 features/hardening installers are retired. `--all` and
 `pocketrisu-all.cjs` remain compatibility aliases for one transition.
 
@@ -20,6 +20,10 @@ implementation and verification units, not downloader choices. A newly
 admitted root pack joins the complete set only after its focused owners and
 maximum graph pass; a conflict blocks before source writes.
 
+The experimental `background-import` source and tests remain as an audit
+artifact, but it is absent from the catalog and both generated installers.
+Character and module imports therefore use the existing foreground flow.
+
 See the [delivery design](docs/PATCHER-V2-DESIGN.md),
 [source provenance ledger](docs/SOURCE-PROVENANCE.md), and
 [Haejeok comparison](docs/HAEJEOK-RISUAI-OVERLAP-AUDIT.md).
@@ -28,7 +32,7 @@ See the [delivery design](docs/PATCHER-V2-DESIGN.md),
 
 | Release | What changed |
 | --- | --- |
-| `v0.2.0-experimental.20` | Makes delivery all-or-nothing, admits durable background import into the complete set, retires public combinations and the raw-mask verifier, and records PocketRisu/RisuAI/Kei/serve/Haejeok provenance. |
+| `v0.2.0-experimental.20` | Makes delivery all-or-nothing, retires background import after the device UX finding, removes public combinations/raw-mask verification, restores foreground import payloads, and records the source-provenance audits. |
 | `v0.2.0-experimental.19` | Keeps one durable import operation alive across iOS/WebKit `AbortError`, `NetworkError`, and `Load failed` suspend/resume failures instead of showing a false terminal import error. |
 | `v0.2.0-experimental.18` | Adds review-only resumable character/module upload, server-owned preparation and append-only commit, canonical client reconciliation, restart recovery, bounded retention, and truthful post-handoff background status for exact PocketRisu 1.10. |
 | `v0.2.0-experimental.17` | Keeps the 1.10 aggregate unchanged while removing the iOS Files `accept` hint that disabled proprietary `.risum` and `.module.charx` files; exact post-selection type validation and terminal persistence remain in force. |
@@ -323,19 +327,32 @@ existing 31,705,288-byte CharX job retained its exact 5,242,880-byte durable
 offset and null typed error across stop/restart; served/local identity matched
 and PM2 added no error-log bytes.
 
-The `v0.2.0-experimental.20` patcher changes delivery policy, not PocketRisu
-runtime behavior. The formerly custom live graph already contained every 14
-root capabilities, including background import, so the complete graph
-preserves that functional set. The CLI removes partial selection, narrow
-wrappers, and exhaustive raw-mask verification while retaining focused pack
-and adapter ownership internally. Historical non-empty intents migrate to
-enabled complete delivery; only an empty custom intent remains disabled.
+The `v0.2.0-experimental.20` delivery remains all-or-nothing but retires the
+background-import experiment. Before
+rollback, the same job was still healthy but had reached only 11,534,336 of
+31,705,288 bytes, and the user judged the upload slower and less convenient
+than the foreground path. PM2 was stopped with native active/pending 0/0,
+221 delivered and two cancelled BG states, no BG result payload, and all three
+SQLite checks `ok`. The exact pre-background application tree replaced the
+experimental tree by same-filesystem rename; databases, three backups, and the
+partial import DB/source retained their inodes and bytes.
 
-The source suite passes 41/41 patcher test files. Exact PocketRisu 1.10
-scratch apply/current/zero-change/revert covers 14 requested root packs, 36
-resolved packs/adapters, and 305 paths. Two consecutive builds produce the
-same 7,590,346-byte primary/compatibility artifact with SHA-256
-`e524e90b797e1c2595a2bfe3a6ffd73ceb602c5696004e21dbd1412e053a2c98`.
+The restarted live target reports the pre-background 35 packs / 716 units /
+267 managed paths, with all paths current and no background owner. Root and the
+served/local `index-HzofH5Bv.js` return 200 and match at 2,018,974 bytes with
+SHA-256
+`4452ce04a4f0620d8f81ad4aeccaaf7a2982064a60c2625ca823127a0f274fb0`;
+the background diagnostics route returns 404 and the PM2 error log has a
+zero-byte delta. The incomplete source and receiving row remain inert and
+recoverable rather than being cancelled or deleted.
+
+The retired catalog passes 41/41 patcher test files. Its exact-1.10 disposable
+all graph resolves 35 packs / 716 units / 267 source paths, re-plans with zero
+changes, and reverts every tracked byte and mode. Two consecutive builds
+produced only the patcher and fixed-all artifacts; both are 7,197,627 bytes,
+mode 0700, syntax-valid, and SHA-256
+`23116c067f1c8b919d2106be5cc65304b14b6d6cc0f30fd4ee12f9342d201b20`.
+The exhaustive patch-combination verifier remains skipped by user instruction.
 
 The frozen Haejeok audit also establishes that Haejeok RisuAI is a separate
 RisuAI fork rather than a PocketRisu downstream. SQL/domain storage and object
@@ -1030,9 +1047,9 @@ npm run qualify -- stage \
 ```
 
 This source-only entry point accepts `reviewing` targets but stages the same
-complete graph with the same isolation, planning, and full check gates. It is
-not embedded in distributed installers. Its automated receipt is
-`review-passed` with
+complete graph with the same isolation, planning, full-target checks,
+zero-change re-plan, and exact revert gates. It is not embedded in distributed
+installers. Its automated receipt is `review-passed` with
 `readyForManualCutover: false`; it cannot qualify its own behavioral intent.
 Move the version from `reviewing` to `verified` only after the maintainer also
 confirms the intended behaviors and round trip, then rebuild and retest the
