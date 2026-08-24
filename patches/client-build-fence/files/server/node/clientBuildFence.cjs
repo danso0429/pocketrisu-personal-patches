@@ -35,6 +35,7 @@ const EXACT_WRITER_ROUTES = new Set([
     // Reserved for the detached server-backup job pack. Keeping the fence here
     // ensures that adding the route cannot accidentally create an unfenced writer.
     'POST /api/backup/server/jobs',
+    'POST /api/import-jobs',
 ]);
 
 function parseExpectedClientBuild(value) {
@@ -70,6 +71,10 @@ function isWriterRoute(req) {
     if (method === 'POST' && /^\/api\/pending-sends\/[^/]+\/claim$/.test(requestPath)) return true;
     if (method === 'DELETE' && /^\/api\/pending-sends\/[^/]+$/.test(requestPath)) return true;
     if (method === 'POST' && /^\/api\/bg-sub-result\/[^/]+\/ack$/.test(requestPath)) return true;
+    if (method === 'PUT' && /^\/api\/import-jobs\/[^/]+\/source$/.test(requestPath)) return true;
+    if (method === 'POST'
+        && /^\/api\/import-jobs\/[^/]+\/(?:source\/complete|authorize|claim\/heartbeat|reconciled|ack)$/.test(requestPath)) return true;
+    if (method === 'DELETE' && /^\/api\/import-jobs\/[^/]+$/.test(requestPath)) return true;
     if (method === 'DELETE' && /^\/proxy-stream-jobs\/[^/]+$/.test(requestPath)) return true;
     if (method === 'DELETE' && /^\/api\/bg-orchestrate\/[^/]+$/.test(requestPath)) return true;
     if (method === 'DELETE'
