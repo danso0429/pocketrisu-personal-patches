@@ -12,7 +12,7 @@ const manifest = require('../patches/background-import/manifest.cjs')
 
 test('background import is visible exact-1.10 review scope without rolling-all admission', () => {
     assert.equal(manifest.id, 'background-import')
-    assert.equal(manifest.version, '0.1.0')
+    assert.equal(manifest.version, '0.1.1')
     assert.equal(manifest.userSelectable, true)
     assert.equal(manifest.allDefault, false)
     assert.deepEqual(manifest.presetDefaults, [])

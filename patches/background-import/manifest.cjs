@@ -37,6 +37,8 @@ const ownedPaths = [
     'src/ts/process/backgroundImportSource.ts',
     'src/ts/storage/backgroundImportClient.test.ts',
     'src/ts/storage/backgroundImportClient.ts',
+    'src/ts/storage/backgroundImportReconcile.test.ts',
+    'src/ts/storage/backgroundImportReconcile.ts',
 ]
 
 function ownedId(relative) {
@@ -137,7 +139,7 @@ app.use(backgroundImportManager.replacementGuard);
 module.exports = {
     id: 'background-import',
     title: 'Durable background character and module import',
-    version: '0.1.0',
+    version: '0.1.1',
     targets: {
         pocketrisu: {
             verified: [],
