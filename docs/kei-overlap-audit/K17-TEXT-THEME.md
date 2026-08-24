@@ -62,7 +62,7 @@ Both sides use `textTheme: string` and the same six custom color fields. The dif
 | Corrupt imported preset value | K17-T04 equivalence | Complete source path comparison | K normalizes before storing; C pushes/copies the raw value. | No mutation fixture was run because the source branch is deterministic. |
 | Corrupt live value | K17-T05 equivalence | Direct switch/caller comparison | C has no default branch and does not rewrite standard variables; K first normalizes. | Existing CSS may mask the defect until a reload/theme change. |
 
-Reproduction: from exact K, `/home/ubuntu/.npm/_npx/beb367dfa21eb3f5/node_modules/.bin/esbuild src/ts/gui/textTheme.ts --bundle --platform=node --format=cjs --outfile=/tmp/kei-overlap-text-theme.cjs`, then invoke `normalizeTextTheme` for the six recorded inputs. Both commands exited 0.
+Reproduction: from exact K, `npx esbuild src/ts/gui/textTheme.ts --bundle --platform=node --format=cjs --outfile=/tmp/kei-overlap-text-theme.cjs`, then invoke `normalizeTextTheme` for the six recorded inputs. Both commands exited 0.
 
 ## Findings
 
