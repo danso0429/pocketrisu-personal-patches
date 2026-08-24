@@ -3,6 +3,10 @@
 This repository contains patch payloads for PocketRisu and therefore includes
 modified PocketRisu source code.
 
+The broader code-versus-idea ledger, including sources that were reviewed but
+not copied, is in [`docs/SOURCE-PROVENANCE.md`](docs/SOURCE-PROVENANCE.md).
+
+- RisuAI ancestry: https://github.com/kwaroran/RisuAI
 - PocketRisu: https://github.com/PocketRisu/PocketRisu
 - License: GNU General Public License v3.0
 - Lazy chat synchronization and startup cache adapted implementation:
@@ -15,6 +19,23 @@ modified PocketRisu source code.
 Local changes add iOS-independent cache probing, startup observability, and a
 bg-preserve durable-save adapter. BG semantic merge revisions remain separate
 from the PR's exact transport revisions.
+
+## PocketRisu `serve` reference
+
+The client/server build-admission and point-in-time backup-source designs were
+re-evaluated from the GPL-3.0 `serve` branch of:
+
+- Source: https://github.com/rhplus0831/PocketRisu
+- Build-admission reference: `3e65d76e4768b87156ba4dd93b2c954fe34cc784`
+- Point-in-time reference line:
+  `f3efd3b1b03a9773a9121802ed3f95e8088d3353` through
+  `3e758f9a4c95e9c18d4a9d428c85ded148cbf7ba`
+- License: GNU General Public License v3.0
+
+The local build fence and backup source are not wholesale copies. They were
+adapted around PocketRisu 1.9/1.10, lazy storage, bg-preserve, Kei, orphan
+purge, and restore-safety owners. Detailed local contracts and exclusions are
+recorded in `docs/POCKETRISU-SERVE-HIGH-VALUE-INTEGRATION.md`.
 
 ## Optional web fonts
 
@@ -131,3 +152,17 @@ unused cleanup, cancellation propagation, and focused batch/race tests. It
 does not introduce Revenant, a second provider route, or a new cache schema;
 the inherited raw-key language/preset/provider collision boundary remains
 documented in the K12 validation receipt.
+
+## Haejeok RisuAI research reference
+
+The Haejeok RisuAI comparison is pinned to:
+
+- Source: https://github.com/nevaeh5379/HaejeokRisuai
+- Revision: `e9d035683cdf9f0207eed193ee36f9bdb117f658`
+- License: GNU General Public License v3.0
+
+No Haejeok source is redistributed by this checkpoint. Its SQL/domain storage,
+object storage, low-spec rendering, Node compute, ZIP64 streaming, Korean
+search, and layout-control ideas are classified in
+`docs/HAEJEOK-RISUAI-OVERLAP-AUDIT.md`. Any later code adaptation must add its
+exact paths and revision here before publication.

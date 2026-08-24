@@ -9,11 +9,20 @@
 > direct, untracked live-source fork is admitted.
 
 This track re-evaluates high-value ideas from the `serve` branch of
-`rhplus0831/PocketRisu` against the user's actual PocketRisu 1.9.0, Oracle
+[`rhplus0831/PocketRisu`](https://github.com/rhplus0831/PocketRisu) against the user's actual PocketRisu 1.9.0, Oracle
 server, bg-preserve, lazy-chat, and Kei composition. It does not treat the
 source fork as a patch set to cherry-pick. Each idea is reduced to the smallest
 owner-safe behavior, checked against the current upstream and existing packs,
 and qualified independently before the next item starts.
+
+Frozen idea sources:
+
+- P1 client/server build admission:
+  `3e65d76e4768b87156ba4dd93b2c954fe34cc784`;
+- P2 point-in-time source line: full export at
+  `f3efd3b1b03a9773a9121802ed3f95e8088d3353` through pinned out-of-queue
+  assembly at `3e758f9a4c95e9c18d4a9d428c85ded148cbf7ba`;
+- license: GNU General Public License v3.0.
 
 ## Ordered admission queue
 

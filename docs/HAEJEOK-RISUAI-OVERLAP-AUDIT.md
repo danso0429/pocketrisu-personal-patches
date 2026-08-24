@@ -1,0 +1,194 @@
+# Haejeok RisuAI overlap audit
+
+> Status date: 2026-08-24 KST
+>
+> Decision: source/reference audit only. No Haejeok source is imported by this
+> checkpoint.
+
+## Executive conclusion
+
+[Haejeok RisuAI](https://github.com/nevaeh5379/HaejeokRisuai) is not a
+PocketRisu modification. Its README and Git ancestry identify it as an
+independently maintained fork of
+[RisuAI](https://github.com/kwaroran/RisuAI). PocketRisu, PocketRisu Kei, and
+Haejeok therefore share older RisuAI ancestry, but Haejeok is not downstream
+of PocketRisu 1.10 and cannot be reviewed as a small patch on that target.
+
+The useful Haejeok ideas fall into three groups:
+
+1. **architectural alternatives** such as relational SQL/domain stores and
+   S3/RustFS assets, which conflict with the current PocketRisu SQLite,
+   lazy-chat, point-in-time backup, and asset-reference owners;
+2. **distinct candidate outcomes** such as bounded low-spec rendering,
+   Node-side token/lore/vector computation, Korean fuzzy character search,
+   configurable chat width, resizable text areas, and ZIP64 streaming; and
+3. **duplicate or already stronger local outcomes** such as ordinary
+   character search/recent views, orphan-media cleanup, parser fixes,
+   background generation preservation, stale-client fencing, and durable
+   background import.
+
+No whole Haejeok subsystem should be cherry-picked. A retained idea must be
+reduced to an owner-local PocketRisu 1.10 change and requalified inside the
+single complete patch graph.
+
+## Frozen comparison basis
+
+| Item | Frozen revision |
+| --- | --- |
+| Official PocketRisu | `v1.10.0` / `98e968339d1b3f91b9dac85bb3f2ebb5f90f9d14` |
+| Haejeok RisuAI `main` | `e9d035683cdf9f0207eed193ee36f9bdb117f658` / tag `b6254` |
+| RisuAI common point used to isolate Haejeok work | `22ea4a64b7a2178ca10957dc53f14a0404e31587` |
+| PocketRisu/Haejeok older common ancestor | `b8b4de1d1d1072815d8f6ca957fec0a9e6a95dee` |
+| PocketRisu Kei source already used by this patcher | `cc1d1b195babd887577ebf943d5e82f01f58135c` |
+| Patcher before this audit | `e1b10347c29a2cf5c2cc4efd6211c5d60f0d6f5a` / `0.2.0-experimental.19` |
+
+The Haejeok repository had three remote feature branches at the frozen fetch.
+This audit covers only `main`. In particular, the unmerged
+`feature/asset-manager` branch is not treated as shipped Haejeok behavior.
+
+## Ancestry and measured surface
+
+- PocketRisu 1.10 and Haejeok share the March 2026 RisuAI commit `b8b4de1`.
+  From that point, the two tips contain 958 PocketRisu-side commits and 814
+  Haejeok-side commits respectively.
+- Haejeok shares RisuAI through `22ea4a64` from 2026-08-17. Its frozen `main`
+  contains 173 commits beyond that point and has 547 final changed paths.
+- A repository-wide Prettier commit rewrites many lines. Commit subjects and
+  final callers were inspected so formatting is not classified as a feature.
+- A raw PocketRisu-to-Haejeok tree diff spans 1,243 paths. That number measures
+  two long-lived forks, not 1,243 Haejeok features.
+- The current complete patch plan for exact PocketRisu 1.10 requests 14 root
+  packs, resolves 36 packs/adapters, and manages 305 paths. Fifty-eight of
+  those exact plan paths were also functionally touched on Haejeok `main`.
+  Across the 36 resolved pack manifests, 26 have at least one such path.
+
+These path intersections are collision surfaces only. They do not prove
+equivalent behavior, and non-overlapping files can still compete for the same
+state or policy.
+
+## Product and architecture comparison
+
+| Surface | PocketRisu 1.10 plus complete patch set | Haejeok `e9d03568` | Relationship |
+| --- | --- | --- | --- |
+| Base | PocketRisu NodeOnly 1.10, derived from an older RisuAI line | Current RisuAI fork with independent branding/releases | Different products and upgrade lines |
+| Primary data | NodeOnly SQLite/KV plus lazy chat delta, CAS/rebase, write journal, hydration barriers | Relational PostgreSQL/Oracle/Azure SQL or Web/Tauri SQLite, domain stores, record-level commits | Competing storage authorities |
+| Assets | PocketRisu local asset store, native 1.10 server-side fail-closed orphan walker, persona gallery/folder union | Local FS, S3/RustFS, or Azure SQL assets with catalog, thumbnails, browser analysis, and generic delete API | Haejeok UI is broader; deletion contract conflicts |
+| Generation | Whole ax/main/post-processing server orchestration, operation-keyed result claim/ACK, cancellation, cold recovery | Provider request remains client-owned; selected tokenization, lore matching, and vector ranking move to Node | Complementary outcome, overlapping hosts |
+| Mobile background | Server completes generation and import after page suspension; client reconciles durable results | No equivalent generation/import operation ledger | Local patch is a strict superset for this outcome |
+| Imports | Bounded resumable source upload, server preparation/commit, restart recovery, canonical rebase and ACK | Request-lifetime bulk read/write, streaming backup restore, CharX ZIP export | Transport ideas overlap; durability does not |
+| Backup | One pinned SQLite/WAL and verified filesystem epoch; fresh rollback snapshot before destructive restore | Offline Docker `pg_dump` + stopped RustFS + restic, plus request-lifetime application backups and SQL revision preview | Different operational models |
+| Stale deployments | Build stamp on authoritative client/server writes, dirty-state freeze | Independent updater/release flow; no `x-client-build` fence | Local patch is distinct |
+| Parser/streaming | ChatML/Thoughts/CBS hardening and Kei replayable OpenAI/Google SSE parser | Frozen Haejeok still has the three skipped parser cases and ad-hoc stream splitting | Local patch is distinct/stronger |
+| UX | Native PocketRisu catalog plus canonical persona/character organizers and selected Kei tools | SQL explorer, storage explorer, log exporter, low-spec mode, onboarding, chat width, resize controls | Mixed duplicates and candidates |
+
+## Haejeok feature clusters and disposition
+
+| Haejeok cluster | Principal frozen source | Overlap | Current disposition |
+| --- | --- | --- | --- |
+| Relational SQL storage and domain stores | `server/node/{postgresStorage,oracleStorage,azureStorage,sqlStorageCommon}.cjs`, `src/ts/stores/domain/`, `src/ts/storage/sqlCommit.ts` | Replaces the same character/chat/settings persistence owned by `lazy-chat-sync`, startup cache, BG durable save, backup, and fence adapters | **Exclude as a patch.** Revisit only as a separately approved backend migration project. |
+| S3/RustFS/Azure asset storage and explorer | `server/node/assetStorage.cjs`, `src/ts/storage/nodeS3Storage.ts`, `src/lib/Setting/Pages/StorageExplorer*` | Duplicates orphan inventory/cleanup and intersects persona folders/galleries, CharX, backup, and client fence | **Reference UI only.** Do not port the delete path without a server-authoritative union walker and stale-build fence. |
+| Node compute offload | `server/node/{tokenizeCount,loreMatch,loreResolve,vectorIndex}.cjs`, `src/ts/tokenizer.ts`, memory/lore callers | Touches BG, K11 Hypa, tokenizer, `nodeStorage.ts`, and generation assembly, but does not duplicate whole-pipeline BG execution | **Candidate after measurement.** Preserve browser/custom-provider fallback and operation snapshots. |
+| Low-spec mode, message paging, bounded caches | `src/ts/chatLoadPages.ts`, domain message/character stores, image/cache callers | Valuable memory/DOM reduction but directly changes lazy hydration and active streaming chat hosts | **Merge only into existing lazy/K14 owners.** No parallel message store. |
+| Streaming bulk backup/restore and ZIP64 | `server/node/zipStream.cjs`, bulk read/write routes, `src/ts/drive/backuplocal.ts`, `src/ts/characterCards.ts` | Relevant to large archives, CharX, and background import; no durable upload ledger | **High-value reference.** Evaluate ZIP64/streaming against the known over-4-GiB archive boundary in a separate feature commit. |
+| Character catalog, recent sessions, Korean fuzzy search | `src/lib/UI/MainMenu.svelte`, `RecentSessionsList.svelte`, `src/ts/util/koreanSearch.ts` | Ordinary search/recent/list/grid behavior is already native; organizer owns order/folders | **Duplicate except Korean matching and presentation variants.** Any retained search improvement belongs in the canonical catalog/organizer owner. |
+| Adjustable chat width and text-area resize | `Chat.svelte`, `TextAreaInput.svelte`, display settings | No equivalent local setting found; hosts overlap Personal/K14/K15 | **Small candidate.** Add through `personal-settings`, not raw database fields in a second settings model. |
+| Native log exporter with media pipeline | `src/lib/LogExporter/`, `src/ts/logexporter/`, ffmpeg dependency | Distinct user outcome; touches chat render and substantially expands code/dependencies | **Defer.** All-or-nothing delivery makes bundle/dependency cost part of every install. |
+| SQL message search and revision/database explorers | PostgreSQL full-text indexes, DB explorer components | Depends on the alternative relational backend | **Exclude from the current SQLite patch line.** |
+| Onboarding, mascot, branding, account removal, release plumbing | `WelcomeRisu.svelte`, `AirisuMascot.svelte`, release workflows, account removals | Product identity rather than a missing PocketRisu patch outcome | **Exclude.** |
+
+## Direct overlap with current patch owners
+
+### `lazy-chat-sync` and startup caching
+
+Haejeok replaces the data model with relational tables, domain stores,
+record-level revisions, paged messages, and multiple SQL backends. Our lazy
+owner retains PocketRisu's SQLite/KV protocol and adds transport revisions,
+CAS/rebase, a write journal, stable chat identity, and hydration barriers.
+Stacking these implementations would create two sources of truth. The Haejeok
+low-spec and paging outcomes may be reconsidered only as changes inside the
+current lazy owner.
+
+### `bg-preserve`
+
+Haejeok's Node compute branch moves deterministic preprocessing and vector
+ranking, not provider execution or post-processing. It has no operation-keyed
+generation result, lease, exact ACK, whole-pipeline cancellation, or cold
+recovery. It therefore does not replace bg-preserve. It does touch 19
+bg-preserve-managed paths, so a future compute port must be adapted around the
+BG request snapshot and K11 Hypa delivery rather than copied wholesale.
+
+### Background import, CharX, and import UX
+
+Haejeok adds request-lifetime bulk file transport, server ZIP64 CharX export,
+and streaming backup restore. Our graph adds indexed CharX validation,
+one import lease, resumable verified offsets, durable restart state,
+server-owned preparation/commit, canonical reconciliation, and result ACK.
+The ZIP64 writer and bounded streaming patterns are useful references; the
+existing import state machine remains authoritative.
+
+### Asset cleanup and persona ownership
+
+Official PocketRisu 1.10 performs the destructive orphan decision on the
+server and refuses deletion if its reference scan is not trustworthy. The
+local persona pack extends that walker with every gallery image and folder
+icon.
+
+Haejeok computes orphan candidates in the browser from currently available
+characters/modules/settings. It attempts lazy character detail loads with
+`Promise.allSettled`, then continues even if one fails. The server
+`deleteAssetKeys` route deletes the supplied keys without re-walking canonical
+references. This is not evidence that a Haejeok user has lost data, but it
+does not satisfy this patcher's fail-closed deletion contract and must not be
+ported as the authoritative cleanup path.
+
+### Build fence, backup, and restore safety
+
+No Haejeok equivalent of the `x-client-build` authoritative-write fence was
+found. Haejeok's recommended Docker backup stops the app, dumps PostgreSQL,
+stops RustFS, and writes an encrypted restic snapshot. That is a coherent
+offline deployment backup, but it does not replace the live PocketRisu
+point-in-time source or the mandatory fresh rollback snapshot before each
+destructive application restore.
+
+### Organizers and Personal settings
+
+PocketRisu already owns name search, recent sort, chat metadata, and multiple
+character views. `character-organizer` adds canonical order/folder membership;
+`persona-organizer` adds persona folders, gallery assets, picker scope, and
+referential cleanup. Haejeok's second character order/context-menu model must
+not be stacked. Korean fuzzy matching, chat width, resize handles, and bounded
+low-spec presentation are distinct candidates for those existing owners.
+
+### Parser and Kei capabilities
+
+The frozen Haejeok `chatML.ts` still uses greedy Thoughts extraction. Its
+tests still skip the terminal assistant marker, multiple Thoughts, and CBS
+logical-precedence cases. Its OpenAI/Google stream paths still perform local
+line splitting rather than using the replayable Kei SSE core. It also retains
+the per-message `PartialEditController` and lacks the patcher's translation
+cache panel, mobile-back guard, Kei manual-summary panel, and operation-aware
+chat render adapters. Haejeok does not replace the admitted parser/Kei packs.
+
+## Candidate queue from this audit
+
+| Priority | Candidate | Admission condition |
+| --- | --- | --- |
+| H1 | ZIP64 streaming archive output | Reproduce the current over-4-GiB boundary, preserve exact PocketRisu/CharX formats, bound memory/disk, and add round-trip/CRC tests. Attribute Haejeok if source or a focused implementation is adapted. |
+| H2 | Node token/lore/vector compute | Measure browser/server time and memory first; preserve custom/local providers, BG snapshots, K11 results, authentication, caps, and browser fallback. |
+| H3 | Low-spec rendering/cache policy | Integrate into lazy/K14 owners with active-stream, partial-edit, translation, hydration, and iPhone navigation tests. |
+| H4 | Korean fuzzy character search | Prove it adds results beyond native normalized search without changing canonical order/folders. |
+| H5 | Chat width and text-area resize | Add to Personal settings with schema/version preservation, mobile bounds, and K14/K15 composition. |
+
+This queue is not an implementation commitment. Each item remains dormant
+until its trigger is measured or the user explicitly selects it for the next
+complete patch release.
+
+## Limits
+
+- This is a source and Git-history audit, not a runtime qualification of
+  Haejeok RisuAI.
+- Main-branch code was inspected at the pinned revision; future Haejeok commits
+  require a delta audit from `e9d03568`.
+- Direct-path counts are complete for the frozen revisions, but semantic
+  behavior is claimed only where callers/tests were read as described above.
+- No Haejeok code or asset is redistributed by this checkpoint.
