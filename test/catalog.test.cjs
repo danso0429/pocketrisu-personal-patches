@@ -128,6 +128,15 @@ test('all adopts retired and known custom states but refuses unknown owners', ()
             ],
         }, catalog),
     )
+    assert.doesNotThrow(
+        () => validateProfileTransition(resolveProfile('all', catalog), {
+            profile: 'custom',
+            packs: [
+                { id: 'background-import' },
+                { id: 'persona-organizer' },
+            ],
+        }, catalog),
+    )
     assert.throws(
         () => validateProfileTransition(resolveProfile('all', catalog), {
             profile: 'custom',

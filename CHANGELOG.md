@@ -35,9 +35,9 @@
   current enabled delivery, and restored tracked source exactly on full
   revert. The user-requested exhaustive combination verifier remains skipped.
 - Generate only the primary installer and byte-identical `all` compatibility
-  alias. Two consecutive builds produced 7,197,627-byte mode-0700 artifacts
+  alias. Two consecutive builds produced 7,197,744-byte mode-0700 artifacts
   with SHA-256
-  `23116c067f1c8b919d2106be5cc65304b14b6d6cc0f30fd4ee12f9342d201b20`;
+  `a985c4080cca8582e87730fa7ee40511ecb40aa5841658a068196bc6c59c3530`;
   both pass CJS syntax checks.
 - Retarget CI from the former 1.8 subset-compatible graph to exact PocketRisu
   1.10. The generated installer proves plan/status while the source-only

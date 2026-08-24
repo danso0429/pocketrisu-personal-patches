@@ -328,8 +328,8 @@ offset and null typed error across stop/restart; served/local identity matched
 and PM2 added no error-log bytes.
 
 The `v0.2.0-experimental.20` delivery remains all-or-nothing but retires the
-background-import experiment. Before
-rollback, the same job was still healthy but had reached only 11,534,336 of
+background-import experiment. Before rollback, the same job was still healthy
+but had reached only 11,534,336 of
 31,705,288 bytes, and the user judged the upload slower and less convenient
 than the foreground path. PM2 was stopped with native active/pending 0/0,
 221 delivered and two cancelled BG states, no BG result payload, and all three
@@ -349,10 +349,15 @@ recoverable rather than being cancelled or deleted.
 The retired catalog passes 41/41 patcher test files. Its exact-1.10 disposable
 all graph resolves 35 packs / 716 units / 267 source paths, re-plans with zero
 changes, and reverts every tracked byte and mode. Two consecutive builds
-produced only the patcher and fixed-all artifacts; both are 7,197,627 bytes,
+produced only the patcher and fixed-all artifacts; both are 7,197,744 bytes,
 mode 0700, syntax-valid, and SHA-256
-`23116c067f1c8b919d2106be5cc65304b14b6d6cc0f30fd4ee12f9342d201b20`.
+`a985c4080cca8582e87730fa7ee40511ecb40aa5841658a068196bc6c59c3530`.
 The exhaustive patch-combination verifier remains skipped by user instruction.
+
+A disposable copy of the exact installed `.19` custom state also transitioned
+from 36 packs / 791 units / 303 paths to 35 / 716 / 267, removed all 36
+background-owned files, restored the foreground payloads, re-planned with zero
+changes, and matched all 267 live foreground outputs by hash and mode.
 
 The frozen Haejeok audit also establishes that Haejeok RisuAI is a separate
 RisuAI fork rather than a PocketRisu downstream. SQL/domain storage and object

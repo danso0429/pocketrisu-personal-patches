@@ -483,11 +483,21 @@ audit artifact. The exact-1.10 all graph is again 35 packs / 716 units /
 apply/current/zero-change re-plan/revert cycle restored every tracked byte and
 mode. The explicitly waived exhaustive combination verifier was not run.
 
+A separate application-only copy exercised the actual retired-state boundary.
+It began current at the exact `.19` custom state (36 packs / 791 units / 303
+paths), then the `.20` catalog planned 52 source changes plus state/intent,
+including removal of all 36 background-owned files. After transactional apply
+it was current at 35 packs / 716 units / 267 paths with re-plan 0 and no
+background owner. All 267 resulting managed outputs matched the live
+foreground tree by hash and mode. An arbitrary unknown owner remains refused;
+only the exact retired `background-import` owner ID is accepted for this
+transition.
+
 Two consecutive `0.2.0-experimental.20` installer builds were byte-identical,
 mode 0700, and syntax-valid. The retired features/hardening artifacts were
 removed.
 
 | Artifact | Bytes | SHA-256 |
 | --- | ---: | --- |
-| `pocketrisu-patcher.cjs` | 7,197,627 | `23116c067f1c8b919d2106be5cc65304b14b6d6cc0f30fd4ee12f9342d201b20` |
-| `pocketrisu-all.cjs` | 7,197,627 | `23116c067f1c8b919d2106be5cc65304b14b6d6cc0f30fd4ee12f9342d201b20` |
+| `pocketrisu-patcher.cjs` | 7,197,744 | `a985c4080cca8582e87730fa7ee40511ecb40aa5841658a068196bc6c59c3530` |
+| `pocketrisu-all.cjs` | 7,197,744 | `a985c4080cca8582e87730fa7ee40511ecb40aa5841658a068196bc6c59c3530` |

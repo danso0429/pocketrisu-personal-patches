@@ -4152,6 +4152,8 @@ const PROFILES = Object.freeze({
     }),
 })
 
+const RETIRED_OWNER_IDS = Object.freeze(['background-import'])
+
 function validateProfileMetadata(catalog) {
     for (const pack of catalog) {
         if (pack.presetDefaults !== undefined) {
@@ -4255,7 +4257,8 @@ function validateProfileTransition(profile, previousState, catalog = []) {
         const byId = new Map(catalog.map((pack) => [pack.id, pack]))
         const knownAndOwned = (previousState.packs ?? []).every(({ id }) => {
             const pack = byId.get(id)
-            return pack && (
+            if (!pack) return RETIRED_OWNER_IDS.includes(id)
+            return (
                 profile.allowed.includes(id)
                 || pack.userSelectable === false
             )
