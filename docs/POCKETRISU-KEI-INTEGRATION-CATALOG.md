@@ -7,6 +7,12 @@ This is the planning authority for selectively integrating
 patcher. It records ownership and composition decisions; it is not an
 implementation receipt.
 
+**2026-08-24 delivery-policy overlay:** the patcher now ships one complete
+all-or-nothing set. In the frozen catalog below, `U` and `A` still describe
+internal ownership, while `T` now means a separately evaluated policy that
+stays excluded until it is approved for every installation. It no longer means
+a downloader-selectable pack. Historical comparison counts remain unchanged.
+
 The comparison is frozen to:
 
 | Item | Revision |
@@ -35,14 +41,15 @@ owning the same state or policy.
 
 Every feature cluster has one or more of these dispositions:
 
-- **U — umbrella child:** an internal, non-user-selectable capability delivered
-  by the user-facing `pocketrisu-kei` meta pack.
+- **U — umbrella child:** an internal capability delivered through the
+  `pocketrisu-kei` admission meta pack.
 - **A — hidden adapter:** an internal composition pack selected by `autoWhen`
   for one feature and one existing authority. It owns glue only.
 - **M — merge into existing authority:** the behavior belongs in an existing
   pack because that pack already owns the state machine, invariant, or policy.
-- **T — separate top-level pack:** independently user-selectable because it
-  changes privacy, network, provider, storage, or concurrency policy.
+- **T — separate policy candidate:** changes privacy, network, provider,
+  storage, or concurrency policy and therefore remains outside the complete
+  set until separately approved.
 - **X — exclude or defer:** no direct port. This covers branding, broad
   refactors without an independent outcome, destructive behavior without an
   accepted contract, and replacements that would remove supported paths.
@@ -58,9 +65,9 @@ An entry can combine dispositions. For example, a reusable capability may be
 
 ## Delivery architecture
 
-### User-facing meta pack
+### Admission meta pack
 
-`pocketrisu-kei` will be the only new user-facing pack for the admitted
+`pocketrisu-kei` is the root admission pack for the admitted
 low-policy-risk Kei capabilities. Its planned manifest shape is:
 
 ```js
@@ -75,10 +82,9 @@ low-policy-risk Kei capabilities. Its planned manifest shape is:
 ```
 
 The current manager accepts an empty `units` array, and the resolver expands
-`requires` and conditional internal packs. No resolver feature is needed for
-this shape. The meta pack must initially omit `presetDefaults`, so it joins the
-rolling universal `all` preset without silently changing the narrower
-`features` or `hardening` wrappers.
+`requires` and conditional internal packs. The legacy `userSelectable` field
+marks a root pack rather than a downloader choice. The meta pack has no
+`presetDefaults`; those profiles were removed by all-or-nothing delivery.
 
 Each admitted child remains independently versioned and testable. Adding a
 child to the meta pack is a publication decision made only after that child
@@ -103,7 +109,7 @@ There will be no monolithic `kei-bg-adapter`. Feature-by-owner adapters keep
 failure and revert boundaries small and prevent one feature from silently
 changing another feature's policy.
 
-### Separate top-level packs
+### Separate policy candidates
 
 These capabilities must not become umbrella defaults:
 
@@ -112,8 +118,8 @@ These capabilities must not become umbrella defaults:
 - `kei-request-logs`
 - `kei-usage-insights`
 
-Their internal implementation may use hidden children, but the user must
-select the top-level policy explicitly.
+Their internal implementation may use hidden children, but they stay excluded
+until the user approves adding that policy to the complete set for everyone.
 
 ## Feature disposition catalog
 

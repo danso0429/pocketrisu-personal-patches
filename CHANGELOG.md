@@ -2,6 +2,42 @@
 
 ## Unreleased
 
+## 0.2.0-experimental.20
+
+- Make distributed patch delivery all-or-nothing. `plan`, `apply`, and `stage`
+  resolve the complete admitted graph; `revert` removes it in full. Keep
+  `--all` and `pocketrisu-all.cjs` only as compatibility aliases.
+- Admit durable `background-import` into the complete set so policy migration
+  preserves the live 14-root-pack feature set. Convert every non-empty legacy,
+  custom, features, or hardening intent to enabled rolling `all`; retain only
+  an empty custom intent as disabled.
+- Remove interactive `configure`, `--packs`, `--preset`, narrow
+  features/hardening installers, preset-default metadata, the exhaustive raw
+  selection verifier, its package command, and its CI job. Retain internal
+  pack/adapter resolution and focused owner compositions for deterministic
+  ordering, collision isolation, and exact revert.
+- Audit Haejeok RisuAI at `e9d03568` and establish from README and Git ancestry
+  that it is a separate RisuAI fork, not a PocketRisu downstream. Compare its
+  SQL/domain storage, object assets, server compute, low-spec paging, ZIP64,
+  Korean search, layout controls, backup, and UX against PocketRisu 1.10, Kei,
+  and the complete local patch graph without importing Haejeok source.
+- Add a source/idea provenance ledger covering RisuAI, PocketRisu, PR #49,
+  PocketRisu Kei, the `rhplus0831/PocketRisu` serve branch, Haejeok RisuAI, and
+  the project-owned bg-preserve source. Expand third-party notices with exact
+  revisions and distinguish code adaptation from research references.
+- Pass 41/41 patcher test files. On an exact PocketRisu 1.10 scratch tree, the
+  complete graph requested 14 root packs, resolved 36 packs/adapters, changed
+  305 files, re-planned with zero changes, reported current enabled delivery,
+  and restored tracked source exactly on full revert.
+- Generate only the primary installer and byte-identical `all` compatibility
+  alias. Two consecutive builds produced 7,590,346-byte artifacts with
+  SHA-256 `e524e90b797e1c2595a2bfe3a6ffd73ceb602c5696004e21dbd1412e053a2c98`;
+  both pass CJS syntax checks.
+- Retarget CI from the former 1.8 subset-compatible graph to exact PocketRisu
+  1.10. The generated installer proves plan/status while the source-only
+  maintainer gate performs under-review apply/revert; ordinary distributed
+  apply remains fail-closed until every pack moves from reviewing to verified.
+
 ## 0.2.0-experimental.19
 
 - Treat iOS/WebKit `AbortError`, `NetworkError`, and `Load failed` fetch

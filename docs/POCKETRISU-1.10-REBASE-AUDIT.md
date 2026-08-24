@@ -1,5 +1,11 @@
 # PocketRisu 1.10.0 rebase and live-cutover audit
 
+> **2026-08-24 policy overlay:** the exact-1.10 runtime graph subsequently
+> admitted durable background import and its WebKit resume follow-up.
+> `0.2.0-experimental.20` retires public combinations and delivers the same 14
+> root capabilities as one complete set. The cutover-time diagnosis and its
+> waived raw-selection result below remain historical evidence.
+
 > **Status:** Official 1.10.0 plus the `v0.2.0-experimental.17` rolling `all`
 > graph is live. Exact-target adaptation, automatic qualification, commit/push,
 > the iOS proprietary-module picker correction, and process-first live apply are

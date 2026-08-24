@@ -1,5 +1,10 @@
 # PocketRisu 1.10 durable background import implementation plan
 
+> **2026-08-24 delivery overlay:** `0.2.0-experimental.20` admits this pack to
+> the single complete all-or-nothing set. References below to custom selection,
+> `allDefault: false`, or exhaustive combinations describe the earlier
+> qualification phase.
+
 > **Status:** implemented and safely applied as an experimental live candidate;
 > automatic/live gates passed and device L3 remains pending
 >

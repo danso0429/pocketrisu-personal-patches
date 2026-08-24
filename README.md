@@ -1,48 +1,34 @@
 # PocketRisu Personal Patches
 
-Private, composable patch delivery for PocketRisu NodeOnly. The current
+Private, all-or-nothing patch delivery for PocketRisu NodeOnly. The current
 stable release is `v0.1.7`, and its manifests target PocketRisu `v1.8.1`.
-The current development checkpoint is `v0.2.0-experimental.19`.
+The current development checkpoint is `v0.2.0-experimental.20`.
 
-## Universal installer and compatibility presets
+## Complete installer
 
-`pocketrisu-patcher.cjs` is the primary artifact. Users select capabilities;
-the resolver decides pack order, dependencies, superseded packs, and hidden
-integration adapters. `configure` may be used interactively or with
-`--packs`; its first prompt offers all, customize, or none. Choosing all, or
-using `--all`, stores a rolling preset policy: a newer qualified patcher
-automatically includes every newly published user-facing pack in that preset.
-Customize and `--packs` store a pinned capability list, while `none` stores
-an empty pinned list. Because lazy chat synchronization contains startup
-caching, the all graph resolves to lazy storage instead of installing both
-storage implementations. A newly included pack still passes normal planning,
-compatibility, and staging gates; a conflict blocks before source writes.
+`pocketrisu-patcher.cjs` applies one complete admitted set or reverts it in
+full. `plan`, `apply`, and `stage` always resolve bg-preserve, lazy storage,
+organizers, import UX, Personal settings, parser/toolchain hardening, CharX
+integrity, durable background import, the admitted Kei capabilities, and all
+matching integration adapters. `configure`, `--packs`, `--preset`, and the
+features/hardening installers are retired. `--all` and
+`pocketrisu-all.cjs` remain compatibility aliases for one transition.
 
-The older named artifacts remain preset wrappers:
+The internal resolver is retained for dependency, supersede, adapter,
+collision, target, and exact-revert ownership. Those pack boundaries are
+implementation and verification units, not downloader choices. A newly
+admitted root pack joins the complete set only after its focused owners and
+maximum graph pass; a conflict blocks before source writes.
 
-- `pocketrisu-features.cjs` manages `lazy-chat-sync` (including startup cache),
-  `persona-organizer`, `character-organizer`, `character-import-ux`,
-  `personal-settings`, and `preset-integrity`. Character and module imports
-  share one non-blocking import lease and terminal persistence contract.
-  An existing bg-preserve installation remains an external layer.
-- `pocketrisu-hardening.cjs` manages `client-build-fence`,
-  `parser-hardening`, `toolchain-hardening`, and the independent
-  `charx-archive-integrity` pack.
-- `pocketrisu-all.cjs` combines the feature packs, parser and toolchain
-  hardening, the client build fence,
-  bg-preserve `v1.0.1`, and the `lazy-chat-bg-adapter` durable-save barrier.
-
-The review-only `background-import` pack is selected through the universal
-installer's custom mode. It requires the import UX, CharX integrity, lazy chat,
-and build-fence owners, but remains outside rolling `all` until device L3.
-
-All four artifacts are generated from the same engine and manifests. They are
-not separate implementations.
+See the [delivery design](docs/PATCHER-V2-DESIGN.md),
+[source provenance ledger](docs/SOURCE-PROVENANCE.md), and
+[Haejeok comparison](docs/HAEJEOK-RISUAI-OVERLAP-AUDIT.md).
 
 ## Release history
 
 | Release | What changed |
 | --- | --- |
+| `v0.2.0-experimental.20` | Makes delivery all-or-nothing, admits durable background import into the complete set, retires public combinations and the raw-mask verifier, and records PocketRisu/RisuAI/Kei/serve/Haejeok provenance. |
 | `v0.2.0-experimental.19` | Keeps one durable import operation alive across iOS/WebKit `AbortError`, `NetworkError`, and `Load failed` suspend/resume failures instead of showing a false terminal import error. |
 | `v0.2.0-experimental.18` | Adds review-only resumable character/module upload, server-owned preparation and append-only commit, canonical client reconciliation, restart recovery, bounded retention, and truthful post-handoff background status for exact PocketRisu 1.10. |
 | `v0.2.0-experimental.17` | Keeps the 1.10 aggregate unchanged while removing the iOS Files `accept` hint that disabled proprietary `.risum` and `.module.charx` files; exact post-selection type validation and terminal persistence remain in force. |
@@ -336,6 +322,26 @@ client payloads, private patch state, and the qualified frontend build. The
 existing 31,705,288-byte CharX job retained its exact 5,242,880-byte durable
 offset and null typed error across stop/restart; served/local identity matched
 and PM2 added no error-log bytes.
+
+The `v0.2.0-experimental.20` patcher changes delivery policy, not PocketRisu
+runtime behavior. The formerly custom live graph already contained every 14
+root capabilities, including background import, so the complete graph
+preserves that functional set. The CLI removes partial selection, narrow
+wrappers, and exhaustive raw-mask verification while retaining focused pack
+and adapter ownership internally. Historical non-empty intents migrate to
+enabled complete delivery; only an empty custom intent remains disabled.
+
+The source suite passes 41/41 patcher test files. Exact PocketRisu 1.10
+scratch apply/current/zero-change/revert covers 14 requested root packs, 36
+resolved packs/adapters, and 305 paths. Two consecutive builds produce the
+same 7,590,346-byte primary/compatibility artifact with SHA-256
+`e524e90b797e1c2595a2bfe3a6ffd73ceb602c5696004e21dbd1412e053a2c98`.
+
+The frozen Haejeok audit also establishes that Haejeok RisuAI is a separate
+RisuAI fork rather than a PocketRisu downstream. SQL/domain storage and object
+storage are alternative architectures; ZIP64 streaming, bounded low-spec
+rendering, Node compute, Korean fuzzy search, chat width, and text-area resize
+remain separately gated ideas. No Haejeok source is imported in this release.
 
 The `v0.2.0-experimental.11` checkpoint keeps that storage and activation
 contract while extending the chat-font enum with Noto Sans KR and Noto Serif
@@ -771,36 +777,26 @@ npm test
 npm run build
 ```
 
-Preview a unified install without writing:
+Inspect components and preview the complete install without writing:
 
 ```bash
 node dist/pocketrisu-patcher.cjs list
-node dist/pocketrisu-patcher.cjs configure \
-  --root /path/to/PocketRisu \
-  --packs bg-preserve,lazy-chat-sync,persona-organizer
 node dist/pocketrisu-patcher.cjs plan --root /path/to/PocketRisu --json
 ```
 
-Apply every compatible capability, apply a saved custom selection, inspect, or
-revert:
+Apply the complete set, inspect it, or revert it in full:
 
 ```bash
-node dist/pocketrisu-patcher.cjs apply \
-  --root /path/to/PocketRisu \
-  --all
 node dist/pocketrisu-patcher.cjs apply --root /path/to/PocketRisu
 node dist/pocketrisu-patcher.cjs status --root /path/to/PocketRisu
 node dist/pocketrisu-patcher.cjs revert --root /path/to/PocketRisu
 ```
 
-The first command stores rolling `all` intent. The second reuses whichever
-policy was saved: rolling presets are recalculated from that installer's
-catalog, while customized selections remain pinned until configured again.
-`revert` records an empty custom selection, so a later plain `apply` does
-not silently reinstall the former preset.
-
-Use `pocketrisu-features.cjs` for feature packs without bg-preserve, or
-`pocketrisu-hardening.cjs` for parser hardening alone.
+`apply` stores enabled rolling `all` intent. `revert` records an empty custom
+intent as the disabled state. Because these commands are explicit, a later
+plain `plan` previews and a later plain `apply` enables the complete set.
+Automatic update tooling should inspect `status.delivery.enabled` before
+invoking an install.
 
 For an upstream upgrade, keep the current installation as `--root` and place
 the pristine new upstream in a separate `--candidate` directory:
@@ -812,12 +808,12 @@ node dist/pocketrisu-patcher.cjs stage \
   --json
 ```
 
-`stage` reuses the saved user intent, proves the candidate is separate and
-fresh, plans every selected pack, requires exact target qualification, applies
-only to the candidate, then verifies the declared pnpm version and runs frozen
+`stage` proves the candidate is separate and fresh, plans the complete set,
+requires exact target qualification, applies only to the candidate, then
+verifies the declared pnpm version and runs frozen
 dependency installation, target tests, Svelte diagnostics, the production
-build, and the BG orchestration bundle builder when selected. A successful
-private receipt says only that the
+build, and the BG orchestration bundle builder. A successful private receipt
+says only that the
 candidate is ready for a separately reviewed manual cutover. Cutover,
 user-data movement, and restarting a running PocketRisu process are
 deliberately outside the patcher.
@@ -831,10 +827,10 @@ upstream split can reduce transferred bytes without removing those features.
 
 ## Composition and collision rules
 
-Users never choose a patch order. Pack-level `requires`, `conflicts`,
-`supersedes`, and conditional hidden adapters are resolved deterministically
-from the selected capabilities. There is no global unit order: units in
-different files are independent.
+Users choose neither a subset nor a patch order. Pack-level `requires`,
+`conflicts`, `supersedes`, and conditional hidden adapters are resolved
+deterministically from the complete admitted roots. There is no global unit
+order: units in different files are independent.
 For unordered units in the same file, the engine dry-runs both orders against
 the reconstructed baseline:
 
@@ -843,7 +839,7 @@ the reconstructed baseline:
 - two different valid results: the manifest must declare the intended order;
 - neither valid, or an ordering cycle: the plan is refused before any write.
 
-When a newly selected pack collides with one existing unit, the engine removes
+When a newly admitted pack collides with one existing unit, the engine removes
 the currently managed blocks in memory, recomposes the desired graph, and
 writes the final result once. Files whose final bytes did not change are
 skipped. This permits a `B2 → A3` relationship without requiring `A1` or `A2`
@@ -935,25 +931,24 @@ blocked and its report remains available through the `report` command.
    `requires`, `before`, or `after` for semantic order that cannot be inferred
    from text collisions. Avoid owning unrelated files or broad sections.
 3. Register the manifest once in `src/catalog.cjs`; this explicit line is the
-   publication gate. Every registered user-facing pack automatically appears
-   in the universal selector and rolling `all` preset. Add
-   `presetDefaults: ['features']` or `['hardening']` in the manifest only
-   when the corresponding narrow wrapper should own it. Omit that metadata for
-   universal-only packs. Internal adapters use `userSelectable: false` and
-   cannot be preset defaults.
+   publication gate. A root pack with `allDefault !== false` enters the
+   complete set. Use `allDefault: false` only while a maintainer is qualifying
+   a not-yet-admitted pack; distributed installers cannot select it. Internal
+   adapters use `userSelectable: false` and enter only through dependency or
+   `autoWhen` ownership.
 4. Do not hard-code an ETag. `packEtag()` calculates SHA-256 over the stable
-   JSON representation of the pack's identity, visibility, preset metadata,
+   JSON representation of the pack's identity, visibility, admission metadata,
    graph relations, targets, units, and contracts. Any managed text, anchor,
-   ordering contract, mode, profile ownership, or version change therefore
+   ordering contract, mode, admission, or version change therefore
    changes the ETag automatically. Never edit a target's
    `save/pocketrisu-patches/state.json` by hand.
 5. Add a test that mutates one managed field and proves the ETag changes while
-   the original remains stable. Also test the pack's narrow-profile metadata,
-   automatic `all` inclusion, selector visibility, and explicit file boundary.
-6. Run `npm test` and build the installers twice; byte hashes must match. On a
-   clean target, verify `plan`, `apply`, a second `plan` with no changed files,
-   `status` with `catalogStatus: current`, and `revert` restoring exact content
-   and POSIX modes.
+   the original remains stable. Also test complete-set admission, internal
+   adapter expansion, focused owner graphs, and the explicit file boundary.
+6. Run `npm test` and build the two compatibility-named installers twice; byte
+   hashes must match. On a clean target, verify complete `plan`, `apply`, a
+   second `plan` with no changed files, `status` with `catalogStatus: current`,
+   and `revert` restoring exact content and POSIX modes.
 7. For dependency changes, patch both the package manifest and lockfile, then
    prove `pnpm install --frozen-lockfile` succeeds and the resolved dependency
    graph contains the intended single version.
@@ -966,7 +961,7 @@ blocked and its report remains available through the `report` command.
 Runtime HTTP caching uses the database ETag. Patch management uses SHA-256
 pack ETags and exact output hashes:
 
-- every selected pack still participates in the in-memory graph and collision
+- every admitted pack still participates in the in-memory graph and collision
   check, but files whose final bytes and POSIX mode are already current are not
   rewritten; a fully identical apply creates no transaction journal;
 - one exclusive lock serializes recovery, planning, and writes for each target
@@ -977,10 +972,9 @@ pack ETags and exact output hashes:
   new owned files default to `0644` unless a unit declares another mode, while
   patch state and transaction metadata use `0600`;
 - `save/pocketrisu-patches/state.json` records the active profile and graph;
-- `save/pocketrisu-patches/intent.json` separately records either a rolling
-  preset policy or a pinned custom capability list, so a fresh upstream
-  candidate never mistakes an old applied-state snapshot for blocks present
-  in new source;
+- `save/pocketrisu-patches/intent.json` records enabled rolling `all` or an
+  empty custom disabled state, so a fresh upstream candidate never mistakes
+  an old applied-state snapshot for blocks present in new source;
 - writes are journaled in
   `save/pocketrisu-patches/transaction.json`;
 - a failed or interrupted transaction restores every touched file before the
@@ -994,12 +988,11 @@ durable `awaitingMetadata` WAL quarantine. Only that orphan-prone subset has a
 backlog is logged after restart, and a save that would exceed the limit is
 rejected before ACK. Existing-chat WAL records are outside this pressure limit.
 
-The `features` and `hardening` artifacts refuse to take ownership of another
-profile's state, because doing so could silently remove managed packs. The
-`all` artifact may safely adopt a prior `features` or `hardening` state.
-Legacy format-1 intent is read conservatively: an exact match for the current
-effective preset defaults becomes rolling, while any partial or older list
-stays pinned. The next successful intent-writing transition stores format 2.
+The complete artifact may adopt prior `features`, `hardening`, or known custom
+state. Every non-empty historical intent becomes enabled complete delivery;
+an empty custom intent stays disabled. A state containing a pack unknown to
+the active catalog is refused so a foreign or future owner cannot be silently
+removed. The next successful apply stores format-2 rolling `all`.
 
 ## Upstream updates
 
@@ -1033,47 +1026,23 @@ for every affected pack and run:
 ```bash
 npm run qualify -- stage \
   --root /path/to/current/PocketRisu \
-  --candidate /path/to/pristine/review/PocketRisu \
-  --packs pack-a,pack-b
-
-npm run verify:combinations -- \
-  --root /path/to/separate/pristine/review/PocketRisu \
-  --allow-reviewing \
-  --json
+  --candidate /path/to/pristine/review/PocketRisu
 ```
 
-The canonical maintainer procedure, acceptance fields, anti-reward-hacking
-rules, and distinction from L2.5 runtime audit are in
-[`docs/patch-combination-verification-instructions.md`](docs/patch-combination-verification-instructions.md).
-
-The verifier does not deduplicate raw selections. It runs plan, apply,
-zero-change re-plan, status, and exact byte/mode revert for every mask, sharded
-across isolated target copies. Automatic worker count follows available CPU
-parallelism with a four-worker resource cap; use `--jobs N` to override it.
-The result fails closed unless every mask is reported exactly once.
-
-On Linux, a sufficiently sized memory filesystem can reduce disposable-worker
-I/O without changing the source root or the checks:
-
-```bash
-TMPDIR=/dev/shm npm run verify:combinations -- \
-  --root /path/to/separate/pristine/review/PocketRisu \
-  --jobs 2 \
-  --json
-```
-
-Check tmpfs capacity first. Worker copies and caches are temporary and are
-removed on normal completion or a handled failure; abrupt process termination
-can leave the verifier-named temporary directory. The supplied pristine root
-is only read.
-
-This source-only entry point accepts `reviewing` targets but retains the same
-isolation, planning, and full check gates. It is not embedded in distributed
-installers. Its automated receipt is `review-passed` with
+This source-only entry point accepts `reviewing` targets but stages the same
+complete graph with the same isolation, planning, and full check gates. It is
+not embedded in distributed installers. Its automated receipt is
+`review-passed` with
 `readyForManualCutover: false`; it cannot qualify its own behavioral intent.
 Move the version from `reviewing` to `verified` only after the maintainer also
 confirms the intended behaviors and round trip, then rebuild and retest the
 downloader artifact.
+
+The retired raw-selection procedure remains in
+[`docs/patch-combination-verification-instructions.md`](docs/patch-combination-verification-instructions.md)
+as historical evidence. It is not an active gate after all-or-nothing
+delivery. Feature work still exercises every relevant owner composition and
+the maximum complete graph.
 
 ## Update notification channel
 
@@ -1091,6 +1060,8 @@ that contains no checker cannot learn about later versions retroactively.
 
 ## Attribution
 
-PocketRisu and the storage synchronization code adapted from PR #49 are GPL-3.0
-licensed. See [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md) and
-[LICENSE](LICENSE).
+PocketRisu, PocketRisu PR #49, PocketRisu Kei, and the reviewed GPL forks keep
+their original attribution boundaries. Haejeok is currently a research
+reference, not redistributed source. See the
+[source provenance ledger](docs/SOURCE-PROVENANCE.md),
+[THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md), and [LICENSE](LICENSE).

@@ -1,115 +1,100 @@
-# PocketRisu Patcher v2 design
+# Patcher all-or-nothing delivery design
 
-## Responsibility boundary
+## User contract
 
-- Downloaders select user-facing capabilities. They never choose unit order or
-  edit manifests to resolve a conflict.
-- The resolver expands that intent into packs and hidden integration adapters.
-- Planning, compatibility checks, and reports happen before target files are
-  written.
-- A conflict blocks the transition. The patcher does not guess a new anchor,
-  silently omit a pack, weaken a feature, or expose a downloader-facing force
-  option.
-- Only the patch maintainer changes a pack and qualifies a new release.
+- `pocketrisu-patcher.cjs` has one enabled state: the complete admitted patch
+  set.
+- `plan`, `apply`, and `stage` always resolve that complete set.
+- `revert` removes every managed patch and records delivery as disabled.
+- `status` reports the installed graph and the binary enabled/disabled policy.
+- `--all` remains a compatibility alias. `configure`, `--packs`, `--preset`,
+  and `--profile` are rejected.
+- `pocketrisu-all.cjs` is a byte-identical compatibility filename.
+  `pocketrisu-features.cjs` and `pocketrisu-hardening.cjs` are retired.
 
-## Persistent state
+## Internal graph
 
-- `intent.json` format 2 records either `mode: preset`, which recalculates
-  current catalog defaults, or `mode: custom`, which pins explicit
-  capabilities. Both survive upstream replacement.
-- `state.json` records the exact resolved units applied to one target baseline.
-- A new upstream tree is always planned as a fresh baseline in staging; an old
-  applied-state snapshot is never treated as if its managed blocks still exist.
-- Legacy format-1 preset intent becomes rolling only when its requested list
-  exactly matches the current preset's effective defaults. Any mismatch is
-  migrated as pinned custom intent so an update cannot silently broaden an
-  older customized selection.
+All-or-nothing delivery does not flatten implementation ownership. The catalog
+retains root packs, required capability packs, automatic adapters, supersede
+relations, exact ordering, and target-scoped units.
 
-## Upstream lifecycle
+```text
+one complete intent
+  -> admitted root packs
+  -> dependency expansion
+  -> exactly matching owner adapters
+  -> deterministic unit order and collision validation
+  -> one transactional plan/apply/revert
+```
 
-1. The current live root supplies only saved user intent.
-2. A new upstream release is acquired in a fresh, non-overlapping candidate
-   directory.
-3. Structural planning and exact target qualification run before candidate
-   source writes.
-4. A verified graph is applied only to the candidate. Frozen install, target
-   tests, diagnostics, production build, and the selected BG bundle build run
-   there.
-5. Failure creates a maintainer report and a non-ready staging receipt. It
-   never changes live source or activates the candidate.
-6. Success creates a private ready receipt. Cutover, data movement, and
-   process restart remain separate, explicitly reviewed deployment actions.
+This internal graph keeps feature-level tests and exact revert boundaries
+without exposing downloader-selectable combinations. `userSelectable` remains
+an internal catalog distinction between root packs and hidden adapters; it no
+longer promises a public selector.
 
-The private source tree also contains a maintainer-only qualification entry
-point. It accepts only target versions explicitly declared `reviewing` in
-manifest metadata, still requires a separate fresh candidate, and runs the
-same gates. The distributed installer does not expose that gate. After a
-successful automated review it writes a non-cutover `review-passed` receipt.
-Only after the maintainer verifies the intended behaviors and round trip do
-they move the exact version to `verified`, rebuild the installer, and rerun
-the downloader staging path.
+## Admission
 
-## Compatibility states
+- Every registered root pack with `allDefault !== false` is included.
+- `allDefault: false` is a maintainer-only pre-admission state. It cannot be
+  selected by a distributed installer.
+- This checkpoint admits `background-import`, so the complete exact-1.10 graph
+  contains the same functional set already installed on the live target.
+- A new feature must pass its focused owner graphs and the maximum complete
+  graph before `allDefault: false` is removed.
+- The old exhaustive `2^N` raw-selection verifier is retired because public
+  subset selection no longer exists. Focused internal compositions remain
+  normal feature gates when an adapter has multiple authorities.
 
-- `verified`: the exact target release and resolved graph passed the required
-  qualification gates.
-- `review-required`: structural planning may succeed, but the target has not
-  been qualified by the maintainer.
-- `under-review`: a private maintainer checkout has explicitly admitted the
-  exact target to the qualification pipeline; downloader artifacts still
-  refuse it.
-- `blocked`: a dependency, anchor, ownership, ordering, contract, check, or
-  build failure prevents application.
+## Intent migration
 
-Only `verified` targets may be applied by a downloader release.
+Format-2 storage is retained for compatibility:
 
-## Update discovery
+- `{ mode: 'preset', preset: 'all' }` means enabled;
+- `{ mode: 'custom', requestedPacks: [] }` means disabled.
 
-- The source repository remains private.
-- A stable, public, read-only update feed may be published separately from the
-  private source and release workflow.
-- Update checks are notification-only, send no installation data, never
-  execute downloaded code, and never block an otherwise valid local command
-  when the network is unavailable.
-- Publicly shared installers must contain the stable feed URL from their first
-  release; already distributed binaries cannot gain an update checker later.
+Every non-empty legacy, custom, `features`, or `hardening` intent migrates to
+enabled complete delivery. The next successful apply stores rolling `all`.
+An empty custom intent remains disabled. A plain explicit `plan` or `apply`
+still previews or enables the full graph; automatic update tooling can inspect
+`status.delivery.enabled` before deciding whether to invoke it.
 
-## Delivery shape
+The complete profile may adopt old `features`, `hardening`, or known custom
+state. It refuses a state containing a pack unknown to the active catalog, so
+a foreign/future owner cannot be silently erased.
 
-- One universal installer contains the catalog, resolver, planner, reporter,
-  staging gates, and CLI.
-- `--all` and interactive all store a rolling preset. The universal preset is
-  derived from every registered user-facing manifest, while narrow presets use
-  each manifest's validated `presetDefaults` metadata. Storage packs still
-  normalize through supersede rules, so users never choose their order.
-- Interactive customize and `--packs` store pinned custom intent. Revert
-  stores an empty custom intent rather than leaving a preset that could
-  reinstall itself on the next plain apply.
-- Legacy profile artifacts remain compatibility wrappers around named presets.
-- User-facing packs stay independently versioned even though delivery uses one
-  artifact.
+## Transaction and conflict contract
 
-## Report accessibility
+- Planning composes from pristine old unit snapshots rather than editing
+  already-managed bytes in place.
+- A conflict, missing anchor, stale plan, unknown target, or failed check stops
+  before live source writes whenever that phase permits.
+- Apply and revert keep one exclusive root lock, private transaction journal,
+  exact byte/mode snapshots, stale-plan revalidation, and rollback on failure.
+- Files already at the final bytes and POSIX mode are skipped.
+- Conflict reports identify the internal pack/unit even though users cannot
+  omit that pack. Resolution belongs in a new qualified complete installer.
 
-- A report is always retained as private Markdown and JSON first.
-- The universal artifact can also print the latest report without requiring
-  the operator to browse its directory.
-- Optional RisuAI delivery uses one unified exact receiver name:
-  `PocketRisu Patcher Report`.
-- `auto` accepts exactly one matching persona, module, or non-group character.
-  A type-specific option may be used when the operator intentionally created
-  same-name receivers of different types. Zero or duplicate matches abort.
-- Persona delivery changes only `personaPrompt`; character delivery changes
-  only `desc`. Module delivery changes only the matching named lorebook's
-  `content` when it has the patcher-managed inactive shape, or appends one
-  inactive random-key report lorebook to a dedicated module that has no such
-  lorebook. A same-name ordinary lorebook is not repurposed.
-- The patcher does not create or delete RisuAI objects and does not write
-  SQLite directly. It talks only to a credential-free loopback origin, signs a
-  short-lived token with PocketRisu's local secret, reads the current stripped
-  database, obtains a flush cookie without sending `x-session-id`, submits one
-  hash-preconditioned JSON Patch, flushes through the server storage queue, and
-  re-reads the exact result. Omitting `x-session-id` preserves the active
-  RisuAI writer session.
-- Delivery failure never changes conflict disposition: the source transition
-  stays blocked and the filesystem report remains authoritative.
+## Upstream qualification
+
+`stage --root CURRENT --candidate FRESH` carries the complete intent into a
+separate pristine target, applies it transactionally, runs declared target
+checks, detects managed-source drift after checks, and emits a private receipt.
+
+The source-only maintainer command may accept a target whose manifests say
+`reviewing`, but it still stages the complete graph. A `review-passed` receipt
+does not mark the version verified or allow cutover by itself.
+
+## Distribution
+
+- `scripts/build-installers.cjs` generates only
+  `dist/pocketrisu-patcher.cjs` and the compatibility
+  `dist/pocketrisu-all.cjs`.
+- Both artifacts embed the same catalog and fixed `all` profile.
+- Two consecutive builds must be byte-identical.
+- CI runs patcher tests, reproducible generation, syntax checks, the complete
+  graph lifecycle on exact PocketRisu 1.10, target tests/check/build, and exact
+  tracked-source revert. While 1.10 remains `reviewing`, source-only maintainer
+  apply/revert supplies that gate; the generated installer still fails closed
+  for an ordinary unverified apply.
+- Historical combination receipts remain historical evidence; they are not
+  active operational instructions after this migration.

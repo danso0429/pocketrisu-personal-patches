@@ -1,5 +1,9 @@
 # Exhaustive combination verifier optimization validation
 
+> **Historical:** the optimized verifier was removed in
+> `0.2.0-experimental.20` together with public patch combinations. This receipt
+> records an earlier infrastructure result and is not an active gate.
+
 Date: 2026-07-31 KST
 
 The reusable maintainer procedure is

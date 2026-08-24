@@ -1,9 +1,13 @@
 # PocketRisu patch combination verification instructions
 
-> **Status:** Current maintainer procedure.
+> **Retired after `0.2.0-experimental.20`:** distributed patch selection and
+> the exhaustive raw-mask verifier were removed when delivery became
+> all-or-nothing. This file preserves the historical gate used by earlier
+> releases; it is not an active command reference. Use the focused owner tests
+> and complete-graph lifecycle in `PATCHER-V2-DESIGN.md`.
 >
 > **Scope:** The private `pocketrisu-personal-patches` repository. This is the
-> operational authority for exhaustive pack-combination verification. It is
+> former operational authority for exhaustive pack-combination verification. It is
 > not an implementation receipt and it is not the L2.5 runtime audit.
 
 The measured scaling, exact command inventory, verification limits, and

@@ -1,5 +1,10 @@
 # PocketRisu 1.10 background import validation
 
+> **2026-08-24 delivery overlay:** the WebKit-resume follow-up is
+> `background-import` 0.3.3, and `0.2.0-experimental.20` includes it in the
+> complete all-or-nothing graph. The focused/runtime evidence below remains
+> the admission basis; raw selectable combinations are retired.
+
 > **Status:** automatic qualification and safe live apply passed; device L3
 > remains a separate gate
 >
