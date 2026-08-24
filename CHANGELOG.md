@@ -2,17 +2,32 @@
 
 ## Unreleased
 
-- Complete the remaining Haejeok design audit against the live
-  `0.2.0-experimental.21` graph. Measure HJ02/HJ05/HJ06/HJ07/HJ08 at 6/5,
-  87/23, 13/4, 45/9, and 30/7 frozen-source/current-managed paths
-  respectively, and record their exact source commits, callers, tests,
-  authorities, round-trip limits, resource risks, and narrower alternatives.
-- Close all five as current implementation work: reject HJ02's global
-  unbounded handle, HJ05's relational-store-dependent aggregate low-spec mode,
-  HJ06's non-round-trippable export-only ZIP64, HJ07's unmeasured redundant
-  ordinary-send offload, and HJ08's duplicate 30-path ffmpeg/CDN exporter.
-  Preserve concrete reopen triggers and mandatory owner-local gates without
-  changing manifests, dependencies, generated artifacts, or live source.
+- Reconcile the 46-claim Haejeok comparison through an independent critical
+  review: `Confirm 20 / Correct 26`, where `Correct` includes both small scope
+  edits and high-impact persistence, deletion, privacy, and exporter
+  counterexamples. Preserve the original provisional packet as a superseded
+  review input and add a seven-axis source/caller/lifecycle/safety/runtime/
+  value/admission authority.
+- Install the frozen Haejeok lockfile in a disposable checkout. Observe default
+  Node 25 tests fail at the localStorage harness boundary, a diagnostic Web
+  Storage-off run reach 503 passed / 17 skipped, Svelte check reach 0/0, and a
+  6,158-module Vite build complete with its recorded warnings.
+- Run actual PostgreSQL 16.15 and 17.11. Preserve the shipped integration
+  result at 10/14 on both majors, identify five stale v3 fixture/assertion
+  contracts, and observe a separate current-contract diagnostic fixture pass
+  14/14 on both without rewriting the frozen source. Confirm store-level
+  failure swallowing and actual PG17 retention of deleted synthetic secret
+  markers in audit history.
+- Exercise actual Haejeok ZIP writer/importer and Chromium paths. Pass one
+  4-GiB+1 entry and 65,536 entries through Info-ZIP 6.00, while observing the
+  HJ importer accept a bad-CRC entry. Observe HJ08 active-input and standalone
+  style-boundary failures, offline/CSP media failures, and the frozen UMD core
+  import failure; an ESM control loads. Confirm current native HTML export
+  metadata also fails literal entity round trips.
+- Keep HJ01/HJ03/HJ04 admitted. Keep HJ02/HJ05/HJ07 trigger-gated, HJ06 blocked,
+  and frozen HJ08 rejected. Leave X01/X02 user value unproven, X05 read-only,
+  and SQL/S3/FTS/revision/deployment as separate projects. Change no manifest,
+  dependency, generated installer, live source, version, tag, or release.
 
 ## 0.2.0-experimental.21
 

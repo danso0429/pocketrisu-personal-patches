@@ -7,8 +7,9 @@
 > Delivery rule: every admitted HJ change is a patcher payload in the one
 > `all` graph. No HJ change is maintained as a direct PocketRisu source fork.
 >
-> Final HJ scope after the 2026-08-24 design audit: HJ04, HJ03, and HJ01.
-> HJ02/HJ05/HJ06/HJ07/HJ08 are closed rather than pending implementation.
+> Final admitted HJ scope after independent and bounded-runtime revalidation:
+> HJ04, HJ03, and HJ01. There is no new active HJ queue; HJ02/HJ05/HJ07 are
+> trigger-gated, HJ06 is blocked, and the frozen HJ08 implementation is rejected.
 
 ## Outcome and boundaries
 
@@ -42,11 +43,11 @@ Every HJ admission must therefore satisfy all of these rules:
 | HJ04 | Persist a new user turn before generation; persist script-mutated messages; persist plugin updates before runtime reload | Hidden `haejeok-persistence-safety-adapter`, composed only with `lazy-chat-sync` and `bg-preserve` | **Admitted and live-device qualified.** Qualification details below. |
 | HJ03 | Korean-aware character matching: ordinary substring plus choseong, partial Hangul, Korean/English keyboard, and romanized input | Hidden `haejeok-korean-search-adapter` attached to `character-organizer` and the canonical PocketRisu catalog | **Admitted and live-device qualified.** Qualification details below. |
 | HJ01 | Preserve native chat-width authority and add the missing Haejeok Small 600px outcome | Hidden `haejeok-chat-width-adapter` attached to `personal-settings` and PocketRisu's native Standard-width setting | **Admitted and live-device qualified.** Qualification details below. |
-| HJ02 | User-resizable text areas | No current owner/pack; a future request must be screen-local or explicit opt-in | **Closed.** Reject Haejeok's unbounded global handle across all 105 current instances. |
-| HJ05 | Bounded low-spec rendering, paging, and cache policy | No current owner/pack; any measured future outcome must stay in its existing lazy/K14/asset owner | **Closed.** The main compaction result depends on the excluded relational store; render counts are already configurable. |
-| HJ06 | ZIP64/streaming output | No current owner/pack; a future format project must join CharX export and import limits | **Closed.** It is not a current backup-format fix and export-only ZIP64 breaks the present CharX round-trip policy. |
-| HJ07 | Node token, lore, and vector computation | No current owner/pack; a future measured client-only stage must compose with BG/tokenizer/lore/K11 | **Closed.** Ordinary sends are already server-orchestrated and the remaining paths have no demonstrated offload win. |
-| HJ08 | Native log exporter and media pipeline | No current owner/pack; range export and a themed media renderer are separate future decisions | **Closed.** Existing export/screenshot outcomes make the 30-path ffmpeg/CDN renderer disproportionate. |
+| HJ02 | User-resizable text areas | No current owner/pack; a future request must be screen-local or explicit opt-in | **Trigger-gated research.** Reject Haejeok's unbounded global handle across all 105 current instances; open only for a named screen problem. |
+| HJ05 | Bounded low-spec rendering, paging, and cache policy | No current owner/pack; any measured future outcome must stay in its existing lazy/K14/asset owner | **Trigger-gated research.** The main compaction result depends on the excluded relational store; portable slices require an owner-specific measured failure. |
+| HJ06 | ZIP64/streaming output | No current owner/pack; a future format project must join CharX export and import limits | **Blocked.** The writer passed actual 4 GiB+1 and 65,536-entry Info-ZIP probes, but the HJ importer accepted bad CRC and still caps one entry at 50 MiB. |
+| HJ07 | Node token, lore, and vector computation | No current owner/pack; a future measured client-only stage must compose with BG/tokenizer/lore/K11 | **Trigger-gated research.** Unit correctness does not establish net client benefit or shared Node responsiveness. |
+| HJ08 | Native log exporter and media pipeline | No current owner/pack; stable-ID text range and visual/media rendering are separate future decisions | **Frozen implementation rejected.** Chromium confirmed input/document-boundary defects, output wiring is incomplete, and its UMD ffmpeg core path failed while an ESM control loaded. |
 
 The relational SQL/domain-store rewrite, S3/RustFS storage authority, browser-
 decided destructive asset deletion, branding/onboarding, account removal, and
@@ -78,6 +79,13 @@ authority instead:
   not perform a browser save; and
 - plugin import enlists only `changeTracker.plugins`, observes strict failure,
   and awaits `loadPlugins()` after the commit.
+
+Bounded failure injection later confirmed why this adaptation must not be
+described as HJ-equivalent durability. Haejeok's backend/client layers throw,
+but Settings/Character/Message domain stores catch and normally resolve after
+clearing pending state; user-message generation can continue. The current
+adaptation is retained because its own strict save outcome and L3 were
+qualified, not because the frozen SQL stores guarantee durable success.
 
 No startup reset patch is needed in the composed target: `loadedStore.set(true)`
 and `selectedCharID.set(-1)` occur in one JavaScript turn with no await between
@@ -179,11 +187,13 @@ Observed gates for commit `459f784`:
   removed from the disposable target, complete revert left a clean Git tree,
   and complete reapply succeeded.
 
-## Remaining-candidate closure
+## Remaining-candidate boundary
 
-HJ02/HJ05/HJ06/HJ07/HJ08 are no longer an active later-cycle queue. Their
-source, exact owner intersections, design defects, narrower alternatives, and
-reopen conditions are fixed in
+HJ02/HJ05/HJ06/HJ07/HJ08 are not an active later-cycle queue. “No active
+queue” does not erase the distinction between trigger-gated research, blocked
+format work, and a rejected frozen implementation. Their source, exact owner
+intersections, runtime counterexamples, narrower alternatives, and reopen
+conditions are fixed in
 [`HAEJEOK-REMAINING-CANDIDATE-DESIGN-AUDIT.md`](HAEJEOK-REMAINING-CANDIDATE-DESIGN-AUDIT.md).
 
 Reopening one item requires a concrete trigger and a fresh owner report before
@@ -192,6 +202,12 @@ receipt, focused composition, and complete-graph qualification. A future
 Haejeok update or completion of another candidate does not reopen it
 automatically. Destructive asset cleanup remains server-authoritative and
 fail-closed in every case.
+
+The bounded runtime and seven-axis evidence authority is
+[`POCKETRISU-HAEJEOK-RUNTIME-VALIDATION.md`](POCKETRISU-HAEJEOK-RUNTIME-VALIDATION.md).
+Actual HJ test/build, PostgreSQL 16/17, Chromium, ZIP writer/importer, and the
+remaining `NR` gates must be read from that document rather than inferred from
+this delivery plan.
 
 ## Publication and live application
 

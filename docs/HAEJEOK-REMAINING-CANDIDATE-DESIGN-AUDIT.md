@@ -9,7 +9,7 @@
 >
 > Haejeok source: `e9d035683cdf9f0207eed193ee36f9bdb117f658`
 
-## Final decision
+## Reconciled decision
 
 The current Haejeok integration is complete with these three admitted outcomes:
 
@@ -17,12 +17,13 @@ The current Haejeok integration is complete with these three admitted outcomes:
 - HJ03 Korean-aware character matching; and
 - HJ01 Small 600px chat width.
 
-HJ02, HJ05, HJ06, HJ07, and HJ08 are **closed**, not queued implementation
-work. Their frozen Haejeok implementations are not suitable additions to the
-current all-or-nothing PocketRisu 1.10 graph. A closed item can be reconsidered
-only after its concrete reopen trigger below occurs or the user explicitly
-requests its narrower distinct outcome. Reopening requires a new design review;
-it does not resume an already-approved implementation plan.
+HJ02, HJ05, HJ06, HJ07, and HJ08 are not queued implementation work. Their
+frozen Haejeok implementations are not suitable additions to the current
+all-or-nothing PocketRisu 1.10 graph, but their states are not identical:
+HJ02/HJ05/HJ07 are trigger-gated research, HJ06 is blocked by a coherent
+round-trip boundary, and frozen HJ08 is rejected. Reconsideration requires the
+concrete trigger below and a new design review; it does not resume an approved
+implementation plan.
 
 This conclusion leaves the `0.2.0-experimental.21` installer, live PocketRisu
 source, pack counts, and generated artifact bytes unchanged. The audit changes
@@ -51,15 +52,15 @@ shared path can sometimes be composed through one existing owner.
 
 | ID | Frozen Haejeok outcome | Decision for the current patch line | Reopen trigger |
 | --- | --- | --- | --- |
-| HJ02 | One global switch adds a drag handle to every generic `TextAreaInput` | **Close and reject the global design.** It has unbounded geometry, incomplete pointer/a11y lifecycle, no per-call opt-out, and no tests across 105 current component instances. | A user identifies a specific screen whose fixed textarea height blocks real work. Reconsider only that screen or an explicit opt-in component prop. |
-| HJ05 | Low-spec mode combines smaller render windows, SQL-backed message compaction, thumbnails, cache limits, and switch/load refactors | **Close and reject the aggregate design.** Its main memory win depends on Haejeok's relational domain stores, while the portable render-count outcome is already configurable in PocketRisu. | A repeatable device problem remains after testing the existing initial/additional message settings, with before/after DOM, memory, image, and interaction evidence. |
-| HJ06 | Server streams CharX ZIP/ZIP64, including JPEG-prefixed output | **Close and reject export-only ZIP64.** It does not apply to the current backup format and can create archives that the current 1-GiB-policy CharX importer refuses. | A valid current CharX export actually fails at a measured format/resource boundary and an export/import support limit is explicitly chosen together. |
-| HJ07 | Browser callers offload token counts, lore matching/resolution, and vector ranking to Node HTTP routes | **Close and reject the frozen offload.** Ordinary UI generation already executes the whole pipeline on the server; remaining client-only paths have no measured bottleneck, while the proposed synchronous endpoints expand server event-loop risk. | A client-only generation path, separated from ordinary BG orchestration, shows a repeatable preprocessing bottleneck and a prototype demonstrates lower end-to-end cost. |
-| HJ08 | Full themed log exporter, image stitching, media conversion, and message-range export | **Close and reject the full exporter.** PocketRisu already exports JSON/TXT/HTML and screenshots; the distinct range outcome does not justify the 30-path renderer plus ffmpeg/CDN pipeline. | The user explicitly requests range/single-message export or a themed media export. Range export and the themed renderer must be reviewed as different projects. |
+| HJ02 | One global switch adds a drag handle to every generic `TextAreaInput` | **Trigger-gated; reject the global design.** It has unbounded geometry, incomplete pointer/a11y lifecycle, no per-call opt-out, and no tests across 105 current component instances. | A user identifies a specific screen whose fixed textarea height blocks real work. Reconsider only that screen or an explicit opt-in component prop. |
+| HJ05 | Low-spec mode combines smaller render windows, SQL-backed message compaction, thumbnails, cache limits, and switch/load refactors | **Trigger-gated; reject the aggregate design.** Its main memory win depends on Haejeok's relational domain stores, while portable slices need owner-specific measurements. | A repeatable device problem remains after testing the existing initial/additional message settings, with before/after DOM, memory, image, and interaction evidence. |
+| HJ06 | Server streams CharX ZIP/ZIP64, including JPEG-prefixed output | **Blocked, not writer-invalid.** Actual 4 GiB+1 and 65,536-entry writer archives passed Info-ZIP, but HJ import accepted bad CRC and keeps a 50-MiB entry limit. | A valid current failure and one matching export/import integrity and size policy are established together. |
+| HJ07 | Browser callers offload token counts, lore matching/resolution, and vector ranking to Node HTTP routes | **Trigger-gated; reject unmeasured frozen offload.** Ordinary UI generation already executes the whole pipeline on the server; remaining client-only benefit and shared Node responsiveness are unmeasured. | A client-only generation path, separated from ordinary BG orchestration, shows a repeatable preprocessing bottleneck and a prototype demonstrates lower end-to-end cost without event-loop regression. |
+| HJ08 | Full themed log exporter, image stitching, media conversion, and message-range export | **Reject the frozen implementation.** Chromium confirmed active-input and document-boundary defects; range identity, edit/theme/MIME wiring, and UMD media loading also fail admission. | A user explicitly requests a stable-ID TXT/Markdown range export or separately requests a visual/media product. These are different projects. |
 
 No remaining HJ item is a stable-release gate for `.21`. Stable publication is
-still governed by the broader exact-1.10 catalog qualification, not by this
-closed Haejeok queue.
+still governed by the broader exact-1.10 catalog qualification, not by an
+inactive Haejeok research set.
 
 ## Measured ownership overlap
 
@@ -156,6 +157,32 @@ vite.config.ts
 The path lists are exact for the frozen commit groups and the current `.21`
 resolution. Owner identities can change on a future target, which is why every
 reopen starts by recomputing this intersection.
+
+## Bounded runtime follow-up
+
+The independent source review and subsequent runtime pass are recorded in
+[`POCKETRISU-HAEJEOK-FEATURE-COMPARISON-INDEPENDENT-REVIEW.md`](POCKETRISU-HAEJEOK-FEATURE-COMPARISON-INDEPENDENT-REVIEW.md)
+and
+[`POCKETRISU-HAEJEOK-RUNTIME-VALIDATION.md`](POCKETRISU-HAEJEOK-RUNTIME-VALIDATION.md).
+They add the following decision-relevant observations:
+
+- default Haejeok tests fail on the declared-compatible Node 25 environment at
+  the localStorage harness boundary; the diagnostic Web Storage-off run reaches
+  503 passed / 17 skipped, while check/build complete;
+- actual PostgreSQL 16/17 shipped integration runs are 10/14 because the test
+  file is stale against the final v3 contracts; a diagnostic fixture aligned to
+  those contracts is 14/14 on both majors;
+- Settings/Character/Message failure injection confirms success-path ordering
+  is not a durable retry/generation gate;
+- actual PG17 retains replaced/deleted synthetic secret markers in audit
+  before/after rows;
+- actual Chromium confirms HJ08 input/document-boundary failures and its frozen
+  UMD ffmpeg URL fails where an ESM control loads; and
+- actual HJ ZIP writer passes true 4 GiB+1 and 65,536-entry Info-ZIP probes,
+  while the actual HJ importer accepts a bad-CRC entry.
+
+These results narrow the candidate states; they do not qualify Haejeok as a
+whole product or create a new implementation queue.
 
 ## HJ02 — global textarea resizing
 
@@ -333,6 +360,13 @@ policy. Its three focused writer tests cover a small valid archive,
 declared-size overflow, and a four-byte JPEG prefix; they do not force a ZIP64
 entry size, central offset, or entry count.
 
+The bounded runtime follow-up closes that writer-test gap for two boundaries:
+an actual 4 GiB+1 stored entry and an actual 65,536-entry archive both passed
+Info-ZIP 6.00. It does not close the product boundary. The frozen
+`CharXImporter` accepted and forwarded a bad-CRC STORE asset that Info-ZIP
+rejected, and it retains the 50-MiB per-entry limit. Writer validity and
+same-build round-trip support therefore remain different claims.
+
 ### Reopen design
 
 A future archive project begins with the supported round trip, not the writer:
@@ -482,6 +516,14 @@ iPhone output. The ffmpeg packages and lockfile surface would ship in every
 complete installer, while opening the feature would additionally depend on a
 versioned CDN URL with no shipped integrity/self-hosting contract.
 
+The later Chromium follow-up observed the omitted boundaries rather than
+clearing them: `notrim` active attributes reached the final MessageContent DOM,
+custom CSS escaped the standalone style boundary, offline/CSP media loads
+failed, and the frozen `dist/umd` core path failed to import after successful
+CDN responses. An otherwise matching `dist/esm` diagnostic loaded. Numeric
+range identity, edit/theme wiring, fake message splitting, `.webp`/PNG MIME
+mismatch, and the zero-caller WebM symbol remain independent defects.
+
 ### Reopen split
 
 An explicit range/single-message request should become a small extension of
@@ -506,8 +548,8 @@ numbered candidates.
 | --- | --- |
 | PostgreSQL, Oracle, Azure SQL, Web/Tauri SQLite, domain stores, revision/commit layers | Outside this patch line. They replace the PocketRisu SQLite/KV and lazy-chat authority and require a separately approved backend migration. |
 | S3/RustFS/Azure asset manager, storage explorer, generic asset delete | Outside this patch line. The storage authority conflicts, and browser-selected deletion does not satisfy the current server-authoritative fail-closed reference walker. |
-| SQL database explorer, full-text message search, SQL revisions | Excluded with the relational backend on which they depend. |
-| Character recent/favorite/hidden/order models and alternate catalog shell | Ordinary catalog/search/recent behavior is native; canonical order and folders already have owners. Only the HJ03 match predicate was admitted. |
+| SQL database explorer, full-text message search, SQL revisions | Separate relational-backend projects. Actual PG17 confirms row history works on corrected fixtures but also confirms deleted secret markers remain; retention/redaction/privacy deletion and asset consistency are mandatory. |
+| Character recent/favorite/hidden/order models and alternate catalog shell | Favorites/hidden/sort and session-level recent are real source gaps, but cleanup, top-50 pre-search, empty unloaded snippets, privacy and user value remain unresolved. Only the HJ03 match predicate is admitted; X01/X02 are inactive hypotheses. |
 | Bulk backup/restore transport | The current PocketRisu owner already streams its application backup and has stronger point-in-time/restore-safety composition. Format-specific size limits remain with their own owners. |
 | Parser/stream splitting fixes | Current parser hardening and Kei replayable SSE behavior are distinct or stronger; no Haejeok replacement is needed. |
 | Background generation and request logging | Whole-pipeline BG preservation, result claim/ACK, cancellation, cold recovery, and current request/BG diagnostics already own these outcomes. |
@@ -543,11 +585,12 @@ HJ02 must remain screen-local if it is ever reconsidered.
 ## Resulting execution plan
 
 1. Treat HJ01/HJ03/HJ04 in `0.2.0-experimental.21` as the complete current
-   Haejeok feature scope.
-2. Remove deferred/priority language for HJ02/HJ05/HJ06/HJ07/HJ08 from the
-   active integration plan and overlap queue.
-3. Keep all five source clusters and reopen gates as research evidence; add no
-   manifest, dependency, generated artifact, or live source change now.
+   admitted Haejeok feature scope.
+2. Keep HJ02/HJ05/HJ07 trigger-gated, HJ06 blocked, and frozen HJ08 rejected;
+   none belongs to an active integration queue.
+3. Keep all five source clusters, runtime counterexamples and reopen gates as
+   research evidence; add no manifest, dependency, generated artifact, or live
+   source change now.
 4. Continue broader PocketRisu 1.10 qualification independently. Do not block
    it on a closed HJ item and do not publish a stable release merely because
    the HJ review is complete.

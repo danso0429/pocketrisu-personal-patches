@@ -179,6 +179,13 @@ backend. Script messages are merged into the existing PocketRisu lazy-chat
 owner and committed through its BG strict-save barrier; plugins use the same
 tracker without replacing the database's complete plugin array.
 
+Later failure-lifecycle validation confirmed the frozen Haejeok domain stores
+provide success-path ordering but can swallow commit failure after clearing
+pending state. The redistributed adapter is therefore attributed to those
+focused source outcomes while its durability claim rests on the current
+PocketRisu strict-save implementation and qualification, not Haejeok SQL
+equivalence.
+
 Haejeok commit `e78f9c91fea5a059d38de271117f8dbfac5f45ef`
 (`src/ts/bootstrap.ts`) and the cache-revision portion of `313ecdff` were
 reviewed but not adapted because the composed target already has equivalent
@@ -225,10 +232,11 @@ change the native default or existing widths, and does not apply a second
 Personal appearance width.
 
 The remaining SQL/domain storage, object storage, and product/deployment work
-is excluded in `docs/HAEJEOK-RISUAI-OVERLAP-AUDIT.md`. HJ02 resize, HJ05
-low-spec/paging, HJ06 ZIP64, HJ07 Node compute, and HJ08 log export are reviewed
-as research references and closed as current implementation work in
-`docs/HAEJEOK-REMAINING-CANDIDATE-DESIGN-AUDIT.md`; no code or dependency from
+is separate or excluded in `docs/HAEJEOK-RISUAI-OVERLAP-AUDIT.md`. HJ02 resize,
+HJ05 low-spec/paging, HJ06 ZIP64, HJ07 Node compute, and HJ08 log export remain
+research references with differentiated trigger-gated, blocked, or rejected
+states in `docs/HAEJEOK-REMAINING-CANDIDATE-DESIGN-AUDIT.md` and
+`docs/POCKETRISU-HAEJEOK-RUNTIME-VALIDATION.md`; no code or dependency from
 those five clusters is redistributed by this checkpoint. A future focused
 adaptation must record its exact source commits and paths here before the
 complete installer is published.
