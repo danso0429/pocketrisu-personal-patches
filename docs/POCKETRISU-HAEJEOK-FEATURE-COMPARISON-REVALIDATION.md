@@ -1,6 +1,7 @@
 # PocketRisu + patcher vs Haejeok feature comparison revalidation packet
 
-> 상태: **외부 재검증 대기 / provisional**
+> 상태: **외부 재검증 수신·정합화 완료 / 이 파일의 비교표는 superseded
+> provisional baseline**
 >
 > 작성 기준일: 2026-08-24 KST
 >
@@ -8,9 +9,13 @@
 > owner 단위로 일대일 비교하고, 다른 검토자가 사실·누락·설계 판단을
 > 독립적으로 재검증할 수 있게 근거와 질문을 한 파일에 고정해요.
 >
-> 이 문서는 구현 승인, stable release 승인, Haejeok runtime qualification,
-> 또는 기존 계획 문서의 자동 대체가 아니에요. 외부 검증 결과를 받은 뒤
-> 기존 Haejeok 계획·감사 문서와 모순을 해소해야 해요.
+> 이 문서는 외부 review에 전달한 원래 질문과 provisional 비교를 보존해요.
+> claim별 교정 정본은
+> [`POCKETRISU-HAEJEOK-FEATURE-COMPARISON-INDEPENDENT-REVIEW.md`](POCKETRISU-HAEJEOK-FEATURE-COMPARISON-INDEPENDENT-REVIEW.md),
+> runtime·일곱 축 정본은
+> [`POCKETRISU-HAEJEOK-RUNTIME-VALIDATION.md`](POCKETRISU-HAEJEOK-RUNTIME-VALIDATION.md)예요.
+> 아래 provisional 우위·`high-value`·action 문구를 현재 결론으로 사용하지
+> 않아요.
 
 ## 1. 이 파일을 검토하는 방법
 
@@ -53,6 +58,11 @@ Haejeok은 PocketRisu의 개조판이 아니라 최신 RisuAI 계열에서 독�
   개별 Kei/owner receipt의 실제 gate 상태를 유지해야 해요.
 
 ### 3.2 Haejeok
+
+The bullets below describe the evidence available when this provisional packet
+was sent. The later bounded runtime evidence is in
+`POCKETRISU-HAEJEOK-RUNTIME-VALIDATION.md` and supersedes the old “not run”
+inventory without turning it into product qualification.
 
 - 이 검수는 pinned `main`의 source, Git history, caller, README, server
   documentation, 관련 tests를 읽은 결과예요.
@@ -417,32 +427,33 @@ surface only, not equivalent behavior.
 6. 실행하지 못한 검증과 그 이유;
 7. 검토한 exact revision.
 
-## 15. Reconciliation gate after external review
+## 15. Reconciliation result after external review
 
-외부 결과를 가져온 뒤 다음 순서로만 정본을 갱신해요.
+외부 review와 후속 runtime은 다음 순서로 정합화했어요.
 
-1. claim별 Confirm/Correct/Unclear를 source에서 spot-check해요.
-2. 서로 충돌하는 reviewer 결과는 근거 수준과 exact revision을 비교해요.
-3. runtime이 필요한 claim은 disposable target 또는 현재 관측 채널로 직접
-   재현해요.
-4. 이 문서의 provisional 판정표를 수정해요.
-5. 그 뒤에만 `HAEJEOK-REMAINING-CANDIDATE-DESIGN-AUDIT.md`,
-   `HAEJEOK-INTEGRATION-PLAN.md`, overlap audit, provenance, notices,
-   CHANGELOG의 결론을 한 번에 정합화해요.
-6. 사용자 승인 전에는 새 HJ pack/adapter, dependency, generated installer,
-   live source, stable tag/release를 만들지 않아요.
+1. 46개 claim을 source에서 다시 spot-check해 `Confirm 20 / Correct 26`으로
+   분류했어요. `Correct`는 영향도 등급이 아니므로 정확도 비율로 쓰지 않아요.
+2. runtime이 필요한 높은 위험 claim은 disposable HJ target, actual PG16/17,
+   Chromium, actual ZIP writer/importer에서 확인했어요.
+3. 이 파일의 provisional 표를 이력으로 보존하고, 교정표와 일곱 축 표를 별도
+   linked authority로 뒀어요. 같은 내용을 세 파일에 중복 전사하지 않아요.
+4. remaining-candidate audit, integration plan, overlap audit, CHANGELOG를 같은
+   admission 결과로 맞췄어요.
+5. 새 HJ pack/adapter, dependency, generated installer, live source, stable
+   tag/release는 만들지 않았어요.
 
-## 16. Current provisional summary
+## 16. Reconciled summary
 
-- 이미 통합된 HJ 결과: HJ01, HJ03, HJ04.
-- 독립 검증 후 다시 열 가치가 큰 결과: X01 catalog views, X02 recent
-  sessions, HJ08 staged export.
-- 좁게 다시 설계할 결과: HJ05 low-spec slices, HJ02 screen-local resize,
-  X05 read-only explorer.
-- 재현/측정이 먼저인 결과: HJ06, HJ07.
-- 별도 migration/product project: SQL/S3/message FTS/revision explorer,
-  deployment/onboarding.
-- 계속 제외할 원본 authority: browser-selected generic asset delete,
+- 이미 통합된 HJ 결과: HJ01, HJ03, HJ04 유지.
+- 새 active HJ queue: 없음.
+- HJ02/HJ05: named problem 또는 owner measurement 전 trigger-gated.
+- HJ06: actual writer boundaries는 통과했지만 importer CRC와 coherent
+  round-trip 전까지 blocked.
+- HJ07: client benefit와 shared-server responsiveness 측정 전 trigger-gated.
+- HJ08: frozen implementation admission 기각. stable-ID TXT/Markdown Stage A는
+  명시적 current-owner 요구가 생길 때 별도 설계.
+- X01/X02: source gap은 확인했지만 user value/priority 불명확.
+- X05: key inventory/reference mapping/missing-ref 같은 read-only diagnostic만 후보.
+- SQL/S3/FTS/revision/deployment: 별도 migration/product project.
+- 계속 제외할 원본 authority: browser-selected generic asset deletion과
   whole-fork branding/account/updater policy.
-
-이 요약은 외부 재검증 결과가 들어오기 전까지 확정 결론이 아니에요.
