@@ -2,7 +2,7 @@
 
 Private, composable patch delivery for PocketRisu NodeOnly. The current
 stable release is `v0.1.7`, and its manifests target PocketRisu `v1.8.1`.
-The current development checkpoint is `v0.2.0-experimental.17`.
+The current development checkpoint is `v0.2.0-experimental.18`.
 
 ## Universal installer and compatibility presets
 
@@ -32,6 +32,10 @@ The older named artifacts remain preset wrappers:
   hardening, the client build fence,
   bg-preserve `v1.0.1`, and the `lazy-chat-bg-adapter` durable-save barrier.
 
+The review-only `background-import` pack is selected through the universal
+installer's custom mode. It requires the import UX, CharX integrity, lazy chat,
+and build-fence owners, but remains outside rolling `all` until device L3.
+
 All four artifacts are generated from the same engine and manifests. They are
 not separate implementations.
 
@@ -39,6 +43,7 @@ not separate implementations.
 
 | Release | What changed |
 | --- | --- |
+| `v0.2.0-experimental.18` | Adds review-only resumable character/module upload, server-owned preparation and append-only commit, canonical client reconciliation, restart recovery, bounded retention, and truthful post-handoff background status for exact PocketRisu 1.10. |
 | `v0.2.0-experimental.17` | Keeps the 1.10 aggregate unchanged while removing the iOS Files `accept` hint that disabled proprietary `.risum` and `.module.charx` files; exact post-selection type validation and terminal persistence remain in force. |
 | `v0.2.0-experimental.16` | Rebases the rolling aggregate onto PocketRisu 1.10.0, adds central-indexed CharX integrity and one terminal module-import toast/persistence flow, preserves native purge/VACUUM/persona-duplicate behavior, and requalifies the maximum graph without publishing a stable release. |
 | `v0.2.0-experimental.15` | Adds a hidden exact-1.9 point-in-time backup source that pins one SQLite/WAL and verified filesystem epoch for native downloads, settings export/estimate, and server-file backup while retaining the selected standard or lazy storage owner. |
@@ -277,6 +282,36 @@ The user then confirmed on iPhone that real `.risum` and `.module.charx` files
 were selectable, imported with the top notification, and remained after
 reload. This closes the picker follow-up L3 only; the other aggregate device
 rows still gate a stable release.
+
+The `v0.2.0-experimental.18` candidate adds the visible but review-only
+`background-import` pack. A browser hashes and uploads one bounded slice at a
+time; upload is resumable, while the notification says background-safe only
+after the server has fsynced and verified the complete source and durably
+recorded any low-level authorization. NodeOnly then parses from a stable
+descriptor, stages private content-addressed assets, appends one entity to the
+latest canonical database, and retains the result until a client performs a
+fresh three-way rebase, character-chat hydration, reconciliation, and ACK.
+Package children, module-to-character children, and non-seekable Realm PNG
+streams retain their foreground owners.
+
+Automatic qualification observed 42/42 patcher test files. The maximum
+`all + background-import` graph resolves 36 packs / 791 units / 303 managed
+paths, has a zero-change re-plan, and reverts 304 changed paths byte/mode
+exactly. Its exact target passes 1,639 frontend tests, 237 server tests, and 74
+compatibility tests with five existing environment skips; Svelte diagnostics
+are 0/0 and the production frontend transforms 7,922 modules. The parser
+bundle is 308,904 bytes, and the 8,617 KB BG bundle loads `sendChat=function`.
+Synthetic HTTP smoke also passed canonical module/character commits, restart
+of a receiving offset, 413 chunk bounding before mutation, 426 stale-build
+fencing, terminal cleanup, diagnostics redaction, and root 200.
+
+The reported exact-original CharX remains unavailable, so that claim is not
+upgraded beyond synthetic mechanism evidence. The user-requested exhaustive
+raw-selection combination verifier remains skipped. iPhone handoff/suspend,
+cold source re-selection, clean/dirty reconciliation, multi-PWA claim recovery,
+and the admitted character/module entry points remain the concrete L3 gate;
+the pack therefore stays `reviewing`, `allDefault: false`, and outside a stable
+tag or release.
 
 The `v0.2.0-experimental.11` checkpoint keeps that storage and activation
 contract while extending the chat-font enum with Noto Sans KR and Noto Serif

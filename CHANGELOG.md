@@ -2,6 +2,46 @@
 
 ## Unreleased
 
+## 0.2.0-experimental.18
+
+- Add the visible review-only `background-import` pack for exact PocketRisu
+  1.10. It requires character/module import UX, central-indexed CharX
+  integrity, lazy chat storage, and the stale-client build fence, while
+  `allDefault: false` keeps it outside rolling `all` before device L3.
+- Hash and upload seekable sources in bounded 1 MiB slices with durable offset
+  replay, full-source SHA-256, 1 GiB source and staged-asset bounds, aggregate
+  spool and free-disk admission, private modes, stable file descriptors, and
+  fail-closed path/symlink checks. The top notification distinguishes
+  resumable upload from the post-fsync/post-authorization background-safe
+  boundary.
+- Prepare JSON/lorebook/RisuM/CharX/JPEG/PNG on NodeOnly from the existing pure
+  authorities, stage assets privately, and append one module or character to
+  the latest canonical database under the storage queue. Preserve unrelated
+  edits, module enablement, character order, chat defaults, retry markers,
+  and exact no-duplicate restart recovery.
+- Reconcile a completed operation through a fenced result claim, fresh
+  canonical read, existing three-way rebase, committed-ID preservation,
+  character-chat hydration, strict dirty save, reconciliation marker, and ACK.
+  Keep encrypted RCC PNG on its existing foreground password path, and retain
+  package children, module-to-character children, and non-seekable Realm PNG
+  streams under their foreground owners.
+- Add server-side one-import admission, cancellation settlement, restore and
+  maintenance guards, stale-build fencing before request bodies, a 413 upload
+  body limit, bounded redacted diagnostics, and age-ordered cleanup that never
+  evicts active, unacknowledged, claimed, or commit-unknown work.
+- Pass 42/42 patcher test files. Four focused graphs and the maximum
+  `all + background-import` graph pass apply/current/zero-change re-plan and
+  exact byte/mode revert; the maximum resolves 36 packs / 791 units / 303
+  paths. Its target passes 1,639 frontend, 237 server, and 74 compatibility
+  tests (five existing skips), Svelte 0/0, a 7,922-module production build, a
+  308,904-byte parser bundle, and an 8,617 KB BG bundle load check.
+- Record synthetic HTTP module/character commit, receiving-job restart,
+  413-before-mutation, 426 stale-build, cleanup, redacted diagnostics, and root
+  200 evidence. Keep the unavailable exact-original CharX and iPhone
+  background/reselection/clean-dirty/multi-PWA scenarios explicitly pending.
+  Per user instruction, do not run or claim exhaustive raw-selection
+  combination verification; do not publish a stable tag or release.
+
 ## 0.2.0-experimental.17
 
 - Leave the module import picker's `accept` hint unset so iOS Files does not

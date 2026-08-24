@@ -1,6 +1,6 @@
 {
-  "version": "0.2.0-experimental.15",
-  "targetPocketRisu": "v1.9.0",
+  "version": "0.2.0-experimental.18",
+  "targetPocketRisu": "v1.10.0",
   "bgPreserve": "v1.0.1",
   "status": "experimental"
 }

@@ -1,6 +1,7 @@
 # PocketRisu 1.10 durable background import implementation plan
 
-> **Status:** planning authority draft — implementation not started
+> **Status:** implemented experimental candidate — automatic qualification
+> passed; live apply and device L3 recorded separately
 >
 > **Recorded:** 2026-08-23 KST
 >
@@ -11,6 +12,9 @@
 >
 > **Primary decision:** resumable foreground upload followed by a durable,
 > server-owned preparation and append-only import commit
+>
+> **Implementation receipt:**
+> `docs/POCKETRISU-1.10-BACKGROUND-IMPORT-VALIDATION.md`
 
 This document is the implementation plan for allowing ordinary character and
 module imports to continue after an iPhone tab or Home Screen PWA moves to the
