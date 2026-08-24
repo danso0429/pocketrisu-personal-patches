@@ -9,7 +9,7 @@
 >
 > **Pack:** `background-import` 0.3.2
 >
-> **Patcher checkpoint:** `v0.2.0-experimental.18`
+> **Patcher checkpoint:** `v0.2.0-experimental.19`
 
 ## 1. Authority and scope
 
@@ -315,3 +315,55 @@ The experimental pack is installed and available for device L3. It remains a
 pinned custom-selection addition and is not admitted to rolling `all`. Run the
 eight concrete scenarios in §6 before changing `reviewing`, `allDefault`, or
 stable release state.
+
+## 9. First device resume observation and WebKit follow-up
+
+The first physical iPhone pre-handoff test switched to other applications
+several times. Upload resumed on return, confirming durable offset recovery,
+but the client eventually displayed `Import failed`.
+
+Read-only live inspection showed that the server had not failed:
+
+- kind/format: module CharX;
+- source size: 31,705,288 bytes;
+- durable state: `receiving`;
+- acknowledged offset and `.part` size: 5,242,880 bytes;
+- authorization, prepared, commit, claim, and ACK fields: unset;
+- typed error/detail: null;
+- import job SQLite `quick_check=ok`.
+
+The only new PM2 error-log line was an unrelated existing ChatJournal backlog
+warning. The evidence therefore isolates a client transport classification
+failure: WebKit can reject a suspended fetch as DOM `AbortError` /
+`NetworkError` or an `Error` whose message is `Load failed`, while the first
+client accepted only `TypeError` as transient.
+
+`background-import 0.3.3` adds a narrow classifier for those WebKit network
+shapes. It does not classify `BackgroundImportProtocolError`, HTTP refusal,
+source mismatch, parser failure, or arbitrary exceptions as transient. Every
+transport owner now waits and re-reads the same server operation/offset before
+retrying. The active toast says the verified server offset is preserved rather
+than releasing the import lease as failed.
+
+The follow-up observed:
+
+- WebKit-shaped focused client tests 10/10;
+- Svelte diagnostics 0 errors (background-only retained the four existing
+  unrelated warnings; maximum remained 0/0);
+- patcher 42/42;
+- all four focused graphs and maximum graph exact apply/re-plan/revert;
+- maximum 7,922-module production build.
+
+The live receiving job remains untouched so the same source can resume after
+the follow-up frontend is applied. Re-run the pre-handoff multi-switch scenario
+before marking that L3 row passed.
+
+Two consecutive `0.2.0-experimental.19` installer builds were byte-identical,
+mode 0700, and syntax-valid:
+
+| Artifact | Bytes | SHA-256 |
+| --- | ---: | --- |
+| `pocketrisu-patcher.cjs` | 7,600,789 | `643cc981b843d2102088fec0899eef26ae453784aef03feff4d6d52d908899a9` |
+| `pocketrisu-features.cjs` | 7,600,795 | `f56dd2c8772c74c09062a6208c28b28689aa85a1d8a430cb429570f0b543b2a5` |
+| `pocketrisu-hardening.cjs` | 7,600,796 | `885986c5dcac40a4a6064374f732e15c7271b0c03d9e3f4e1c8607837d80f5e1` |
+| `pocketrisu-all.cjs` | 7,600,790 | `5c3bf6b92817984624e93413bfbf51bc298534d58b799f71e68d07569d4de6dd` |

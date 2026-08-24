@@ -2,6 +2,22 @@
 
 ## Unreleased
 
+## 0.2.0-experimental.19
+
+- Treat iOS/WebKit `AbortError`, `NetworkError`, and `Load failed` fetch
+  failures during app switching as transient transport interruptions, while
+  keeping HTTP/protocol/parser errors terminal.
+- Recover create/list/chunk/status/complete, authorization, result claim,
+  canonical reconciliation, and ACK through the same durable operation and
+  verified server offset. Display a waiting-to-resume status instead of a
+  false terminal import error while the network/page lifecycle is suspended.
+- Preserve the live 31,705,288-byte CharX receiving job at its exact
+  5,242,880-byte durable offset with no server typed error or source cleanup.
+- Add WebKit-shaped interruption tests across create, status, acknowledged
+  chunk response, completion response, list, and result claim. Pass 10/10
+  focused client tests, Svelte diagnostics, 42/42 patcher tests, all focused
+  and maximum exact round trips, and the 7,922-module maximum build.
+
 ## 0.2.0-experimental.18
 
 - Add the visible review-only `background-import` pack for exact PocketRisu

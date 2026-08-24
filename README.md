@@ -2,7 +2,7 @@
 
 Private, composable patch delivery for PocketRisu NodeOnly. The current
 stable release is `v0.1.7`, and its manifests target PocketRisu `v1.8.1`.
-The current development checkpoint is `v0.2.0-experimental.18`.
+The current development checkpoint is `v0.2.0-experimental.19`.
 
 ## Universal installer and compatibility presets
 
@@ -43,6 +43,7 @@ not separate implementations.
 
 | Release | What changed |
 | --- | --- |
+| `v0.2.0-experimental.19` | Keeps one durable import operation alive across iOS/WebKit `AbortError`, `NetworkError`, and `Load failed` suspend/resume failures instead of showing a false terminal import error. |
 | `v0.2.0-experimental.18` | Adds review-only resumable character/module upload, server-owned preparation and append-only commit, canonical client reconciliation, restart recovery, bounded retention, and truthful post-handoff background status for exact PocketRisu 1.10. |
 | `v0.2.0-experimental.17` | Keeps the 1.10 aggregate unchanged while removing the iOS Files `accept` hint that disabled proprietary `.risum` and `.module.charx` files; exact post-selection type validation and terminal persistence remain in force. |
 | `v0.2.0-experimental.16` | Rebases the rolling aggregate onto PocketRisu 1.10.0, adds central-indexed CharX integrity and one terminal module-import toast/persistence flow, preserves native purge/VACUUM/persona-duplicate behavior, and requalifies the maximum graph without publishing a stable release. |
@@ -319,6 +320,16 @@ the review-only background-import capability and its owned paths, retains one
 pre-existing completed BG result awaiting client ACK, and keeps both database
 inodes, three backup files, served/local build identity, and a zero-byte PM2
 error-log delta. Device L3 remains pending.
+
+The `v0.2.0-experimental.19` follow-up addresses the first physical iPhone
+resume observation. Repeated app switches resumed the server's exact 5 MiB
+offset, but WebKit surfaced the interrupted request as `AbortError`,
+`NetworkError`, or `Load failed`; the client had treated only JavaScript
+`TypeError` as transient and therefore showed a false `Import failed` while
+the server job remained healthy. Create/list/chunk/status/complete,
+authorization, claim, reconciliation, and ACK now recover those WebKit
+transport shapes through the same durable operation. Protocol/validation
+errors remain terminal and unchanged.
 
 The `v0.2.0-experimental.11` checkpoint keeps that storage and activation
 contract while extending the chat-font enum with Noto Sans KR and Noto Serif
