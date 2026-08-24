@@ -2,8 +2,9 @@
 
 > Status date: 2026-08-24 KST
 >
-> Decision: source/reference audit only. No Haejeok source is imported by this
-> checkpoint.
+> Decision: focused integration in progress. HJ04 persistence ordering is
+> adapted through an internal patcher payload; all other rows retain the
+> disposition stated below until their own admission commit.
 
 ## Executive conclusion
 
@@ -28,7 +29,9 @@ The useful Haejeok ideas fall into three groups:
 
 No whole Haejeok subsystem should be cherry-picked. A retained idea must be
 reduced to an owner-local PocketRisu 1.10 change and requalified inside the
-single complete patch graph.
+single complete patch graph. The first such admission is HJ04: pre-generation
+user-message persistence, script-message persistence, and plugin-save-before-
+reload ordering rebuilt around the existing lazy-chat/BG authority.
 
 ## Frozen comparison basis
 
@@ -56,11 +59,14 @@ This audit covers only `main`. In particular, the unmerged
   final callers were inspected so formatting is not classified as a feature.
 - A raw PocketRisu-to-Haejeok tree diff spans 1,243 paths. That number measures
   two long-lived forks, not 1,243 Haejeok features.
-- The current complete patch plan for exact PocketRisu 1.10 requests 13 root
+- The pre-HJ integration complete patch plan frozen by this audit requested 13 root
   packs, normalizes them to 12 effective roots, resolves 35 packs/adapters,
   and manages 267 source paths. Fifty-eight of
   those exact plan paths were also functionally touched on Haejeok `main`.
-  Across the 35 resolved pack manifests, 25 have at least one such path.
+  Across those 35 resolved pack manifests, 25 have at least one such path.
+  HJ04 changes the live integration-branch counts; its current measurements
+  are recorded separately in `HAEJEOK-INTEGRATION-PLAN.md` rather than
+  retroactively changing this frozen overlap sample.
 
 These path intersections are collision surfaces only. They do not prove
 equivalent behavior, and non-overlapping files can still compete for the same
@@ -92,6 +98,7 @@ state or policy.
 | Streaming bulk backup/restore and ZIP64 | `server/node/zipStream.cjs`, bulk read/write routes, `src/ts/drive/backuplocal.ts`, `src/ts/characterCards.ts` | Relevant to large archives and CharX; the local durable-import experiment is historical only | **High-value reference.** Evaluate ZIP64/streaming against the known over-4-GiB archive boundary in a separate feature commit. |
 | Character catalog, recent sessions, Korean fuzzy search | `src/lib/UI/MainMenu.svelte`, `RecentSessionsList.svelte`, `src/ts/util/koreanSearch.ts` | Ordinary search/recent/list/grid behavior is already native; organizer owns order/folders | **Duplicate except Korean matching and presentation variants.** Any retained search improvement belongs in the canonical catalog/organizer owner. |
 | Adjustable chat width and text-area resize | `Chat.svelte`, `TextAreaInput.svelte`, display settings | No equivalent local setting found; hosts overlap Personal/K14/K15 | **Small candidate.** Add through `personal-settings`, not raw database fields in a second settings model. |
+| Message/plugin persistence ordering | `DefaultChatScreen.svelte`, `process/scriptings.ts`, `plugins/plugins.svelte.ts` | Ordinary BG sends already had a stronger canonical pre-save, but client-only sends, script clones, and plugin reload ordering retained gaps | **HJ04 admitted through a hidden patcher adapter.** Reuses lazy-chat strict save; does not import Haejeok SQL stores. |
 | Native log exporter with media pipeline | `src/lib/LogExporter/`, `src/ts/logexporter/`, ffmpeg dependency | Distinct user outcome; touches chat render and substantially expands code/dependencies | **Defer.** All-or-nothing delivery makes bundle/dependency cost part of every install. |
 | SQL message search and revision/database explorers | PostgreSQL full-text indexes, DB explorer components | Depends on the alternative relational backend | **Exclude from the current SQLite patch line.** |
 | Onboarding, mascot, branding, account removal, release plumbing | `WelcomeRisu.svelte`, `AirisuMascot.svelte`, release workflows, account removals | Product identity rather than a missing PocketRisu patch outcome | **Exclude.** |
@@ -181,9 +188,11 @@ chat render adapters. Haejeok does not replace the admitted parser/Kei packs.
 | H4 | Korean fuzzy character search | Prove it adds results beyond native normalized search without changing canonical order/folders. |
 | H5 | Chat width and text-area resize | Add to Personal settings with schema/version preservation, mobile bounds, and K14/K15 composition. |
 
-This queue is not an implementation commitment. Each item remains dormant
-until its trigger is measured or the user explicitly selects it for the next
-complete patch release.
+HJ04 is now admitted, and the user selected H4 Korean search and H5 chat width
+for the same detailed integration cycle. The remaining queue stays dormant
+until its trigger is measured or it is explicitly selected for a later
+complete patch release. See `HAEJEOK-INTEGRATION-PLAN.md` for owner boundaries,
+sequence, and gates.
 
 ## Limits
 
@@ -193,4 +202,6 @@ complete patch release.
   require a delta audit from `e9d03568`.
 - Direct-path counts are complete for the frozen revisions, but semantic
   behavior is claimed only where callers/tests were read as described above.
-- No Haejeok code or asset is redistributed by this checkpoint.
+- Only the focused HJ04 persistence-ordering adaptation documented in
+  `THIRD_PARTY_NOTICES.md` is redistributed at this checkpoint; no other
+  Haejeok subsystem or asset is included.

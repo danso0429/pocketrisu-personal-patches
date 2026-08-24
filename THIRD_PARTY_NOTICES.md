@@ -153,7 +153,7 @@ does not introduce Revenant, a second provider route, or a new cache schema;
 the inherited raw-key language/preset/provider collision boundary remains
 documented in the K12 validation receipt.
 
-## Haejeok RisuAI research reference
+## Haejeok RisuAI focused adaptations and research reference
 
 The Haejeok RisuAI comparison is pinned to:
 
@@ -161,8 +161,28 @@ The Haejeok RisuAI comparison is pinned to:
 - Revision: `e9d035683cdf9f0207eed193ee36f9bdb117f658`
 - License: GNU General Public License v3.0
 
-No Haejeok source is redistributed by this checkpoint. Its SQL/domain storage,
-object storage, low-spec rendering, Node compute, ZIP64 streaming, Korean
-search, and layout-control ideas are classified in
-`docs/HAEJEOK-RISUAI-OVERLAP-AUDIT.md`. Any later code adaptation must add its
-exact paths and revision here before publication.
+The HJ04 persistence-safety adapter uses the behavior and focused structure of:
+
+- `0fd90fcfbfe9b7136eade9d9bc3320c3744626d2`,
+  `src/lib/ChatScreens/DefaultChatScreen.svelte`;
+- `23bb743765ce6af5c8390d182cc3a7e08c8ce810` and
+  `313ecdff7c2c24d01611a7b735fd5435c4f0a65d`,
+  `src/ts/process/scriptings.ts`; and
+- `3b5b3d39425a6297e8ea8a634e6d957e17c7b771`,
+  `src/ts/plugins/plugins.svelte.ts`.
+
+The redistributed local implementation is contained in
+`patches/haejeok-persistence-safety-adapter/` and applies focused hooks to the
+same PocketRisu paths plus `src/ts/globalApi.svelte.ts`. It does not copy
+Haejeok's relational `MessageStore`, `SettingsStore`, SQL schema, or storage
+backend. Script messages are merged into the existing PocketRisu lazy-chat
+owner and committed through its BG strict-save barrier; plugins use the same
+tracker without replacing the database's complete plugin array.
+
+Haejeok commit `e78f9c91fea5a059d38de271117f8dbfac5f45ef`
+(`src/ts/bootstrap.ts`) and the cache-revision portion of `313ecdff` were
+reviewed but not adapted because the composed target already has equivalent
+synchronous ordering. The remaining SQL/domain storage, object storage,
+low-spec rendering, Node compute, ZIP64 streaming, Korean search, and layout
+ideas are classified in `docs/HAEJEOK-RISUAI-OVERLAP-AUDIT.md`; future code
+adaptations must add their exact paths and revisions here before publication.
