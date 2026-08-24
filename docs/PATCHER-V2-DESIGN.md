@@ -37,8 +37,9 @@ longer promises a public selector.
 - Every registered root pack with `allDefault !== false` is included.
 - `allDefault: false` is a maintainer-only pre-admission state. It cannot be
   selected by a distributed installer.
-- This checkpoint admits `background-import`, so the complete exact-1.10 graph
-  contains the same functional set already installed on the live target.
+- This checkpoint removes `background-import` from registration after device
+  use found its upload path slower and less convenient. Its source/tests remain
+  historical audit material and cannot enter a distributed graph.
 - A new feature must pass its focused owner graphs and the maximum complete
   graph before `allDefault: false` is removed.
 - The old exhaustive `2^N` raw-selection verifier is retired because public

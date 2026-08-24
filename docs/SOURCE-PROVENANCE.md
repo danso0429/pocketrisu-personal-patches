@@ -26,7 +26,7 @@ feature validation receipts.
 | Source | Use |
 | --- | --- |
 | Private `risuai-bg-stream-preserve` repository, stable `v1.0.1` | Authored source for the bg-preserve payload imported into this patcher, with patcher-specific owner exclusions/adapters. |
-| This repository's issue/validation history and user requirements | Persona and character organization, Personal settings, parser/toolchain hardening, CharX integrity, background import, exact transaction engine, reporting, and qualification policy unless a row above states another origin. |
+| This repository's issue/validation history and user requirements | Persona and character organization, Personal settings, parser/toolchain hardening, CharX integrity, exact transaction engine, reporting, qualification policy, and the now-retired background-import experiment unless a row above states another origin. |
 
 ## Attribution rule for future work
 

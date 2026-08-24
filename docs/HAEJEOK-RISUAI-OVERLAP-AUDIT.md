@@ -24,8 +24,7 @@ The useful Haejeok ideas fall into three groups:
    configurable chat width, resizable text areas, and ZIP64 streaming; and
 3. **duplicate or already stronger local outcomes** such as ordinary
    character search/recent views, orphan-media cleanup, parser fixes,
-   background generation preservation, stale-client fencing, and durable
-   background import.
+   background generation preservation, and stale-client fencing.
 
 No whole Haejeok subsystem should be cherry-picked. A retained idea must be
 reduced to an owner-local PocketRisu 1.10 change and requalified inside the
@@ -57,10 +56,11 @@ This audit covers only `main`. In particular, the unmerged
   final callers were inspected so formatting is not classified as a feature.
 - A raw PocketRisu-to-Haejeok tree diff spans 1,243 paths. That number measures
   two long-lived forks, not 1,243 Haejeok features.
-- The current complete patch plan for exact PocketRisu 1.10 requests 14 root
-  packs, resolves 36 packs/adapters, and manages 305 paths. Fifty-eight of
+- The current complete patch plan for exact PocketRisu 1.10 requests 13 root
+  packs, normalizes them to 12 effective roots, resolves 35 packs/adapters,
+  and manages 267 source paths. Fifty-eight of
   those exact plan paths were also functionally touched on Haejeok `main`.
-  Across the 36 resolved pack manifests, 26 have at least one such path.
+  Across the 35 resolved pack manifests, 25 have at least one such path.
 
 These path intersections are collision surfaces only. They do not prove
 equivalent behavior, and non-overlapping files can still compete for the same
@@ -74,8 +74,8 @@ state or policy.
 | Primary data | NodeOnly SQLite/KV plus lazy chat delta, CAS/rebase, write journal, hydration barriers | Relational PostgreSQL/Oracle/Azure SQL or Web/Tauri SQLite, domain stores, record-level commits | Competing storage authorities |
 | Assets | PocketRisu local asset store, native 1.10 server-side fail-closed orphan walker, persona gallery/folder union | Local FS, S3/RustFS, or Azure SQL assets with catalog, thumbnails, browser analysis, and generic delete API | Haejeok UI is broader; deletion contract conflicts |
 | Generation | Whole ax/main/post-processing server orchestration, operation-keyed result claim/ACK, cancellation, cold recovery | Provider request remains client-owned; selected tokenization, lore matching, and vector ranking move to Node | Complementary outcome, overlapping hosts |
-| Mobile background | Server completes generation and import after page suspension; client reconciles durable results | No equivalent generation/import operation ledger | Local patch is a strict superset for this outcome |
-| Imports | Bounded resumable source upload, server preparation/commit, restart recovery, canonical rebase and ACK | Request-lifetime bulk read/write, streaming backup restore, CharX ZIP export | Transport ideas overlap; durability does not |
+| Mobile background | Server completes ax/main/post-processing generation after page suspension; client reconciles durable results | No equivalent whole-generation operation ledger | Local patch is a strict superset for generation |
+| Imports | Foreground character/module import with indexed CharX integrity, one import lease, and server-confirmed persistence; durable background experiment retired after device UX | Request-lifetime bulk read/write, streaming backup restore, CharX ZIP export | Streaming ideas overlap; neither ships the retired durable import path |
 | Backup | One pinned SQLite/WAL and verified filesystem epoch; fresh rollback snapshot before destructive restore | Offline Docker `pg_dump` + stopped RustFS + restic, plus request-lifetime application backups and SQL revision preview | Different operational models |
 | Stale deployments | Build stamp on authoritative client/server writes, dirty-state freeze | Independent updater/release flow; no `x-client-build` fence | Local patch is distinct |
 | Parser/streaming | ChatML/Thoughts/CBS hardening and Kei replayable OpenAI/Google SSE parser | Frozen Haejeok still has the three skipped parser cases and ad-hoc stream splitting | Local patch is distinct/stronger |
@@ -89,7 +89,7 @@ state or policy.
 | S3/RustFS/Azure asset storage and explorer | `server/node/assetStorage.cjs`, `src/ts/storage/nodeS3Storage.ts`, `src/lib/Setting/Pages/StorageExplorer*` | Duplicates orphan inventory/cleanup and intersects persona folders/galleries, CharX, backup, and client fence | **Reference UI only.** Do not port the delete path without a server-authoritative union walker and stale-build fence. |
 | Node compute offload | `server/node/{tokenizeCount,loreMatch,loreResolve,vectorIndex}.cjs`, `src/ts/tokenizer.ts`, memory/lore callers | Touches BG, K11 Hypa, tokenizer, `nodeStorage.ts`, and generation assembly, but does not duplicate whole-pipeline BG execution | **Candidate after measurement.** Preserve browser/custom-provider fallback and operation snapshots. |
 | Low-spec mode, message paging, bounded caches | `src/ts/chatLoadPages.ts`, domain message/character stores, image/cache callers | Valuable memory/DOM reduction but directly changes lazy hydration and active streaming chat hosts | **Merge only into existing lazy/K14 owners.** No parallel message store. |
-| Streaming bulk backup/restore and ZIP64 | `server/node/zipStream.cjs`, bulk read/write routes, `src/ts/drive/backuplocal.ts`, `src/ts/characterCards.ts` | Relevant to large archives, CharX, and background import; no durable upload ledger | **High-value reference.** Evaluate ZIP64/streaming against the known over-4-GiB archive boundary in a separate feature commit. |
+| Streaming bulk backup/restore and ZIP64 | `server/node/zipStream.cjs`, bulk read/write routes, `src/ts/drive/backuplocal.ts`, `src/ts/characterCards.ts` | Relevant to large archives and CharX; the local durable-import experiment is historical only | **High-value reference.** Evaluate ZIP64/streaming against the known over-4-GiB archive boundary in a separate feature commit. |
 | Character catalog, recent sessions, Korean fuzzy search | `src/lib/UI/MainMenu.svelte`, `RecentSessionsList.svelte`, `src/ts/util/koreanSearch.ts` | Ordinary search/recent/list/grid behavior is already native; organizer owns order/folders | **Duplicate except Korean matching and presentation variants.** Any retained search improvement belongs in the canonical catalog/organizer owner. |
 | Adjustable chat width and text-area resize | `Chat.svelte`, `TextAreaInput.svelte`, display settings | No equivalent local setting found; hosts overlap Personal/K14/K15 | **Small candidate.** Add through `personal-settings`, not raw database fields in a second settings model. |
 | Native log exporter with media pipeline | `src/lib/LogExporter/`, `src/ts/logexporter/`, ffmpeg dependency | Distinct user outcome; touches chat render and substantially expands code/dependencies | **Defer.** All-or-nothing delivery makes bundle/dependency cost part of every install. |
@@ -117,14 +117,16 @@ recovery. It therefore does not replace bg-preserve. It does touch 19
 bg-preserve-managed paths, so a future compute port must be adapted around the
 BG request snapshot and K11 Hypa delivery rather than copied wholesale.
 
-### Background import, CharX, and import UX
+### Foreground import, CharX, and retired background-import evidence
 
 Haejeok adds request-lifetime bulk file transport, server ZIP64 CharX export,
-and streaming backup restore. Our graph adds indexed CharX validation,
-one import lease, resumable verified offsets, durable restart state,
-server-owned preparation/commit, canonical reconciliation, and result ACK.
-The ZIP64 writer and bounded streaming patterns are useful references; the
-existing import state machine remains authoritative.
+and streaming backup restore. The admitted graph keeps indexed CharX
+validation, one foreground import lease, and server-confirmed persistence.
+The former background-import audit demonstrates resumable verified offsets,
+durable restart state, server preparation/commit, reconciliation, and ACK, but
+device use found that upload path slower and less convenient, so it is absent
+from the catalog and installers. The ZIP64 writer and bounded streaming
+patterns remain useful references without reviving that experiment.
 
 ### Asset cleanup and persona ownership
 
