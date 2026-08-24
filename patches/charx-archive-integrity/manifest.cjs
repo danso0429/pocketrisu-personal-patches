@@ -20,7 +20,7 @@ const sliceImporter = (source) => {
 module.exports = {
     id: 'charx-archive-integrity',
     title: 'CharX archive integrity',
-    version: '0.1.2',
+    version: '0.1.0',
     targets: {
         pocketrisu: {
             verified: [],

@@ -33,7 +33,6 @@ test('parser hardening pack ETag covers its exact managed content', () => {
     }
     assert.match(original, /^[0-9a-f]{64}$/)
     assert.notEqual(packEtag(changed), original)
-    assert.notEqual(packEtag({ ...manifest, allDefault: false }), original)
     assert.equal(packEtag(manifest), original)
 })
 

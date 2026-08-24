@@ -37,15 +37,9 @@ export class CharXArchiveError extends Error {
     }
 }
 
-export interface CharXSeekableBlob {
-    readonly size: number
-    slice(start?: number, end?: number): CharXSeekableBlob
-    arrayBuffer(): Promise<ArrayBuffer>
-}
-
 export interface CharXSource {
-    kind: 'file' | 'blob' | 'bytes' | 'seekable'
-    value: File | Blob | Uint8Array | CharXSeekableBlob
+    kind: 'file' | 'bytes'
+    value: File | Uint8Array
     container: CharXContainerHint
 }
 
@@ -67,8 +61,8 @@ export interface CharXArchivePlan {
 
 type PlannedFileEntry = CharXEntryPlan & { entry: FileEntry }
 
-class SliceBlobReader extends Reader<CharXSeekableBlob> {
-    constructor(private readonly source: CharXSeekableBlob) {
+class SliceBlobReader extends Reader<Blob> {
+    constructor(private readonly source: Blob) {
         super(source)
         this.size = source.size
     }
@@ -91,7 +85,7 @@ class BlobCursor {
     private cacheOffset = 0
     private readonly chunkBytes = 64 * 1024
 
-    constructor(private readonly blob: CharXSeekableBlob, private readonly limit: number) {}
+    constructor(private readonly blob: Blob, private readonly limit: number) {}
 
     get position(): number {
         return this.offset
@@ -143,7 +137,7 @@ async function nextJpegMarker(cursor: BlobCursor): Promise<number> {
     return marker
 }
 
-async function jpegArchiveOffset(blob: CharXSeekableBlob): Promise<number> {
+async function jpegArchiveOffset(blob: Blob): Promise<number> {
     const cursor = new BlobCursor(blob, Math.min(blob.size, CHARX_LIMITS.jpegPrefixBytes + 1))
     if (await cursor.uint16() !== JPEG_SOI) {
         throw new CharXArchiveError('CHARX_UNSUPPORTED_ARCHIVE', 'CharX JPEG prefix is missing SOI')
@@ -180,30 +174,13 @@ async function jpegArchiveOffset(blob: CharXSeekableBlob): Promise<number> {
     throw new CharXArchiveError('CHARX_LIMIT_EXCEEDED', 'CharX JPEG prefix exceeds the 50 MiB limit')
 }
 
-async function asArchiveBlob(source: CharXSource): Promise<CharXSeekableBlob> {
-    let blob: CharXSeekableBlob
+async function asArchiveBlob(source: CharXSource): Promise<Blob> {
+    let blob: Blob
     if (source.kind === 'file') {
         if (typeof File === 'undefined' || !(source.value instanceof File)) {
             throw new CharXArchiveError('CHARX_UNSUPPORTED_ARCHIVE', 'CharX file source is invalid')
         }
         blob = source.value
-    } else if (source.kind === 'blob') {
-        if (typeof Blob === 'undefined' || !(source.value instanceof Blob)) {
-            throw new CharXArchiveError('CHARX_UNSUPPORTED_ARCHIVE', 'CharX blob source is invalid')
-        }
-        blob = source.value
-    } else if (source.kind === 'seekable') {
-        const value = source.value as CharXSeekableBlob
-        if (
-            !value
-            || !Number.isSafeInteger(value.size)
-            || value.size < 0
-            || typeof value.slice !== 'function'
-            || typeof value.arrayBuffer !== 'function'
-        ) {
-            throw new CharXArchiveError('CHARX_UNSUPPORTED_ARCHIVE', 'CharX seekable source is invalid')
-        }
-        blob = value
     } else {
         if (!(source.value instanceof Uint8Array)) {
             throw new CharXArchiveError('CHARX_UNSUPPORTED_ARCHIVE', 'CharX byte source is invalid')

@@ -22,7 +22,6 @@ test('catalog exposes the expected user packs and keeps integration packs intern
             'parser-hardening',
             'toolchain-hardening',
             'charx-archive-integrity',
-            'background-import',
             'pocketrisu-kei',
         ],
     )
@@ -116,7 +115,7 @@ test('the complete admitted graph resolves deterministically', () => {
     const first = resolveSelection(catalog, requested)
     const second = resolveSelection(catalog, [...requested].reverse())
     assert.deepEqual(second, first)
-    assert.equal(first.resolvedIds.includes('background-import'), true)
+    assert.equal(first.resolvedIds.includes('background-import'), false)
     assert.equal(first.resolvedIds.includes('lazy-chat-bg-adapter'), true)
     assert.equal(first.resolvedIds.includes('bg-preserve-storage-base'), false)
 })

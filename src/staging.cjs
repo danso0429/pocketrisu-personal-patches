@@ -194,22 +194,6 @@ function buildQualificationChecks(root, packs) {
             args: ['build'],
         },
     ]
-    if (packs.some((pack) => pack.id === 'background-import')) {
-        if (!fs.existsSync(path.join(root, 'server/node/importParserBundle.build.cjs'))) {
-            throw new PatchStagingError(
-                'MISSING_QUALIFICATION_CHECK',
-                'Background import is selected but its parser bundle builder is missing',
-                { file: 'server/node/importParserBundle.build.cjs' },
-            )
-        }
-        checks.splice(2, 0, {
-            id: 'background-import-parser-bundle',
-            kind: 'build',
-            command: process.execPath,
-            displayCommand: 'node',
-            args: ['server/node/importParserBundle.build.cjs'],
-        })
-    }
     if (packs.some((pack) => pack.id === 'bg-preserve')) {
         if (!fs.existsSync(path.join(root, 'server/node/bgOrchBundle.build.cjs'))) {
             throw new PatchStagingError(

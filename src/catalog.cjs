@@ -18,9 +18,6 @@ const PROFILES = Object.freeze({
 
 function validateProfileMetadata(catalog) {
     for (const pack of catalog) {
-        if (pack.allDefault !== undefined && typeof pack.allDefault !== 'boolean') {
-            throw new Error(`${pack.id}.allDefault must be a boolean`)
-        }
         if (pack.presetDefaults !== undefined) {
             throw new Error(`${pack.id}.presetDefaults is obsolete in all-or-nothing delivery`)
         }
@@ -52,7 +49,6 @@ function loadCatalog(repositoryRoot = path.resolve(__dirname, '..')) {
         require(path.join(repositoryRoot, 'patches/parser-hardening/manifest.cjs')),
         require(path.join(repositoryRoot, 'patches/toolchain-hardening/manifest.cjs')),
         require(path.join(repositoryRoot, 'patches/charx-archive-integrity/manifest.cjs')),
-        require(path.join(repositoryRoot, 'patches/background-import/manifest.cjs')),
         require(path.join(repositoryRoot, 'patches/kei-stream-parser-core/manifest.cjs')),
         require(path.join(repositoryRoot, 'patches/kei-stream-parser-base-adapter/manifest.cjs')),
         require(path.join(repositoryRoot, 'patches/kei-stream-parser-bg-adapter/manifest.cjs')),
@@ -94,9 +90,7 @@ function resolveProfile(profileId, catalog) {
     }
     validateProfileMetadata(catalog)
     const visible = catalog.filter((pack) => pack.userSelectable !== false)
-    const defaults = visible
-        .filter((pack) => pack.allDefault !== false)
-        .map((pack) => pack.id)
+    const defaults = visible.map((pack) => pack.id)
     return {
         ...definition,
         defaults,

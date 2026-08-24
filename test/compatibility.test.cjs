@@ -104,7 +104,7 @@ test('packs qualified on PocketRisu 1.9.0 remain explicitly verified', () =>
         assert.equal(rollingCatalog.status, 'review-required')
         assert.deepEqual(
             rollingCatalog.reviewRequiredPacks.map((entry) => entry.id),
-            ['charx-archive-integrity', 'background-import'],
+            ['charx-archive-integrity'],
         )
     }))
 

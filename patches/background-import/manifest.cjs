@@ -152,7 +152,9 @@ module.exports = {
             reviewing: ['1.10.0'],
         },
     },
-    userSelectable: true,
+    // Retained as an audit artifact only. The pack is deliberately absent from
+    // src/catalog.cjs after the foreground-import rollback.
+    userSelectable: false,
     requires: [
         'character-import-ux',
         'charx-archive-integrity',

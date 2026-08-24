@@ -133,30 +133,6 @@ test('qualification checks are ordered and stop at the first failure', () => {
     }
 })
 
-test('background import parser bundle is built before target tests', () => {
-    const root = makeRoot('pocketrisu-stage-import-bundle-')
-    try {
-        writePackage(root)
-        assert.throws(
-            () => buildQualificationChecks(root, [{ id: 'background-import' }]),
-            (error) => error.code === 'MISSING_QUALIFICATION_CHECK',
-        )
-        fs.mkdirSync(path.join(root, 'server/node'), { recursive: true })
-        fs.writeFileSync(path.join(root, 'server/node/importParserBundle.build.cjs'), '')
-        const definitions = buildQualificationChecks(root, [{ id: 'background-import' }])
-        assert.deepEqual(definitions.map((check) => check.id), [
-            'package-manager-version',
-            'frozen-install',
-            'background-import-parser-bundle',
-            'target-tests',
-            'target-diagnostics',
-            'production-build',
-        ])
-    } finally {
-        fs.rmSync(root, { recursive: true, force: true })
-    }
-})
-
 test('a runner launch error is preserved even when stderr is empty', () => {
     assert.throws(
         () => runQualificationChecks({

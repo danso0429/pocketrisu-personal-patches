@@ -46,7 +46,6 @@ test('one delivery profile contains every admitted root pack', () => {
         'parser-hardening',
         'toolchain-hardening',
         'charx-archive-integrity',
-        'background-import',
         'kei-stream-parser-core',
         'kei-stream-parser-base-adapter',
         'kei-stream-parser-bg-adapter',
@@ -88,7 +87,6 @@ test('one delivery profile contains every admitted root pack', () => {
             'parser-hardening',
             'toolchain-hardening',
             'charx-archive-integrity',
-            'background-import',
             'pocketrisu-kei',
         ],
     )
@@ -143,38 +141,30 @@ test('all derives every admitted visible pack from the active catalog', () => {
     const catalog = [
         { id: 'existing', version: '1', units: [] },
         { id: 'future-pack', version: '1', units: [] },
-        { id: 'reviewing-pack', version: '1', allDefault: false, units: [] },
+        { id: 'reviewing-pack', version: '1', units: [] },
         { id: 'internal-adapter', version: '1', userSelectable: false, units: [] },
     ]
     assert.deepEqual(resolveProfile('all', catalog).defaults, [
         'existing',
         'future-pack',
+        'reviewing-pack',
     ])
 })
 
-test('PocketRisu Kei and background import are both admitted to the complete set', () => {
+test('PocketRisu Kei remains admitted while background import is retired', () => {
     const catalog = loadCatalog()
     assert.equal(resolveProfile('all', catalog).defaults.includes('pocketrisu-kei'), true)
     const pack = catalog.find((entry) => entry.id === 'background-import')
-    assert.ok(pack)
-    assert.equal(pack.userSelectable, true)
-    assert.equal(Object.hasOwn(pack, 'allDefault'), false)
-    assert.equal(resolveProfile('all', catalog).defaults.includes(pack.id), true)
+    assert.equal(pack, undefined)
+    assert.equal(resolveProfile('all', catalog).defaults.includes('background-import'), false)
 })
 
-test('retired preset metadata and invalid admission metadata fail at the catalog boundary', () => {
+test('retired preset metadata fails at the catalog boundary', () => {
     assert.throws(
         () => validateProfileMetadata([{
             id: 'retired-default',
             presetDefaults: ['features'],
         }]),
         /obsolete in all-or-nothing delivery/,
-    )
-    assert.throws(
-        () => validateProfileMetadata([{
-            id: 'invalid-all-admission',
-            allDefault: 'later',
-        }]),
-        /allDefault must be a boolean/,
     )
 })

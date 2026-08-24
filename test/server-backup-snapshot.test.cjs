@@ -67,8 +67,8 @@ test('every visible selection resolves P1 to exactly one P2 adapter', () => {
     }
 
     const selectionCount = 2 ** visible.length
-    assert.equal(counts.absent + counts.standard + counts.lazy, selectionCount)
-    assert.ok(counts.absent > 0)
+    assert.equal(counts.absent, selectionCount / 2)
+    assert.equal(counts.standard + counts.lazy, selectionCount / 2)
     assert.ok(counts.standard > 0)
     assert.ok(counts.lazy > 0)
 })

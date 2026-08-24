@@ -55,7 +55,7 @@ async function sourceBytes(source: ModuleImportSource): Promise<Uint8Array> {
     return new Uint8Array(await source.data.arrayBuffer())
 }
 
-export function moduleFromJson(value: unknown, convertLorebook: (entries: unknown) => unknown[]): RisuModule {
+function moduleFromJson(value: unknown, convertLorebook: (entries: unknown) => unknown[]): RisuModule {
     if (!value || typeof value !== 'object') throw new ModuleImportError('Module JSON must contain an object')
     const data = value as Record<string, any>
     if (data.type === 'risuModule') {

@@ -10,10 +10,10 @@ const { resolveSelection } = require('../src/resolver.cjs')
 const root = path.join(__dirname, '..')
 const manifest = require('../patches/background-import/manifest.cjs')
 
-test('background import is admitted to the complete exact-1.10 set', () => {
+test('background import is retained only as a retired audit artifact', () => {
     assert.equal(manifest.id, 'background-import')
     assert.equal(manifest.version, '0.3.3')
-    assert.equal(manifest.userSelectable, true)
+    assert.equal(manifest.userSelectable, false)
     assert.equal(Object.hasOwn(manifest, 'allDefault'), false)
     assert.equal(Object.hasOwn(manifest, 'presetDefaults'), false)
     assert.deepEqual(manifest.targets.pocketrisu, { verified: [], reviewing: ['1.10.0'] })
@@ -23,7 +23,10 @@ test('background import is admitted to the complete exact-1.10 set', () => {
         'lazy-chat-sync',
         'client-build-fence',
     ])
-    assert.equal(resolveProfile('all', loadCatalog()).defaults.includes(manifest.id), true)
+    const catalog = loadCatalog()
+    assert.equal(catalog.some((pack) => pack.id === manifest.id), false)
+    assert.equal(resolveProfile('all', catalog).defaults.includes(manifest.id), false)
+    assert.throws(() => resolveSelection(catalog, [manifest.id]), /Unknown patch pack/)
 })
 
 test('every production, test, and builder payload has one exact owned unit', () => {
@@ -39,23 +42,6 @@ test('every production, test, and builder payload has one exact owned unit', () 
         .sort()
     assert.deepEqual(owned, payloads)
     assert.equal(new Set(owned).size, owned.length)
-})
-
-test('focused graphs select lazy owners and never the standard storage adapter', () => {
-    const catalog = loadCatalog()
-    for (const requested of [
-        [manifest.id],
-        [manifest.id, 'bg-preserve'],
-        [manifest.id, 'pocketrisu-kei'],
-        [manifest.id, 'bg-preserve', 'pocketrisu-kei'],
-    ]) {
-        const resolution = resolveSelection(catalog, requested)
-        for (const dependency of manifest.requires) {
-            assert.equal(resolution.resolvedIds.includes(dependency), true, `${requested}: ${dependency}`)
-        }
-        assert.equal(resolution.resolvedIds.includes('server-backup-snapshot-lazy-adapter'), true)
-        assert.equal(resolution.resolvedIds.includes('client-build-fence-standard-adapter'), false)
-    }
 })
 
 test('server hooks authenticate and bound upload bodies before durable routes guard remove', () => {
