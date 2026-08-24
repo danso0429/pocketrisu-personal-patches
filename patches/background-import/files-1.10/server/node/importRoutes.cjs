@@ -57,7 +57,7 @@ function statusForError(error) {
     if (code === 'IMPORT_JOB_NOT_FOUND') return 404
     if (code === 'IMPORT_CAPACITY_EXCEEDED') return 507
     if (/(_INVALID|_MISMATCH|_INCOMPLETE|_UNSUPPORTED)/.test(code)) return 400
-    if (/(_CONFLICT|_COLLISION)/.test(code) || code === 'IMPORT_STATE_CONFLICT') return 409
+    if (/(_CONFLICT|_COLLISION)/.test(code) || ['IMPORT_STATE_CONFLICT', 'IMPORT_ACTIVE'].includes(code)) return 409
     return 500
 }
 
@@ -81,6 +81,8 @@ function registerImportRoutes(app, {
         jobStore,
         maxSourceBytes: limits.maxSourceBytes,
         maxSpoolBytes: limits.maxSpoolBytes,
+        maxChunkBytes: limits.maxChunkBytes,
+        minFreeBytes: limits.minFreeBytes,
     })
     const preparedStore = createPreparedImportStore({ root: path.join(saveDir, 'import-prepared') })
     const prepareOwner = createImportPrepareOwner({
@@ -140,6 +142,9 @@ function registerImportRoutes(app, {
 
     app.post('/api/import-jobs', handler(async (req, res) => {
         const body = req.body ?? {}
+        if (body.protocolVersion !== 1) {
+            return res.status(400).json({ error: 'Unsupported import protocol', code: 'IMPORT_PROTOCOL_INCOMPATIBLE' })
+        }
         if (!FORMAT_BY_KIND[body.kind]?.has(body.format)) {
             return res.status(400).json({ error: 'Unsupported import kind/format', code: 'IMPORT_UNSUPPORTED_FORMAT' })
         }
@@ -157,7 +162,7 @@ function registerImportRoutes(app, {
         }
         const created = await upload.createJob({
             operationId: body.operationId,
-            protocolVersion: 1,
+            protocolVersion: body.protocolVersion,
             kind: body.kind,
             declaredFormat: body.format,
             sourceSize: body.sourceSize,
@@ -190,8 +195,12 @@ function registerImportRoutes(app, {
     }, { activeSession: true }))
 
     app.get('/api/import-jobs/:operationId', handler(async (req, res) => {
-        const job = jobStore.getJob(req.params.operationId)
+        let job = jobStore.getJob(req.params.operationId)
         if (!job) return res.status(404).json({ error: 'Import job not found', code: 'IMPORT_JOB_NOT_FOUND' })
+        if (['uploaded', 'inspecting', 'queued', 'preparing', 'prepared', 'committing'].includes(job.state)) {
+            kick(req.params.operationId)
+            job = jobStore.getJob(req.params.operationId)
+        }
         res.json(responseJob(job))
     }))
 
@@ -200,15 +209,19 @@ function registerImportRoutes(app, {
     }))
 
     app.get('/api/import-jobs/:operationId/result', handler(async (req, res) => {
-        const consumerId = req.query?.consumerId
+        const job = jobStore.getJob(req.params.operationId)
+        if (!job) return res.status(404).json({ error: 'Import job not found', code: 'IMPORT_JOB_NOT_FOUND' })
+        res.json({ job: responseJob(job), preparedDigest: job.preparedDigest })
+    }))
+
+    app.post('/api/import-jobs/:operationId/result/claim', handler(async (req, res) => {
+        const consumerId = req.body?.consumerId
         const claim = jobStore.claimResult(req.params.operationId, consumerId, limits.claimTtlMs)
         if (!claim.claimed) return res.status(409).json({ claimed: false, job: responseJob(claim.job) })
-        const prepared = await preparedStore.read(req.params.operationId)
         res.json({
             claimed: true,
             job: responseJob(claim.job),
-            entity: prepared.entity,
-            preparedDigest: prepared.preparedDigest,
+            preparedDigest: claim.job.preparedDigest,
         })
     }))
 
@@ -228,8 +241,20 @@ function registerImportRoutes(app, {
     }))
 
     app.delete('/api/import-jobs/:operationId', handler(async (req, res) => {
-        const job = await upload.cancel(req.params.operationId)
+        const operationId = req.params.operationId
+        const existing = jobStore.getJob(operationId)
+        if (!existing) {
+            return res.status(404).json({ error: 'Import job not found', code: 'IMPORT_JOB_NOT_FOUND' })
+        }
+        if (['failed', 'cancelled', 'incompatible-after-upgrade', 'delivered'].includes(existing.state)) {
+            await preparedStore.remove(operationId)
+            await upload.release(operationId)
+            return res.json(responseJob(jobStore.getJob(operationId)))
+        }
+        jobStore.beginCancellation(operationId)
+        await waitForIdle(operationId)
         await preparedStore.remove(req.params.operationId)
+        const job = await upload.finishCancellation(operationId)
         res.json(responseJob(job))
     }, { activeSession: true }))
 

@@ -80,6 +80,26 @@ function createPreparedImportStore({ root } = {}) {
         await fsp.chmod(root, 0o700)
     }
 
+    async function prepareStaging(operationId) {
+        validateId(operationId)
+        await initRoot()
+        const directory = stagingDir(operationId)
+        let created = false
+        try {
+            await fsp.mkdir(directory, { mode: 0o700 })
+            created = true
+        } catch (error) {
+            if (error.code !== 'EEXIST') throw error
+        }
+        const stat = await fsp.lstat(directory)
+        if (!stat.isDirectory() || stat.isSymbolicLink()) {
+            fail('IMPORT_PREPARED_PATH_INVALID', 'Operation staging path is invalid')
+        }
+        await fsp.chmod(directory, 0o700)
+        if (created) await syncDirectory(root)
+        return directory
+    }
+
     async function syncDirectory(directory) {
         const handle = await fsp.open(directory, 'r')
         try { await handle.sync() } finally { await handle.close() }
@@ -190,6 +210,7 @@ function createPreparedImportStore({ root } = {}) {
 
     return {
         stagingDir,
+        prepareStaging,
         preparedPath,
         resolveAssetPath,
         write,

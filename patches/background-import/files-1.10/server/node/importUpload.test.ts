@@ -219,4 +219,76 @@ describe('durable import source upload', () => {
         expect((await fs.stat(path.join(spool, `${operationId}.source`))).mode & 0o777).toBe(0o600)
         jobStore.close()
     })
+
+    test('concurrent create admission leaves exactly one recoverable operation', async () => {
+        const data = sourceBytes(4096)
+        const { jobStore, upload } = await setup()
+        const outcomes = await Promise.allSettled([
+            upload.createJob(coordinates('upload_race_first_001', data.length)),
+            upload.createJob(coordinates('upload_race_second_001', data.length)),
+        ])
+        expect(outcomes.filter(result => result.status === 'fulfilled')).toHaveLength(1)
+        const refused = outcomes.find(result => result.status === 'rejected') as PromiseRejectedResult
+        expect(refused.reason).toMatchObject({ code: 'IMPORT_ACTIVE' })
+        expect(jobStore.listRecoverable()).toHaveLength(1)
+        jobStore.close()
+    })
+
+    test('chunk and durable source identity limits fail before preparation', async () => {
+        const data = sourceBytes(4096)
+        const { root, jobStore, upload } = await setup({ maxChunkBytes: 1024 })
+        const operationId = 'upload_identity_001'
+        await upload.createJob(coordinates(operationId, data.length))
+        await expectCode(upload.append(operationId, 0, data.subarray(0, 1025), sha(data.subarray(0, 1025))), 'IMPORT_UPLOAD_RANGE_INVALID')
+        for (let offset = 0; offset < data.length; offset += 1024) {
+            const chunk = data.subarray(offset, offset + 1024)
+            await upload.append(operationId, offset, chunk, sha(chunk))
+        }
+        await upload.complete(operationId, sha(data))
+        const source = path.join(root, 'spool', `${operationId}.source`)
+        const changed = Buffer.alloc(data.length, 0x42)
+        await fs.writeFile(source, changed)
+        await expectCode(upload.verifySource(operationId), 'IMPORT_SOURCE_MISMATCH')
+        jobStore.close()
+    })
+
+    test('stable source descriptor rejects same-inode mutation after parser work', async () => {
+        const data = sourceBytes(4096)
+        const { root, jobStore, upload } = await setup()
+        const operationId = 'upload_descriptor_001'
+        await upload.createJob(coordinates(operationId, data.length))
+        await upload.append(operationId, 0, data, sha(data))
+        await upload.complete(operationId, sha(data))
+        const source = path.join(root, 'spool', `${operationId}.source`)
+        await expectCode(upload.withVerifiedSource(operationId, async ({ handle, size }: any) => {
+            const observed = Buffer.alloc(size)
+            expect((await handle.read(observed, 0, size, 0)).bytesRead).toBe(size)
+            expect(observed).toEqual(data)
+            await fs.writeFile(source, Buffer.alloc(size, 0x51))
+        }), 'IMPORT_SOURCE_MISMATCH')
+        jobStore.close()
+    })
+
+    test('free-space preflight refuses at required bytes minus one and admits the boundary', async () => {
+        const data = sourceBytes(4096)
+        const requiredReserve = 8192
+        const refused = await setup({
+            minFreeBytes: requiredReserve,
+            availableBytes: async () => data.byteLength + requiredReserve - 1,
+        })
+        await expectCode(
+            refused.upload.createJob(coordinates('upload_disk_refused_001', data.length)),
+            'IMPORT_CAPACITY_EXCEEDED',
+        )
+        expect(refused.jobStore.listRecoverable()).toHaveLength(0)
+        refused.jobStore.close()
+
+        const admitted = await setup({
+            minFreeBytes: requiredReserve,
+            availableBytes: async () => data.byteLength + requiredReserve,
+        })
+        expect(await admitted.upload.createJob(coordinates('upload_disk_admitted_001', data.length)))
+            .toMatchObject({ state: 'receiving' })
+        admitted.jobStore.close()
+    })
 })

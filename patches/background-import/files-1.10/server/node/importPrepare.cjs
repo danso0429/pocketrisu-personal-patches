@@ -4,7 +4,7 @@ const fs = require('node:fs/promises')
 const { pathToFileURL } = require('node:url')
 
 const ERROR_CODE_PATTERN = /^(IMPORT|CHARX|RISUM|PNG)_[A-Z0-9_]{1,96}$/
-const CLOSED_STATES = new Set(['prepared', 'committing', 'completed', 'client-reconciled', 'delivered', 'failed', 'cancelled', 'incompatible-after-upgrade'])
+const CLOSED_STATES = new Set(['cancelling', 'prepared', 'committing', 'completed', 'client-reconciled', 'delivered', 'failed', 'cancelled', 'incompatible-after-upgrade'])
 
 class ImportPrepareError extends Error {
     constructor(code, message) {
@@ -66,7 +66,7 @@ function createImportPrepareOwner({
         return loadedParser
     }
 
-    function requestFor(job) {
+    function requestFor(job, source) {
         return {
             operationId: job.operationId,
             sourcePath: upload.sourcePath(job.operationId),
@@ -75,6 +75,7 @@ function createImportPrepareOwner({
             format: job.declaredFormat,
             authorized: job.authorizationRequired !== true || job.authorizationDecision === 'accepted',
             limits,
+            source,
         }
     }
 
@@ -83,7 +84,9 @@ function createImportPrepareOwner({
         if (!job) fail('IMPORT_JOB_NOT_FOUND', 'Import job not found')
         if (job.state === 'uploaded') job = jobStore.beginInspection(operationId)
         if (job.state !== 'inspecting') return job
-        const inspection = await (await parser()).inspectImport(requestFor(job))
+        const inspection = await upload.withVerifiedSource(operationId, async source => (
+            (await parser()).inspectImport(requestFor(job, source))
+        ))
         return jobStore.finishInspection(operationId, {
             authorizationRequired: inspection?.authorizationRequired === true,
         })
@@ -94,7 +97,10 @@ function createImportPrepareOwner({
         if (!job) fail('IMPORT_JOB_NOT_FOUND', 'Import job not found')
         if (job.state === 'queued') job = jobStore.beginPreparing(operationId)
         if (job.state !== 'preparing') return job
-        const prepared = await (await parser()).prepareImport(requestFor(job))
+        await preparedStore.prepareStaging(operationId)
+        const prepared = await upload.withVerifiedSource(operationId, async source => (
+            (await parser()).prepareImport(requestFor(job, source))
+        ))
         const id = entityId(job, prepared)
         await preparedStore.write(operationId, prepared)
         return jobStore.markPrepared(operationId, {
@@ -120,12 +126,15 @@ function createImportPrepareOwner({
         } catch (error) {
             const current = jobStore.getJob(operationId)
             if (!current || CLOSED_STATES.has(current.state)) throw error
+            try { await preparedStore.remove(operationId) } catch {}
             const code = typeof error?.code === 'string' && ERROR_CODE_PATTERN.test(error.code)
                 ? error.code
                 : 'IMPORT_PREPARATION_FAILED'
-            const detail = code === 'IMPORT_PREPARATION_FAILED'
-                ? 'Import preparation failed'
-                : String(error?.message ?? code)
+            const detail = code === 'IMPORT_PASSWORD_REQUIRED'
+                ? 'Encrypted PNG cards require a foreground password'
+                : code === 'IMPORT_PREPARATION_FAILED'
+                    ? 'Import preparation failed'
+                    : `Import validation failed (${code})`
             try { return jobStore.failJob(operationId, { code, detail }) }
             catch { throw error }
         }
@@ -139,8 +148,8 @@ function createImportPrepareOwner({
         return queue(async () => {
             const job = jobStore.authorize(operationId, accepted)
             if (accepted) return job
-            await upload.cancel(operationId)
             await preparedStore.remove(operationId)
+            await upload.finishCancellation(operationId)
             return jobStore.getJob(operationId)
         })
     }

@@ -2,6 +2,7 @@ import crypto from 'node:crypto'
 import fs from 'node:fs/promises'
 import os from 'node:os'
 import path from 'node:path'
+import { pathToFileURL } from 'node:url'
 import { afterEach, describe, expect, test } from 'vitest'
 import commitPkg from './importCommit.cjs'
 import routesPkg from './importRoutes.cjs'
@@ -54,9 +55,13 @@ function sha(data: Uint8Array) {
     return crypto.createHash('sha256').update(data).digest('hex')
 }
 
-async function setup() {
+async function setup(options: { parserSource?: string } = {}) {
     const root = await fs.mkdtemp(path.join(os.tmpdir(), 'import-routes-'))
     roots.push(root)
+    const parserBundlePath = options.parserSource
+        ? path.join(root, 'test-parser.mjs')
+        : path.resolve('server/node/importParserBundle.mjs')
+    if (options.parserSource) await fs.writeFile(parserBundlePath, options.parserSource)
     const app = new FakeApp()
     const state: any = {
         database: {
@@ -86,7 +91,7 @@ async function setup() {
     })
     const manager = registerImportRoutes(app as any, {
         saveDir: path.join(root, 'save'),
-        parserBundlePath: path.resolve('server/node/importParserBundle.mjs'),
+        parserBundlePath,
         checkAuth: async () => true,
         checkActiveSession: () => true,
         canonicalCommitter: canonical,
@@ -96,6 +101,8 @@ async function setup() {
             parser: {
                 jsonBytes: 50 * 1024 * 1024,
                 inlineAssetBytes: 50 * 1024 * 1024,
+                stagedAssets: 0xffff,
+                stagedBytes: 1024 * 1024 * 1024,
                 png: {
                     chunkCount: 0xffff,
                     textChunkBytes: 50 * 1024 * 1024,
@@ -115,7 +122,7 @@ async function uploadJson(state: Awaited<ReturnType<typeof setup>>, operationId:
     const created = await state.app.invoke('POST', '/api/import-jobs', {
         headers: { 'x-client-build': '1.10.0-test-build' },
         body: {
-            operationId, kind: 'module', format: 'json', sourceSize: data.byteLength, origin: 'picker',
+            operationId, protocolVersion: 1, kind: 'module', format: 'json', sourceSize: data.byteLength, origin: 'picker',
         },
     })
     expect(created.status).toBe(201)
@@ -144,18 +151,21 @@ describe('background import HTTP routes', () => {
         expect((await state.app.invoke('POST', '/api/import-jobs', {
             headers: { 'x-client-build': '1.10.0-test-build' },
             body: {
-                operationId: 'route_blocked_until_ack_001', kind: 'module', format: 'json',
+                operationId: 'route_blocked_until_ack_001', protocolVersion: 1, kind: 'module', format: 'json',
                 sourceSize: 2, origin: 'picker',
             },
         })).status).toBe(409)
 
-        const result = await state.app.invoke('GET', `/api/import-jobs/${operationId}/result`, {
-            query: { consumerId: 'route_consumer_001' },
+        const observed = await state.app.invoke('GET', `/api/import-jobs/${operationId}/result`)
+        expect(observed).toMatchObject({ status: 200, body: { job: { state: 'completed' } } })
+        const result = await state.app.invoke('POST', `/api/import-jobs/${operationId}/result/claim`, {
+            body: { consumerId: 'route_consumer_001' },
         })
         expect(result).toMatchObject({
             status: 200,
-            body: { claimed: true, entity: { name: 'Route module' } },
+            body: { claimed: true, preparedDigest: expect.stringMatching(/^[a-f0-9]{64}$/) },
         })
+        expect(result.body.entity).toBeUndefined()
         expect((await state.app.invoke('POST', `/api/import-jobs/${operationId}/reconciled`, {
             body: { consumerId: 'route_consumer_001' },
         })).body.state).toBe('client-reconciled')
@@ -191,23 +201,40 @@ describe('background import HTTP routes', () => {
         expect((await state.app.invoke('POST', '/api/import-jobs', {
             headers: { 'x-client-build': '1.10.0-test-build' },
             body: {
-                operationId: 'route_active_001', kind: 'module', format: 'json',
+                operationId: 'route_active_001', protocolVersion: 1, kind: 'module', format: 'json',
                 sourceSize: first.byteLength, origin: 'picker',
             },
         })).status).toBe(201)
         expect((await state.app.invoke('POST', '/api/import-jobs', {
             headers: { 'x-client-build': '1.10.0-test-build' },
             body: {
-                operationId: 'route_active_002', kind: 'module', format: 'json',
+                operationId: 'route_active_002', protocolVersion: 1, kind: 'module', format: 'json',
                 sourceSize: first.byteLength, origin: 'picker',
             },
         })).status).toBe(409)
         expect((await state.app.invoke('POST', '/api/import-jobs', {
             body: {
-                operationId: 'route_no_build_001', kind: 'module', format: 'json',
+                operationId: 'route_no_build_001', protocolVersion: 1, kind: 'module', format: 'json',
                 sourceSize: first.byteLength, origin: 'picker',
             },
         })).status).toBe(400)
+        state.manager.close()
+    })
+
+    test('simultaneous create requests admit exactly one durable operation', async () => {
+        const state = await setup()
+        const create = (operationId: string) => state.app.invoke('POST', '/api/import-jobs', {
+            headers: { 'x-client-build': '1.10.0-test-build' },
+            body: {
+                operationId, protocolVersion: 1, kind: 'module', format: 'json', sourceSize: 2, origin: 'picker',
+            },
+        })
+        const responses = await Promise.all([
+            create('route_race_first_001'),
+            create('route_race_second_001'),
+        ])
+        expect(responses.map(result => result.status).sort()).toEqual([201, 409])
+        expect(state.manager.jobStore.listRecoverable()).toHaveLength(1)
         state.manager.close()
     })
 
@@ -228,7 +255,7 @@ describe('background import HTTP routes', () => {
         await state.app.invoke('POST', '/api/import-jobs', {
             headers: { 'x-client-build': '1.10.0-test-build' },
             body: {
-                operationId: 'route_guard_001', kind: 'module', format: 'json',
+                operationId: 'route_guard_001', protocolVersion: 1, kind: 'module', format: 'json',
                 sourceSize: data.byteLength, origin: 'picker',
             },
         })
@@ -245,6 +272,73 @@ describe('background import HTTP routes', () => {
             () => { next.called += 1 },
         )
         expect(next.called).toBe(2)
+        state.manager.close()
+    })
+
+    test('cancellation remains guarded until running preparation and cleanup settle', async () => {
+        let release!: () => void
+        let started!: () => void
+        const gate = new Promise<void>(resolve => { release = resolve })
+        const began = new Promise<void>(resolve => { started = resolve })
+        ;(globalThis as any).__backgroundImportRouteGate = gate
+        ;(globalThis as any).__backgroundImportRouteStarted = started
+        const digestUrl = pathToFileURL(path.resolve('server/node/importPreparedDigest.cjs')).href
+        const state = await setup({ parserSource: `
+            import digest from ${JSON.stringify(digestUrl)}
+            export async function inspectImport() { return { authorizationRequired: false } }
+            export async function prepareImport(request) {
+                globalThis.__backgroundImportRouteStarted()
+                await globalThis.__backgroundImportRouteGate
+                const result = {
+                    kind: request.kind,
+                    format: request.format,
+                    entity: { id: 'cancelled-module', name: 'Cancelled' },
+                    assets: [],
+                }
+                result.preparedDigest = digest.preparedDigestFor(
+                    result.kind, result.format, result.entity, result.assets,
+                )
+                return result
+            }
+            export function preparedDigestFor(...args) { return digest.preparedDigestFor(...args) }
+        ` })
+        const operationId = 'route_cancel_barrier_001'
+        const data = Buffer.from('{}')
+        await state.app.invoke('POST', '/api/import-jobs', {
+            headers: { 'x-client-build': '1.10.0-test-build' },
+            body: { operationId, protocolVersion: 1, kind: 'module', format: 'json', sourceSize: data.length, origin: 'picker' },
+        })
+        await state.app.invoke('PUT', `/api/import-jobs/${operationId}/source`, {
+            headers: { 'x-upload-offset': '0', 'x-chunk-sha256': sha(data) }, body: data,
+        })
+        await state.app.invoke('POST', `/api/import-jobs/${operationId}/source/complete`, {
+            body: { sha256: sha(data) },
+        })
+        await began
+        const deletion = state.app.invoke('DELETE', `/api/import-jobs/${operationId}`)
+        for (let attempt = 0; attempt < 20; attempt++) {
+            if (state.manager.jobStore.getJob(operationId).state === 'cancelling') break
+            await new Promise(resolve => setTimeout(resolve, 0))
+        }
+        expect(state.manager.jobStore.getJob(operationId).state).toBe('cancelling')
+        const response: any = {
+            statusCode: 200, body: null,
+            status(value: number) { this.statusCode = value; return this },
+            json(value: any) { this.body = value; return this },
+        }
+        state.manager.replacementGuard(
+            { method: 'POST', path: '/api/backup/import' }, response, () => undefined,
+        )
+        expect(response).toMatchObject({ statusCode: 409, body: { code: 'IMPORT_ACTIVE' } })
+        release()
+        expect(await deletion).toMatchObject({ status: 200, body: { state: 'cancelled' } })
+        expect(state.state.database.modules).toHaveLength(0)
+        await expect(fs.stat(path.join(state.root, 'save', 'import-sources', `${operationId}.source`)))
+            .rejects.toMatchObject({ code: 'ENOENT' })
+        await expect(fs.stat(path.join(state.root, 'save', 'import-prepared', operationId)))
+            .rejects.toMatchObject({ code: 'ENOENT' })
+        delete (globalThis as any).__backgroundImportRouteGate
+        delete (globalThis as any).__backgroundImportRouteStarted
         state.manager.close()
     })
 })

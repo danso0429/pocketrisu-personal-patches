@@ -27,6 +27,8 @@ const roots: string[] = []
 const LIMITS = Object.freeze({
     jsonBytes: 50 * 1024 * 1024,
     inlineAssetBytes: 50 * 1024 * 1024,
+    stagedAssets: 0xffff,
+    stagedBytes: 1024 * 1024 * 1024,
     png: {
         chunkCount: 0xffff,
         textChunkBytes: 50 * 1024 * 1024,
@@ -163,6 +165,7 @@ describe('server import parser entry', () => {
         await fs.writeFile(sourcePath, bytes)
         const input = request(sourcePath, stagingDir)
         expect(await inspectImport(input)).toMatchObject({ authorizationRequired: false })
+        await fs.mkdir(stagingDir, { mode: 0o700 })
         const prepared = await prepareImport(input)
         expect(prepared.entity.id).toMatch(/^[0-9a-f-]{36}$/)
         expect(prepared.assets).toHaveLength(2)
@@ -171,6 +174,7 @@ describe('server import parser entry', () => {
         expect(prepared.entity.assets.map((asset: string[]) => asset[1])).toEqual(staged.map(item => item.key))
         expect((await prepareImport(input)).preparedDigest).toBe(prepared.preparedDigest)
         const secondDirectory = path.join(root, 'different-staging-name')
+        await fs.mkdir(secondDirectory, { mode: 0o700 })
         expect((await prepareImport({ ...input, stagingDir: secondDirectory })).preparedDigest)
             .toBe(prepared.preparedDigest)
     })
@@ -198,6 +202,7 @@ describe('server import parser entry', () => {
             { name: 'module.risum', data: moduleBytes, descriptor: true },
         ])
         await fs.writeFile(sourcePath, archive.bytes)
+        await fs.mkdir(stagingDir, { mode: 0o700 })
         const character = await prepareImport(request(sourcePath, stagingDir, {
             kind: 'character', format: 'charx', authorized: true,
         }))
@@ -222,6 +227,7 @@ describe('server import parser entry', () => {
         }]
         const bytes = png(card)
         await fs.writeFile(sourcePath, bytes)
+        await fs.mkdir(stagingDir, { mode: 0o700 })
         const prepared = await prepareImport(request(sourcePath, stagingDir, {
             kind: 'character', format: 'png', authorized: true,
         }))
@@ -250,5 +256,34 @@ describe('server import parser entry', () => {
             kind: 'character', format: 'json', authorized: true,
         }))).rejects.toHaveProperty('code', 'IMPORT_INVALID_CHARACTER')
         await expect(fs.stat(stagingDir)).rejects.toMatchObject({ code: 'ENOENT' })
+    })
+
+    test('borrowed descriptor remains bound to its inode after path replacement', async () => {
+        const { sourcePath, stagingDir } = await setup()
+        const original = await risum({ assets: ['descriptor asset'] })
+        await fs.writeFile(sourcePath, original)
+        const handle = await fs.open(sourcePath, 'r')
+        try {
+            await fs.rename(sourcePath, `${sourcePath}.replaced`)
+            await fs.writeFile(sourcePath, await risum({ assets: ['different asset'] }))
+            await fs.mkdir(stagingDir, { mode: 0o700 })
+            const prepared = await prepareImport(request(sourcePath, stagingDir, {
+                source: { handle, size: original.byteLength },
+            }))
+            expect((await stagedBytes(path.dirname(stagingDir), prepared))[0].bytes.toString())
+                .toBe('descriptor asset')
+        } finally {
+            await handle.close()
+        }
+    })
+
+    test('staged byte and asset-count limits refuse before retaining payloads', async () => {
+        const { sourcePath, stagingDir } = await setup()
+        await fs.writeFile(sourcePath, await risum({ assets: ['first', 'second'] }))
+        await fs.mkdir(stagingDir, { mode: 0o700 })
+        await expect(prepareImport(request(sourcePath, stagingDir, {
+            limits: { ...LIMITS, stagedBytes: 4, stagedAssets: 1 },
+        }))).rejects.toHaveProperty('code', 'RISUM_ASSET_SAVE_FAILED')
+        expect(await fs.readdir(stagingDir)).toEqual([])
     })
 })

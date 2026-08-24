@@ -4,7 +4,11 @@ import fs from 'node:fs/promises'
 import type { FileHandle } from 'node:fs/promises'
 import path from 'node:path'
 import preparedDigestPkg from './importPreparedDigest.cjs'
-import { openCharXArchive, type CharXContainerHint } from '../../src/ts/process/charxArchive'
+import {
+    openCharXArchive,
+    type CharXContainerHint,
+    type CharXSeekableBlob,
+} from '../../src/ts/process/charxArchive'
 import {
     characterCardRequiresLowLevel,
     prepareCharacterCard,
@@ -27,6 +31,8 @@ import { moduleFromJson } from '../../src/ts/process/moduleImport'
 export interface ImportParserLimits {
     jsonBytes: number
     inlineAssetBytes: number
+    stagedAssets: number
+    stagedBytes: number
     png: PngImportLimits
 }
 
@@ -38,6 +44,10 @@ export interface ImportParserRequest {
     format: 'json' | 'lorebook' | 'risum' | 'charx' | 'jpeg' | 'png'
     authorized: boolean
     limits: ImportParserLimits
+    source?: {
+        handle: FileHandle
+        size: number
+    }
 }
 
 export interface StagedImportAsset {
@@ -88,6 +98,12 @@ function validateRequest(request: ImportParserRequest): void {
     if (!Number.isSafeInteger(request.limits.inlineAssetBytes) || request.limits.inlineAssetBytes <= 0) {
         throw parserError('IMPORT_LIMIT_INVALID', 'Inline asset limit is invalid')
     }
+    if (!Number.isSafeInteger(request.limits.stagedAssets) || request.limits.stagedAssets <= 0) {
+        throw parserError('IMPORT_LIMIT_INVALID', 'Staged asset count limit is invalid')
+    }
+    if (!Number.isSafeInteger(request.limits.stagedBytes) || request.limits.stagedBytes <= 0) {
+        throw parserError('IMPORT_LIMIT_INVALID', 'Staged asset byte limit is invalid')
+    }
 }
 
 export function preparedDigestFor(
@@ -113,6 +129,7 @@ class NodeFileSource implements SeekableImportSource {
     private constructor(
         private readonly handle: FileHandle,
         size: number,
+        private readonly ownsHandle: boolean,
     ) {
         this.size = size
     }
@@ -120,7 +137,11 @@ class NodeFileSource implements SeekableImportSource {
     static async open(file: string): Promise<NodeFileSource> {
         const stat = await fs.lstat(file)
         if (!stat.isFile() || stat.isSymbolicLink()) throw parserError('IMPORT_SOURCE_MISMATCH', 'Import source is not a regular file')
-        return new NodeFileSource(await fs.open(file, 'r'), stat.size)
+        return new NodeFileSource(await fs.open(file, 'r'), stat.size, true)
+    }
+
+    static borrowed(handle: FileHandle, size: number): NodeFileSource {
+        return new NodeFileSource(handle, size, false)
     }
 
     async read(offset: number, length: number): Promise<Uint8Array> {
@@ -130,15 +151,63 @@ class NodeFileSource implements SeekableImportSource {
         return output
     }
 
-    async close(): Promise<void> { await this.handle.close() }
+    async close(): Promise<void> {
+        if (this.ownsHandle) await this.handle.close()
+    }
 }
 
-async function readJsonFile(file: string, limit: number): Promise<any> {
-    const stat = await fs.lstat(file)
-    if (!stat.isFile() || stat.isSymbolicLink()) throw parserError('IMPORT_SOURCE_MISMATCH', 'Import source is not a regular file')
-    if (stat.size <= 0 || stat.size > limit) throw parserError('IMPORT_LIMIT_EXCEEDED', 'Import JSON exceeds the limit')
-    try { return JSON.parse(new TextDecoder('utf-8', { fatal: true }).decode(await fs.readFile(file))) }
-    catch (error) { throw parserError('IMPORT_INVALID_JSON', String((error as Error)?.message ?? error)) }
+async function sourceForRequest(request: ImportParserRequest): Promise<NodeFileSource> {
+    if (request.source) return NodeFileSource.borrowed(request.source.handle, request.source.size)
+    return NodeFileSource.open(request.sourcePath)
+}
+
+class HandleBlobSlice implements CharXSeekableBlob {
+    constructor(
+        private readonly handle: FileHandle,
+        private readonly offset: number,
+        readonly size: number,
+    ) {}
+
+    slice(start = 0, end = this.size): CharXSeekableBlob {
+        const normalizedStart = Math.min(this.size, Math.max(0, Math.trunc(start)))
+        const normalizedEnd = Math.min(this.size, Math.max(normalizedStart, Math.trunc(end)))
+        return new HandleBlobSlice(this.handle, this.offset + normalizedStart, normalizedEnd - normalizedStart)
+    }
+
+    async arrayBuffer(): Promise<ArrayBuffer> {
+        const value = Buffer.allocUnsafe(this.size)
+        const result = await this.handle.read(value, 0, value.byteLength, this.offset)
+        if (result.bytesRead !== value.byteLength) {
+            throw parserError('IMPORT_SOURCE_MISMATCH', 'Import source read was incomplete')
+        }
+        return value.buffer.slice(value.byteOffset, value.byteOffset + value.byteLength)
+    }
+}
+
+async function charXSourceForRequest(request: ImportParserRequest): Promise<
+    { kind: 'seekable'; value: CharXSeekableBlob; container: CharXContainerHint }
+    | { kind: 'blob'; value: Blob; container: CharXContainerHint }
+> {
+    const container = (request.format === 'jpeg' ? 'jpeg' : 'zip') as CharXContainerHint
+    if (request.source) {
+        return {
+            kind: 'seekable',
+            value: new HandleBlobSlice(request.source.handle, 0, request.source.size),
+            container,
+        }
+    }
+    return { kind: 'blob', value: await openAsBlob(request.sourcePath), container }
+}
+
+async function readJsonFile(request: ImportParserRequest, limit: number): Promise<any> {
+    const source = await sourceForRequest(request)
+    if (source.size <= 0 || source.size > limit) throw parserError('IMPORT_LIMIT_EXCEEDED', 'Import JSON exceeds the limit')
+    try {
+        const value = await source.read(0, source.size)
+        return JSON.parse(new TextDecoder('utf-8', { fatal: true }).decode(value))
+    }
+    catch { throw parserError('IMPORT_INVALID_JSON', 'Import JSON could not be decoded') }
+    finally { await source.close() }
 }
 
 function safeExtension(fileName = ''): string {
@@ -149,16 +218,26 @@ function safeExtension(fileName = ''): string {
 class AssetStager {
     private readonly inventory = new Map<string, StagedImportAsset>()
     private initialized = false
+    private retainedBytes = 0
 
     constructor(
         private readonly stagingDir: string,
         private readonly operationId: string,
+        private readonly maxAssets: number,
+        private readonly maxBytes: number,
     ) {}
 
     private async init() {
         if (this.initialized) return
-        await fs.mkdir(this.stagingDir, { recursive: true, mode: 0o700 })
-        await fs.chmod(this.stagingDir, 0o700)
+        const parent = path.dirname(this.stagingDir)
+        const parentStat = await fs.lstat(parent)
+        if (!parentStat.isDirectory() || parentStat.isSymbolicLink()) {
+            throw parserError('IMPORT_PREPARED_PATH_INVALID', 'Prepared root is invalid')
+        }
+        const stat = await fs.lstat(this.stagingDir)
+        if (!stat.isDirectory() || stat.isSymbolicLink()) {
+            throw parserError('IMPORT_PREPARED_PATH_INVALID', 'Prepared operation path is invalid')
+        }
         this.initialized = true
     }
 
@@ -180,8 +259,12 @@ class AssetStager {
         const key = `assets/${sha256}.${extension}`
         const existing = this.inventory.get(key)
         if (existing) return existing
+        if (this.inventory.size + 1 > this.maxAssets || this.retainedBytes + bytes > this.maxBytes) {
+            throw parserError('IMPORT_LIMIT_EXCEEDED', 'Prepared asset inventory exceeds the limit')
+        }
         const value = Object.freeze({ key, relativePath: this.relative(file), bytes, sha256 })
         this.inventory.set(key, value)
+        this.retainedBytes += bytes
         return value
     }
 
@@ -191,6 +274,11 @@ class AssetStager {
         const sha256 = crypto.createHash('sha256').update(bytes).digest('hex')
         const extension = safeExtension(fileName)
         const file = path.join(this.stagingDir, `${sha256}.${extension}`)
+        const key = `assets/${sha256}.${extension}`
+        if (this.inventory.has(key)) return key
+        if (this.inventory.size + 1 > this.maxAssets || this.retainedBytes + bytes.byteLength > this.maxBytes) {
+            throw parserError('IMPORT_LIMIT_EXCEEDED', 'Prepared asset inventory exceeds the limit')
+        }
         try {
             const present = await fs.readFile(file)
             if (present.byteLength !== bytes.byteLength || crypto.createHash('sha256').update(present).digest('hex') !== sha256) {
@@ -227,6 +315,9 @@ class AssetStager {
             handle = await fs.open(temporary, 'wx', 0o600)
             await writeSource(async data => {
                 const value = Buffer.from(data)
+                if (bytes + value.byteLength > this.maxBytes - this.retainedBytes) {
+                    throw parserError('IMPORT_LIMIT_EXCEEDED', 'Prepared asset bytes exceed the limit')
+                }
                 hash.update(value)
                 bytes += value.byteLength
                 await handle!.write(value)
@@ -273,8 +364,8 @@ function preparationDependencies(request: ImportParserRequest, stager: AssetStag
     }
 }
 
-async function inspectRisuM(sourcePath: string) {
-    const source = await NodeFileSource.open(sourcePath)
+async function inspectRisuM(request: ImportParserRequest) {
+    const source = await sourceForRequest(request)
     try {
         const indexed = await indexRisuModule(source)
         return { authorizationRequired: indexed.module.lowLevelAccess === true }
@@ -282,7 +373,7 @@ async function inspectRisuM(sourcePath: string) {
 }
 
 async function inspectPng(request: ImportParserRequest) {
-    const source = await NodeFileSource.open(request.sourcePath)
+    const source = await sourceForRequest(request)
     let cardText = ''
     try {
         await indexPngCharacter(source, {
@@ -298,16 +389,12 @@ async function inspectPng(request: ImportParserRequest) {
     if (cardText.startsWith('rcc||')) throw parserError('IMPORT_PASSWORD_REQUIRED', 'Encrypted PNG cards require a foreground password')
     let card: any
     try { card = JSON.parse(Buffer.from(cardText, 'base64').toString('utf8')) }
-    catch (error) { throw parserError('IMPORT_INVALID_CHARACTER', String((error as Error)?.message ?? error)) }
+    catch { throw parserError('IMPORT_INVALID_CHARACTER', 'PNG character metadata is invalid') }
     return { card, authorizationRequired: characterCardRequiresLowLevel(card) }
 }
 
 async function inspectCharX(request: ImportParserRequest) {
-    const blob = await openAsBlob(request.sourcePath)
-    const archive = await openCharXArchive({
-        kind: 'blob', value: blob,
-        container: (request.format === 'jpeg' ? 'jpeg' : 'zip') as CharXContainerHint,
-    })
+    const archive = await openCharXArchive(await charXSourceForRequest(request))
     try {
         let module: any = null
         if (archive.module) {
@@ -328,10 +415,10 @@ async function inspectCharX(request: ImportParserRequest) {
 
 export async function inspectImport(request: ImportParserRequest) {
     validateRequest(request)
-    if (request.format === 'risum') return inspectRisuM(request.sourcePath)
+    if (request.format === 'risum') return inspectRisuM(request)
     if (request.format === 'png') return inspectPng(request)
     if (request.format === 'charx' || request.format === 'jpeg') return inspectCharX(request)
-    const value = await readJsonFile(request.sourcePath, request.limits.jsonBytes)
+    const value = await readJsonFile(request, request.limits.jsonBytes)
     if (request.kind === 'module') {
         const module = moduleFromJson(value, entries => convertExternalLorebookForImport(entries as Record<string, any>))
         return { authorizationRequired: module.lowLevelAccess === true }
@@ -341,7 +428,7 @@ export async function inspectImport(request: ImportParserRequest) {
 
 async function prepareModule(request: ImportParserRequest, stager: AssetStager) {
     if (request.format === 'risum') {
-        const source = await NodeFileSource.open(request.sourcePath)
+        const source = await sourceForRequest(request)
         try {
             const indexed = await indexRisuModule(source)
             if (indexed.module.lowLevelAccess && !request.authorized) {
@@ -354,7 +441,7 @@ async function prepareModule(request: ImportParserRequest, stager: AssetStager) 
             return module
         } finally { await source.close() }
     }
-    const value = await readJsonFile(request.sourcePath, request.limits.jsonBytes)
+    const value = await readJsonFile(request, request.limits.jsonBytes)
     const module = moduleFromJson(value, entries => convertExternalLorebookForImport(entries as Record<string, any>))
     if (module.lowLevelAccess && !request.authorized) {
         throw parserError('IMPORT_AUTHORIZATION_REQUIRED', 'Low-level module import requires authorization')
@@ -367,11 +454,7 @@ async function prepareCharX(request: ImportParserRequest, stager: AssetStager) {
     if (inspection.authorizationRequired && !request.authorized) {
         throw parserError('IMPORT_AUTHORIZATION_REQUIRED', 'Low-level CharX import requires authorization')
     }
-    const blob = await openAsBlob(request.sourcePath)
-    const archive = await openCharXArchive({
-        kind: 'blob', value: blob,
-        container: request.format === 'jpeg' ? 'jpeg' : 'zip',
-    })
+    const archive = await openCharXArchive(await charXSourceForRequest(request))
     try {
         const assetDict: Record<string, string> = {}
         for (const plan of archive.assets) assetDict[plan.name] = await stager.stage(await archive.extract(plan))
@@ -411,7 +494,7 @@ async function preparePng(request: ImportParserRequest, stager: AssetStager) {
     if (inspection.authorizationRequired && !request.authorized) {
         throw parserError('IMPORT_AUTHORIZATION_REQUIRED', 'Low-level PNG import requires authorization')
     }
-    const source = await NodeFileSource.open(request.sourcePath)
+    const source = await sourceForRequest(request)
     const assetDict: Record<string, string> = {}
     let cardText = ''
     try {
@@ -453,7 +536,7 @@ async function preparePng(request: ImportParserRequest, stager: AssetStager) {
 }
 
 async function prepareCharacterJson(request: ImportParserRequest, stager: AssetStager) {
-    const card = await readJsonFile(request.sourcePath, request.limits.jsonBytes)
+    const card = await readJsonFile(request, request.limits.jsonBytes)
     if (card?.spec === 'chara_card_v2' || card?.spec === 'chara_card_v3') {
         return prepareCharacterCard(card, preparationDependencies(request, stager), {
             authorized: request.authorized,
@@ -476,7 +559,12 @@ export async function prepareImport(request: ImportParserRequest): Promise<Prepa
     if (inspection.authorizationRequired && !request.authorized) {
         throw parserError('IMPORT_AUTHORIZATION_REQUIRED', 'Import authorization is required')
     }
-    const stager = new AssetStager(request.stagingDir, request.operationId)
+    const stager = new AssetStager(
+        request.stagingDir,
+        request.operationId,
+        request.limits.stagedAssets,
+        request.limits.stagedBytes,
+    )
     let entity: any
     if (request.format === 'charx' || request.format === 'jpeg') entity = await prepareCharX(request, stager)
     else if (request.format === 'png') entity = await preparePng(request, stager)

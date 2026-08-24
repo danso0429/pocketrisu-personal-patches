@@ -156,12 +156,12 @@ describe('append-only canonical import commit', () => {
         state.jobStore.close()
     })
 
-    test('same ID with different content parks reconciliation instead of overwriting', async () => {
+    test('same ID with different content fails terminally without overwriting', async () => {
         const state = await setup()
         const entity = { id: 'existing-module', name: 'Different' }
         await stagePrepared(state, 'commit_collision_001', 'module', entity)
         const result = await state.owner.run('commit_collision_001')
-        expect(result).toMatchObject({ state: 'reconcile-required', errorCode: 'IMPORT_COMMIT_CONFLICT' })
+        expect(result).toMatchObject({ state: 'failed', errorCode: 'IMPORT_COMMIT_CONFLICT' })
         expect(state.state.database.modules.find((item: any) => item?.id === 'existing-module').name).toBe('Existing')
         expect(state.state.markers.size).toBe(0)
         state.jobStore.close()

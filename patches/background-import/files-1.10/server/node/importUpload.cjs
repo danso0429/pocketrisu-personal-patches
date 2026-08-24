@@ -46,6 +46,20 @@ async function fileDigest(file) {
     return hash.digest('hex')
 }
 
+async function handleDigest(handle, size) {
+    const hash = crypto.createHash('sha256')
+    const buffer = Buffer.allocUnsafe(Math.min(1024 * 1024, size))
+    let offset = 0
+    while (offset < size) {
+        const length = Math.min(buffer.byteLength, size - offset)
+        const result = await handle.read(buffer, 0, length, offset)
+        if (result.bytesRead !== length) fail('IMPORT_SOURCE_MISMATCH', 'Import source read was incomplete')
+        hash.update(buffer.subarray(0, length))
+        offset += length
+    }
+    return hash.digest('hex')
+}
+
 async function lstatOptional(file) {
     try { return await fsp.lstat(file) }
     catch (error) {
@@ -59,6 +73,12 @@ function createImportUploadOwner({
     jobStore,
     maxSourceBytes,
     maxSpoolBytes,
+    maxChunkBytes = maxSourceBytes,
+    minFreeBytes = 0,
+    availableBytes = async directory => {
+        const stat = await fsp.statfs(directory)
+        return Math.min(Number.MAX_SAFE_INTEGER, Number(stat.bavail) * Number(stat.bsize))
+    },
     fault = () => undefined,
 } = {}) {
     if (typeof spoolDir !== 'string' || spoolDir.length === 0) {
@@ -72,6 +92,12 @@ function createImportUploadOwner({
     }
     if (!Number.isSafeInteger(maxSpoolBytes) || maxSpoolBytes < maxSourceBytes) {
         fail('IMPORT_UPLOAD_CONFIG_INVALID', 'Spool limit is invalid')
+    }
+    if (!Number.isSafeInteger(maxChunkBytes) || maxChunkBytes <= 0 || maxChunkBytes > maxSourceBytes) {
+        fail('IMPORT_UPLOAD_CONFIG_INVALID', 'Chunk limit is invalid')
+    }
+    if (!Number.isSafeInteger(minFreeBytes) || minFreeBytes < 0 || typeof availableBytes !== 'function') {
+        fail('IMPORT_UPLOAD_CONFIG_INVALID', 'Free-space policy is invalid')
     }
 
     let uploadQueue = Promise.resolve()
@@ -142,6 +168,17 @@ function createImportUploadOwner({
                 fail('IMPORT_CAPACITY_EXCEEDED', 'Source exceeds the upload limit')
             }
             const existing = jobStore.getJob(coordinates.operationId)
+            const active = jobStore.listRecoverable(1024)
+                .find(job => job.operationId !== coordinates.operationId)
+            if (active) fail('IMPORT_ACTIVE', 'Another import is active')
+            if (!existing) {
+                let free
+                try { free = await availableBytes(spoolDir) }
+                catch { fail('IMPORT_CAPACITY_EXCEEDED', 'Import free space could not be verified') }
+                if (!Number.isSafeInteger(free) || free < coordinates.sourceSize + minFreeBytes) {
+                    fail('IMPORT_CAPACITY_EXCEEDED', 'Import disk capacity is exhausted')
+                }
+            }
             if (!existing && (await reservedSpoolBytes()) + coordinates.sourceSize > maxSpoolBytes) {
                 fail('IMPORT_CAPACITY_EXCEEDED', 'Import spool capacity is exhausted')
             }
@@ -200,11 +237,82 @@ function createImportUploadOwner({
         return queue(() => statusInternal(operationId))
     }
 
+    async function verifySourceInternal(operationId) {
+        const job = await statusInternal(operationId)
+        if (!SOURCE_RETAINED_STATES.has(job.state) || !validHash(job.sourceSha256)) {
+            fail('IMPORT_STATE_CONFLICT', 'Import source is not ready for verification')
+        }
+        if (await fileDigest(paths(operationId).source) !== job.sourceSha256) {
+            fail('IMPORT_SOURCE_MISMATCH', 'Durable import source hash changed')
+        }
+        return job
+    }
+
+    function verifySource(operationId) {
+        return queue(() => verifySourceInternal(operationId))
+    }
+
+    async function withVerifiedSourceInternal(operationId, operation) {
+        if (typeof operation !== 'function') fail('IMPORT_UPLOAD_CONFIG_INVALID', 'Verified source operation is required')
+        let job
+        try { job = await statusInternal(operationId) }
+        catch (error) {
+            if (['IMPORT_SPOOL_INVALID', 'IMPORT_SPOOL_MISSING'].includes(error?.code)) {
+                fail('IMPORT_SOURCE_MISMATCH', 'Durable import source is unavailable')
+            }
+            throw error
+        }
+        if (!SOURCE_RETAINED_STATES.has(job.state) || !validHash(job.sourceSha256)) {
+            fail('IMPORT_STATE_CONFLICT', 'Import source is not ready for parsing')
+        }
+        const source = paths(operationId).source
+        const pathStat = await fsp.lstat(source)
+        if (!pathStat.isFile() || pathStat.isSymbolicLink() || pathStat.size !== job.sourceSize) {
+            fail('IMPORT_SOURCE_MISMATCH', 'Import source path changed')
+        }
+        const noFollow = Number.isInteger(fs.constants.O_NOFOLLOW) ? fs.constants.O_NOFOLLOW : 0
+        let handle
+        try { handle = await fsp.open(source, fs.constants.O_RDONLY | noFollow) }
+        catch { fail('IMPORT_SOURCE_MISMATCH', 'Import source could not be opened safely') }
+        try {
+            const before = await handle.stat()
+            if (
+                !before.isFile()
+                || before.size !== job.sourceSize
+                || (pathStat.dev !== undefined && before.dev !== pathStat.dev)
+                || (pathStat.ino !== undefined && before.ino !== pathStat.ino)
+                || await handleDigest(handle, before.size) !== job.sourceSha256
+            ) {
+                fail('IMPORT_SOURCE_MISMATCH', 'Import source identity changed')
+            }
+            const result = await operation({ handle, size: before.size })
+            const after = await handle.stat()
+            if (
+                after.size !== before.size
+                || after.dev !== before.dev
+                || after.ino !== before.ino
+                || await handleDigest(handle, after.size) !== job.sourceSha256
+            ) {
+                fail('IMPORT_SOURCE_MISMATCH', 'Import source changed during parsing')
+            }
+            return result
+        } finally {
+            await handle.close()
+        }
+    }
+
+    function withVerifiedSource(operationId, operation) {
+        return queue(() => withVerifiedSourceInternal(operationId, operation))
+    }
+
     async function append(operationId, start, data, expectedHash) {
         return queue(async () => {
             if (!Buffer.isBuffer(data)) data = Buffer.from(data)
             if (!Number.isSafeInteger(start) || start < 0 || data.length === 0) {
                 fail('IMPORT_UPLOAD_RANGE_INVALID', 'Chunk range is invalid')
+            }
+            if (data.length > maxChunkBytes) {
+                fail('IMPORT_UPLOAD_RANGE_INVALID', 'Chunk exceeds the upload limit')
             }
             if (!validHash(expectedHash) || digest(data) !== expectedHash) {
                 fail('IMPORT_CHUNK_HASH_MISMATCH', 'Chunk hash mismatch')
@@ -286,18 +394,35 @@ function createImportUploadOwner({
         })
     }
 
+    async function cleanupSourceFiles(operationId) {
+        const target = paths(operationId)
+        for (const file of [target.part, target.source]) {
+            try { await fsp.unlink(file) }
+            catch (error) { if (error.code !== 'ENOENT') throw error }
+        }
+        await init()
+        await syncDirectory()
+    }
+
+    async function finishCancellationInternal(operationId) {
+        const job = jobStore.getJob(operationId)
+        if (!job || !['cancelling', 'cancelled'].includes(job.state)) {
+            fail('IMPORT_STATE_CONFLICT', 'Import cancellation is not active')
+        }
+        if (job.state === 'cancelled') return job
+        await cleanupSourceFiles(operationId)
+        return jobStore.finishCancellation(operationId)
+    }
+
     async function cancel(operationId) {
         return queue(async () => {
-            const job = jobStore.cancelJob(operationId)
-            const target = paths(operationId)
-            for (const file of [target.part, target.source]) {
-                try { await fsp.unlink(file) }
-                catch (error) { if (error.code !== 'ENOENT') throw error }
-            }
-            await init()
-            await syncDirectory()
-            return job
+            jobStore.beginCancellation(operationId)
+            return finishCancellationInternal(operationId)
         })
+    }
+
+    function finishCancellation(operationId) {
+        return queue(() => finishCancellationInternal(operationId))
     }
 
     async function release(operationId) {
@@ -332,7 +457,10 @@ function createImportUploadOwner({
         append,
         complete,
         status,
+        verifySource,
+        withVerifiedSource,
         cancel,
+        finishCancellation,
         release,
         sourcePath,
     }

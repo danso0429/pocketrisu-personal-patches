@@ -319,10 +319,13 @@ function createImportJobStore({ dbPath, now = Date.now } = {}) {
         if (typeof accepted !== 'boolean') fail('IMPORT_AUTHORIZATION_INVALID', 'Authorization decision is invalid')
         return db.transaction(() => {
             const job = requireJob(operationId)
-            const targetState = accepted ? 'queued' : 'cancelled'
+            const targetState = accepted ? 'queued' : 'cancelling'
             const decision = accepted ? 'accepted' : 'declined'
             if (job.authorizationDecision) {
-                if (job.authorizationDecision !== decision || job.state !== targetState) {
+                const expectedState = accepted
+                    ? job.state === 'queued'
+                    : job.state === 'cancelling' || job.state === 'cancelled'
+                if (job.authorizationDecision !== decision || !expectedState) {
                     fail('IMPORT_OPERATION_CONFLICT', 'Authorization decision changed')
                 }
                 return job
@@ -520,13 +523,24 @@ function createImportJobStore({ dbPath, now = Date.now } = {}) {
         })()
     }
 
-    function cancelJob(operationId) {
+    function beginCancellation(operationId) {
+        return db.transaction(() => {
+            const job = requireJob(operationId)
+            if (job.state === 'cancelling' || job.state === 'cancelled') return job
+            if (TERMINAL_STATES.has(job.state) || ['committing', 'reconcile-required'].includes(job.state)) {
+                fail('IMPORT_STATE_CONFLICT', 'Terminal or commit-unknown import cannot be cancelled')
+            }
+            db.prepare(`UPDATE import_jobs SET state = 'cancelling', updated_at = ? WHERE operation_id = ?`)
+                .run(now(), operationId)
+            return requireJob(operationId)
+        })()
+    }
+
+    function finishCancellation(operationId) {
         return db.transaction(() => {
             const job = requireJob(operationId)
             if (job.state === 'cancelled') return job
-            if (TERMINAL_STATES.has(job.state) || job.state === 'committing') {
-                fail('IMPORT_STATE_CONFLICT', 'Terminal or committing import cannot be cancelled')
-            }
+            if (job.state !== 'cancelling') fail('IMPORT_STATE_CONFLICT', 'Import cancellation is not active')
             db.prepare(`UPDATE import_jobs SET state = 'cancelled', updated_at = ? WHERE operation_id = ?`)
                 .run(now(), operationId)
             return requireJob(operationId)
@@ -581,7 +595,8 @@ function createImportJobStore({ dbPath, now = Date.now } = {}) {
         markClientReconciled,
         ackResult,
         failJob,
-        cancelJob,
+        beginCancellation,
+        finishCancellation,
         listNonterminal,
         listRecoverable,
         close: () => db.close(),

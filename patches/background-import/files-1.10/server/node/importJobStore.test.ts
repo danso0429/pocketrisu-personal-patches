@@ -130,9 +130,11 @@ describe('durable import job store', () => {
         store.finishInspection('import_operation_001', { authorizationRequired: true })
         store.authorize('import_operation_001', false)
         expect(store.getJob('import_operation_001')).toMatchObject({
-            state: 'cancelled',
+            state: 'cancelling',
             authorizationDecision: 'declined',
         })
+        expect(store.listNonterminal()).toHaveLength(1)
+        store.finishCancellation('import_operation_001')
         expect(store.listNonterminal()).toHaveLength(0)
         expectCode(() => store.beginPreparing('import_operation_001'), 'IMPORT_STATE_CONFLICT')
         store.close()
@@ -271,7 +273,7 @@ describe('durable import job store', () => {
         const { store } = await owner()
         store.createJob(coordinates())
         store.failJob('import_operation_001', { code: 'IMPORT_PREPARATION_FAILED' })
-        expectCode(() => store.cancelJob('import_operation_001'), 'IMPORT_STATE_CONFLICT')
+        expectCode(() => store.beginCancellation('import_operation_001'), 'IMPORT_STATE_CONFLICT')
         expect(store.getJob('import_operation_001').state).toBe('failed')
         store.close()
     })

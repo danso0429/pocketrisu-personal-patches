@@ -17,6 +17,8 @@ const roots: string[] = []
 const LIMITS = Object.freeze({
     jsonBytes: 50 * 1024 * 1024,
     inlineAssetBytes: 50 * 1024 * 1024,
+    stagedAssets: 0xffff,
+    stagedBytes: 1024 * 1024 * 1024,
     png: {
         chunkCount: 0xffff,
         textChunkBytes: 50 * 1024 * 1024,
@@ -143,11 +145,38 @@ describe('durable import preparation owner', () => {
     test('deterministic parser failure becomes one typed terminal state', async () => {
         const state = await setup()
         const operationId = 'prepare_failure_001'
-        await uploaded(state, operationId, Buffer.from('{'), { kind: 'character', format: 'json' })
+        const canary = 'SECRET-CARD-NAME'
+        await uploaded(state, operationId, Buffer.from(`{"${canary}":`), { kind: 'character', format: 'json' })
         const result = await state.owner.run(operationId)
         expect(result).toMatchObject({ state: 'failed', errorCode: 'IMPORT_INVALID_JSON' })
+        expect(result.errorDetail).toBe('Import validation failed (IMPORT_INVALID_JSON)')
+        expect(result.errorDetail).not.toContain(canary)
         expect(state.jobStore.listNonterminal()).toHaveLength(0)
         await expect(state.owner.run(operationId)).resolves.toMatchObject({ state: 'failed' })
         state.jobStore.close()
+    })
+
+    test('same-size replacement and symlink replacement fail before staging', async () => {
+        for (const replacement of ['same-size', 'symlink']) {
+            const state = await setup()
+            const operationId = `prepare_tamper_${replacement.replace('-', '_')}_001`
+            const original = Buffer.from(JSON.stringify({ type: 'risuModule', name: 'AAAA', description: '' }))
+            await uploaded(state, operationId, original)
+            const source = path.join(state.root, 'spool', `${operationId}.source`)
+            if (replacement === 'same-size') {
+                const changed = Buffer.from(JSON.stringify({ type: 'risuModule', name: 'BBBB', description: '' }))
+                expect(changed.byteLength).toBe(original.byteLength)
+                await fs.writeFile(source, changed)
+            } else {
+                const moved = `${source}.moved`
+                await fs.rename(source, moved)
+                await fs.symlink(moved, source)
+            }
+            const result = await state.owner.run(operationId)
+            expect(result).toMatchObject({ state: 'failed', errorCode: 'IMPORT_SOURCE_MISMATCH' })
+            await expect(fs.stat(state.preparedStore.stagingDir(operationId)))
+                .rejects.toMatchObject({ code: 'ENOENT' })
+            state.jobStore.close()
+        }
     })
 })

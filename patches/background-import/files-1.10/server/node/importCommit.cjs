@@ -164,11 +164,10 @@ function createAppendOnlyCanonicalCommitter({
 }
 
 const RECONCILE_CODES = new Set([
-    'IMPORT_ENTITY_COLLISION',
     'IMPORT_COMMIT_INCONSISTENT',
     'IMPORT_OPERATION_CONFLICT',
-    'IMPORT_ASSET_COLLISION',
 ])
+const TERMINAL_CONFLICT_CODES = new Set(['IMPORT_ENTITY_COLLISION', 'IMPORT_ASSET_COLLISION'])
 
 function createImportCommitOwner({
     jobStore,
@@ -196,11 +195,10 @@ function createImportCommitOwner({
         const prepared = await preparedStore.read(operationId)
         const id = entityId(job.kind, prepared.entity)
         if (prepared.preparedDigest !== job.preparedDigest || id !== job.entityId || prepared.kind !== job.kind) {
-            const conflict = jobStore.markReconcileRequired(operationId, {
+            return jobStore.failJob(operationId, {
                 code: 'IMPORT_COMMIT_CONFLICT',
                 detail: 'Prepared import and durable coordinates differ',
             })
-            return conflict
         }
         try {
             const result = await committer.commit(
@@ -213,6 +211,12 @@ function createImportCommitOwner({
                 committedRevision: result.committedRevision,
             })
         } catch (error) {
+            if (TERMINAL_CONFLICT_CODES.has(error?.code)) {
+                return jobStore.failJob(operationId, {
+                    code: 'IMPORT_COMMIT_CONFLICT',
+                    detail: 'Import commit was refused before database mutation',
+                })
+            }
             if (RECONCILE_CODES.has(error?.code)) {
                 return jobStore.markReconcileRequired(operationId, {
                     code: 'IMPORT_COMMIT_CONFLICT',
