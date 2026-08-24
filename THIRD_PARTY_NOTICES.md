@@ -82,7 +82,7 @@ checkpoint.
 
 ## PocketRisu Kei
 
-The optional fullscreen image viewer, robust OpenAI and Google SSE stream
+The fullscreen image viewer, robust OpenAI and Google SSE stream
 parsing, streaming chat render identity, navigation/hotkey behavior, shared
 partial-message editing, HypaMemory manual tools, and translation cache
 management/cancellation adapt focused capabilities from PocketRisu Kei:

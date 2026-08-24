@@ -1,4 +1,11 @@
-# PocketRisu 1.9 aggregate iPhone L3 — work in progress
+# PocketRisu 1.9 aggregate iPhone L3 — finalized observation ledger
+
+> **Stable disposition — 2026-08-24 KST:** this ledger is closed without
+> turning its unavailable, partial, or not-exercised rows into passes. Stable
+> `v0.2.0` targets the later exact PocketRisu 1.10 complete graph and accepts
+> these named physical limitations as release residuals. The current release
+> boundary is `docs/POCKETRISU-1.10-STABLE-RELEASE.md`; the observations below
+> remain the historical 1.9 device record.
 
 > **Started:** 2026-08-02 KST
 >

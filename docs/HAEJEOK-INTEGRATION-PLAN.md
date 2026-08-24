@@ -300,7 +300,8 @@ The earlier L3 wording that sounded like a newly added search screen was
 incorrect and was clarified against the user's actual desktop-style iPhone
 sidebar: list menu → grid icon → pre-existing Search field.
 
-HJ04, HJ03, and HJ01 now pass their physical feature L3. The candidate remains
-`0.2.0-experimental.21`; no stable tag or GitHub Release is created because
-the broader exact-1.10 catalog is still marked `reviewing` and stable promotion
-is a separate aggregate decision.
+HJ04, HJ03, and HJ01 pass their physical feature L3. The later `v0.2.0`
+aggregate decision promotes the resolved exact-1.10 graph to stable without
+adding another Haejeok outcome. It accepts the separately recorded aggregate
+device limitations without relabelling them as passes; the exact boundary is
+in `docs/POCKETRISU-1.10-STABLE-RELEASE.md`.

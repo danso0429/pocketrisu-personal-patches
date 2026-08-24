@@ -58,9 +58,10 @@ shared path can sometimes be composed through one existing owner.
 | HJ07 | Browser callers offload token counts, lore matching/resolution, and vector ranking to Node HTTP routes | **Trigger-gated; reject unmeasured frozen offload.** Ordinary UI generation already executes the whole pipeline on the server; remaining client-only benefit and shared Node responsiveness are unmeasured. | A client-only generation path, separated from ordinary BG orchestration, shows a repeatable preprocessing bottleneck and a prototype demonstrates lower end-to-end cost without event-loop regression. |
 | HJ08 | Full themed log exporter, image stitching, media conversion, and message-range export | **Reject the frozen implementation.** Chromium confirmed active-input and document-boundary defects; range identity, edit/theme/MIME wiring, and UMD media loading also fail admission. | A user explicitly requests a stable-ID TXT/Markdown range export or separately requests a visual/media product. These are different projects. |
 
-No remaining HJ item is a stable-release gate for `.21`. Stable publication is
-still governed by the broader exact-1.10 catalog qualification, not by an
-inactive Haejeok research set.
+No remaining HJ item was a stable-release gate for `.21`. The later `v0.2.0`
+aggregate decision closes exact-1.10 publication while leaving this inactive
+Haejeok research set unchanged: trigger-gated, blocked, rejected, or separate
+product work is not promoted by the stable tag.
 
 ## Measured ownership overlap
 

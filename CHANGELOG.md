@@ -1,6 +1,37 @@
 # Changelog
 
-## Unreleased
+## 0.2.0
+
+- Promote the all-or-nothing exact PocketRisu 1.10 graph to stable: 38
+  resolved packs, 769 units, and 280 managed paths. Move only those resolved
+  packs from `reviewing` to `verified`; keep 13 inactive legacy/base/standard
+  alternatives and the retired background importer outside stable support.
+- Make GitHub CI use ordinary generated-installer apply/status/zero-change
+  plan/revert instead of the maintainer review bypass. Preserve the source-only
+  gate for future unknown targets.
+- Pass 44/44 patcher files, ordinary exact-target apply/current/re-plan/revert,
+  139 frontend files / 1,635 tests, 13 server files / 177 tests, and 74
+  compatibility tests with five environment-dependent skips. Pass Svelte
+  0/0, the 439/439 help-key audit with zero missing keys, the 7,922-module
+  production build, and the 8,559-KB BG bundle load check.
+- Keep the 30,000-entry shifted-lorebook regression workload and assertions
+  unchanged but give that test a local 15-second bound after two full parallel
+  runs exceeded Vitest's default five-second timeout at 5.40 and 5.15 seconds;
+  the isolated assertion passed in 3.87 seconds and the corrected full suite
+  passed.
+- Generate the primary installer and byte-identical `all` alias twice at mode
+  0755. Both are 7,277,704 bytes, CJS syntax-valid, and SHA-256
+  `1b416a066894a0052005a4f3a1aaad3fc808b88302b0295dfd7b58d7d23db94c`.
+- Apply stable metadata live without a stop, build, or restart. The plan
+  changed only `risuSavePatcher.test.ts` and patch state; immediate status was
+  38 packs / 280 current paths / drift 0 and the next plan changed zero files.
+  PM2 restart/error state and database/backup inode-size boundaries were
+  unchanged, and no user operation or data was cancelled or deleted.
+- Accept the named unavailable, partial, and not-exercised aggregate device
+  surfaces as disclosed release residuals without relabelling them as passes.
+  HJ01/HJ03/HJ04 retain their six-scenario physical pass; HJ02/HJ05/HJ07 stay
+  trigger-gated, HJ06 blocked, and frozen HJ08 rejected. Record the complete
+  decision in `docs/POCKETRISU-1.10-STABLE-RELEASE.md`.
 
 - Add a standalone post-validation Haejeok execution plan. Fix the admitted
   scope at HJ01/HJ03/HJ04 (three hidden adapters, 53 exact-target units, 21

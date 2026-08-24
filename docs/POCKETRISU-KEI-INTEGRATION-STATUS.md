@@ -1,5 +1,12 @@
 # PocketRisu Kei integration status and next plan
 
+> **Current stable overlay — 2026-08-24 KST:** the selected Kei outcomes are
+> part of stable `v0.2.0` on exact PocketRisu 1.10.0. They are delivered only
+> inside the complete 38-pack graph; direct Kei-wide porting and the deferred
+> catalog rows remain excluded. Historical partial or not-exercised L3 rows
+> below remain limitations rather than passes. See
+> `docs/POCKETRISU-1.10-STABLE-RELEASE.md` for the promotion decision.
+
 > **Superseded live boundary — 2026-08-22 KST:** Official PocketRisu 1.10.0
 > (`98e968339d1b3f91b9dac85bb3f2ebb5f90f9d14`) is now the pristine live
 > base. The latest 1.9 `all` state was transactionally reverted before the

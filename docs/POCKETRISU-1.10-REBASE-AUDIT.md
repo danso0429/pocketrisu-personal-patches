@@ -1,12 +1,22 @@
 # PocketRisu 1.10.0 rebase and live-cutover audit
 
+> **2026-08-24 stable overlay:** `v0.2.0` promotes the later
+> `0.2.0-experimental.21` complete graph: 38 packs / 769 units / 280 managed
+> paths on exact official PocketRisu 1.10.0. Ordinary generated-installer
+> apply is verified for those 38 packs only. The 13 inactive catalog
+> alternatives and retired background importer are not promoted. Remaining
+> unavailable or not-exercised aggregate device rows are accepted as
+> disclosed limitations, not rewritten as passes. The release authority is
+> `docs/POCKETRISU-1.10-STABLE-RELEASE.md`.
+
 > **2026-08-24 policy overlay:** the exact-1.10 runtime graph subsequently
 > admitted durable background import and its WebKit resume follow-up.
 > `0.2.0-experimental.20` retires public combinations and delivers the same 14
 > root capabilities as one complete set. The cutover-time diagnosis and its
 > waived raw-selection result below remain historical evidence.
 
-> **Status:** Official 1.10.0 plus the `v0.2.0-experimental.17` rolling `all`
+> **Cutover-time status (historical):** Official 1.10.0 plus the
+> `v0.2.0-experimental.17` rolling `all`
 > graph is live. Exact-target adaptation, automatic qualification, commit/push,
 > the iOS proprietary-module picker correction, and process-first live apply are
 > complete. The picker follow-up passed iPhone L3; the remaining aggregate

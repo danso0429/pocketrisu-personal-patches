@@ -506,13 +506,14 @@ separate aggregate decision after the broader exact-1.10 catalog is verified.
 
 ## 11. Current execution order
 
-1. Keep `.21`, its 38-pack graph, and HJ01/HJ03/HJ04 unchanged.
+1. Keep stable `v0.2.0`, its 38-pack graph, and HJ01/HJ03/HJ04 unchanged.
 2. Start no additional HJ implementation now.
-3. Continue broader PocketRisu 1.10 catalog qualification independently.
+3. Treat exact PocketRisu 1.10 qualification as closed for the complete graph;
+   any later PocketRisu target starts as a new fail-closed review.
 4. If the user later supplies one concrete trigger, create a fresh one-feature
    plan from Gate 0.
 5. Leave all untriggered research inactive and all `NR` outcomes unpromoted.
-6. Do not stable-release merely because the HJ audit/revalidation is closed.
+6. Do not use the stable tag to promote any untriggered HJ candidate.
 
 This is an all-or-nothing delivery plan, not a monolithic development plan.
 The evidence supports three admitted HJ outcomes and zero immediate additions;

@@ -94,8 +94,10 @@ does not mark the version verified or allow cutover by itself.
 - Two consecutive builds must be byte-identical.
 - CI runs patcher tests, reproducible generation, syntax checks, the complete
   graph lifecycle on exact PocketRisu 1.10, target tests/check/build, and exact
-  tracked-source revert. While 1.10 remains `reviewing`, source-only maintainer
-  apply/revert supplies that gate; the generated installer still fails closed
-  for an ordinary unverified apply.
+  tracked-source revert. Stable `v0.2.0` verifies only the resolved 38-pack
+  exact-1.10 graph, so its generated installer performs ordinary apply/revert
+  without the source-only maintainer gate. Inactive adapter alternatives and
+  future PocketRisu versions remain fail-closed and use the `reviewing`
+  qualification path first.
 - Historical combination receipts remain historical evidence; they are not
   active operational instructions after this migration.

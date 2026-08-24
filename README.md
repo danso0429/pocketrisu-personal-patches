@@ -1,8 +1,8 @@
 # PocketRisu Personal Patches
 
 Private, all-or-nothing patch delivery for PocketRisu NodeOnly. The current
-stable release is `v0.1.7`, and its manifests target PocketRisu `v1.8.1`.
-The current development checkpoint is `v0.2.0-experimental.21`.
+stable release is `v0.2.0`, and its complete manifest graph targets exact
+PocketRisu `v1.10.0`.
 
 ## Complete installer
 
@@ -26,6 +26,7 @@ artifact, but it is absent from the catalog and both generated installers.
 Character and module imports therefore use the existing foreground flow.
 
 See the [delivery design](docs/PATCHER-V2-DESIGN.md),
+[stable release receipt](docs/POCKETRISU-1.10-STABLE-RELEASE.md),
 [source provenance ledger](docs/SOURCE-PROVENANCE.md), and
 [Haejeok comparison](docs/HAEJEOK-RISUAI-OVERLAP-AUDIT.md).
 
@@ -55,6 +56,7 @@ retains the detailed source and path review.
 
 | Release | What changed |
 | --- | --- |
+| `v0.2.0` | Promotes the exact PocketRisu 1.10 all-or-nothing graph: 38 resolved packs, 769 units, and 280 managed paths. Ordinary generated-installer apply is enabled only for that complete graph; retired and alternative adapters stay outside stable qualification. The release preserves the recorded physical passes and explicitly accepts, without relabelling, the remaining unavailable or not-exercised device surfaces. |
 | `v0.2.0-experimental.21` | Adapts Haejeok's persistence ordering, Korean-aware character search, and distinct Small 600px chat width into PocketRisu 1.10's existing lazy/BG, catalog, and native width owners. Later source/runtime revalidation keeps HJ02/HJ05/HJ07 trigger-gated, HJ06 blocked, and the frozen HJ08 implementation rejected; no additional HJ code enters this checkpoint. |
 | `v0.2.0-experimental.20` | Makes delivery all-or-nothing, retires background import after the device UX finding, removes public combinations/raw-mask verification, restores foreground import payloads, and records the source-provenance audits. |
 | `v0.2.0-experimental.19` | Keeps one durable import operation alive across iOS/WebKit `AbortError`, `NetworkError`, and `Load failed` suspend/resume failures instead of showing a false terminal import error. |
@@ -86,7 +88,7 @@ retains the detailed source and path review.
 | `v0.1.6-experimental.2` | Added independent toolchain hardening for Node.js 25's incomplete experimental `localStorage` and Lightning CSS `::highlight` support, while retaining actionable large lazy-chunk warnings. |
 | `v0.1.7` | Promoted parser and toolchain hardening together: the three parser specifications now run and pass, Node.js 25 receives a scoped test-storage polyfill, and Lightning CSS resolves consistently through the manifest and frozen lockfile. |
 
-The current `v0.1.7` release has passed 10/10 patcher test files with 56 tests,
+The historical `v0.1.7` release passed 10/10 patcher test files with 56 tests,
 a clean standalone hardening run with 63 files and 936 tests passed with no
 skips under Node.js 25, a production build without `::highlight` compatibility
 warnings, and exact standalone hardening apply/re-plan/status/revert. Its
@@ -100,6 +102,20 @@ Lightning CSS 1.33.0, the same 1,218 tests and Svelte 0/0 diagnostics passed,
 the frontend and server bundle rebuilt, and restart smoke checks returned the
 expected root, authenticated-status, and hashed-asset responses. A final
 unified plan reported no changed files.
+
+The current `v0.2.0` release supports one exact PocketRisu `1.10.0` surface:
+the complete 38-pack / 769-unit / 280-path graph. Its ordinary distributed
+installer no longer needs the maintainer review gate, while the 13 inactive
+legacy, base, standard-storage, or superseded catalog packs remain
+unqualified for 1.10. The release decision does not convert unexercised Kei,
+backup, fence, or accessibility scenarios into physical passes. Their exact
+accepted limits and the complete automated gate are recorded in the
+[stable release receipt](docs/POCKETRISU-1.10-STABLE-RELEASE.md).
+The final gate passes 44/44 patcher files, 1,635/1,635 frontend tests,
+177/177 server tests, and 74 compatibility tests with five environment skips,
+plus Svelte 0/0, the 7,922-module build, and BG bundle load. The two
+byte-identical mode-0755 installers are 7,277,704 bytes with SHA-256
+`1b416a066894a0052005a4f3a1aaad3fc808b88302b0295dfd7b58d7d23db94c`.
 
 The `v0.2.0-experimental.4` checkpoint passes all 126 patcher tests in 17
 files. The same 256 raw selections still normalize to 192 graphs and pass
@@ -296,7 +312,7 @@ PM2 error log.
 The user then confirmed on iPhone that real `.risum` and `.module.charx` files
 were selectable, imported with the top notification, and remained after
 reload. This closes the picker follow-up L3 only; the other aggregate device
-rows still gate a stable release.
+rows still gated a stable release at that checkpoint.
 
 The `v0.2.0-experimental.18` candidate adds the visible but review-only
 `background-import` pack. A browser hashes and uploads one bounded slice at a
@@ -400,6 +416,11 @@ character Search field was pre-existing PocketRisu UI; HJ03 changes only its
 matching predicate. The checkpoint remains experimental and receives no stable
 tag or GitHub Release because broader exact-1.10 promotion is still separate.
 
+The subsequent `v0.2.0` release closes that separate promotion decision. It
+moves only the actually shipped 38-pack graph from `reviewing` to `verified`;
+inactive adapter alternatives and the retired background importer remain
+outside the stable support surface.
+
 The `v0.2.0-experimental.20` delivery remains all-or-nothing but retires the
 background-import experiment. Before rollback, the same job was still healthy
 but had reached only 11,534,336 of
@@ -499,7 +520,8 @@ font, the selected face is visible in both preview and chat, and code remains
 monospace. A detached-head test double also keeps optional stylesheet-loader
 coverage from starting a real font request during Vitest teardown. This is an
 experimental.13 appearance checkpoint result; unrelated aggregate 1.9 L3 and
-risk decisions remain separate and still block stable `v0.2.0` publication.
+risk decisions remained separate and blocked the then-unpublished stable
+`v0.2.0`.
 
 The `v0.2.0-experimental.10` checkpoint adds a PocketRisu 1.9-only Personal
 appearance child tab without adding a 1.8 adapter. It stores typed choices in
