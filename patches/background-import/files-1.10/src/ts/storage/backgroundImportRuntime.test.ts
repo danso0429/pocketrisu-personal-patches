@@ -80,6 +80,9 @@ function successfulServer(source: Uint8Array) {
             return Response.json({ jobs: [] })
         }
         if (url.pathname === '/api/import-jobs' && method === 'POST') {
+            const body = JSON.parse(String(init.body))
+            current = { ...current, operationId: body.operationId }
+            for (const status of statuses) status.operationId = body.operationId
             return Response.json(current, { status: 201 })
         }
         if (url.pathname.endsWith('/source') && method === 'PUT') {
@@ -122,13 +125,10 @@ describe('background import runtime', () => {
     test('authorizes, marks the truthful safe boundary, reconciles, and ACKs once', async () => {
         const source = new Uint8Array([1, 2, 3, 4])
         const server = successfulServer(source)
-        const markers = markerOwner({
-            version: 1, operationId: 'runtime_operation_001', kind: 'module', format: 'risum',
-            origin: 'picker', sourceSize: source.length, sourceSha256: sha(source), nextOffset: 0,
-            state: 'receiving', updatedAt: 1,
-        })
+        const markers = markerOwner()
         const report = reporter()
         const reconcile = vi.fn(async () => undefined)
+        const onAdmitted = vi.fn()
         const runtime = createBackgroundImportRuntime({
             fetcher: server.fetcher,
             markerStore: markers,
@@ -139,17 +139,19 @@ describe('background import runtime', () => {
             claimHeartbeatMs: 60_000,
         })
         const outcome = await runtime.run({
-            kind: 'module', name: 'fixture.risum', data: source, origin: 'picker', reporter: report.value,
+            kind: 'module', name: 'fixture.risum', data: source, origin: 'picker',
+            reporter: report.value, onAdmitted,
         })
         expect(outcome).toMatchObject({ status: 'imported', job: { state: 'delivered' } })
         expect(reconcile).toHaveBeenCalledWith({
             kind: 'module', entityId: 'module-id', committedRevision: 'revision-1',
         })
         expect(report.events.filter(([kind]) => kind === 'safe')).toHaveLength(1)
+        expect(onAdmitted).toHaveBeenCalledOnce()
         expect(report.events.at(-1)).toEqual(['success', 'Module imported.'])
         expect(markers.current).toBeNull()
-        expect(server.calls).toContain('POST /api/import-jobs/runtime_operation_001/result/claim')
-        expect(server.calls.at(-1)).toBe('POST /api/import-jobs/runtime_operation_001/ack')
+        expect(server.calls.some(call => /POST \/api\/import-jobs\/module_[^/]+\/result\/claim/.test(call))).toBe(true)
+        expect(server.calls.at(-1)).toMatch(/POST \/api\/import-jobs\/module_[^/]+\/ack/)
     })
 
     test('password-required PNG cleans operational state and hands the same source to foreground', async () => {
@@ -159,7 +161,10 @@ describe('background import runtime', () => {
             const url = new URL(String(input), 'https://local.invalid')
             const method = init.method ?? 'GET'
             if (url.pathname === '/api/import-jobs' && method === 'GET') return Response.json({ jobs: [] })
-            if (url.pathname === '/api/import-jobs' && method === 'POST') return Response.json(current, { status: 201 })
+            if (url.pathname === '/api/import-jobs' && method === 'POST') {
+                current = { ...current, operationId: JSON.parse(String(init.body)).operationId }
+                return Response.json(current, { status: 201 })
+            }
             if (url.pathname.endsWith('/source') && method === 'PUT') {
                 current = { ...current, nextOffset: source.length }
                 return Response.json(current)
@@ -178,11 +183,7 @@ describe('background import runtime', () => {
             if (method === 'DELETE') return Response.json(current)
             return Response.json({ error: 'missing' }, { status: 404 })
         }
-        const markers = markerOwner({
-            version: 1, operationId: 'runtime_operation_001', kind: 'character', format: 'png',
-            origin: 'picker', sourceSize: source.length, sourceSha256: sha(source), nextOffset: 0,
-            state: 'receiving', updatedAt: 1,
-        })
+        const markers = markerOwner()
         const report = reporter()
         const runtime = createBackgroundImportRuntime({
             fetcher, markerStore: markers, reconcile: async () => undefined,

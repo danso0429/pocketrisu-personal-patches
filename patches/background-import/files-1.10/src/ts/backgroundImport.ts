@@ -96,6 +96,7 @@ export async function runBackgroundImport(input: {
     data: Blob | Uint8Array
     origin: BackgroundImportOrigin
     reporter: ImportJob
+    onAdmitted?: () => void
 }): Promise<BackgroundImportRunOutcome> {
     await waitForBackgroundImportReconciliation()
     return runtime.run(input)

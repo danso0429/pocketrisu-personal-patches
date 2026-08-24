@@ -228,6 +228,7 @@ export function createBackgroundImportRuntime(deps: BackgroundImportRuntimeDepen
         data: Blob | Uint8Array
         origin: BackgroundImportOrigin
         reporter: BackgroundImportReporter
+        onAdmitted?: () => void
     }): Promise<BackgroundImportRunOutcome> {
         const format = importFormatForName(input.kind, input.name)
         if (!format) {
@@ -236,7 +237,23 @@ export function createBackgroundImportRuntime(deps: BackgroundImportRuntimeDepen
             return { status: 'failed', job: null, error, committed: false }
         }
         const source = sourceForBackgroundImport(input.data)
-        const marker = deps.markerStore.load()
+        let marker = deps.markerStore.load()
+        if (marker) {
+            try {
+                const prior = await api.status(marker.operationId)
+                if (isClosedImportState(prior.state)) {
+                    await cleanupClosed(prior)
+                    marker = null
+                }
+            } catch (error) {
+                if (error instanceof BackgroundImportProtocolError && error.status === 404) {
+                    deps.markerStore.clear(marker.operationId)
+                    marker = null
+                } else if (!(error instanceof TypeError)) {
+                    throw error
+                }
+            }
+        }
         let operationId = marker?.kind === input.kind
             && marker.format === format
             && marker.sourceSize === source.size
@@ -278,6 +295,7 @@ export function createBackgroundImportRuntime(deps: BackgroundImportRuntimeDepen
                 },
             })
             currentJob = uploaded.job
+            try { input.onAdmitted?.() } catch {}
             return await follow(uploaded.job, input.reporter)
         } catch (error) {
             input.reporter.fail(error)
