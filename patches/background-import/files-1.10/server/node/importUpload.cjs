@@ -452,6 +452,21 @@ function createImportUploadOwner({
         return paths(operationId).source
     }
 
+    function diagnostics() {
+        return queue(async () => {
+            await init()
+            let files = 0
+            let bytes = 0
+            for (const entry of await fsp.readdir(spoolDir, { withFileTypes: true })) {
+                if (!/^[A-Za-z0-9_-]{8,128}\.(part|source)$/.test(entry.name)) continue
+                const stat = await ensureRegularPrivate(path.join(spoolDir, entry.name))
+                files += 1
+                bytes += stat.size
+            }
+            return { files, bytes }
+        })
+    }
+
     return {
         createJob,
         append,
@@ -463,6 +478,7 @@ function createImportUploadOwner({
         finishCancellation,
         release,
         sourcePath,
+        diagnostics,
     }
 }
 

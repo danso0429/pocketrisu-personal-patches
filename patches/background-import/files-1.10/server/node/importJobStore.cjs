@@ -575,6 +575,67 @@ function createImportJobStore({ dbPath, now = Date.now } = {}) {
         `).all(...excluded, limit).map(mapJob)
     }
 
+    function listTerminalCleanupCandidates(olderThan, limit = 128) {
+        if (!Number.isSafeInteger(olderThan) || olderThan < 0) {
+            fail('IMPORT_LIMIT_INVALID', 'Import cleanup cutoff is invalid')
+        }
+        validateListLimit(limit)
+        const closed = [...CLIENT_CLOSED_STATES]
+        const placeholders = closed.map(() => '?').join(', ')
+        return db.prepare(`
+            SELECT * FROM import_jobs
+            WHERE state IN (${placeholders})
+              AND updated_at <= ?
+              AND (claim_at IS NULL OR acked_at IS NOT NULL)
+            ORDER BY updated_at ASC, operation_id ASC LIMIT ?
+        `).all(...closed, olderThan, limit).map(mapJob)
+    }
+
+    function deleteTerminalJob(operationId) {
+        return db.transaction(() => {
+            const job = requireJob(operationId)
+            const hasClaim = Number.isSafeInteger(job.claimAt)
+            if (!CLIENT_CLOSED_STATES.has(job.state) || (hasClaim && !Number.isSafeInteger(job.ackedAt))) {
+                fail('IMPORT_STATE_CONFLICT', 'Import terminal row is still retained')
+            }
+            db.prepare('DELETE FROM import_jobs WHERE operation_id = ?').run(operationId)
+            return { deleted: true }
+        })()
+    }
+
+    function diagnostics() {
+        const counts = Object.fromEntries(
+            db.prepare(`
+                SELECT state, COUNT(*) AS count
+                FROM import_jobs GROUP BY state ORDER BY state ASC
+            `).all().map(row => [row.state, row.count]),
+        )
+        const recoverable = db.prepare(`
+            SELECT MIN(created_at) AS oldest
+            FROM import_jobs
+            WHERE state NOT IN (${[...CLIENT_CLOSED_STATES].map(() => '?').join(', ')})
+        `).get(...CLIENT_CLOSED_STATES)
+        const terminal = db.prepare(`
+            SELECT MIN(updated_at) AS oldest
+            FROM import_jobs
+            WHERE state IN (${[...CLIENT_CLOSED_STATES].map(() => '?').join(', ')})
+        `).get(...CLIENT_CLOSED_STATES)
+        const failure = db.prepare(`
+            SELECT error_code, updated_at
+            FROM import_jobs
+            WHERE error_code IS NOT NULL
+            ORDER BY updated_at DESC, operation_id DESC LIMIT 1
+        `).get()
+        return {
+            counts,
+            oldestRecoverableAt: recoverable?.oldest ?? null,
+            oldestTerminalAt: terminal?.oldest ?? null,
+            lastFailure: failure
+                ? { code: failure.error_code, updatedAt: failure.updated_at }
+                : null,
+        }
+    }
+
     return {
         createJob,
         getJob,
@@ -599,6 +660,9 @@ function createImportJobStore({ dbPath, now = Date.now } = {}) {
         finishCancellation,
         listNonterminal,
         listRecoverable,
+        listTerminalCleanupCandidates,
+        deleteTerminalJob,
+        diagnostics,
         close: () => db.close(),
     }
 }

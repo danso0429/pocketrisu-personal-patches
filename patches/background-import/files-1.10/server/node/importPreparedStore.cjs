@@ -208,6 +208,32 @@ function createPreparedImportStore({ root } = {}) {
         return { removed: true }
     }
 
+    async function diagnostics() {
+        await initRoot()
+        let operations = 0
+        let files = 0
+        let bytes = 0
+        for (const entry of await fsp.readdir(root, { withFileTypes: true })) {
+            if (!validId(entry.name)) continue
+            const directory = path.join(root, entry.name)
+            const directoryStat = await fsp.lstat(directory)
+            if (!directoryStat.isDirectory() || directoryStat.isSymbolicLink()) {
+                fail('IMPORT_PREPARED_PATH_INVALID', 'Prepared operation path is invalid')
+            }
+            operations += 1
+            for (const child of await fsp.readdir(directory, { withFileTypes: true })) {
+                const file = path.join(directory, child.name)
+                const stat = await fsp.lstat(file)
+                if (!stat.isFile() || stat.isSymbolicLink()) {
+                    fail('IMPORT_PREPARED_PATH_INVALID', 'Prepared child path is invalid')
+                }
+                files += 1
+                bytes += stat.size
+            }
+        }
+        return { operations, files, bytes }
+    }
+
     return {
         stagingDir,
         prepareStaging,
@@ -216,6 +242,7 @@ function createPreparedImportStore({ root } = {}) {
         write,
         read,
         remove,
+        diagnostics,
     }
 }
 

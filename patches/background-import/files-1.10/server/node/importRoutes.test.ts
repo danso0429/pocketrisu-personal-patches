@@ -55,7 +55,11 @@ function sha(data: Uint8Array) {
     return crypto.createHash('sha256').update(data).digest('hex')
 }
 
-async function setup(options: { parserSource?: string } = {}) {
+async function setup(options: {
+    parserSource?: string
+    now?: () => number
+    terminalRetentionMs?: number
+} = {}) {
     const root = await fs.mkdtemp(path.join(os.tmpdir(), 'import-routes-'))
     roots.push(root)
     const parserBundlePath = options.parserSource
@@ -111,7 +115,10 @@ async function setup(options: { parserSource?: string } = {}) {
                 },
             },
             claimTtlMs: 120_000,
+            terminalRetentionMs: options.terminalRetentionMs ?? 7 * 24 * 60 * 60 * 1000,
+            cleanupBatch: 32,
         },
+        now: options.now,
         logger: { info() {}, warn() {}, error() {} },
     })
     return { root, app, state, manager }
@@ -339,6 +346,34 @@ describe('background import HTTP routes', () => {
             .rejects.toMatchObject({ code: 'ENOENT' })
         delete (globalThis as any).__backgroundImportRouteGate
         delete (globalThis as any).__backgroundImportRouteStarted
+        state.manager.close()
+    })
+
+    test('read-only diagnostics expose bounded metadata and aged terminal cleanup removes only operations', async () => {
+        let now = 1_000
+        const state = await setup({ now: () => now, terminalRetentionMs: 500 })
+        const operationId = 'route_retention_001'
+        const data = Buffer.from(JSON.stringify({
+            type: 'risuModule', name: 'Private module name', description: '', lowLevelAccess: true,
+        }))
+        await uploadJson(state, operationId, JSON.parse(data.toString()))
+        await state.app.invoke('POST', `/api/import-jobs/${operationId}/authorize`, {
+            body: { accepted: false },
+        })
+        const diagnostics = await state.app.invoke('GET', '/api/import-jobs-diagnostics')
+        expect(diagnostics).toMatchObject({
+            status: 200,
+            body: {
+                jobs: { counts: { cancelled: 1 } },
+                source: { files: 0, bytes: 0 },
+                prepared: { operations: 0 },
+                active: null,
+            },
+        })
+        expect(JSON.stringify(diagnostics.body)).not.toContain('Private module name')
+        now = 2_000
+        expect(await state.manager.cleanupTerminal()).toEqual({ cleaned: 1 })
+        expect(state.manager.jobStore.getJob(operationId)).toBeNull()
         state.manager.close()
     })
 })

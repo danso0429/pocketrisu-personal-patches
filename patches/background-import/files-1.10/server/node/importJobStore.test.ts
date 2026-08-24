@@ -295,4 +295,34 @@ describe('durable import job store', () => {
         expect(store.listNonterminal()).toHaveLength(0)
         store.close()
     })
+
+    test('terminal cleanup selection is age-ordered and excludes unacknowledged results', async () => {
+        const { store, setNow } = await owner(1_000)
+        store.createJob(coordinates({ operationId: 'terminal_failed_001' }))
+        store.failJob('terminal_failed_001', {
+            code: 'IMPORT_PREPARATION_FAILED', detail: 'private detail',
+        })
+        setNow(2_000)
+        store.createJob(coordinates({ operationId: 'terminal_cancelled_001' }))
+        store.beginCancellation('terminal_cancelled_001')
+        store.finishCancellation('terminal_cancelled_001')
+        setNow(3_000)
+        store.createJob(coordinates())
+        completeJob(store)
+        store.claimResult('import_operation_001', 'terminal_consumer_001', 100)
+
+        expect(store.listTerminalCleanupCandidates(1_999)).toEqual([
+            expect.objectContaining({ operationId: 'terminal_failed_001', state: 'failed' }),
+        ])
+        expect(store.listTerminalCleanupCandidates(10_000).map((job: any) => job.operationId))
+            .toEqual(['terminal_failed_001', 'terminal_cancelled_001'])
+        expectCode(() => store.deleteTerminalJob('import_operation_001'), 'IMPORT_STATE_CONFLICT')
+        expect(store.deleteTerminalJob('terminal_failed_001')).toEqual({ deleted: true })
+        expect(store.getJob('terminal_failed_001')).toBeNull()
+        expect(store.diagnostics()).toMatchObject({
+            counts: { cancelled: 1, completed: 1 },
+            lastFailure: null,
+        })
+        store.close()
+    })
 })

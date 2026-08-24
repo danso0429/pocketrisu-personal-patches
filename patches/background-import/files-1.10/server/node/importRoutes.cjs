@@ -70,13 +70,24 @@ function registerImportRoutes(app, {
     canonicalCommitter,
     limits,
     logger = console,
+    now = Date.now,
 } = {}) {
     if (!app || typeof app.post !== 'function') throw new Error('Import route app is required')
     if (typeof saveDir !== 'string' || typeof parserBundlePath !== 'string') throw new Error('Import route paths are required')
     if (typeof checkAuth !== 'function' || typeof checkActiveSession !== 'function') throw new Error('Import route auth is required')
     if (!canonicalCommitter || !limits?.parser) throw new Error('Import route owners and limits are required')
 
-    const jobStore = createImportJobStore({ dbPath: path.join(saveDir, 'import-jobs.db') })
+    if (
+        !Number.isSafeInteger(limits.terminalRetentionMs)
+        || limits.terminalRetentionMs < 0
+        || !Number.isSafeInteger(limits.cleanupBatch)
+        || limits.cleanupBatch <= 0
+        || limits.cleanupBatch > 1024
+    ) throw new Error('Import route retention limits are required')
+    const jobStore = createImportJobStore({
+        dbPath: path.join(saveDir, 'import-jobs.db'),
+        now,
+    })
     const upload = createImportUploadOwner({
         spoolDir: path.join(saveDir, 'import-sources'),
         jobStore,
@@ -99,6 +110,7 @@ function registerImportRoutes(app, {
         committer: canonicalCommitter,
     })
     const running = new Map()
+    let cleanupPromise = null
 
     function kick(operationId) {
         if (running.has(operationId)) return running.get(operationId)
@@ -119,6 +131,26 @@ function registerImportRoutes(app, {
     async function waitForIdle(operationId) {
         while (running.has(operationId)) await running.get(operationId)
         return jobStore.getJob(operationId)
+    }
+
+    function cleanupTerminal() {
+        if (cleanupPromise) return cleanupPromise
+        cleanupPromise = (async () => {
+            const cutoff = Math.max(0, now() - limits.terminalRetentionMs)
+            let cleaned = 0
+            for (const job of jobStore.listTerminalCleanupCandidates(cutoff, limits.cleanupBatch)) {
+                try {
+                    await preparedStore.remove(job.operationId)
+                    await upload.release(job.operationId)
+                    jobStore.deleteTerminalJob(job.operationId)
+                    cleaned += 1
+                } catch (error) {
+                    logger.error?.(`[BackgroundImport] terminal cleanup failed code=${error?.code ?? 'unknown'}`)
+                }
+            }
+            return { cleaned }
+        })().finally(() => { cleanupPromise = null })
+        return cleanupPromise
     }
 
     async function authenticated(req, res) {
@@ -209,6 +241,19 @@ function registerImportRoutes(app, {
         res.json({ jobs: jobStore.listRecoverable().map(responseJob) })
     }))
 
+    app.get('/api/import-jobs-diagnostics', handler(async (req, res) => {
+        const [source, prepared] = await Promise.all([
+            upload.diagnostics(),
+            preparedStore.diagnostics(),
+        ])
+        res.json({
+            jobs: jobStore.diagnostics(),
+            source,
+            prepared,
+            active: responseJob(jobStore.listRecoverable(1)[0] ?? null),
+        })
+    }))
+
     app.get('/api/import-jobs/:operationId/result', handler(async (req, res) => {
         const job = jobStore.getJob(req.params.operationId)
         if (!job) return res.status(404).json({ error: 'Import job not found', code: 'IMPORT_JOB_NOT_FOUND' })
@@ -275,12 +320,16 @@ function registerImportRoutes(app, {
         }
     }
 
-    queueMicrotask(() => { void resume() })
+    queueMicrotask(() => {
+        void resume()
+        void cleanupTerminal()
+    })
 
     return {
         jobStore,
         waitForIdle,
         resume,
+        cleanupTerminal,
         hasActiveImport: () => jobStore.listRecoverable().length > 0,
         replacementGuard(req, res, next) {
             if (jobStore.listRecoverable().length === 0) return next()

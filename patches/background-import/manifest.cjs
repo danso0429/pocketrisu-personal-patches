@@ -86,6 +86,8 @@ const serverRegister = `const backgroundImportManager = registerBackgroundImport
         maxChunkBytes: 1024 * 1024,
         minFreeBytes: (1024 + 64) * 1024 * 1024,
         claimTtlMs: 2 * 60 * 1000,
+        terminalRetentionMs: 7 * 24 * 60 * 60 * 1000,
+        cleanupBatch: 32,
         parser: {
             jsonBytes: 50 * 1024 * 1024,
             inlineAssetBytes: 50 * 1024 * 1024,
@@ -143,7 +145,7 @@ app.use(backgroundImportManager.replacementGuard);
 module.exports = {
     id: 'background-import',
     title: 'Durable background character and module import',
-    version: '0.3.0',
+    version: '0.3.1',
     targets: {
         pocketrisu: {
             verified: [],
