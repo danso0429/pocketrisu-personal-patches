@@ -11,6 +11,23 @@ const FORMAT_BY_KIND = {
     module: new Set(['json', 'lorebook', 'risum', 'charx']),
     character: new Set(['json', 'png', 'charx', 'jpeg']),
 }
+const BLOCKED_WHILE_IMPORT_ACTIVE = new Set([
+    'GET /api/remove',
+    'HEAD /api/remove',
+    'POST /api/backup/import/prepare',
+    'POST /api/backup/import',
+    'POST /api/backup/server/restore',
+    'POST /api/migrate/save-folder/scan',
+    'POST /api/migrate/save-folder/execute',
+    'POST /api/migrate/save-folder/upload',
+    'POST /api/migrate/save-folder/cleanup/scan',
+    'POST /api/migrate/save-folder/cleanup/execute',
+    'POST /api/db/assets/purge-orphans',
+    'POST /api/db/optimize',
+    'DELETE /api/db/snapshots',
+    'POST /api/db/snapshots/restore',
+    'POST /api/self-update',
+])
 
 function responseJob(job) {
     if (!job) return null
@@ -130,7 +147,7 @@ function registerImportRoutes(app, {
         if (typeof admissionBuild !== 'string' || admissionBuild.length === 0) {
             return res.status(400).json({ error: 'Client build is required', code: 'IMPORT_BUILD_INVALID' })
         }
-        const active = jobStore.listNonterminal().find(job => job.operationId !== body.operationId)
+        const active = jobStore.listRecoverable().find(job => job.operationId !== body.operationId)
         if (active) {
             return res.status(409).json({
                 error: 'Another import is active',
@@ -238,9 +255,25 @@ function registerImportRoutes(app, {
         jobStore,
         waitForIdle,
         resume,
-        hasActiveImport: () => jobStore.listNonterminal().length > 0,
+        hasActiveImport: () => jobStore.listRecoverable().length > 0,
+        replacementGuard(req, res, next) {
+            if (jobStore.listRecoverable().length === 0) return next()
+            const method = String(req.method ?? '').toUpperCase()
+            const requestPath = String(req.path ?? '').replace(/\/+$/, '') || '/'
+            if (!BLOCKED_WHILE_IMPORT_ACTIVE.has(`${method} ${requestPath}`)) return next()
+            return res.status(409).json({
+                error: 'A background import is active',
+                code: 'IMPORT_ACTIVE',
+                commitOutcome: 'not-committed',
+            })
+        },
         close: () => jobStore.close(),
     }
 }
 
-module.exports = { registerImportRoutes, responseJob, statusForError }
+module.exports = {
+    BLOCKED_WHILE_IMPORT_ACTIVE,
+    registerImportRoutes,
+    responseJob,
+    statusForError,
+}

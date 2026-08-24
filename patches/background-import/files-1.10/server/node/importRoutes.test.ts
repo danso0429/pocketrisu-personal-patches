@@ -140,6 +140,14 @@ describe('background import HTTP routes', () => {
         const status = await state.app.invoke('GET', `/api/import-jobs/${operationId}`)
         expect(status).toMatchObject({ status: 200, body: { state: 'completed', entityId: expect.any(String) } })
         expect(state.state.database.modules).toHaveLength(1)
+        expect(state.manager.hasActiveImport()).toBe(true)
+        expect((await state.app.invoke('POST', '/api/import-jobs', {
+            headers: { 'x-client-build': '1.10.0-test-build' },
+            body: {
+                operationId: 'route_blocked_until_ack_001', kind: 'module', format: 'json',
+                sourceSize: 2, origin: 'picker',
+            },
+        })).status).toBe(409)
 
         const result = await state.app.invoke('GET', `/api/import-jobs/${operationId}/result`, {
             query: { consumerId: 'route_consumer_001' },
@@ -154,6 +162,7 @@ describe('background import HTTP routes', () => {
         expect((await state.app.invoke('POST', `/api/import-jobs/${operationId}/ack`, {
             body: { consumerId: 'route_consumer_001' },
         })).body.state).toBe('delivered')
+        expect(state.manager.hasActiveImport()).toBe(false)
         await expect(fs.stat(path.join(state.root, 'save', 'import-sources', `${operationId}.source`)))
             .rejects.toMatchObject({ code: 'ENOENT' })
         await expect(fs.stat(path.join(state.root, 'save', 'import-prepared', operationId)))
@@ -199,6 +208,43 @@ describe('background import HTTP routes', () => {
                 sourceSize: first.byteLength, origin: 'picker',
             },
         })).status).toBe(400)
+        state.manager.close()
+    })
+
+    test('server replacement guard blocks destructive routes only while import is active', async () => {
+        const state = await setup()
+        const next = { called: 0 }
+        const response: any = {
+            statusCode: 200, body: null,
+            status(value: number) { this.statusCode = value; return this },
+            json(value: any) { this.body = value; return this },
+        }
+        state.manager.replacementGuard(
+            { method: 'POST', path: '/api/backup/import' }, response,
+            () => { next.called += 1 },
+        )
+        expect(next.called).toBe(1)
+        const data = Buffer.from('{}')
+        await state.app.invoke('POST', '/api/import-jobs', {
+            headers: { 'x-client-build': '1.10.0-test-build' },
+            body: {
+                operationId: 'route_guard_001', kind: 'module', format: 'json',
+                sourceSize: data.byteLength, origin: 'picker',
+            },
+        })
+        state.manager.replacementGuard(
+            { method: 'POST', path: '/api/backup/import' }, response,
+            () => { next.called += 1 },
+        )
+        expect(response).toMatchObject({
+            statusCode: 409,
+            body: { code: 'IMPORT_ACTIVE', commitOutcome: 'not-committed' },
+        })
+        state.manager.replacementGuard(
+            { method: 'GET', path: '/api/backup/export' }, response,
+            () => { next.called += 1 },
+        )
+        expect(next.called).toBe(2)
         state.manager.close()
     })
 })
