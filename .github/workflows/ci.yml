@@ -28,6 +28,14 @@ jobs:
       - name: Rebuild installers reproducibly
         run: |
           npm run build
+          cp dist/pocketrisu-patcher.cjs "$RUNNER_TEMP/pocketrisu-patcher.first.cjs"
+          cp dist/pocketrisu-all.cjs "$RUNNER_TEMP/pocketrisu-all.first.cjs"
+          npm run build
+          cmp -s "$RUNNER_TEMP/pocketrisu-patcher.first.cjs" dist/pocketrisu-patcher.cjs
+          cmp -s "$RUNNER_TEMP/pocketrisu-all.first.cjs" dist/pocketrisu-all.cjs
+          cmp -s dist/pocketrisu-patcher.cjs dist/pocketrisu-all.cjs
+          test "$(stat -c '%a' dist/pocketrisu-patcher.cjs)" = 755
+          test "$(stat -c '%a' dist/pocketrisu-all.cjs)" = 755
           git diff --exit-code -- dist
           node --check dist/pocketrisu-patcher.cjs
           node --check dist/pocketrisu-all.cjs
@@ -47,8 +55,9 @@ jobs:
       - name: Apply complete patch set
         run: |
           node dist/pocketrisu-patcher.cjs plan --root .ci/pocketrisu --json
-          npm run qualify -- apply --root .ci/pocketrisu --json
+          node dist/pocketrisu-patcher.cjs apply --root .ci/pocketrisu --json
           node dist/pocketrisu-patcher.cjs status --root .ci/pocketrisu --json
+          node -e "const {execFileSync}=require('node:child_process'); const plan=JSON.parse(execFileSync(process.execPath,['dist/pocketrisu-patcher.cjs','plan','--root','.ci/pocketrisu','--json'],{encoding:'utf8'})); if(plan.compatibility.status!=='verified'||plan.changedFiles.length!==0) process.exit(1)"
 
       - name: Install patched PocketRisu dependencies
         working-directory: .ci/pocketrisu
@@ -62,12 +71,15 @@ jobs:
           NODE_OPTIONS: --no-experimental-webstorage
         run: |
           pnpm test
+          pnpm test:compat
           pnpm check
+          pnpm check:help
           pnpm build
+          node server/node/bgOrchBundle.build.cjs
 
       - name: Verify byte and mode round trip
         run: |
-          npm run qualify -- revert --root .ci/pocketrisu --json
+          node dist/pocketrisu-patcher.cjs revert --root .ci/pocketrisu --json
           rm -f .ci/pocketrisu/server/node/bgOrchBundle.css
           rm -f .ci/pocketrisu/server/node/bgOrchBundle.mjs
           git -C .ci/pocketrisu diff --exit-code

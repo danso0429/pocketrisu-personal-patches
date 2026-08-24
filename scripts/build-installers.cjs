@@ -71,6 +71,7 @@ function main() {
     for (const name of ['patcher', 'all']) {
         const output = path.join(outputDirectory, `pocketrisu-${name}.cjs`)
         fs.writeFileSync(output, build('all', catalog), { mode: 0o755 })
+        fs.chmodSync(output, 0o755)
         console.log(`${name}: ${output} (${fs.statSync(output).size} bytes)`)
     }
 }
