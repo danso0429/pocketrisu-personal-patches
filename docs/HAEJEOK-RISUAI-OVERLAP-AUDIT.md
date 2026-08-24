@@ -2,10 +2,10 @@
 
 > Status date: 2026-08-24 KST
 >
-> Decision: focused integration in progress. HJ04 persistence ordering, HJ03
+> Decision: focused integration scope complete. HJ04 persistence ordering, HJ03
 > Korean search, and HJ01 Small chat width are adapted through internal patcher
-> payloads; other rows retain the disposition stated below until their own
-> admission commit.
+> payloads. HJ02/HJ05/HJ06/HJ07/HJ08 are closed by the remaining-candidate
+> design audit rather than waiting for admission commits.
 >
 > The three admitted HJ features passed their six-scenario live iPhone L3 on
 > 2026-08-24 KST.
@@ -24,7 +24,7 @@ The useful Haejeok ideas fall into three groups:
 1. **architectural alternatives** such as relational SQL/domain stores and
    S3/RustFS assets, which conflict with the current PocketRisu SQLite,
    lazy-chat, point-in-time backup, and asset-reference owners;
-2. **distinct candidate outcomes** such as bounded low-spec rendering,
+2. **distinct reviewed outcomes** such as bounded low-spec rendering,
    Node-side token/lore/vector computation, Korean fuzzy character search,
    configurable chat width, resizable text areas, and ZIP64 streaming; and
 3. **duplicate or already stronger local outcomes** such as ordinary
@@ -33,9 +33,10 @@ The useful Haejeok ideas fall into three groups:
 
 No whole Haejeok subsystem should be cherry-picked. A retained idea must be
 reduced to an owner-local PocketRisu 1.10 change and requalified inside the
-single complete patch graph. The first such admission is HJ04: pre-generation
-user-message persistence, script-message persistence, and plugin-save-before-
-reload ordering rebuilt around the existing lazy-chat/BG authority.
+single complete patch graph. HJ04 persistence ordering, HJ03 Korean matching,
+and HJ01 Small width met that boundary. The five other numbered ideas did not;
+their concrete reopen triggers are documented separately rather than retained
+as an ambiguous priority queue.
 
 ## Frozen comparison basis
 
@@ -89,7 +90,7 @@ state or policy.
 | Backup | One pinned SQLite/WAL and verified filesystem epoch; fresh rollback snapshot before destructive restore | Offline Docker `pg_dump` + stopped RustFS + restic, plus request-lifetime application backups and SQL revision preview | Different operational models |
 | Stale deployments | Build stamp on authoritative client/server writes, dirty-state freeze | Independent updater/release flow; no `x-client-build` fence | Local patch is distinct |
 | Parser/streaming | ChatML/Thoughts/CBS hardening and Kei replayable OpenAI/Google SSE parser | Frozen Haejeok still has the three skipped parser cases and ad-hoc stream splitting | Local patch is distinct/stronger |
-| UX | Native PocketRisu catalog plus canonical persona/character organizers and selected Kei tools | SQL explorer, storage explorer, log exporter, low-spec mode, onboarding, chat width, resize controls | Mixed duplicates and candidates |
+| UX | Native PocketRisu catalog plus canonical persona/character organizers and selected Kei tools | SQL explorer, storage explorer, log exporter, low-spec mode, onboarding, chat width, resize controls | Mixed admitted, duplicate, closed, and excluded outcomes |
 
 ## Haejeok feature clusters and disposition
 
@@ -97,13 +98,13 @@ state or policy.
 | --- | --- | --- | --- |
 | Relational SQL storage and domain stores | `server/node/{postgresStorage,oracleStorage,azureStorage,sqlStorageCommon}.cjs`, `src/ts/stores/domain/`, `src/ts/storage/sqlCommit.ts` | Replaces the same character/chat/settings persistence owned by `lazy-chat-sync`, startup cache, BG durable save, backup, and fence adapters | **Exclude as a patch.** Revisit only as a separately approved backend migration project. |
 | S3/RustFS/Azure asset storage and explorer | `server/node/assetStorage.cjs`, `src/ts/storage/nodeS3Storage.ts`, `src/lib/Setting/Pages/StorageExplorer*` | Duplicates orphan inventory/cleanup and intersects persona folders/galleries, CharX, backup, and client fence | **Reference UI only.** Do not port the delete path without a server-authoritative union walker and stale-build fence. |
-| Node compute offload | `server/node/{tokenizeCount,loreMatch,loreResolve,vectorIndex}.cjs`, `src/ts/tokenizer.ts`, memory/lore callers | Touches BG, K11 Hypa, tokenizer, `nodeStorage.ts`, and generation assembly, but does not duplicate whole-pipeline BG execution | **Candidate after measurement.** Preserve browser/custom-provider fallback and operation snapshots. |
-| Low-spec mode, message paging, bounded caches | `src/ts/chatLoadPages.ts`, domain message/character stores, image/cache callers | Valuable memory/DOM reduction but directly changes lazy hydration and active streaming chat hosts | **Merge only into existing lazy/K14 owners.** No parallel message store. |
-| Streaming bulk backup/restore and ZIP64 | `server/node/zipStream.cjs`, bulk read/write routes, `src/ts/drive/backuplocal.ts`, `src/ts/characterCards.ts` | Relevant to large archives and CharX; the local durable-import experiment is historical only | **High-value reference.** Evaluate ZIP64/streaming against the known over-4-GiB archive boundary in a separate feature commit. |
+| Node compute offload | `server/node/{tokenizeCount,loreMatch,loreResolve,vectorIndex}.cjs`, `src/ts/tokenizer.ts`, memory/lore callers | Touches BG, K11 Hypa, tokenizer, `nodeStorage.ts`, and generation assembly, while ordinary local sends already execute the pipeline through BG | **HJ07 closed.** Reopen only for a measured client-only preprocessing bottleneck with abort, isolation, parity, and fallback design. |
+| Low-spec mode, message paging, bounded caches | `src/ts/chatLoadPages.ts`, domain message/character stores, image/cache callers | Its main compaction win depends on Haejeok's relational message store; PocketRisu already exposes the portable render-count controls | **HJ05 closed.** Do not add a parallel message store or one aggregate low-spec switch. Reopen only the measured failing owner. |
+| Streaming bulk backup/restore and ZIP64 | `server/node/zipStream.cjs`, bulk read/write routes, `src/ts/drive/backuplocal.ts`, `src/ts/characterCards.ts` | Current full backup is a framed stream rather than ZIP, and current CharX import rejects selected payload over 1 GiB | **HJ06 closed.** A reproduced CharX failure must establish matching import/export limits; ZIP64 is not a proxy backup fix. |
 | Character catalog, recent sessions, Korean fuzzy search | `src/lib/UI/MainMenu.svelte`, `RecentSessionsList.svelte`, `src/ts/util/koreanSearch.ts` | Ordinary search/recent/list/grid behavior is already native; organizer owns order/folders | **HJ03 Korean matching admitted.** One hidden adapter hooks the native 1.10 grid/mobile predicates; Haejeok ordering/recent/favorite/hidden models remain excluded. |
-| Adjustable chat width and text-area resize | `Chat.svelte`, `TextAreaInput.svelte`, display settings | PocketRisu 1.10 already has one Standard/Wide/Full owner spanning cards, creator notes, composer, and theme presets; Haejeok uniquely adds 600px Small. Text-area resize remains distinct. | **HJ01 Small admitted through the native width owner.** No second Personal width or `chatLimitSize` field. Resize remains deferred as HJ02. |
+| Adjustable chat width and text-area resize | `Chat.svelte`, `TextAreaInput.svelte`, display settings | PocketRisu 1.10 already has one Standard/Wide/Full owner spanning cards, creator notes, composer, and theme presets; Haejeok uniquely adds 600px Small. Its global resize switch affects 105 generic-input instances. | **HJ01 Small admitted through the native width owner; HJ02 closed.** No second Personal width or `chatLimitSize` field, and no global unbounded resize handle. |
 | Message/plugin persistence ordering | `DefaultChatScreen.svelte`, `process/scriptings.ts`, `plugins/plugins.svelte.ts` | Ordinary BG sends already had a stronger canonical pre-save, but client-only sends, script clones, and plugin reload ordering retained gaps | **HJ04 admitted through a hidden patcher adapter.** Reuses lazy-chat strict save; does not import Haejeok SQL stores. |
-| Native log exporter with media pipeline | `src/lib/LogExporter/`, `src/ts/logexporter/`, ffmpeg dependency | Distinct user outcome; touches chat render and substantially expands code/dependencies | **Defer.** All-or-nothing delivery makes bundle/dependency cost part of every install. |
+| Native log exporter with media pipeline | `src/lib/LogExporter/`, `src/ts/logexporter/`, ffmpeg dependency | PocketRisu already has JSON/TXT/HTML export and chat screenshots; the full renderer touches K14/K15 and adds runtime CDN media code | **HJ08 closed.** A future explicit range-export request must extend the existing owner without implicitly admitting the themed ffmpeg pipeline. |
 | SQL message search and revision/database explorers | PostgreSQL full-text indexes, DB explorer components | Depends on the alternative relational backend | **Exclude from the current SQLite patch line.** |
 | Onboarding, mascot, branding, account removal, release plumbing | `WelcomeRisu.svelte`, `AirisuMascot.svelte`, release workflows, account removals | Product identity rather than a missing PocketRisu patch outcome | **Exclude.** |
 
@@ -115,18 +116,19 @@ Haejeok replaces the data model with relational tables, domain stores,
 record-level revisions, paged messages, and multiple SQL backends. Our lazy
 owner retains PocketRisu's SQLite/KV protocol and adds transport revisions,
 CAS/rebase, a write journal, stable chat identity, and hydration barriers.
-Stacking these implementations would create two sources of truth. The Haejeok
-low-spec and paging outcomes may be reconsidered only as changes inside the
-current lazy owner.
+Stacking these implementations would create two sources of truth. HJ05 is
+closed. If a measured problem later reopens one narrower outcome, it must be a
+change inside the affected current lazy/render/asset owner rather than a
+parallel message store.
 
 ### `bg-preserve`
 
 Haejeok's Node compute branch moves deterministic preprocessing and vector
 ranking, not provider execution or post-processing. It has no operation-keyed
 generation result, lease, exact ACK, whole-pipeline cancellation, or cold
-recovery. It therefore does not replace bg-preserve. It does touch 19
-bg-preserve-managed paths, so a future compute port must be adapted around the
-BG request snapshot and K11 Hypa delivery rather than copied wholesale.
+recovery. It therefore does not replace bg-preserve. HJ07 is closed; any
+measured future client-only stage would have to compose around the BG request
+snapshot and K11 Hypa delivery rather than copy the branch wholesale.
 
 ### Foreground import, CharX, and retired background-import evidence
 
@@ -169,8 +171,9 @@ PocketRisu already owns name search, recent sort, chat metadata, and multiple
 character views. `character-organizer` adds canonical order/folder membership;
 `persona-organizer` adds persona folders, gallery assets, picker scope, and
 referential cleanup. Haejeok's second character order/context-menu model must
-not be stacked. Korean fuzzy matching, chat width, resize handles, and bounded
-low-spec presentation are distinct candidates for those existing owners.
+not be stacked. Korean fuzzy matching and Small width were admitted through
+those existing owners; global resize and aggregate low-spec presentation are
+closed.
 
 ### Parser and Kei capabilities
 
@@ -182,20 +185,24 @@ the per-message `PartialEditController` and lacks the patcher's translation
 cache panel, mobile-back guard, Kei manual-summary panel, and operation-aware
 chat render adapters. Haejeok does not replace the admitted parser/Kei packs.
 
-## Candidate queue from this audit
+## Final numbered disposition
 
-| Priority | Candidate | Admission condition |
+| ID | Outcome | Final state |
 | --- | --- | --- |
-| H1 | ZIP64 streaming archive output | Reproduce the current over-4-GiB boundary, preserve exact PocketRisu/CharX formats, bound memory/disk, and add round-trip/CRC tests. Attribute Haejeok if source or a focused implementation is adapted. |
-| H2 | Node token/lore/vector compute | Measure browser/server time and memory first; preserve custom/local providers, BG snapshots, K11 results, authentication, caps, and browser fallback. |
-| H3 | Low-spec rendering/cache policy | Integrate into lazy/K14 owners with active-stream, partial-edit, translation, hydration, and iPhone navigation tests. |
-| H4 | Korean fuzzy character search | Prove it adds results beyond native normalized search without changing canonical order/folders. |
-| H5 | Chat width and text-area resize | The distinct 600px width is admitted through the native width owner. Text-area resize remains HJ02 and must preserve mobile bounds and K15 composition. |
+| HJ01 | Small 600px chat width | Admitted through the native width owner and live-device qualified. |
+| HJ02 | Global textarea resize | Closed; reject the frozen global handle. Reopen only for a named screen or explicit opt-in component need. |
+| HJ03 | Korean-aware character matching | Admitted through the native catalog predicates and live-device qualified. |
+| HJ04 | Persistence ordering | Admitted through the lazy/BG strict-save owner and live-device qualified. |
+| HJ05 | Aggregate low-spec/paging/cache mode | Closed; the portable render counts are already configurable and SQL compaction conflicts with lazy chat. |
+| HJ06 | Streaming CharX ZIP64 | Closed; require a reproduced current failure and one coherent import/export support boundary. |
+| HJ07 | Node token/lore/vector offload | Closed; ordinary sends are already server-orchestrated and client-only benefit is unmeasured. |
+| HJ08 | Full themed/media log exporter | Closed; range export and the ffmpeg renderer are separate future product decisions. |
 
-HJ04, H4/HJ03 Korean search, and the distinct H5/HJ01 Small width are now
-admitted. The remaining queue stays dormant until its trigger is measured or
-it is explicitly selected for a later complete patch release. See
-`HAEJEOK-INTEGRATION-PLAN.md` for owner boundaries, sequence, and gates.
+There is no remaining Haejeok implementation queue. See
+[`HAEJEOK-REMAINING-CANDIDATE-DESIGN-AUDIT.md`](HAEJEOK-REMAINING-CANDIDATE-DESIGN-AUDIT.md)
+for exact commits, measured owner intersections, design findings, reopen
+triggers, and the mandatory gate order. `HAEJEOK-INTEGRATION-PLAN.md` records
+the three admitted implementations and their receipts.
 
 ## Limits
 

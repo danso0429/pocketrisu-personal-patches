@@ -27,13 +27,16 @@ Character and module imports therefore use the existing foreground flow.
 
 See the [delivery design](docs/PATCHER-V2-DESIGN.md),
 [source provenance ledger](docs/SOURCE-PROVENANCE.md), and
-[Haejeok comparison](docs/HAEJEOK-RISUAI-OVERLAP-AUDIT.md).
+[Haejeok comparison](docs/HAEJEOK-RISUAI-OVERLAP-AUDIT.md). The
+[remaining-candidate design audit](docs/HAEJEOK-REMAINING-CANDIDATE-DESIGN-AUDIT.md)
+closes HJ02/HJ05/HJ06/HJ07/HJ08 as current implementation work and records the
+exact trigger and owner-local design required to reconsider each one.
 
 ## Release history
 
 | Release | What changed |
 | --- | --- |
-| `v0.2.0-experimental.21` | Adapts Haejeok's persistence ordering, Korean-aware character search, and distinct Small 600px chat width into PocketRisu 1.10's existing lazy/BG, catalog, and native width owners without restoring patch combinations or importing Haejeok's alternative SQL/ordering models. |
+| `v0.2.0-experimental.21` | Adapts Haejeok's persistence ordering, Korean-aware character search, and distinct Small 600px chat width into PocketRisu 1.10's existing lazy/BG, catalog, and native width owners without restoring patch combinations or importing Haejeok's alternative SQL/ordering models. The remaining HJ02/HJ05/HJ06/HJ07/HJ08 designs were later closed as current work after owner, round-trip, resource, and dependency review. |
 | `v0.2.0-experimental.20` | Makes delivery all-or-nothing, retires background import after the device UX finding, removes public combinations/raw-mask verification, restores foreground import payloads, and records the source-provenance audits. |
 | `v0.2.0-experimental.19` | Keeps one durable import operation alive across iOS/WebKit `AbortError`, `NetworkError`, and `Load failed` suspend/resume failures instead of showing a false terminal import error. |
 | `v0.2.0-experimental.18` | Adds review-only resumable character/module upload, server-owned preparation and append-only commit, canonical client reconciliation, restart recovery, bounded retention, and truthful post-handoff background status for exact PocketRisu 1.10. |

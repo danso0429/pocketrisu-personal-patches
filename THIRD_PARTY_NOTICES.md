@@ -224,7 +224,11 @@ that owner. It does not copy Haejeok's `chatLimitSize` database field, does not
 change the native default or existing widths, and does not apply a second
 Personal appearance width.
 
-The remaining SQL/domain storage, object storage, low-spec rendering, Node
-compute, ZIP64 streaming, and other layout ideas are classified in
-`docs/HAEJEOK-RISUAI-OVERLAP-AUDIT.md`; future code adaptations must add their
-exact paths and revisions here before publication.
+The remaining SQL/domain storage, object storage, and product/deployment work
+is excluded in `docs/HAEJEOK-RISUAI-OVERLAP-AUDIT.md`. HJ02 resize, HJ05
+low-spec/paging, HJ06 ZIP64, HJ07 Node compute, and HJ08 log export are reviewed
+as research references and closed as current implementation work in
+`docs/HAEJEOK-REMAINING-CANDIDATE-DESIGN-AUDIT.md`; no code or dependency from
+those five clusters is redistributed by this checkpoint. A future focused
+adaptation must record its exact source commits and paths here before the
+complete installer is published.

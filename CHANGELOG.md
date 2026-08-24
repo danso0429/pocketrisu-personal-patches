@@ -2,6 +2,18 @@
 
 ## Unreleased
 
+- Complete the remaining Haejeok design audit against the live
+  `0.2.0-experimental.21` graph. Measure HJ02/HJ05/HJ06/HJ07/HJ08 at 6/5,
+  87/23, 13/4, 45/9, and 30/7 frozen-source/current-managed paths
+  respectively, and record their exact source commits, callers, tests,
+  authorities, round-trip limits, resource risks, and narrower alternatives.
+- Close all five as current implementation work: reject HJ02's global
+  unbounded handle, HJ05's relational-store-dependent aggregate low-spec mode,
+  HJ06's non-round-trippable export-only ZIP64, HJ07's unmeasured redundant
+  ordinary-send offload, and HJ08's duplicate 30-path ffmpeg/CDN exporter.
+  Preserve concrete reopen triggers and mandatory owner-local gates without
+  changing manifests, dependencies, generated artifacts, or live source.
+
 ## 0.2.0-experimental.21
 
 - Add hidden HJ04 persistence safety only when lazy-chat and bg-preserve are

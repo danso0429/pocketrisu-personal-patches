@@ -6,6 +6,9 @@
 >
 > Delivery rule: every admitted HJ change is a patcher payload in the one
 > `all` graph. No HJ change is maintained as a direct PocketRisu source fork.
+>
+> Final HJ scope after the 2026-08-24 design audit: HJ04, HJ03, and HJ01.
+> HJ02/HJ05/HJ06/HJ07/HJ08 are closed rather than pending implementation.
 
 ## Outcome and boundaries
 
@@ -36,14 +39,14 @@ Every HJ admission must therefore satisfy all of these rules:
 
 | ID | Outcome | Patcher owner | Status |
 | --- | --- | --- | --- |
-| HJ04 | Persist a new user turn before generation; persist script-mutated messages; persist plugin updates before runtime reload | Hidden `haejeok-persistence-safety-adapter`, composed only with `lazy-chat-sync` and `bg-preserve` | Implemented on the integration branch; qualification details below |
-| HJ03 | Korean-aware character matching: ordinary substring plus choseong, partial Hangul, Korean/English keyboard, and romanized input | Hidden `haejeok-korean-search-adapter` attached to `character-organizer` and the canonical PocketRisu catalog | Implemented on the integration branch; qualification details below |
-| HJ01 | Preserve native chat-width authority and add the missing Haejeok Small 600px outcome | Hidden `haejeok-chat-width-adapter` attached to `personal-settings` and PocketRisu's native Standard-width setting | Implemented on the integration branch; qualification details below |
-| HJ02 | User-resizable text areas with mobile-safe bounds | Personal appearance/accessibility owner plus K15 composition review | Deferred until HJ01 establishes the layout token boundary |
-| HJ05 | Bounded low-spec rendering, paging, and cache policy | `lazy-chat-sync` plus K14 chat-render adapter | Deferred pending DOM/memory measurements and active-stream tests |
-| HJ06 | ZIP64/streaming output beyond the current 4-GiB archive boundary | CharX/backup archive owner selected per reproduced failing format | High-value deferred item; requires CRC round-trip and bounded-resource tests |
-| HJ07 | Node token, lore, and vector computation with browser fallback | BG request snapshot, tokenizer, lore, and K11 Hypa owners | Deferred pending before/after CPU, memory, and latency measurements |
-| HJ08 | Native log exporter and media pipeline | New internal feature owner if admitted | Deferred because its dependency and bundle cost would affect every install |
+| HJ04 | Persist a new user turn before generation; persist script-mutated messages; persist plugin updates before runtime reload | Hidden `haejeok-persistence-safety-adapter`, composed only with `lazy-chat-sync` and `bg-preserve` | **Admitted and live-device qualified.** Qualification details below. |
+| HJ03 | Korean-aware character matching: ordinary substring plus choseong, partial Hangul, Korean/English keyboard, and romanized input | Hidden `haejeok-korean-search-adapter` attached to `character-organizer` and the canonical PocketRisu catalog | **Admitted and live-device qualified.** Qualification details below. |
+| HJ01 | Preserve native chat-width authority and add the missing Haejeok Small 600px outcome | Hidden `haejeok-chat-width-adapter` attached to `personal-settings` and PocketRisu's native Standard-width setting | **Admitted and live-device qualified.** Qualification details below. |
+| HJ02 | User-resizable text areas | No current owner/pack; a future request must be screen-local or explicit opt-in | **Closed.** Reject Haejeok's unbounded global handle across all 105 current instances. |
+| HJ05 | Bounded low-spec rendering, paging, and cache policy | No current owner/pack; any measured future outcome must stay in its existing lazy/K14/asset owner | **Closed.** The main compaction result depends on the excluded relational store; render counts are already configurable. |
+| HJ06 | ZIP64/streaming output | No current owner/pack; a future format project must join CharX export and import limits | **Closed.** It is not a current backup-format fix and export-only ZIP64 breaks the present CharX round-trip policy. |
+| HJ07 | Node token, lore, and vector computation | No current owner/pack; a future measured client-only stage must compose with BG/tokenizer/lore/K11 | **Closed.** Ordinary sends are already server-orchestrated and the remaining paths have no demonstrated offload win. |
+| HJ08 | Native log exporter and media pipeline | No current owner/pack; range export and a themed media renderer are separate future decisions | **Closed.** Existing export/screenshot outcomes make the 30-path ffmpeg/CDN renderer disproportionate. |
 
 The relational SQL/domain-store rewrite, S3/RustFS storage authority, browser-
 decided destructive asset deletion, branding/onboarding, account removal, and
@@ -176,12 +179,19 @@ Observed gates for commit `459f784`:
   removed from the disposable target, complete revert left a clean Git tree,
   and complete reapply succeeded.
 
-## Later-cycle gates
+## Remaining-candidate closure
 
-HJ02/HJ05/HJ06/HJ07/HJ08 are not silently admitted after the first cycle.
-Each requires a separate owner report, source/path list, implementation commit,
-receipt, and complete-graph qualification. Destructive asset cleanup remains
-server-authoritative and fail-closed throughout every later cycle.
+HJ02/HJ05/HJ06/HJ07/HJ08 are no longer an active later-cycle queue. Their
+source, exact owner intersections, design defects, narrower alternatives, and
+reopen conditions are fixed in
+[`HAEJEOK-REMAINING-CANDIDATE-DESIGN-AUDIT.md`](HAEJEOK-REMAINING-CANDIDATE-DESIGN-AUDIT.md).
+
+Reopening one item requires a concrete trigger and a fresh owner report before
+implementation. It still requires its own source/path list, feature commit,
+receipt, focused composition, and complete-graph qualification. A future
+Haejeok update or completion of another candidate does not reopen it
+automatically. Destructive asset cleanup remains server-authoritative and
+fail-closed in every case.
 
 ## Publication and live application
 
@@ -245,8 +255,9 @@ All three database inode/size pairs, the three backups totalling 3,002,439,949
 bytes, the partial source inode/bytes, and the 6,151,722-byte PM2 error log were
 unchanged. SQLite remained `ok`, native/BG active work remained zero, the
 retired diagnostics route remained 404, no nested save or transaction journal
-appeared, and the 38-pack state remained `current`. Physical feature L3 is the
-remaining release gate.
+appeared, and the 38-pack state remained `current`. At that receipt boundary,
+physical feature L3 was the remaining HJ gate; its later passing result is
+recorded immediately below.
 
 ### Physical feature L3 — passed 2026-08-24 KST
 
