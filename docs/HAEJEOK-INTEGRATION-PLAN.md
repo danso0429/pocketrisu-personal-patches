@@ -37,7 +37,7 @@ Every HJ admission must therefore satisfy all of these rules:
 | ID | Outcome | Patcher owner | Status |
 | --- | --- | --- | --- |
 | HJ04 | Persist a new user turn before generation; persist script-mutated messages; persist plugin updates before runtime reload | Hidden `haejeok-persistence-safety-adapter`, composed only with `lazy-chat-sync` and `bg-preserve` | Implemented on the integration branch; qualification details below |
-| HJ03 | Korean-aware character-name matching: ordinary substring plus choseong, partial Hangul, Korean/English keyboard, and romanized input | `character-organizer` search payload and canonical PocketRisu catalog hook | Next implementation |
+| HJ03 | Korean-aware character matching: ordinary substring plus choseong, partial Hangul, Korean/English keyboard, and romanized input | Hidden `haejeok-korean-search-adapter` attached to `character-organizer` and the canonical PocketRisu catalog | Implemented on the integration branch; qualification details below |
 | HJ01 | Personal chat maximum-width setting without changing the default layout | `personal-settings` appearance schema/runtime/CSS | Follows HJ03 |
 | HJ02 | User-resizable text areas with mobile-safe bounds | Personal appearance/accessibility owner plus K15 composition review | Deferred until HJ01 establishes the layout token boundary |
 | HJ05 | Bounded low-spec rendering, paging, and cache policy | `lazy-chat-sync` plus K14 chat-render adapter | Deferred pending DOM/memory measurements and active-stream tests |
@@ -94,11 +94,24 @@ Observed gates for commit `86b64ba`:
 
 ### HJ03 — Korean fuzzy character search
 
-The implementation will live entirely in patcher payloads. The matcher will be
-a side-effect-free owned module with table-driven tests. The existing character
-catalog remains the rendering and ordering authority; HJ03 may decide whether a
-row matches, but may not introduce a second character order, folder model, or
-recent-session store.
+Source basis:
+
+- `86ee613c`: Korean regex, choseong, jamo, QWERTY conversion, weighted
+  name/creator/tag matching, tests, and `es-hangul` dependency; and
+- `1e5f9eee`: Hangul romanization and phonetic normalization.
+
+The implementation lives entirely in the hidden patcher adapter committed as
+`b5b9803`. Its side-effect-free matcher is shared by PocketRisu 1.10's actual
+`GridCatalog.svelte` and `MobileCharacters.svelte` surfaces. Haejeok's newer
+`MainMenu` list, sort mode, hidden/favorite model, and score-based reorder are
+not copied. Grid order and the mobile recent/name order stay in their native
+owners; HJ03 only replaces the match predicate.
+
+The Haejeok matcher is narrowed so only the final open Hangul syllable expands
+to possible batchim forms. It also uses the official 2.4.0
+`convertHangulToQwerty()` API for the reverse keyboard-layout mistake that was
+not covered by the frozen Haejeok implementation. Conversion recursion is
+explicitly bounded to one step.
 
 Required query coverage:
 
@@ -110,9 +123,21 @@ Required query coverage:
   contract are verified; and
 - negative cases that avoid broad false-positive matches.
 
-The native list order must be unchanged for an empty query and for equal match
-classes. If scoring is retained, it may only provide deterministic relevance
-inside the current filtered result and must not alter canonical persistence.
+Observed gates for commit `b5b9803`:
+
+- matcher tests: 8/8 passed, including choseong, mixed/partial Hangul,
+  bidirectional keyboard conversion, romanized names, creator/tags, regex
+  escaping, a completed-syllable false-positive boundary, and stable order;
+- patcher tests: 43/43 passed;
+- composed target `svelte-check`: 0 errors and 0 warnings;
+- production client build: 7,921 modules transformed and completed; inherited
+  externalized-browser-module and large-chunk warnings remained warnings;
+- exact dependency: `es-hangul` 2.4.0, SHA-512 integrity pinned, MIT license,
+  30.4-kB package archive / 148.2-kB unpacked distribution;
+- complete graph: 13 requested roots, 12 effective roots, 37 resolved
+  packs/adapters, 753 exact-target units, and 275 managed source paths; and
+- repeated apply changed zero files, complete revert left an exact clean Git
+  tree, and complete reapply succeeded.
 
 ### HJ01 — chat maximum width
 

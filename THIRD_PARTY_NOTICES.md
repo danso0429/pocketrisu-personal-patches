@@ -182,7 +182,34 @@ tracker without replacing the database's complete plugin array.
 Haejeok commit `e78f9c91fea5a059d38de271117f8dbfac5f45ef`
 (`src/ts/bootstrap.ts`) and the cache-revision portion of `313ecdff` were
 reviewed but not adapted because the composed target already has equivalent
-synchronous ordering. The remaining SQL/domain storage, object storage,
-low-spec rendering, Node compute, ZIP64 streaming, Korean search, and layout
-ideas are classified in `docs/HAEJEOK-RISUAI-OVERLAP-AUDIT.md`; future code
-adaptations must add their exact paths and revisions here before publication.
+synchronous ordering.
+
+The HJ03 Korean-search adapter uses the behavior and focused structure of:
+
+- `86ee613c04e88f22bfcd0fb80267eb458a1a4408`;
+- `1e5f9eeed2fa5b881502affba9d5289dca625cdb`;
+- Haejeok paths `src/ts/util/koreanSearch.ts`,
+  `src/ts/util/koreanSearch.test.ts`, `src/lib/UI/MainMenu.svelte`,
+  `package.json`, and `pnpm-lock.yaml`.
+
+The local implementation is contained in
+`patches/haejeok-korean-search-adapter/`. It applies the matcher to
+PocketRisu's `src/lib/Others/GridCatalog.svelte` and
+`src/lib/Mobile/MobileCharacters.svelte`, retains their existing order, limits
+in-progress batchim expansion to the final syllable, and adds bounded reverse
+keyboard conversion. It does not copy Haejeok's `MainMenu` sort, recent,
+favorite, hidden-character, or character-order model.
+
+HJ03 adds the following exact runtime dependency:
+
+- `es-hangul` 2.4.0: https://github.com/toss/es-hangul
+- Package release: https://github.com/toss/es-hangul/releases/tag/es-hangul%402.4.0
+- Copyright © 2024 Viva Republica, Inc.
+- License: MIT
+- Integrity:
+  `sha512-9ouVct+rsUw7d5+JeyEV+Lf4PAytSK4cWnLGHM4FJDyG9BS5d3iSPnEmH/rVgmSyxyps5cWZ+NeDAlJyq8eKaw==`
+
+The remaining SQL/domain storage, object storage, low-spec rendering, Node
+compute, ZIP64 streaming, and other layout ideas are classified in
+`docs/HAEJEOK-RISUAI-OVERLAP-AUDIT.md`; future code adaptations must add their
+exact paths and revisions here before publication.
