@@ -148,10 +148,11 @@ test('all can adopt narrower states, while narrow profiles cannot remove other p
     )
 })
 
-test('all derives every visible pack from the active catalog', () => {
+test('all derives every admitted visible pack from the active catalog', () => {
     const catalog = [
         { id: 'existing', version: '1', units: [] },
         { id: 'future-pack', version: '1', units: [] },
+        { id: 'reviewing-pack', version: '1', allDefault: false, units: [] },
         { id: 'internal-adapter', version: '1', userSelectable: false, units: [] },
     ]
     assert.deepEqual(resolveProfile('all', catalog).defaults, [
@@ -182,5 +183,12 @@ test('narrow preset metadata is validated at the catalog boundary', () => {
             presetDefaults: ['features'],
         }]),
         /internal and cannot be a preset default/,
+    )
+    assert.throws(
+        () => validateProfileMetadata([{
+            id: 'invalid-all-admission',
+            allDefault: 'later',
+        }]),
+        /allDefault must be a boolean/,
     )
 })

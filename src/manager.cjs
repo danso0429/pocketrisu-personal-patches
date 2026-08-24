@@ -109,6 +109,7 @@ function packEtag(pack, {
         title: pack.title ?? null,
         version: pack.version,
         userSelectable: pack.userSelectable ?? true,
+        allDefault: pack.allDefault ?? true,
         presetDefaults: pack.presetDefaults ?? [],
         requires: pack.requires ?? [],
         conflicts: pack.conflicts ?? [],

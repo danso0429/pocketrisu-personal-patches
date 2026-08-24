@@ -28,6 +28,9 @@ const NARROW_PROFILE_IDS = Object.freeze(['features', 'hardening'])
 
 function validateProfileMetadata(catalog) {
     for (const pack of catalog) {
+        if (pack.allDefault !== undefined && typeof pack.allDefault !== 'boolean') {
+            throw new Error(`${pack.id}.allDefault must be a boolean`)
+        }
         const defaults = pack.presetDefaults ?? []
         if (
             !Array.isArray(defaults)
@@ -114,7 +117,7 @@ function resolveProfile(profileId, catalog) {
     validateProfileMetadata(catalog)
     const visible = catalog.filter((pack) => pack.userSelectable !== false)
     const defaults = profileId === 'all'
-        ? visible.map((pack) => pack.id)
+        ? visible.filter((pack) => pack.allDefault !== false).map((pack) => pack.id)
         : visible
             .filter((pack) => (pack.presetDefaults ?? []).includes(profileId))
             .map((pack) => pack.id)
