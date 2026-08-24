@@ -204,3 +204,46 @@ but the generated delivery has only the complete installer. Before live apply:
 5. apply the complete patch transaction, build the client and server bundle,
    restart, and compare served/local artifacts; and
 6. run feature-specific iPhone L3 scenarios before any stable tag or release.
+
+### Live candidate receipt — 2026-08-24 KST
+
+The `0.2.0-experimental.21` complete graph is live as a candidate. Immediately
+before the process-first stop, two read-only preflights observed PM2 online,
+unstable restarts 0, active HTTP requests 0, native running model jobs 0,
+pending sends 0, BG operation/legacy results 0, and orchestration pending 0.
+The retained BG lifecycle rows were 221 `delivered` and two `cancelled`.
+
+Main, model-job, and retired-import SQLite each returned `quick_check=ok`.
+The inert import row remained one `module / receiving` operation at exactly
+11,534,336 / 31,705,288 source bytes. No generation or import was cancelled,
+claimed, acknowledged, or deleted.
+
+While stopped:
+
+- the complete transaction changed only the 21 HJ/shared source paths plus
+  private patch state and resolved 38 packs / 769 units / 280 paths;
+- `pnpm install --frozen-lockfile` reused the existing store and admitted
+  `es-hangul` 2.4.0;
+- nine HJ, storage, BG, K14, and K15 test files passed 73/73 tests;
+- Svelte diagnostics were 0 errors and 0 warnings, the help audit had no
+  missing English/Korean key, and Lightning CSS resolved once at 1.33.0;
+- the client transformed 7,922 modules and the BG bundle built to 8,763,553
+  bytes with `sendChat=function` on load;
+- production pruning retained `es-hangul`, `better-sqlite3`, Express, and a
+  working msgpackr round trip; and
+- generated status was `current` and the source re-plan changed zero files.
+
+After restart, PM2 reported PocketRisu 1.10.0 online, restart count 6,
+unstable restarts 0, and active requests 0. Root returned 3,587 bytes and named
+`assets/index-KSLKghfQ.js`; served and local assets matched at 2,037,436 bytes
+with SHA-256
+`ca827add42ba4e420bcde31dd4c20efce45db746671d22104368d0a32cd19734`.
+The build stamp is
+`1.10.0-2f217022cef8b40cdf4907183f50854adf281cb7e7f93af0ab1bc3d19fab967d`.
+
+All three database inode/size pairs, the three backups totalling 3,002,439,949
+bytes, the partial source inode/bytes, and the 6,151,722-byte PM2 error log were
+unchanged. SQLite remained `ok`, native/BG active work remained zero, the
+retired diagnostics route remained 404, no nested save or transaction journal
+appeared, and the 38-pack state remained `current`. Physical feature L3 is the
+remaining release gate.

@@ -40,6 +40,17 @@
   The embedded artifact identifies version `0.2.0-experimental.21`, resolves
   all 38 packs, and returns a zero-change plan on the composed exact-1.10
   target.
+- Apply the same candidate live only after two zero-work reads and a
+  process-first stop. Repeat 73 focused HJ/storage/K14/K15 tests, Svelte 0/0,
+  help/lock checks, client/BG builds, production prune/load, current status,
+  and zero-change re-plan while stopped. After restart, match served/local
+  `index-KSLKghfQ.js` at 2,037,436 bytes and SHA-256
+  `ca827add42ba4e420bcde31dd4c20efce45db746671d22104368d0a32cd19734`.
+- Preserve exact database, backup, parked BG lifecycle, and inert partial-import
+  identities; retain three SQLite `quick_check=ok`, zero active/pending/result
+  work, a 404 retired import route, and a zero-byte PM2 error-log delta. Do not
+  cancel or delete any user operation or data. Keep physical feature L3 and a
+  stable tag/release pending.
 
 ## 0.2.0-experimental.20
 

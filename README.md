@@ -361,6 +361,19 @@ The generated artifact reports all 38 resolved packs and a zero-change plan on
 the composed target. Stable tag/release and feature-level device L3 remain
 gated.
 
+The same `.21` candidate is live after two zero-work preflight reads and a
+process-first stop. The stopped target repeated 73 focused HJ/storage/K14/K15
+tests, Svelte 0/0, help/lock checks, the 7,922-module client build, BG bundle
+load check, production prune/load, 280-path current status, and zero-change
+re-plan. Restart readback matches served/local `index-KSLKghfQ.js` at
+2,037,436 bytes with SHA-256
+`ca827add42ba4e420bcde31dd4c20efce45db746671d22104368d0a32cd19734`.
+PM2 is online with unstable restarts and active requests at zero; all database,
+backup, parked BG state, and inert partial-import identities remain unchanged,
+all SQLite checks remain `ok`, and the error-log delta is zero bytes. No user
+operation or data was cancelled or deleted. HJ04/HJ03/HJ01 physical UI L3
+still gates a stable tag or release.
+
 The `v0.2.0-experimental.20` delivery remains all-or-nothing but retires the
 background-import experiment. Before rollback, the same job was still healthy
 but had reached only 11,534,336 of
