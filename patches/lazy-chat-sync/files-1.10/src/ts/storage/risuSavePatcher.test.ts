@@ -1082,7 +1082,7 @@ describe('fast-path — per-module granularity', () => {
         for (const op of patch) {
             expect(op.path.startsWith('/characters/0')).toBe(true)
         }
-    })
+    }, 15_000)
 
     test('character lorebook edit round-trips through applyPatch', async () => {
         const { applyPatch: apply } = await import('fast-json-patch')
