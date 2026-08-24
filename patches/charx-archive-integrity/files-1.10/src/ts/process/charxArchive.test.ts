@@ -108,6 +108,36 @@ describe('independent CharX fixture oracle', () => {
             await archive.close()
         }
     })
+
+    test('non-Blob seekable source preserves indexed random access', async () => {
+        const fixture = buildFixtureArchive(validEntries([{ name: 'assets/a.bin', data: 'handle-slice' }]))
+        class SeekableSlice {
+            constructor(
+                private readonly bytes: Uint8Array,
+                private readonly offset = 0,
+                readonly size = bytes.byteLength,
+            ) {}
+
+            slice(start = 0, end = this.size): SeekableSlice {
+                const from = Math.min(this.size, Math.max(0, start))
+                const to = Math.min(this.size, Math.max(from, end))
+                return new SeekableSlice(this.bytes, this.offset + from, to - from)
+            }
+
+            async arrayBuffer(): Promise<ArrayBuffer> {
+                const value = this.bytes.slice(this.offset, this.offset + this.size)
+                return value.buffer.slice(value.byteOffset, value.byteOffset + value.byteLength)
+            }
+        }
+        const archive = await openCharXArchive({
+            kind: 'seekable', value: new SeekableSlice(fixture.bytes), container: 'zip',
+        })
+        try {
+            expect(new TextDecoder().decode(await archive.extract(archive.assets[0]))).toBe('handle-slice')
+        } finally {
+            await archive.close()
+        }
+    })
 })
 
 describe('CharX structural, semantic, and resource policy', () => {
