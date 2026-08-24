@@ -46,6 +46,7 @@ test('profiles share one catalog but have different ownership boundaries', () =>
         'parser-hardening',
         'toolchain-hardening',
         'charx-archive-integrity',
+        'background-import',
         'kei-stream-parser-core',
         'kei-stream-parser-base-adapter',
         'kei-stream-parser-bg-adapter',
@@ -166,6 +167,16 @@ test('PocketRisu Kei joins rolling all without entering narrow presets', () => {
     assert.equal(resolveProfile('all', catalog).defaults.includes('pocketrisu-kei'), true)
     assert.equal(resolveProfile('features', catalog).defaults.includes('pocketrisu-kei'), false)
     assert.equal(resolveProfile('hardening', catalog).defaults.includes('pocketrisu-kei'), false)
+})
+
+test('background import is visible for custom review but not admitted to rolling all', () => {
+    const catalog = loadCatalog()
+    const pack = catalog.find((entry) => entry.id === 'background-import')
+    assert.ok(pack)
+    assert.equal(pack.userSelectable, true)
+    assert.equal(pack.allDefault, false)
+    assert.deepEqual(pack.presetDefaults, [])
+    assert.equal(resolveProfile('all', catalog).defaults.includes(pack.id), false)
 })
 
 test('narrow preset metadata is validated at the catalog boundary', () => {
