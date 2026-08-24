@@ -12,7 +12,7 @@ const manifest = require('../patches/background-import/manifest.cjs')
 
 test('background import is visible exact-1.10 review scope without rolling-all admission', () => {
     assert.equal(manifest.id, 'background-import')
-    assert.equal(manifest.version, '0.2.0')
+    assert.equal(manifest.version, '0.3.0')
     assert.equal(manifest.userSelectable, true)
     assert.equal(manifest.allDefault, false)
     assert.deepEqual(manifest.presetDefaults, [])
@@ -92,4 +92,20 @@ test('client hooks retain auth, token-scoped handoff, canonical rebase, and boot
     const boot = byId.get('background-import:bootstrap-recovery:1.10')
     assert.equal(boot.where, 'after')
     assert.equal(boot.anchor, '            saveDb()\n')
+})
+
+test('module and character entry hooks preserve child/package foreground paths and exact origins', () => {
+    const byId = new Map(manifest.units.map((unit) => [unit.id, unit]))
+    assert.match(byId.get('background-import:modules-runtime-owner:1.10').content, /runBackgroundImport/)
+    assert.match(byId.get('background-import:modules-runtime-owner:1.10').content, /foreground-required/)
+    const character = byId.get('background-import:character-dispatch:1.10').content
+    assert.match(character, /!f\.progressReporter && !f\.returnCharacter && !f\.suppressImportJob/)
+    assert.match(character, /f\.data instanceof Uint8Array \|\| f\.data instanceof Blob/)
+    assert.match(byId.get('background-import:character-job-reuse:1.10').content, /existingJob/)
+    assert.match(byId.get('background-import:app-character-drop-origin:1.10').content, /origin: 'drop'/)
+    assert.match(byId.get('background-import:character-url-origin:1.10').content, /origin: 'url'/)
+    assert.match(byId.get('background-import:character-share-origin:1.10').content, /origin: 'share'/)
+    assert.match(byId.get('background-import:realm-charx-origin:1.10').content, /origin: 'realm'/)
+    assert.match(byId.get('background-import:module-hash-consumer:1.10').content, /location\.hash = ''/)
+    assert.match(byId.get('background-import:module-share-consumer:1.10').content, /location\.hash = ''/)
 })

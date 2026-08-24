@@ -36,6 +36,7 @@ const ownedPaths = [
     'src/ts/process/backgroundImportRisuM.ts',
     'src/ts/process/backgroundImportSource.ts',
     'src/ts/backgroundImport.ts',
+    'src/ts/backgroundImportState.test.ts',
     'src/ts/storage/backgroundImportClient.test.ts',
     'src/ts/storage/backgroundImportClient.ts',
     'src/ts/storage/backgroundImportReconcile.test.ts',
@@ -142,7 +143,7 @@ app.use(backgroundImportManager.replacementGuard);
 module.exports = {
     id: 'background-import',
     title: 'Durable background character and module import',
-    version: '0.2.0',
+    version: '0.3.0',
     targets: {
         pocketrisu: {
             verified: [],
@@ -515,6 +516,409 @@ export async function reconcileBackgroundImport(
             content: `            initBackgroundImportRecovery()
 `,
             requires: ['background-import:bootstrap-import:1.10'],
+            targetVersions: target110,
+        },
+        {
+            id: 'background-import:module-source-consumer:1.10',
+            file: 'src/ts/process/moduleImport.ts',
+            type: 'insert',
+            where: 'after',
+            anchor: `    origin: ModuleImportOrigin
+`,
+            content: `    /** Consume a one-shot share/hash instruction after durable handoff. */
+    consumeOrigin?: () => void
+`,
+            requires: ['character-import-ux:module-import-core'],
+            targetVersions: target110,
+        },
+        {
+            id: 'background-import:modules-reporter-type:1.10',
+            file: 'src/ts/process/modules.ts',
+            type: 'replace',
+            anchor: `import { beginModuleImport, formatImportProgress, reserveImport } from "../characterImportState"
+`,
+            content: `import { beginModuleImport, formatImportProgress, reserveImport, type ImportJob } from "../characterImportState"
+`,
+            requires: [
+                'background-import:reporter-safe-type:1.10',
+                'character-import-ux:modules-terminal-import',
+            ],
+            after: [
+                'character-import-ux:modules-orchestrator-imports',
+                'bg-preserve:hook:modules-source-aware-cache-refresh',
+            ],
+            targetVersions: target110,
+        },
+        {
+            id: 'background-import:modules-runtime-import:1.10',
+            file: 'src/ts/process/modules.ts',
+            type: 'insert',
+            where: 'after',
+            anchor: `import { createModuleImportOrchestrator, selectModuleImportFile, type ModuleImportResult, type ModuleImportSource } from "./moduleImport"
+`,
+            content: `import { runBackgroundImport } from "../backgroundImport"
+`,
+            requires: [
+                ownedId('src/ts/backgroundImport.ts'),
+                'background-import:module-source-consumer:1.10',
+                'background-import:modules-reporter-type:1.10',
+                'character-import-ux:modules-terminal-import',
+            ],
+            after: ['bg-preserve:hook:modules-source-aware-cache-import'],
+            targetVersions: target110,
+        },
+        {
+            id: 'background-import:modules-runtime-owner:1.10',
+            file: 'src/ts/process/modules.ts',
+            type: 'insert',
+            where: 'before',
+            anchor: `export async function readModule(
+`,
+            content: `async function runDurableModuleImport(
+    source: ModuleImportSource,
+    job: ImportJob,
+): Promise<ModuleImportResult> {
+    const outcome = await runBackgroundImport({
+        kind: 'module',
+        name: source.name,
+        data: source.data,
+        origin: source.origin,
+        reporter: job,
+        onAdmitted: source.consumeOrigin,
+    })
+    if (outcome.status === 'foreground-required') return runModuleImport(source, job)
+    if (outcome.status === 'cancelled') return { status: 'cancelled' }
+    if (outcome.status === 'failed') {
+        return {
+            status: 'failed',
+            error: outcome.error,
+            committed: outcome.committed,
+        }
+    }
+    const imported = getDatabase().modules.find(module => module?.id === outcome.job.entityId)
+    if (!imported) {
+        return {
+            status: 'failed',
+            error: new Error('Reconciled module is not visible'),
+            committed: true,
+        }
+    }
+    return { status: 'imported', module: imported }
+}
+
+`,
+            requires: ['background-import:modules-runtime-import:1.10'],
+            targetVersions: target110,
+        },
+        {
+            id: 'background-import:modules-source-dispatch:1.10',
+            file: 'src/ts/process/modules.ts',
+            type: 'replace',
+            anchor: `    return runModuleImport(source, job)
+`,
+            content: `    return runDurableModuleImport(source, job)
+`,
+            requires: ['background-import:modules-runtime-owner:1.10'],
+            targetVersions: target110,
+        },
+        {
+            id: 'background-import:modules-picker-dispatch:1.10',
+            file: 'src/ts/process/modules.ts',
+            type: 'replace',
+            anchor: `    return runModuleImport({ name: file.name, data: file, origin: 'picker' }, job)
+`,
+            content: `    return runDurableModuleImport({ name: file.name, data: file, origin: 'picker' }, job)
+`,
+            requires: ['background-import:modules-source-dispatch:1.10'],
+            targetVersions: target110,
+        },
+        {
+            id: 'background-import:character-runtime-import:1.10',
+            file: 'src/ts/characterCards.ts',
+            type: 'insert',
+            where: 'after',
+            anchor: `import { beginCharacterImport, formatCharacterImportProgress, type CharacterImportJob, type ImportProgressReporter } from "./characterImportState"
+`,
+            content: `import { runBackgroundImport } from "./backgroundImport"
+import type { BackgroundImportOrigin } from "./storage/backgroundImportClient"
+`,
+            requires: [
+                ownedId('src/ts/backgroundImport.ts'),
+                'background-import:reporter-safe-runtime:1.10',
+                'character-import-ux:character-reporter-type',
+                'character-import-ux:character-file-module-route',
+                'charx-archive-integrity:non-charx-counter:1.10',
+            ],
+            after: [
+                'charx-archive-integrity:non-charx-counter:1.10',
+                'personal-settings:realm-import-navigation',
+            ],
+            targetVersions: target110,
+        },
+        {
+            id: 'background-import:character-source-options:1.10',
+            file: 'src/ts/characterCards.ts',
+            type: 'insert',
+            where: 'after',
+            anchor: `    data: Uint8Array|File|ReadableStream<Uint8Array>
+`,
+            content: `    origin?:BackgroundImportOrigin
+    /** Consume a one-shot share/hash instruction after durable handoff. */
+    consumeOrigin?:() => void
+`,
+            requires: ['background-import:character-runtime-import:1.10'],
+            targetVersions: target110,
+        },
+        {
+            id: 'background-import:character-job-reuse:1.10',
+            file: 'src/ts/characterCards.ts',
+            type: 'replace',
+            anchor: `async function runCharacterImportJob<T>(
+    work: (job: CharacterImportJob) => Promise<T>,
+): Promise<T | null> {
+    const job = beginCharacterImport()
+`,
+            content: `async function runCharacterImportJob<T>(
+    work: (job: CharacterImportJob) => Promise<T>,
+    existingJob: CharacterImportJob | null = null,
+): Promise<T | null> {
+    const job = existingJob ?? beginCharacterImport()
+`,
+            requires: ['background-import:character-source-options:1.10'],
+            targetVersions: target110,
+        },
+        {
+            id: 'background-import:character-dispatch:1.10',
+            file: 'src/ts/characterCards.ts',
+            type: 'insert',
+            where: 'before',
+            anchor: `    if (f.progressReporter) {
+`,
+            content: `    const backgroundSource = f.data instanceof Uint8Array || f.data instanceof Blob
+        ? f.data
+        : null
+    if (!f.progressReporter && !f.returnCharacter && !f.suppressImportJob && backgroundSource) {
+        const job = beginCharacterImport()
+        if (!job) return null as any
+        const outcome = await runBackgroundImport({
+            kind: 'character',
+            name: f.name,
+            data: backgroundSource,
+            origin: f.origin ?? 'picker',
+            reporter: job,
+            onAdmitted: f.consumeOrigin,
+        })
+        if (outcome.status === 'foreground-required') {
+            return await runCharacterImportJob(
+                reporter => importCharacterProcessInternal(f, reporter),
+                job,
+            ) as any
+        }
+        if (outcome.status === 'imported') {
+            const index = getDatabase().characters.findIndex(
+                character => character?.chaId === outcome.job.entityId,
+            )
+            return (index >= 0 ? index : null) as any
+        }
+        return null as any
+    }
+`,
+            requires: ['background-import:character-job-reuse:1.10'],
+            after: ['character-import-ux:character-reporter-dispatch'],
+            targetVersions: target110,
+        },
+        {
+            id: 'background-import:app-character-drop-origin:1.10',
+            file: 'src/App.svelte',
+            type: 'replace',
+            anchor: `        await importCharacterProcess({
+            name: file.name,
+            data: file
+        })
+`,
+            content: `        await importCharacterProcess({
+            name: file.name,
+            data: file,
+            origin: 'drop',
+        })
+`,
+            requires: ['background-import:character-dispatch:1.10'],
+            after: ['character-import-ux:app-module-drop'],
+            targetVersions: target110,
+        },
+        {
+            id: 'background-import:character-url-origin:1.10',
+            file: 'src/ts/characterCards.ts',
+            type: 'replace',
+            anchor: `            const imported = await importCharacterProcess({
+                name: 'charahub.png',
+                data: img
+            })
+`,
+            content: `            const imported = await importCharacterProcess({
+                name: 'charahub.png',
+                data: img,
+                origin: 'url',
+            })
+`,
+            requires: ['background-import:character-dispatch:1.10'],
+            targetVersions: target110,
+        },
+        {
+            id: 'background-import:character-share-origin:1.10',
+            file: 'src/ts/characterCards.ts',
+            type: 'replace',
+            anchor: `        await importCharacterProcess({
+            name: 'shared.charx',
+            data: charx
+        })
+`,
+            content: `        await importCharacterProcess({
+            name: 'shared.charx',
+            data: charx,
+            origin: 'share',
+            consumeOrigin: () => { location.hash = '' },
+        })
+`,
+            requires: ['background-import:character-url-origin:1.10'],
+            targetVersions: target110,
+        },
+        {
+            id: 'background-import:file-origin-argument:1.10',
+            file: 'src/ts/characterCards.ts',
+            type: 'replace',
+            anchor: `    async function importFile(name:string, data:Uint8Array) {
+`,
+            content: `    async function importFile(
+        name: string,
+        data: Uint8Array,
+        origin: 'url' | 'launch',
+    ) {
+`,
+            requires: ['background-import:character-share-origin:1.10'],
+            targetVersions: target110,
+        },
+        {
+            id: 'background-import:file-url-call:1.10',
+            file: 'src/ts/characterCards.ts',
+            type: 'replace',
+            anchor: `            await importFile(getFileName(res), data)
+`,
+            content: `            await importFile(getFileName(res), data, 'url')
+`,
+            requires: ['background-import:file-origin-argument:1.10'],
+            targetVersions: target110,
+        },
+        {
+            id: 'background-import:file-launch-call:1.10',
+            file: 'src/ts/characterCards.ts',
+            type: 'replace',
+            anchor: `                await importFile(f.name, data);
+`,
+            content: `                await importFile(f.name, data, 'launch');
+`,
+            requires: ['background-import:file-url-call:1.10'],
+            targetVersions: target110,
+        },
+        {
+            id: 'background-import:file-character-origin:1.10',
+            file: 'src/ts/characterCards.ts',
+            type: 'replace',
+            anchor: `            await importCharacterProcess({
+                name: name,
+                data: data
+            })
+`,
+            content: `            await importCharacterProcess({
+                name,
+                data,
+                origin,
+            })
+`,
+            requires: ['background-import:file-launch-call:1.10'],
+            targetVersions: target110,
+        },
+        {
+            id: 'background-import:file-module-origin:1.10',
+            file: 'src/ts/characterCards.ts',
+            type: 'replace',
+            anchor: `            const result = await importModuleSource({ name, data, origin: 'launch' })
+`,
+            content: `            const result = await importModuleSource({ name, data, origin })
+`,
+            requires: ['background-import:file-character-origin:1.10'],
+            after: ['character-import-ux:character-file-module-route'],
+            targetVersions: target110,
+        },
+        {
+            id: 'background-import:module-hash-consumer:1.10',
+            file: 'src/ts/characterCards.ts',
+            type: 'insert',
+            where: 'after',
+            anchor: `            origin: 'hash',
+`,
+            content: `            consumeOrigin: () => { location.hash = '' },
+`,
+            requires: [
+                'background-import:modules-source-dispatch:1.10',
+                'background-import:file-module-origin:1.10',
+                'character-import-ux:character-hash-module-route',
+            ],
+            targetVersions: target110,
+        },
+        {
+            id: 'background-import:module-share-consumer:1.10',
+            file: 'src/ts/characterCards.ts',
+            type: 'replace',
+            anchor: `        const result = await importModuleSource({
+            name: 'shared.risum',
+            data: new Uint8Array(await data.arrayBuffer()),
+            origin: 'share',
+        })
+`,
+            content: `        const result = await importModuleSource({
+            name: 'shared.risum',
+            data: new Uint8Array(await data.arrayBuffer()),
+            origin: 'share',
+            consumeOrigin: () => { location.hash = '' },
+        })
+`,
+            requires: [
+                'background-import:module-hash-consumer:1.10',
+                'character-import-ux:character-share-module-route',
+            ],
+            targetVersions: target110,
+        },
+        {
+            id: 'background-import:realm-charx-origin:1.10',
+            file: 'src/ts/characterCards.ts',
+            type: 'replace',
+            anchor: `                    name: 'realm.charx',
+                    data: new Uint8Array(await res.arrayBuffer()),
+                    lightningRealmImport: db.lightningRealmImport,
+`,
+            content: `                    name: 'realm.charx',
+                    data: new Uint8Array(await res.arrayBuffer()),
+                    lightningRealmImport: db.lightningRealmImport,
+                    origin: 'realm',
+`,
+            requires: ['background-import:module-share-consumer:1.10'],
+            targetVersions: target110,
+        },
+        {
+            id: 'background-import:realm-png-origin:1.10',
+            file: 'src/ts/characterCards.ts',
+            type: 'replace',
+            anchor: `                    name: 'realm.png',
+                    data: res.body,
+                    lightningRealmImport: db.lightningRealmImport,
+`,
+            content: `                    name: 'realm.png',
+                    data: res.body,
+                    lightningRealmImport: db.lightningRealmImport,
+                    origin: 'realm',
+`,
+            requires: ['background-import:realm-charx-origin:1.10'],
             targetVersions: target110,
         },
     ],
