@@ -9,4 +9,5 @@ module.exports = createStreamAdapterManifest({
     title: 'PocketRisu Kei stream parser bg-preserve adapter',
     adapter: 'bg',
     bgPreserve: true,
+    verified1100: true,
 })

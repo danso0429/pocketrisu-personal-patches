@@ -37,8 +37,8 @@ test('BG pack keeps exact 1.8 support and verifies its target-scoped 1.9 graph',
     assert.equal(manifest.version, 'v1.0.1-patcher.9')
     assert.deepEqual(manifest.targets, {
         pocketrisu: {
-            verified: ['1.8.1', '1.9.0'],
-            reviewing: ['1.10.0'],
+            verified: ['1.8.1', '1.9.0', '1.10.0'],
+            reviewing: [],
         },
     })
     assert.equal(active(target181).some((candidate) => candidate.id.endsWith(':1.9')), false)

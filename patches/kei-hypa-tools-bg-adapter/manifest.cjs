@@ -9,4 +9,5 @@ module.exports = createHypaToolsAdapterManifest({
     title: 'PocketRisu Kei HypaMemory tools bg-preserve adapter',
     adapter: 'bg',
     bgPreserve: true,
+    verified1100: true,
 })

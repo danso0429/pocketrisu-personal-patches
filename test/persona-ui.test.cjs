@@ -57,8 +57,8 @@ test('folder images use shared asset storage and can return to the default icon'
     assert.equal(manifest.version, '0.11.1')
     assert.deepEqual(manifest.targets, {
         pocketrisu: {
-            verified: ['1.8.1', '1.9.0'],
-            reviewing: ['1.10.0'],
+            verified: ['1.8.1', '1.9.0', '1.10.0'],
+            reviewing: [],
         },
     })
     assert.match(normalization.content, /typeof folder\.icon !== 'string'\) folder\.icon = ''/)

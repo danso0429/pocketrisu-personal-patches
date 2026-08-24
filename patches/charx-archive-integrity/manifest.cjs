@@ -23,8 +23,8 @@ module.exports = {
     version: '0.1.0',
     targets: {
         pocketrisu: {
-            verified: [],
-            reviewing: ['1.10.0'],
+            verified: ['1.10.0'],
+            reviewing: [],
         },
     },
     userSelectable: true,

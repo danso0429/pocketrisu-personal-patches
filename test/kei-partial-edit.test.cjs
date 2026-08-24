@@ -24,14 +24,18 @@ test('K15 keeps its core and base/bg adapters internal', () => {
     assert.equal(core.userSelectable, false)
     assert.equal(base.userSelectable, false)
     assert.equal(bg.userSelectable, false)
-    for (const pack of [core, base, bg]) {
+    for (const pack of [core, bg]) {
         assert.deepEqual(pack.targets, {
             pocketrisu: {
-                verified: ['1.8.1', '1.9.0'],
-            reviewing: ['1.10.0'],
+                verified: ['1.8.1', '1.9.0', '1.10.0'],
+                reviewing: [],
             },
         })
     }
+    assert.deepEqual(base.targets.pocketrisu, {
+        verified: ['1.8.1', '1.9.0'],
+        reviewing: ['1.10.0'],
+    })
     assert.deepEqual(base.requires, [
         'kei-partial-edit-core',
         'kei-chat-render-base-adapter',

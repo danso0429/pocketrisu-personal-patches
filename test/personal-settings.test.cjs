@@ -61,8 +61,8 @@ test('personal settings is an independent rolling feature pack', () => {
     assert.equal(manifest.version, '0.4.3')
     assert.deepEqual(manifest.targets, {
         pocketrisu: {
-            verified: ['1.8.1', '1.9.0'],
-            reviewing: ['1.10.0'],
+            verified: ['1.8.1', '1.9.0', '1.10.0'],
+            reviewing: [],
         },
     })
     assert.equal(manifest.userSelectable, true)

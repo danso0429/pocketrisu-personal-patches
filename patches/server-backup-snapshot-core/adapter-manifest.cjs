@@ -44,7 +44,7 @@ function appendAfter(unit, ids) {
         : { ...unit, after: [...(unit.after ?? []), ...ids] }
 }
 
-function createServerBackupSnapshotAdapterManifest({ id, title, lazyChat }) {
+function createServerBackupSnapshotAdapterManifest({ id, title, lazyChat, verified1100 = false }) {
     const prefix = id + ':'
     const marker = (name) => (
         'POCKETRISU-PATCH:server-backup-snapshot:'
@@ -247,8 +247,8 @@ ${helperFragment}/* ${marker('server-source-lifecycle')}:END */
         userSelectable: false,
         targets: {
             pocketrisu: {
-                verified: ['1.9.0'],
-            reviewing: ['1.10.0'],
+                verified: ['1.9.0', ...(verified1100 ? ['1.10.0'] : [])],
+                reviewing: verified1100 ? [] : ['1.10.0'],
             },
         },
         requires: lazyChat

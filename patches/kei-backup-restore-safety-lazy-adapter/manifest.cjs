@@ -8,4 +8,5 @@ module.exports = createBackupRestoreSafetyAdapterManifest({
     id: 'kei-backup-restore-safety-lazy-adapter',
     title: 'PocketRisu Kei restore safety lazy-chat storage adapter',
     lazyChat: true,
+    verified1100: true,
 })

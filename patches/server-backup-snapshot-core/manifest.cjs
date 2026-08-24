@@ -14,8 +14,8 @@ module.exports = {
     userSelectable: false,
     targets: {
         pocketrisu: {
-            verified: ['1.9.0'],
-            reviewing: ['1.10.0'],
+            verified: ['1.9.0', '1.10.0'],
+            reviewing: [],
         },
     },
     requires: ['client-build-fence'],

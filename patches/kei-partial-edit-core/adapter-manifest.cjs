@@ -8,6 +8,7 @@ function createPartialEditAdapterManifest({
     title,
     adapter,
     bgPreserve,
+    verified1100 = false,
 }) {
     const prefix = `${id}:`
     const marker = (name) =>
@@ -583,8 +584,8 @@ function createPartialEditAdapterManifest({
         userSelectable: false,
         targets: {
             pocketrisu: {
-                verified: ['1.8.1', '1.9.0'],
-            reviewing: ['1.10.0'],
+                verified: ['1.8.1', '1.9.0', ...(verified1100 ? ['1.10.0'] : [])],
+                reviewing: verified1100 ? [] : ['1.10.0'],
             },
         },
         requires: bgPreserve

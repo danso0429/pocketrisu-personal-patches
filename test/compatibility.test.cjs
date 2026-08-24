@@ -10,7 +10,8 @@ const {
     assertTargetVerified,
     evaluateTargetCompatibility,
 } = require('../src/compatibility.cjs')
-const { loadCatalog } = require('../src/catalog.cjs')
+const { loadCatalog, resolveProfile } = require('../src/catalog.cjs')
+const { resolveSelection } = require('../src/resolver.cjs')
 
 function withRoot(version, fn) {
     const root = fs.mkdtempSync(path.join(os.tmpdir(), 'pocketrisu-target-'))
@@ -106,6 +107,36 @@ test('packs qualified on PocketRisu 1.9.0 remain explicitly verified', () =>
             rollingCatalog.reviewRequiredPacks.map((entry) => entry.id),
             ['charx-archive-integrity'],
         )
+    }))
+
+test('only the shipped complete graph is verified on exact PocketRisu 1.10.0', () =>
+    withRoot('1.10.0', (root) => {
+        const catalog = loadCatalog()
+        const resolution = resolveSelection(
+            catalog,
+            resolveProfile('all', catalog).defaults,
+        )
+        const resolvedIds = new Set(resolution.resolvedIds)
+        const resolved = catalog.filter((entry) => resolvedIds.has(entry.id))
+        const inactive = catalog.filter((entry) => !resolvedIds.has(entry.id))
+        const result = evaluateTargetCompatibility(root, resolved)
+
+        assert.equal(resolution.resolvedIds.length, 38)
+        assert.equal(inactive.length, 13)
+        assert.equal(result.status, 'verified')
+        assert.equal(result.verifiedPacks.length, 38)
+        assert.deepEqual(result.underReviewPacks, [])
+        assert.deepEqual(result.reviewRequiredPacks, [])
+        assert.doesNotThrow(() => assertTargetVerified(result))
+        assert.deepEqual(
+            inactive.filter((entry) =>
+                entry.targets.pocketrisu.verified.includes('1.10.0')
+            ).map((entry) => entry.id),
+            [],
+        )
+
+        const completeCatalog = evaluateTargetCompatibility(root, catalog)
+        assert.notEqual(completeCatalog.status, 'verified')
     }))
 
 test('an unlisted PocketRisu patch release remains outside the maintainer gate', () =>

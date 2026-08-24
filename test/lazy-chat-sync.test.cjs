@@ -35,8 +35,8 @@ test('lazy chat pack includes CAS, WAL, reconciliation, and safe hydration bound
     assert.equal(lazyManifest.version, '0.3.0')
     assert.deepEqual(lazyManifest.targets, {
         pocketrisu: {
-            verified: ['1.8.1', '1.9.0'],
-            reviewing: ['1.10.0'],
+            verified: ['1.8.1', '1.9.0', '1.10.0'],
+            reviewing: [],
         },
     })
     assert.match(payload('server/node/server.cjs'), /chatWriteJournal/)
@@ -191,8 +191,8 @@ test('BG adapter preserves semantic revisions and adds only the durable flush ba
     assert.deepEqual(bgAdapter.autoWhen, { all: ['bg-preserve', 'lazy-chat-sync'] })
     assert.deepEqual(bgAdapter.targets, {
         pocketrisu: {
-            verified: ['1.8.1', '1.9.0'],
-            reviewing: ['1.10.0'],
+            verified: ['1.8.1', '1.9.0', '1.10.0'],
+            reviewing: [],
         },
     })
     const flush = bgAdapter.units.find((unit) =>

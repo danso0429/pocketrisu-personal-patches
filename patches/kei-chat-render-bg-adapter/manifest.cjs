@@ -9,4 +9,5 @@ module.exports = createChatRenderAdapterManifest({
     title: 'PocketRisu Kei chat render bg-preserve adapter',
     adapter: 'bg',
     bgPreserve: true,
+    verified1100: true,
 })

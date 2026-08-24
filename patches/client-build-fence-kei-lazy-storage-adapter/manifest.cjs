@@ -7,7 +7,7 @@ module.exports = {
     title: 'Client build fence Kei lazy-storage adapter',
     version: '0.1.1',
     targets: {
-        pocketrisu: { verified: ['1.9.0'], reviewing: ['1.10.0'] },
+        pocketrisu: { verified: ['1.9.0', '1.10.0'], reviewing: [] },
     },
     userSelectable: false,
     requires: ['client-build-fence', 'kei-backup-restore-safety-lazy-adapter'],

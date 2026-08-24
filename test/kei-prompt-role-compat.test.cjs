@@ -28,8 +28,8 @@ test('K04 compatibility is a hidden exact-1.9 umbrella child', () => {
     assert.equal(manifest.userSelectable, false)
     assert.deepEqual(manifest.targets, {
         pocketrisu: {
-            verified: ['1.8.1', '1.9.0'],
-            reviewing: ['1.10.0'],
+            verified: ['1.8.1', '1.9.0', '1.10.0'],
+            reviewing: [],
         },
     })
     assert.equal(meta.version, '0.13.0')

@@ -25,14 +25,18 @@ test('K11 keeps one internal core and exactly one base/bg adapter', () => {
     assert.equal(core.userSelectable, false)
     assert.equal(base.userSelectable, false)
     assert.equal(bg.userSelectable, false)
-    for (const pack of [core, base, bg]) {
+    for (const pack of [core, bg]) {
         assert.deepEqual(pack.targets, {
             pocketrisu: {
-                verified: ['1.8.1', '1.9.0'],
-            reviewing: ['1.10.0'],
+                verified: ['1.8.1', '1.9.0', '1.10.0'],
+                reviewing: [],
             },
         })
     }
+    assert.deepEqual(base.targets.pocketrisu, {
+        verified: ['1.8.1', '1.9.0'],
+        reviewing: ['1.10.0'],
+    })
     assert.deepEqual(base.requires, ['kei-hypa-tools-core'])
     assert.deepEqual(bg.requires, ['kei-hypa-tools-core', 'bg-preserve'])
     assert.deepEqual(base.autoWhen, {

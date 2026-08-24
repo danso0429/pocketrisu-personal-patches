@@ -9,4 +9,5 @@ module.exports = createMobileNavigationAdapterManifest({
     title: 'PocketRisu Kei mobile navigation lazy-chat adapter',
     adapter: 'lazy',
     lazyChat: true,
+    verified1100: true,
 })

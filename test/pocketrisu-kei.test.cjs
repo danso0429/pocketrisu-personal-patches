@@ -13,8 +13,8 @@ test('PocketRisu Kei remains a unit-free universal-only meta pack', () => {
     assert.equal(manifest.userSelectable, true)
     assert.deepEqual(manifest.targets, {
         pocketrisu: {
-            verified: ['1.8.1', '1.9.0'],
-            reviewing: ['1.10.0'],
+            verified: ['1.8.1', '1.9.0', '1.10.0'],
+            reviewing: [],
         },
     })
     assert.deepEqual(manifest.requires, [

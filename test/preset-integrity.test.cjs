@@ -12,8 +12,8 @@ test('preset integrity is a separate default pack with load, save, and UI guards
     assert.equal(manifest.id, 'preset-integrity')
     assert.equal(manifest.version, '0.2.2')
     assert.deepEqual(manifest.targets.pocketrisu, {
-        verified: ['1.8.1', '1.9.0'],
-            reviewing: ['1.10.0'],
+        verified: ['1.8.1', '1.9.0', '1.10.0'],
+        reviewing: [],
     })
     assert.deepEqual(
         manifest.units

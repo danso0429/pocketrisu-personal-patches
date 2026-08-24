@@ -6,4 +6,5 @@ module.exports = createServerBackupSnapshotAdapterManifest({
     id: 'server-backup-snapshot-lazy-adapter',
     title: 'Point-in-time server backup lazy-storage adapter',
     lazyChat: true,
+    verified1100: true,
 })

@@ -34,14 +34,18 @@ test('K16 keeps its core and base/lazy adapters internal', () => {
     assert.equal(lazy.userSelectable, false)
     assert.equal(base.version, '0.2.2')
     assert.equal(lazy.version, '0.2.2')
-    for (const pack of [core, base, lazy]) {
+    for (const pack of [core, lazy]) {
         assert.deepEqual(pack.targets, {
             pocketrisu: {
-                verified: ['1.8.1', '1.9.0'],
-            reviewing: ['1.10.0'],
+                verified: ['1.8.1', '1.9.0', '1.10.0'],
+                reviewing: [],
             },
         })
     }
+    assert.deepEqual(base.targets.pocketrisu, {
+        verified: ['1.8.1', '1.9.0'],
+        reviewing: ['1.10.0'],
+    })
     assert.deepEqual(base.autoWhen, {
         all: ['kei-mobile-navigation-core'],
         none: ['lazy-chat-sync'],

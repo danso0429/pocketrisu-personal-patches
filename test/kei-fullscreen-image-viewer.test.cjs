@@ -39,8 +39,8 @@ test('fullscreen viewer remains a hidden child of the complete set', () => {
     assert.equal(manifest.version, '0.2.1')
     assert.deepEqual(manifest.targets, {
         pocketrisu: {
-            verified: ['1.8.1', '1.9.0'],
-            reviewing: ['1.10.0'],
+            verified: ['1.8.1', '1.9.0', '1.10.0'],
+            reviewing: [],
         },
     })
     assert.equal(manifest.userSelectable, false)

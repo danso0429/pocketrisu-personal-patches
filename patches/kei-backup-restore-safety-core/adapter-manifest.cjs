@@ -7,7 +7,7 @@ function appendAfter(unit, ids) {
     return { ...unit, after: [...(unit.after ?? []), ...ids] }
 }
 
-function createBackupRestoreSafetyAdapterManifest({ id, title, lazyChat }) {
+function createBackupRestoreSafetyAdapterManifest({ id, title, lazyChat, verified1100 = false }) {
     const prefix = `${id}:`
     const marker = (name) => `POCKETRISU-PATCH:kei-backup-restore-safety:${lazyChat ? 'lazy' : 'standard'}:${name}`
     const serverAfter = lazyChat
@@ -821,8 +821,8 @@ import type { RestoreSafetyOptions } from "./restoreSafety"
         userSelectable: false,
         targets: {
             pocketrisu: {
-                verified: ['1.8.1', '1.9.0'],
-            reviewing: ['1.10.0'],
+                verified: ['1.8.1', '1.9.0', ...(verified1100 ? ['1.10.0'] : [])],
+                reviewing: verified1100 ? [] : ['1.10.0'],
             },
         },
         requires: lazyChat

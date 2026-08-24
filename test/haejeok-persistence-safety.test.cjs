@@ -17,8 +17,8 @@ test('Haejeok safety is an internal exact-1.10 lazy/BG adapter', () => {
     assert.deepEqual(manifest.autoWhen, { all: ['bg-preserve', 'lazy-chat-sync'] })
     assert.deepEqual(manifest.targets, {
         pocketrisu: {
-            verified: ['1.8.1', '1.9.0'],
-            reviewing: ['1.10.0'],
+            verified: ['1.8.1', '1.9.0', '1.10.0'],
+            reviewing: [],
         },
     })
     assert.ok(manifest.units.every((entry) =>
