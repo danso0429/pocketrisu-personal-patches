@@ -2,9 +2,10 @@
 
 > Status date: 2026-08-24 KST
 >
-> Decision: focused integration in progress. HJ04 persistence ordering and
-> HJ03 Korean search are adapted through internal patcher payloads; other rows
-> retain the disposition stated below until their own admission commit.
+> Decision: focused integration in progress. HJ04 persistence ordering, HJ03
+> Korean search, and HJ01 Small chat width are adapted through internal patcher
+> payloads; other rows retain the disposition stated below until their own
+> admission commit.
 
 ## Executive conclusion
 
@@ -97,7 +98,7 @@ state or policy.
 | Low-spec mode, message paging, bounded caches | `src/ts/chatLoadPages.ts`, domain message/character stores, image/cache callers | Valuable memory/DOM reduction but directly changes lazy hydration and active streaming chat hosts | **Merge only into existing lazy/K14 owners.** No parallel message store. |
 | Streaming bulk backup/restore and ZIP64 | `server/node/zipStream.cjs`, bulk read/write routes, `src/ts/drive/backuplocal.ts`, `src/ts/characterCards.ts` | Relevant to large archives and CharX; the local durable-import experiment is historical only | **High-value reference.** Evaluate ZIP64/streaming against the known over-4-GiB archive boundary in a separate feature commit. |
 | Character catalog, recent sessions, Korean fuzzy search | `src/lib/UI/MainMenu.svelte`, `RecentSessionsList.svelte`, `src/ts/util/koreanSearch.ts` | Ordinary search/recent/list/grid behavior is already native; organizer owns order/folders | **HJ03 Korean matching admitted.** One hidden adapter hooks the native 1.10 grid/mobile predicates; Haejeok ordering/recent/favorite/hidden models remain excluded. |
-| Adjustable chat width and text-area resize | `Chat.svelte`, `TextAreaInput.svelte`, display settings | No equivalent local setting found; hosts overlap Personal/K14/K15 | **Small candidate.** Add through `personal-settings`, not raw database fields in a second settings model. |
+| Adjustable chat width and text-area resize | `Chat.svelte`, `TextAreaInput.svelte`, display settings | PocketRisu 1.10 already has one Standard/Wide/Full owner spanning cards, creator notes, composer, and theme presets; Haejeok uniquely adds 600px Small. Text-area resize remains distinct. | **HJ01 Small admitted through the native width owner.** No second Personal width or `chatLimitSize` field. Resize remains deferred as HJ02. |
 | Message/plugin persistence ordering | `DefaultChatScreen.svelte`, `process/scriptings.ts`, `plugins/plugins.svelte.ts` | Ordinary BG sends already had a stronger canonical pre-save, but client-only sends, script clones, and plugin reload ordering retained gaps | **HJ04 admitted through a hidden patcher adapter.** Reuses lazy-chat strict save; does not import Haejeok SQL stores. |
 | Native log exporter with media pipeline | `src/lib/LogExporter/`, `src/ts/logexporter/`, ffmpeg dependency | Distinct user outcome; touches chat render and substantially expands code/dependencies | **Defer.** All-or-nothing delivery makes bundle/dependency cost part of every install. |
 | SQL message search and revision/database explorers | PostgreSQL full-text indexes, DB explorer components | Depends on the alternative relational backend | **Exclude from the current SQLite patch line.** |
@@ -186,13 +187,12 @@ chat render adapters. Haejeok does not replace the admitted parser/Kei packs.
 | H2 | Node token/lore/vector compute | Measure browser/server time and memory first; preserve custom/local providers, BG snapshots, K11 results, authentication, caps, and browser fallback. |
 | H3 | Low-spec rendering/cache policy | Integrate into lazy/K14 owners with active-stream, partial-edit, translation, hydration, and iPhone navigation tests. |
 | H4 | Korean fuzzy character search | Prove it adds results beyond native normalized search without changing canonical order/folders. |
-| H5 | Chat width and text-area resize | Add to Personal settings with schema/version preservation, mobile bounds, and K14/K15 composition. |
+| H5 | Chat width and text-area resize | The distinct 600px width is admitted through the native width owner. Text-area resize remains HJ02 and must preserve mobile bounds and K15 composition. |
 
-HJ04 and H4/HJ03 Korean search are now admitted, and H5/HJ01 chat width remains
-selected for the same detailed integration cycle. The remaining queue stays dormant
-until its trigger is measured or it is explicitly selected for a later
-complete patch release. See `HAEJEOK-INTEGRATION-PLAN.md` for owner boundaries,
-sequence, and gates.
+HJ04, H4/HJ03 Korean search, and the distinct H5/HJ01 Small width are now
+admitted. The remaining queue stays dormant until its trigger is measured or
+it is explicitly selected for a later complete patch release. See
+`HAEJEOK-INTEGRATION-PLAN.md` for owner boundaries, sequence, and gates.
 
 ## Limits
 
@@ -202,6 +202,7 @@ sequence, and gates.
   require a delta audit from `e9d03568`.
 - Direct-path counts are complete for the frozen revisions, but semantic
   behavior is claimed only where callers/tests were read as described above.
-- Only the focused HJ04 persistence-ordering and HJ03 Korean-search
-  adaptations documented in `THIRD_PARTY_NOTICES.md` are redistributed at
-  this checkpoint; no other Haejeok subsystem or asset is included.
+- Only the focused HJ04 persistence-ordering, HJ03 Korean-search, and HJ01
+  Small-width adaptations documented in `THIRD_PARTY_NOTICES.md` are
+  redistributed at this checkpoint; no other Haejeok subsystem or asset is
+  included.

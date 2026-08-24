@@ -209,6 +209,21 @@ HJ03 adds the following exact runtime dependency:
 - Integrity:
   `sha512-9ouVct+rsUw7d5+JeyEV+Lf4PAytSK4cWnLGHM4FJDyG9BS5d3iSPnEmH/rVgmSyxyps5cWZ+NeDAlJyq8eKaw==`
 
+The HJ01 Small chat-width adapter uses the focused 600px outcome from:
+
+- `0243d0781fdbcca0768fa8ef2c0df6d365d8d27f`;
+- Haejeok paths `src/lib/ChatScreens/Chat.svelte`,
+  `src/ts/setting/displaySettingsData.svelte.ts`,
+  `src/ts/storage/database.svelte.ts`, `src/lang/en.ts`, and `src/lang/ko.ts`.
+
+The local implementation is contained in
+`patches/haejeok-chat-width-adapter/`. PocketRisu 1.10 already provides
+`Standard`, `Wide`, and `Full` values and synchronizes message cards, creator
+notes, composers, and theme presets. The adapter adds only `Small (600px)` to
+that owner. It does not copy Haejeok's `chatLimitSize` database field, does not
+change the native default or existing widths, and does not apply a second
+Personal appearance width.
+
 The remaining SQL/domain storage, object storage, low-spec rendering, Node
 compute, ZIP64 streaming, and other layout ideas are classified in
 `docs/HAEJEOK-RISUAI-OVERLAP-AUDIT.md`; future code adaptations must add their

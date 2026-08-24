@@ -38,7 +38,7 @@ Every HJ admission must therefore satisfy all of these rules:
 | --- | --- | --- | --- |
 | HJ04 | Persist a new user turn before generation; persist script-mutated messages; persist plugin updates before runtime reload | Hidden `haejeok-persistence-safety-adapter`, composed only with `lazy-chat-sync` and `bg-preserve` | Implemented on the integration branch; qualification details below |
 | HJ03 | Korean-aware character matching: ordinary substring plus choseong, partial Hangul, Korean/English keyboard, and romanized input | Hidden `haejeok-korean-search-adapter` attached to `character-organizer` and the canonical PocketRisu catalog | Implemented on the integration branch; qualification details below |
-| HJ01 | Personal chat maximum-width setting without changing the default layout | `personal-settings` appearance schema/runtime/CSS | Follows HJ03 |
+| HJ01 | Preserve native chat-width authority and add the missing Haejeok Small 600px outcome | Hidden `haejeok-chat-width-adapter` attached to `personal-settings` and PocketRisu's native Standard-width setting | Implemented on the integration branch; qualification details below |
 | HJ02 | User-resizable text areas with mobile-safe bounds | Personal appearance/accessibility owner plus K15 composition review | Deferred until HJ01 establishes the layout token boundary |
 | HJ05 | Bounded low-spec rendering, paging, and cache policy | `lazy-chat-sync` plus K14 chat-render adapter | Deferred pending DOM/memory measurements and active-stream tests |
 | HJ06 | ZIP64/streaming output beyond the current 4-GiB archive boundary | CharX/backup archive owner selected per reproduced failing format | High-value deferred item; requires CRC round-trip and bounded-resource tests |
@@ -141,16 +141,40 @@ Observed gates for commit `b5b9803`:
 
 ### HJ01 — chat maximum width
 
-HJ01 will extend the existing Personal appearance schema rather than add a raw
-Haejeok database field. The default value preserves PocketRisu's current layout
-byte-for-behavior. Named bounded values and a fluid value will be rendered by
-the existing Personal runtime through one CSS token.
+Source basis: Haejeok commit
+`0243d0781fdbcca0768fa8ef2c0df6d365d8d27f`, principally
+`Chat.svelte`, `setting/displaySettingsData.svelte.ts`, database normalization,
+and English/Korean labels.
 
-Qualification must cover desktop and mobile widths, long unbroken content,
-K14 streaming updates, K15 partial editing, translated message fragments,
-fullscreen composition, Safe Mode, import/export normalization, and old
-Personal payloads with no width key. The setting must not change the composer,
-sidebar, image viewer, or chat storage width.
+The original plan to add a Personal appearance width leaf was rejected after
+reading the composed 1.10 target. PocketRisu already has
+`nodeOnlyStandardChatWidth` with `Standard` (48rem), `Wide` (72rem), and
+`Full`, and it applies one authority to the message card, creator note, and
+composer. A second Personal value would let two settings compete for the same
+layout.
+
+Commit `459f784` therefore adds only Haejeok's distinct Small 600px outcome to
+that existing setting. A pure helper normalizes `small | standard | wide |
+full`, unknown and old values still normalize to `standard`, theme presets use
+the same type, and no `chatLimitSize` field is introduced. The setting remains
+PocketRisu Standard-only just like the native owner. English, Korean, and
+Traditional Chinese labels are supplied.
+
+Observed gates for commit `459f784`:
+
+- width helper tests: 10/10 passed, covering all four values, unknown-value
+  fallback, and exact native/custom class mapping;
+- patcher tests: 44/44 passed;
+- composed target `svelte-check`: 0 errors and 0 warnings;
+- production client build: 7,922 modules transformed and completed with the
+  same inherited warning classes;
+- server orchestration bundle: 8,559 KB, load check observed
+  `sendChat=function`;
+- complete graph: 13 requested roots, 12 effective roots, 38 resolved
+  packs/adapters, 769 exact-target units, and 280 managed source paths; and
+- repeated apply changed zero files, generated test-only bundle artifacts were
+  removed from the disposable target, complete revert left a clean Git tree,
+  and complete reapply succeeded.
 
 ## Later-cycle gates
 
