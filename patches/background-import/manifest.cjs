@@ -202,6 +202,7 @@ module.exports = {
             after: [
                 'client-build-fence:server-session-advertise:1.9',
                 'server-backup-snapshot-lazy-adapter:startup-pin-sweep:1.10',
+                'persona-organizer:server-gallery-assets-1.10',
             ],
             targetVersions: target110,
         },
