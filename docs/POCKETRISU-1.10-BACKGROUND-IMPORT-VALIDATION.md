@@ -165,6 +165,18 @@ A disposable empty-save server on a separate port observed:
 This is synthetic mechanism evidence. The reported exact-original problematic
 CharX was unavailable and is not claimed as verified.
 
+### 5.4 Deterministic installers
+
+Two consecutive `0.2.0-experimental.18` builds produced identical executable
+modes, byte sizes, and SHA-256 values. All four passed `node --check`.
+
+| Artifact | Bytes | SHA-256 |
+| --- | ---: | --- |
+| `pocketrisu-patcher.cjs` | 7,592,421 | `b5993930fcd3e1de28e5d248f848eeda6e1f60344a5fcb94c744f748ac9693e0` |
+| `pocketrisu-features.cjs` | 7,592,427 | `a30345d036abc3c9bd1cf8586e4ad468f2a0ef39a4164a7e1a223566cf595616` |
+| `pocketrisu-hardening.cjs` | 7,592,428 | `1d28f81638f1a4d276f656035876956e4e23fc0b9600f444f73be04e0f9dcbc6` |
+| `pocketrisu-all.cjs` | 7,592,422 | `32c0e99e5521759393289a47ed86bf1be7428780e6d516341cf98f18ba30e245` |
+
 ## 6. Admission and remaining L3
 
 The pack remains:
