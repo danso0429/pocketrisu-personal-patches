@@ -39,6 +39,7 @@ test('catalog exposes the expected user packs and keeps integration packs intern
             'server-backup-snapshot-standard-adapter',
             'server-backup-snapshot-lazy-adapter',
             'lazy-chat-bg-adapter',
+            'haejeok-persistence-safety-adapter',
             'kei-stream-parser-core',
             'kei-stream-parser-base-adapter',
             'kei-stream-parser-bg-adapter',

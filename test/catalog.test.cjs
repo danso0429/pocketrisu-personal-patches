@@ -38,6 +38,7 @@ test('one delivery profile contains every admitted root pack', () => {
         'startup-cache',
         'lazy-chat-sync',
         'lazy-chat-bg-adapter',
+        'haejeok-persistence-safety-adapter',
         'persona-organizer',
         'character-organizer',
         'character-import-ux',
