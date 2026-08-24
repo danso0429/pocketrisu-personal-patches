@@ -1,7 +1,7 @@
 # PocketRisu 1.10 durable background import implementation plan
 
-> **Status:** implemented experimental candidate — automatic qualification
-> passed; live apply and device L3 recorded separately
+> **Status:** implemented and safely applied as an experimental live candidate;
+> automatic/live gates passed and device L3 remains pending
 >
 > **Recorded:** 2026-08-23 KST
 >

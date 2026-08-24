@@ -41,6 +41,12 @@
   background/reselection/clean-dirty/multi-PWA scenarios explicitly pending.
   Per user instruction, do not run or claim exhaustive raw-selection
   combination verification; do not publish a stable tag or release.
+- Safely apply the pinned 13-pack custom selection over the existing live
+  rolling-all installation after maintainer staging, active-work preflight,
+  application-only rollback, process-first stop, production prune, and
+  stopped-tree current/re-plan checks. Preserve both database inodes, all
+  backups, one pre-existing completed BG result awaiting ACK, served/local
+  asset and build-stamp identity, and a zero-byte PM2 error-log delta.
 
 ## 0.2.0-experimental.17
 

@@ -313,6 +313,13 @@ and the admitted character/module entry points remain the concrete L3 gate;
 the pack therefore stays `reviewing`, `allDefault: false`, and outside a stable
 tag or release.
 
+The `.18` custom maximum graph is now live after a maintainer-staged,
+process-first cutover. It preserves the previous 35-pack all graph, adds only
+the review-only background-import capability and its owned paths, retains one
+pre-existing completed BG result awaiting client ACK, and keeps both database
+inodes, three backup files, served/local build identity, and a zero-byte PM2
+error-log delta. Device L3 remains pending.
+
 The `v0.2.0-experimental.11` checkpoint keeps that storage and activation
 contract while extending the chat-font enum with Noto Sans KR and Noto Serif
 KR. Both Noto choices cover the Korean, Japanese, Chinese, Latin, and extended

@@ -1,7 +1,7 @@
 # PocketRisu 1.10 background import validation
 
-> **Status:** automatic qualification passed; safe live apply and device L3
-> are separate gates
+> **Status:** automatic qualification and safe live apply passed; device L3
+> remains a separate gate
 >
 > **Recorded:** 2026-08-24 KST
 >
@@ -216,6 +216,102 @@ Stable tag/release and `allDefault` admission remain behind those observations.
 
 ## 7. Live receipt
 
-Pending. Fill this section only after read-only active-work checks, a
-process-first stopped-tree transition, target gates, restart identity/readback,
-database integrity checks, and error-log delta verification.
+The live tree was already the `v0.2.0-experimental.17` exact-1.10 rolling
+`all` installation: 35 packs / 716 units / 267 managed paths with format-2
+`preset: all` intent. Because `background-import` intentionally remains
+`allDefault: false`, the new live intent is a pinned custom selection that
+contains the same 12 visible all packs plus `background-import`; no prior
+feature pack was removed.
+
+### 7.1 Maintainer staging
+
+A fresh candidate and a separate pristine review root ran the committed
+`0.2.0-experimental.18-maintainer` stage flow. The first attempt against the
+live rolling-all root refused before candidate writes because the `all`
+profile cannot own a review-only non-default pack. The separate pristine
+review-root run then completed with status
+`maintainer-automated-review-passed`:
+
+- 13 requested / 36 resolved packs;
+- frozen install and exact package-manager check;
+- parser bundle build before target tests;
+- full target tests, Svelte diagnostics, production build, and BG bundle;
+- receipt `review-passed`, source status current, 791-unit re-plan 0;
+- state and intent mode 0600.
+
+The candidate was production-pruned after staging. Server syntax and parser
+bundle load checks still passed. The stage receipt remains private operational
+metadata under live `save/pocketrisu-patches/`.
+
+### 7.2 Preflight and rollback
+
+Immediately before source mutation:
+
+- PM2 1.10.0 was online with unstable restarts 0 and active requests 0;
+- native active model jobs and pending sends were 0 / 0;
+- both SQLite databases returned `quick_check=ok`;
+- BG had no running generation, but one approximately 15-hour-old completed
+  `result-ready` operation and one result payload were awaiting client ACK;
+- 220 BG states were delivered and two were cancelled;
+- main/model database inode+size were `786453` / 2,710,347,776 and `872636` /
+  94,208 bytes;
+- three server backups totalled 3,002,439,949 bytes;
+- nested `save/save` was absent.
+
+The parked result was not cancelled or deleted. The candidate retains the same
+BG owner/version and received the live `save/` by same-filesystem rename, so
+that completed result remained durable across restart.
+
+The application-only rollback
+`risuai-nodeonly-v1100-all-pre-background.20260824-123228` contains 1,607 files
+/ 326,362,742 bytes. It excludes `save/`, `backups/`, and `node_modules/`, and
+includes separate mode-0600 copies of the prior state and intent. Representative
+`server.cjs` and `package.json` hashes matched live before cutover. The renamed
+old application tree remains recoverable at
+`risuai-nodeonly-cutover-old.20260824-123455`; it contains no live `save/` or
+`backups/` after those directories moved into the candidate.
+
+### 7.3 Process-first cutover
+
+PM2 was stopped before filesystem mutation. The candidate's test-created dummy
+`save/` was quarantined instead of merged. Live `save/` and `backups/` moved by
+rename into the production-pruned candidate, after which the staged state,
+custom intent, and staging receipt were installed at mode 0600. The old live
+application directory was renamed before the candidate took the stable live
+root path.
+
+While stopped, the live target reported:
+
+- 36 packs / 791 units / 303 managed paths current;
+- zero-change re-plan;
+- parser exports present and server syntax valid;
+- no transition journal or nested save;
+- unchanged DB/backup inode+size and `quick_check=ok`;
+- native active/pending 0 / 0 and the exact parked BG result/payload preserved.
+
+### 7.4 Restart readback
+
+After PM2 restart:
+
+- PocketRisu 1.10.0 was online with unstable restarts 0 and active requests 0;
+- root returned HTTP 200;
+- served/local `index-DLuYBwAb.js` matched at 2,018,972 bytes and SHA-256
+  `99c9c0b9b6be1e3abe8b9c9b389374b1450ba089bda7457ea118a6a1562149a4`;
+- served/local build stamps matched at
+  `1.10.0-30a9514d4a83094dfe0be7579ee043683ffb31845fb01dc53a75c148a1ed2b78`;
+- unauthenticated import diagnostics were rejected with 400 and the exact BG
+  cache-status route was rejected with 401;
+- main/model DB inode+size, three backup files/bytes, both `quick_check=ok`,
+  native 0/0, and the parked BG result/payload remained unchanged;
+- the PM2 error log stayed at its exact pre-cutover byte size, for a 0-byte
+  error delta.
+
+No destructive orphan purge, user-data deletion, generation cancellation,
+force push, or stable tag/release occurred.
+
+## 8. Current handoff
+
+The experimental pack is installed and available for device L3. It remains a
+pinned custom-selection addition and is not admitted to rolling `all`. Run the
+eight concrete scenarios in §6 before changing `reviewing`, `allDefault`, or
+stable release state.
