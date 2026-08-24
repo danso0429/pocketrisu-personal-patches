@@ -372,7 +372,10 @@ PM2 is online with unstable restarts and active requests at zero; all database,
 backup, parked BG state, and inert partial-import identities remain unchanged,
 all SQLite checks remain `ok`, and the error-log delta is zero bytes. No user
 operation or data was cancelled or deleted. HJ04/HJ03/HJ01 physical UI L3
-still gates a stable tag or release.
+passed after the user reported all six presented iPhone scenarios normal. The
+character Search field was pre-existing PocketRisu UI; HJ03 changes only its
+matching predicate. The checkpoint remains experimental and receives no stable
+tag or GitHub Release because broader exact-1.10 promotion is still separate.
 
 The `v0.2.0-experimental.20` delivery remains all-or-nothing but retires the
 background-import experiment. Before rollback, the same job was still healthy

@@ -51,6 +51,11 @@
   work, a 404 retired import route, and a zero-byte PM2 error-log delta. Do not
   cancel or delete any user operation or data. Keep physical feature L3 and a
   stable tag/release pending.
+- Pass HJ04/HJ03/HJ01 physical feature L3 after the user reports all six
+  presented iPhone scenarios normal. Clarify that PocketRisu 1.10 already had
+  the character Search field and HJ03 changes only its match predicate. Keep
+  `0.2.0-experimental.21` without a stable tag or GitHub Release while the
+  broader exact-1.10 catalog remains review-only.
 
 ## 0.2.0-experimental.20
 

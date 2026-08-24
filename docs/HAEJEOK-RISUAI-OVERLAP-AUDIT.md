@@ -6,6 +6,9 @@
 > Korean search, and HJ01 Small chat width are adapted through internal patcher
 > payloads; other rows retain the disposition stated below until their own
 > admission commit.
+>
+> The three admitted HJ features passed their six-scenario live iPhone L3 on
+> 2026-08-24 KST.
 
 ## Executive conclusion
 

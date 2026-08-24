@@ -247,3 +247,22 @@ unchanged. SQLite remained `ok`, native/BG active work remained zero, the
 retired diagnostics route remained 404, no nested save or transaction journal
 appeared, and the 38-pack state remained `current`. Physical feature L3 is the
 remaining release gate.
+
+### Physical feature L3 — passed 2026-08-24 KST
+
+The user tested the six presented iPhone scenarios on the live candidate and
+reported all six normal. This covers current-bundle entry, the existing
+character-search surface with the new HJ03 matching behavior, Small-width
+selection/persistence without mobile overflow, HJ04 send/stop/reopen message
+persistence, and the available script/plugin persistence paths.
+
+The search input itself is native PocketRisu 1.10 UI. HJ03 did not add that
+field; it replaced the existing GridCatalog/MobileCharacters match predicate.
+The earlier L3 wording that sounded like a newly added search screen was
+incorrect and was clarified against the user's actual desktop-style iPhone
+sidebar: list menu → grid icon → pre-existing Search field.
+
+HJ04, HJ03, and HJ01 now pass their physical feature L3. The candidate remains
+`0.2.0-experimental.21`; no stable tag or GitHub Release is created because
+the broader exact-1.10 catalog is still marked `reviewing` and stable promotion
+is a separate aggregate decision.
