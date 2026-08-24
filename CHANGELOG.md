@@ -17,6 +17,10 @@
   chunk response, completion response, list, and result claim. Pass 10/10
   focused client tests, Svelte diagnostics, 42/42 patcher tests, all focused
   and maximum exact round trips, and the 7,922-module maximum build.
+- Apply the follow-up process-first without cancelling the reported import.
+  Preserve its exact 5,242,880 / 31,705,288 receiving offset, all SQLite and
+  DB/backup identities, and a zero-byte PM2 error-log delta; verify the new
+  served/local asset and build stamp after restart.
 
 ## 0.2.0-experimental.18
 

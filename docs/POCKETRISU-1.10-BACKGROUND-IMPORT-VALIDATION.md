@@ -367,3 +367,48 @@ mode 0700, and syntax-valid:
 | `pocketrisu-features.cjs` | 7,600,795 | `f56dd2c8772c74c09062a6208c28b28689aa85a1d8a430cb429570f0b543b2a5` |
 | `pocketrisu-hardening.cjs` | 7,600,796 | `885986c5dcac40a4a6064374f732e15c7271b0c03d9e3f4e1c8607837d80f5e1` |
 | `pocketrisu-all.cjs` | 7,600,790 | `5c3bf6b92817984624e93413bfbf51bc298534d58b799f71e68d07569d4de6dd` |
+
+### 9.1 Live follow-up receipt
+
+Before the follow-up, PM2 was online with unstable restarts 0 and active
+requests 0. Native active/pending counts were 0/0, the previous parked BG
+result had become delivered (221 delivered / two cancelled / payload 0), and
+main/model/import SQLite returned `quick_check=ok`. The exact user-observed
+CharX job remained `receiving` at 5,242,880 / 31,705,288 bytes with no typed
+error.
+
+The application-only rollback
+`risuai-nodeonly-v1100-bg-pre-webkit.20260824-131331` contains 1,644 files /
+327,557,815 bytes, excludes `save/`, `backups/`, and `node_modules/`, and keeps
+mode-0600 copies of the `.18` state and intent. PM2 was stopped before source
+or `dist` writes.
+
+The committed patcher planned and transactionally wrote exactly:
+
+- `backgroundImportClient.ts` and its test;
+- `backgroundImportRuntime.ts` and its test;
+- private patch state.
+
+The old `dist` was moved to the recoverable temporary path
+`pocketrisu-live-dist-pre-webkit.20260824-131331`, and the already-qualified
+maximum candidate build was copied into place. While stopped, the live graph
+was current at 36 packs / 791 units / 303 paths with re-plan 0. The receiving
+offset, all three SQLite checks, DB inode/size, intent, and zero transition
+journal were unchanged.
+
+After restart:
+
+- PM2 1.10.0 was online, unstable restarts 0, active requests 0;
+- root returned 200 and the exact BG cache route rejected unauthenticated
+  access with 401;
+- served/local `index-DRuttK_e.js` matched at 2,018,975 bytes and SHA-256
+  `116377eca9fd54bb95206b7cd85dd02e491e131c09821e792c703823b52a16a9`;
+- served/local build stamps matched at
+  `1.10.0-c63f35831f7bb4088136b758c35e24df0db3ade3a1f9cc2df06f65a691ba541e`;
+- PM2 error-log size did not change;
+- the CharX job still reported `receiving`, offset 5,242,880, and no typed
+  error.
+
+No import job, source bytes, user data, BG result, or generation was cancelled
+or deleted. The user can select the same CharX file to resume this exact
+operation under the new transport recovery logic.

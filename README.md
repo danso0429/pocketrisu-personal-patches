@@ -331,6 +331,12 @@ authorization, claim, reconciliation, and ACK now recover those WebKit
 transport shapes through the same durable operation. Protocol/validation
 errors remain terminal and unchanged.
 
+The `.19` follow-up is live. Its process-first transition changed only four
+client payloads, private patch state, and the qualified frontend build. The
+existing 31,705,288-byte CharX job retained its exact 5,242,880-byte durable
+offset and null typed error across stop/restart; served/local identity matched
+and PM2 added no error-log bytes.
+
 The `v0.2.0-experimental.11` checkpoint keeps that storage and activation
 contract while extending the chat-font enum with Noto Sans KR and Noto Serif
 KR. Both Noto choices cover the Korean, Japanese, Chinese, Latin, and extended
