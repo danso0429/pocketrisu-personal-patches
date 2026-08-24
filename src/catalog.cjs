@@ -49,6 +49,7 @@ function loadCatalog(repositoryRoot = path.resolve(__dirname, '..')) {
         require(path.join(repositoryRoot, 'patches/haejeok-korean-search-adapter/manifest.cjs')),
         require(path.join(repositoryRoot, 'patches/character-import-ux/manifest.cjs')),
         require(path.join(repositoryRoot, 'patches/personal-settings/manifest.cjs')),
+        require(path.join(repositoryRoot, 'patches/haejeok-chat-width-adapter/manifest.cjs')),
         require(path.join(repositoryRoot, 'patches/preset-integrity/manifest.cjs')),
         require(path.join(repositoryRoot, 'patches/parser-hardening/manifest.cjs')),
         require(path.join(repositoryRoot, 'patches/toolchain-hardening/manifest.cjs')),

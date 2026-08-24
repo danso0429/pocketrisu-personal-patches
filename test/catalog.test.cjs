@@ -44,6 +44,7 @@ test('one delivery profile contains every admitted root pack', () => {
         'haejeok-korean-search-adapter',
         'character-import-ux',
         'personal-settings',
+        'haejeok-chat-width-adapter',
         'preset-integrity',
         'parser-hardening',
         'toolchain-hardening',

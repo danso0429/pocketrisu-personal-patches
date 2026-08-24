@@ -41,6 +41,7 @@ test('catalog exposes the expected user packs and keeps integration packs intern
             'lazy-chat-bg-adapter',
             'haejeok-persistence-safety-adapter',
             'haejeok-korean-search-adapter',
+            'haejeok-chat-width-adapter',
             'kei-stream-parser-core',
             'kei-stream-parser-base-adapter',
             'kei-stream-parser-bg-adapter',
