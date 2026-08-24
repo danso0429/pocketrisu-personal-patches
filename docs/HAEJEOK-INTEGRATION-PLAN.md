@@ -188,7 +188,15 @@ server-authoritative and fail-closed throughout every later cycle.
 Feature commits and receipts remain separate enough to isolate regressions,
 but the generated delivery has only the complete installer. Before live apply:
 
-1. regenerate both platform installers from the same complete graph and compare
+- current candidate: `0.2.0-experimental.21`;
+- generated artifacts: `pocketrisu-patcher.cjs` and byte-identical `all` alias;
+- each artifact: 7,277,675 bytes, mode 0700, CJS syntax-valid;
+- SHA-256:
+  `22a9a8af4a132de2f29755ad74cf77a203a4602f6304a0c0dcb041a0c4a4e34a`;
+- embedded plan: all 38 resolved packs and zero changed files on the composed
+  exact-1.10 qualification target.
+
+1. regenerate both generated artifacts from the same complete graph and compare
    their embedded graph/hash metadata;
 2. run source attribution and sensitive-information sweeps;
 3. read active generation/import/restore state without changing it;

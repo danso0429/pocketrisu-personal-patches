@@ -2,7 +2,7 @@
 
 Private, all-or-nothing patch delivery for PocketRisu NodeOnly. The current
 stable release is `v0.1.7`, and its manifests target PocketRisu `v1.8.1`.
-The current development checkpoint is `v0.2.0-experimental.20`.
+The current development checkpoint is `v0.2.0-experimental.21`.
 
 ## Complete installer
 
@@ -10,7 +10,8 @@ The current development checkpoint is `v0.2.0-experimental.20`.
 full. `plan`, `apply`, and `stage` always resolve bg-preserve, lazy storage,
 organizers, import UX, Personal settings, parser/toolchain hardening, CharX
 integrity, the admitted Kei capabilities, and all matching integration
-adapters. `configure`, `--packs`, `--preset`, and the
+adapters. The complete graph also includes the admitted Haejeok persistence,
+Korean-search, and Small-width adapters. `configure`, `--packs`, `--preset`, and the
 features/hardening installers are retired. `--all` and
 `pocketrisu-all.cjs` remain compatibility aliases for one transition.
 
@@ -32,6 +33,7 @@ See the [delivery design](docs/PATCHER-V2-DESIGN.md),
 
 | Release | What changed |
 | --- | --- |
+| `v0.2.0-experimental.21` | Adapts Haejeok's persistence ordering, Korean-aware character search, and distinct Small 600px chat width into PocketRisu 1.10's existing lazy/BG, catalog, and native width owners without restoring patch combinations or importing Haejeok's alternative SQL/ordering models. |
 | `v0.2.0-experimental.20` | Makes delivery all-or-nothing, retires background import after the device UX finding, removes public combinations/raw-mask verification, restores foreground import payloads, and records the source-provenance audits. |
 | `v0.2.0-experimental.19` | Keeps one durable import operation alive across iOS/WebKit `AbortError`, `NetworkError`, and `Load failed` suspend/resume failures instead of showing a false terminal import error. |
 | `v0.2.0-experimental.18` | Adds review-only resumable character/module upload, server-owned preparation and append-only commit, canonical client reconciliation, restart recovery, bounded retention, and truthful post-handoff background status for exact PocketRisu 1.10. |
@@ -326,6 +328,38 @@ client payloads, private patch state, and the qualified frontend build. The
 existing 31,705,288-byte CharX job retained its exact 5,242,880-byte durable
 offset and null typed error across stop/restart; served/local identity matched
 and PM2 added no error-log bytes.
+
+The `v0.2.0-experimental.21` candidate keeps all-or-nothing delivery and admits
+three focused Haejeok outcomes as hidden patcher adapters. HJ04 persists newly
+appended user turns before generation, commits script-mutated message payloads
+through the existing lazy-chat strict-save owner, and waits for plugin storage
+before runtime reload. The startup selection and immediate script-cache
+refresh changes were not copied because the composed target already has
+equivalent synchronous ordering.
+
+HJ03 adds one shared Korean matcher to PocketRisu 1.10's actual grid and mobile
+catalogs without changing either list's order. It covers choseong, mixed and
+in-progress Hangul, both keyboard-layout mistake directions, romanized English
+names, creators, and tags. `es-hangul` 2.4.0 is exact and integrity-pinned under
+its MIT license. HJ01 does not add Haejeok's competing `chatLimitSize` field:
+PocketRisu already owns Standard/Wide/Full widths across message cards, creator
+notes, composers, and theme presets, so the adapter adds only the missing
+Small 600px value and leaves Standard as the default.
+
+The complete exact-1.10 graph resolves 38 packs / 769 units / 280 managed
+paths. Patcher tests pass 44/44 files. The composed target passes 139 frontend
+files / 1,635 tests, 13 server files / 177 tests, and 74 compatibility tests
+with five environment-dependent skips. Svelte diagnostics are 0/0, the help
+audit has no missing English/Korean keys, one Lightning CSS 1.33.0 resolves,
+the production client transforms 7,922 modules, and the 8,559-KB BG bundle
+loads `sendChat`. A zero-change re-plan and exact clean-tree revert/reapply
+also pass. Two consecutive installer builds produce only the primary artifact
+and its byte-identical `all` compatibility alias. Each is 7,277,675 bytes,
+mode 0700, CJS syntax-valid, and SHA-256
+`22a9a8af4a132de2f29755ad74cf77a203a4602f6304a0c0dcb041a0c4a4e34a`.
+The generated artifact reports all 38 resolved packs and a zero-change plan on
+the composed target. Stable tag/release and feature-level device L3 remain
+gated.
 
 The `v0.2.0-experimental.20` delivery remains all-or-nothing but retires the
 background-import experiment. Before rollback, the same job was still healthy
@@ -1082,8 +1116,9 @@ that contains no checker cannot learn about later versions retroactively.
 
 ## Attribution
 
-PocketRisu, PocketRisu PR #49, PocketRisu Kei, and the reviewed GPL forks keep
-their original attribution boundaries. Haejeok is currently a research
-reference, not redistributed source. See the
+PocketRisu, PocketRisu PR #49, PocketRisu Kei, Haejeok RisuAI, and the reviewed
+GPL forks keep their original attribution boundaries. Focused Haejeok code and
+behavior are adapted only where the exact paths and local owner differences are
+listed in the notices. See the
 [source provenance ledger](docs/SOURCE-PROVENANCE.md),
 [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md), and [LICENSE](LICENSE).

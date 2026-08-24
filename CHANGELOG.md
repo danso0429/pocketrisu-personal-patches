@@ -2,6 +2,45 @@
 
 ## Unreleased
 
+## 0.2.0-experimental.21
+
+- Add hidden HJ04 persistence safety only when lazy-chat and bg-preserve are
+  present. Strictly save newly appended user turns before generation, merge
+  script-mutated `message[]` into the live lazy-chat owner before its strict
+  transaction, skip browser persistence in the server orchestration bundle,
+  and persist only the plugin tracker before awaiting runtime reload.
+- Record native equivalence instead of copying Haejeok's startup selection
+  reset and asynchronous cache-revision changes. PocketRisu exposes no
+  interactive shell between its reset statements, and the composed
+  `ReloadGUIPointer` already invalidates script cache synchronously.
+- Add hidden HJ03 Korean character search to the native PocketRisu 1.10 grid
+  and mobile predicates without changing their canonical/recent order. Cover
+  choseong, mixed and final in-progress Hangul, compact matching, both keyboard
+  mistake directions, romanized English names, creators, and tags.
+- Pin `es-hangul` 2.4.0 and its SHA-512 lockfile integrity. Retain Haejeok's
+  GPL-3.0 attribution, the dependency's MIT notice, and exact adapted paths.
+- Treat HJ01's broad chat-width setting as mostly native overlap. Add only the
+  missing `Small (600px)` value to PocketRisu's existing Standard-only width
+  owner so message cards, creator notes, composers, and theme presets stay in
+  sync. Keep `Standard`, `Wide`, `Full`, unknown-value fallback, and the
+  default unchanged; add no `chatLimitSize` or second Personal width.
+- Expand the all-or-nothing graph from 35 packs / 716 units / 267 paths to 38
+  packs / 769 units / 280 paths. Pass repeated no-change planning, exact
+  clean-tree revert/reapply, 44/44 patcher test files, 139 frontend files /
+  1,635 tests, 13 server files / 177 tests, and 74 compatibility tests with
+  five environment-dependent skips.
+- Pass Svelte 0/0 diagnostics, no-missing-key English/Korean help audit, one
+  resolved Lightning CSS 1.33.0, a 7,922-module production client build, and
+  an 8,559-KB BG bundle load check. Keep stable tag/release and device L3
+  outside this checkpoint.
+- Generate only `pocketrisu-patcher.cjs` and its byte-identical `all` alias.
+  Two consecutive builds produce 7,277,675-byte mode-0700, CJS syntax-valid
+  artifacts with SHA-256
+  `22a9a8af4a132de2f29755ad74cf77a203a4602f6304a0c0dcb041a0c4a4e34a`.
+  The embedded artifact identifies version `0.2.0-experimental.21`, resolves
+  all 38 packs, and returns a zero-change plan on the composed exact-1.10
+  target.
+
 ## 0.2.0-experimental.20
 
 - Make distributed patch delivery all-or-nothing. `plan`, `apply`, and `stage`
