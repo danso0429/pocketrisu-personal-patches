@@ -41,6 +41,7 @@ test('one delivery profile contains every admitted root pack', () => {
         'haejeok-persistence-safety-adapter',
         'persona-organizer',
         'character-organizer',
+        'haejeok-korean-search-adapter',
         'character-import-ux',
         'personal-settings',
         'preset-integrity',
