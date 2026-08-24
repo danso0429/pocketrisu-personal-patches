@@ -32,11 +32,11 @@ jobs:
           node --check dist/pocketrisu-patcher.cjs
           node --check dist/pocketrisu-all.cjs
 
-      - name: Check out PocketRisu v1.8.1
+      - name: Check out PocketRisu v1.10.0
         uses: actions/checkout@v6
         with:
           repository: PocketRisu/PocketRisu
-          ref: v1.8.1
+          ref: v1.10.0
           path: .ci/pocketrisu
 
       - name: Install pnpm
@@ -47,7 +47,7 @@ jobs:
       - name: Apply complete patch set
         run: |
           node dist/pocketrisu-patcher.cjs plan --root .ci/pocketrisu --json
-          node dist/pocketrisu-patcher.cjs apply --root .ci/pocketrisu --json
+          npm run qualify -- apply --root .ci/pocketrisu --json
           node dist/pocketrisu-patcher.cjs status --root .ci/pocketrisu --json
 
       - name: Install patched PocketRisu dependencies
@@ -67,7 +67,7 @@ jobs:
 
       - name: Verify byte and mode round trip
         run: |
-          node dist/pocketrisu-patcher.cjs revert --root .ci/pocketrisu --json
+          npm run qualify -- revert --root .ci/pocketrisu --json
           rm -f .ci/pocketrisu/server/node/bgOrchBundle.css
           rm -f .ci/pocketrisu/server/node/bgOrchBundle.mjs
           git -C .ci/pocketrisu diff --exit-code

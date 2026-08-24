@@ -6,9 +6,9 @@ const packageJson = require('../package.json')
 const { runCli } = require('../src/cli.cjs')
 const { assertTargetReviewable } = require('../src/compatibility.cjs')
 
-if ((process.argv[2] ?? '') !== 'stage') {
+if (!['stage', 'apply', 'revert'].includes(process.argv[2] ?? '')) {
     console.error(
-        'Usage: npm run qualify -- stage --root CURRENT --candidate FRESH',
+        'Usage: npm run qualify -- <stage|apply|revert> --root CURRENT [--candidate FRESH]',
     )
     process.exitCode = 1
 } else {
