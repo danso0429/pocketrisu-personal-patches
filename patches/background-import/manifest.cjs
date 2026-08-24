@@ -153,8 +153,6 @@ module.exports = {
         },
     },
     userSelectable: true,
-    allDefault: false,
-    presetDefaults: [],
     requires: [
         'character-import-ux',
         'charx-archive-integrity',

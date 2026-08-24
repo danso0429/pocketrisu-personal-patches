@@ -43,7 +43,6 @@ module.exports = {
         },
     },
     userSelectable: true,
-    presetDefaults: ['hardening'],
     units: [
         {
             id: 'client-build-fence:client-build-helper:1.9',

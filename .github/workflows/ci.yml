@@ -30,8 +30,6 @@ jobs:
           npm run build
           git diff --exit-code -- dist
           node --check dist/pocketrisu-patcher.cjs
-          node --check dist/pocketrisu-features.cjs
-          node --check dist/pocketrisu-hardening.cjs
           node --check dist/pocketrisu-all.cjs
 
       - name: Check out PocketRisu v1.8.1
@@ -46,14 +44,11 @@ jobs:
         with:
           version: 10.34.1
 
-      - name: Verify every user-selectable pack combination
-        run: npm run verify:combinations -- --root .ci/pocketrisu --json
-
-      - name: Apply unified patch profile
+      - name: Apply complete patch set
         run: |
-          node dist/pocketrisu-all.cjs plan --root .ci/pocketrisu --json
-          node dist/pocketrisu-all.cjs apply --root .ci/pocketrisu --json
-          node dist/pocketrisu-all.cjs status --root .ci/pocketrisu --json
+          node dist/pocketrisu-patcher.cjs plan --root .ci/pocketrisu --json
+          node dist/pocketrisu-patcher.cjs apply --root .ci/pocketrisu --json
+          node dist/pocketrisu-patcher.cjs status --root .ci/pocketrisu --json
 
       - name: Install patched PocketRisu dependencies
         working-directory: .ci/pocketrisu
@@ -72,7 +67,7 @@ jobs:
 
       - name: Verify byte and mode round trip
         run: |
-          node dist/pocketrisu-all.cjs revert --root .ci/pocketrisu --json
+          node dist/pocketrisu-patcher.cjs revert --root .ci/pocketrisu --json
           rm -f .ci/pocketrisu/server/node/bgOrchBundle.css
           rm -f .ci/pocketrisu/server/node/bgOrchBundle.mjs
           git -C .ci/pocketrisu diff --exit-code

@@ -16,7 +16,6 @@ module.exports = {
         },
     },
     userSelectable: true,
-    presetDefaults: ['features'],
     units: [
         ...coreUnits,
         ...importNavigationUnits,

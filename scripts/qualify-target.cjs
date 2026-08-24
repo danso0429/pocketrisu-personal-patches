@@ -8,7 +8,7 @@ const { assertTargetReviewable } = require('../src/compatibility.cjs')
 
 if ((process.argv[2] ?? '') !== 'stage') {
     console.error(
-        'Usage: npm run qualify -- stage --root CURRENT --candidate FRESH --packs a,b',
+        'Usage: npm run qualify -- stage --root CURRENT --candidate FRESH',
     )
     process.exitCode = 1
 } else {

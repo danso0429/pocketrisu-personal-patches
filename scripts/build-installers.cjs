@@ -65,10 +65,12 @@ function main() {
     const catalog = loadCatalog(repositoryRoot)
     const outputDirectory = path.join(repositoryRoot, 'dist')
     fs.mkdirSync(outputDirectory, { recursive: true })
-    for (const profile of [null, 'features', 'hardening', 'all']) {
-        const name = profile ?? 'patcher'
+    for (const retired of ['features', 'hardening']) {
+        fs.rmSync(path.join(outputDirectory, `pocketrisu-${retired}.cjs`), { force: true })
+    }
+    for (const name of ['patcher', 'all']) {
         const output = path.join(outputDirectory, `pocketrisu-${name}.cjs`)
-        fs.writeFileSync(output, build(profile, catalog), { mode: 0o755 })
+        fs.writeFileSync(output, build('all', catalog), { mode: 0o755 })
         console.log(`${name}: ${output} (${fs.statSync(output).size} bytes)`)
     }
 }

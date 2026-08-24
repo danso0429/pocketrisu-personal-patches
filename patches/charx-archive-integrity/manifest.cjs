@@ -28,7 +28,6 @@ module.exports = {
         },
     },
     userSelectable: true,
-    presetDefaults: ['hardening'],
     units: [
         {
             id: 'charx-archive-integrity:package-dependency:1.10',

@@ -20,7 +20,7 @@ test('target metadata keeps 1.8.1 verified and later exact targets review-only',
     assert.equal(Object.isFrozen(DEFAULT_TARGETS.pocketrisu.reviewing), true)
 })
 
-test('profiles share one catalog but have different ownership boundaries', () => {
+test('one delivery profile contains every admitted root pack', () => {
     const catalog = loadCatalog()
     assert.deepEqual(catalog.map((pack) => pack.id), [
         'bg-preserve',
@@ -73,28 +73,24 @@ test('profiles share one catalog but have different ownership boundaries', () =>
         'kei-backup-restore-safety-lazy-adapter',
         'pocketrisu-kei',
     ])
-    assert.throws(
-        () => validateProfileSelection(resolveProfile('features', catalog), ['bg-preserve']),
-        /cannot manage/,
-    )
     assert.deepEqual(
-        resolveProfile('features', catalog).defaults,
+        resolveProfile('all', catalog).defaults,
         [
+            'bg-preserve',
+            'client-build-fence',
+            'startup-cache',
             'lazy-chat-sync',
             'persona-organizer',
             'character-organizer',
             'character-import-ux',
             'personal-settings',
             'preset-integrity',
+            'parser-hardening',
+            'toolchain-hardening',
+            'charx-archive-integrity',
+            'background-import',
+            'pocketrisu-kei',
         ],
-    )
-    assert.deepEqual(
-        resolveProfile('hardening', catalog).defaults,
-        ['client-build-fence', 'parser-hardening', 'toolchain-hardening', 'charx-archive-integrity'],
-    )
-    assert.throws(
-        () => validateProfileSelection(resolveProfile('hardening', catalog), ['lazy-chat-sync']),
-        /cannot manage/,
     )
     assert.doesNotThrow(
         () => validateProfileSelection(resolveProfile('all', catalog), [
@@ -108,6 +104,8 @@ test('profiles share one catalog but have different ownership boundaries', () =>
         () => validateProfileSelection(resolveProfile('all', catalog), ['lazy-chat-bg-adapter']),
         /cannot manage/,
     )
+    assert.throws(() => resolveProfile('features', catalog), /Unknown profile/)
+    assert.throws(() => resolveProfile('hardening', catalog), /Unknown profile/)
     const bgPack = catalog.find((pack) => pack.id === 'bg-preserve')
     assert.equal(
         bgPack.units.some((unit) => unit.file === 'src/ts/bgPreserveInstaller.test.ts'),
@@ -115,7 +113,7 @@ test('profiles share one catalog but have different ownership boundaries', () =>
     )
 })
 
-test('all can adopt narrower states, while narrow profiles cannot remove other packs', () => {
+test('all adopts retired and known custom states but refuses unknown owners', () => {
     const catalog = loadCatalog()
     assert.doesNotThrow(
         () => validateProfileTransition(resolveProfile('all', catalog), { profile: 'features' }),
@@ -139,14 +137,6 @@ test('all can adopt narrower states, while narrow profiles cannot remove other p
         }, catalog),
         /cannot take ownership/,
     )
-    assert.throws(
-        () => validateProfileTransition(resolveProfile('features', catalog), { profile: 'all' }),
-        /cannot take ownership/,
-    )
-    assert.throws(
-        () => validateProfileTransition(resolveProfile('hardening', catalog), { profile: 'all' }),
-        /cannot take ownership/,
-    )
 })
 
 test('all derives every admitted visible pack from the active catalog', () => {
@@ -162,38 +152,23 @@ test('all derives every admitted visible pack from the active catalog', () => {
     ])
 })
 
-test('PocketRisu Kei joins rolling all without entering narrow presets', () => {
+test('PocketRisu Kei and background import are both admitted to the complete set', () => {
     const catalog = loadCatalog()
     assert.equal(resolveProfile('all', catalog).defaults.includes('pocketrisu-kei'), true)
-    assert.equal(resolveProfile('features', catalog).defaults.includes('pocketrisu-kei'), false)
-    assert.equal(resolveProfile('hardening', catalog).defaults.includes('pocketrisu-kei'), false)
-})
-
-test('background import is visible for custom review but not admitted to rolling all', () => {
-    const catalog = loadCatalog()
     const pack = catalog.find((entry) => entry.id === 'background-import')
     assert.ok(pack)
     assert.equal(pack.userSelectable, true)
-    assert.equal(pack.allDefault, false)
-    assert.deepEqual(pack.presetDefaults, [])
-    assert.equal(resolveProfile('all', catalog).defaults.includes(pack.id), false)
+    assert.equal(Object.hasOwn(pack, 'allDefault'), false)
+    assert.equal(resolveProfile('all', catalog).defaults.includes(pack.id), true)
 })
 
-test('narrow preset metadata is validated at the catalog boundary', () => {
+test('retired preset metadata and invalid admission metadata fail at the catalog boundary', () => {
     assert.throws(
         () => validateProfileMetadata([{
-            id: 'unknown-default',
-            presetDefaults: ['missing-profile'],
-        }]),
-        /unknown preset/,
-    )
-    assert.throws(
-        () => validateProfileMetadata([{
-            id: 'internal-default',
-            userSelectable: false,
+            id: 'retired-default',
             presetDefaults: ['features'],
         }]),
-        /internal and cannot be a preset default/,
+        /obsolete in all-or-nothing delivery/,
     )
     assert.throws(
         () => validateProfileMetadata([{

@@ -66,7 +66,7 @@ test('personal settings is an independent rolling feature pack', () => {
         },
     })
     assert.equal(manifest.userSelectable, true)
-    assert.deepEqual(manifest.presetDefaults, ['features'])
+    assert.equal(Object.hasOwn(manifest, 'presetDefaults'), false)
     assert.equal(manifest.requires, undefined)
 })
 

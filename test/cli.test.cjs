@@ -7,11 +7,9 @@ const os = require('node:os')
 const path = require('node:path')
 const {
     handleCliFailure,
-    inferRequestedPacks,
     parseArgs,
     resolveIntentPolicy,
     runCli,
-    selectActivePreset,
 } = require('../src/cli.cjs')
 const { assertTargetReviewable } = require('../src/compatibility.cjs')
 const {
@@ -73,41 +71,7 @@ function qualifiedCatalog(anchor = 'const upstream = 1\n') {
     }]
 }
 
-test('v1 intent inference preserves unknown packs and excludes only known internals', () => {
-    assert.deepEqual(
-        inferRequestedPacks({
-            packs: [
-                { id: 'visible' },
-                { id: 'known-adapter' },
-                { id: 'removed-pack' },
-            ],
-        }, [
-            { id: 'visible', userSelectable: true },
-            { id: 'known-adapter', userSelectable: false },
-        ]),
-        ['removed-pack', 'visible'],
-    )
-})
-
-test('a universal v1 migration preserves a known preset unless packs are explicit', () => {
-    const catalog = loadCatalog()
-    assert.equal(selectActivePreset({
-        explicitPreset: null,
-        intentPolicy: null,
-        previous: { profile: 'all' },
-        explicitPacks: false,
-        catalog,
-    }).id, 'all')
-    assert.equal(selectActivePreset({
-        explicitPreset: null,
-        intentPolicy: null,
-        previous: { profile: 'all' },
-        explicitPacks: true,
-        catalog,
-    }), null)
-})
-
-test('--all is an explicit universal all-preset alias and cannot mix with packs', () => {
+test('--all remains a compatibility alias while selection flags are rejected', () => {
     const parsed = parseArgs([
         'node',
         'patcher',
@@ -117,18 +81,15 @@ test('--all is an explicit universal all-preset alias and cannot mix with packs'
         '/tmp/pocketrisu',
     ])
     assert.equal(parsed.all, true)
-    assert.equal(parsed.preset, null)
-    assert.throws(
-        () => parseArgs([
+    for (const retired of ['--packs', '--preset', '--profile']) {
+        assert.throws(() => parseArgs([
             'node',
             'patcher',
             'apply',
-            '--all',
-            '--packs',
-            'bg-preserve',
-        ]),
-        /cannot be combined/,
-    )
+            retired,
+            'legacy-value',
+        ]), /complete admitted set/)
+    }
 })
 
 async function capture(run) {
@@ -143,14 +104,10 @@ async function capture(run) {
     return JSON.parse(lines.join('\n'))
 }
 
-test('fixed-profile list marks selectable, default, and required packs', async () => {
+test('list reports complete-set inclusion without selection affordances', async () => {
     const catalog = [
         { id: 'bg-preserve', version: '1', units: [] },
-        { id: 'lazy-chat-sync', version: '1', presetDefaults: ['features'], units: [] },
-        { id: 'lazy-chat-bg-adapter', version: '1', units: [] },
-        { id: 'persona-organizer', version: '1', presetDefaults: ['features'], units: [] },
-        { id: 'character-organizer', version: '1', presetDefaults: ['features'], units: [] },
-        { id: 'preset-integrity', version: '1', presetDefaults: ['features'], units: [] },
+        { id: 'lazy-chat-bg-adapter', version: '1', userSelectable: false, units: [] },
     ]
     const lines = []
     const originalLog = console.log
@@ -159,7 +116,7 @@ test('fixed-profile list marks selectable, default, and required packs', async (
         await runCli({
             argv: ['node', 'patcher', 'list', '--json'],
             catalog,
-            fixedProfile: 'features',
+            fixedProfile: 'all',
         })
     } finally {
         console.log = originalLog
@@ -169,95 +126,29 @@ test('fixed-profile list marks selectable, default, and required packs', async (
     assert.deepEqual(
         listed.map((pack) => ({
             id: pack.id,
-            selectable: pack.selectable,
-            default: pack.default,
-            required: pack.required,
+            included: pack.included,
+            internal: pack.internal,
         })),
         [
-            { id: 'bg-preserve', selectable: false, default: false, required: false },
-            { id: 'lazy-chat-sync', selectable: true, default: true, required: false },
-            { id: 'lazy-chat-bg-adapter', selectable: false, default: false, required: false },
-            { id: 'persona-organizer', selectable: true, default: true, required: false },
-            { id: 'character-organizer', selectable: true, default: true, required: false },
-            { id: 'preset-integrity', selectable: true, default: true, required: false },
+            { id: 'bg-preserve', included: true, internal: false },
+            { id: 'lazy-chat-bg-adapter', included: true, internal: true },
         ],
     )
 })
 
-test('universal configure stores normalized intent without changing source files', () =>
+test('configure command is retired without writing intent', () =>
     withRoot(async (root) => {
-        const output = await capture(() => runCli({
-            argv: [
-                'node',
-                'patcher',
-                'configure',
-                '--root',
-                root,
-                '--packs',
-                'startup-cache,lazy-chat-sync,bg-preserve',
-                '--json',
-            ],
-            catalog: loadCatalog(),
-        }))
-
-        assert.deepEqual(output.effectiveRequested, ['bg-preserve', 'lazy-chat-sync'])
-        assert.deepEqual(output.superseded, [{
-            pack: 'startup-cache',
-            by: 'lazy-chat-sync',
-        }])
-        assert.equal(output.resolved.includes('lazy-chat-bg-adapter'), true)
-        assert.equal(output.sourceFilesChanged, false)
-        assert.deepEqual(loadIntent(root), {
-            format: 2,
-            mode: 'custom',
-            requestedPacks: ['bg-preserve', 'lazy-chat-sync'],
-            preset: null,
-        })
-        assert.deepEqual(
-            fs.readdirSync(root).sort(),
-            ['package.json', 'save'],
+        await assert.rejects(
+            runCli({
+                argv: ['node', 'patcher', 'configure', '--root', root, '--json'],
+                catalog: qualifiedCatalog(),
+            }),
+            /Usage: <plan\|apply\|revert/,
         )
+        assert.equal(loadIntent(root), null)
     }))
 
-test('universal configure --all saves every all-preset capability without prompting', () =>
-    withRoot(async (root) => {
-        const output = await capture(() => runCli({
-            argv: [
-                'node',
-                'patcher',
-                'configure',
-                '--root',
-                root,
-                '--all',
-                '--json',
-            ],
-            catalog: loadCatalog(),
-        }))
-
-        assert.equal(output.preset, 'all')
-        assert.deepEqual(output.effectiveRequested, [
-            'bg-preserve',
-            'character-import-ux',
-            'character-organizer',
-            'charx-archive-integrity',
-            'client-build-fence',
-            'lazy-chat-sync',
-            'parser-hardening',
-            'persona-organizer',
-            'personal-settings',
-            'pocketrisu-kei',
-            'preset-integrity',
-            'toolchain-hardening',
-        ])
-        assert.equal(output.resolved.includes('lazy-chat-bg-adapter'), true)
-        assert.deepEqual(loadIntent(root), {
-            format: 2,
-            mode: 'preset',
-            preset: 'all',
-        })
-    }))
-
-test('legacy all intent becomes rolling only when it matches current effective defaults', () => {
+test('every non-empty historical intent migrates to enabled complete delivery', () => {
     const catalog = loadCatalog()
     const currentAll = [
         'bg-preserve',
@@ -286,10 +177,16 @@ test('legacy all intent becomes rolling only when it matches current effective d
         mode: 'legacy',
         preset: 'all',
         requestedPacks: olderAll,
-    }, catalog), customIntent(olderAll, 'all'))
+    }, catalog), presetIntent('all'))
+    assert.deepEqual(resolveIntentPolicy({
+        format: 2,
+        mode: 'custom',
+        preset: 'features',
+        requestedPacks: [],
+    }, catalog), customIntent([], 'all'))
 })
 
-test('rolling all includes a newly published pack while custom remains pinned', () =>
+test('complete delivery includes new packs and expands old partial intent', () =>
     withRoot(async (root) => {
         const catalog = [
             { id: 'existing-pack', version: '1', units: [] },
@@ -313,15 +210,18 @@ test('rolling all includes a newly published pack while custom remains pinned', 
             root,
             intent: customIntent(['existing-pack'], 'all'),
         })
-        const pinned = await capture(() => runCli({
+        const migrated = await capture(() => runCli({
             argv: ['node', 'patcher', 'plan', '--root', root, '--json'],
             catalog,
         }))
-        assert.deepEqual(pinned.selection.requested, ['existing-pack'])
-        assert.deepEqual(pinned.intent, customIntent(['existing-pack'], 'all'))
+        assert.deepEqual(migrated.selection.requested, [
+            'existing-pack',
+            'future-pack',
+        ])
+        assert.deepEqual(migrated.intent, presetIntent('all'))
     }))
 
-test('revert persists empty custom intent so a later plain plan stays empty', () =>
+test('revert disables delivery while an explicit later plan previews the complete set', () =>
     withRoot(async (root) => {
         const catalog = [
             { id: 'existing-pack', version: '1', units: [] },
@@ -343,14 +243,26 @@ test('revert persists empty custom intent so a later plain plan stays empty', ()
             requestedPacks: [],
         })
 
+        const current = await capture(() => runCli({
+            argv: ['node', 'patcher', 'status', '--root', root, '--json'],
+            catalog,
+        }))
+        assert.deepEqual(current.delivery, {
+            mode: 'all-or-nothing',
+            enabled: false,
+        })
+
         const planned = await capture(() => runCli({
             argv: ['node', 'patcher', 'plan', '--root', root, '--json'],
             catalog,
         }))
-        assert.deepEqual(planned.selection.requested, [])
+        assert.deepEqual(planned.selection.requested, [
+            'existing-pack',
+            'future-pack',
+        ])
     }))
 
-test('plan --all overrides an older saved partial intent', () =>
+test('plain plan overrides an older saved partial intent', () =>
     withRoot(async (root) => {
         const allIds = [
             'bg-preserve',
@@ -384,7 +296,6 @@ test('plan --all overrides an older saved partial intent', () =>
                 'plan',
                 '--root',
                 root,
-                '--all',
                 '--json',
             ],
             catalog,
@@ -485,7 +396,7 @@ test('top-level conflict handling performs only explicitly requested RisuAI deli
     assert.equal(lines.some((line) => line.startsWith('[report-risu]')), true)
 })
 
-test('configure reports a pack conflict without saving an invalid intent', () =>
+test('complete graph conflict is reported without saving intent', () =>
     withRoot(async (root) => {
         const catalog = [
             {
@@ -506,11 +417,9 @@ test('configure reports a pack conflict without saving an invalid intent', () =>
                 argv: [
                     'node',
                     'patcher',
-                    'configure',
+                    'apply',
                     '--root',
                     root,
-                    '--packs',
-                    'a,b',
                     '--report-to',
                     'persona',
                     '--json',
@@ -530,7 +439,7 @@ test('configure reports a pack conflict without saving an invalid intent', () =>
             path.join(root, failure.report.jsonPath),
             'utf8',
         ))
-        assert.equal(report.phase, 'configure')
+        assert.equal(report.phase, 'apply')
         assert.deepEqual(report.packs, ['a', 'b'])
     }))
 
@@ -560,8 +469,6 @@ test('a failed apply writes a maintainer report and leaves source and intent unt
                     'apply',
                     '--root',
                     root,
-                    '--packs',
-                    'broken-pack',
                     '--json',
                 ],
                 catalog,
@@ -623,8 +530,6 @@ test('an unqualified upstream target is reported after structural planning but b
                     'apply',
                     '--root',
                     root,
-                    '--packs',
-                    'qualified-pack',
                     '--json',
                 ],
                 catalog,
@@ -657,8 +562,6 @@ test('plan previews intent, state, and source writes without performing them', (
                 'plan',
                 '--root',
                 root,
-                '--packs',
-                'qualified-pack',
                 '--json',
             ],
             catalog: qualifiedCatalog(),
@@ -693,8 +596,6 @@ test('stage patches and validates an isolated candidate without changing live so
                     live,
                     '--candidate',
                     candidate,
-                    '--packs',
-                    'qualified-pack',
                     '--json',
                 ],
                 catalog: qualifiedCatalog(),
@@ -728,9 +629,8 @@ test('stage patches and validates an isolated candidate without changing live so
             )
             assert.deepEqual(loadIntent(candidate), {
                 format: 2,
-                mode: 'custom',
-                requestedPacks: ['qualified-pack'],
-                preset: null,
+                mode: 'preset',
+                preset: 'all',
             })
             const receipt = JSON.parse(fs.readFileSync(
                 path.join(candidate, output.receipt.path),
@@ -828,8 +728,6 @@ test('maintainer review checks do not mark an under-review target ready for cuto
                     live,
                     '--candidate',
                     candidate,
-                    '--packs',
-                    'qualified-pack',
                     '--json',
                 ],
                 catalog,
@@ -868,8 +766,6 @@ test('stage reports a candidate conflict before writing candidate source or stat
                         live,
                         '--candidate',
                         candidate,
-                        '--packs',
-                        'qualified-pack',
                         '--json',
                     ],
                     catalog: qualifiedCatalog(),
@@ -916,8 +812,6 @@ test('a failed staging check blocks cutover and records that only staging change
                         live,
                         '--candidate',
                         candidate,
-                        '--packs',
-                        'qualified-pack',
                         '--json',
                     ],
                     catalog: qualifiedCatalog(),
@@ -977,8 +871,6 @@ test('a passing check that mutates managed source is still blocked as staging dr
                         live,
                         '--candidate',
                         candidate,
-                        '--packs',
-                        'qualified-pack',
                         '--json',
                     ],
                     catalog: qualifiedCatalog(),

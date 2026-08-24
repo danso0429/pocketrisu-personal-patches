@@ -64,7 +64,6 @@ module.exports = {
         },
     },
     userSelectable: true,
-    presetDefaults: ['features'],
     supersedes: ['startup-cache'],
     units: [
         ...unchangedReplacedFiles.map((relative) => ({

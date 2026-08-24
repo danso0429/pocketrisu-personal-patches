@@ -41,12 +41,10 @@ function executeManagedSetup(localStorageDescriptor) {
     return { sandbox, stubbedGlobals, TestStorage }
 }
 
-test('toolchain hardening is independently versioned and included by hardening and all', () => {
+test('toolchain hardening is independently versioned and included in the complete set', () => {
     const catalog = loadCatalog()
     assert.equal(manifest.id, 'toolchain-hardening')
     assert.equal(manifest.version, '0.1.4')
-    assert.equal(resolveProfile('hardening', catalog).defaults.includes(manifest.id), true)
-    assert.equal(resolveProfile('features', catalog).defaults.includes(manifest.id), false)
     assert.equal(resolveProfile('all', catalog).defaults.includes(manifest.id), true)
 })
 

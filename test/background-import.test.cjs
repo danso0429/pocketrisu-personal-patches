@@ -10,12 +10,12 @@ const { resolveSelection } = require('../src/resolver.cjs')
 const root = path.join(__dirname, '..')
 const manifest = require('../patches/background-import/manifest.cjs')
 
-test('background import is visible exact-1.10 review scope without rolling-all admission', () => {
+test('background import is admitted to the complete exact-1.10 set', () => {
     assert.equal(manifest.id, 'background-import')
     assert.equal(manifest.version, '0.3.3')
     assert.equal(manifest.userSelectable, true)
-    assert.equal(manifest.allDefault, false)
-    assert.deepEqual(manifest.presetDefaults, [])
+    assert.equal(Object.hasOwn(manifest, 'allDefault'), false)
+    assert.equal(Object.hasOwn(manifest, 'presetDefaults'), false)
     assert.deepEqual(manifest.targets.pocketrisu, { verified: [], reviewing: ['1.10.0'] })
     assert.deepEqual(manifest.requires, [
         'character-import-ux',
@@ -23,7 +23,7 @@ test('background import is visible exact-1.10 review scope without rolling-all a
         'lazy-chat-sync',
         'client-build-fence',
     ])
-    assert.equal(resolveProfile('all', loadCatalog()).defaults.includes(manifest.id), false)
+    assert.equal(resolveProfile('all', loadCatalog()).defaults.includes(manifest.id), true)
 })
 
 test('every production, test, and builder payload has one exact owned unit', () => {

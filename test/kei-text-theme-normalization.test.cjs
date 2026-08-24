@@ -35,8 +35,7 @@ test('K17 normalization is a hidden exact-1.9 umbrella child', () => {
     })
     assert.equal(meta.version, '0.13.0')
     assert.equal(meta.requires.includes(manifest.id), true)
-    assert.equal(resolveProfile('features', catalog).defaults.includes(meta.id), false)
-    assert.equal(resolveProfile('hardening', catalog).defaults.includes(meta.id), false)
+    assert.equal(resolveProfile('all', catalog).defaults.includes(meta.id), true)
 
     const resolution = resolveSelection(catalog, [meta.id])
     assert.equal(resolution.dependencyAdded.includes(manifest.id), true)

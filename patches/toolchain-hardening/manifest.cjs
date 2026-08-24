@@ -18,7 +18,6 @@ module.exports = {
         },
     },
     userSelectable: true,
-    presetDefaults: ['hardening'],
     units: [
         {
             id: 'toolchain-hardening:vitest-storage',

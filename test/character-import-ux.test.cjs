@@ -27,7 +27,7 @@ test('character and module import share one lazy-chat-dependent feature pack', (
         },
     })
     assert.equal(manifest.userSelectable, true)
-    assert.deepEqual(manifest.presetDefaults, ['features'])
+    assert.equal(Object.hasOwn(manifest, 'presetDefaults'), false)
     assert.deepEqual(manifest.requires, ['lazy-chat-sync'])
     assert.notEqual(source, anchor)
     assert.doesNotMatch(source, /setDatabaseLite\(\{ ?plugins|setDatabase\(\{ ?plugins/)

@@ -225,7 +225,6 @@ module.exports = {
         },
     },
     userSelectable: true,
-    presetDefaults: ['features'],
     units: [
         ...units181.map((unit) => ({
             ...unit,

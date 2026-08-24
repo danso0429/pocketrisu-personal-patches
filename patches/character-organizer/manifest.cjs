@@ -18,7 +18,6 @@ module.exports = {
         },
     },
     userSelectable: true,
-    presetDefaults: ['features'],
     units: [
         {
             id: 'character-organizer:logic',

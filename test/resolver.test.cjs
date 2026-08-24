@@ -2,7 +2,7 @@
 
 const test = require('node:test')
 const assert = require('node:assert/strict')
-const { loadCatalog } = require('../src/catalog.cjs')
+const { loadCatalog, resolveProfile } = require('../src/catalog.cjs')
 const { resolveSelection } = require('../src/resolver.cjs')
 
 test('catalog exposes the expected user packs and keeps integration packs internal', () => {
@@ -110,17 +110,15 @@ test('downloaders cannot select an internal adapter directly', () => {
     )
 })
 
-test('all raw user selections resolve deterministically', () => {
+test('the complete admitted graph resolves deterministically', () => {
     const catalog = loadCatalog()
-    const visible = catalog
-        .filter((pack) => pack.userSelectable !== false)
-        .map((pack) => pack.id)
-    for (let mask = 0; mask < (1 << visible.length); mask += 1) {
-        const requested = visible.filter((_, index) => mask & (1 << index))
-        const first = resolveSelection(catalog, requested)
-        const second = resolveSelection(catalog, [...requested].reverse())
-        assert.deepEqual(second, first)
-    }
+    const requested = resolveProfile('all', catalog).defaults
+    const first = resolveSelection(catalog, requested)
+    const second = resolveSelection(catalog, [...requested].reverse())
+    assert.deepEqual(second, first)
+    assert.equal(first.resolvedIds.includes('background-import'), true)
+    assert.equal(first.resolvedIds.includes('lazy-chat-bg-adapter'), true)
+    assert.equal(first.resolvedIds.includes('bg-preserve-storage-base'), false)
 })
 
 test('declared conflicts fail before composition', () => {

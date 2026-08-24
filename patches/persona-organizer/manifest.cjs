@@ -50,7 +50,6 @@ module.exports = {
         },
     },
     userSelectable: true,
-    presetDefaults: ['features'],
     units: [
         {
             id: 'persona-organizer:logic',

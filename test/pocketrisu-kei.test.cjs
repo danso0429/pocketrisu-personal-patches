@@ -36,8 +36,6 @@ test('PocketRisu Kei remains a unit-free universal-only meta pack', () => {
     const registered = catalog.find((pack) => pack.id === manifest.id)
     assert.ok(registered)
     assert.equal(resolveProfile('all', catalog).defaults.includes(manifest.id), true)
-    assert.equal(resolveProfile('features', catalog).defaults.includes(manifest.id), false)
-    assert.equal(resolveProfile('hardening', catalog).defaults.includes(manifest.id), false)
 
     const resolution = resolveSelection(catalog, [manifest.id])
     assert.deepEqual(resolution.resolvedIds, [

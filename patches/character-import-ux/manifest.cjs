@@ -21,7 +21,6 @@ module.exports = {
         },
     },
     userSelectable: true,
-    presetDefaults: ['features'],
     requires: ['lazy-chat-sync'],
     units: [
         {

@@ -10,42 +10,19 @@ const DEFAULT_TARGETS = Object.freeze({
 })
 
 const PROFILES = Object.freeze({
-    features: Object.freeze({
-        id: 'features',
-        description: 'Lazy chat synchronization, startup cache, persona and character organization, non-blocking character and module import, and personal settings; bg-preserve stays external.',
-    }),
-    hardening: Object.freeze({
-        id: 'hardening',
-        description: 'Focused parser and toolchain hardening without feature or bg-preserve ownership.',
-    }),
     all: Object.freeze({
         id: 'all',
-        description: 'Unified bg-preserve, features, parser hardening, and toolchain hardening.',
+        description: 'The complete admitted PocketRisu patch set.',
     }),
 })
-
-const NARROW_PROFILE_IDS = Object.freeze(['features', 'hardening'])
 
 function validateProfileMetadata(catalog) {
     for (const pack of catalog) {
         if (pack.allDefault !== undefined && typeof pack.allDefault !== 'boolean') {
             throw new Error(`${pack.id}.allDefault must be a boolean`)
         }
-        const defaults = pack.presetDefaults ?? []
-        if (
-            !Array.isArray(defaults)
-            || defaults.some((id) => typeof id !== 'string' || !id)
-            || new Set(defaults).size !== defaults.length
-        ) {
-            throw new Error(`${pack.id}.presetDefaults must be a unique array of preset ids`)
-        }
-        for (const presetId of defaults) {
-            if (!NARROW_PROFILE_IDS.includes(presetId)) {
-                throw new Error(`${pack.id}.presetDefaults contains unknown preset ${presetId}`)
-            }
-        }
-        if (pack.userSelectable === false && defaults.length > 0) {
-            throw new Error(`${pack.id} is internal and cannot be a preset default`)
+        if (pack.presetDefaults !== undefined) {
+            throw new Error(`${pack.id}.presetDefaults is obsolete in all-or-nothing delivery`)
         }
     }
 }
@@ -117,11 +94,9 @@ function resolveProfile(profileId, catalog) {
     }
     validateProfileMetadata(catalog)
     const visible = catalog.filter((pack) => pack.userSelectable !== false)
-    const defaults = profileId === 'all'
-        ? visible.filter((pack) => pack.allDefault !== false).map((pack) => pack.id)
-        : visible
-            .filter((pack) => (pack.presetDefaults ?? []).includes(profileId))
-            .map((pack) => pack.id)
+    const defaults = visible
+        .filter((pack) => pack.allDefault !== false)
+        .map((pack) => pack.id)
     return {
         ...definition,
         defaults,
@@ -140,6 +115,8 @@ function validateProfileSelection(profile, packIds) {
 
 function validateProfileTransition(profile, previousState, catalog = []) {
     if (!previousState || previousState.profile === profile.id) return
+    // Adopt the two retired wrapper states without exposing those profiles
+    // again. Unknown owners still block migration below.
     if (
         profile.id === 'all'
         && (previousState.profile === 'features' || previousState.profile === 'hardening')
