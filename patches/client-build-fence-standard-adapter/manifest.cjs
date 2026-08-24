@@ -5,7 +5,7 @@ const pocketRisu190 = { pocketrisu: ['1.9.0'] }
 module.exports = {
     id: 'client-build-fence-standard-adapter',
     title: 'Client build fence standard snapshot adapter',
-    version: '0.1.0',
+    version: '0.1.1',
     targets: {
         pocketrisu: {
             verified: ['1.9.0'],
@@ -16,7 +16,7 @@ module.exports = {
     requires: ['client-build-fence'],
     autoWhen: {
         all: ['client-build-fence'],
-        none: ['kei-backup-restore-safety-core'],
+        none: ['lazy-chat-sync', 'kei-backup-restore-safety-core'],
     },
     units: [
         {

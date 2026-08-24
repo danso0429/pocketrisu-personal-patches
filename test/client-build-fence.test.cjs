@@ -27,6 +27,9 @@ test('client build fence resolves exactly one storage adapter and the optional B
     assert.equal(standalone.resolvedIds.includes(bg.id), false)
     assert.equal(standalone.resolvedIds.includes(kei.id), false)
 
+    const lazyGraph = resolveSelection(catalog, [core.id, 'lazy-chat-sync'])
+    assert.equal(lazyGraph.resolvedIds.includes(standard.id), false)
+
     const bgGraph = resolveSelection(catalog, [core.id, 'bg-preserve'])
     assert.equal(bgGraph.resolvedIds.includes(bg.id), true)
     assert.equal(bgGraph.resolvedIds.includes(standard.id), true)
