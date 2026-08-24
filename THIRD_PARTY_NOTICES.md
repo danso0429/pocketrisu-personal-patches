@@ -238,5 +238,7 @@ research references with differentiated trigger-gated, blocked, or rejected
 states in `docs/HAEJEOK-REMAINING-CANDIDATE-DESIGN-AUDIT.md` and
 `docs/POCKETRISU-HAEJEOK-RUNTIME-VALIDATION.md`; no code or dependency from
 those five clusters is redistributed by this checkpoint. A future focused
-adaptation must record its exact source commits and paths here before the
-complete installer is published.
+adaptation must first satisfy the trigger, scope, exclusion, and Gate 0–8
+protocol in `docs/HAEJEOK-POST-VALIDATION-INTEGRATION-PLAN.md`, then record its
+exact source commits and paths here before the complete installer is
+published.

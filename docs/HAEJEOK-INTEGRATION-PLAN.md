@@ -10,6 +10,11 @@
 > Final admitted HJ scope after independent and bounded-runtime revalidation:
 > HJ04, HJ03, and HJ01. There is no new active HJ queue; HJ02/HJ05/HJ07 are
 > trigger-gated, HJ06 is blocked, and the frozen HJ08 implementation is rejected.
+>
+> Future execution authority:
+> [`HAEJEOK-POST-VALIDATION-INTEGRATION-PLAN.md`](HAEJEOK-POST-VALIDATION-INTEGRATION-PLAN.md).
+> This file remains the implementation and live-receipt authority for the
+> three admitted adapters.
 
 ## Outcome and boundaries
 
@@ -208,6 +213,12 @@ The bounded runtime and seven-axis evidence authority is
 Actual HJ test/build, PostgreSQL 16/17, Chromium, ZIP writer/importer, and the
 remaining `NR` gates must be read from that document rather than inferred from
 this delivery plan.
+
+The trigger, maximum scope, exclusion, one-feature-per-cycle rule, and shared
+Gate 0–8 admission protocol are recorded in
+[`HAEJEOK-POST-VALIDATION-INTEGRATION-PLAN.md`](HAEJEOK-POST-VALIDATION-INTEGRATION-PLAN.md).
+Trigger-gated, blocked, rejected, and product-migration rows are disposition
+decisions rather than pending implementation steps.
 
 ## Publication and live application
 

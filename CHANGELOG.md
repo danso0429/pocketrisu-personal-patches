@@ -2,6 +2,19 @@
 
 ## Unreleased
 
+- Add a standalone post-validation Haejeok execution plan. Fix the admitted
+  scope at HJ01/HJ03/HJ04 (three hidden adapters, 53 exact-target units, 21
+  HJ/shared live-admission paths), schedule zero immediate HJ additions, and
+  permit at most one trigger-backed owner-local outcome per future cycle.
+  Record exact triggers, maximum scope, exclusions, `NR` boundaries, and the
+  shared seven-axis Gate 0–8 admission protocol for HJ02/HJ05/HJ06/HJ07/HJ08
+  and X01/X02/X05.
+- Update README and the admitted-feature receipt to distinguish trigger-gated
+  research, blocked format work, a rejected frozen implementation, and
+  separate product migrations. Replace the stale statement that all remaining
+  HJ rows were simply closed, link the bounded runtime evidence and execution
+  authority, and change no manifest, dependency, generated installer, live
+  source, version, tag, or release.
 - Reconcile the 46-claim Haejeok comparison through an independent critical
   review: `Confirm 20 / Correct 26`, where `Correct` includes both small scope
   edits and high-impact persistence, deletion, privacy, and exporter

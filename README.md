@@ -27,16 +27,35 @@ Character and module imports therefore use the existing foreground flow.
 
 See the [delivery design](docs/PATCHER-V2-DESIGN.md),
 [source provenance ledger](docs/SOURCE-PROVENANCE.md), and
-[Haejeok comparison](docs/HAEJEOK-RISUAI-OVERLAP-AUDIT.md). The
-[remaining-candidate design audit](docs/HAEJEOK-REMAINING-CANDIDATE-DESIGN-AUDIT.md)
-closes HJ02/HJ05/HJ06/HJ07/HJ08 as current implementation work and records the
-exact trigger and owner-local design required to reconsider each one.
+[Haejeok comparison](docs/HAEJEOK-RISUAI-OVERLAP-AUDIT.md).
+
+## Haejeok integration status
+
+The admitted Haejeok scope is HJ01 Small chat width, HJ03 Korean character
+matching, and HJ04 persistence ordering. All three are hidden internal
+adapters in the same complete installer and have passed their focused gates
+and existing physical iPhone L3.
+
+There is no new active HJ implementation queue. HJ02 textarea resize, HJ05
+low-spec slices, and HJ07 Node compute are trigger-gated; HJ06 remains blocked
+despite a valid ZIP64 writer because its importer accepted bad CRC and does not
+share one size/integrity policy; the frozen HJ08 LogExporter is rejected after
+source and Chromium counterexamples. SQL/S3/FTS/revision/deployment work stays
+outside this patch line as separate product migrations.
+
+The [post-validation execution plan](docs/HAEJEOK-POST-VALIDATION-INTEGRATION-PLAN.md)
+records exactly what can reopen each item, the maximum allowed integration
+scope, the excluded source/authority, and the one-feature admission gates. The
+[bounded runtime validation](docs/POCKETRISU-HAEJEOK-RUNTIME-VALIDATION.md) is
+the evidence authority; the
+[remaining-candidate audit](docs/HAEJEOK-REMAINING-CANDIDATE-DESIGN-AUDIT.md)
+retains the detailed source and path review.
 
 ## Release history
 
 | Release | What changed |
 | --- | --- |
-| `v0.2.0-experimental.21` | Adapts Haejeok's persistence ordering, Korean-aware character search, and distinct Small 600px chat width into PocketRisu 1.10's existing lazy/BG, catalog, and native width owners without restoring patch combinations or importing Haejeok's alternative SQL/ordering models. The remaining HJ02/HJ05/HJ06/HJ07/HJ08 designs were later closed as current work after owner, round-trip, resource, and dependency review. |
+| `v0.2.0-experimental.21` | Adapts Haejeok's persistence ordering, Korean-aware character search, and distinct Small 600px chat width into PocketRisu 1.10's existing lazy/BG, catalog, and native width owners. Later source/runtime revalidation keeps HJ02/HJ05/HJ07 trigger-gated, HJ06 blocked, and the frozen HJ08 implementation rejected; no additional HJ code enters this checkpoint. |
 | `v0.2.0-experimental.20` | Makes delivery all-or-nothing, retires background import after the device UX finding, removes public combinations/raw-mask verification, restores foreground import payloads, and records the source-provenance audits. |
 | `v0.2.0-experimental.19` | Keeps one durable import operation alive across iOS/WebKit `AbortError`, `NetworkError`, and `Load failed` suspend/resume failures instead of showing a false terminal import error. |
 | `v0.2.0-experimental.18` | Adds review-only resumable character/module upload, server-owned preparation and append-only commit, canonical client reconciliation, restart recovery, bounded retention, and truthful post-handoff background status for exact PocketRisu 1.10. |
@@ -361,8 +380,9 @@ and its byte-identical `all` compatibility alias. Each is 7,277,675 bytes,
 mode 0700, CJS syntax-valid, and SHA-256
 `22a9a8af4a132de2f29755ad74cf77a203a4602f6304a0c0dcb041a0c4a4e34a`.
 The generated artifact reports all 38 resolved packs and a zero-change plan on
-the composed target. Stable tag/release and feature-level device L3 remain
-gated.
+the composed target. At that source-qualification boundary, stable tag/release
+and feature-level device L3 remained gated; the later live receipt below
+records the HJ device result.
 
 The same `.21` candidate is live after two zero-work preflight reads and a
 process-first stop. The stopped target repeated 73 focused HJ/storage/K14/K15
@@ -414,9 +434,10 @@ changes, and matched all 267 live foreground outputs by hash and mode.
 
 The frozen Haejeok audit also establishes that Haejeok RisuAI is a separate
 RisuAI fork rather than a PocketRisu downstream. SQL/domain storage and object
-storage are alternative architectures; ZIP64 streaming, bounded low-spec
-rendering, Node compute, Korean fuzzy search, chat width, and text-area resize
-remain separately gated ideas. No Haejeok source is imported in this release.
+storage are alternative architectures. HJ02/HJ05/HJ07 are trigger-gated,
+HJ06 is blocked by its importer/round-trip boundary, and frozen HJ08 is
+rejected; none is an active implementation queue. Only the three focused
+adapters above are redistributed by this checkpoint.
 
 The `v0.2.0-experimental.11` checkpoint keeps that storage and activation
 contract while extending the chat-font enum with Noto Sans KR and Noto Serif
