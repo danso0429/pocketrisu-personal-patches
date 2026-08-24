@@ -55,6 +55,7 @@ function fakeUploadServer(options: {
             protocolVersion: 1,
             kind: 'module',
             format: 'risum',
+            origin: 'picker',
             sourceSize: options.source.byteLength,
             sourceSha256,
             state,
@@ -196,7 +197,7 @@ describe('background import client protocol', () => {
             kind: 'module',
             format: 'risum',
             origin: 'picker',
-        })).rejects.toMatchObject<Partial<BackgroundImportProtocolError>>({ code: 'IMPORT_SOURCE_MISMATCH' })
+        })).rejects.toMatchObject({ code: 'IMPORT_SOURCE_MISMATCH' } satisfies Partial<BackgroundImportProtocolError>)
         expect(mismatchServer.appended).toHaveLength(0)
     })
 
@@ -204,7 +205,7 @@ describe('background import client protocol', () => {
         const calls: string[] = []
         const base = {
             operationId: 'claim_operation_001', protocolVersion: 1,
-            kind: 'module', format: 'json', sourceSize: 2, sourceSha256: 'a'.repeat(64),
+            kind: 'module', format: 'json', origin: 'picker', sourceSize: 2, sourceSha256: 'a'.repeat(64),
             state: 'completed', nextOffset: 2, authorizationRequired: false,
             authorizationDecision: null, progress: null, preparedDigest: 'b'.repeat(64),
             entityId: 'module-id', committedRevision: 'revision', errorCode: null,

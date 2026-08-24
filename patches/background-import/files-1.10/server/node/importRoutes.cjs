@@ -36,6 +36,7 @@ function responseJob(job) {
         protocolVersion: job.protocolVersion,
         kind: job.kind,
         format: job.declaredFormat,
+        origin: job.origin,
         sourceSize: job.sourceSize,
         sourceSha256: job.sourceSha256,
         state: job.state,

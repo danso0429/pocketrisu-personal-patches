@@ -48,7 +48,7 @@ function orderedCharacterIds(value: unknown): Set<string> {
     return ids
 }
 
-export function preserveCommittedImport<T>(input: {
+export function preserveCommittedImport<T extends Record<string, any>>(input: {
     base: any
     local: any
     latest: any
@@ -104,15 +104,16 @@ export function preserveCommittedImport<T>(input: {
         collection(merged, coordinate.kind).push(structuredClone(canonical[0]))
     }
     if (coordinate.kind === 'character') {
-        merged.characterOrder ??= []
-        if (!Array.isArray(merged.characterOrder)) {
+        const mergedDatabase = merged as Record<string, any>
+        mergedDatabase.characterOrder ??= []
+        if (!Array.isArray(mergedDatabase.characterOrder)) {
             throw new BackgroundImportReconcileError(
                 'IMPORT_RECONCILIATION_REQUIRED',
                 'Character order is invalid after merge',
             )
         }
-        if (!orderedCharacterIds(merged.characterOrder).has(coordinate.entityId)) {
-            merged.characterOrder.push(coordinate.entityId)
+        if (!orderedCharacterIds(mergedDatabase.characterOrder).has(coordinate.entityId)) {
+            mergedDatabase.characterOrder.push(coordinate.entityId)
         }
     }
     return merged

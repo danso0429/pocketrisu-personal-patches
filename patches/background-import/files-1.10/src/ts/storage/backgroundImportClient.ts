@@ -46,6 +46,7 @@ export interface BackgroundImportJob {
     protocolVersion: number
     kind: BackgroundImportKind
     format: BackgroundImportFormat
+    origin: BackgroundImportOrigin
     sourceSize: number
     sourceSha256: string | null
     state: BackgroundImportState
