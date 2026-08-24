@@ -124,6 +124,20 @@ export class BackgroundImportProtocolError extends Error {
     }
 }
 
+export function isTransientImportTransportError(error: unknown): boolean {
+    if (error instanceof BackgroundImportProtocolError) return false
+    if (error instanceof TypeError) return true
+    if (!error || typeof error !== 'object') return false
+    const name = typeof (error as any).name === 'string'
+        ? (error as any).name.toLowerCase()
+        : ''
+    if (['aborterror', 'networkerror', 'timeouterror'].includes(name)) return true
+    const message = typeof (error as any).message === 'string'
+        ? (error as any).message.toLowerCase()
+        : ''
+    return /load failed|failed to fetch|network (?:error|request failed)|connection (?:lost|reset)|fetch aborted/.test(message)
+}
+
 function bytesToHex(value: Uint8Array): string {
     let result = ''
     for (const byte of value) result += byte.toString(16).padStart(2, '0')
@@ -385,9 +399,27 @@ export async function uploadBackgroundImportSource(options: {
     sourceSha256?: string
     onProgress?: (progress: BackgroundImportTransferProgress) => void
     chunkBytes?: number
+    wait?: (milliseconds: number) => Promise<void>
+    retryDelayMs?: number
+    onTransportWait?: () => void
 }): Promise<{ job: BackgroundImportJob; marker: BackgroundImportMarker }> {
     const api = createBackgroundImportApi(options.fetcher)
     const chunkBytes = options.chunkBytes ?? BACKGROUND_IMPORT_CHUNK_BYTES
+    const wait = options.wait ?? (milliseconds => new Promise(resolve => setTimeout(resolve, milliseconds)))
+    const retryDelayMs = options.retryDelayMs ?? 750
+    async function transportWait() {
+        options.onTransportWait?.()
+        await wait(retryDelayMs)
+    }
+    async function statusAfterTransport(operationId: string): Promise<BackgroundImportJob> {
+        while (true) {
+            try { return await api.status(operationId) }
+            catch (error) {
+                if (!isTransientImportTransportError(error)) throw error
+                await transportWait()
+            }
+        }
+    }
     const sourceSha256 = options.sourceSha256
         ?? await digestImportSource(options.source, options.onProgress, chunkBytes)
     const coordinates = {
@@ -412,12 +444,21 @@ export async function uploadBackgroundImportSource(options: {
     }
 
     let job: BackgroundImportJob
-    try {
-        job = await api.createJob(coordinates)
-    } catch (error) {
-        if (!(error instanceof TypeError)) throw error
-        try { job = await api.status(options.operationId) }
-        catch { job = await api.createJob(coordinates) }
+    while (true) {
+        try {
+            job = await api.createJob(coordinates)
+            break
+        } catch (error) {
+            if (!isTransientImportTransportError(error)) throw error
+            await transportWait()
+            try {
+                job = await statusAfterTransport(options.operationId)
+                break
+            } catch (statusError) {
+                if (statusError instanceof BackgroundImportProtocolError && statusError.status === 404) continue
+                throw statusError
+            }
+        }
     }
     if (!sameUploadCoordinates(job, coordinates)) {
         throw new BackgroundImportProtocolError('IMPORT_OPERATION_CONFLICT', 'Server import coordinates changed')
@@ -436,13 +477,22 @@ export async function uploadBackgroundImportSource(options: {
             const chunkHasher = new Sha256()
             chunkHasher.update(chunk)
             const chunkHash = bytesToHex(await chunkHasher.digest())
-            try {
-                job = await api.append(options.operationId, offset, chunk, chunkHash)
-            } catch (error) {
-                if (!(error instanceof TypeError)) throw error
-                job = await api.status(options.operationId)
-                if (job.state !== 'receiving' || ![offset, end].includes(job.nextOffset)) throw error
-                if (job.nextOffset === offset) job = await api.append(options.operationId, offset, chunk, chunkHash)
+            while (true) {
+                try {
+                    job = await api.append(options.operationId, offset, chunk, chunkHash)
+                    break
+                } catch (error) {
+                    if (!isTransientImportTransportError(error)) throw error
+                    await transportWait()
+                    job = await statusAfterTransport(options.operationId)
+                    if (job.state === 'receiving' && job.nextOffset === offset) continue
+                    if (job.nextOffset === end) break
+                    if (job.nextOffset === options.source.size && job.state !== 'receiving') break
+                    throw new BackgroundImportProtocolError(
+                        'IMPORT_UPLOAD_OFFSET_CONFLICT',
+                        'Server upload state changed during transport recovery',
+                    )
+                }
             }
             if (job.nextOffset !== end) {
                 throw new BackgroundImportProtocolError('IMPORT_UPLOAD_OFFSET_CONFLICT', 'Server upload offset changed')
@@ -454,16 +504,16 @@ export async function uploadBackgroundImportSource(options: {
         }
     }
 
-    if (job.state === 'receiving' || job.state === 'upload-finalizing') {
+    while (job.state === 'receiving' || job.state === 'upload-finalizing') {
         try {
             job = await api.complete(options.operationId, sourceSha256)
         } catch (error) {
-            if (!(error instanceof TypeError)) throw error
-            job = await api.status(options.operationId)
-            if (job.state === 'receiving') job = await api.complete(options.operationId, sourceSha256)
+            if (!isTransientImportTransportError(error)) throw error
+            await transportWait()
+            job = await statusAfterTransport(options.operationId)
         }
     }
-    if (job.sourceSha256 !== sourceSha256 || job.state === 'receiving') {
+    if (job.sourceSha256 !== sourceSha256) {
         throw new BackgroundImportProtocolError('IMPORT_SOURCE_MISMATCH', 'Server did not retain the exact import source')
     }
     marker = markerForJob(coordinates, job)

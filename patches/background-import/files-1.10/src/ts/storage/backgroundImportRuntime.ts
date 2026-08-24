@@ -2,6 +2,7 @@ import {
     BackgroundImportProtocolError,
     createBackgroundImportApi,
     importFormatForName,
+    isTransientImportTransportError,
     isBackgroundSafeImportState,
     isClosedImportState,
     markerForJob,
@@ -101,8 +102,33 @@ export function createBackgroundImportRuntime(deps: BackgroundImportRuntimeDepen
         while (true) {
             try { return await api.status(operationId) }
             catch (error) {
-                if (!(error instanceof TypeError)) throw error
+                if (!isTransientImportTransportError(error)) throw error
                 await wait(FOLLOW_INTERVAL_MS)
+            }
+        }
+    }
+
+    async function listWithRetry(): Promise<BackgroundImportJob[]> {
+        while (true) {
+            try { return await api.list() }
+            catch (error) {
+                if (!isTransientImportTransportError(error)) throw error
+                await wait(FOLLOW_INTERVAL_MS)
+            }
+        }
+    }
+
+    async function authorizeWithRetry(
+        operationId: string,
+        accepted: boolean,
+    ): Promise<BackgroundImportJob> {
+        while (true) {
+            try { return await api.authorize(operationId, accepted) }
+            catch (error) {
+                if (!isTransientImportTransportError(error)) throw error
+                await wait(FOLLOW_INTERVAL_MS)
+                const current = await statusWithRetry(operationId)
+                if (current.state !== 'awaiting-authorization') return current
             }
         }
     }
@@ -130,6 +156,11 @@ export function createBackgroundImportRuntime(deps: BackgroundImportRuntimeDepen
                     job = await statusWithRetry(job.operationId)
                     continue
                 }
+                if (isTransientImportTransportError(error)) {
+                    await wait(FOLLOW_INTERVAL_MS)
+                    job = await statusWithRetry(job.operationId)
+                    continue
+                }
                 throw error
             }
             if (!claim.claimed) {
@@ -141,7 +172,7 @@ export function createBackgroundImportRuntime(deps: BackgroundImportRuntimeDepen
             let heartbeatError: unknown = null
             const heartbeat = setInterval(() => {
                 void api.heartbeat(job.operationId, deps.consumerId).catch(error => {
-                    heartbeatError = error
+                    if (!isTransientImportTransportError(error)) heartbeatError = error
                 })
             }, heartbeatMs)
             try {
@@ -150,14 +181,30 @@ export function createBackgroundImportRuntime(deps: BackgroundImportRuntimeDepen
                     entityId: job.entityId ?? '',
                     committedRevision: job.committedRevision ?? '',
                 }
-                await deps.reconcile(coordinate)
+                while (true) {
+                    try { await deps.reconcile(coordinate); break }
+                    catch (error) {
+                        if (!isTransientImportTransportError(error)) throw error
+                        await wait(FOLLOW_INTERVAL_MS)
+                        job = await statusWithRetry(job.operationId)
+                    }
+                }
                 if (heartbeatError) throw heartbeatError
-                job = await api.reconciled(job.operationId, deps.consumerId)
-                try { job = await api.ack(job.operationId, deps.consumerId) }
-                catch (error) {
-                    if (!(error instanceof TypeError)) throw error
-                    job = await statusWithRetry(job.operationId)
-                    if (job.state !== 'delivered') job = await api.ack(job.operationId, deps.consumerId)
+                while (job.state === 'completed') {
+                    try { job = await api.reconciled(job.operationId, deps.consumerId) }
+                    catch (error) {
+                        if (!isTransientImportTransportError(error)) throw error
+                        await wait(FOLLOW_INTERVAL_MS)
+                        job = await statusWithRetry(job.operationId)
+                    }
+                }
+                while (job.state !== 'delivered') {
+                    try { job = await api.ack(job.operationId, deps.consumerId) }
+                    catch (error) {
+                        if (!isTransientImportTransportError(error)) throw error
+                        await wait(FOLLOW_INTERVAL_MS)
+                        job = await statusWithRetry(job.operationId)
+                    }
                 }
             } finally {
                 clearInterval(heartbeat)
@@ -179,7 +226,7 @@ export function createBackgroundImportRuntime(deps: BackgroundImportRuntimeDepen
             if (job.state === 'awaiting-authorization') {
                 reporter.update('Import authorization required', 'Review low-level module access before continuing')
                 const accepted = await deps.confirmLowLevel()
-                job = await api.authorize(job.operationId, accepted)
+                job = await authorizeWithRetry(job.operationId, accepted)
                 if (!accepted) {
                     deps.markerStore.clear(job.operationId)
                     reporter.dismiss()
@@ -249,7 +296,7 @@ export function createBackgroundImportRuntime(deps: BackgroundImportRuntimeDepen
                 if (error instanceof BackgroundImportProtocolError && error.status === 404) {
                     deps.markerStore.clear(marker.operationId)
                     marker = null
-                } else if (!(error instanceof TypeError)) {
+                } else if (!isTransientImportTransportError(error)) {
                     throw error
                 }
             }
@@ -261,7 +308,7 @@ export function createBackgroundImportRuntime(deps: BackgroundImportRuntimeDepen
             : mintBackgroundImportId(input.kind)
         let currentJob: BackgroundImportJob | null = null
         try {
-            const active = (await api.list())[0]
+            const active = (await listWithRetry())[0]
             if (active) {
                 currentJob = active
                 if (
@@ -293,6 +340,13 @@ export function createBackgroundImportRuntime(deps: BackgroundImportRuntimeDepen
                         describeBytes(progress.completedBytes, progress.totalBytes),
                     )
                 },
+                wait,
+                onTransportWait() {
+                    input.reporter.update(
+                        'Waiting to resume import upload...',
+                        'The verified server offset is preserved',
+                    )
+                },
             })
             currentJob = uploaded.job
             try { input.onAdmitted?.() } catch {}
@@ -312,7 +366,7 @@ export function createBackgroundImportRuntime(deps: BackgroundImportRuntimeDepen
         reporterFor: (kind: BackgroundImportKind) => BackgroundImportReporter | null,
     ): Promise<BackgroundImportRunOutcome | null> {
         const marker = deps.markerStore.load()
-        let jobs = await api.list()
+        let jobs = await listWithRetry()
         if (jobs.length === 0 && marker) {
             try { jobs = [await api.status(marker.operationId)] }
             catch (error) {

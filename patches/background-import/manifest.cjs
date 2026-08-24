@@ -145,7 +145,7 @@ app.use(backgroundImportManager.replacementGuard);
 module.exports = {
     id: 'background-import',
     title: 'Durable background character and module import',
-    version: '0.3.2',
+    version: '0.3.3',
     targets: {
         pocketrisu: {
             verified: [],

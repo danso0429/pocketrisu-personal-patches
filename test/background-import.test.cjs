@@ -12,7 +12,7 @@ const manifest = require('../patches/background-import/manifest.cjs')
 
 test('background import is visible exact-1.10 review scope without rolling-all admission', () => {
     assert.equal(manifest.id, 'background-import')
-    assert.equal(manifest.version, '0.3.2')
+    assert.equal(manifest.version, '0.3.3')
     assert.equal(manifest.userSelectable, true)
     assert.equal(manifest.allDefault, false)
     assert.deepEqual(manifest.presetDefaults, [])
@@ -113,4 +113,20 @@ test('module and character entry hooks preserve child/package foreground paths a
     assert.match(byId.get('background-import:realm-charx-origin:1.10').content, /origin: 'realm'/)
     assert.match(byId.get('background-import:module-hash-consumer:1.10').content, /location\.hash = ''/)
     assert.match(byId.get('background-import:module-share-consumer:1.10').content, /location\.hash = ''/)
+})
+
+test('WebKit suspend transport failures are retryable without weakening protocol errors', () => {
+    const client = fs.readFileSync(path.join(
+        root,
+        'patches/background-import/files-1.10/src/ts/storage/backgroundImportClient.ts',
+    ), 'utf8')
+    const runtime = fs.readFileSync(path.join(
+        root,
+        'patches/background-import/files-1.10/src/ts/storage/backgroundImportRuntime.ts',
+    ), 'utf8')
+    assert.match(client, /aborterror.*networkerror.*timeouterror/)
+    assert.match(client, /load failed\|failed to fetch/)
+    assert.match(client, /statusAfterTransport/)
+    assert.match(runtime, /listWithRetry/)
+    assert.match(runtime, /Waiting to resume import upload/)
 })

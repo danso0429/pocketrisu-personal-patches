@@ -125,12 +125,27 @@ describe('background import runtime', () => {
     test('authorizes, marks the truthful safe boundary, reconciles, and ACKs once', async () => {
         const source = new Uint8Array([1, 2, 3, 4])
         const server = successfulServer(source)
+        let listInterrupted = false
+        let claimInterrupted = false
+        const fetcher = async (input: RequestInfo | URL, init: RequestInit = {}) => {
+            const url = new URL(String(input), 'https://local.invalid')
+            const method = init.method ?? 'GET'
+            if (url.pathname === '/api/import-jobs' && method === 'GET' && !listInterrupted) {
+                listInterrupted = true
+                throw Object.assign(new Error('Load failed'), { name: 'NetworkError' })
+            }
+            if (url.pathname.endsWith('/result/claim') && !claimInterrupted) {
+                claimInterrupted = true
+                throw Object.assign(new Error('The operation was aborted'), { name: 'AbortError' })
+            }
+            return server.fetcher(input, init)
+        }
         const markers = markerOwner()
         const report = reporter()
         const reconcile = vi.fn(async () => undefined)
         const onAdmitted = vi.fn()
         const runtime = createBackgroundImportRuntime({
-            fetcher: server.fetcher,
+            fetcher,
             markerStore: markers,
             reconcile,
             confirmLowLevel: async () => true,
@@ -147,6 +162,7 @@ describe('background import runtime', () => {
             kind: 'module', entityId: 'module-id', committedRevision: 'revision-1',
         })
         expect(report.events.filter(([kind]) => kind === 'safe')).toHaveLength(1)
+        expect(report.events.some(([kind]) => kind === 'error')).toBe(false)
         expect(onAdmitted).toHaveBeenCalledOnce()
         expect(report.events.at(-1)).toEqual(['success', 'Module imported.'])
         expect(markers.current).toBeNull()

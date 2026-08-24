@@ -5,6 +5,7 @@ import {
     createBackgroundImportApi,
     digestImportSource,
     importFormatForName,
+    isTransientImportTransportError,
     sourceForBackgroundImport,
     uploadBackgroundImportSource,
     type BackgroundImportJob,
@@ -108,6 +109,20 @@ function fakeUploadServer(options: {
 }
 
 describe('background import client protocol', () => {
+    test('classifies WebKit suspend transport shapes without retrying protocol failures', () => {
+        expect(isTransientImportTransportError(new TypeError('Load failed'))).toBe(true)
+        expect(isTransientImportTransportError(Object.assign(new Error('The operation was aborted'), {
+            name: 'AbortError',
+        }))).toBe(true)
+        expect(isTransientImportTransportError(Object.assign(new Error('Load failed'), {
+            name: 'NetworkError',
+        }))).toBe(true)
+        expect(isTransientImportTransportError(new BackgroundImportProtocolError(
+            'IMPORT_SOURCE_MISMATCH', 'different source', 400,
+        ))).toBe(false)
+        expect(isTransientImportTransportError(new Error('parser validation failed'))).toBe(false)
+    })
+
     test('classifies admitted extensions without MIME guessing', () => {
         expect(importFormatForName('module', 'test.risum')).toBe('risum')
         expect(importFormatForName('module', 'test.module.charx')).toBe('charx')
@@ -157,6 +172,53 @@ describe('background import client protocol', () => {
             [3 * 1024 * 1024, value.byteLength],
         ])
         expect(markers.current).toMatchObject({ state: 'uploaded', nextOffset: value.byteLength })
+    })
+
+    test('WebKit abort/network/load-failed shapes keep one operation through create, chunk, and complete', async () => {
+        const value = bytes(1024 * 1024 + 17)
+        const operationId = 'client_webkit_resume_001'
+        const server = fakeUploadServer({ operationId, source: value })
+        let createLost = false
+        let statusLost = false
+        let appendLost = false
+        let completeLost = false
+        const fetcher = async (input: RequestInfo | URL, init: RequestInit = {}) => {
+            const url = new URL(String(input), 'https://local.invalid')
+            const method = init.method ?? 'GET'
+            if (url.pathname === '/api/import-jobs' && method === 'POST' && !createLost) {
+                createLost = true
+                throw Object.assign(new Error('The operation was aborted'), { name: 'AbortError' })
+            }
+            if (url.pathname.endsWith(`/${operationId}`) && method === 'GET' && !statusLost) {
+                statusLost = true
+                throw Object.assign(new Error('Load failed'), { name: 'NetworkError' })
+            }
+            if (url.pathname.endsWith('/source') && method === 'PUT' && !appendLost) {
+                appendLost = true
+                await server.fetcher(input, init)
+                throw Object.assign(new Error('Load failed'), { name: 'NetworkError' })
+            }
+            if (url.pathname.endsWith('/source/complete') && !completeLost) {
+                completeLost = true
+                await server.fetcher(input, init)
+                throw new Error('Load failed')
+            }
+            return server.fetcher(input, init)
+        }
+        const waits: number[] = []
+        const result = await uploadBackgroundImportSource({
+            fetcher,
+            markerStore: markerStore(),
+            source: sourceForBackgroundImport(value),
+            operationId,
+            kind: 'module',
+            format: 'risum',
+            origin: 'picker',
+            wait: async milliseconds => { waits.push(milliseconds) },
+        })
+        expect(result.job).toMatchObject({ state: 'uploaded', nextOffset: value.byteLength })
+        expect(sha(server.stored)).toBe(sha(value))
+        expect(waits.length).toBeGreaterThanOrEqual(4)
     })
 
     test('resumes from the durable offset only after exact source identity matches', async () => {
