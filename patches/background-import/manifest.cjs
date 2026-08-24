@@ -145,7 +145,7 @@ app.use(backgroundImportManager.replacementGuard);
 module.exports = {
     id: 'background-import',
     title: 'Durable background character and module import',
-    version: '0.3.1',
+    version: '0.3.2',
     targets: {
         pocketrisu: {
             verified: [],
@@ -242,6 +242,30 @@ module.exports = {
             ],
             after: [
                 'server-backup-snapshot-lazy-adapter:startup-pin-sweep:1.10',
+                'bg-preserve:hook:server-cjs-register-routes:1.9',
+                'kei-backup-restore-safety-lazy-adapter:snapshot-restore-error-code:1.9',
+            ],
+            targetVersions: target110,
+        },
+        {
+            id: 'background-import:http-error-status:1.10',
+            file: 'server/node/server.cjs',
+            type: 'replace',
+            anchor: `app.use((err, req, res, next) => {
+    if (res.headersSent) return next(err);
+    res.status(500).json({ error: err?.message || 'internal server error' });
+});
+`,
+            content: `app.use((err, req, res, next) => {
+    if (res.headersSent) return next(err);
+    const status = Number.isInteger(err?.status) && err.status >= 400 && err.status < 500
+        ? err.status
+        : 500;
+    res.status(status).json({ error: err?.message || 'internal server error' });
+});
+`,
+            requires: ['background-import:server-register:1.10'],
+            after: [
                 'bg-preserve:hook:server-cjs-register-routes:1.9',
                 'kei-backup-restore-safety-lazy-adapter:snapshot-restore-error-code:1.9',
             ],

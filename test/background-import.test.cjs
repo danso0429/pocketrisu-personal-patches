@@ -12,7 +12,7 @@ const manifest = require('../patches/background-import/manifest.cjs')
 
 test('background import is visible exact-1.10 review scope without rolling-all admission', () => {
     assert.equal(manifest.id, 'background-import')
-    assert.equal(manifest.version, '0.3.1')
+    assert.equal(manifest.version, '0.3.2')
     assert.equal(manifest.userSelectable, true)
     assert.equal(manifest.allDefault, false)
     assert.deepEqual(manifest.presetDefaults, [])
@@ -74,6 +74,10 @@ test('server hooks authenticate and bound upload bodies before durable routes gu
     assert.match(register.content, /maxChunkBytes: 1024 \* 1024/)
     assert.match(register.content, /stagedBytes: 1024 \* 1024 \* 1024/)
     assert.match(register.content, /terminalRetentionMs: 7 \* 24 \* 60 \* 60 \* 1000/)
+    assert.match(
+        manifest.units.find((unit) => unit.id === 'background-import:http-error-status:1.10').content,
+        /err\.status >= 400 && err\.status < 500/,
+    )
 })
 
 test('client hooks retain auth, token-scoped handoff, canonical rebase, and boot ordering', () => {
