@@ -177,3 +177,6 @@ six calls, `USD 0.010484250` rated usage, retained field-level observations,
 oracle defects, checkpoint evidence, and unchanged empty support matrix are
 also recorded in the structural receipt. The original omnibus and v1 results
 remain unchanged evidence.
+
+The result-driven v3 oracle is locally implemented and tested but has made no
+provider call. It changes no v2 observation or support decision.

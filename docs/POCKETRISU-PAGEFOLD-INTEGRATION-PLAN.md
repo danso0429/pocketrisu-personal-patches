@@ -1410,9 +1410,9 @@ and L4.
 - every final qualification cell must pass three total observations (screening
   plus two fresh repeats); majority success is insufficient;
 - `maxOutputTokens=512` is the normal compact-response bound; at most two
-  predeclared 1024-token controls may distinguish output truncation from recall,
+  predeclared 2048-token controls may distinguish output truncation from recall,
   with no cell receiving more than one control; these are not retries of a
-  failed recall result;
+  failed recall result. Historical v1/v2 used 1024 and remain recorded as such;
 - actual synthetic answer fields and bounded first-difference metrics are
   retained for diagnosis, while credentials, request bodies, PDF Base64, and
   provider tokens remain prohibited;
@@ -1539,9 +1539,9 @@ pass. Requalification changes the experiment so each call establishes one
 claim and each transition has an external stop condition.
 
 1. **L0 local harness gate — no provider work.** Add structural whitespace and
-   Unicode oracles, compact schemas, sanitized observed fields/diffs, a
-   512/1024 output-budget control, dry-run fixture identity, focused tests, and
-   secret sweep.
+   Unicode oracles, compact schemas, sanitized observed fields/diffs, the
+   current 512/2048 output-budget control with historical 512/1024 retained,
+   dry-run fixture identity, focused tests, and secret sweep.
 2. **L1 text oracle control — one Vertex call.** The byte-sensitive and role
    facts are supplied as visible, already-computed ordinary text. The model
    only maps those facts into the declared response schema; raw whitespace or
@@ -1599,6 +1599,28 @@ values from the full labeled sequence. The low byte cell additionally exhausted
 both 512 and 1,024 output caps through thought usage, while medium retained an
 unresolved tag-scalar mismatch. The exact observations are in the structural
 receipt; no v2 cell is retroactively promoted to pass.
+
+The result-driven `v3` revision is limited to those retained observations:
+
+- `spaceRuns` becomes `spaceRunLengths`, explicitly the number of U+0020 code
+  points inside each of the three runs;
+- `zwjCodePoints` becomes `zwjSequenceCodePoints`, explicitly every scalar in
+  the labeled sequence, including emoji scalars and U+200D separators;
+- variation/tag fields use the same `*SequenceCodePoints` naming, but the tag
+  expected value remains unchanged and unresolved;
+- role mappings become `{marker,role}` objects instead of orientation-sensitive
+  colon strings;
+- grammar role order follows actual top-level marker occurrence in the frozen
+  fixture: user, assistant, tool, system;
+- the single per-cell output control becomes 2048 because v2 low used 950
+  thought tokens before exhausting 1024; and
+- checkpoint/summary metadata carries `oracleVersion=3`, so v2 cannot resume
+  into v3.
+
+v3 does not change fixture bytes, call count, repeats, resolutions, page
+expansion, cost cap, no-retry rule, or no-fallback rule. Its local implementation
+and automatic gates do not authorize another provider call; a v3 run requires
+another explicit paid-call approval.
 
 ### 20.2 Candidate catalog admission — experimental only
 
