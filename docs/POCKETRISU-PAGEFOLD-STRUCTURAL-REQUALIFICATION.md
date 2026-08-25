@@ -347,6 +347,56 @@ Observed local gates after the revision:
 - no provider call, catalog registration, generated installer change, or live
   apply occurred while implementing v3.
 
+## Paid structural oracle v3 observation
+
+The user explicitly approved v3 and all same-bound plan-derived paid reruns
+needed before L4. The v3 run regenerated the same four fixture hashes and made
+seven physical calls: five logical L1/L2 cells and two byte output controls.
+
+| Call | Stage/claim | Resolution | Output cap | HTTP/finish | Prompt | Candidate | Thought | Latency ms | Rated USD | Result |
+| ---: | --- | --- | ---: | --- | ---: | ---: | ---: | ---: | ---: | --- |
+| 1 | L1 text oracle | N/A | 512 | 200 / `STOP` | 586 | 140 | 0 | 2,416 | 0.000964500 | pass |
+| 2 | L2 byte | low | 512 | 200 / `MAX_TOKENS` | 775 | 0 | 488 | 5,735 | 0.002411250 | inconclusive |
+| 3 | L2 byte control | low | 2,048 | 200 / `STOP` | 775 | 222 | 0 | 4,595 | 0.001413750 | fail |
+| 4 | L2 byte | medium | 512 | 200 / `MAX_TOKENS` | 1,041 | 7 | 491 | 6,155 | 0.002648250 | inconclusive |
+| 5 | L2 byte control | medium | 2,048 | 200 / `STOP` | 1,041 | 222 | 0 | 4,192 | 0.001613250 | fail |
+| 6 | L2 grammar | low | 512 | 200 / `MAX_TOKENS` | 557 | 10 | 487 | 5,592 | 0.002281500 | inconclusive |
+| 7 | L2 grammar | medium | 512 | 200 / `STOP` | 823 | 71 | 0 | 3,781 | 0.000883500 | pass |
+
+v3 rated usage was `USD 0.012216000`; cumulative v1-v3 rated usage is
+`USD 0.024763500`. L1 passed every renamed scalar/length field and role object.
+Medium grammar passed header count, actual marker order and role objects, fake
+row exclusion, and code marker. This closes the two v2 oracle defects rather
+than hiding them.
+
+Both complete byte controls returned the same three-sample observation:
+
+- words, variation scalars, and the unchanged tag scalar all passed;
+- all three whitespace positions were present, but each reported length `1`
+  rather than the exact `[2,3,2]`; and
+- all three family sequences reported the three U+200D separators but did not
+  decompose the visually rendered emoji members into scalar numbers.
+
+The repeated low/medium agreement after explicit v3 wording shows these are not
+remaining field-name or pair-order defects. They distinguish two authorities:
+the independent PDF.js reader proves exact whitespace/codepoint transport,
+while the visual model reliably recognizes run positions, ZWJ count, semantic
+content, variation, and tag but not exact typographic space multiplicity or
+emoji-glyph scalar decomposition. Treating the latter as conversational recall
+would conflate the already-separated exact extraction and model-understanding
+gates.
+
+Low grammar exhausted 512 after the two global controls were consumed by byte
+cells, so it remains inconclusive. Medium grammar passed. Neither resolution
+passed both frozen v3 claims; `no-resolution-passed-both-claims` stopped all
+L3/L4 cells. The v3 result remains no route and is not retroactively changed.
+
+The 23,604-byte summary and 13,215-byte mode-`0600` checkpoint retained seven
+matched start/completion pairs with `oracleVersion=3`. Both had zero PDF
+Base64, canonical marker, API-key shape, bearer, or private-key hits. A cutoff
+query after v3 again found zero new `request-logs.db` rows and zero sensitive
+delta hits.
+
 ### Request-log observation
 
 The paid harness used its direct HTTPS path and did not add a PocketRisu

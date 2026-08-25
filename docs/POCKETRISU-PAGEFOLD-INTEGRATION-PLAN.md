@@ -1622,6 +1622,27 @@ expansion, cost cap, no-retry rule, or no-fallback rule. Its local implementatio
 and automatic gates do not authorize another provider call; a v3 run requires
 another explicit paid-call approval.
 
+The explicitly approved v3 run then observed L1 pass, medium grammar pass, low
+grammar output-cap inconclusive, and identical low/medium byte failures after
+their 2048 controls. Both byte cells recovered words, variation, and the exact
+tag scalar, located all three whitespace runs, and counted all three U+200D
+separators. Neither visually decomposed emoji glyph members into scalar numbers
+or distinguished repeated-space length beyond presence. Seven calls cost
+`USD 0.012216000` and stopped before L3/L4 with no route. This is frozen v3
+evidence, not a pass.
+
+The v3 agreement establishes that exact PDF transport and conversational model
+understanding must remain separate in both directions: PDF.js exact extraction
+continues to own whitespace/codepoint byte fidelity, while provider admission
+must test whether the model retrieves the positions and semantic content it
+will actually use. Requiring a vision model to count typographic spaces or
+name the scalar decomposition of a rendered emoji duplicates the exact-reader
+gate and does not measure conversational recall. A subsequent revision may
+replace those two fields only with position/semantic obligations while keeping
+word, variation, tag, grammar, marker, hierarchy, cost, and exact-extraction
+requirements intact. It must also remove the observed 512/1024 truncation
+confound by budgeting PDF cells adequately on their first and only attempt.
+
 ### 20.2 Candidate catalog admission — experimental only
 
 After the prototype gate:

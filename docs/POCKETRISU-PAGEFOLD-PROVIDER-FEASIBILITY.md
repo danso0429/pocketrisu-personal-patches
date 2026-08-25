@@ -180,3 +180,10 @@ remain unchanged evidence.
 
 The result-driven v3 oracle is locally implemented and tested but has made no
 provider call. It changes no v2 observation or support decision.
+
+The later approved v3 run passed L1 and medium grammar, but low/medium byte
+cells failed their frozen exact run-length/full-emoji-scalar obligations after
+2048 controls; low grammar was output-cap inconclusive. Seven calls used
+`USD 0.012216000` rated usage and qualified no route. The structural receipt
+retains its exact fields and the resulting extraction-versus-semantic-recall
+boundary; v3 remains failed evidence.
