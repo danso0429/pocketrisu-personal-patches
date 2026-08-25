@@ -37,7 +37,9 @@ test('prototype dependency and owned-file graph composes and reverts exactly', (
     assert.match(plan.outputs.get('src/ts/pagefold/canonicalTranscript.test.ts'), /fakeHeader/)
     assert.match(plan.outputs.get('server/node/pageFoldPdfService.cjs'), /maxPages: 8/)
     assert.match(plan.outputs.get('server/node/pageFoldPdfWorker.cjs'), /ActualText/)
-    assert.match(plan.outputs.get('server/node/pageFoldStructuralPaidRunner.cjs'), /const MAX_CALLS = 23/)
+    assert.match(plan.outputs.get('server/node/pageFoldStructuralPaidRunner.cjs'), /const MAX_CALLS = 21/)
+    assert.match(plan.outputs.get('server/node/pageFoldStructuralPaidRunner.cjs'), /const MAX_OUTPUT_CONTROLS = 0/)
+    assert.match(plan.outputs.get('server/node/pageFoldStructuralPaidRunner.cjs'), /STRUCTURAL_ORACLE_V4/)
     assert.match(plan.outputs.get('server/node/pageFoldStructuralPaidRunner.test.ts'), /resumes an exact two-pass decision/)
 
     const byId = new Map(manifest.units.map((unit) => [unit.id, unit]))

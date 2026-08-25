@@ -5,8 +5,8 @@ const fs = require('node:fs')
 const {
     MODEL_ID,
     NORMAL_OUTPUT_TOKENS,
-    OUTPUT_CAP_CONTROL_TOKENS_V3,
-    STRUCTURAL_ORACLE_V3,
+    PAID_OUTPUT_TOKENS_V4,
+    STRUCTURAL_ORACLE_V4,
     VERTEX_RATED_COST_CAP_USD,
     PageFoldStructuralError,
     chooseResolution,
@@ -29,10 +29,10 @@ const {
     rateUsage,
 } = require('./pageFoldProviderFeasibility.cjs')
 
-const MAX_CALLS = 23
-const MAX_OUTPUT_CONTROLS = 2
-const PAID_ORACLE_VERSION = STRUCTURAL_ORACLE_V3
-const PAID_OUTPUT_CAP_CONTROL_TOKENS = OUTPUT_CAP_CONTROL_TOKENS_V3
+const MAX_CALLS = 21
+const MAX_OUTPUT_CONTROLS = 0
+const PAID_ORACLE_VERSION = STRUCTURAL_ORACLE_V4
+const PAID_OUTPUT_TOKENS = PAID_OUTPUT_TOKENS_V4
 const REQUEST_TIMEOUT_MS = 300_000
 const MEDIA_RESOLUTION = Object.freeze({
     low: 'MEDIA_RESOLUTION_LOW',
@@ -165,8 +165,8 @@ async function runStructuralPaid(options = {}) {
 }
 
 async function runLogicalCell({ cell, fixtures, credentials, state, options, secrets }) {
-    const initial = await runPhysicalCell({
-        cell,
+    return runPhysicalCell({
+        cell: { ...cell, outputTokens: PAID_OUTPUT_TOKENS },
         control: false,
         controlForCall: null,
         fixtures,
@@ -175,22 +175,6 @@ async function runLogicalCell({ cell, fixtures, credentials, state, options, sec
         options,
         secrets,
     })
-    if (!initial || state.stopReason || initial.status !== 'inconclusive-output-cap') return initial
-    if (state.controlsUsed >= MAX_OUTPUT_CONTROLS) return initial
-
-    const controlCell = { ...cell, outputTokens: PAID_OUTPUT_CAP_CONTROL_TOKENS }
-    const control = await runPhysicalCell({
-        cell: controlCell,
-        control: true,
-        controlForCall: initial.call,
-        fixtures,
-        credentials,
-        state,
-        options,
-        secrets,
-    })
-    if (control) state.controlsUsed++
-    return control || initial
 }
 
 async function runPhysicalCell({
@@ -440,7 +424,7 @@ function buildVertexRequestBody({ cell, fixture }) {
         systemInstruction: { parts: systemParts },
         contents: [{ role: 'user', parts }],
         generationConfig: {
-            maxOutputTokens: cell.outputTokens,
+            maxOutputTokens: PAID_OUTPUT_TOKENS,
             thinkingConfig: { thinkingLevel: 'low', includeThoughts: false },
             responseMimeType: 'application/json',
             responseSchema: responseSchemaForClaim(cell.claim, PAID_ORACLE_VERSION),
@@ -483,7 +467,7 @@ function restoreDecisionState({ resumeSummary, fixtures, publicFixtures, maxCost
         || JSON.stringify(resumeSummary.fixtures) !== JSON.stringify(publicFixtures)
         || !Array.isArray(resumeSummary.records)
         || resumeSummary.records.length < 5
-        || resumeSummary.records.length > 7) {
+        || resumeSummary.records.length > 5 + MAX_OUTPUT_CONTROLS) {
         throw new PageFoldStructuralPaidError('RESUME_STATE_INVALID')
     }
     const records = resumeSummary.records.map((record, index) =>
@@ -567,8 +551,7 @@ function restoreCell(input) {
     )
     if (!match) throw new PageFoldStructuralPaidError('RESUME_STATE_INVALID')
     const outputTokens = input.outputTokens
-    if (outputTokens !== NORMAL_OUTPUT_TOKENS
-        && outputTokens !== PAID_OUTPUT_CAP_CONTROL_TOKENS) {
+    if (outputTokens !== PAID_OUTPUT_TOKENS) {
         throw new PageFoldStructuralPaidError('RESUME_STATE_INVALID')
     }
     return publicCell({ ...match, outputTokens })
@@ -610,7 +593,8 @@ function buildSummary({
         maximumOutputControls: MAX_OUTPUT_CONTROLS,
         outputControlsUsed: state.controlsUsed,
         normalOutputTokens: NORMAL_OUTPUT_TOKENS,
-        outputCapControlTokens: PAID_OUTPUT_CAP_CONTROL_TOKENS,
+        paidOutputTokens: PAID_OUTPUT_TOKENS,
+        outputCapControlTokens: null,
         maxCostUsd: state.maxCostUsd,
         ratedCostUsd: state.ratedCostUsd,
         credentialChecks: { ...credentials.checks },
@@ -947,7 +931,7 @@ module.exports = {
     MAX_CALLS,
     MAX_OUTPUT_CONTROLS,
     PAID_ORACLE_VERSION,
-    PAID_OUTPUT_CAP_CONTROL_TOKENS,
+    PAID_OUTPUT_TOKENS,
     PROMPT_TOKEN_RESERVE,
     PageFoldStructuralPaidError,
     buildVertexRequestBody,

@@ -4,12 +4,15 @@ const {
     NORMAL_OUTPUT_TOKENS,
     OUTPUT_CAP_CONTROL_TOKENS,
     OUTPUT_CAP_CONTROL_TOKENS_V3,
+    PAID_OUTPUT_TOKENS_V4,
     STRUCTURAL_ORACLE_V1,
     STRUCTURAL_ORACLE_V2,
     STRUCTURAL_ORACLE_V3,
+    STRUCTURAL_ORACLE_V4,
     STRUCTURAL_EXPECTATION,
     STRUCTURAL_EXPECTATION_V2,
     STRUCTURAL_EXPECTATION_V3,
+    STRUCTURAL_EXPECTATION_V4,
     VERTEX_RATED_COST_CAP_USD,
     chooseResolution,
     createHierarchyPlan,
@@ -145,7 +148,7 @@ describe('PageFold structural requalification L0', () => {
             status: 'fail',
             differences: [expect.objectContaining({ field: 'tagCodePoints' })],
         })
-        expect(() => responseSchemaForClaim('text-oracle', 4))
+        expect(() => responseSchemaForClaim('text-oracle', 5))
             .toThrowError(expect.objectContaining({ code: 'ORACLE_VERSION_INVALID' }))
     })
 
@@ -218,6 +221,68 @@ describe('PageFold structural requalification L0', () => {
             outputTokens: 2000,
             oracleVersion: STRUCTURAL_ORACLE_V3,
         })).toMatchObject({
+            outputControlAllowed: false,
+            nextOutputTokens: null,
+        })
+    })
+
+    it('separates exact extraction from semantic v4 recall with one 2048 attempt', () => {
+        expect(STRUCTURAL_ORACLE_V4).toBe(4)
+        expect(PAID_OUTPUT_TOKENS_V4).toBe(2048)
+        expect(STRUCTURAL_EXPECTATION_V4).toEqual({
+            words: ['ALPHA', 'BETA'],
+            spaceRunPositions: ['leading', 'between', 'trailing'],
+            zwjSemanticMembers: ['man', 'woman', 'girl', 'boy'],
+            zwjJoinerCount: 3,
+            variationSequenceCodePoints: [9992, 65039],
+            tagSequenceCodePoints: [917607],
+        })
+
+        const textExpected = expectedForClaim('text-oracle', {}, STRUCTURAL_ORACLE_V4)
+        expect(textExpected.roles).toEqual([
+            { marker: 'R_SYS', role: 'system' },
+            { marker: 'R_USER', role: 'user' },
+            { marker: 'R_ASSISTANT', role: 'assistant' },
+            { marker: 'R_TOOL', role: 'tool' },
+        ])
+        const byteExpected = expectedForClaim('byte-structure', {}, STRUCTURAL_ORACLE_V4)
+        expect(byteExpected.samples[0]).toMatchObject({
+            spaceRunPositions: ['leading', 'between', 'trailing'],
+            zwjSemanticMembers: ['man', 'woman', 'girl', 'boy'],
+            zwjJoinerCount: 3,
+            tagSequenceCodePoints: [917607],
+        })
+
+        const control = createTextControl(STRUCTURAL_ORACLE_V4)
+        expect(control).toContain('PAGEFOLD_RESPONSE_ORACLE_V4')
+        expect(control).toContain('SPACE_RUN_POSITIONS|leading|between|trailing')
+        expect(control).toContain('ZWJ_SEMANTIC_MEMBERS|man|woman|girl|boy')
+        expect(promptForClaim('byte-structure', STRUCTURAL_ORACLE_V4))
+            .toMatch(/do not estimate typographic run length/)
+        expect(responseSchemaForClaim('byte-structure', STRUCTURAL_ORACLE_V4))
+            .toMatchObject({
+                properties: {
+                    samples: {
+                        items: {
+                            properties: {
+                                zwjSemanticMembers: { type: 'array', items: { type: 'string' } },
+                                zwjJoinerCount: { type: 'integer' },
+                            },
+                        },
+                    },
+                },
+            })
+
+        const inputCell = { ...createScreeningPlan()[1], outputTokens: 2048 }
+        expect(evaluateObservation({
+            cell: inputCell,
+            answer: null,
+            expected: byteExpected,
+            finishReason: 'MAX_TOKENS',
+            outputTokens: 2000,
+            oracleVersion: STRUCTURAL_ORACLE_V4,
+        })).toMatchObject({
+            status: 'inconclusive-output-cap',
             outputControlAllowed: false,
             nextOutputTokens: null,
         })
@@ -319,10 +384,11 @@ describe('PageFold structural requalification L0', () => {
         }
         const output = publicDryRun({ 'maximum:1': fixture })
         expect(output.paidExecutionEnabled).toBe(false)
-        expect(output.maximumCallsAfterApproval).toBe(23)
-        expect(output.oracleVersions).toEqual({ historical: [1, 2], paidRunner: 3 })
-        expect(output.historicalOutputCapControlTokens).toBe(1024)
-        expect(output.outputCapControlTokens).toBe(2048)
+        expect(output.maximumCallsAfterApproval).toBe(21)
+        expect(output.oracleVersions).toEqual({ historical: [1, 2, 3], paidRunner: 4 })
+        expect(output.historicalOutputCapControlTokens).toEqual([1024, 2048])
+        expect(output.paidOutputTokens).toBe(2048)
+        expect(output.outputCapControlTokens).toBeNull()
         expect(output.responseOracleV2).toMatchObject({
             control: expect.stringContaining('PAGEFOLD_RESPONSE_ORACLE_V2'),
             expected: { tagCodePoints: [917607] },
@@ -338,6 +404,19 @@ describe('PageFold structural requalification L0', () => {
             responseSchema: {
                 properties: {
                     tagSequenceCodePoints: { type: 'array', items: { type: 'integer' } },
+                },
+            },
+        })
+        expect(output.responseOracleV4).toMatchObject({
+            control: expect.stringContaining('PAGEFOLD_RESPONSE_ORACLE_V4'),
+            expected: {
+                spaceRunPositions: ['leading', 'between', 'trailing'],
+                zwjJoinerCount: 3,
+                tagSequenceCodePoints: [917607],
+            },
+            responseSchema: {
+                properties: {
+                    zwjSemanticMembers: { type: 'array', items: { type: 'string' } },
                 },
             },
         })
