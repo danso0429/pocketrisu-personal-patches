@@ -61,6 +61,21 @@ authoritative npm distributions:
   https://github.com/Hopding/fontkit — npm integrity
   `sha512-KjMd7grNapIWS/Dm0gvfHEilSyAmeLvrEGVcqLGi0VYebuqqzTbgF29efCx7tvx+IEbG3zQciRSWl3GkUSvjZg==`
 
+Their newly resolved exact transitive nodes are:
+
+- `@pdf-lib/standard-fonts` 1.0.0 — MIT —
+  https://github.com/Hopding/standard-fonts — npm integrity
+  `sha512-hU30BK9IUN/su0Mn9VdlVKsWBS6GyhVfqjwl1FjZN4TxP6cCw0jP2w7V3Hf5uX7M0AZJ16vey9yE0ny7Sa59ZA==`
+- `@pdf-lib/upng` 1.0.1 — MIT —
+  https://github.com/Hopding/upng — npm integrity
+  `sha512-dQK2FUMQtowVP00mtIksrlZhdFXQZPC+taih1q4CvPZ5vqdxR/LKBaFg0oAfzd1GlHZXXSPdQfzQnt+ViGvEIQ==`
+- `pako` 1.0.11 — MIT and Zlib —
+  https://github.com/nodeca/pako — npm integrity
+  `sha512-4hLB8Py4zZce5s4yd9XzopqwVv/yGNhV1Bl8NTmCq1763HeK2+EwVTv+leGeL13Dnh2wfbqowVPXCIO0z4taYw==`
+- `tslib` 1.14.1 — 0BSD —
+  https://github.com/microsoft/tslib — npm integrity
+  `sha512-Xni35NKzjgMrwevysHTCArtLDpPvye8zV/0E4EyYn43P7/7qvQwPh9BGkHewbMulVntbigmcT7rdX3BNo9wRJg==`
+
 PocketRisu's existing `pdfjs-dist` 4.10.38 package, licensed under
 Apache-2.0, is used as the independent PDF extraction oracle:
 https://github.com/mozilla/pdf.js.
@@ -70,14 +85,18 @@ revisions, verifies their exact byte lengths and SHA-256 values before use, and
 retains their license texts. No font binary is committed to or redistributed by
 this repository:
 
-- Noto Sans CJK KR Regular — `notofonts/noto-cjk`
-  `f8d157532fbfaeda587e826d4cd5b21a49186f7c` — SIL Open Font License 1.1 —
-  16,433,112 bytes — SHA-256
-  `6bcb2a0703aa137e874fc2dffa85f6c21ba9a67fa329e81b8c801663af7e992a`
+- Noto Sans KR variable font — `google/fonts`
+  `ec626514f79f831f1ab848a82114a0ce7e2d6372` — SIL Open Font License 1.1 —
+  10,414,588 bytes — SHA-256
+  `194018e6b2b293a7964f037b25c0249ce1418bc9ab3c971060a03aa57861e252`
 - Noto Emoji variable font — `google/fonts`
   `ec626514f79f831f1ab848a82114a0ce7e2d6372` — SIL Open Font License 1.1 —
   1,982,596 bytes — SHA-256
   `de6c18832938afc99caf132b39d6a30a19bac7f2e812e28db2535b4608d27551`
+
+The source artifact's mutable Noto CJK OTF URL remains a behavioral observation,
+not a redistributed or runtime source. The independent renderer uses the pinned
+TTF above because its PDF.js extraction emitted no font-subtype warning.
 
 Using the same public package versions or reproducing an observed wire behavior
 does not incorporate source code from the supplied PageFold artifact.

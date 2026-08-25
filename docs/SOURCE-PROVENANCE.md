@@ -32,19 +32,29 @@ artifact:
   `sha512-V/mpyJAoTsN4cnP31vc0wfNA1+p20evqqnap0KLoRUN0Yk/p3wN52DOEsL4oBFcLdb76hlpKPtzJIgo67j/XLw==`;
 - `@pdf-lib/fontkit` `1.1.1`, MIT, npm integrity
   `sha512-KjMd7grNapIWS/Dm0gvfHEilSyAmeLvrEGVcqLGi0VYebuqqzTbgF29efCx7tvx+IEbG3zQciRSWl3GkUSvjZg==`;
-- Noto Sans CJK KR Regular from `notofonts/noto-cjk` revision
-  `f8d157532fbfaeda587e826d4cd5b21a49186f7c`, SIL Open Font License 1.1,
-  16,433,112 bytes, SHA-256
-  `6bcb2a0703aa137e874fc2dffa85f6c21ba9a67fa329e81b8c801663af7e992a`; and
+- Noto Sans KR variable font from `google/fonts` revision
+  `ec626514f79f831f1ab848a82114a0ce7e2d6372`, SIL Open Font License 1.1,
+  10,414,588 bytes, SHA-256
+  `194018e6b2b293a7964f037b25c0249ce1418bc9ab3c971060a03aa57861e252`; and
 - Noto Emoji variable font from `google/fonts` revision
   `ec626514f79f831f1ab848a82114a0ce7e2d6372`, SIL Open Font License 1.1,
   1,982,596 bytes, SHA-256
   `de6c18832938afc99caf132b39d6a30a19bac7f2e812e28db2535b4608d27551`.
 
+The exact lockfile also adds `@pdf-lib/standard-fonts 1.0.0` (MIT),
+`@pdf-lib/upng 1.0.1` (MIT), `pako 1.0.11` (MIT and Zlib), and
+`tslib 1.14.1` (0BSD) as transitive nodes. Their authoritative repository and
+integrity records are listed in `THIRD_PARTY_NOTICES.md`.
+
 PocketRisu's existing `pdfjs-dist` `4.10.38` (Apache-2.0) remains the
 independent extraction oracle. Matching a dependency version or observed
 behavior from the reference artifact does not change this classification into
 a source-code adaptation.
+
+The independently selected TTF replaces the behavioral-reference artifact's
+mutable Noto CJK OTF URL. The OTF observation remains audit evidence only; its
+pdf-lib subset emitted a PDF.js font-subtype warning, while the pinned TTF
+completed the same external-reader checks with zero warnings.
 
 ## Project-owned sources
 

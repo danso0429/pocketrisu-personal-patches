@@ -19,12 +19,24 @@ test('PageFold prototype is exact-1.10 reviewing and excluded from the catalog',
     ))
 })
 
-test('canonical serializer owner graph composes and reverts to absent', () => {
-    const baselines = new Map(manifest.units.map((unit) => [unit.file, null]))
+test('prototype dependency and owned-file graph composes and reverts exactly', () => {
+    const baselines = new Map()
+    for (const unit of manifest.units) {
+        if (unit.type === 'owned') {
+            if (!baselines.has(unit.file)) baselines.set(unit.file, null)
+            continue
+        }
+        const prior = baselines.get(unit.file) ?? ''
+        baselines.set(unit.file, prior + unit.anchor + `# synthetic-boundary:${unit.id}\n`)
+    }
     const plan = compose(manifest.units, baselines)
     assert.deepEqual(plan.collisions, [])
+    assert.match(plan.outputs.get('package.json'), /"pdf-lib": "1\.17\.1"/)
+    assert.match(plan.outputs.get('pnpm-lock.yaml'), /pdf-lib@1\.17\.1/)
     assert.match(plan.outputs.get('src/ts/pagefold/canonicalTranscript.ts'), /encodePageFoldJsonString/)
     assert.match(plan.outputs.get('src/ts/pagefold/canonicalTranscript.test.ts'), /fakeHeader/)
+    assert.match(plan.outputs.get('server/node/pageFoldPdfService.cjs'), /maxPages: 8/)
+    assert.match(plan.outputs.get('server/node/pageFoldPdfWorker.cjs'), /ActualText/)
 
     const byId = new Map(manifest.units.map((unit) => [unit.id, unit]))
     const reverted = new Map(plan.outputs)

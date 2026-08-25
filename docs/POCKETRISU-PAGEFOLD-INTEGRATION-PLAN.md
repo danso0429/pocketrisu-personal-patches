@@ -1,12 +1,16 @@
 # PocketRisu PageFold ModelPreset integration plan
 
-> **Status:** review-revised implementation plan; no runtime code has been changed yet
+> **Status:** review-revised implementation authority; provenance, canonical
+> serializer, and server renderer prototype are implemented and validated;
+> paid provider feasibility remains the active gate
 >
 > **Date:** 2026-08-25 KST
 >
 > **Target:** exact official PocketRisu `1.10.0` plus patcher stable `v0.2.0` (`de1fa40`)
 >
 > **Source under review:** PageFold plugin `0.1.1`, SHA-256 `8291b14f7330e8e4fa0438ea12d1e8f125073945d817fe74693fe9030891ef77`
+>
+> **Prototype receipt:** `docs/POCKETRISU-PAGEFOLD-PROTOTYPE-VALIDATION.md`
 
 ## 1. Outcome
 
