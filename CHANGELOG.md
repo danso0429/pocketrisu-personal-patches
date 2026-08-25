@@ -29,6 +29,12 @@
 - Generate the primary installer and byte-identical `all` alias twice at mode
   0755. Both are 7,844,116 bytes, CJS syntax-valid, and SHA-256
   `9a26882136bb17d3f6ef39684979a211a297ba7a64018df48ac34cd328a5a4dc`.
+- Reapply live after active native/BG work reaches zero and a process-first
+  stop. Pass focused PageFold 96/96, Svelte 0/0, the 7,940-module build, BG
+  build/load, production prune/load, current status, and zero-change plan.
+  Match served/local main/runtime/language chunks and build stamp; preserve
+  four SQLite `quick_check=ok`, DB/request/BG/inert-import state, and a
+  zero-byte error-log delta. Make no paid/provider call during delivery.
 
 ## 0.2.0-experimental.22
 

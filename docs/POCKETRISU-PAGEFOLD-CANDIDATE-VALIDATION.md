@@ -1,11 +1,12 @@
 # PocketRisu PageFold candidate validation receipt
 
-> **Status:** automatic candidate gate passed; exact-1.10 catalog admitted as
-> `under-review` and safely applied live; physical iPhone L3 remains separate
+> **Status:** experimental.23 L3 follow-up automatic gate passed; exact-1.10
+> catalog remains `under-review` and the revision is safely live; physical
+> iPhone L3 has resumed but is not complete
 >
 > **Date:** 2026-08-26 KST
 >
-> **Candidate:** `0.2.0-experimental.22`
+> **Candidate:** `0.2.0-experimental.23`
 >
 > **Target:** exact official PocketRisu `1.10.0`
 
@@ -422,5 +423,53 @@ another Gemini model or AI Studio needs its own observed/approved paid L3 call
 and may not inherit that label. OpenRouter/non-Gemini adapters still need an
 independent PDF wire.
 
-The sensitive sweep, delivery commit/push, and active-safe live reapply remain
-before resuming physical L3.
+### 9.4 experimental.23 live reapply
+
+Before mutation, PM2 was online at restart count 6, unstable restarts 0, and
+active requests 0. Native active jobs, pending sends, and BG result payloads
+were 0; all 132 BG states were delivered. The one retired background-import
+row remained `receiving` and was not resumed, cancelled, or deleted. Request
+logs were 3,910 rows / max ID 5,877 / 5,234 usage rows. The pre-existing error
+log was 139,872 bytes; its last 76 bytes were an unrelated ChatJournal backlog
+line and became the new pre-apply boundary.
+
+The `.22` application-only rollback
+`risuai-nodeonly-pre-pagefold-exp23.20260826-084101` contains 1,663 files /
+328,037,302 bytes, excludes `save/`, `backups/`, and `node_modules/`, and keeps
+mode-0600 copies of prior state/intent. PM2 was stopped only after a second
+zero-work read. The transaction changed 20 owned/host paths plus patch state.
+
+The stopped live tree passed:
+
+- frozen offline install, 109 reused / 0 downloaded;
+- focused PageFold 12 files / 96 tests;
+- Svelte diagnostics 0 errors / 0 warnings;
+- 7,940-module production build;
+- BG bundle build/load and post-prune exact preload/load;
+- 40-pack / 929-unit / 339-path current status and zero-change plan.
+
+After restart, PM2 returned online with restart count 6, unstable restarts 0,
+and active requests 0. Served/local artifacts matched:
+
+| Artifact | Bytes | SHA-256 |
+| --- | ---: | --- |
+| main `index-DCd-ZeME.js` | 2,047,228 | `b7980ce1b0a3f9a23a235cd54ea754386253826850da0b092808cca78aa11566` |
+| PageFold runtime `database.svelte-OYI7US91.js` | 2,449,676 | `38302839748bc7d62520b3fb115d2c8667535506a72cc5926a37d312981e4c80` |
+| language `lang-VU744FqG.js` | 885,892 | `1ffdc61248a1a76096f5c1b9d0de34be9385c3a9f94b02f0d535e4931fc6c566` |
+
+Served/local build stamps matched at
+`1.10.0-d071516541f2c938f1088757ec95f66dbffbee9eb502b3d77382149c56f5b762`.
+The new four Korean UI strings each appeared once; the removed fidelity,
+manual-price, and fixed-route copy appeared zero times. The live BG bundle is
+8,844,609 bytes with SHA-256
+`53cc24fd548f8a600ee2d50a605ba39e4df102246ef7c3915e35758d4bc0157f`.
+
+All four SQLite databases again returned `quick_check=ok`. Main/model/request/
+import DB inode-size pairs, 132 delivered BG states, zero active/pending/result
+work, the inert import row, request rows/max ID/usage, and the 139,872-byte
+error log matched preflight. No provider or paid call and no new request-log
+row occurred during reapply. Post-restart patch status is current with a
+zero-change 339-path plan.
+
+experimental.23 is ready to restart physical L3. Stable metadata/tag/release
+remain prohibited until the revised scenarios and L4 complete.

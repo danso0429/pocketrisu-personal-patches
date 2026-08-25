@@ -1,9 +1,9 @@
 # PocketRisu PageFold ModelPreset integration plan
 
-> **Status:** L3-revised implementation authority; initial F1-F9 candidate is
-> live, while the model-authority/UI follow-up is committed and awaiting its
-> complete automatic gate plus safe live reapply; catalog admission remains
-> `under-review` and no stable tag/release is authorized
+> **Status:** L3-revised implementation authority; experimental.23 compact UI
+> and preset-selected Gemini model follow-up passed the complete automatic gate,
+> commit/push, and safe live reapply; revised physical L3 is pending and no
+> stable tag/release is authorized
 >
 > **Date:** 2026-08-26 KST
 >
