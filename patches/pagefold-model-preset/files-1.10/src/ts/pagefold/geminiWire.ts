@@ -31,6 +31,11 @@ export function assertPageFoldGeminiInput(
     if (context.directiveVersion !== PAGEFOLD_QUALIFIED_ROUTE.directiveVersion
         || context.pageCount < 1 || context.pageCount > PAGEFOLD_QUALIFIED_ROUTE.maxPdfPages
         || context.pdfBytes < 1 || context.pdfBytes > PAGEFOLD_QUALIFIED_ROUTE.maxPdfBytes
+        || !Number.isSafeInteger(context.outputReserve) || context.outputReserve < 1
+        || context.outputReserve > PAGEFOLD_QUALIFIED_ROUTE.profileMaxOutputTokens
+        || !Number.isSafeInteger(context.predictedWireInputTokens) || context.predictedWireInputTokens < 1
+        || context.wireContextLimit !== PAGEFOLD_QUALIFIED_ROUTE.wireContextLimitTokens
+        || context.predictedWireInputTokens + context.outputReserve > context.wireContextLimit
         || !/^[a-f0-9]{64}$/.test(context.documentSha256)) invalid('PageFold wire context is invalid')
 
     if (messages.length < 2
@@ -114,6 +119,13 @@ export function assertPreparedPageFoldGeminiBody(
         ? PAGEFOLD_MAXIMUM_CONTINUATION_V1
         : PAGEFOLD_BALANCED_CONTINUATION_V1
     if (text.text !== expected) invalid('PageFold continuation directive changed during preparation')
+    const generationConfig = body.generationConfig
+    const finalOutput = generationConfig && typeof generationConfig === 'object'
+        ? (generationConfig as Record<string, unknown>).maxOutputTokens
+        : undefined
+    if (finalOutput !== context.outputReserve) {
+        invalid('PageFold final output limit differs from the source-budget authority')
+    }
 }
 
 function collectPropertyValues(value: unknown, key: string, out: unknown[] = []): unknown[] {

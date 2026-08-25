@@ -5,6 +5,11 @@ import type {
 } from 'src/ts/preset/adapter'
 import type { ModelPreset, ResolvedTask } from 'src/ts/preset/types'
 import {
+    evaluatePageFoldBudgets,
+    type PageFoldBudgetEvidence,
+    type PageFoldSourceBudget,
+} from './budget'
+import {
     serializePageFoldCanonicalTranscript,
     type PageFoldBindingSource,
     type PageFoldCanonicalTranscript,
@@ -27,6 +32,8 @@ export interface PreparePageFoldInput {
     binding: { source: PageFoldBindingSource, moduleId?: string }
     messages: readonly AdapterChatMessage[]
     renderPort: PageFoldRenderPort
+    sourceBudget: PageFoldSourceBudget
+    canonicalSourceTokenEstimate: number
     signal?: AbortSignal
 }
 
@@ -35,6 +42,7 @@ export interface PreparedPageFoldWire {
     context: AdapterPageFoldWireContext
     canonical: PageFoldCanonicalTranscript
     render: PageFoldRenderResult
+    budget: PageFoldBudgetEvidence
 }
 
 export async function preparePageFoldWire(input: PreparePageFoldInput): Promise<PreparedPageFoldWire> {
@@ -104,6 +112,13 @@ export async function preparePageFoldWire(input: PreparePageFoldInput): Promise<
             documents: [document],
         },
     ]
+    const budget = await evaluatePageFoldBudgets({
+        sourceMessages: input.messages,
+        wireMessages: messages,
+        pageCount: render.pageCount,
+        source: input.sourceBudget,
+        canonicalSourceTokenEstimate: input.canonicalSourceTokenEstimate,
+    })
     const context: AdapterPageFoldWireContext = {
         routeProfileId: route.id,
         mode: input.state.mode,
@@ -111,8 +126,11 @@ export async function preparePageFoldWire(input: PreparePageFoldInput): Promise<
         documentSha256: render.pdfSha256,
         pageCount: render.pageCount,
         pdfBytes: render.pdfBytes.byteLength,
+        outputReserve: budget.outputReserve,
+        predictedWireInputTokens: budget.predictedWireInputTokens,
+        wireContextLimit: budget.wireContextLimit,
     }
-    return { messages, context, canonical, render }
+    return { messages, context, canonical, render, budget }
 }
 
 export const PAGEFOLD_PRODUCTION_DIRECTIVES = Object.freeze({

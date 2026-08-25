@@ -11,6 +11,10 @@ import { PAGEFOLD_QUALIFIED_ROUTE } from './qualifiedRoute'
 import { preparePageFoldWire } from './prepare'
 import { getPageFoldRuntimeRenderPort, setPageFoldRuntimeRenderPortForTest } from './runtimePort'
 
+vi.mock('src/ts/tokenizer', () => ({
+    encodeWithTokenizer: async (text: string) => Array.from({ length: Math.ceil(text.length / 4) }, (_, index) => index),
+}))
+
 const pdf = new TextEncoder().encode('%PDF-1.7\nwire\n%%EOF')
 const pdfSha = createHash('sha256').update(pdf).digest('hex')
 
@@ -79,6 +83,13 @@ function prepare(mode: 'maximum' | 'balanced', messages: AdapterChatMessage[]) {
             binding: { source: 'chat' },
             messages,
             renderPort,
+            sourceBudget: {
+                assemblyTotalBudget: 65_000,
+                outputReserve: 8_192,
+                sourceInputBudget: 56_808,
+                sourceTokenizer: 'gemma',
+            },
+            canonicalSourceTokenEstimate: 10,
         }),
     }
 }
@@ -145,6 +156,7 @@ describe('PageFold production wire preparation', () => {
             mode: 'balanced',
             directiveVersion: 1,
             documentSha256: pdfSha,
+            outputReserve: 8_192,
         })
     })
 

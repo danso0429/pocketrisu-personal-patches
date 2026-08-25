@@ -48,13 +48,18 @@ function preset(customBody?: Record<string, unknown>): ModelPreset {
     }
 }
 
-const context: AdapterPageFoldWireContext = {
-    routeProfileId: PAGEFOLD_QUALIFIED_ROUTE.id,
-    mode: 'maximum',
-    directiveVersion: 1,
-    documentSha256: pdfSha,
-    pageCount: 1,
-    pdfBytes: pdf.byteLength,
+function context(outputReserve = 8_192): AdapterPageFoldWireContext {
+    return {
+        routeProfileId: PAGEFOLD_QUALIFIED_ROUTE.id,
+        mode: 'maximum',
+        directiveVersion: 1,
+        documentSha256: pdfSha,
+        pageCount: 1,
+        pdfBytes: pdf.byteLength,
+        outputReserve,
+        predictedWireInputTokens: 900,
+        wireContextLimit: 1_048_576,
+    }
 }
 
 function messages(): AdapterChatMessage[] {
@@ -93,7 +98,7 @@ describe('PageFold final Gemini prepared wire', () => {
                 responseMimeType: 'application/json',
                 responseSchema: { type: 'OBJECT', properties: { answer: { type: 'STRING' } } },
             },
-        }), { messages: messages(), pageFold: context }, { apiKey: SA_JSON })
+        }), { messages: messages(), pageFold: context(777) }, { apiKey: SA_JSON })
 
         expect(prepared.url).toBe(
             'https://aiplatform.googleapis.com/v1/projects/pagefold-test-project/locations/global'
@@ -120,13 +125,13 @@ describe('PageFold final Gemini prepared wire', () => {
     it('blocks custom cachedContent and document input without explicit PageFold context', async () => {
         await expect(previewGoogleChatRequest(
             preset({ cachedContent: 'projects/p/locations/global/cachedContents/hostile' }),
-            { messages: messages(), pageFold: context },
+            { messages: messages(), pageFold: context() },
             { apiKey: SA_JSON },
         )).rejects.toMatchObject({ kind: 'invalid-request', fallbackEligible: false })
 
         await expect(previewGoogleChatRequest(
             preset({ generationConfig: { mediaResolution: { level: 'MEDIA_RESOLUTION_MEDIUM' } } }),
-            { messages: messages(), pageFold: context },
+            { messages: messages(), pageFold: context() },
             { apiKey: SA_JSON },
         )).rejects.toMatchObject({ kind: 'invalid-request', fallbackEligible: false })
 

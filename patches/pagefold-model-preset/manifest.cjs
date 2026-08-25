@@ -614,6 +614,9 @@ export interface AdapterPageFoldWireContext {
     documentSha256: string
     pageCount: number
     pdfBytes: number
+    outputReserve: number
+    predictedWireInputTokens: number
+    wireContextLimit: number
 }
 `,
             requires: ['pagefold-model-preset:redaction-tests:1.10'],
@@ -885,6 +888,98 @@ export type ResolvedBindingWithContext =
             targetVersions: pocketRisu1100,
         },
         {
+            id: 'pagefold-model-preset:budget-policy:1.10',
+            file: 'src/ts/pagefold/budget.ts',
+            type: 'owned',
+            content: owned('src/ts/pagefold/budget.ts'),
+            requires: ['pagefold-model-preset:binding-context-sub:1.10'],
+            targetVersions: pocketRisu1100,
+        },
+        {
+            id: 'pagefold-model-preset:budget-policy-tests:1.10',
+            file: 'src/ts/pagefold/budget.test.ts',
+            type: 'owned',
+            content: owned('src/ts/pagefold/budget.test.ts'),
+            requires: ['pagefold-model-preset:budget-policy:1.10'],
+            targetVersions: pocketRisu1100,
+        },
+        {
+            id: 'pagefold-model-preset:failure-policy:1.10',
+            file: 'src/ts/pagefold/failurePolicy.ts',
+            type: 'owned',
+            content: owned('src/ts/pagefold/failurePolicy.ts'),
+            requires: ['pagefold-model-preset:budget-policy-tests:1.10'],
+            targetVersions: pocketRisu1100,
+        },
+        {
+            id: 'pagefold-model-preset:failure-policy-tests:1.10',
+            file: 'src/ts/pagefold/failurePolicy.test.ts',
+            type: 'owned',
+            content: owned('src/ts/pagefold/failurePolicy.test.ts'),
+            requires: ['pagefold-model-preset:failure-policy:1.10'],
+            targetVersions: pocketRisu1100,
+        },
+        {
+            id: 'pagefold-model-preset:chat-tokenizer-encoder-field:1.10',
+            file: 'src/ts/tokenizer.ts',
+            type: 'insert',
+            where: 'after',
+            anchor: "    private useName:'name'|'noName'\n",
+            content: `    private encodeText: typeof encode
+`,
+            requires: ['pagefold-model-preset:failure-policy-tests:1.10'],
+            targetVersions: pocketRisu1100,
+        },
+        {
+            id: 'pagefold-model-preset:chat-tokenizer-encoder-constructor:1.10',
+            file: 'src/ts/tokenizer.ts',
+            type: 'replace',
+            anchor: `    constructor(chatAdditionalTokens:number, useName:'name'|'noName'){
+        this.chatAdditionalTokens = chatAdditionalTokens
+        this.useName = useName
+    }
+`,
+            content: `    constructor(
+        chatAdditionalTokens: number,
+        useName: 'name' | 'noName',
+        encodeText: typeof encode = encode,
+    ) {
+        this.chatAdditionalTokens = chatAdditionalTokens
+        this.useName = useName
+        this.encodeText = encodeText
+    }
+`,
+            requires: ['pagefold-model-preset:chat-tokenizer-encoder-field:1.10'],
+            targetVersions: pocketRisu1100,
+        },
+        {
+            id: 'pagefold-model-preset:chat-tokenizer-content-encoder:1.10',
+            file: 'src/ts/tokenizer.ts',
+            type: 'replace',
+            anchor: '        let encoded = (await encode(data.content)).length + this.chatAdditionalTokens\n',
+            content: '        let encoded = (await this.encodeText(data.content)).length + this.chatAdditionalTokens\n',
+            requires: ['pagefold-model-preset:chat-tokenizer-encoder-constructor:1.10'],
+            targetVersions: pocketRisu1100,
+        },
+        {
+            id: 'pagefold-model-preset:chat-tokenizer-name-encoder:1.10',
+            file: 'src/ts/tokenizer.ts',
+            type: 'replace',
+            anchor: '            encoded += (await encode(data.name)).length + 1\n',
+            content: '            encoded += (await this.encodeText(data.name)).length + 1\n',
+            requires: ['pagefold-model-preset:chat-tokenizer-content-encoder:1.10'],
+            targetVersions: pocketRisu1100,
+        },
+        {
+            id: 'pagefold-model-preset:chat-tokenizer-thought-encoder:1.10',
+            file: 'src/ts/tokenizer.ts',
+            type: 'replace',
+            anchor: '                encoded += (await encode(thought)).length + 1\n',
+            content: '                encoded += (await this.encodeText(thought)).length + 1\n',
+            requires: ['pagefold-model-preset:chat-tokenizer-name-encoder:1.10'],
+            targetVersions: pocketRisu1100,
+        },
+        {
             id: 'pagefold-model-preset:request-pagefold-imports:1.10',
             file: 'src/ts/process/request/request.ts',
             type: 'insert',
@@ -898,9 +993,227 @@ export type ResolvedBindingWithContext =
 import { preparePageFoldWire } from 'src/ts/pagefold/prepare'
 import { getPageFoldRuntimeRenderPort } from 'src/ts/pagefold/runtimePort'
 import { redactPreparedRequestForDisplay } from 'src/ts/pagefold/redaction'
+import {
+    assertPageFoldCanonicalSourceBudget,
+    countPageFoldAdapterSourceTokens,
+    resolvePageFoldOutputReserve,
+    resolvePageFoldSourceBudget,
+} from 'src/ts/pagefold/budget'
+import {
+    completePageFoldRouteState,
+    createPageFoldSourceRouteState,
+    pageFoldContentRetryPolicy,
+    pageFoldFailurePolicy,
+    validatePageFoldRouteState,
+    type PageFoldRouteState,
+    type RequestFailurePolicy,
+} from 'src/ts/pagefold/failurePolicy'
 import type { ResolvedBindingWithContext } from './modelPresetBinding'
 `,
-            requires: ['pagefold-model-preset:binding-context-sub:1.10'],
+            requires: ['pagefold-model-preset:chat-tokenizer-thought-encoder:1.10'],
+            targetVersions: pocketRisu1100,
+        },
+        {
+            id: 'pagefold-model-preset:request-route-state-argument:1.10',
+            file: 'src/ts/process/request/request.ts',
+            type: 'insert',
+            where: 'after',
+            anchor: '    logSource?:RequestLogSource\n',
+            content: `    /** Runtime-only exact source/PDF reuse. Never persisted or sent to BG result state. */
+    pageFoldRouteState?: PageFoldRouteState
+`,
+            requires: ['pagefold-model-preset:request-pagefold-imports:1.10'],
+            targetVersions: pocketRisu1100,
+        },
+        {
+            id: 'pagefold-model-preset:request-route-state-response:1.10',
+            file: 'src/ts/process/request/request.ts',
+            type: 'insert',
+            where: 'after',
+            anchor: '    noRetry?: boolean,\n',
+            content: `    pageFoldRouteState?: PageFoldRouteState
+    failurePolicy?: RequestFailurePolicy
+`,
+            requires: ['pagefold-model-preset:request-route-state-argument:1.10'],
+            targetVersions: pocketRisu1100,
+        },
+        {
+            id: 'pagefold-model-preset:request-route-state-stream-response:1.10',
+            file: 'src/ts/process/request/request.ts',
+            type: 'insert',
+            where: 'after',
+            anchor: '    result: ReadableStream<StreamResponseChunk>,\n',
+            content: `    pageFoldRouteState?: PageFoldRouteState
+    failurePolicy?: RequestFailurePolicy
+`,
+            requires: ['pagefold-model-preset:request-route-state-response:1.10'],
+            targetVersions: pocketRisu1100,
+        },
+        {
+            id: 'pagefold-model-preset:request-outer-route-state:1.10',
+            file: 'src/ts/process/request/request.ts',
+            type: 'insert',
+            where: 'after',
+            anchor: '    let da:requestDataResponse\n',
+            content: `    let pageFoldRouteState: PageFoldRouteState | undefined
+`,
+            requires: ['pagefold-model-preset:request-route-state-stream-response:1.10'],
+            targetVersions: pocketRisu1100,
+        },
+        {
+            id: 'pagefold-model-preset:request-outer-skip-source-transforms:1.10',
+            file: 'src/ts/process/request/request.ts',
+            type: 'replace',
+            anchor: `            if(pluginV2.replacerbeforeRequest.size > 0){
+                for(const replacer of pluginV2.replacerbeforeRequest){
+                    arg.formated = await replacer(arg.formated, model)
+                }
+            }
+${'            '}
+            try{
+                const currentChar = getCurrentCharacter()
+                if(currentChar){
+                    const perf = performance.now()
+                    const d = await runTrigger(currentChar, 'request', {
+                        chat: getCurrentChat(),
+                        displayMode: true,
+                        displayData: JSON.stringify(arg.formated)
+                    })
+${'        '}
+                    const got = JSON.parse(d.displayData)
+                    if(!got || !Array.isArray(got)){
+                        throw new Error('Invalid return')
+                    }
+                    arg.formated = got
+                    console.log('Trigger time', performance.now() - perf)
+                }
+            }
+            catch(e){
+                console.error(e)
+            }
+`,
+            content: `            if(!pageFoldRouteState){
+                if(pluginV2.replacerbeforeRequest.size > 0){
+                    for(const replacer of pluginV2.replacerbeforeRequest){
+                        arg.formated = await replacer(arg.formated, model)
+                    }
+                }
+
+                try{
+                    const currentChar = getCurrentCharacter()
+                    if(currentChar){
+                        const perf = performance.now()
+                        const d = await runTrigger(currentChar, 'request', {
+                            chat: getCurrentChat(),
+                            displayMode: true,
+                            displayData: JSON.stringify(arg.formated)
+                        })
+
+                        const got = JSON.parse(d.displayData)
+                        if(!got || !Array.isArray(got)){
+                            throw new Error('Invalid return')
+                        }
+                        arg.formated = got
+                        console.log('Trigger time', performance.now() - perf)
+                    }
+                }
+                catch(e){
+                    console.error(e)
+                }
+            }
+`,
+            requires: ['pagefold-model-preset:request-outer-route-state:1.10'],
+            targetVersions: pocketRisu1100,
+        },
+        {
+            id: 'pagefold-model-preset:request-outer-pass-route-state:1.10',
+            file: 'src/ts/process/request/request.ts',
+            type: 'replace',
+            anchor: `                ...arg,
+                staticModel: fallBackModels[fallbackIndex],
+`,
+            content: `                ...arg,
+                pageFoldRouteState,
+                staticModel: fallBackModels[fallbackIndex],
+`,
+            requires: ['pagefold-model-preset:request-outer-skip-source-transforms:1.10'],
+            targetVersions: pocketRisu1100,
+        },
+        {
+            id: 'pagefold-model-preset:request-outer-capture-route-state:1.10',
+            file: 'src/ts/process/request/request.ts',
+            type: 'insert',
+            where: 'after',
+            anchor: '            }, model, abortSignal)\n',
+            content: `            if (da.pageFoldRouteState) pageFoldRouteState = da.pageFoldRouteState
+`,
+            requires: ['pagefold-model-preset:request-outer-pass-route-state:1.10'],
+            targetVersions: pocketRisu1100,
+        },
+        {
+            id: 'pagefold-model-preset:request-outer-charset-policy:1.10',
+            file: 'src/ts/process/request/request.ts',
+            type: 'replace',
+            anchor: `                if(failed){
+                    continue
+                }
+`,
+            content: `                if(failed){
+                    if (pageFoldRouteState && trys > db.requestRetrys) {
+                        return {
+                            type: 'fail', result: 'PageFold response contained a banned charset',
+                            model: da.model, noRetry: true, pageFoldRouteState,
+                            failurePolicy: pageFoldContentRetryPolicy('banned-charset'),
+                        }
+                    }
+                    continue
+                }
+`,
+            requires: ['pagefold-model-preset:request-outer-capture-route-state:1.10'],
+            targetVersions: pocketRisu1100,
+        },
+        {
+            id: 'pagefold-model-preset:request-outer-blank-policy:1.10',
+            file: 'src/ts/process/request/request.ts',
+            type: 'insert',
+            where: 'before',
+            anchor: "            if(da.type === 'success' && fallbackIndex !== fallBackModels.length-1 && db.fallbackWhenBlankResponse){\n",
+            content: `            if(da.type === 'success' && pageFoldRouteState && db.fallbackWhenBlankResponse && da.result.trim() === ''){
+                trys += 1
+                if (trys > db.requestRetrys) {
+                    return {
+                        type: 'fail', result: 'PageFold returned a blank response',
+                        model: da.model, noRetry: true, pageFoldRouteState,
+                        failurePolicy: pageFoldContentRetryPolicy('blank-response'),
+                    }
+                }
+                continue
+            }
+
+`,
+            requires: ['pagefold-model-preset:request-outer-charset-policy:1.10'],
+            targetVersions: pocketRisu1100,
+        },
+        {
+            id: 'pagefold-model-preset:request-outer-failure-policy:1.10',
+            file: 'src/ts/process/request/request.ts',
+            type: 'insert',
+            where: 'before',
+            anchor: "            if(da.type !== 'fail' || da.noRetry){\n",
+            content: `            if(da.type === 'fail' && da.failurePolicy){
+                if (da.failurePolicy.allowClassicFallback !== false) {
+                    return { ...da, noRetry: true, result: 'Invalid PageFold fallback policy' }
+                }
+                if (da.failurePolicy.retrySameRoute && pageFoldRouteState && trys < db.requestRetrys) {
+                    trys += 1
+                    if (da.failurePolicy.retryAfterMs) await sleep(da.failurePolicy.retryAfterMs)
+                    continue
+                }
+                return da
+            }
+
+`,
+            requires: ['pagefold-model-preset:request-outer-blank-policy:1.10'],
             targetVersions: pocketRisu1100,
         },
         {
@@ -908,8 +1221,8 @@ import type { ResolvedBindingWithContext } from './modelPresetBinding'
             file: 'src/ts/process/request/request.ts',
             type: 'replace',
             anchor: "import { resolveChatModelBinding, buildModelPresetCredential, applyPromptPresetParams } from \"./modelPresetBinding\";\n",
-            content: "import { resolveChatModelBinding, resolveChatModelBindingWithContext, buildModelPresetCredential, applyPromptPresetParams } from \"./modelPresetBinding\";\n",
-            requires: ['pagefold-model-preset:request-pagefold-imports:1.10'],
+            content: "import { resolveChatModelBinding, resolveChatModelBindingWithContext, resolvePresetMaxOutputTokens, buildModelPresetCredential, applyPromptPresetParams } from \"./modelPresetBinding\";\n",
+            requires: ['pagefold-model-preset:request-outer-failure-policy:1.10'],
             targetVersions: pocketRisu1100,
         },
         {
@@ -947,6 +1260,27 @@ import type { ResolvedBindingWithContext } from './modelPresetBinding'
             targetVersions: pocketRisu1100,
         },
         {
+            id: 'pagefold-model-preset:request-retry-skip-reformater:1.10',
+            file: 'src/ts/process/request/request.ts',
+            type: 'replace',
+            anchor: `    try {
+        arg.formated = reformater(safeStructuredClone(arg.formated), presetFlags)
+    } catch (err) {
+        return { type: 'fail', result: err instanceof Error ? err.message : String(err), model: wireModel }
+    }
+`,
+            content: `    if (!arg.pageFoldRouteState) {
+        try {
+            arg.formated = reformater(safeStructuredClone(arg.formated), presetFlags)
+        } catch (err) {
+            return { type: 'fail', result: err instanceof Error ? err.message : String(err), model: wireModel }
+        }
+    }
+`,
+            requires: ['pagefold-model-preset:request-preset-signature:1.10'],
+            targetVersions: pocketRisu1100,
+        },
+        {
             id: 'pagefold-model-preset:request-mutable-messages:1.10',
             file: 'src/ts/process/request/request.ts',
             type: 'replace',
@@ -954,11 +1288,13 @@ import type { ResolvedBindingWithContext } from './modelPresetBinding'
         ? await expandAdapterMessages(arg.formated, decodeToolCall, supportsVision)
         : arg.formated.map((m) => toAdapterMessage(m, supportsVision))
 `,
-            content: `    let messages = tools
-        ? await expandAdapterMessages(arg.formated, decodeToolCall, supportsVision)
-        : arg.formated.map((m) => toAdapterMessage(m, supportsVision))
+            content: `    let messages = arg.pageFoldRouteState
+        ? [...arg.pageFoldRouteState.sourceMessages]
+        : tools
+            ? await expandAdapterMessages(arg.formated, decodeToolCall, supportsVision)
+            : arg.formated.map((m) => toAdapterMessage(m, supportsVision))
 `,
-            requires: ['pagefold-model-preset:request-preset-signature:1.10'],
+            requires: ['pagefold-model-preset:request-retry-skip-reformater:1.10'],
             targetVersions: pocketRisu1100,
         },
         {
@@ -978,7 +1314,22 @@ import type { ResolvedBindingWithContext } from './modelPresetBinding'
         moduleBound: bindingContext?.bindingSource === 'module',
     })
     let pageFoldContext: AdapterChatOptions['pageFold']
+    let pageFoldRouteState = arg.pageFoldRouteState
     let pageFoldStatusStarted = false
+    const bindingSource = bindingContext?.bindingSource ?? 'chat'
+    const bindingModuleId = bindingSource === 'module' ? arg.moduleId : undefined
+
+    if (pageFoldRouteState && pageFoldState.kind !== 'on') {
+        void logScope.close()
+        return {
+            type: 'fail',
+            result: 'PageFold retry state is no longer enabled by the live preset',
+            model: wireModel,
+            noRetry: true,
+            pageFoldRouteState,
+            failurePolicy: pageFoldFailurePolicy({}, 'support-evidence'),
+        }
+    }
     if (pageFoldState.kind === 'blocked') {
         void logScope.close()
         return {
@@ -986,9 +1337,11 @@ import type { ResolvedBindingWithContext } from './modelPresetBinding'
             result: 'PageFold blocked: ' + pageFoldState.reason,
             model: wireModel,
             noRetry: true,
+            failurePolicy: pageFoldFailurePolicy({}, 'support-evidence'),
         }
     }
     if (pageFoldState.kind === 'on') {
+        const pageFoldOperationStartedAt = pageFoldRouteState?.operationStartedAt ?? Date.now()
         const incompatible = preset.toolUse === true
             ? 'tools-enabled'
             : preset.promptCaching?.enabled === true
@@ -1003,6 +1356,7 @@ import type { ResolvedBindingWithContext } from './modelPresetBinding'
                 result: 'PageFold blocked: ' + incompatible,
                 model: wireModel,
                 noRetry: true,
+                failurePolicy: pageFoldFailurePolicy({}, 'prepared-invariant'),
             }
         }
         if (reportStatus) {
@@ -1011,27 +1365,72 @@ import type { ResolvedBindingWithContext } from './modelPresetBinding'
                 label: preset.name + ' · PageFold',
                 chatId: arg.realChatId,
                 phase: 'connecting',
-                now: Date.now(),
+                now: pageFoldOperationStartedAt,
             }))
             pageFoldStatusStarted = true
         }
         try {
-            const preparedPageFold = await preparePageFoldWire({
-                state: pageFoldState,
-                preset,
-                task: mode,
-                binding: {
-                    source: bindingContext?.bindingSource ?? 'chat',
-                    ...(bindingContext?.bindingSource === 'module' && arg.moduleId
-                        ? { moduleId: arg.moduleId }
-                        : {}),
-                },
-                messages,
-                renderPort: getPageFoldRuntimeRenderPort(),
-                signal: abortSignal ?? undefined,
-            })
-            messages = preparedPageFold.messages
-            pageFoldContext = preparedPageFold.context
+            if (pageFoldRouteState) {
+                validatePageFoldRouteState({
+                    state: pageFoldRouteState,
+                    preset,
+                    task: mode,
+                    mode: pageFoldState.mode,
+                    bindingSource,
+                    moduleId: bindingModuleId,
+                })
+                messages = [...pageFoldRouteState.sourceMessages]
+            } else {
+                const outputReserve = resolvePageFoldOutputReserve(
+                    preset,
+                    resolvePresetMaxOutputTokens(preset),
+                    getDatabase().maxResponse,
+                )
+                const sourceBudget = resolvePageFoldSourceBudget({
+                    preset,
+                    outputReserve,
+                    databaseTokenizer: getDatabase().customTokenizer,
+                })
+                pageFoldRouteState = createPageFoldSourceRouteState({
+                    preset,
+                    task: mode,
+                    mode: pageFoldState.mode,
+                    bindingSource,
+                    moduleId: bindingModuleId,
+                    sourceMessages: messages,
+                    sourceBudget,
+                    operationStartedAt: pageFoldOperationStartedAt,
+                })
+            }
+
+            if (pageFoldRouteState.stage === 'rendered') {
+                messages = [...pageFoldRouteState.wireMessages]
+                pageFoldContext = { ...pageFoldRouteState.wireContext }
+            } else {
+                const canonicalSourceTokenEstimate = await countPageFoldAdapterSourceTokens(
+                    pageFoldRouteState.sourceMessages,
+                    pageFoldRouteState.sourceBudget.sourceTokenizer,
+                )
+                assertPageFoldCanonicalSourceBudget(canonicalSourceTokenEstimate, pageFoldRouteState.sourceBudget)
+                const preparedPageFold = await preparePageFoldWire({
+                    state: pageFoldState,
+                    preset,
+                    task: mode,
+                    binding: { source: bindingSource, ...(bindingModuleId ? { moduleId: bindingModuleId } : {}) },
+                    messages: pageFoldRouteState.sourceMessages,
+                    renderPort: getPageFoldRuntimeRenderPort(),
+                    sourceBudget: pageFoldRouteState.sourceBudget,
+                    canonicalSourceTokenEstimate,
+                    signal: abortSignal ?? undefined,
+                })
+                messages = preparedPageFold.messages
+                pageFoldContext = preparedPageFold.context
+                pageFoldRouteState = completePageFoldRouteState(
+                    pageFoldRouteState,
+                    preparedPageFold,
+                    preparedPageFold.budget,
+                )
+            }
         } catch (err) {
             if (pageFoldStatusStarted) safeStatus(() => endStatus(genId, abortSignal?.aborted ? 'aborted' : 'failed', {
                 now: Date.now(),
@@ -1043,6 +1442,8 @@ import type { ResolvedBindingWithContext } from './modelPresetBinding'
                 result: err instanceof Error ? err.message : String(err),
                 model: wireModel,
                 noRetry: true,
+                pageFoldRouteState,
+                failurePolicy: pageFoldFailurePolicy(err, 'renderer'),
             }
         }
     }
@@ -1128,6 +1529,55 @@ import type { ResolvedBindingWithContext } from './modelPresetBinding'
             targetVersions: pocketRisu1100,
         },
         {
+            id: 'pagefold-model-preset:request-decoupled-route-state:1.10',
+            file: 'src/ts/process/request/request.ts',
+            type: 'replace',
+            anchor: "                return { type: 'success', result: text, model: wireModel }\n",
+            content: "                return { type: 'success', result: text, model: wireModel, pageFoldRouteState }\n",
+            requires: ['pagefold-model-preset:request-status-no-restart:1.10'],
+            targetVersions: pocketRisu1100,
+        },
+        {
+            id: 'pagefold-model-preset:request-stream-route-state:1.10',
+            file: 'src/ts/process/request/request.ts',
+            type: 'replace',
+            anchor: "            return { type: 'streaming', result: stream, model: wireModel }\n",
+            content: "            return { type: 'streaming', result: stream, model: wireModel, pageFoldRouteState }\n",
+            requires: ['pagefold-model-preset:request-decoupled-route-state:1.10'],
+            targetVersions: pocketRisu1100,
+        },
+        {
+            id: 'pagefold-model-preset:request-success-route-state:1.10',
+            file: 'src/ts/process/request/request.ts',
+            type: 'replace',
+            anchor: "        return { type: 'success', result: formatPresetReasoning(response.reasoning) + response.text, model: wireModel }\n",
+            content: "        return { type: 'success', result: formatPresetReasoning(response.reasoning) + response.text, model: wireModel, pageFoldRouteState }\n",
+            requires: ['pagefold-model-preset:request-stream-route-state:1.10'],
+            targetVersions: pocketRisu1100,
+        },
+        {
+            id: 'pagefold-model-preset:request-failure-route-policy:1.10',
+            file: 'src/ts/process/request/request.ts',
+            type: 'replace',
+            anchor: `        return {
+            type: 'fail',
+            result: err instanceof Error ? err.message : String(err),
+            model: wireModel,
+        }
+`,
+            content: `        return {
+            type: 'fail',
+            result: err instanceof Error ? err.message : String(err),
+            model: wireModel,
+            noRetry: pageFoldRouteState ? true : undefined,
+            pageFoldRouteState,
+            failurePolicy: pageFoldRouteState ? pageFoldFailurePolicy(err) : undefined,
+        }
+`,
+            requires: ['pagefold-model-preset:request-success-route-state:1.10'],
+            targetVersions: pocketRisu1100,
+        },
+        {
             id: 'pagefold-model-preset:request-log-redaction-import:1.10',
             file: 'src/ts/requestLog.ts',
             type: 'insert',
@@ -1139,7 +1589,7 @@ import type { ResolvedBindingWithContext } from './modelPresetBinding'
     redactRequestLogUrl,
 } from 'src/ts/pagefold/redaction'
 `,
-            requires: ['pagefold-model-preset:request-status-no-restart:1.10'],
+            requires: ['pagefold-model-preset:request-failure-route-policy:1.10'],
             targetVersions: pocketRisu1100,
         },
         {
@@ -1239,6 +1689,163 @@ import type { ResolvedBindingWithContext } from './modelPresetBinding'
             type: 'owned',
             content: owned('src/ts/pagefold/geminiWire.integration.test.ts'),
             requires: ['pagefold-model-preset:server-log-response-body-redaction:1.10'],
+            targetVersions: pocketRisu1100,
+        },
+        {
+            id: 'pagefold-model-preset:index-tokenizer-import:1.10',
+            file: 'src/ts/process/index.svelte.ts',
+            type: 'replace',
+            anchor: 'import { ChatTokenizer, tokenize, tokenizeNum } from "../tokenizer";\n',
+            content: 'import { ChatTokenizer, encodeWithTokenizer, tokenize, tokenizeNum } from "../tokenizer";\n',
+            requires: ['pagefold-model-preset:gemini-wire-integration-tests:1.10'],
+            targetVersions: pocketRisu1100,
+        },
+        {
+            id: 'pagefold-model-preset:index-binding-import:1.10',
+            file: 'src/ts/process/index.svelte.ts',
+            type: 'replace',
+            anchor: 'import { resolveChatModelBinding, resolvePresetMaxOutputTokens } from "./request/modelPresetBinding";\n',
+            content: 'import { resolveChatModelBinding, resolveChatModelBindingWithContext, resolvePresetMaxOutputTokens } from "./request/modelPresetBinding";\n',
+            requires: ['pagefold-model-preset:index-tokenizer-import:1.10'],
+            targetVersions: pocketRisu1100,
+        },
+        {
+            id: 'pagefold-model-preset:index-budget-import:1.10',
+            file: 'src/ts/process/index.svelte.ts',
+            type: 'insert',
+            where: 'after',
+            anchor: 'import { resolveChatModelBinding, resolvePresetMaxOutputTokens } from "./request/modelPresetBinding";\n',
+            content: `import { resolvePageFoldState } from 'src/ts/pagefold/resolve'
+import { resolvePageFoldOutputReserve, resolvePageFoldSourceBudget } from 'src/ts/pagefold/budget'
+`,
+            requires: ['pagefold-model-preset:index-tokenizer-import:1.10'],
+            before: ['pagefold-model-preset:index-binding-import:1.10'],
+            targetVersions: pocketRisu1100,
+        },
+        {
+            id: 'pagefold-model-preset:index-source-budget:1.10',
+            file: 'src/ts/process/index.svelte.ts',
+            type: 'replace',
+            anchor: `    let chatAdditonalTokens = arg.chatAdditonalTokens ?? caculatedChatTokens
+    const tokenizer = new ChatTokenizer(chatAdditonalTokens, DBState.db.aiModel.startsWith('gpt') ? 'noName' : 'name')
+    let currentChat = runCurrentChatFunction(nowChatroom.chats[selectedChat])
+    nowChatroom.chats[selectedChat] = currentChat
+    let maxContextTokens = DBState.db.maxContext
+    // Output-token reservation for the context budget. Defaults to the legacy
+    // global db.maxResponse (the "[채팅 봇]" max response size), overridden below
+    // when this chat is bound to a ModelPreset.
+    let maxResponseTokens = DBState.db.maxResponse
+    // When this chat is bound to a ModelPreset, use the preset's own input
+    // budget (preset.maxContext, default 65000) instead of the global
+    // db.maxContext — clamped to the model's context window when known.
+    // Without this, a small global maxContext blocks large-context presets.
+    {
+        const mainBinding = resolveChatModelBinding(currentChat, 'model')
+        if (mainBinding.kind === 'modelPreset') {
+            const ctxWindow = mainBinding.preset.profileSnapshot.limits?.contextWindowTokens
+            const set = mainBinding.preset.maxContext
+            const budget = set && set > 0 ? set : 65000
+            maxContextTokens = ctxWindow ? Math.min(budget, ctxWindow) : budget
+            // Reserve output tokens from the preset's own max-output setting
+            // rather than db.maxResponse — the legacy global value can be a
+            // stray figure (e.g. 65535 carried over from an imported prompt
+            // preset) that would eat the whole context window and make even the
+            // first message fail with a false "too much token" error.
+            const presetOut = resolvePresetMaxOutputTokens(mainBinding.preset)
+            if (presetOut !== undefined) maxResponseTokens = presetOut
+        }
+    }
+`,
+            content: `    let chatAdditonalTokens = arg.chatAdditonalTokens ?? caculatedChatTokens
+    let currentChat = runCurrentChatFunction(nowChatroom.chats[selectedChat])
+    nowChatroom.chats[selectedChat] = currentChat
+    let maxContextTokens = DBState.db.maxContext
+    let maxResponseTokens = DBState.db.maxResponse
+    const mainBinding = resolveChatModelBindingWithContext(currentChat, 'model')
+    const pageFoldAssemblyState = mainBinding.kind === 'modelPreset'
+        ? resolvePageFoldState({
+            preset: mainBinding.preset,
+            task: 'model',
+            binding: mainBinding.pageFoldBinding,
+            moduleBound: mainBinding.bindingSource === 'module',
+        })
+        : { kind: 'off' as const, reason: 'missing-config' as const }
+    const pageFoldAssemblyOn = pageFoldAssemblyState.kind === 'on'
+    let pageFoldSourceInputBudget: number | undefined
+    let pageFoldSourceTokenizer: import('src/ts/preset/types').RegistryTokenizer | undefined
+
+    if (mainBinding.kind === 'modelPreset') {
+        const presetOut = resolvePresetMaxOutputTokens(mainBinding.preset)
+        if (pageFoldAssemblyOn) {
+            maxResponseTokens = resolvePageFoldOutputReserve(mainBinding.preset, presetOut, DBState.db.maxResponse)
+            const sourceBudget = resolvePageFoldSourceBudget({
+                preset: mainBinding.preset,
+                outputReserve: maxResponseTokens,
+                databaseTokenizer: DBState.db.customTokenizer,
+            })
+            maxContextTokens = sourceBudget.assemblyTotalBudget
+            pageFoldSourceInputBudget = sourceBudget.sourceInputBudget
+            pageFoldSourceTokenizer = sourceBudget.sourceTokenizer
+        } else {
+            const ctxWindow = mainBinding.preset.profileSnapshot.limits?.contextWindowTokens
+            const set = mainBinding.preset.maxContext
+            const budget = set && set > 0 ? set : 65000
+            maxContextTokens = ctxWindow ? Math.min(budget, ctxWindow) : budget
+            if (presetOut !== undefined) maxResponseTokens = presetOut
+        }
+    }
+    const tokenizer = new ChatTokenizer(
+        chatAdditonalTokens,
+        DBState.db.aiModel.startsWith('gpt') ? 'noName' : 'name',
+        pageFoldSourceTokenizer
+            ? (text) => encodeWithTokenizer(text, pageFoldSourceTokenizer)
+            : undefined,
+    )
+`,
+            requires: [
+                'pagefold-model-preset:index-budget-import:1.10',
+                'pagefold-model-preset:index-binding-import:1.10',
+            ],
+            targetVersions: pocketRisu1100,
+        },
+        {
+            id: 'pagefold-model-preset:index-final-source-limit:1.10',
+            file: 'src/ts/process/index.svelte.ts',
+            type: 'insert',
+            where: 'before',
+            anchor: '    if(inputTokens > maxContextTokens){\n',
+            content: `    const finalInputLimit = pageFoldAssemblyOn
+        ? (pageFoldSourceInputBudget ?? 0)
+        : maxContextTokens
+`,
+            requires: ['pagefold-model-preset:index-source-budget:1.10'],
+            targetVersions: pocketRisu1100,
+        },
+        {
+            id: 'pagefold-model-preset:index-final-source-condition:1.10',
+            file: 'src/ts/process/index.svelte.ts',
+            type: 'replace',
+            anchor: '    if(inputTokens > maxContextTokens){\n',
+            content: '    if(inputTokens > finalInputLimit){\n',
+            requires: ['pagefold-model-preset:index-final-source-limit:1.10'],
+            targetVersions: pocketRisu1100,
+        },
+        {
+            id: 'pagefold-model-preset:index-final-source-loop:1.10',
+            file: 'src/ts/process/index.svelte.ts',
+            type: 'replace',
+            anchor: '        while(inputTokens > maxContextTokens){\n',
+            content: '        while(inputTokens > finalInputLimit){\n',
+            requires: ['pagefold-model-preset:index-final-source-condition:1.10'],
+            targetVersions: pocketRisu1100,
+        },
+        {
+            id: 'pagefold-model-preset:index-output-no-clamp:1.10',
+            file: 'src/ts/process/index.svelte.ts',
+            type: 'replace',
+            anchor: '    if(inputTokens + outputTokens > maxContextTokens){\n',
+            content: '    if(!pageFoldAssemblyOn && inputTokens + outputTokens > maxContextTokens){\n',
+            requires: ['pagefold-model-preset:index-final-source-loop:1.10'],
             targetVersions: pocketRisu1100,
         },
     ],
