@@ -1720,6 +1720,20 @@ implementation passed 33 focused tests, the 45-file patcher suite, exact
 v6-to-v7 update, zero-change re-plan, and zero-drift status; these gates do not
 replace the approved paid matrix.
 
+The approved v7 run passed both L2 resolutions, low one-page byte/grammar 3/3,
+and low two-page grammar 3/3. Its first eight-page marker call recovered all
+first/last markers, page order, and required centers, but added one adjacent
+upper center on a page whose exact reader count was odd. Thirteen calls cost
+`USD 0.034548750`; strict 3/3 stopped before later marker/byte/L4. v7 remains
+failed evidence.
+
+The result-driven `v8` removes centers from page-marker responses. Each of all
+eight physical pages must still return exact `first` and exact `last` in order.
+Interior eight-page content remains independently covered by the three 8-page
+byte-sentinel cells, while PDF.js still owns every exact page span and center.
+All v7 semantic, role, hierarchy, one-shot, cost, safety, and 3/3 boundaries
+remain unchanged. v8 must rerun every cell independently.
+
 ### 20.2 Candidate catalog admission — experimental only
 
 After the prototype gate:

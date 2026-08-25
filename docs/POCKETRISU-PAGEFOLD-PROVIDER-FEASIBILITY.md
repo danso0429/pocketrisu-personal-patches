@@ -219,3 +219,9 @@ structural receipt retains the mismatch and v7 canonical-marker boundary.
 
 The v7 comparison-only `ROLE:` canonicalizer is locally implemented and tested
 but has made no provider call. It changes no v6 observation or support result.
+
+The approved v7 run passed both L2 resolutions and low one-/two-page claims
+3/3, then stopped when the first eight-page marker call added one extra center
+to an otherwise exact eight-page boundary/order result. Thirteen calls used
+`USD 0.034548750`; the structural receipt retains the result and v8 boundary-
+only marker contract.

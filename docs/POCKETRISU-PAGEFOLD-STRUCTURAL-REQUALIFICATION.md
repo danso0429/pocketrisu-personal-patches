@@ -641,6 +641,36 @@ Observed local v7 gates:
 - no v7 provider call, catalog registration, generated installer change, or
   live apply occurred during implementation.
 
+## Paid structural oracle v7 observation
+
+v7 screening passed L1 and both resolutions' byte/grammar claims. The earlier
+user low choice was retained. In this run low and medium rated L2 costs were
+similar (`USD 0.006741000` versus `0.006611250`), while stochastic low thought
+usage made latency higher; resolution semantics and the user's chosen route did
+not change. Screening's five calls cost `USD 0.014171250`.
+
+The resume observed one-page byte 3/3, one-page grammar 3/3, and two-page grammar
+3/3. No actual v7 grammar response used the optional `ROLE:` prefix, so the new
+canonicalizer was not needed at runtime; its preservation and strict-negative
+behavior remain locally tested.
+
+The first eight-page marker window call returned exact first/last values and
+correct page order for all eight pages. It also returned every required center,
+but added adjacent upper `L004993` to page 4, where PDF.js found the single odd
+center `L004992`. The other seven pages' center windows matched exactly. This
+is one extra center convention, not lost page or content.
+
+Because L3 separately runs three eight-page byte-sentinel observations, page
+markers need only prove every physical page boundary/order. Requiring centers
+duplicates interior coverage and continues to expose midpoint conventions. v7
+remains failed evidence; later L3/L4 cells did not run.
+
+v7 completed 13 cells at `USD 0.034548750`; cumulative v1-v7 rated usage is
+`USD 0.117804750`. Its 16,633/35,770-byte summaries and 8,501/14,298-byte
+mode-`0600` checkpoints contained zero PDF/Base64, canonical, API-key,
+bearer/access-token, or private-key hits. The post-cutoff request-log delta was
+zero rows and zero sensitive hits.
+
 ## L2.5 runtime audit
 
 ### Phase 1 — flat discovery
