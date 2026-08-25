@@ -1,20 +1,28 @@
 import type { AdapterChatMessage } from 'src/ts/preset/adapter/types'
 import type { ModelPreset, RegistryTokenizer } from 'src/ts/preset/types'
 import { encodeWithTokenizer } from 'src/ts/tokenizer'
-import { PAGEFOLD_QUALIFIED_ROUTE } from './qualifiedRoute'
+import {
+    resolvePageFoldQualifiedRoute,
+    type PageFoldQualifiedRouteProfile,
+} from './qualifiedRoute'
 
 export interface PageFoldSourceBudget {
     assemblyTotalBudget: number
     outputReserve: number
     sourceInputBudget: number
     sourceTokenizer: RegistryTokenizer
+    routeProfileId: PageFoldQualifiedRouteProfile['id']
+    wireModel: string
+    wireContextLimit: number
+    profileMaxOutputTokens: number
+    lowMediaTokensPerPage: number
+    fixedOverheadUpperTokens: number
 }
 
 export interface PageFoldBudgetEvidence extends PageFoldSourceBudget {
     canonicalSourceTokenEstimate: number
     predictedWireInputTokens: number
     wireInputBudget: number
-    wireContextLimit: number
 }
 
 export class PageFoldBudgetError extends Error {
@@ -44,6 +52,7 @@ export function resolvePageFoldOutputReserve(
     normalResolvedOutput: number | undefined,
     databaseFallback: number,
 ): number {
+    const route = requirePageFoldRoute(preset)
     let value = positiveInteger(normalResolvedOutput) ?? positiveInteger(databaseFallback)
     const custom = nestedValue(preset.customBody, 'generationConfig.maxOutputTokens')
         ?? preset.customBody?.maxOutputTokens
@@ -53,7 +62,7 @@ export function resolvePageFoldOutputReserve(
     if (additional.kind === 'value') value = positiveInteger(additional.value)
     if (additional.kind === 'deleted') value = undefined
 
-    if (!value || value > PAGEFOLD_QUALIFIED_ROUTE.profileMaxOutputTokens) {
+    if (!value || value > route.profileMaxOutputTokens) {
         throw new PageFoldBudgetError(
             'PAGEFOLD_OUTPUT_RESERVE_INVALID',
             'PageFold requires a positive production output limit within the qualified profile maximum',
@@ -67,9 +76,10 @@ export function resolvePageFoldSourceBudget(input: {
     outputReserve: number
     databaseTokenizer: unknown
 }): PageFoldSourceBudget {
+    const route = requirePageFoldRoute(input.preset)
     const assemblyTotalBudget = positiveInteger(input.preset.maxContext) ?? 65_000
     const outputReserve = positiveInteger(input.outputReserve)
-    if (!outputReserve || outputReserve > PAGEFOLD_QUALIFIED_ROUTE.profileMaxOutputTokens) {
+    if (!outputReserve || outputReserve > route.profileMaxOutputTokens) {
         throw new PageFoldBudgetError('PAGEFOLD_OUTPUT_RESERVE_INVALID', 'PageFold output reserve is invalid')
     }
     const sourceInputBudget = assemblyTotalBudget - outputReserve
@@ -84,6 +94,12 @@ export function resolvePageFoldSourceBudget(input: {
         outputReserve,
         sourceInputBudget,
         sourceTokenizer: resolvePageFoldSourceTokenizer(input.preset, input.databaseTokenizer),
+        routeProfileId: route.id,
+        wireModel: route.requestedModel,
+        wireContextLimit: route.wireContextLimitTokens,
+        profileMaxOutputTokens: route.profileMaxOutputTokens,
+        lowMediaTokensPerPage: route.lowMediaTokensPerPage,
+        fixedOverheadUpperTokens: route.fixedOverheadUpperTokens,
     }
 }
 
@@ -126,7 +142,7 @@ export async function evaluatePageFoldBudgets(input: {
     assertPageFoldCanonicalSourceBudget(canonicalSourceTokenEstimate, input.source)
     if (!Number.isSafeInteger(input.pageCount)
         || input.pageCount < 1
-        || input.pageCount > PAGEFOLD_QUALIFIED_ROUTE.maxPdfPages) {
+        || input.pageCount > 8) {
         throw new PageFoldBudgetError('PAGEFOLD_PAGE_LIMIT', 'PageFold PDF page count is outside the qualified limit')
     }
     const textTokens = await countPageFoldAdapterSourceTokens(
@@ -134,10 +150,10 @@ export async function evaluatePageFoldBudgets(input: {
         input.source.sourceTokenizer,
     )
     const predictedWireInputTokens =
-        (PAGEFOLD_QUALIFIED_ROUTE.lowMediaTokensPerPage * input.pageCount)
+        (input.source.lowMediaTokensPerPage * input.pageCount)
         + textTokens
-        + PAGEFOLD_QUALIFIED_ROUTE.fixedOverheadUpperTokens
-    const wireContextLimit = PAGEFOLD_QUALIFIED_ROUTE.wireContextLimitTokens
+        + input.source.fixedOverheadUpperTokens
+    const wireContextLimit = input.source.wireContextLimit
     const wireInputBudget = wireContextLimit - input.source.outputReserve
     if (predictedWireInputTokens > wireInputBudget) {
         throw new PageFoldBudgetError(
@@ -152,6 +168,17 @@ export async function evaluatePageFoldBudgets(input: {
         wireInputBudget,
         wireContextLimit,
     }
+}
+
+function requirePageFoldRoute(preset: ModelPreset): PageFoldQualifiedRouteProfile {
+    const resolved = resolvePageFoldQualifiedRoute(preset)
+    if (resolved.ok === false) {
+        throw new PageFoldBudgetError(
+            'PAGEFOLD_ROUTE_UNSUPPORTED',
+            `PageFold route is unavailable: ${resolved.reason}`,
+        )
+    }
+    return resolved.route
 }
 
 function resolveAdditionalOutputOverride(text: string | undefined):

@@ -110,11 +110,19 @@ describe('PageFold preset and role state resolver', () => {
         })).toEqual({ model: 'on', memory: 'off', otherAx: 'on' })
     })
 
-    it('keeps unsupported route intent but blocks it', () => {
+    it('keeps the preset-selected Gemini model and regional Vertex location', () => {
         const value = preset(true)
+        value.profileSnapshot.modelId = 'gemini-3.6-flash'
         value.userValues.location = 'us-central1'
         expect(resolvePageFoldState({ preset: value, task: 'model' }))
-            .toMatchObject({ kind: 'blocked', reason: 'unsupported-location' })
+            .toMatchObject({
+                kind: 'on', reason: 'qualified',
+                route: {
+                    requestedModel: 'gemini-3.6-flash',
+                    endpointLocation: 'us-central1',
+                    supportEvidence: 'google-pdf-transport',
+                },
+            })
         expect(value.pageFold).toEqual({ enabled: true, mode: 'maximum' })
     })
 })

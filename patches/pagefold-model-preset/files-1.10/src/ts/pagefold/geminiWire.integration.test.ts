@@ -48,9 +48,34 @@ function preset(customBody?: Record<string, unknown>): ModelPreset {
     }
 }
 
-function context(outputReserve = 8_192): AdapterPageFoldWireContext {
+function aiStudioPreset(): ModelPreset {
+    const value = preset({ generationConfig: { maxOutputTokens: 777 } })
+    value.profileSnapshot = {
+        ...value.profileSnapshot,
+        profileId: 'google:gemini-36-flash',
+        providerBaseId: 'google',
+        providerBaseVersion: 2,
+        endpoint: { kind: 'static', url: 'https://generativelanguage.googleapis.com/v1beta/models' },
+        auth: { kind: 'x-goog-api-key', fields: ['apiKey'] },
+        modelId: 'gemini-3.6-flash',
+        schema: [
+            { key: 'apiKey', type: 'string', label: 'API key', mapsTo: { target: 'auth', path: 'apiKey' } },
+            { key: 'modelId', type: 'string', label: 'Model', mapsTo: { target: 'body', path: 'model' } },
+        ],
+    }
+    value.userValues = { apiKey: 'ai-studio-test-key', modelId: 'gemini-3.6-flash' }
+    return value
+}
+
+function context(
+    outputReserve = 8_192,
+    wireModel = 'gemini-3.7-flash',
+    mediaResolutionPlacement: 'part' | 'generation' = 'part',
+): AdapterPageFoldWireContext {
     return {
         routeProfileId: PAGEFOLD_QUALIFIED_ROUTE.id,
+        wireModel,
+        mediaResolutionPlacement,
         mode: 'maximum',
         directiveVersion: 1,
         documentSha256: pdfSha,
@@ -143,6 +168,50 @@ describe('PageFold final Gemini prepared wire', () => {
         })
         expect(JSON.stringify(prepared.body)).not.toContain('filename')
         expect(JSON.stringify(prepared.body)).not.toMatch(/PAGEFOLD_RESPONSE_ORACLE|B_START|L000000/)
+    })
+
+    it('keeps a different selected Gemini 3 model instead of substituting 3.7', async () => {
+        const selected = preset({ generationConfig: { maxOutputTokens: 777 } })
+        selected.userValues.modelId = 'gemini-3.5-flash'
+        const prepared = await previewGoogleChatRequest(
+            selected,
+            { messages: messages(), pageFold: context(777, 'gemini-3.5-flash', 'part') },
+            { apiKey: SA_JSON },
+        )
+        expect(prepared.url).toContain('/models/gemini-3.5-flash:generateContent')
+        expect(prepared.url).not.toContain('gemini-3.7-flash')
+        expect((prepared.body.contents as any)[0].parts[0].mediaResolution)
+            .toEqual({ level: 'MEDIA_RESOLUTION_LOW' })
+    })
+
+    it('uses global low media resolution for a selected Gemini 2.5 model', async () => {
+        const selected = preset({ generationConfig: { maxOutputTokens: 777 } })
+        selected.userValues.modelId = 'gemini-2.5-flash'
+        const prepared = await previewGoogleChatRequest(
+            selected,
+            { messages: messages(), pageFold: context(777, 'gemini-2.5-flash', 'generation') },
+            { apiKey: SA_JSON },
+        )
+        expect(prepared.url).toContain('/models/gemini-2.5-flash:generateContent')
+        expect((prepared.body.contents as any)[0].parts[0]).not.toHaveProperty('mediaResolution')
+        expect(prepared.body.generationConfig).toMatchObject({
+            maxOutputTokens: 777,
+            mediaResolution: 'MEDIA_RESOLUTION_LOW',
+        })
+    })
+
+    it('uses the selected AI Studio Gemini model with the same PDF-first wire', async () => {
+        const prepared = await previewGoogleChatRequest(
+            aiStudioPreset(),
+            { messages: messages(), pageFold: context(777, 'gemini-3.6-flash', 'part') },
+            { apiKey: 'ai-studio-test-key' },
+        )
+        expect(prepared.url).toContain('/models/gemini-3.6-flash:generateContent')
+        expect(prepared.headers['x-goog-api-key']).toBe('ai-studio-test-key')
+        expect((prepared.body.contents as any)[0].parts[0]).toMatchObject({
+            inlineData: { mimeType: 'application/pdf' },
+            mediaResolution: { level: 'MEDIA_RESOLUTION_LOW' },
+        })
     })
 
     it('blocks custom cachedContent and document input without explicit PageFold context', async () => {

@@ -624,6 +624,8 @@ app.use((req, res, next) => {
 
 export interface AdapterPageFoldWireContext {
     routeProfileId: 'vertex-gemini-3.7-flash-low-v8'
+    wireModel: string
+    mediaResolutionPlacement: 'part' | 'generation'
     mode: import('../types').PageFoldMode
     directiveVersion: 1
     documentSha256: string
@@ -678,6 +680,7 @@ export interface AdapterPageFoldWireContext {
             where: 'after',
             anchor: "import { resolveWireModelId } from './wireInvariants'\n",
             content: `import {
+    applyPageFoldGeminiMediaResolution,
     assertPageFoldGeminiInput,
     assertPreparedPageFoldGeminiBody,
     toPageFoldGeminiUserParts,
@@ -734,6 +737,7 @@ export interface AdapterPageFoldWireContext {
             where: 'before',
             anchor: "    const suffix = stream ? ':streamGenerateContent?alt=sse' : ':generateContent'\n",
             content: `    if (options.pageFold) {
+        applyPageFoldGeminiMediaResolution(prepared.body, options.pageFold)
         assertPreparedPageFoldGeminiBody(prepared.body, options.pageFold)
     }
 

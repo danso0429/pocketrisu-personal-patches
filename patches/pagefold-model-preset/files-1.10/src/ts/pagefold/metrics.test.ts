@@ -14,7 +14,10 @@ function preset(): ModelPreset {
             providerBaseId: PAGEFOLD_QUALIFIED_ROUTE.providerBaseId, providerBaseVersion: 7,
             adapterKind: 'google-gemini', endpoint: { kind: 'vertex-gemini' },
             auth: { kind: 'google-service-account', fields: [] }, modelId: PAGEFOLD_QUALIFIED_ROUTE.requestedModel,
-            schema: [], uiSchema: { groups: [], fields: [] }, defaults: {},
+            schema: [
+                { key: 'modelId', type: 'string', label: 'Model', mapsTo: { target: 'body', path: 'model' } },
+                { key: 'sharedRequestType', type: 'string', label: 'Tier', mapsTo: { target: 'header', path: 'X-Vertex-AI-LLM-Shared-Request-Type' } },
+            ], uiSchema: { groups: [], fields: [] }, defaults: {},
             limits: { known: true, contextWindowTokens: 1_048_576, maxOutputTokens: 65_536 },
         },
     }
@@ -26,13 +29,19 @@ function state(): Extract<PageFoldRouteState, { stage: 'rendered' }> {
         identity: {
             presetId: 'p', presetUpdatedAt: 2, profileId: PAGEFOLD_QUALIFIED_ROUTE.profileId,
             profileVersion: 1, providerBaseVersion: 7, routeProfileId: PAGEFOLD_QUALIFIED_ROUTE.id,
+            wireModel: 'gemini-3.7-flash', providerBaseId: 'vertex-gemini-native',
+            mediaResolutionPlacement: 'part', supportEvidence: 'v8-qualified',
             task: 'model', mode: 'maximum', bindingSource: 'chat',
         },
         sourceMessages: [], sourceBudget: {
             assemblyTotalBudget: 65_000, outputReserve: 8_192, sourceInputBudget: 56_808, sourceTokenizer: 'gemma',
+            routeProfileId: PAGEFOLD_QUALIFIED_ROUTE.id, wireModel: 'gemini-3.7-flash',
+            wireContextLimit: 1_048_576, profileMaxOutputTokens: 65_536,
+            lowMediaTokensPerPage: 266, fixedOverheadUpperTokens: 600,
         },
         wireMessages: [], wireContext: {
-            routeProfileId: PAGEFOLD_QUALIFIED_ROUTE.id, mode: 'maximum', directiveVersion: 1,
+            routeProfileId: PAGEFOLD_QUALIFIED_ROUTE.id, wireModel: 'gemini-3.7-flash',
+            mediaResolutionPlacement: 'part', mode: 'maximum', directiveVersion: 1,
             documentSha256: 'a'.repeat(64), pageCount: 8, pdfBytes: 1_000,
             outputReserve: 8_192, predictedWireInputTokens: 2_900, wireContextLimit: 1_048_576,
         },
@@ -41,6 +50,8 @@ function state(): Extract<PageFoldRouteState, { stage: 'rendered' }> {
             assemblyTotalBudget: 65_000, outputReserve: 8_192, sourceInputBudget: 56_808,
             sourceTokenizer: 'gemma', canonicalSourceTokenEstimate: 10_000,
             predictedWireInputTokens: 2_900, wireInputBudget: 1_040_384, wireContextLimit: 1_048_576,
+            routeProfileId: PAGEFOLD_QUALIFIED_ROUTE.id, wireModel: 'gemini-3.7-flash',
+            profileMaxOutputTokens: 65_536, lowMediaTokensPerPage: 266, fixedOverheadUpperTokens: 600,
         },
     }
 }
@@ -55,6 +66,18 @@ describe('PageFold versioned pricing and signed metrics', () => {
         expect(PAGEFOLD_VERTEX_PRICE_RECORDS[0].effectiveUntil).toBe('2027-01-01T00:00:00.000Z')
         expect(resolvePageFoldPrice(preset(), Date.parse('2027-01-01T00:00:00Z')))
             .toMatchObject({ record: { inputUsdPerMillion: 1.5, outputUsdPerMillion: 7.5 } })
+    })
+
+    it('uses the selected model price table and ignores deprecated manual overrides', () => {
+        const value = preset()
+        value.userValues.modelId = 'gemini-3.5-flash-lite'
+        value.pageFold!.inputPriceOverride = { usdPerMillion: 99, updatedAt: 1 }
+        expect(resolvePageFoldPrice(value, Date.parse('2026-08-26T01:00:00Z'))).toMatchObject({
+            state: 'confirmed', source: 'versioned-google',
+            record: { model: 'gemini-3.5-flash-lite', inputUsdPerMillion: 0.30, outputUsdPerMillion: 2.50 },
+        })
+        value.userValues.sharedRequestType = 'priority'
+        expect(resolvePageFoldPrice(value)).toEqual({ state: 'unconfirmed', reason: 'pricing-tier-unavailable' })
     })
 
     it('reports signed overhead/savings and replaces prediction only with actual usage', () => {

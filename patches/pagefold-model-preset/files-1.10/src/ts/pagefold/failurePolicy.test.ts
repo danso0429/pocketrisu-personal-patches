@@ -25,10 +25,13 @@ function preset(): ModelPreset {
     }
 }
 
-const budget = {
+const budget = () => ({
     assemblyTotalBudget: 65_000, outputReserve: 8_192, sourceInputBudget: 56_808,
-    sourceTokenizer: 'gemma' as const,
-}
+    sourceTokenizer: 'gemma' as const, routeProfileId: PAGEFOLD_QUALIFIED_ROUTE.id,
+    wireModel: 'gemini-3.7-flash', wireContextLimit: 1_048_576,
+    profileMaxOutputTokens: 65_536, lowMediaTokensPerPage: 266,
+    fixedOverheadUpperTokens: 600,
+})
 
 describe('PageFold retry/fallback separation', () => {
     it.each([
@@ -53,7 +56,7 @@ describe('PageFold retry/fallback separation', () => {
     it('reuses exact source/PDF bytes and rejects live preset mutation', () => {
         const source = createPageFoldSourceRouteState({
             preset: preset(), task: 'model', mode: 'maximum', bindingSource: 'chat',
-            sourceMessages: [{ role: 'user', content: 'source' }], sourceBudget: budget,
+            sourceMessages: [{ role: 'user', content: 'source' }], sourceBudget: budget(),
             operationStartedAt: 1_000,
         }) as Extract<ReturnType<typeof createPageFoldSourceRouteState>, { stage: 'source' }>
         const pdf = Uint8Array.from([1, 2, 3])
@@ -65,7 +68,9 @@ describe('PageFold retry/fallback separation', () => {
                 }],
             }],
             context: {
-                routeProfileId: PAGEFOLD_QUALIFIED_ROUTE.id, mode: 'maximum', directiveVersion: 1,
+                routeProfileId: PAGEFOLD_QUALIFIED_ROUTE.id,
+                wireModel: 'gemini-3.7-flash', mediaResolutionPlacement: 'part',
+                mode: 'maximum', directiveVersion: 1,
                 documentSha256: 'a'.repeat(64), pageCount: 1, pdfBytes: 3,
                 outputReserve: 8_192, predictedWireInputTokens: 900, wireContextLimit: 1_048_576,
             },
@@ -74,7 +79,7 @@ describe('PageFold retry/fallback separation', () => {
             budget: {},
         } as unknown as PreparedPageFoldWire
         const rendered = completePageFoldRouteState(source, prepared, {
-            ...budget, canonicalSourceTokenEstimate: 10, predictedWireInputTokens: 900,
+            ...budget(), canonicalSourceTokenEstimate: 10, predictedWireInputTokens: 900,
             wireInputBudget: 1_040_384, wireContextLimit: 1_048_576,
         })
         expect(JSON.stringify(rendered)).not.toMatch(/credential|authorization|accessToken|private_key/i)
@@ -85,6 +90,12 @@ describe('PageFold retry/fallback separation', () => {
         changed.updatedAt = 3
         expect(() => validatePageFoldRouteState({
             state: rendered, preset: changed, task: 'model', mode: 'maximum', bindingSource: 'chat',
+        })).toThrowError(expect.objectContaining({ code: 'PAGEFOLD_RETRY_STATE_INVALID' }))
+
+        const changedModel = preset()
+        changedModel.profileSnapshot.modelId = 'gemini-3.6-flash'
+        expect(() => validatePageFoldRouteState({
+            state: rendered, preset: changedModel, task: 'model', mode: 'maximum', bindingSource: 'chat',
         })).toThrowError(expect.objectContaining({ code: 'PAGEFOLD_RETRY_STATE_INVALID' }))
     })
 })

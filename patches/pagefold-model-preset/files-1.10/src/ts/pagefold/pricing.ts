@@ -1,10 +1,13 @@
 import type { ModelPreset } from 'src/ts/preset/types'
-import { PAGEFOLD_QUALIFIED_ROUTE, resolvePageFoldQualifiedRoute } from './qualifiedRoute'
+import {
+    resolvePageFoldEffectiveMappedString,
+    resolvePageFoldQualifiedRoute,
+} from './qualifiedRoute'
 
 export interface PageFoldPriceRecord {
     id: string
     provider: 'vertex'
-    model: 'gemini-3.7-flash'
+    model: string
     location: 'global'
     billingTier: 'standard'
     currency: 'USD'
@@ -12,67 +15,76 @@ export interface PageFoldPriceRecord {
     outputUsdPerMillion: number
     effectiveFrom: string
     effectiveUntil?: string
-    checkedAt: '2026-08-25'
+    checkedAt: '2026-08-26'
     sourceUrl: string
     note: string
 }
 
 export type PageFoldResolvedPrice =
-    | { state: 'confirmed', record: PageFoldPriceRecord, source: 'manual' | 'versioned-google' }
+    | { state: 'confirmed', record: PageFoldPriceRecord, source: 'versioned-google' }
     | { state: 'unconfirmed', reason: string }
 
 const SOURCE = 'https://cloud.google.com/gemini-enterprise-agent-platform/generative-ai/pricing?hl=ko'
 
+function record(
+    model: string,
+    input: number,
+    output: number,
+    options: { idSuffix?: string, from?: string, until?: string, note?: string } = {},
+): PageFoldPriceRecord {
+    return Object.freeze({
+        id: `vertex-${model}-global-standard${options.idSuffix ? `-${options.idSuffix}` : ''}`,
+        provider: 'vertex', model, location: 'global', billingTier: 'standard', currency: 'USD',
+        inputUsdPerMillion: input, outputUsdPerMillion: output,
+        effectiveFrom: options.from ?? '2026-08-26T00:00:00.000Z',
+        ...(options.until ? { effectiveUntil: options.until } : {}),
+        checkedAt: '2026-08-26', sourceUrl: SOURCE,
+        note: options.note ?? 'Published Standard global price; cached input, Priority, Flex/Batch, and non-global pricing are separate.',
+    })
+}
+
+const INTRO_UNTIL = '2027-01-01T00:00:00.000Z'
+const INTRO_FROM = '2026-08-12T00:00:00.000Z'
+
 export const PAGEFOLD_VERTEX_PRICE_RECORDS: readonly PageFoldPriceRecord[] = Object.freeze([
-    Object.freeze({
-        id: 'vertex-gemini-3.7-flash-global-standard-intro-2026',
-        provider: 'vertex', model: 'gemini-3.7-flash', location: 'global',
-        billingTier: 'standard', currency: 'USD',
-        inputUsdPerMillion: 0.75, outputUsdPerMillion: 3.75,
-        effectiveFrom: '2026-08-12T00:00:00.000Z',
-        effectiveUntil: '2027-01-01T00:00:00.000Z',
-        checkedAt: '2026-08-25', sourceUrl: SOURCE,
-        note: 'Introductory price through 2026-12-31; Google states the promotion is delivered as a 50% credit-back on eligible net spend.',
+    record('gemini-3.7-flash', 0.75, 3.75, {
+        idSuffix: 'intro-2026', from: INTRO_FROM, until: INTRO_UNTIL,
+        note: 'Introductory Standard global price through 2026-12-31; Google states the promotion is delivered as credits back on eligible net spend.',
     }),
-    Object.freeze({
-        id: 'vertex-gemini-3.7-flash-global-standard-2027',
-        provider: 'vertex', model: 'gemini-3.7-flash', location: 'global',
-        billingTier: 'standard', currency: 'USD',
-        inputUsdPerMillion: 1.50, outputUsdPerMillion: 7.50,
-        effectiveFrom: '2027-01-01T00:00:00.000Z',
-        checkedAt: '2026-08-25', sourceUrl: SOURCE,
-        note: 'Published Standard global price starting 2027-01-01; not Priority, Flex/Batch, cached-input, or non-global pricing.',
+    record('gemini-3.7-flash', 1.50, 7.50, { idSuffix: '2027', from: INTRO_UNTIL }),
+    record('gemini-3.6-flash', 0.75, 3.75, {
+        idSuffix: 'intro-2026', from: INTRO_FROM, until: INTRO_UNTIL,
+        note: 'Introductory Standard global price through 2026-12-31; Google states the promotion is delivered as credits back on eligible net spend.',
     }),
+    record('gemini-3.6-flash', 1.50, 7.50, { idSuffix: '2027', from: INTRO_UNTIL }),
+    record('gemini-3.5-flash', 1.50, 9.00),
+    record('gemini-3.5-flash-lite', 0.30, 2.50),
+    record('gemini-3.1-flash-lite', 0.25, 1.50),
+    record('gemini-3-flash-preview', 0.50, 3.00),
+    record('gemini-2.5-flash', 0.30, 2.50),
+    record('gemini-2.5-flash-lite', 0.10, 0.40),
 ])
 
 export function resolvePageFoldPrice(preset: ModelPreset, now = Date.now()): PageFoldResolvedPrice {
     const route = resolvePageFoldQualifiedRoute(preset)
-    if (route.ok === false) {
-        return { state: 'unconfirmed', reason: route.reason }
+    if (route.ok === false) return { state: 'unconfirmed', reason: route.reason }
+    if (route.route.providerBaseId !== 'vertex-gemini-native') {
+        return { state: 'unconfirmed', reason: 'pricing-provider-unavailable' }
     }
-    if (route.route !== PAGEFOLD_QUALIFIED_ROUTE) {
-        return { state: 'unconfirmed', reason: 'route-profile-mismatch' }
+    if (route.route.endpointLocation !== 'global') {
+        return { state: 'unconfirmed', reason: 'pricing-region-unavailable' }
     }
-    const manual = preset.pageFold?.inputPriceOverride
-    if (manual && Number.isFinite(manual.usdPerMillion) && manual.usdPerMillion > 0) {
-        return {
-            state: 'confirmed',
-            source: 'manual',
-            record: {
-                ...PAGEFOLD_VERTEX_PRICE_RECORDS[0],
-                id: 'manual-pagefold-input-price',
-                inputUsdPerMillion: manual.usdPerMillion,
-                effectiveFrom: new Date(manual.updatedAt).toISOString(),
-                effectiveUntil: undefined,
-                sourceUrl: 'manual:preset-pagefold-input-price',
-                note: manual.note?.slice(0, 200) || 'User-supplied PageFold input price; output price remains the current versioned Vertex record.',
-            },
-        }
-    }
+    const sharedTier = resolvePageFoldEffectiveMappedString(
+        preset,
+        'header',
+        'X-Vertex-AI-LLM-Shared-Request-Type',
+    )?.trim()
+    if (sharedTier) return { state: 'unconfirmed', reason: 'pricing-tier-unavailable' }
+
     const record = PAGEFOLD_VERTEX_PRICE_RECORDS.find((candidate) => {
         const start = Date.parse(candidate.effectiveFrom)
         const end = candidate.effectiveUntil ? Date.parse(candidate.effectiveUntil) : Infinity
-        return now >= start && now < end
+        return candidate.model === route.route.requestedModel && now >= start && now < end
     })
     return record
         ? { state: 'confirmed', source: 'versioned-google', record }

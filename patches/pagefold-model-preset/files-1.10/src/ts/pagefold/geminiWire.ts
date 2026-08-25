@@ -10,7 +10,7 @@ import {
     PAGEFOLD_MAXIMUM_CONTINUATION_V1,
     PAGEFOLD_SYSTEM_DECODER_V1,
 } from './directives'
-import { PAGEFOLD_QUALIFIED_ROUTE, resolvePageFoldQualifiedRoute } from './qualifiedRoute'
+import { resolvePageFoldQualifiedRoute } from './qualifiedRoute'
 
 export interface PageFoldGeminiPart {
     text?: string
@@ -25,16 +25,22 @@ export function assertPageFoldGeminiInput(
     options: { toolsPresent: boolean, cachePresent: boolean },
 ): AdapterDocumentPart {
     const route = resolvePageFoldQualifiedRoute(preset)
-    if (!route.ok || route.route.id !== context.routeProfileId) invalid('PageFold route changed before Gemini preparation')
+    if (route.ok === false
+        || route.route.id !== context.routeProfileId
+        || route.route.requestedModel !== context.wireModel
+        || route.route.mediaResolutionPlacement !== context.mediaResolutionPlacement) {
+        invalid('PageFold route changed before Gemini preparation')
+    }
+    const resolvedRoute = route.route
     if (options.toolsPresent) invalid('PageFold does not admit tool-enabled requests')
     if (options.cachePresent) invalid('PageFold does not admit PocketRisu explicit caching')
-    if (context.directiveVersion !== PAGEFOLD_QUALIFIED_ROUTE.directiveVersion
-        || context.pageCount < 1 || context.pageCount > PAGEFOLD_QUALIFIED_ROUTE.maxPdfPages
-        || context.pdfBytes < 1 || context.pdfBytes > PAGEFOLD_QUALIFIED_ROUTE.maxPdfBytes
+    if (context.directiveVersion !== resolvedRoute.directiveVersion
+        || context.pageCount < 1 || context.pageCount > resolvedRoute.maxPdfPages
+        || context.pdfBytes < 1 || context.pdfBytes > resolvedRoute.maxPdfBytes
         || !Number.isSafeInteger(context.outputReserve) || context.outputReserve < 1
-        || context.outputReserve > PAGEFOLD_QUALIFIED_ROUTE.profileMaxOutputTokens
+        || context.outputReserve > resolvedRoute.profileMaxOutputTokens
         || !Number.isSafeInteger(context.predictedWireInputTokens) || context.predictedWireInputTokens < 1
-        || context.wireContextLimit !== PAGEFOLD_QUALIFIED_ROUTE.wireContextLimitTokens
+        || context.wireContextLimit !== resolvedRoute.wireContextLimitTokens
         || context.predictedWireInputTokens + context.outputReserve > context.wireContextLimit
         || !/^[a-f0-9]{64}$/.test(context.documentSha256)) invalid('PageFold wire context is invalid')
 
@@ -77,16 +83,42 @@ export function toPageFoldGeminiUserParts(
     if (document.byteLength !== context.pdfBytes
         || document.pageCount !== context.pageCount
         || document.sha256 !== context.documentSha256) invalid('PageFold PDF document changed before wire conversion')
-    return [
-        {
-            inlineData: {
-                mimeType: 'application/pdf',
-                data: bytesToBase64(document.bytes),
-            },
-            mediaResolution: { level: 'MEDIA_RESOLUTION_LOW' },
+    const pdfPart: PageFoldGeminiPart = {
+        inlineData: {
+            mimeType: 'application/pdf',
+            data: bytesToBase64(document.bytes),
         },
+    }
+    if (context.mediaResolutionPlacement === 'part') {
+        pdfPart.mediaResolution = { level: 'MEDIA_RESOLUTION_LOW' }
+    }
+    return [
+        pdfPart,
         { text: message.content },
     ]
+}
+
+export function applyPageFoldGeminiMediaResolution(
+    body: Record<string, unknown>,
+    context: AdapterPageFoldWireContext,
+): void {
+    const existing = body.generationConfig
+    if (existing !== undefined && (!existing || typeof existing !== 'object' || Array.isArray(existing))) {
+        invalid('PageFold generationConfig is invalid')
+    }
+    const generationConfig = existing as Record<string, unknown> | undefined
+    const configured = generationConfig?.mediaResolution
+    if (context.mediaResolutionPlacement === 'part') {
+        if (configured !== undefined) invalid('PageFold contains another media-resolution authority')
+        return
+    }
+    if (configured !== undefined && configured !== 'MEDIA_RESOLUTION_LOW') {
+        invalid('PageFold contains another media-resolution authority')
+    }
+    body.generationConfig = {
+        ...(generationConfig ?? {}),
+        mediaResolution: 'MEDIA_RESOLUTION_LOW',
+    }
 }
 
 export function assertPreparedPageFoldGeminiBody(
@@ -108,18 +140,27 @@ export function assertPreparedPageFoldGeminiBody(
     if (pdf?.inlineData?.mimeType !== 'application/pdf'
         || typeof pdf?.inlineData?.data !== 'string'
         || pdf.inlineData.data.length < 1
-        || pdf?.mediaResolution?.level !== 'MEDIA_RESOLUTION_LOW'
         || 'filename' in pdf.inlineData
         || typeof text?.text !== 'string') invalid('PageFold prepared PDF-first parts are invalid')
+    const generationConfig = body.generationConfig
+    const globalResolution = generationConfig && typeof generationConfig === 'object'
+        ? (generationConfig as Record<string, unknown>).mediaResolution
+        : undefined
+    if (context.mediaResolutionPlacement === 'part') {
+        if (pdf?.mediaResolution?.level !== 'MEDIA_RESOLUTION_LOW' || globalResolution !== undefined) {
+            invalid('PageFold per-part media resolution is invalid')
+        }
+    } else if (pdf?.mediaResolution !== undefined || globalResolution !== 'MEDIA_RESOLUTION_LOW') {
+        invalid('PageFold global media resolution is invalid')
+    }
     const mediaResolutionValues = collectPropertyValues(body, 'mediaResolution')
-    if (mediaResolutionValues.length !== 1 || mediaResolutionValues[0] !== pdf.mediaResolution) {
+    if (mediaResolutionValues.length !== 1) {
         invalid('PageFold prepared body contains another media-resolution authority')
     }
     const expected = context.mode === 'maximum'
         ? PAGEFOLD_MAXIMUM_CONTINUATION_V1
         : PAGEFOLD_BALANCED_CONTINUATION_V1
     if (text.text !== expected) invalid('PageFold continuation directive changed during preparation')
-    const generationConfig = body.generationConfig
     const finalOutput = generationConfig && typeof generationConfig === 'object'
         ? (generationConfig as Record<string, unknown>).maxOutputTokens
         : undefined

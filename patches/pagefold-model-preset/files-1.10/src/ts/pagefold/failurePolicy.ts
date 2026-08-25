@@ -1,7 +1,11 @@
 import type { AdapterChatMessage, AdapterPageFoldWireContext } from 'src/ts/preset/adapter/types'
 import type { ModelPreset, PageFoldMode, ResolvedTask } from 'src/ts/preset/types'
 import type { PageFoldBudgetEvidence, PageFoldSourceBudget } from './budget'
-import { PAGEFOLD_QUALIFIED_ROUTE } from './qualifiedRoute'
+import {
+    PAGEFOLD_ROUTE_PROFILE_ID,
+    resolvePageFoldQualifiedRoute,
+    type PageFoldMediaResolutionPlacement,
+} from './qualifiedRoute'
 import type { PreparedPageFoldWire } from './prepare'
 
 export type PageFoldFailureKind =
@@ -23,7 +27,11 @@ interface PageFoldRouteIdentity {
     profileId: string
     profileVersion: number
     providerBaseVersion: number
-    routeProfileId: typeof PAGEFOLD_QUALIFIED_ROUTE.id
+    routeProfileId: typeof PAGEFOLD_ROUTE_PROFILE_ID
+    wireModel: string
+    providerBaseId: string
+    mediaResolutionPlacement: PageFoldMediaResolutionPlacement
+    supportEvidence: 'v8-qualified' | 'google-pdf-transport'
     task: ResolvedTask
     mode: PageFoldMode
     bindingSource: 'chat' | 'global-lock-default' | 'module'
@@ -62,6 +70,13 @@ export function createPageFoldSourceRouteState(input: {
     if (!Number.isFinite(input.operationStartedAt) || input.operationStartedAt <= 0) {
         throw new PageFoldRetryStateError('PageFold operation start time is invalid')
     }
+    const resolved = resolvePageFoldQualifiedRoute(input.preset)
+    if (resolved.ok === false
+        || resolved.route.requestedModel !== input.sourceBudget.wireModel
+        || resolved.route.id !== input.sourceBudget.routeProfileId) {
+        throw new PageFoldRetryStateError('PageFold route no longer matches the source budget')
+    }
+    const route = resolved.route
     return {
         version: 1,
         operationStartedAt: input.operationStartedAt,
@@ -72,7 +87,11 @@ export function createPageFoldSourceRouteState(input: {
             profileId: input.preset.profileSnapshot.profileId,
             profileVersion: input.preset.profileSnapshot.profileVersion,
             providerBaseVersion: input.preset.profileSnapshot.providerBaseVersion,
-            routeProfileId: PAGEFOLD_QUALIFIED_ROUTE.id,
+            routeProfileId: route.id,
+            wireModel: route.requestedModel,
+            providerBaseId: route.providerBaseId,
+            mediaResolutionPlacement: route.mediaResolutionPlacement,
+            supportEvidence: route.supportEvidence,
             task: input.task,
             mode: input.mode,
             bindingSource: input.bindingSource,
@@ -109,6 +128,8 @@ export function validatePageFoldRouteState(input: {
 }): void {
     const state = input.state
     const identity = state?.identity
+    const resolved = resolvePageFoldQualifiedRoute(input.preset)
+    const route = resolved.ok ? resolved.route : undefined
     if (!state || state.version !== 1
         || (state.stage !== 'source' && state.stage !== 'rendered')
         || !Number.isFinite(state.operationStartedAt) || state.operationStartedAt <= 0
@@ -117,7 +138,11 @@ export function validatePageFoldRouteState(input: {
         || identity.profileId !== input.preset.profileSnapshot.profileId
         || identity.profileVersion !== input.preset.profileSnapshot.profileVersion
         || identity.providerBaseVersion !== input.preset.profileSnapshot.providerBaseVersion
-        || identity.routeProfileId !== PAGEFOLD_QUALIFIED_ROUTE.id
+        || identity.routeProfileId !== PAGEFOLD_ROUTE_PROFILE_ID
+        || identity.wireModel !== route?.requestedModel
+        || identity.providerBaseId !== route?.providerBaseId
+        || identity.mediaResolutionPlacement !== route?.mediaResolutionPlacement
+        || identity.supportEvidence !== route?.supportEvidence
         || identity.task !== input.task
         || identity.mode !== input.mode
         || identity.bindingSource !== input.bindingSource

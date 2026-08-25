@@ -7,6 +7,8 @@ export interface PageFoldGenerationInfo {
     task: ResolvedTask
     mode: PageFoldMode
     qualifiedRouteProfileId: 'vertex-gemini-3.7-flash-low-v8'
+    wireModel: string
+    supportEvidence: 'v8-qualified' | 'google-pdf-transport'
     wirePredictionVersion: 1
     assemblySourceTokenEstimate: number
     canonicalSourceTokenEstimate: number
@@ -39,6 +41,8 @@ export function createPageFoldGenerationInfo(
         task: state.identity.task,
         mode: state.identity.mode,
         qualifiedRouteProfileId: state.identity.routeProfileId,
+        wireModel: state.identity.wireModel,
+        supportEvidence: state.identity.supportEvidence,
         wirePredictionVersion: 1,
         assemblySourceTokenEstimate: evidence.canonicalSourceTokenEstimate,
         canonicalSourceTokenEstimate: evidence.canonicalSourceTokenEstimate,

@@ -8,6 +8,7 @@ import {
     PAGEFOLD_SYSTEM_DECODER_V1,
 } from './directives'
 import { PAGEFOLD_QUALIFIED_ROUTE } from './qualifiedRoute'
+import { resolvePageFoldSourceBudget } from './budget'
 import { preparePageFoldWire } from './prepare'
 import { getPageFoldRuntimeRenderPort, setPageFoldRuntimeRenderPortForTest } from './runtimePort'
 
@@ -83,12 +84,9 @@ function prepare(mode: 'maximum' | 'balanced', messages: AdapterChatMessage[]) {
             binding: { source: 'chat' },
             messages,
             renderPort,
-            sourceBudget: {
-                assemblyTotalBudget: 65_000,
-                outputReserve: 8_192,
-                sourceInputBudget: 56_808,
-                sourceTokenizer: 'gemma',
-            },
+            sourceBudget: resolvePageFoldSourceBudget({
+                preset: preset(mode), outputReserve: 8_192, databaseTokenizer: 'gemma',
+            }),
             canonicalSourceTokenEstimate: 10,
         }),
     }
@@ -153,6 +151,8 @@ describe('PageFold production wire preparation', () => {
         expect(result.canonical.messages.map((message) => message.sourceIndex)).toEqual([1])
         expect(result.context).toMatchObject({
             routeProfileId: PAGEFOLD_QUALIFIED_ROUTE.id,
+            wireModel: 'gemini-3.7-flash',
+            mediaResolutionPlacement: 'part',
             mode: 'balanced',
             directiveVersion: 1,
             documentSha256: pdfSha,

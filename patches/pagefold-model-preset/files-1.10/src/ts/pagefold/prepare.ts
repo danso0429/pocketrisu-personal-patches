@@ -21,7 +21,6 @@ import {
     PAGEFOLD_SYSTEM_DECODER_V1,
     pageFoldContinuationDirective,
 } from './directives'
-import { PAGEFOLD_QUALIFIED_ROUTE } from './qualifiedRoute'
 import type { ResolvedPageFoldState } from './resolve'
 import type { PageFoldRenderPort, PageFoldRenderResult } from './renderPort'
 
@@ -47,7 +46,11 @@ export interface PreparedPageFoldWire {
 
 export async function preparePageFoldWire(input: PreparePageFoldInput): Promise<PreparedPageFoldWire> {
     const route = input.state.route
-    if (route !== PAGEFOLD_QUALIFIED_ROUTE || input.state.logicalTask !== input.task) {
+    if (input.state.logicalTask !== input.task
+        || input.sourceBudget.routeProfileId !== route.id
+        || input.sourceBudget.wireModel !== route.requestedModel
+        || input.sourceBudget.wireContextLimit !== route.wireContextLimitTokens
+        || input.sourceBudget.profileMaxOutputTokens !== route.profileMaxOutputTokens) {
         throw new Error('PageFold state does not match the immutable request context')
     }
     const canonical = serializePageFoldCanonicalTranscript({
@@ -121,6 +124,8 @@ export async function preparePageFoldWire(input: PreparePageFoldInput): Promise<
     })
     const context: AdapterPageFoldWireContext = {
         routeProfileId: route.id,
+        wireModel: route.requestedModel,
+        mediaResolutionPlacement: route.mediaResolutionPlacement,
         mode: input.state.mode,
         directiveVersion: PAGEFOLD_DIRECTIVE_VERSION,
         documentSha256: render.pdfSha256,

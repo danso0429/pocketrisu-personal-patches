@@ -37,11 +37,14 @@ describe('PageFold source and wire budget authorities', () => {
     it('uses total assembly budget minus the actual production output reserve', () => {
         expect(resolvePageFoldSourceBudget({
             preset: preset(), outputReserve: 8_192, databaseTokenizer: 'tik',
-        })).toEqual({
+        })).toMatchObject({
             assemblyTotalBudget: 50_000,
             outputReserve: 8_192,
             sourceInputBudget: 41_808,
             sourceTokenizer: 'gemma',
+            wireModel: 'gemini-3.7-flash',
+            wireContextLimit: 1_048_576,
+            profileMaxOutputTokens: 65_536,
         })
     })
 
@@ -79,6 +82,24 @@ describe('PageFold source and wire budget authorities', () => {
         expect(evidence.predictedWireInputTokens).toBeGreaterThanOrEqual(2_618)
         expect(evidence.wireContextLimit).toBe(1_048_576)
         expect(evidence.wireInputBudget).toBe(1_048_576 - 8_192)
+    })
+
+    it('takes wire limits from the selected model snapshot without replacing its model', () => {
+        const value = preset({
+            userValues: { modelId: 'gemini-3.5-flash' },
+            profileSnapshot: {
+                ...preset().profileSnapshot,
+                schema: [{ key: 'modelId', type: 'string', label: 'Model', mapsTo: { target: 'body', path: 'model' } }],
+                limits: { known: true, contextWindowTokens: 321_000, maxOutputTokens: 12_000 },
+            },
+        })
+        expect(resolvePageFoldSourceBudget({
+            preset: value, outputReserve: 4_000, databaseTokenizer: 'tik',
+        })).toMatchObject({
+            wireModel: 'gemini-3.5-flash',
+            wireContextLimit: 321_000,
+            profileMaxOutputTokens: 12_000,
+        })
     })
 
     it('fails source, page, output, and wire limits without trimming or fallback', async () => {
