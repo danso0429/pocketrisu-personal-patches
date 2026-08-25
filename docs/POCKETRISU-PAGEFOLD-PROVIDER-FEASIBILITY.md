@@ -216,3 +216,6 @@ The approved v6 run passed both L2 resolutions and low one-page byte 3/3, then
 stopped when grammar repeat 2 preserved the equivalent source-literal `ROLE:`
 prefix in all four marker objects. Eight calls used `USD 0.016596750`; the
 structural receipt retains the mismatch and v7 canonical-marker boundary.
+
+The v7 comparison-only `ROLE:` canonicalizer is locally implemented and tested
+but has made no provider call. It changes no v6 observation or support result.

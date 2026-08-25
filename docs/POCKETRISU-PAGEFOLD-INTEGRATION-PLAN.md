@@ -1715,7 +1715,10 @@ The result-driven `v7` canonicalizes exactly one leading `ROLE:` in role-marker
 objects before comparison. It does not accept another prefix, marker, role, or
 order, and does not affect raw observed evidence retained in the historical v6
 receipt. All v6 semantic, center-window, hierarchy, one-shot, cost, and safety
-boundaries remain unchanged. v7 must rerun every cell independently.
+boundaries remain unchanged. v7 must rerun every cell independently. Its local
+implementation passed 33 focused tests, the 45-file patcher suite, exact
+v6-to-v7 update, zero-change re-plan, and zero-drift status; these gates do not
+replace the approved paid matrix.
 
 ### 20.2 Candidate catalog admission — experimental only
 
