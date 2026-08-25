@@ -1,9 +1,9 @@
 # PocketRisu PageFold ModelPreset integration plan
 
-> **Status:** review-revised implementation authority; prototype is validated,
-> the first omnibus feasibility matrix qualified no route, and structural-oracle
-> Vertex-first requalification is approved for local harness work only; no new
-> paid calls or downstream runtime/UI/BG/catalog/live work are authorized yet
+> **Status:** review-revised implementation authority; prototype and exact
+> extraction are validated; structural v8 qualified Vertex
+> `gemini-3.7-flash` low through L1-L4; downstream runtime/UI/BG/catalog/live
+> owners are not yet implemented or admitted
 >
 > **Date:** 2026-08-25 KST
 >
