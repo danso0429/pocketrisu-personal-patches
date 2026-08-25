@@ -3,7 +3,10 @@ import { describe, expect, it } from 'vitest'
 const {
     NORMAL_OUTPUT_TOKENS,
     OUTPUT_CAP_CONTROL_TOKENS,
+    STRUCTURAL_ORACLE_V1,
+    STRUCTURAL_ORACLE_V2,
     STRUCTURAL_EXPECTATION,
+    STRUCTURAL_EXPECTATION_V2,
     VERTEX_RATED_COST_CAP_USD,
     chooseResolution,
     createHierarchyPlan,
@@ -86,6 +89,61 @@ describe('PageFold structural requalification L0', () => {
             required: ['samples'],
             properties: { samples: { type: 'array' } },
         })
+    })
+
+    it('keeps v1 historical while v2 separates response control from PDF recognition', () => {
+        expect(STRUCTURAL_ORACLE_V1).toBe(1)
+        expect(STRUCTURAL_ORACLE_V2).toBe(2)
+        expect(STRUCTURAL_EXPECTATION.zwjCodePoints[0]).toBe('1F468')
+        expect(STRUCTURAL_EXPECTATION_V2.zwjCodePoints).toEqual([
+            128104, 8205, 128105, 8205, 128103, 8205, 128102,
+        ])
+
+        const textExpected = expectedForClaim('text-oracle', {}, STRUCTURAL_ORACLE_V2)
+        expect(textExpected).toMatchObject({
+            spaceRuns: [2, 3, 2],
+            variationCodePoints: [9992, 65039],
+            tagCodePoints: [917607],
+            roles: ['R_SYS:system', 'R_USER:user', 'R_ASSISTANT:assistant', 'R_TOOL:tool'],
+        })
+        const byteExpected = expectedForClaim('byte-structure', {}, STRUCTURAL_ORACLE_V2)
+        expect(byteExpected.samples[0]).not.toHaveProperty('roles')
+        expect(byteExpected.samples[0].tagCodePoints).toEqual([917607])
+
+        const textControl = createTextControl(STRUCTURAL_ORACLE_V2)
+        expect(textControl).toContain('PAGEFOLD_RESPONSE_ORACLE_V2')
+        expect(textControl).toContain('TAG_SCALARS_DECIMAL|917607')
+        expect(textControl).not.toContain('👨‍👩‍👧‍👦')
+        expect(promptForClaim('text-oracle', STRUCTURAL_ORACLE_V2)).toMatch(/response-schema control/)
+        expect(promptForClaim('byte-structure', STRUCTURAL_ORACLE_V2)).toMatch(/base-10 JSON integers/)
+
+        const schema = responseSchemaForClaim('text-oracle', STRUCTURAL_ORACLE_V2)
+        expect(schema.required).toContain('roles')
+        expect(schema.properties.zwjCodePoints).toEqual({
+            type: 'array', items: { type: 'integer' },
+        })
+
+        expect(evaluateObservation({
+            cell: createScreeningPlan()[0],
+            answer: textExpected,
+            expected: textExpected,
+            finishReason: 'STOP',
+            outputTokens: 80,
+            oracleVersion: STRUCTURAL_ORACLE_V2,
+        })).toMatchObject({ status: 'pass', differences: [] })
+        expect(evaluateObservation({
+            cell: createScreeningPlan()[0],
+            answer: { ...textExpected, tagCodePoints: ['E0067'] },
+            expected: textExpected,
+            finishReason: 'STOP',
+            outputTokens: 80,
+            oracleVersion: STRUCTURAL_ORACLE_V2,
+        })).toMatchObject({
+            status: 'fail',
+            differences: [expect.objectContaining({ field: 'tagCodePoints' })],
+        })
+        expect(() => responseSchemaForClaim('text-oracle', 3))
+            .toThrowError(expect.objectContaining({ code: 'ORACLE_VERSION_INVALID' }))
     })
 
     it('treats MAX_TOKENS as one predeclared cap control, not failed recall', () => {
@@ -185,6 +243,16 @@ describe('PageFold structural requalification L0', () => {
         const output = publicDryRun({ 'maximum:1': fixture })
         expect(output.paidExecutionEnabled).toBe(false)
         expect(output.maximumCallsAfterApproval).toBe(23)
+        expect(output.oracleVersions).toEqual({ historicalFailed: 1, paidRunner: 2 })
+        expect(output.responseOracleV2).toMatchObject({
+            control: expect.stringContaining('PAGEFOLD_RESPONSE_ORACLE_V2'),
+            expected: { tagCodePoints: [917607] },
+            responseSchema: {
+                properties: {
+                    tagCodePoints: { type: 'array', items: { type: 'integer' } },
+                },
+            },
+        })
         expect(JSON.stringify(output)).not.toContain('must-not-escape')
         expect(output.fixtures[0]).not.toHaveProperty('pdf')
     })

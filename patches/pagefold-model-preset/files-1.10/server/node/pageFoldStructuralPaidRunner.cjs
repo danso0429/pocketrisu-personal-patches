@@ -6,6 +6,7 @@ const {
     MODEL_ID,
     NORMAL_OUTPUT_TOKENS,
     OUTPUT_CAP_CONTROL_TOKENS,
+    STRUCTURAL_ORACLE_V2,
     VERTEX_RATED_COST_CAP_USD,
     PageFoldStructuralError,
     chooseResolution,
@@ -30,6 +31,7 @@ const {
 
 const MAX_CALLS = 23
 const MAX_OUTPUT_CONTROLS = 2
+const PAID_ORACLE_VERSION = STRUCTURAL_ORACLE_V2
 const REQUEST_TIMEOUT_MS = 300_000
 const MEDIA_RESOLUTION = Object.freeze({
     low: 'MEDIA_RESOLUTION_LOW',
@@ -226,6 +228,7 @@ async function runPhysicalCell({
         experiment: 'pagefold-structural-requalification',
         provider: 'vertex',
         model: MODEL_ID,
+        oracleVersion: PAID_ORACLE_VERSION,
         phase: 'call-start',
         attemptedCall: call,
         completedCalls: state.records.length,
@@ -261,7 +264,7 @@ async function runPhysicalCell({
         }
     }
     const normalized = normalizeExecutionResult(raw, cell)
-    const expected = expectedForClaim(cell.claim, fixture || {})
+    const expected = expectedForClaim(cell.claim, fixture || {}, PAID_ORACLE_VERSION)
     const evaluation = normalized.httpStatus >= 200 && normalized.httpStatus < 300
         ? evaluateObservation({
             cell,
@@ -269,6 +272,7 @@ async function runPhysicalCell({
             expected,
             finishReason: normalized.finishReason,
             outputTokens: normalized.usage.outputTokens,
+            oracleVersion: PAID_ORACLE_VERSION,
         })
         : {
             status: 'terminal-error',
@@ -300,6 +304,7 @@ async function runPhysicalCell({
         experiment: 'pagefold-structural-requalification',
         provider: 'vertex',
         model: MODEL_ID,
+        oracleVersion: PAID_ORACLE_VERSION,
         phase: 'call-complete',
         attemptedCall: record.call,
         completedCalls: state.records.length,
@@ -410,8 +415,8 @@ function buildVertexRequestBody({ cell, fixture }) {
     let parts
     if (cell.transport === 'text') {
         parts = [
-            { text: createTextControl() },
-            { text: promptForClaim(cell.claim) },
+            { text: createTextControl(PAID_ORACLE_VERSION) },
+            { text: promptForClaim(cell.claim, PAID_ORACLE_VERSION) },
         ]
     } else {
         const mediaLevel = MEDIA_RESOLUTION[cell.resolution]
@@ -426,7 +431,7 @@ function buildVertexRequestBody({ cell, fixture }) {
                 },
                 mediaResolution: { level: mediaLevel },
             },
-            { text: promptForClaim(cell.claim) },
+            { text: promptForClaim(cell.claim, PAID_ORACLE_VERSION) },
         ]
     }
 
@@ -437,7 +442,7 @@ function buildVertexRequestBody({ cell, fixture }) {
             maxOutputTokens: cell.outputTokens,
             thinkingConfig: { thinkingLevel: 'low', includeThoughts: false },
             responseMimeType: 'application/json',
-            responseSchema: responseSchemaForClaim(cell.claim),
+            responseSchema: responseSchemaForClaim(cell.claim, PAID_ORACLE_VERSION),
         },
     }
 }
@@ -457,7 +462,9 @@ function normalizeExecutionResult(raw, cell) {
         answer,
         answerHash: /^[a-f0-9]{64}$/.test(raw?.answerHash || '')
             ? raw.answerHash
-            : answer ? hashText(JSON.stringify(sanitizeAnswer(cell.claim, answer))) : null,
+            : answer
+                ? hashText(JSON.stringify(sanitizeAnswer(cell.claim, answer, PAID_ORACLE_VERSION)))
+                : null,
         errorCode: safeCode(raw?.errorCode),
     }
 }
@@ -467,6 +474,7 @@ function restoreDecisionState({ resumeSummary, fixtures, publicFixtures, maxCost
         || resumeSummary.schemaVersion !== 1
         || resumeSummary.provider !== 'vertex'
         || resumeSummary.model !== MODEL_ID
+        || resumeSummary.oracleVersion !== PAID_ORACLE_VERSION
         || resumeSummary.complete !== false
         || resumeSummary.stage !== 'decision-required'
         || resumeSummary.selectedResolution !== null
@@ -508,14 +516,15 @@ function restoreRecord(input, expectedCall, fixtures) {
     const usage = normalizeUsage(input.usage)
     const httpStatus = integerInRange(input.httpStatus, 0, 599, -1)
     const finishReason = safeString(input.finishReason, 64)
-    const observed = sanitizeAnswer(cell.claim, input.observed)
+    const observed = sanitizeAnswer(cell.claim, input.observed, PAID_ORACLE_VERSION)
     const evaluation = httpStatus >= 200 && httpStatus < 300
         ? evaluateObservation({
             cell,
             answer: observed,
-            expected: expectedForClaim(cell.claim, fixture || {}),
+            expected: expectedForClaim(cell.claim, fixture || {}, PAID_ORACLE_VERSION),
             finishReason,
             outputTokens: usage.outputTokens,
+            oracleVersion: PAID_ORACLE_VERSION,
         })
         : { status: 'terminal-error', differences: [], observed: null }
     if (evaluation.status !== input.status) throw new PageFoldStructuralPaidError('RESUME_STATE_INVALID')
@@ -585,6 +594,7 @@ function buildSummary({
         paidExecutionEnabled: true,
         provider: 'vertex',
         model: MODEL_ID,
+        oracleVersion: PAID_ORACLE_VERSION,
         complete,
         supportQualified: complete,
         stage: state.stage,
@@ -934,6 +944,7 @@ if (require.main === module) void main()
 module.exports = {
     MAX_CALLS,
     MAX_OUTPUT_CONTROLS,
+    PAID_ORACLE_VERSION,
     PROMPT_TOKEN_RESERVE,
     PageFoldStructuralPaidError,
     buildVertexRequestBody,

@@ -4,6 +4,7 @@ import { describe, expect, it } from 'vitest'
 const {
     MAX_CALLS,
     MAX_OUTPUT_CONTROLS,
+    PAID_ORACLE_VERSION,
     buildVertexRequestBody,
     runStructuralPaid,
 } = require('./pageFoldStructuralPaidRunner.cjs')
@@ -76,7 +77,7 @@ function passResult(cell: any, fixtureValue: any, extras: Record<string, any> = 
             totalTokens: (cell.transport === 'text' ? 100 : 100 * cell.pages) + 50,
         },
         answer: {
-            ...expectedForClaim(cell.claim, fixtureValue || {}),
+            ...expectedForClaim(cell.claim, fixtureValue || {}, PAID_ORACLE_VERSION),
             unknown: CREDENTIAL_SECRET,
         },
         ...extras,
@@ -151,6 +152,7 @@ describe('PageFold structural paid runner', () => {
         expect(summary).toMatchObject({
             complete: false,
             stage: 'L1',
+            oracleVersion: 2,
             stopReason: 'text-oracle-not-passed',
             completedCalls: 1,
         })
@@ -308,6 +310,12 @@ describe('PageFold structural paid runner', () => {
         })
         expect(resumedCalls).toBe(16)
         expect(resumed.records.slice(0, 5)).toEqual(paused.records)
+
+        await expect(runStructuralPaid({
+            ...baseOptions(executeCell),
+            resumeSummary: { ...paused, oracleVersion: 1 },
+            selectedResolution: 'medium',
+        })).rejects.toMatchObject({ code: 'RESUME_STATE_INVALID' })
     })
 
     it('keeps PDF first on the wire and strips unknown answer fields and secrets from results', async () => {
@@ -322,6 +330,9 @@ describe('PageFold structural paid runner', () => {
             mediaResolution: { level: 'MEDIA_RESOLUTION_LOW' },
         })
         expect(pdfBody.contents[0].parts[1]).toHaveProperty('text')
+        expect(pdfBody.contents[0].parts[1].text).toMatch(/base-10 JSON integers/)
+        expect(pdfBody.generationConfig.responseSchema.properties.samples.items.properties.zwjCodePoints)
+            .toEqual({ type: 'array', items: { type: 'integer' } })
         expect(pdfBody).not.toHaveProperty('tools')
         expect(JSON.stringify(pdfBody)).not.toContain('cachedContent')
 
@@ -332,6 +343,15 @@ describe('PageFold structural paid runner', () => {
         })
         expect(balancedBody.systemInstruction.parts[1].text).toContain('SYSTEM_AUTHORITY_41D7')
         expect(balancedBody.contents[0].parts[0].mediaResolution.level).toBe('MEDIA_RESOLUTION_MEDIUM')
+
+        const textBody = buildVertexRequestBody({
+            cell: createScreeningPlan()[0],
+            fixture: null,
+        })
+        expect(textBody.contents[0].parts[0].text).toContain('PAGEFOLD_RESPONSE_ORACLE_V2')
+        expect(textBody.contents[0].parts[0].text).toContain('ZWJ_SCALARS_DECIMAL|128104|8205')
+        expect(textBody.contents[0].parts[0].text).not.toContain('👨‍👩‍👧‍👦')
+        expect(textBody.generationConfig.responseSchema.required).toContain('roles')
 
         const checkpoints: any[] = []
         const summary = await runStructuralPaid({
@@ -351,10 +371,14 @@ describe('PageFold structural paid runner', () => {
         expect(checkpoints).toHaveLength(summary.completedCalls * 2)
         expect(JSON.stringify(checkpoints)).not.toContain(CREDENTIAL_SECRET)
         expect(checkpoints[0]).toMatchObject({
-            phase: 'call-start', attemptedCall: 1, completedCalls: 0,
+            oracleVersion: 2, phase: 'call-start', attemptedCall: 1, completedCalls: 0,
         })
         expect(checkpoints[1]).toMatchObject({
-            phase: 'call-complete', attemptedCall: 1, completedCalls: 1, record: { call: 1 },
+            oracleVersion: 2,
+            phase: 'call-complete',
+            attemptedCall: 1,
+            completedCalls: 1,
+            record: { call: 1 },
         })
     })
 })

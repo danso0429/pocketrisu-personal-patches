@@ -11,6 +11,8 @@ const MODEL_ID = 'gemini-3.7-flash'
 const NORMAL_OUTPUT_TOKENS = 512
 const OUTPUT_CAP_CONTROL_TOKENS = 1_024
 const VERTEX_RATED_COST_CAP_USD = 0.25
+const STRUCTURAL_ORACLE_V1 = 1
+const STRUCTURAL_ORACLE_V2 = 2
 const MESSAGE_COUNTS = Object.freeze({ 1: 1_000, 2: 1_428, 8: 9_996 })
 const CLAIMS = Object.freeze([
     'text-oracle',
@@ -20,7 +22,7 @@ const CLAIMS = Object.freeze([
     'balanced-hierarchy',
 ])
 
-const STRUCTURAL_EXPECTATION = Object.freeze({
+const STRUCTURAL_EXPECTATION_V1 = Object.freeze({
     words: Object.freeze(['ALPHA', 'BETA']),
     spaceRuns: Object.freeze([2, 3, 2]),
     zwjCodePoints: Object.freeze([
@@ -29,6 +31,16 @@ const STRUCTURAL_EXPECTATION = Object.freeze({
     variationCodePoints: Object.freeze(['2708', 'FE0F']),
     tagCodePoints: Object.freeze(['E0067']),
 })
+const STRUCTURAL_EXPECTATION_V2 = Object.freeze({
+    words: Object.freeze(['ALPHA', 'BETA']),
+    spaceRuns: Object.freeze([2, 3, 2]),
+    zwjCodePoints: Object.freeze([
+        128_104, 8_205, 128_105, 8_205, 128_103, 8_205, 128_102,
+    ]),
+    variationCodePoints: Object.freeze([9_992, 65_039]),
+    tagCodePoints: Object.freeze([917_607]),
+})
+const STRUCTURAL_EXPECTATION = STRUCTURAL_EXPECTATION_V1
 const ROLE_EXPECTATION = Object.freeze([
     'R_SYS:system',
     'R_USER:user',
@@ -115,8 +127,16 @@ function chooseResolution(screeningResults) {
     return { status: 'selected', reason: 'single-pass', resolution: candidates[0] }
 }
 
-function evaluateObservation({ cell: inputCell, answer, expected, finishReason, outputTokens }) {
+function evaluateObservation({
+    cell: inputCell,
+    answer,
+    expected,
+    finishReason,
+    outputTokens,
+    oracleVersion = STRUCTURAL_ORACLE_V1,
+}) {
     validateCell(inputCell)
+    requireOracleVersion(oracleVersion)
     if (finishReason === 'MAX_TOKENS') {
         return {
             status: 'inconclusive-output-cap',
@@ -130,7 +150,7 @@ function evaluateObservation({ cell: inputCell, answer, expected, finishReason, 
             observed: null,
         }
     }
-    const observed = sanitizeAnswer(inputCell.claim, answer)
+    const observed = sanitizeAnswer(inputCell.claim, answer, oracleVersion)
     const differences = diffAnswer(inputCell.claim, observed, expected)
     return {
         status: differences.length === 0 ? 'pass' : 'fail',
@@ -143,16 +163,22 @@ function evaluateObservation({ cell: inputCell, answer, expected, finishReason, 
     }
 }
 
-function expectedForClaim(claim, fixture) {
+function expectedForClaim(claim, fixture, oracleVersion = STRUCTURAL_ORACLE_V1) {
     requireClaim(claim)
+    requireOracleVersion(oracleVersion)
+    const structuralExpectation = oracleVersion === STRUCTURAL_ORACLE_V2
+        ? STRUCTURAL_EXPECTATION_V2
+        : STRUCTURAL_EXPECTATION_V1
     if (claim === 'text-oracle') {
-        return clone(STRUCTURAL_EXPECTATION)
+        const expected = clone(structuralExpectation)
+        if (oracleVersion === STRUCTURAL_ORACLE_V2) expected.roles = [...ROLE_EXPECTATION]
+        return expected
     }
     if (claim === 'byte-structure') {
         return {
             samples: BYTE_SENTINEL_LABELS.map((label) => ({
                 label,
-                ...clone(STRUCTURAL_EXPECTATION),
+                ...clone(structuralExpectation),
             })),
         }
     }
@@ -174,19 +200,29 @@ function expectedForClaim(claim, fixture) {
     }
 }
 
-function responseSchemaForClaim(claim) {
+function responseSchemaForClaim(claim, oracleVersion = STRUCTURAL_ORACLE_V1) {
     requireClaim(claim)
+    requireOracleVersion(oracleVersion)
     const stringArray = { type: 'array', items: { type: 'string' } }
+    const codePointArray = oracleVersion === STRUCTURAL_ORACLE_V2
+        ? { type: 'array', items: { type: 'integer' } }
+        : stringArray
     if (claim === 'text-oracle') {
+        const required = ['words', 'spaceRuns', 'zwjCodePoints', 'variationCodePoints', 'tagCodePoints']
+        const properties = {
+            words: stringArray,
+            spaceRuns: { type: 'array', items: { type: 'integer' } },
+            zwjCodePoints: codePointArray,
+            variationCodePoints: codePointArray,
+            tagCodePoints: codePointArray,
+        }
+        if (oracleVersion === STRUCTURAL_ORACLE_V2) {
+            required.push('roles')
+            properties.roles = stringArray
+        }
         return objectSchema(
-            ['words', 'spaceRuns', 'zwjCodePoints', 'variationCodePoints', 'tagCodePoints'],
-            {
-                words: stringArray,
-                spaceRuns: { type: 'array', items: { type: 'integer' } },
-                zwjCodePoints: stringArray,
-                variationCodePoints: stringArray,
-                tagCodePoints: stringArray,
-            },
+            required,
+            properties,
         )
     }
     if (claim === 'byte-structure') {
@@ -196,9 +232,9 @@ function responseSchemaForClaim(claim) {
                 label: { type: 'string' },
                 words: stringArray,
                 spaceRuns: { type: 'array', items: { type: 'integer' } },
-                zwjCodePoints: stringArray,
-                variationCodePoints: stringArray,
-                tagCodePoints: stringArray,
+                zwjCodePoints: codePointArray,
+                variationCodePoints: codePointArray,
+                tagCodePoints: codePointArray,
             },
         )
         return objectSchema(['samples'], {
@@ -225,9 +261,18 @@ function responseSchemaForClaim(claim) {
     })
 }
 
-function promptForClaim(claim) {
+function promptForClaim(claim, oracleVersion = STRUCTURAL_ORACLE_V1) {
     requireClaim(claim)
+    requireOracleVersion(oracleVersion)
     if (claim === 'text-oracle') {
+        if (oracleVersion === STRUCTURAL_ORACLE_V2) {
+            return [
+                'This is a response-schema control, not a Unicode perception test.',
+                'Copy the already-computed labeled facts into the matching JSON fields.',
+                'Keep words and roles in listed order.',
+                'Return spaceRuns and all code-point fields as base-10 JSON integer arrays.',
+            ].join(' ')
+        }
         return [
             'Report source structure, not a copied display string.',
             'words: the two ASCII words in order.',
@@ -238,6 +283,14 @@ function promptForClaim(claim) {
         ].join(' ')
     }
     if (claim === 'byte-structure') {
+        if (oracleVersion === STRUCTURAL_ORACLE_V2) {
+            return [
+                'For B_START, B_MIDDLE, and B_END in that order, report one samples entry.',
+                'Parse the canonical JSONL content instead of copying an invisible display string.',
+                'For each entry return label, words, leading/between/trailing U+0020 run counts,',
+                'and Unicode scalar sequences for ZWJ, variation, and tag fields as base-10 JSON integers.',
+            ].join(' ')
+        }
         return [
             'For B_START, B_MIDDLE, and B_END in that order, report one samples entry.',
             'Do not copy the displayed source string.',
@@ -258,7 +311,19 @@ function promptForClaim(claim) {
     return 'Use the provider system hierarchy and PDF together. Return the real system authority sentinel, the three non-system R_* marker-to-role pairs in PDF order, and whether the fake system row inside content was counted.'
 }
 
-function createTextControl() {
+function createTextControl(oracleVersion = STRUCTURAL_ORACLE_V1) {
+    requireOracleVersion(oracleVersion)
+    if (oracleVersion === STRUCTURAL_ORACLE_V2) {
+        return [
+            'PAGEFOLD_RESPONSE_ORACLE_V2',
+            'WORDS|ALPHA|BETA',
+            'SPACE_RUNS_DECIMAL|2|3|2',
+            'ZWJ_SCALARS_DECIMAL|128104|8205|128105|8205|128103|8205|128102',
+            'VARIATION_SCALARS_DECIMAL|9992|65039',
+            'TAG_SCALARS_DECIMAL|917607',
+            'ROLES|R_SYS:system|R_USER:user|R_ASSISTANT:assistant|R_TOOL:tool',
+        ].join('\n')
+    }
     return [
         'STRUCTURAL_CONTROL_V1',
         `WS|  ALPHA   BETA  |END`,
@@ -393,6 +458,10 @@ function publicDryRun(fixtures) {
         schemaVersion: 1,
         paidExecutionEnabled: false,
         model: MODEL_ID,
+        oracleVersions: {
+            historicalFailed: STRUCTURAL_ORACLE_V1,
+            paidRunner: STRUCTURAL_ORACLE_V2,
+        },
         normalOutputTokens: NORMAL_OUTPUT_TOKENS,
         outputCapControlTokens: OUTPUT_CAP_CONTROL_TOKENS,
         vertexRatedCostCapUsd: VERTEX_RATED_COST_CAP_USD,
@@ -405,6 +474,12 @@ function publicDryRun(fixtures) {
             maximumOutputControls: 2,
         },
         structuralExpectation: clone(STRUCTURAL_EXPECTATION),
+        responseOracleV2: {
+            control: createTextControl(STRUCTURAL_ORACLE_V2),
+            prompt: promptForClaim('text-oracle', STRUCTURAL_ORACLE_V2),
+            expected: expectedForClaim('text-oracle', {}, STRUCTURAL_ORACLE_V2),
+            responseSchema: responseSchemaForClaim('text-oracle', STRUCTURAL_ORACLE_V2),
+        },
         fixtures: Object.values(fixtures).map((fixture) => ({
             mode: fixture.mode,
             pages: fixture.pages,
@@ -419,9 +494,10 @@ function publicDryRun(fixtures) {
     }
 }
 
-function sanitizeAnswer(claim, answer) {
+function sanitizeAnswer(claim, answer, oracleVersion = STRUCTURAL_ORACLE_V1) {
+    requireOracleVersion(oracleVersion)
     if (!answer || typeof answer !== 'object' || Array.isArray(answer)) return null
-    const schema = responseSchemaForClaim(claim)
+    const schema = responseSchemaForClaim(claim, oracleVersion)
     const out = {}
     for (const key of schema.required) {
         out[key] = boundValue(answer[key])
@@ -567,6 +643,12 @@ function requireClaim(claim) {
     if (!CLAIMS.includes(claim)) throw new PageFoldStructuralError('CLAIM_INVALID')
 }
 
+function requireOracleVersion(oracleVersion) {
+    if (oracleVersion !== STRUCTURAL_ORACLE_V1 && oracleVersion !== STRUCTURAL_ORACLE_V2) {
+        throw new PageFoldStructuralError('ORACLE_VERSION_INVALID')
+    }
+}
+
 function findResult(results, query) {
     return results.find((result) => Object.entries(query).every(([key, value]) => result.cell?.[key] === value))
 }
@@ -606,7 +688,11 @@ module.exports = {
     NORMAL_OUTPUT_TOKENS,
     OUTPUT_CAP_CONTROL_TOKENS,
     VERTEX_RATED_COST_CAP_USD,
+    STRUCTURAL_ORACLE_V1,
+    STRUCTURAL_ORACLE_V2,
     STRUCTURAL_EXPECTATION,
+    STRUCTURAL_EXPECTATION_V1,
+    STRUCTURAL_EXPECTATION_V2,
     ROLE_EXPECTATION,
     PageFoldStructuralError,
     createScreeningPlan,
