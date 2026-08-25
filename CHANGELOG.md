@@ -34,8 +34,17 @@
 - Generate the primary installer and byte-identical `all` alias twice at mode
   0755. Both are 7,832,633 bytes, CJS syntax-valid, and SHA-256
   `27e636134791232e1f9a0b108a98696e2f7cf2a9e22ab8ac9e37eef09a2f7f0b`.
-  Keep live observations, physical iPhone L3, stable verification, tag, and
-  release behind their separate gates.
+  Safely apply the review graph live only after active native/BG work reaches
+  zero and a process-first stop. Pass the same stopped-tree client/server/
+  compat/check/build/BG gates, prewarm and hash-verify the production font
+  cache without a paid call, and match served/local runtime/UI chunks plus the
+  build stamp after restart.
+- Preserve all DB/backup inode-size pairs, four SQLite `quick_check=ok`, 132
+  delivered BG states, zero active/pending/result work, one inert retired
+  import row, and a zero-byte PM2 error-log delta. Disclose the unchanged
+  native 256 MiB startup rotation removing seven oldest request-body rows
+  while usage rows and max request ID remain. Keep physical iPhone L3, stable
+  verification, tag, and release behind their separate gates.
 
 ## 0.2.0
 

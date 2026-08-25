@@ -1,7 +1,7 @@
 # PocketRisu PageFold candidate validation receipt
 
 > **Status:** automatic candidate gate passed; exact-1.10 catalog admitted as
-> `under-review`; live apply and physical iPhone L3 remain separate
+> `under-review` and safely applied live; physical iPhone L3 remains separate
 >
 > **Date:** 2026-08-26 KST
 >
@@ -215,17 +215,118 @@ PageFold-off byte assertion. Re-run results above include those corrections.
   section 22.3 physical scenarios. They are not relabelled as automatic
   passes.
 
-## 8. Live and stable state
+## 8. Live application receipt
 
-The automatic candidate gate permits a safe experimental live apply. Before
-that mutation, the running native/BG work, database integrity/identity,
-request logs, patch intent/state, build stamp, served asset, and error-log
-boundary must be captured read-only. Active work is never cancelled; the
-process is stopped first only after the work state is safe.
+### 8.1 Preflight and rollback boundary
 
-This receipt will record the observed live delta after apply. Until then:
+Immediately before mutation, PM2 reported PocketRisu `1.10.0` online at
+restart count 6, unstable restarts 0, and active HTTP requests 0. Native model
+jobs were 48 done / 2 terminal-aborted with active 0; pending sends were 0.
+All 132 durable BG operation states were `delivered`; operation, legacy, and
+sub-result payloads were 0. One retired background-import row remained
+`receiving`; it was preserved without resume, cancellation, or deletion.
 
-- candidate catalog admission: automatic gate passed locally;
-- candidate live state: not yet applied;
+Main, model-job, request-log, and import-job SQLite each returned
+`quick_check=ok`. Their preflight inode/size pairs were:
+
+| Database | Inode | Bytes |
+| --- | ---: | ---: |
+| main `risuai.db` | 786453 | 2,710,347,776 |
+| `model-jobs.db` | 872636 | 94,208 |
+| `request-logs.db` | 872639 | 279,552,000 |
+| `import-jobs.db` | 875700 | 4,096 |
+
+Three backup files retained 3,002,439,949 aggregate bytes. Nested `save/save`
+and a patch transaction journal were absent. The existing 38-pack state was
+769 units / 280 paths with rolling `all` intent. The PM2 error log was 139,796
+bytes. Served/local `index-KSLKghfQ.js` matched at 2,037,436 bytes and SHA-256
+`ca827add42ba4e420bcde31dd4c20efce45db746671d22104368d0a32cd19734`;
+served/local build stamps matched at
+`1.10.0-2f217022cef8b40cdf4907183f50854adf281cb7e7f93af0ab1bc3d19fab967d`.
+
+The recoverable application-only rollback
+`risuai-nodeonly-pre-pagefold.20260826-033209` contains 1,613 files /
+326,632,958 bytes. It excludes `save/`, `backups/`, and `node_modules/`, and
+retains separate mode-0600 copies of the old patch state and intent.
+Representative live/rollback `server.cjs` and `package.json` hashes matched.
+
+### 8.2 Process-first apply and stopped-tree gate
+
+After a second active-work read returned the same zeros, PM2 was stopped before
+source writes. Maintainer qualification transactionally changed 73 runtime/test
+paths plus patch state and lockfile/package dependency paths, producing the
+40-pack / 929-unit / 339-path review graph. State and intent remained mode
+0600; no transaction journal remained. Frozen offline install added 115
+packages, reused all 115, and downloaded zero.
+
+The first stopped-tree Svelte check found one candidate-test typing defect:
+the new ordinary-image regression omitted required `AdapterImagePart.kind`.
+Commit `4f2853e` added `kind: image`, regenerated the installers/receipt, and was
+pushed before restart. Reapplying changed only that test and patch state.
+
+The corrected stopped live tree then observed:
+
+- Svelte diagnostics 0 errors / 0 warnings;
+- 151 client files / 1,730 tests passed;
+- 22 server files / 232 tests passed with 12 explicit skips;
+- 10 compatibility files passed and one skipped, with 74 tests passed / 5
+  environment-dependent skips;
+- 7,940-module production client build;
+- BG bundle build/load with `sendChat=function`;
+- production dependency prune followed by server syntax, `pdf-lib`,
+  `@pdf-lib/fontkit`, and exact BG preload/load checks;
+- current 40-pack / 339-path status and immediate zero-change generated plan.
+
+The final live BG bundle is 8,841,657 bytes with SHA-256
+`815fb1cb207fa892d391407d2e5d2dbb9b12bbf8b19b877678ee12d41705325d`.
+
+No paid provider call was made during live application. A provider-free live
+renderer prewarm downloaded/verified the four pinned font/license assets at
+mode 0600 under a mode-0700 cache. Their SHA-256 values exactly matched the
+manifest. A one-page 9,476-byte PDF with SHA-256
+`51a969958f80ad3cf45c0250e7cca8eb756fcbc274c112ac2019b93cc27e0ed2`
+then passed independent PDF.js exact extraction.
+
+### 8.3 Restart readback
+
+After restart, PM2 reported PocketRisu `1.10.0` online, restart count 6,
+unstable restarts 0, and active requests 0. Root returned HTTP 200. The
+unauthenticated BG cache route returned 401; the new PageFold render route and
+native request-log route both returned the existing JSON
+`{"error":"No auth header"}` at 400 before work.
+
+Served/local artifacts matched exactly:
+
+| Artifact | Bytes | SHA-256 |
+| --- | ---: | --- |
+| main `index-wve4U1kR.js` | 2,050,340 | `350771d3b01fdb96f6b1c79511d3ff8afdf0e9d37f1bf46e7f108b9832cfee81` |
+| PageFold runtime `database.svelte-CriJX37Y.js` | 2,445,558 | `8ca43f01ff3c22062d9412e7d09803dc91cf9d58f71b0028a0b34e4635b34362` |
+| language `lang-Cblq1YJz.js` | 888,549 | `1c7803cbfa6bf3024914d5d5ecdfed641fff82263469788ea794aeeb2c9a0565` |
+
+The runtime/language chunks contained the qualified route, fixed low enum,
+and PageFold UI markers. Served/local build stamps matched at
+`1.10.0-3a8997df6f72918b22203453b6bc171723d4b855acc808784ed1e091e0d4f9ae`.
+
+All four SQLite databases again returned `quick_check=ok`. The four DB
+inode/size pairs, three backup inodes/bytes, 132 delivered BG states, zero
+native/pending/result work, preserved retired import row, and absence of nested
+save/transaction journal matched preflight. The PM2 error log remained exactly
+139,796 bytes for a zero-byte delta. The stdout delta contained only process
+stop/start, localhost probes, and their expected no-auth messages.
+
+The native request-log owner performs one byte-budget rotation at every
+startup. It removed seven oldest request-body rows, from 3,916 to 3,909, while
+max ID stayed 5,876, no post-preflight row was inserted, and all 5,234 usage
+rows remained. The retained body sum is 268,381,853 bytes, just below the
+existing 256 MiB limit. This is the unchanged native startup policy, not a
+PageFold content write; it is disclosed rather than relabelled as an unchanged
+row count.
+
+Final live state:
+
+- candidate catalog and live apply: `0.2.0-experimental.22`, current, 40
+  packs / 929 units / 339 paths, PageFold packs still `under-review`;
 - physical iPhone L3: pending;
+- first integrated paid production request and natural recall: pending as L3,
+  not run automatically;
 - stable metadata/tag/GitHub release: prohibited until L3 and L4.

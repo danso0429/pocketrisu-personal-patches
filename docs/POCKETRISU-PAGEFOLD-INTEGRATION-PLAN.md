@@ -1,9 +1,9 @@
 # PocketRisu PageFold ModelPreset integration plan
 
-> **Status:** review-revised implementation authority; F1-F8 runtime/UI/BG
-> owners and the F9 automatic candidate gate are implemented; exact-1.10
-> catalog admission remains `under-review`; live apply and physical L3 are
-> pending and no stable tag/release is authorized
+> **Status:** review-revised implementation authority; F1-F9 automatic gates,
+> commit/push, and safe exact-1.10 live apply are complete; catalog admission
+> remains `under-review`; physical L3 is pending and no stable tag/release is
+> authorized
 >
 > **Date:** 2026-08-26 KST
 >
@@ -1998,10 +1998,11 @@ boundaries.
 12. **Complete** — `feat(pagefold): compose bg-preserve execution`
     - injected in-process port, cancellation, status, recovery, stale-source
       list, owner-focused tests.
-13. **Automatic gate complete; commit/live pending** — `build(patcher): admit PageFold candidate graph`
+13. **Complete** — `build(patcher): admit PageFold candidate graph`
     - register manifest only after feasibility/focused/complete automatic gates;
       generate deterministic experimental installer and validation receipt.
-14. experimental commit/push/safe live apply and physical L3.
+14. **Commit/push/live complete; physical L3 pending** — experimental
+    commit/push/safe live apply and physical L3.
 15. L4/stable admission commits
     - final evidence, verified metadata, README/CHANGELOG/version/provenance,
       stable tag/release only after user acceptance.
