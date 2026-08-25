@@ -5,6 +5,7 @@ const {
     MAX_CALLS,
     MAX_OUTPUT_CONTROLS,
     PAID_ORACLE_VERSION,
+    PAID_OUTPUT_CAP_CONTROL_TOKENS,
     buildVertexRequestBody,
     runStructuralPaid,
 } = require('./pageFoldStructuralPaidRunner.cjs')
@@ -152,7 +153,7 @@ describe('PageFold structural paid runner', () => {
         expect(summary).toMatchObject({
             complete: false,
             stage: 'L1',
-            oracleVersion: 2,
+            oracleVersion: 3,
             stopReason: 'text-oracle-not-passed',
             completedCalls: 1,
         })
@@ -188,7 +189,7 @@ describe('PageFold structural paid runner', () => {
         const executeCell = async ({ cell, fixture: fixtureValue }: any) => {
             const result = passResult(cell, fixtureValue)
             if (cell.stage === 'L2' && cell.resolution === 'medium' && cell.claim === 'byte-structure') {
-                result.answer.samples[0].spaceRuns = [0]
+                result.answer.samples[0].spaceRunLengths = [0]
             }
             return result
         }
@@ -209,7 +210,7 @@ describe('PageFold structural paid runner', () => {
         expect(createHierarchyPlan('low')).toHaveLength(3)
     })
 
-    it('uses one 1024 control for MAX_TOKENS and never controls that cell again', async () => {
+    it('uses one 2048 control for MAX_TOKENS and never controls that cell again', async () => {
         const executeCell = async ({ cell, fixture: fixtureValue }: any) => {
             if (cell.claim === 'text-oracle' && cell.outputTokens === 512) {
                 return passResult(cell, fixtureValue, {
@@ -238,11 +239,12 @@ describe('PageFold structural paid runner', () => {
             status: record.status,
         }))).toEqual([
             { outputTokens: 512, control: false, status: 'inconclusive-output-cap' },
-            { outputTokens: 1024, control: true, status: 'pass' },
+            { outputTokens: 2048, control: true, status: 'pass' },
         ])
+        expect(PAID_OUTPUT_CAP_CONTROL_TOKENS).toBe(2048)
     })
 
-    it('stops after the 1024 control is also truncated', async () => {
+    it('stops after the 2048 control is also truncated', async () => {
         const executeCell = async ({ cell, fixture: fixtureValue }: any) =>
             passResult(cell, fixtureValue, {
                 finishReason: 'MAX_TOKENS',
@@ -266,7 +268,7 @@ describe('PageFold structural paid runner', () => {
         expect(summary.records[1]).toMatchObject({
             control: true,
             status: 'inconclusive-output-cap',
-            cell: { outputTokens: 1024 },
+            cell: { outputTokens: 2048 },
         })
     })
 
@@ -313,7 +315,7 @@ describe('PageFold structural paid runner', () => {
 
         await expect(runStructuralPaid({
             ...baseOptions(executeCell),
-            resumeSummary: { ...paused, oracleVersion: 1 },
+            resumeSummary: { ...paused, oracleVersion: 2 },
             selectedResolution: 'medium',
         })).rejects.toMatchObject({ code: 'RESUME_STATE_INVALID' })
     })
@@ -331,7 +333,7 @@ describe('PageFold structural paid runner', () => {
         })
         expect(pdfBody.contents[0].parts[1]).toHaveProperty('text')
         expect(pdfBody.contents[0].parts[1].text).toMatch(/base-10 JSON integers/)
-        expect(pdfBody.generationConfig.responseSchema.properties.samples.items.properties.zwjCodePoints)
+        expect(pdfBody.generationConfig.responseSchema.properties.samples.items.properties.zwjSequenceCodePoints)
             .toEqual({ type: 'array', items: { type: 'integer' } })
         expect(pdfBody).not.toHaveProperty('tools')
         expect(JSON.stringify(pdfBody)).not.toContain('cachedContent')
@@ -348,10 +350,12 @@ describe('PageFold structural paid runner', () => {
             cell: createScreeningPlan()[0],
             fixture: null,
         })
-        expect(textBody.contents[0].parts[0].text).toContain('PAGEFOLD_RESPONSE_ORACLE_V2')
-        expect(textBody.contents[0].parts[0].text).toContain('ZWJ_SCALARS_DECIMAL|128104|8205')
+        expect(textBody.contents[0].parts[0].text).toContain('PAGEFOLD_RESPONSE_ORACLE_V3')
+        expect(textBody.contents[0].parts[0].text).toContain('ZWJ_SEQUENCE_SCALARS_DECIMAL|128104|8205')
         expect(textBody.contents[0].parts[0].text).not.toContain('👨‍👩‍👧‍👦')
         expect(textBody.generationConfig.responseSchema.required).toContain('roles')
+        expect(textBody.generationConfig.responseSchema.properties.roles.items.required)
+            .toEqual(['marker', 'role'])
 
         const checkpoints: any[] = []
         const summary = await runStructuralPaid({
@@ -371,10 +375,10 @@ describe('PageFold structural paid runner', () => {
         expect(checkpoints).toHaveLength(summary.completedCalls * 2)
         expect(JSON.stringify(checkpoints)).not.toContain(CREDENTIAL_SECRET)
         expect(checkpoints[0]).toMatchObject({
-            oracleVersion: 2, phase: 'call-start', attemptedCall: 1, completedCalls: 0,
+            oracleVersion: 3, phase: 'call-start', attemptedCall: 1, completedCalls: 0,
         })
         expect(checkpoints[1]).toMatchObject({
-            oracleVersion: 2,
+            oracleVersion: 3,
             phase: 'call-complete',
             attemptedCall: 1,
             completedCalls: 1,

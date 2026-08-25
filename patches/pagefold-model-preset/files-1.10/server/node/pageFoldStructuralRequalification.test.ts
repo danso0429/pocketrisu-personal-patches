@@ -3,10 +3,13 @@ import { describe, expect, it } from 'vitest'
 const {
     NORMAL_OUTPUT_TOKENS,
     OUTPUT_CAP_CONTROL_TOKENS,
+    OUTPUT_CAP_CONTROL_TOKENS_V3,
     STRUCTURAL_ORACLE_V1,
     STRUCTURAL_ORACLE_V2,
+    STRUCTURAL_ORACLE_V3,
     STRUCTURAL_EXPECTATION,
     STRUCTURAL_EXPECTATION_V2,
+    STRUCTURAL_EXPECTATION_V3,
     VERTEX_RATED_COST_CAP_USD,
     chooseResolution,
     createHierarchyPlan,
@@ -142,8 +145,82 @@ describe('PageFold structural requalification L0', () => {
             status: 'fail',
             differences: [expect.objectContaining({ field: 'tagCodePoints' })],
         })
-        expect(() => responseSchemaForClaim('text-oracle', 3))
+        expect(() => responseSchemaForClaim('text-oracle', 4))
             .toThrowError(expect.objectContaining({ code: 'ORACLE_VERSION_INVALID' }))
+    })
+
+    it('uses unambiguous lengths, sequence scalars, role objects, and a 2048 v3 control', () => {
+        expect(STRUCTURAL_ORACLE_V3).toBe(3)
+        expect(OUTPUT_CAP_CONTROL_TOKENS_V3).toBe(2048)
+        expect(STRUCTURAL_EXPECTATION_V3).toEqual({
+            words: ['ALPHA', 'BETA'],
+            spaceRunLengths: [2, 3, 2],
+            zwjSequenceCodePoints: [128104, 8205, 128105, 8205, 128103, 8205, 128102],
+            variationSequenceCodePoints: [9992, 65039],
+            tagSequenceCodePoints: [917607],
+        })
+
+        const textExpected = expectedForClaim('text-oracle', {}, STRUCTURAL_ORACLE_V3)
+        expect(textExpected.roles).toEqual([
+            { marker: 'R_SYS', role: 'system' },
+            { marker: 'R_USER', role: 'user' },
+            { marker: 'R_ASSISTANT', role: 'assistant' },
+            { marker: 'R_TOOL', role: 'tool' },
+        ])
+        expect(expectedForClaim('grammar-role', { messageCount: 1000 }, STRUCTURAL_ORACLE_V3).roles)
+            .toEqual([
+                { marker: 'R_USER', role: 'user' },
+                { marker: 'R_ASSISTANT', role: 'assistant' },
+                { marker: 'R_TOOL', role: 'tool' },
+                { marker: 'R_SYS', role: 'system' },
+            ])
+        expect(expectedForClaim('balanced-hierarchy', {}, STRUCTURAL_ORACLE_V3).pdfRoles)
+            .toEqual([
+                { marker: 'R_USER', role: 'user' },
+                { marker: 'R_ASSISTANT', role: 'assistant' },
+                { marker: 'R_TOOL', role: 'tool' },
+            ])
+
+        const control = createTextControl(STRUCTURAL_ORACLE_V3)
+        expect(control).toContain('PAGEFOLD_RESPONSE_ORACLE_V3')
+        expect(control).toContain('SPACE_RUN_LENGTHS_DECIMAL|2|3|2')
+        expect(control).toContain('ZWJ_SEQUENCE_SCALARS_DECIMAL|128104|8205')
+        expect(promptForClaim('byte-structure', STRUCTURAL_ORACLE_V3)).toMatch(/not the number of runs/)
+        expect(promptForClaim('byte-structure', STRUCTURAL_ORACLE_V3)).toMatch(/including emoji scalars/)
+        expect(responseSchemaForClaim('grammar-role', STRUCTURAL_ORACLE_V3))
+            .toMatchObject({
+                properties: {
+                    roles: {
+                        type: 'array',
+                        items: { required: ['marker', 'role'] },
+                    },
+                },
+            })
+
+        const inputCell = createScreeningPlan()[1]
+        expect(evaluateObservation({
+            cell: inputCell,
+            answer: null,
+            expected: expectedForClaim('byte-structure', {}, STRUCTURAL_ORACLE_V3),
+            finishReason: 'MAX_TOKENS',
+            outputTokens: 500,
+            oracleVersion: STRUCTURAL_ORACLE_V3,
+        })).toMatchObject({
+            status: 'inconclusive-output-cap',
+            outputControlAllowed: true,
+            nextOutputTokens: 2048,
+        })
+        expect(evaluateObservation({
+            cell: { ...inputCell, outputTokens: 2048 },
+            answer: null,
+            expected: expectedForClaim('byte-structure', {}, STRUCTURAL_ORACLE_V3),
+            finishReason: 'MAX_TOKENS',
+            outputTokens: 2000,
+            oracleVersion: STRUCTURAL_ORACLE_V3,
+        })).toMatchObject({
+            outputControlAllowed: false,
+            nextOutputTokens: null,
+        })
     })
 
     it('treats MAX_TOKENS as one predeclared cap control, not failed recall', () => {
@@ -243,13 +320,24 @@ describe('PageFold structural requalification L0', () => {
         const output = publicDryRun({ 'maximum:1': fixture })
         expect(output.paidExecutionEnabled).toBe(false)
         expect(output.maximumCallsAfterApproval).toBe(23)
-        expect(output.oracleVersions).toEqual({ historicalFailed: 1, paidRunner: 2 })
+        expect(output.oracleVersions).toEqual({ historical: [1, 2], paidRunner: 3 })
+        expect(output.historicalOutputCapControlTokens).toBe(1024)
+        expect(output.outputCapControlTokens).toBe(2048)
         expect(output.responseOracleV2).toMatchObject({
             control: expect.stringContaining('PAGEFOLD_RESPONSE_ORACLE_V2'),
             expected: { tagCodePoints: [917607] },
             responseSchema: {
                 properties: {
                     tagCodePoints: { type: 'array', items: { type: 'integer' } },
+                },
+            },
+        })
+        expect(output.responseOracleV3).toMatchObject({
+            control: expect.stringContaining('PAGEFOLD_RESPONSE_ORACLE_V3'),
+            expected: { tagSequenceCodePoints: [917607] },
+            responseSchema: {
+                properties: {
+                    tagSequenceCodePoints: { type: 'array', items: { type: 'integer' } },
                 },
             },
         })

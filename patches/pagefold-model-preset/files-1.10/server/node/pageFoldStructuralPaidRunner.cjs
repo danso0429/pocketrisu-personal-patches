@@ -5,8 +5,8 @@ const fs = require('node:fs')
 const {
     MODEL_ID,
     NORMAL_OUTPUT_TOKENS,
-    OUTPUT_CAP_CONTROL_TOKENS,
-    STRUCTURAL_ORACLE_V2,
+    OUTPUT_CAP_CONTROL_TOKENS_V3,
+    STRUCTURAL_ORACLE_V3,
     VERTEX_RATED_COST_CAP_USD,
     PageFoldStructuralError,
     chooseResolution,
@@ -31,7 +31,8 @@ const {
 
 const MAX_CALLS = 23
 const MAX_OUTPUT_CONTROLS = 2
-const PAID_ORACLE_VERSION = STRUCTURAL_ORACLE_V2
+const PAID_ORACLE_VERSION = STRUCTURAL_ORACLE_V3
+const PAID_OUTPUT_CAP_CONTROL_TOKENS = OUTPUT_CAP_CONTROL_TOKENS_V3
 const REQUEST_TIMEOUT_MS = 300_000
 const MEDIA_RESOLUTION = Object.freeze({
     low: 'MEDIA_RESOLUTION_LOW',
@@ -177,7 +178,7 @@ async function runLogicalCell({ cell, fixtures, credentials, state, options, sec
     if (!initial || state.stopReason || initial.status !== 'inconclusive-output-cap') return initial
     if (state.controlsUsed >= MAX_OUTPUT_CONTROLS) return initial
 
-    const controlCell = { ...cell, outputTokens: OUTPUT_CAP_CONTROL_TOKENS }
+    const controlCell = { ...cell, outputTokens: PAID_OUTPUT_CAP_CONTROL_TOKENS }
     const control = await runPhysicalCell({
         cell: controlCell,
         control: true,
@@ -566,7 +567,8 @@ function restoreCell(input) {
     )
     if (!match) throw new PageFoldStructuralPaidError('RESUME_STATE_INVALID')
     const outputTokens = input.outputTokens
-    if (outputTokens !== NORMAL_OUTPUT_TOKENS && outputTokens !== OUTPUT_CAP_CONTROL_TOKENS) {
+    if (outputTokens !== NORMAL_OUTPUT_TOKENS
+        && outputTokens !== PAID_OUTPUT_CAP_CONTROL_TOKENS) {
         throw new PageFoldStructuralPaidError('RESUME_STATE_INVALID')
     }
     return publicCell({ ...match, outputTokens })
@@ -608,7 +610,7 @@ function buildSummary({
         maximumOutputControls: MAX_OUTPUT_CONTROLS,
         outputControlsUsed: state.controlsUsed,
         normalOutputTokens: NORMAL_OUTPUT_TOKENS,
-        outputCapControlTokens: OUTPUT_CAP_CONTROL_TOKENS,
+        outputCapControlTokens: PAID_OUTPUT_CAP_CONTROL_TOKENS,
         maxCostUsd: state.maxCostUsd,
         ratedCostUsd: state.ratedCostUsd,
         credentialChecks: { ...credentials.checks },
@@ -945,6 +947,7 @@ module.exports = {
     MAX_CALLS,
     MAX_OUTPUT_CONTROLS,
     PAID_ORACLE_VERSION,
+    PAID_OUTPUT_CAP_CONTROL_TOKENS,
     PROMPT_TOKEN_RESERVE,
     PageFoldStructuralPaidError,
     buildVertexRequestBody,
