@@ -1,8 +1,9 @@
 # PocketRisu PageFold ModelPreset integration plan
 
-> **Status:** review-revised implementation authority; prototype is validated
-> and paid feasibility is complete, but no provider route qualified; downstream
-> runtime/UI/BG/catalog/live work is paused
+> **Status:** review-revised implementation authority; prototype is validated,
+> the first omnibus feasibility matrix qualified no route, and structural-oracle
+> Vertex-first requalification is approved for local harness work only; no new
+> paid calls or downstream runtime/UI/BG/catalog/live work are authorized yet
 >
 > **Date:** 2026-08-25 KST
 >
@@ -13,6 +14,10 @@
 > **Prototype receipt:** `docs/POCKETRISU-PAGEFOLD-PROTOTYPE-VALIDATION.md`
 >
 > **Provider feasibility receipt:** `docs/POCKETRISU-PAGEFOLD-PROVIDER-FEASIBILITY.md`
+>
+> **Deferred verbatim-copy authority:** `docs/POCKETRISU-PAGEFOLD-VERBATIM-COPY-FOLLOWUP.md`
+>
+> **Structural requalification:** `docs/POCKETRISU-PAGEFOLD-STRUCTURAL-REQUALIFICATION.md`
 
 ## 1. Outcome
 
@@ -72,6 +77,9 @@ so an iPhone does not parse large fonts or build the dense PDF locally.
   plugin;
 - automatic enable/disable/removal of any database plugin entry;
 - silent ordinary-model fallback after PageFold preparation;
+- byte-identical model reproduction of source strings; exact transport and
+  structural recognition remain required, while verbatim copying follows
+  `docs/POCKETRISU-PAGEFOLD-VERBATIM-COPY-FOLLOWUP.md` when activated;
 - stable release before automatic gates and physical iPhone validation.
 
 The original plugin may remain installed during qualification. The patcher
@@ -99,7 +107,15 @@ questions:
 - candidate experimental catalog admission precedes L3, while stable
   distributed admission follows physical L3 and L4;
 - browser HTTP and BG in-process rendering implement one injected
-  `PageFoldRenderPort` interface.
+  `PageFoldRenderPort` interface;
+- model recognition of byte-sensitive content is tested through whitespace
+  runs, positions, and Unicode code-point sequences rather than by requiring
+  the response generator to echo an identical string;
+- verbatim-copy behavior is a deferred, separately disclosed capability and
+  cannot be inferred from structural-recognition success; and
+- Vertex closes the revised mechanism first; AI Studio replays the frozen
+  matrix only after its quota/admission issue is resolved, and OpenRouter
+  remains outside the current user-approved scope.
 
 ## 3. Audited PageFold 0.1.1 behavior
 
@@ -1375,11 +1391,34 @@ and L4.
 ### 19.3 Paid provider feasibility
 
 - separate user approval before paid calls;
+- a text-only control validates the response oracle before PDF calls;
 - 1/2/8 pages with start/middle/end markers on every page;
-- whitespace, ZWJ, JSON, code, fake role/message records, and interleaved roles;
-- AI Studio and Vertex low versus medium PDF resolution;
-- OpenRouter native default independently; no undocumented resolution control
-  is invented if OpenRouter does not expose one;
+- whitespace uses run lengths/positions and ZWJ/variation/tag content uses
+  ordered Unicode code points, so perception is not conflated with response
+  trimming, normalization, or emoji rendering;
+- verbatim output remains separately deferred and disclosed;
+- JSON, code, fake role/message records, and interleaved roles use compact,
+  independently expected identifiers;
+- low versus medium is compared on the same one-page fixtures before either is
+  expanded; a failed resolution is not an automatic fallback trigger, and if
+  both pass the user chooses from observed cost/latency rather than an automatic
+  preference;
+- the chosen Vertex resolution expands to 2/8 pages only after its one-page
+  structural and grammar claims pass;
+- every final qualification cell must pass three total observations (screening
+  plus two fresh repeats); majority success is insufficient;
+- `maxOutputTokens=512` is the normal compact-response bound; at most two
+  predeclared 1024-token controls may distinguish output truncation from recall,
+  with no cell receiving more than one control; these are not retries of a
+  failed recall result;
+- actual synthetic answer fields and bounded first-difference metrics are
+  retained for diagnosis, while credentials, request bodies, PDF Base64, and
+  provider tokens remain prohibited;
+- Vertex is qualified first; AI Studio receives the identical frozen matrix
+  only after a separate non-recall quota/admission gate succeeds;
+- OpenRouter is not part of the current requalification scope; native-default
+  qualification, without an invented resolution control, may be designed later
+  only if the user adds it to scope;
 - actual usage, finish reason, exact marker recovery, role/order questions, and
   repeated-run variation;
 - route is support-qualified only by its own pass;
@@ -1488,6 +1527,38 @@ and L4.
 
 A failed route is removed from the first support matrix before adapter/UI/BG
 work proceeds. Provider feasibility is not deferred to aggregate L3.
+
+#### 20.1.1 Structural-oracle requalification sequence
+
+The 2026-08-25 omnibus run remains failed evidence; it is not rewritten as a
+pass. Requalification changes the experiment so each call establishes one
+claim and each transition has an external stop condition.
+
+1. **L0 local harness gate — no provider work.** Add structural whitespace and
+   Unicode oracles, compact schemas, sanitized observed fields/diffs, a
+   512/1024 output-budget control, dry-run fixture identity, focused tests, and
+   secret sweep.
+2. **L1 text oracle control — one Vertex call.** The same byte-sensitive and
+   role facts are supplied as ordinary text. Failure stops all PDF calls and
+   returns to the evaluator; it is not a renderer verdict.
+3. **L2 one-page paired screening — four Vertex calls.** Low and medium each
+   receive one byte-sensitive fixture and one grammar/role/fake-record fixture.
+   At least one resolution must pass both claims before page expansion. If both
+   pass, pause and present usage/latency for user selection.
+4. **L3 selected-resolution qualification — at most thirteen Vertex calls.**
+   Add two fresh repeats of the selected one-page claims, then screen and repeat
+   a compact 2-page grammar/order cell, an 8-page marker cell, and an 8-page
+   byte-sentinel cell. Each final cell must be 3/3.
+5. **L4 hierarchy-mode qualification — at most three Vertex calls.** Qualify
+   provider-system preservation independently of PDF role emulation without
+   changing the chosen provider/resolution/page ceiling.
+6. **AI Studio replication — separately gated.** Resolve the current `429`
+   quota/admission surface first, then replay the frozen successful matrix. No
+   new exploratory cells or provider-specific success inference are allowed.
+
+The Vertex structural requalification has a separate rated-cost ceiling of
+`USD 0.25`, no automatic retry, and no classic fallback. Paid calls require a
+new approval after L0 is implemented, tested, and reviewed.
 
 ### 20.2 Candidate catalog admission — experimental only
 
@@ -1639,10 +1710,12 @@ Safety claims must be attacked with:
    - turn a role off;
    - resend and confirm ordinary context budgeting and request shape.
 
-Actual paid model calls are not performed during planning. A small, separately
-approved paid feasibility matrix occurs after the renderer prototype and before
-candidate catalog admission. L3 then validates the integrated product and
-physical iPhone lifecycle rather than discovering basic PDF/model feasibility.
+The first paid matrix is preserved in
+`docs/POCKETRISU-PAGEFOLD-PROVIDER-FEASIBILITY.md`; it is not rewritten as a
+pass. No structural-oracle paid call is performed while revising the plan and
+harness. A new paid run requires separate approval after L0. L3 then validates
+the integrated product and physical iPhone lifecycle rather than discovering
+basic PDF/model feasibility.
 
 ## 23. Rollback
 
@@ -1708,10 +1781,17 @@ and intentionally occurs earlier for L3 live apply.
   implementation provenance.
 - Canonical input is final `AdapterChatMessage[]` and deterministic JSONL.
 - Canonical text extraction must be exact before paid model qualification.
+- Structural recognition, not byte-identical response echo, is the current
+  model-recall admission oracle; whitespace and Unicode controls are answered
+  through independently checkable structure.
+- Verbatim copying is deferred to
+  `docs/POCKETRISU-PAGEFOLD-VERBATIM-COPY-FOLLOWUP.md` and must be disclosed as
+  unqualified until that separate gate is activated and passed.
 - Paid 1/2/8-page route feasibility occurs before adapter/UI/BG completion and
   candidate catalog admission.
-- First support is Gemini 3 native PDF on AI Studio, Vertex, and qualified
-  OpenRouter routes.
+- Revised qualification closes one fixed Vertex route/resolution/mode/page
+  ceiling first. AI Studio only replicates the frozen matrix after quota
+  admission, and OpenRouter is outside the current user-approved scope.
 - Tools and PocketRisu explicit cache are blocked in the first admission.
 - Image-bearing PageFold requests are blocked in the first admission;
   PageFold-off preserves ordinary images.
@@ -1752,6 +1832,8 @@ and intentionally occurs earlier for L3 live apply.
 - `docs/POCKETRISU-1.10-STABLE-RELEASE.md`
 - `docs/POCKETRISU-1.10-REBASE-AUDIT.md`
 - `docs/SOURCE-PROVENANCE.md`
+- `docs/POCKETRISU-PAGEFOLD-VERBATIM-COPY-FOLLOWUP.md`
+- `docs/POCKETRISU-PAGEFOLD-STRUCTURAL-REQUALIFICATION.md`
 - `THIRD_PARTY_NOTICES.md`
 - Google Gemini pricing: <https://ai.google.dev/gemini-api/docs/pricing>
 - Gemini media resolution: <https://ai.google.dev/gemini-api/docs/generate-content/media-resolution>

@@ -49,7 +49,8 @@ that similarity analysis can prove authorship.
 The manifest exists at `patches/pagefold-model-preset/manifest.cjs` but remains
 outside `src/catalog.cjs` with `allDefault: false`, target state `reviewing`, and
 no distributed selector. After adding the paid-feasibility harness and its pure
-tests, it owns 23 exact-1.10 units over 13 outputs:
+tests plus the paid-disabled structural L0 harness, it owns 25 exact-1.10 units
+over 15 outputs:
 
 - `src/ts/pagefold/canonicalTranscript.ts` and its focused test;
 - `server/node/pageFoldFontCache.cjs` and its focused test;
@@ -57,12 +58,13 @@ tests, it owns 23 exact-1.10 units over 13 outputs:
 - `server/node/pageFoldPdfService.cjs`;
 - `server/node/pageFoldPdfReader.cjs`;
 - the renderer focused test and measurement harness;
-- the credential-redacted provider-feasibility harness and focused test; and
+- the credential-redacted provider-feasibility harness and focused test;
+- the structural-requalification dry-run harness and focused test; and
 - exact package/lock units for `pdf-lib 1.17.1` and
   `@pdf-lib/fontkit 1.1.1`.
 
-The dependency graph composes against the current exact target with 23 units,
-13 outputs, and zero collisions. Its `package.json` and `pnpm-lock.yaml` outputs
+The dependency graph composes against the current exact target with 25 units,
+15 outputs, and zero collisions. Its `package.json` and `pnpm-lock.yaml` outputs
 are byte-identical to an isolated `pnpm add --save-exact --lockfile-only` result.
 A frozen install reused the exact target lockfile, installed the six added
 package nodes, and left the lockfile unchanged.

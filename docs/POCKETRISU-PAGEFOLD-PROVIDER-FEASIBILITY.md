@@ -148,3 +148,22 @@ does not authorize proceeding to runtime integration or candidate live apply.
 A future attempt requires an explicitly revised recall/output design and a new
 paid-call approval; passing PDF.js extraction cannot substitute for model
 recall.
+
+## Approved follow-up design
+
+After reviewing this failed omnibus matrix, the user approved two planning
+changes without approving new paid calls:
+
+1. Current route admission uses structural whitespace and Unicode recognition
+   rather than an identical response-string echo. Exact transport remains
+   mandatory. Verbatim reproduction is preserved as the separate deferred
+   authority `docs/POCKETRISU-PAGEFOLD-VERBATIM-COPY-FOLLOWUP.md`.
+2. Vertex closes the staged mechanism first. AI Studio does not become an
+   opportunistic fallback; after its quota/admission issue is resolved, it may
+   only replay the frozen successful Vertex matrix. OpenRouter remains outside
+   scope.
+
+The staged L0–L4 sequence is in section 20.1.1 of the integration authority.
+Its L0 receipt is `docs/POCKETRISU-PAGEFOLD-STRUCTURAL-REQUALIFICATION.md`.
+The original 0/12 result above remains unchanged evidence. No structural-oracle
+provider call has been made yet.

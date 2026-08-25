@@ -324,5 +324,21 @@ module.exports = {
             requires: ['pagefold-model-preset:provider-feasibility:1.10'],
             targetVersions: pocketRisu1100,
         },
+        {
+            id: 'pagefold-model-preset:structural-requalification:1.10',
+            file: 'server/node/pageFoldStructuralRequalification.cjs',
+            type: 'owned',
+            content: owned('server/node/pageFoldStructuralRequalification.cjs'),
+            requires: ['pagefold-model-preset:provider-feasibility-tests:1.10'],
+            targetVersions: pocketRisu1100,
+        },
+        {
+            id: 'pagefold-model-preset:structural-requalification-tests:1.10',
+            file: 'server/node/pageFoldStructuralRequalification.test.ts',
+            type: 'owned',
+            content: owned('server/node/pageFoldStructuralRequalification.test.ts'),
+            requires: ['pagefold-model-preset:structural-requalification:1.10'],
+            targetVersions: pocketRisu1100,
+        },
     ],
 }
