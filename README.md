@@ -2,7 +2,7 @@
 
 Private, all-or-nothing patch delivery for PocketRisu NodeOnly. The current
 stable release is `v0.2.0`, and its complete manifest graph targets exact
-PocketRisu `v1.10.0`. The newer `0.2.0-experimental.22` PageFold graph is an
+PocketRisu `v1.10.0`. The newer `0.2.0-experimental.23` PageFold graph is an
 exact-target candidate, not a stable replacement.
 
 ## Complete installer
@@ -33,18 +33,24 @@ See the [delivery design](docs/PATCHER-V2-DESIGN.md),
 
 ## PageFold candidate status
 
-`0.2.0-experimental.22` adds PageFold as an opt-in ModelPreset transform. It is
+`0.2.0-experimental.23` adds PageFold as an opt-in ModelPreset transform. It is
 not a standalone provider and does not alter old presets until the user
 explicitly selects maximum or balanced mode and enables it. Main, sub,
 memory, translation, emotion, and other-aux bindings expose independent
 `inherit/on/off` overrides.
 
-The candidate advertises one exact support profile only: native Vertex global
-`gemini-3.7-flash`, fixed low per-part media resolution, and at most eight PDF
-pages. AI Studio, Vertex medium, OpenRouter, custom endpoints, changed profile
-versions, images, tools, and explicit Gemini cache are not candidate PageFold
-routes. They block before PDF rendering/provider work while PageFold-off keeps
-the ordinary request path.
+The active Vertex or Google AI Studio ModelPreset remains the model authority:
+PageFold uses its selected Gemini model and never replaces it with the frozen
+3.7 evidence model. Gemini 3 uses per-part low media resolution; earlier Gemini
+uses global low. OpenRouter, custom Vertex endpoints, images, tools, and
+explicit Gemini cache remain outside this PageFold wire while PageFold-off
+keeps the ordinary request path.
+
+The preset card is intentionally compact: one definition, the toggle, and a
+choice between including system messages or conversation only. Route/evidence/
+fidelity/manual-price copy is absent. Service Account import appears only in
+direct-entry mode as a full-width input-sized button and reports a generic top
+toast without displaying email, project, or key ID.
 
 Both PageFold packs remain exact-1.10 `reviewing`; ordinary generated-installer
 apply therefore fails closed. The private qualification path is used only for
@@ -82,6 +88,7 @@ retains the detailed source and path review.
 
 | Release | What changed |
 | --- | --- |
+| `v0.2.0-experimental.23` | Applies L3 feedback: compact PageFold UI, input-sized direct Service Account import with identifier-free toast, no manual price UI, and preset-authoritative Gemini models across native Vertex and AI Studio. Gemini 3 uses part-low and earlier Gemini uses global-low; 3.7/v8 remains evidence rather than a model override. |
 | `v0.2.0-experimental.22` | Adds the exact-1.10 PageFold ModelPreset candidate for one v8-qualified native Vertex global `gemini-3.7-flash` low route, server-owned deterministic PDF rendering, role overrides, explicit mode/persistence UI, Service Account import, budgets/retry/redaction/metrics, and BG composition. The 40-pack / 929-unit / 339-path graph remains review-only for candidate L3. |
 | `v0.2.0` | Promotes the exact PocketRisu 1.10 all-or-nothing graph: 38 resolved packs, 769 units, and 280 managed paths. Ordinary generated-installer apply is enabled only for that complete graph; retired and alternative adapters stay outside stable qualification. The release preserves the recorded physical passes and explicitly accepts, without relabelling, the remaining unavailable or not-exercised device surfaces. |
 | `v0.2.0-experimental.21` | Adapts Haejeok's persistence ordering, Korean-aware character search, and distinct Small 600px chat width into PocketRisu 1.10's existing lazy/BG, catalog, and native width owners. Later source/runtime revalidation keeps HJ02/HJ05/HJ07 trigger-gated, HJ06 blocked, and the frozen HJ08 implementation rejected; no additional HJ code enters this checkpoint. |

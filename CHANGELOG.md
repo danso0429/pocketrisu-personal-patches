@@ -1,5 +1,35 @@
 # Changelog
 
+## 0.2.0-experimental.23
+
+- Apply the first physical L3 UI feedback. Keep one short PageFold definition,
+  rename the mode to `PDF로 보낼 내용` with direct system-inclusive versus
+  conversation-only choices, and remove route/evidence/fidelity/conflict/
+  manual-price secondary UI.
+- Keep the active Google Gemini ModelPreset as the sole model authority.
+  Native Vertex and Google AI Studio PageFold requests preserve the selected
+  model instead of requiring or substituting Gemini 3.7. Gemini 3 uses
+  per-part low media resolution; earlier Gemini families use global low.
+  Retry identity freezes the selected model/provider/media placement.
+- Retain Vertex 3.7 global v8 as one semantic evidence cell without copying
+  that label to other models. Keep OpenRouter and other adapters outside
+  PageFold until they have an implemented PDF attachment wire.
+- Remove manual price resolution. Use versioned model/location/tier records or
+  leave cost unconfirmed; deprecated saved manual values are ignored. Add the
+  current flat Standard-global Vertex table for supported Flash/Flash-Lite
+  models while leaving tiered/regional/AI Studio rates unconfirmed.
+- Show `Service Account JSON 가져오기` only after `직접 입력`, at the same
+  full width and height as the secret input. Replace the inline email/project/
+  key-ID success line with an identifier-free top success toast.
+- Pass 46/46 patcher files, 12 focused PageFold files / 96 tests, 151 complete
+  client files / 1,731 tests, 22 server files / 232 tests with 12 skips, and
+  74 compatibility tests with five skips. Pass Svelte 0/0, the 7,940-module
+  production build, and BG bundle build/load. No paid provider call was made
+  during this follow-up gate.
+- Generate the primary installer and byte-identical `all` alias twice at mode
+  0755. Both are 7,844,116 bytes, CJS syntax-valid, and SHA-256
+  `9a26882136bb17d3f6ef39684979a211a297ba7a64018df48ac34cd328a5a4dc`.
+
 ## 0.2.0-experimental.22
 
 - Add PageFold as an opt-in ModelPreset transform for the one structurally

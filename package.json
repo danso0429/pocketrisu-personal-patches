@@ -1,6 +1,6 @@
 {
   "name": "pocketrisu-personal-patches",
-  "version": "0.2.0-experimental.22",
+  "version": "0.2.0-experimental.23",
   "private": true,
   "type": "commonjs",
   "scripts": {

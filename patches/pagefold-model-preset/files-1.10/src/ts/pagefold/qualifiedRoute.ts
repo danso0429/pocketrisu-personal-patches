@@ -155,7 +155,9 @@ export function resolvePageFoldQualifiedRoute(preset: ModelPreset): PageFoldRout
 }
 
 export function resolvePageFoldRequestedModel(preset: ModelPreset): string | undefined {
-    const modelField = preset.profileSnapshot.schema.find((field) => field.key === 'modelId')
+    const modelField = preset.profileSnapshot.schema.find((field) =>
+        field.mapsTo?.target === 'body' && field.mapsTo.path === 'model'
+    ) ?? preset.profileSnapshot.schema.find((field) => field.key === 'modelId')
     if (modelField) {
         if (Object.prototype.hasOwnProperty.call(preset.userValues, modelField.key)) {
             const value = preset.userValues[modelField.key]

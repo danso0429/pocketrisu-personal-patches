@@ -1,9 +1,9 @@
 # PocketRisu PageFold ModelPreset integration plan
 
-> **Status:** review-revised implementation authority; F1-F9 automatic gates,
-> commit/push, and safe exact-1.10 live apply are complete; catalog admission
-> remains `under-review`; physical L3 is pending and no stable tag/release is
-> authorized
+> **Status:** L3-revised implementation authority; initial F1-F9 candidate is
+> live, while the model-authority/UI follow-up is committed and awaiting its
+> complete automatic gate plus safe live reapply; catalog admission remains
+> `under-review` and no stable tag/release is authorized
 >
 > **Date:** 2026-08-26 KST
 >
@@ -20,6 +20,40 @@
 > **Structural requalification:** `docs/POCKETRISU-PAGEFOLD-STRUCTURAL-REQUALIFICATION.md`
 >
 > **Candidate validation:** `docs/POCKETRISU-PAGEFOLD-CANDIDATE-VALIDATION.md`
+
+## 0. Latest L3 revision — model authority and compact UI
+
+This section supersedes every later sentence that describes runtime PageFold
+eligibility as one hard-coded Vertex 3.7 model, blocks a normal Gemini model
+change, exposes the v8 evidence tuple in the preset UI, or offers a manual
+price field. Later exact-3.7/v8 text remains historical evidence only.
+
+- The active ModelPreset remains the sole provider and model authority.
+  PageFold never substitutes `gemini-3.7-flash` for the model selected in the
+  preset.
+- Runtime PDF transport is capability-scoped to PocketRisu's `google-gemini`
+  adapter: native Vertex Gemini and Google AI Studio keep their own endpoint,
+  credential, selected model, generation parameters, and streaming behavior.
+- Gemini 3 sends fixed low media resolution on the PDF part. Earlier Gemini
+  families use the documented global low `generationConfig` field. The final
+  invariant rejects a second/conflicting resolution authority.
+- The internal string `vertex-gemini-3.7-flash-low-v8` is now only the
+  deterministic renderer/layout/cache protocol identity. It does not select a
+  provider model.
+- Vertex 3.7 global retains `v8-qualified` semantic evidence. Other selected
+  Gemini routes carry Google-documented PDF transport evidence and require
+  their own observed L3 result; v8 claims are never copied to them.
+- OpenAI-compatible, Anthropic, OpenRouter, and local adapters remain ordinary
+  when PageFold is off and cannot enable PageFold until their own native PDF
+  attachment wire is implemented. A model name alone cannot invent that wire.
+- The preset card contains only a one-line PageFold definition, toggle, and
+  `PDF로 보낼 내용` selector (`시스템 메시지까지 모두` / `일반 대화만`).
+  Route/evidence/fidelity/conflict/manual-price explanations are removed.
+- Runtime cost estimates use versioned provider/model/tier/location tables or
+  remain unconfirmed. A hidden legacy manual override is ignored and has no UI.
+- Service Account import appears only in `직접 입력`, matches the secret
+  input width/height, and reports a generic top toast. Client email, project,
+  and key ID are not rendered as an inline success line.
 
 ## 1. Outcome
 
@@ -47,12 +81,11 @@ The user-visible contract is:
 This feature targets NodeOnly PocketRisu. PDF generation will be server-owned,
 so an iPhone does not parse large fonts or build the dense PDF locally.
 
-The first implementation candidate is intentionally narrower than the general
-architecture: only the bundled `vertex-gemini-native:gemini-37-flash` profile,
-its exact reviewed profile/base versions, the native Vertex Gemini endpoint at
-`global`, wire model `gemini-3.7-flash`, and fixed low per-part media resolution
-may resolve PageFold on. Every other ModelPreset continues to work ordinarily
-when PageFold is off and resolves an explicit blocked reason when it is on.
+The initial paid evidence cell remains bundled Vertex global
+`gemini-3.7-flash` low/v8. Runtime eligibility is broader and model-authoritative:
+the Google Gemini adapter uses the exact model selected by its Vertex or AI
+Studio preset. Other adapter families need a real PDF wire before they can
+resolve PageFold on.
 
 ## 2. Scope and non-goals
 
@@ -60,31 +93,26 @@ when PageFold is off and resolves an explicit blocked reason when it is on.
 
 - lossless, versioned canonical transcript serialization;
 - dense multi-column PDF rendering on the NodeOnly server;
-- the one qualified provider profile: Vertex AI global
-  `gemini-3.7-flash`, per-part low media resolution, at most eight PDF pages;
+- model-authoritative Google Gemini PDF transport for Vertex and AI Studio,
+  fixed low media resolution in the family-correct field, and at most eight
+  PDF pages;
 - both qualified hierarchy modes: maximum/PDF role emulation and
   balanced/native system preservation;
 - preset-level PageFold configuration;
 - per-chat, per-role PageFold overrides and new-chat defaults;
 - source-token and wire-token budget separation;
 - Service Account JSON file import with Project ID extraction;
-- price-source metadata, manual price override, and provider usage recording;
+- versioned model price metadata and provider usage recording;
 - PDF/request-body redaction in previews and request logs;
 - bg-preserve execution, cancellation, recovery, and status integration;
 - patcher-focused owner composition and the complete all-or-nothing graph.
 
 ### 2.2 Explicitly excluded from the first admission
 
-- Google AI Studio PageFold until its historical `429` admission surface is
-  resolved and the frozen successful v8 matrix is replicated;
-- Vertex medium resolution: v8 screening passed, but it was not selected or
-  expanded through L3/L4;
 - OpenRouter PageFold: user-excluded and untested; no speculative file/plugin
   implementation enters the first candidate;
 - arbitrary OpenAI-compatible PDF endpoints;
 - Anthropic PDF as a PageFold-equivalent compression path;
-- Gemini 2.5 until its media-resolution and native-text behavior is measured
-  against the new renderer;
 - PageFold with ModelPreset tool use;
 - PageFold with PocketRisu-managed explicit Gemini context caching;
 - PageFold requests containing native image attachments;
@@ -130,9 +158,10 @@ questions:
   decomposition;
 - verbatim-copy behavior is a deferred, separately disclosed capability and
   cannot be inferred from structural-recognition success; and
-- v8 has closed Vertex `gemini-3.7-flash` low through L4; AI Studio may only
-  replay that frozen matrix after quota admission, medium is screening-only,
-  and OpenRouter remains outside the current user-approved scope.
+- v8 has closed Vertex `gemini-3.7-flash` low through L4 as one semantic
+  evidence cell; Google-documented PDF transport permits other preset-selected
+  Gemini routes without mislabelling them as v8-qualified, while OpenRouter
+  remains outside the implemented adapter wire.
 
 ## 3. Audited PageFold 0.1.1 behavior
 
@@ -386,9 +415,9 @@ difference. The 2048 value belongs only to the compact qualification response
 schemas. It is **not** a production generation-output default and must never
 override `resolvePresetMaxOutputTokens` or `db.maxResponse`.
 
-### 5.2 Qualified route profile
+### 5.2 Frozen v8 evidence profile and runtime transport profile
 
-The first candidate has one immutable support profile:
+The paid v8 evidence has one immutable semantic profile:
 
 ```ts
 export interface PageFoldQualifiedRouteProfile {
@@ -416,17 +445,18 @@ export interface PageFoldQualifiedRouteProfile {
 }
 ```
 
-This profile is source-owned capability metadata, not user persistence. The
-literal IDs and versions above are the current exact PocketRisu 1.10 bundled
-registry values, not invented PageFold aliases. Saved presets store PageFold
-enabled/mode only. Runtime resolves the profile from the final snapshot,
-effective endpoint override/location, requested wire model, and current support
-table. A non-empty custom endpoint, snapshot/base version mismatch, or any
-other tuple mismatch—including the bundled known limits—is `unsupported`
-before canonicalization/render/provider work. The UI has no resolution picker
-in the first candidate; low is shown as the qualified fixed value. Medium
-remains screening-only and cannot be enabled through a custom body/header
-override.
+This object is retained as evidence, not as the runtime model selector. Saved
+presets store PageFold enabled/mode only. Runtime resolves a fresh immutable
+transport snapshot from the effective Google Gemini adapter, Vertex/AI Studio
+endpoint/auth, preset-selected model, current profile/base versions, location,
+and known/frozen limits. The resolved model is copied into canonical metadata,
+budget authority, retry identity, adapter context, and final URL invariant.
+
+Gemini 3 uses per-part low media resolution; earlier Gemini uses global low.
+The renderer still accepts the historical `id` because layout/font/cache bytes
+are model-independent. The compact UI exposes no route/evidence or resolution
+editor. A non-empty Vertex custom endpoint or an adapter without implemented
+PDF input remains blocked before rendering.
 
 The paid runner called Vertex directly and did not exercise PocketRisu's
 registry, credential resolver, or adapter. Therefore the profile/base version
@@ -467,9 +497,10 @@ PageFold production code injects neither v8 sentinels nor the v8 response
 schemas/MIME. They are synthetic qualification fixtures only; an ordinary
 ModelPreset's user-owned production response format remains its own authority.
 Normal user PDFs contain canonical transcript rows plus the production mode
-directives. UI/support copy therefore says “exact PDF transport + qualified
-semantic recall”; it does not advertise verbatim reproduction or
-code/whitespace fidelity beyond the separate reader gate. The deferred
+directives. The compact preset UI makes no evidence claim. Receipts distinguish
+exact PDF transport, model-specific semantic evidence, and untested narrative
+quality; none advertises verbatim reproduction or code/whitespace fidelity
+beyond the separate reader gate. The deferred
 verbatim-copy and narrative-quality plans remain separate and cannot block or
 silently expand the first candidate.
 
@@ -478,20 +509,22 @@ silently expand the first candidate.
 v8 does not prove integrated request construction, custom-parameter
 preservation, streaming, retry, budgeting, redaction, Service Account import,
 BG lifecycle, persistence UI, candidate composition, live apply, or physical
-iPhone behavior. It also does not qualify Vertex medium, AI Studio, OpenRouter,
-images, tools, explicit cache, or more than eight pages.
+iPhone behavior. It also does not semantically qualify another selected Gemini
+model, AI Studio quota behavior, OpenRouter, images, tools, explicit cache, or
+more than eight pages. Google-documented PDF transport for Gemini models does
+not inherit the v8 semantic label.
 
-Those are downstream implementation/test gates. Code must represent them as
-unsupported/unimplemented states rather than infer support from PDF validity,
-L2 screening, provider family, price availability, or a user-supplied media
-resolution.
+Those are downstream implementation/test gates. Code may infer Google Gemini
+PDF transport only from the implemented adapter/endpoint capability, never
+semantic qualification from provider family, price availability, or a
+user-supplied media resolution.
 
 ### 5.5 v8-to-patch decision ledger
 
 | v8 mechanism/evidence | Patch decision | Boundary that remains open |
 | --- | --- | --- |
 | L0 exact PDF.js extraction before model work | promote the existing canonical serializer/renderer/reader as the transport spine | integrated browser/BG ports and real request logging |
-| one claim per paid cell and 3/3 repeats | publish one immutable support profile rather than family-wide capability inference | real conversational/narrative quality and verbatim copying |
+| one claim per paid cell and 3/3 repeats | retain 3.7/v8 as one semantic evidence cell while runtime uses preset-selected Gemini transport | other models need their own observed L3 quality result; real conversational/narrative quality and verbatim copying |
 | low and medium both passed L2; user selected low | hard-code low in capability metadata and wire; expose no resolution editor | medium needs its own L3/L4 and a new user decision |
 | maximum and balanced were separately qualified | persist an explicit required mode and keep the two projections distinct | neither mode may be inferred from an old/malformed value |
 | PDF part carried `MEDIA_RESOLUTION_LOW` | add an internal document part and reassert the exact Gemini enum after custom merges | images/tools/cache remain blocked |
@@ -564,11 +597,11 @@ unsupported or unsafe live route
   -> fail before renderer/provider work
 ```
 
-The supported-route check is exact, not family-wide. A Vertex custom endpoint,
-non-global location, alias, different Gemini version, medium resolution request,
-or changed support-profile version is unsupported until separately qualified.
-Existing ordinary ModelPreset use of those configurations remains unchanged
-when PageFold is off.
+The supported-route check is adapter-capability-based, not model-hard-coded.
+Vertex/AI Studio Google Gemini presets retain their selected model, profile and
+base versions, credentials, and location. A Vertex custom endpoint or an
+adapter without a PageFold PDF wire remains unsupported. Existing ordinary
+ModelPreset use of every configuration remains unchanged when PageFold is off.
 
 If memory falls back to the sub preset, model selection uses the sub preset but
 PageFold uses the logical `memory` role override. This lets the same sub preset
@@ -588,6 +621,7 @@ export type PageFoldRoleOverride = 'inherit' | 'on' | 'off'
 export interface ModelPresetPageFoldConfig {
     enabled: boolean
     mode: PageFoldMode
+    /** @deprecated load-only compatibility; ignored by pricing and absent in UI */
     inputPriceOverride?: {
         usdPerMillion: number
         note?: string
@@ -624,15 +658,11 @@ export type PageFoldSupportReason =
     | 'role-disabled'
     | 'missing-config'
     | 'invalid-mode'
-    | 'unsupported-profile'
-    | 'unsupported-profile-version'
     | 'unsupported-provider'
     | 'unsupported-adapter'
     | 'unsupported-endpoint'
     | 'unsupported-auth'
-    | 'unsupported-location'
-    | 'unsupported-model'
-    | 'unsupported-resolution'
+    | 'wire-model-missing'
     | 'image-present'
     | 'tools-enabled'
     | 'explicit-cache-enabled'
@@ -651,8 +681,9 @@ export type ResolvedPageFoldState =
 
 The persisted config never stores `mediaResolution`, `maxPdfPages`, provider
 support booleans, feasibility version, or route ID. Those are code-owned and
-re-resolved every request, preventing an old saved “supported” value from
-surviving a profile/model/location change.
+re-resolved every request. Retry identity separately freezes the actual
+selected model/provider/media-resolution placement so a live model change
+cannot reuse an earlier model's PDF/provider state.
 
 There are no PageFold minimum/maximum source-token fields in the normal UI.
 Existing ModelPreset context configuration remains the optional user-facing
@@ -666,11 +697,12 @@ Legacy/malformed values normalize conservatively:
 - enabled config with unknown/missing mode -> explicit `invalid-mode` block;
 - unknown role override -> `inherit`;
 - role `on` with no valid preset config -> blocked, not an implicit mode;
-- invalid price override -> ignored and shown as invalid, never coerced to zero.
+- legacy price override -> ignored and retained only for old-save tolerance;
+  current versioned tables or `unconfirmed` own calculations.
 
-For first candidate normalization, a valid enabled config on a non-qualified
-route remains saved but resolves `blocked`; it is not rewritten off. This
-preserves user intent for later support without sending an unqualified PDF.
+For normalization, a valid enabled config on an adapter without PDF transport
+remains saved but resolves `blocked`; it is not rewritten off. This preserves
+user intent without inventing a provider wire.
 
 ## 8. User experience
 
@@ -679,39 +711,22 @@ preserves user intent for later support without sending an unqualified PDF.
 Add a PageFold card under model abilities:
 
 - `PageFold` on/off;
-- an explicit mode choice before the first enable:
-  - `PDF role emulation — system messages leave provider system hierarchy`;
-  - `Keep system messages in provider system hierarchy`;
-- support result and reason;
-- read-only qualified route detail: Vertex global / `gemini-3.7-flash` / low /
-  maximum eight pages / oracle v8;
-- selected price, source, effective date, and manual override;
-- warning when explicit tools or explicit context caching conflict;
+- one-line definition: the conversation is sent to the model as a dense PDF;
+- `PDF로 보낼 내용` choice before the first enable:
+  - `시스템 메시지까지 모두`;
+  - `일반 대화만`;
 - test output showing applied/bypassed/blocked state, PDF pages/bytes, source
   tokens, predicted wire tokens, and actual provider tokens when present.
 
-There is no provider, model, location, media-resolution, or page-ceiling
-PageFold override in this card. Those remain ordinary ModelPreset/profile
-controls plus code-owned support metadata. If the ordinary profile is changed
-away from the qualified route, the card remains configured but displays a
-specific blocked reason before save/test/send.
-
-An advanced disclosure separates:
-
-- exact canonical-to-PDF extraction: qualified;
-- v8 semantic recall and hierarchy through eight pages: qualified;
-- verbatim/typographic fidelity and narrative quality: separately unqualified
-  or deferred.
-
-The normal UI does not expose v1-v7 experimental oracle history. It links the
-current support limitation in concise user terms and keeps detailed evidence in
-the receipt.
+There is no provider, model, location, media-resolution, page-ceiling,
+evidence/fidelity, route-status, conflict-warning, or manual-price control in
+this card. Provider/model/location remain ordinary ModelPreset controls; the
+selected model is the actual wire model. Detailed evidence stays in receipts.
 
 Existing presets default off. Enabling PageFold does not itself consent to
 moving system messages out of provider hierarchy. The UI requires a mode
-selection and shows the role-hierarchy consequence before saving. Internal
-values may remain `maximum`/`balanced` for compatibility, but those labels are
-not the user-facing explanation.
+selection. Internal values remain `maximum`/`balanced` for compatibility, but
+those labels are not user-facing.
 
 ### 8.2 Chat model binding panel
 
@@ -1143,6 +1158,8 @@ export interface AdapterChatMessage {
 
 export interface AdapterPageFoldWireContext {
     routeProfileId: 'vertex-gemini-3.7-flash-low-v8'
+    wireModel: string
+    mediaResolutionPlacement: 'part' | 'generation'
     mode: PageFoldMode
     directiveVersion: 1
     documentSha256: string
@@ -1167,8 +1184,9 @@ PDF document and its next part is the production continuation directive. The
 internal fixed filename such as `pagefold-v1.pdf` is metadata/cache identity
 only: native Gemini `inlineData` has no filename field, and v8 correctly sent no
 invented filename property. The Google wire is exactly
-`inlineData:{mimeType:'application/pdf',data:<base64>}` plus per-part
-`mediaResolution:{level:'MEDIA_RESOLUTION_LOW'}`.
+`inlineData:{mimeType:'application/pdf',data:<base64>}`. Gemini 3 adds per-part
+`mediaResolution:{level:'MEDIA_RESOLUTION_LOW'}`; earlier Gemini puts
+`MEDIA_RESOLUTION_LOW` in `generationConfig.mediaResolution`.
 
 The document stays `Uint8Array` through the transform and retry state.
 `googleGemini.ts:toUserParts` performs the only binary-to-Base64 conversion
@@ -1188,15 +1206,19 @@ synthetic message shape. This prevents a malformed/custom message from
 smuggling an arbitrary PDF through the qualified path and leaves every
 ordinary caller byte-identical when the option is absent.
 
-### 11.3 Qualified Vertex profile
+### 11.3 Model-authoritative Google Gemini profile
 
-- PageFold support is exactly provider base `vertex-gemini-native`, profile
-  `vertex-gemini-native:gemini-37-flash` v1, provider-base v7,
-  `google-gemini` + `vertex-gemini` + `google-service-account`, no custom
-  endpoint, global location, `gemini-3.7-flash`, and the code-owned v8 route
-  profile;
+- PageFold support follows the implemented `google-gemini` adapter: native
+  Vertex Gemini with Service Account auth and Google AI Studio with API-key
+  auth;
+- `resolveWireModelId` and the preset-selected model remain authoritative;
+  PageFold copies that exact model into immutable budget/retry/adapter context
+  and never substitutes the v8 model;
+- normal profile/base version and regional Vertex changes remain supported;
+  a non-empty custom Vertex endpoint remains blocked because its PDF API shape
+  is not known;
 - PDF is the first user part;
-- per-part media resolution is always `MEDIA_RESOLUTION_LOW` and is reasserted
+- low media resolution is reasserted in the family-correct part/global field
   after custom merges;
 - maximum and balanced mode directives are production-owned fixed strings and
   contain no feasibility sentinels or response schema;
@@ -1206,10 +1228,11 @@ ordinary caller byte-identical when the option is absent.
 - preserve the preset's actual production response format/schema and output
   reserve; v8's forced JSON MIME/schema and 2048 harness response budget are
   never copied into `generationConfig`;
-- runtime blocks stale PageFold config after provider/model/location/profile
-  swap before rendering;
-- AI Studio remains an ordinary supported ModelPreset provider only when
-  PageFold is off; PageFold-on reports its unqualified quota/replication state.
+- runtime invalidates stale retry state after provider/model/profile or
+  media-placement changes;
+- the 3.7 Vertex global route retains v8 semantic evidence; other Gemini
+  models and AI Studio retain official PDF transport evidence without
+  inheriting that model-specific claim.
 
 ### 11.4 OpenRouter
 
@@ -1680,15 +1703,16 @@ guard remain the runtime authority.
 
 ### 15.1 Resolution order
 
-1. explicit per-preset PageFold price override;
-2. current OpenRouter model metadata and response cost;
-3. versioned Google/Vertex price table with tier/effective dates;
-4. `unconfirmed`, never implicit zero.
+1. actual provider response usage/cost when supplied;
+2. versioned provider/model/location/tier price table with effective dates;
+3. `unconfirmed`, never implicit zero.
 
-For the first candidate only item 1 or the versioned Vertex
-`gemini-3.7-flash` global Standard record is reachable. OpenRouter metadata is
-deferred with its unsupported route. Price availability never broadens the
-exact v8 support profile.
+There is no manual price UI. A legacy saved `inputPriceOverride` is ignored.
+The current table covers published flat Standard-global rates for the listed
+Vertex Gemini Flash/Flash-Lite models, including dated 3.6/3.7 introductory
+rates. Models with long-context tiers, AI Studio, regional Vertex, Priority,
+or Flex/Batch remain `unconfirmed` until the exact table shape is implemented.
+Price availability never grants semantic evidence or adapter support.
 
 The price record must include source URL, checked/effective dates, model ID,
 provider, billing tier, and currency. Promotional rates need an expiry date. A
@@ -1918,13 +1942,13 @@ external-effect authority.
 
 | Package | Runtime owner and output | Definition of done before next package |
 | --- | --- | --- |
-| F1 qualified route + resolver | pure `qualifiedRoute` table, saved-config normalizer, task/role resolver, explicit blocked reasons | exact `vertex-gemini-native:gemini-37-flash` v1/base-v7/global/wire-model/low/v8 tuple resolves on; medium/AI Studio/OpenRouter/custom endpoint/model swap fail pre-render; off path unchanged |
+| F1 transport route + resolver | pure Google Gemini adapter capability, selected-model snapshot, saved-config normalizer, task/role resolver, explicit blocked reasons | Vertex/AI Studio preserve the preset-selected model; Gemini 3 part-low and earlier Gemini global-low resolve; non-PDF adapters/custom endpoint fail pre-render; off path unchanged |
 | F2 render ports + HTTP route | runtime-neutral request/result types, browser authenticated binary client, server route, BG in-process adapter | browser/BG same canonical input -> same PDF SHA/metadata; abort/auth/body/limit tests; no Base64 persistence |
-| F3 Vertex wire + prepared invariants | internal document part, maximum/balanced message shaping, low resolution, final-body reassertion, shared media redaction | direct/model-job/preview/error focused sends preserve ordinary parameters and produce exactly one qualified PDF; tools/cache/images and custom overwrite of PageFold-owned fields are blocked |
+| F3 Google Gemini wire + prepared invariants | internal document part, maximum/balanced message shaping, family-correct low resolution, selected model, final-body reassertion, shared media redaction | Vertex/AI Studio direct/model-job/preview/error preserve the selected model and ordinary parameters and produce exactly one PDF; tools/cache/images and custom overwrite of PageFold-owned fields are blocked |
 | F4 source/wire budget + failure policy | tokenizer injection only when on, final recount, 266/page + 600 profile prediction, opaque route state, same-route retry/no classic fallback | off graph byte-equivalent; prediction covers v8 usage; retry reuses exact PDF; every failure kind has explicit policy/cancel behavior |
-| F5 preset/binding UI + persistence | preset config/defaults, explicit mode, role overrides, effective-state badges, fidelity/support disclosure | save/reload/duplicate/profile update/dangling/default lifecycle; mobile/a11y; unsupported intent retained but blocked |
+| F5 preset/binding UI + persistence | compact preset definition/toggle/content selector, config/defaults, role overrides, effective-state badges | save/reload/duplicate/profile update/dangling/default lifecycle; mobile/a11y; unsupported adapter intent retained but blocked |
 | F6 Service Account import | existing parser authority, direct-mode precedence cleanup, Project ID extraction | independent commit; valid/iOS-empty-MIME/error/hostile-token tests; no secret output or pool/plugin write |
-| F7 usage/pricing/log evidence | qualified Vertex price record, signed delta, generation-info fields, real SQLite redaction tests | direct/job/preview/error usage survives while PDF/canonical/credential hits are zero; v8 expense never labelled production savings |
+| F7 usage/pricing/log evidence | selected-model versioned Vertex table, signed delta, generation-info fields, real SQLite redaction tests | no manual price authority; direct/job/preview/error usage survives while PDF/canonical/credential hits are zero; v8 expense never labelled production savings |
 | F8 BG adapter | operation-created timer before render, injected in-process port, status/cancel/recovery, shared invariant/redaction | main+aux parity, no duplicate/no-resurrection, pre/post-handoff abort, BG real-log rows clean |
 | F9 candidate admission | catalog registration, complete graph composition, deterministic installer, receipt | section 20.2 all gates, active-work-safe apply, HTTP/assets/build/log/DB/BG/error delta checks; no stable tag |
 
@@ -1942,7 +1966,7 @@ names and owner anchors are the patch contract.
 | --- | --- | --- | --- |
 | F1 | `preset/types.ts:ModelPreset`, `ModelBindingSet`; `dbDefaults.ts`; `profileUpdate.ts:applyProfileSnapshotUpdate`; `modelPresetBinding.ts:resolveChatModelBinding` | add optional saved config/role fields, conservative normalizer, and a new pure resolver that consumes the existing binding result; compare the exact v8 snapshot/effective-route tuple | profile replace/update preserves saved intent but re-resolves blocked; no provider work in resolver; plugin arrays untouched |
 | F2 | existing PageFold prototype service/font cache/reader; `server.cjs` authenticated route area | promote renderer behind `PageFoldRenderPort`, add authenticated binary HTTP client/route and injected in-process implementation; keep prototype measurement/paid runner out of runtime imports | one renderer authority, same bytes/hash/metadata in browser and BG, request/canonical/PDF never persisted |
-| F3 | `request.ts:requestModelPreset`; final messages at `expandAdapterMessages`/`toAdapterMessage`; `adapter/types.ts:AdapterChatMessage`; `googleGemini.ts:prepareGeminiBody`, `collectSystemAndChat`, `toUserParts`; `buildRequest.ts:buildPreparedRequest`; `wireInvariants.ts:resolveWireModelId` | resolve PageFold after final adapter conversion, start PageFold status before render, replace the wire with decoder-system + one synthetic PDF user turn, emit the native low enum, and validate the final prepared body | PageFold-off never allocates PageFold state; ordinary generation fields/schema/headers/streaming remain; no AI Studio/OpenRouter branch |
+| F3 | `request.ts:requestModelPreset`; final messages at `expandAdapterMessages`/`toAdapterMessage`; `adapter/types.ts:AdapterChatMessage`; `googleGemini.ts:prepareGeminiBody`, `collectSystemAndChat`, `toUserParts`; `buildRequest.ts:buildPreparedRequest`; `wireInvariants.ts:resolveWireModelId` | resolve PageFold after final adapter conversion, start PageFold status before render, replace the wire with decoder-system + one synthetic PDF user turn, preserve the selected Vertex/AI Studio model, emit family-correct low, and validate the final body | PageFold-off never allocates PageFold state; ordinary generation fields/schema/headers/streaming remain; no OpenRouter/non-Gemini adapter branch |
 | F3/F7 | `requestLog.ts:stripInlineMedia/bodyToString/headersToString`; `requestModelPreset` preview; `request-logs.cjs:normalizeEntry` | replace display/log copies with shared structural body/header/URL redaction and server defense in depth | fetch bytes unchanged; raw PDF/canonical/API key/access token/private key absent from preview and SQLite |
 | F4 | `process/index.svelte.ts` `ChatTokenizer`, `maxContextTokens`, Hypa call, token recheck, `generationInfo`; `request.ts:requestChatData` retry/fallback loops; `modelPresetBinding.ts:resolvePresetMaxOutputTokens/resolveChatMaxResponseTokens` | inject PageFold tokenizer/source budget only when on; apply final recount/wire prediction; carry opaque route state and structured policy through the existing outer loop | ordinary clamp/retry/fallback bytes unchanged; PageFold never advances to `staticModel`; retries do not rerun replacer/trigger/render after PDF exists |
 | F5 | `ModelPresetSettings.svelte` advanced abilities; `ModelBind.svelte` per-chat/default bundle; `database.svelte.ts:newChatModelDefaults`; `dbDefaults.ts` load boundary | add required mode/on toggle/support disclosure, six role overrides, effective badges, and cloned defaults | default off; old save/load/save omits or normalizes optional fields; duplicate preserves config; unsupported intent remains visible but blocked |
@@ -1982,7 +2006,7 @@ boundaries.
 7. **Complete** — `feat(pagefold): add Vertex-low final adapter wire`
    - F3 internal document type, maximum/balanced shaping, final prepared
      invariants, shared media redaction, focused direct/model-job/preview/error
-     paths; no AI Studio/OpenRouter branch.
+     paths; selected Vertex/AI Studio model preservation; no OpenRouter branch.
 8. **Complete** — `feat(pagefold): add retry and source/wire budget policy`
    - tokenizer injection for PageFold-on, Hypa/current-token preservation,
      canonical estimate, failure-policy propagation, no classic fallback.
@@ -2082,9 +2106,10 @@ and L4.
   provider tokens remain prohibited;
 - a sanitized `call-start` marker is fsynced before provider work and a
   sanitized `call-complete` record is fsynced before another call;
-- Vertex global `gemini-3.7-flash` low is qualified through L4; AI Studio may
-  receive the identical frozen matrix only after a separate non-recall
-  quota/admission gate succeeds and the user approves those new paid calls;
+- Vertex global `gemini-3.7-flash` low is semantically qualified through L4;
+  AI Studio and another model need their own paid semantic matrix after quota
+  admission and explicit approval, although their documented PDF transport is
+  implemented independently;
 - OpenRouter is not part of the current requalification scope; native-default
   qualification, without an invented resolution control, may be designed later
   only if the user adds it to scope;
@@ -2106,23 +2131,23 @@ and L4.
 - dangling preset and later reconnection;
 - legacy absent/invalid config;
 - role `on` disabled/blocked when preset config or mode is missing;
-- explicit hierarchy-mode consent and warning;
-- exact v8 route badge and no media-resolution editor;
-- Vertex medium/AI Studio/OpenRouter/custom endpoint/model/location blocked
-  reasons without mutating saved intent;
-- exact-transport versus semantic-recall versus verbatim/narrative disclosure;
+- explicit compact PDF-content selection;
+- no route/evidence/fidelity/manual-price or media-resolution editor;
+- Vertex and AI Studio selected-model persistence; only adapters without PDF
+  wire and custom Vertex endpoints block without mutating saved intent;
 - mobile-sized controls and keyboard accessibility.
 
 ### 19.5 Adapter wire
 
-- Google PDF-first part, no invented wire filename, and exact per-part
-  `MEDIA_RESOLUTION_LOW`;
-- exact `vertex-gemini-native:gemini-37-flash` v1/base-v7/global native
-  endpoint/Service Account auth/`gemini-3.7-flash` preservation;
+- Google PDF-first part, no invented wire filename, and exact low resolution
+  in the Gemini-family-correct part/global field;
+- Vertex Service Account and AI Studio API-key routes preserve their exact
+  preset-selected model, endpoint, profile/base versions, parameters, and
+  streaming;
 - directive v1 exact-byte/hash snapshots, maximum/balanced system projection,
   and proof that runtime does not import v8 oracle/paid-runner constants;
-- immutable qualified-route/profile/version revalidation after custom merges;
-- no AI Studio/OpenRouter PageFold branch or file-parser/plugin write;
+- immutable provider/model/media-placement revalidation after custom merges;
+- no OpenRouter PageFold branch or file-parser/plugin write;
 - streaming/non-streaming;
 - image-bearing final messages blocked before render/provider work;
 - complete parameter/custom body/custom header preservation;
@@ -2131,7 +2156,8 @@ and L4.
   PageFold-owned feasibility sentinels/forced schema/MIME/2048 budget absent
   from the final body;
 - provider response usage/cost;
-- unsupported adapter/model/profile swap blocked pre-render;
+- unsupported adapter/custom endpoint blocked pre-render; selected Gemini model
+  swaps create a new route identity rather than being replaced or blocked;
 - tools/cache conflict blocked pre-render;
 - request preview and log redaction.
 
@@ -2211,12 +2237,13 @@ gate; only integrated PocketRisu paths against the temporary real database pass
 6. separately approved paid 1/2/8-page route feasibility;
 7. feasibility receipt naming every route/resolution/result/limit.
 
-A failed route is removed from the first support matrix before adapter/UI/BG
-work proceeds. Provider feasibility is not deferred to aggregate L3.
+A failed paid cell is removed from the semantic-evidence matrix. It does not
+erase a separately documented/implemented Google PDF transport capability or
+allow that transport to claim the failed model's semantics.
 
 All seven items above are closed by the provenance, prototype, and v8 receipts.
-That completion authorizes only the exact Vertex-low runtime implementation; it
-does not pre-pass any downstream adapter/UI/BG/catalog/live gate.
+That completion authorizes the exact Vertex-low v8 evidence label; it does not
+pre-pass another model's semantics or any downstream UI/BG/catalog/live gate.
 
 #### 20.1.1 Structural-oracle requalification sequence
 
@@ -2442,12 +2469,12 @@ zero controls, retry, or fallback. Rated v8 usage was `USD 0.050253000`; exact
 fixture extraction and hashes remained frozen. Final flags were
 `complete=true`, `supportQualified=true`, and selected resolution `low`.
 
-The first support matrix therefore contains only Vertex
-`gemini-3.7-flash` low. Vertex medium is screening-only and unqualified, AI
-Studio remains unqualified behind its observed `429` replication gate, and
-OpenRouter remains user-excluded. Downstream adapter/UI/BG/catalog/live work may
-now proceed only for the qualified Vertex-low route and remains separately
-subject to sections 20.2-24.
+The paid semantic-evidence matrix therefore contains only Vertex
+`gemini-3.7-flash` low. Runtime transport is separately model-authoritative for
+the implemented Google Gemini adapter, based on Google's documented PDF/media
+wire. Other models/AI Studio do not inherit v8 semantic qualification;
+OpenRouter remains outside the implemented adapter. All remain subject to
+sections 20.2-24 and observed L3 results.
 
 ### 20.2 Candidate catalog admission — experimental only
 
@@ -2473,11 +2500,12 @@ After the prototype gate:
 16. sensitive-information sweep;
 17. candidate validation receipt and experimental version metadata.
 
-The candidate graph exposes only the v8 Vertex-low support profile. A test
-enumerates every advertised PageFold route from UI/runtime metadata and requires
-that set to equal the paid support matrix exactly; medium, AI Studio, and
-OpenRouter must not appear as selectable/confirmed. The stable installer files
-remain byte-identical until this full gate and candidate commit are complete.
+The candidate graph exposes PageFold only through the Google Gemini adapter and
+never exposes a PageFold-specific model selector. Tests require Vertex and AI
+Studio to preserve the preset-selected model, enforce family-correct low media
+resolution, retain 3.7/v8 as model-specific evidence, and keep OpenRouter/
+non-PDF adapters outside the wire. The stable installer files remain
+byte-identical until this full gate and candidate commit are complete.
 
 Passing this gate permits catalog registration on the feature branch and an
 experimental live apply for physical L3. It does not promote stable
@@ -2512,15 +2540,15 @@ L2.5 discovery must explicitly trace:
 - service-account file -> database credential -> server OAuth exchange;
 - PDF Base64 -> request preview/log redaction;
 - PageFold role override -> model resolver -> source budget -> adapter;
-- final provider/location/model -> immutable v8 support profile -> fixed low
-  resolution/page ceiling;
+- final Google provider/location/selected model -> immutable request snapshot ->
+  family-correct fixed low resolution/page ceiling;
 - exact-reader metadata versus semantic model-support metadata and user copy;
 - feasibility 2048 budget absence from production output configuration;
 - provider retry/fallback/cancellation;
 - BG start/result/status/cancel/recovery;
 - pricing metadata fetch and credential headers;
-- absence of a first-candidate AI Studio/OpenRouter/medium PageFold wire despite
-  ordinary-path support for those providers/configurations;
+- AI Studio and Vertex selected-model parity, plus absence of an OpenRouter or
+  other non-PDF adapter wire;
 - adapter error metadata -> same-route retry -> classic fallback prohibition;
 - source assembly/Hypa tokenizer/budget -> canonical estimate -> wire context;
 - message generation metadata persistence;
@@ -2529,6 +2557,8 @@ L2.5 discovery must explicitly trace:
 Safety claims must be attacked with:
 
 - stale profile after enabling PageFold;
+- model changed after PDF render but before retry; the old route state must be
+  rejected rather than sent to the new model;
 - role override `on` with missing/disabled preset config;
 - PageFold-on OpenRouter preset while metadata is unavailable; it must block
   without a support fetch or price-to-support inference;
@@ -2584,8 +2614,10 @@ Additional v8-specific break scenarios:
 
 1. **Service Account JSON**
    - open a Vertex ModelPreset;
-   - choose one JSON file in Files;
-   - confirm masked credential and extracted Project ID;
+   - choose `직접 입력`, confirm the import button matches the input size, and
+     select one JSON file in Files;
+   - confirm a generic top success toast, masked credential, and populated
+     Project ID field; no email/project/key-ID inline success text;
    - save/reopen and run the preset test.
 2. **Role binding persistence**
    - main preset PageFold on;
@@ -2596,9 +2628,12 @@ Additional v8-specific break scenarios:
 3. **First response always PageFold**
    - send the first user message in a prompt-heavy character/chat;
    - verify `PF ON`, pages, source tokens, and wire usage immediately.
-4. **Long-context recall**
-   - use Vertex-low on a disposable realistic roleplay prompt spanning multiple
-     pages in maximum and balanced runs;
+4. **Selected-model and long-context recall**
+   - use the preset-selected Vertex model on a disposable realistic roleplay
+     prompt spanning multiple pages in both PDF-content modes;
+   - change to another Gemini model and confirm the request model changes with
+     it rather than staying on 3.7; optionally repeat with AI Studio after its
+     quota admits the request;
    - confirm every page boundary in metadata and ask natural semantic
      start/middle/end, role, and hierarchy questions without v8 sentinels;
    - record actual provider usage and user-visible reply quality without
@@ -2614,10 +2649,12 @@ Additional v8-specific break scenarios:
    - use a streaming PageFold preset;
    - confirm incremental display, background return, and final usage.
 8. **Blocked route**
-   - confirm the PageFold card has no medium/resolution picker;
-   - change the Vertex location/model/custom endpoint, select AI Studio or an
-     unsupported OpenRouter profile, or enable tools;
-   - confirm a pre-provider explanation and no charged generation.
+   - confirm the compact PageFold card has no route/evidence/fidelity/manual
+     price or resolution UI;
+   - confirm a normal Vertex location/model change and AI Studio remain
+     PageFold-capable and use their selected model;
+   - set a custom Vertex endpoint, unsupported OpenRouter/non-PDF adapter, or
+     enable tools; confirm a pre-provider explanation and no charged generation.
 9. **Blocked image request**
    - attach one image to a PageFold-on request;
    - confirm message/index-aware image support is explicitly unavailable and no
@@ -2629,7 +2666,7 @@ Additional v8-specific break scenarios:
 11. **Production output authority**
    - set a non-2048 preset max output value;
    - confirm final generationConfig and generation info retain that value while
-     PageFold wire remains low/v8-qualified.
+     PageFold wire remains low and the selected model remains unchanged.
 
 The full v1-v8 history is preserved in the feasibility/structural receipts; old
 failures are not rewritten and v8 is the current qualifying evidence. Product
@@ -2664,16 +2701,16 @@ and intentionally occurs earlier for L3 live apply.
   ordinary adapter message array;
 - independent PDF extraction is exact for the qualified character/control
   matrix and multi-page order;
-- every advertised provider route/resolution passes the pre-candidate paid
-  feasibility matrix;
-- advertised/runtime support set is exactly
-  `vertex-gemini-native:gemini-37-flash` profile v1/provider-base v7,
-  native Vertex Gemini endpoint/global/`gemini-3.7-flash`,
-  low/v8/at-most-eight-pages; medium, AI Studio, and OpenRouter remain absent
-  or explicitly blocked;
+- every advertised transport route has an implemented provider PDF wire and
+  family-correct media-resolution invariant;
+- Vertex and AI Studio Google Gemini routes preserve the preset-selected model;
+  Vertex 3.7 global alone carries the frozen v8 semantic label, while other
+  Gemini routes disclose transport/L3 evidence separately and OpenRouter or
+  other adapters remain absent until their PDF wire exists;
 - renderer limits are based on observed target memory/latency;
-- the qualified Vertex route preserves ModelPreset production output and other
-  parameters, streaming, credentials, logs, and cancellation;
+- each enabled Google Gemini route preserves ModelPreset production output,
+  selected model, endpoint, other parameters, streaming, credentials, logs,
+  and cancellation;
 - no PageFold-owned feasibility sentinel/forced schema/MIME or harness 2048
   default reaches production; ordinary user response-format settings remain;
 - image-bearing PageFold routes block before render/provider work while the
@@ -2715,14 +2752,14 @@ and intentionally occurs earlier for L3 live apply.
   unqualified until that separate gate is activated and passed.
 - Paid 1/2/8-page route feasibility occurs before adapter/UI/BG completion and
   candidate catalog admission.
-- Qualified route is exactly
-  `vertex-gemini-native:gemini-37-flash` profile v1/provider-base v7 with the
-  native Vertex Gemini endpoint, Google Service Account auth, no custom
-  endpoint, global location, wire model `gemini-3.7-flash`, fixed low
-  resolution, both maximum/balanced modes, and at most eight pages. There is no
-  first-candidate resolution picker.
-- AI Studio only replicates frozen v8 after quota admission; medium is
-  screening-only; OpenRouter is outside the current user-approved scope.
+- Runtime PageFold never selects a model. It follows the active Vertex/AI
+  Studio Google Gemini preset's selected model and freezes it in the request
+  identity. The historical renderer ID and 3.7/v8 evidence do not replace it.
+- Gemini 3 uses per-part low media resolution; earlier Gemini uses global low.
+  Both PDF-content modes and the eight-page renderer ceiling remain fixed, with
+  no PageFold resolution picker.
+- AI Studio has implemented PDF transport but retains its observed quota/L3
+  state; OpenRouter remains outside the implemented adapter wire.
 - v8's one-shot 2048 is a qualification-harness value and never overrides
   production output reserve.
 - Tools and PocketRisu explicit cache are blocked in the first admission.
@@ -2734,6 +2771,8 @@ and intentionally occurs earlier for L3 live apply.
 - `preset.maxContext` remains source-plus-output assembly authority; known
   profile wire context is a separate required authority.
 - OpenRouter support and price evidence are separate states.
+- Manual PageFold pricing has no UI and is ignored; versioned table evidence or
+  `unconfirmed` owns cost estimates.
 - Token/cost delta is signed and may show PageFold overhead.
 - Legacy PageFold secrets/statistics/plugins are not mutated or migrated.
 - Candidate experimental admission precedes live L3; stable admission/release
@@ -2744,6 +2783,7 @@ and intentionally occurs earlier for L3 live apply.
 | Review item | Resolution authority |
 | --- | --- |
 | Final transcript boundary | Sections 6, 9, and 11.1: final post-replacer/trigger/reformater `AdapterChatMessage[]` |
+| Preset-selected model authority | Sections 0, 5.2, and 11.3: Google Gemini adapter capability, immutable selected-model retry/wire context, v8 evidence kept separate |
 | Same-route retry versus classic fallback | Section 13: explicit failure policy plus opaque exact-PDF route state |
 | Source/wire tokens and Hypa | Section 12: total source assembly formula, preset tokenizer estimate, required known wire context, off-path preservation |
 | PDF extraction versus model understanding | Sections 9.2, 19.2, 19.3, and 20.1: independent gates and pre-candidate paid feasibility |
@@ -2769,6 +2809,7 @@ and intentionally occurs earlier for L3 live apply.
 - `docs/POCKETRISU-PAGEFOLD-STRUCTURAL-REQUALIFICATION.md`
 - `THIRD_PARTY_NOTICES.md`
 - Google Gemini pricing: <https://ai.google.dev/gemini-api/docs/pricing>
+- Vertex Gemini model pricing: <https://cloud.google.com/gemini-enterprise-agent-platform/generative-ai/pricing?hl=en>
 - Gemini media resolution: <https://ai.google.dev/gemini-api/docs/generate-content/media-resolution>
 - Gemini document processing: <https://ai.google.dev/gemini-api/docs/document-processing>
 - OpenRouter PDF inputs: <https://openrouter.ai/docs/guides/overview/multimodal/pdfs>

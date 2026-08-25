@@ -330,3 +330,97 @@ Final live state:
 - first integrated paid production request and natural recall: pending as L3,
   not run automatically;
 - stable metadata/tag/GitHub release: prohibited until L3 and L4.
+
+## 9. L3 feedback follow-up — experimental.23
+
+The first physical settings review stopped before a provider call and produced
+four design corrections. `728dba2` removes secondary preset-card copy and
+reworks Service Account import. `dcd4ba0` makes the preset-selected Gemini
+model authoritative. No paid request occurred while implementing or testing
+this revision.
+
+### 9.1 Revised behavior
+
+- The PageFold card retains one definition, toggle, and `PDF로 보낼 내용`
+  selector only. The choices are `시스템 메시지까지 모두` and `일반 대화만`.
+- Route status, fixed 3.7 copy, evidence/fidelity disclosure, conflict copy,
+  and manual-price controls are absent from the preset card.
+- Service Account import is visible only in direct-entry mode, matches the
+  secret input at full width / 42px height, and emits one generic top success
+  toast. It renders no client email, project, or key ID success line.
+- Vertex and Google AI Studio keep the active preset's selected Gemini model.
+  The historical renderer profile ID remains a deterministic layout/cache
+  protocol identifier and cannot replace the wire model.
+- Gemini 3 places low media resolution on the PDF part. Earlier Gemini models
+  use global low in `generationConfig`. Final invariants permit exactly one
+  family-correct authority.
+- Vertex 3.7 global keeps `v8-qualified` evidence. Other selected Gemini routes
+  are marked as Google PDF transport and need their own observed L3 semantics.
+  OpenRouter/non-Gemini adapters still have no PageFold document wire.
+- Versioned price tables, not a manual preset value, own estimates. Unsupported
+  provider/region/tier or tiered model prices remain unconfirmed rather than
+  receiving an invented zero/default.
+
+Google's current documentation states that Gemini processes inline PDF input,
+that per-part media resolution is Gemini 3-only, and that global media
+resolution is available to all multimodal models:
+
+- <https://ai.google.dev/gemini-api/docs/document-processing?hl=en>
+- <https://ai.google.dev/gemini-api/docs/generate-content/media-resolution?hl=en>
+- <https://cloud.google.com/gemini-enterprise-agent-platform/generative-ai/pricing?hl=en>
+
+### 9.2 Automatic observations before live reapply
+
+- patcher source: 46/46 files passed;
+- focused PageFold: 12 files / 96 tests passed;
+- selected-model regressions: Vertex 3.5 URL retained, Gemini 2.5 global-low,
+  AI Studio 3.6 PDF-first, and same-timestamp retry model mutation rejected;
+- complete client: 151 files / 1,731 tests passed;
+- complete server: 22 files / 232 passed, 12 skipped;
+- compatibility: 74 passed, 5 skipped;
+- Svelte diagnostics: 0 errors / 0 warnings;
+- production client: 7,940 modules transformed;
+- BG bundle build/load: `sendChat=function`.
+
+Two consecutive experimental.23 installer builds were byte-identical. The
+primary and `all` alias are mode 0755, 7,844,116 bytes, CJS syntax-valid, and
+SHA-256
+`9a26882136bb17d3f6ef39684979a211a297ba7a64018df48ac34cd328a5a4dc`.
+
+The complete graph remained 40 packs / 929 units / 339 managed paths. On a
+fresh exact-1.10 tree, maintainer apply reached current, the generated plan
+reported 0 changed files / 339 current files, and generated revert restored all
+1,426 baseline files with missing 0, byte mismatches 0, and mode mismatches 0.
+
+### 9.3 L2.5 follow-up delta
+
+Phase 1 added four external-effect leaves: preset-selected model resolution,
+model-family media placement, model-specific price lookup, and identifier-free
+credential-import toast presentation.
+
+Phase 2 traced and attacked them as follows:
+
+- `resolvePageFoldRequestedModel` follows the ordinary body-model mapping and
+  profile fallback; Vertex 3.5 and AI Studio 3.6 tests confirm final URLs retain
+  those models and contain no substituted 3.7 slug.
+- source budget, canonical metadata, retry identity, and adapter context all
+  freeze the same selected model. Changing only the model before retry rejects
+  the old state even when `updatedAt` is unchanged.
+- Gemini 3 admits exactly one per-part low authority. Gemini 2.5 admits exactly
+  one global low authority. Custom medium/duplicate authorities fail before
+  provider work.
+- versioned price lookup keys provider, selected model, location, tier, and
+  effective dates. A deprecated manual value is ignored; missing/tiered tables
+  remain unconfirmed.
+- Service Account success calls the existing top `notifySuccess` owner with one
+  generic localized string. The composed component contains no email/project/
+  key-ID summary renderer.
+
+Phase 3 found no unresolved Q1/Q2 automatic-admission defect. Q4 remains the
+model-specific semantic boundary: only Vertex 3.7 global has frozen v8 evidence;
+another Gemini model or AI Studio needs its own observed/approved paid L3 call
+and may not inherit that label. OpenRouter/non-Gemini adapters still need an
+independent PDF wire.
+
+The sensitive sweep, delivery commit/push, and active-safe live reapply remain
+before resuming physical L3.
