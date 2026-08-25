@@ -201,3 +201,10 @@ observations and v5 semantic-kind boundary.
 The v5 joined-emoji semantic-kind oracle is locally implemented and tested but
 has made no provider call. It preserves every v4 observation and exact-reader
 obligation.
+
+The approved v5 run passed both L2 resolutions; the user selected low, which
+then passed one-page byte/grammar and two-page grammar 3/3. Its first eight-page
+marker call recovered every first/last marker and page order but exposed an
+even-set lower/upper center convention defect. Thirteen calls used
+`USD 0.033129000`; strict 3/3 stopped before remaining L3/L4. The structural
+receipt retains the result and v6 center-window boundary.

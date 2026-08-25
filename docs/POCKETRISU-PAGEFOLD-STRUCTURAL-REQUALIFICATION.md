@@ -520,6 +520,50 @@ Observed local v5 gates:
 - no v5 provider call, catalog registration, generated installer change, or
   live apply occurred during implementation.
 
+## Paid structural oracle v5 observation
+
+The approved v5 screening made five one-shot calls. L1 and low/medium byte and
+grammar all passed, producing the planned decision pause.
+
+| Resolution | L2 rated USD | L2 latency ms | Prompt tokens | Byte | Grammar |
+| --- | ---: | ---: | ---: | --- | --- |
+| low | 0.006951000 | 16,765 | 1,313 | pass | pass |
+| medium | 0.005977500 | 27,820 | 1,845 | pass | pass |
+
+The one-run medium rated total was lower only because low grammar used 463
+thought tokens while medium grammar used none. Low had 532 fewer prompt tokens
+and 11,055 ms lower latency with identical recall results. The user selected
+low. Screening's five calls cost `USD 0.013747500`.
+
+The resume revalidated all four fixture hashes and restored those five records
+without replay. Calls 6-12 then observed:
+
+- one-page byte screening + repeats 2/3: 3/3 pass;
+- one-page grammar screening + repeats 2/3: 3/3 pass; and
+- two-page grammar repeats 1/2/3: 3/3 pass.
+
+The first eight-page marker call returned `HTTP 200 / STOP` and exact first/last
+markers for all eight pages, with pages in the correct order. Its center marker
+matched on odd-sized pages, but for five large even-sized pages it returned the
+lower center while the frozen oracle expected the upper center. The last
+six-marker page returned the upper center. Examples:
+
+- page 2 observed `L002136`, expected `L002137`;
+- page 3 observed `L003564`, expected `L003565`;
+- page 5 observed `L006419`, expected `L006420`; and
+- final page observed and expected `L009993`.
+
+The phrase “median-by-order floor(count/2)” did not fix whether an even set's
+center means lower, upper, or numeric-median floor. This is an oracle convention
+defect, not page loss or ordering failure. The strict v5 result remains failed;
+later marker/byte/L4 cells did not run.
+
+v5 completed 13 of 21 cells at `USD 0.033129000`; cumulative v1-v5 rated usage
+is `USD 0.066659250`. The decision summary, resume summary, and their two
+mode-`0600` checkpoint files contained zero PDF/Base64, canonical, API-key,
+bearer/access-token, or private-key hits. The post-cutoff request-log delta was
+also zero rows and zero sensitive hits.
+
 ## L2.5 runtime audit
 
 ### Phase 1 — flat discovery

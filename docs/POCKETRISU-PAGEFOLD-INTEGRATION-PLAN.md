@@ -1680,6 +1680,28 @@ resume. v5 must independently pass its own 3/3 cells; v4's single low screening
 pass cannot be carried forward. Local gates do not qualify a route without the
 approved v5 paid matrix.
 
+The approved v5 run passed both L2 resolutions. Based on equal recall, 532
+fewer prompt tokens, and 11,055 ms lower L2 latency, the user selected low; its
+one-run rated total was higher only because of stochastic thought usage. Low
+then passed one-page byte 3/3, one-page grammar 3/3, and two-page grammar 3/3.
+The first eight-page marker cell recovered exact first/last markers and page
+order but used the lower center on five large even-sized pages while the oracle
+expected the upper center. Thirteen calls cost `USD 0.033129000`; strict 3/3
+stopped before later marker/byte/L4 cells. v5 remains failed evidence.
+
+The result-driven `v6` removes only this even-set convention:
+
+- each physical page returns exact `first`, exact `last`, and `centers`;
+- odd-sized pages have one center;
+- even-sized pages have both lower and upper centers in order;
+- the independent reader derives that exact center window from the same page
+  spans, without changing PDF bytes; and
+- all v5 semantic byte, grammar, hierarchy, repeat, low-resolution choice,
+  one-shot 2048, 21-call, cost, no-retry, and no-fallback boundaries remain.
+
+v6 must independently rerun screening and every 3/3 cell; v5 results cannot be
+resumed across the oracle-version boundary.
+
 ### 20.2 Candidate catalog admission — experimental only
 
 After the prototype gate:
