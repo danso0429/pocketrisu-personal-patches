@@ -450,6 +450,48 @@ Observed local v4 gates:
 - no v4 provider call, catalog registration, generated installer change, or
   live apply occurred during implementation.
 
+## Paid structural oracle v4 observation
+
+The approved v4 run regenerated the same four fixture hashes and made six
+one-shot calls before its strict L3 stop.
+
+| Call | Stage/claim | Resolution | HTTP/finish | Prompt | Candidate | Thought | Latency ms | Rated USD | Result |
+| ---: | --- | --- | --- | ---: | ---: | ---: | ---: | ---: | --- |
+| 1 | L1 text oracle | N/A | 200 / `STOP` | 588 | 112 | 158 | 2,886 | 0.001453500 | pass |
+| 2 | L2 byte | low | 200 / `STOP` | 775 | 222 | 0 | 4,305 | 0.001413750 | pass |
+| 3 | L2 byte | medium | 200 / `STOP` | 1,041 | 399 | 0 | 6,284 | 0.002277000 | fail |
+| 4 | L2 grammar | low | 200 / `STOP` | 557 | 146 | 0 | 4,221 | 0.000965250 | pass |
+| 5 | L2 grammar | medium | 200 / `STOP` | 823 | 71 | 0 | 3,943 | 0.000883500 | pass |
+| 6 | L3 byte repeat 2 | low | 200 / `STOP` | 775 | 318 | 0 | 5,147 | 0.001773750 | fail |
+
+v4 rated usage was `USD 0.008766750`; cumulative v1-v4 rated usage is
+`USD 0.033530250`. There were no output controls or `MAX_TOKENS` responses.
+
+L1 and both grammar cells passed. Low was the only L2 resolution to pass both
+screening claims, so it was selected without fallback. Its first L3 byte repeat
+then failed, correctly preventing a non-3/3 result from reaching later L3 or
+L4 cells.
+
+Every complete byte observation matched words, all three whitespace-run
+positions, joiner count `3`, variation scalars, and the exact tag scalar. The
+only varying field was `zwjSemanticMembers`:
+
+- low screening reported `man`, `woman`, `girl`, `boy` and passed;
+- medium screening reported an empty array; and
+- low L3 repeat 2 reported an empty array.
+
+This isolates a final visual-decomposition instability: the model consistently
+recognizes a three-joiner ZWJ sequence and every other byte obligation, but does
+not reliably enumerate the individual glyph members. Exact member codepoints
+remain preserved and verified by PDF.js. Conversational use needs the stable
+semantic kind `family`, not a duplicate decomposition of its glyph components.
+The frozen v4 medium and repeat results remain failed evidence.
+
+The 25,010-byte summary and 13,399-byte mode-`0600` checkpoint retained six
+matched `oracleVersion=4` start/completion pairs. They and the post-cutoff
+request-log delta had zero PDF/Base64, canonical, API-key, bearer/access-token,
+or private-key hits.
+
 ## L2.5 runtime audit
 
 ### Phase 1 — flat discovery

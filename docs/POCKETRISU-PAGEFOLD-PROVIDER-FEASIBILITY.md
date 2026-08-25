@@ -191,3 +191,9 @@ boundary; v3 remains failed evidence.
 The result-driven v4 semantic-recall oracle and one-shot 2048 budget are
 locally implemented and tested but have made no provider call. They do not
 rewrite v3 or qualify a route without their own paid matrix.
+
+The approved v4 run passed L1, both grammar cells, and low byte screening but
+failed medium byte and low L3 repeat 2 only on unstable individual family-member
+enumeration. Six calls used `USD 0.008766750`; strict 3/3 stopped before later
+L3/L4, so v4 qualified no route. The structural receipt retains the full
+observations and v5 semantic-kind boundary.

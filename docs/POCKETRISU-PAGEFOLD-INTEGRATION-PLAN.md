@@ -1663,6 +1663,21 @@ counted a second time as a visual conversational-recall obligation. v4 local
 gates do not themselves qualify a route; only its explicitly approved paid
 matrix can do so.
 
+The approved v4 run then passed L1, both grammar cells, and low byte screening,
+selecting low as the only L2 resolution. Medium byte and low L3 byte repeat 2
+failed only because `zwjSemanticMembers` was empty; low screening alone listed
+all four members. Every observation recovered run positions, joiner count `3`,
+words, variation, and tag. Six calls cost `USD 0.008766750`; the strict 3/3
+rule stopped before remaining L3/L4 cells. v4 remains failed evidence.
+
+This repeated pattern moves individual member enumeration back to the exact
+reader: it is still unstable visual decomposition, not stable conversational
+meaning. A result-driven `v5` may require `zwjSemanticKind="family"` plus
+joiner count `3`, while exact member order/codepoints remain mandatory in
+PDF.js extraction. All other v4 obligations and the one-shot 2048/21-call
+budget remain unchanged. v5 must independently pass its own 3/3 cells; v4's
+single low screening pass cannot be carried forward.
+
 ### 20.2 Candidate catalog admission — experimental only
 
 After the prototype gate:
