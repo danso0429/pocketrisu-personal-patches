@@ -1,7 +1,7 @@
 # PageFold structural-oracle requalification
 
-> **Status:** v1 L1 failed; v2 L1 passed and L2 qualified no resolution;
-> result-driven v3 implemented locally; no v3 paid call or route qualification
+> **Status:** v1 L1 failed; v2/v3 L2 qualified no resolution; result-driven v4
+> implemented locally; no v4 paid call or route qualification
 >
 > **Date:** 2026-08-25 KST
 >
@@ -41,8 +41,8 @@ The L0 harness defines:
 - a chosen-resolution 3/3 qualification sequence;
 - a separate balanced hierarchy-mode sequence;
 - normal compact output limit 512;
-- at most two predeclared truncation controls, no more than one per affected
-  cell; historical v1/v2 use 1024 and current v3 uses 2048;
+- historical v1-v3 use bounded truncation controls; current v4 uses one
+  first-shot 2048 budget and zero output-control calls;
 - no automatic retry or classic fallback;
 - maximum 23 conditional calls; and
 - Vertex rated-cost ceiling `USD 0.25`.
@@ -160,18 +160,18 @@ for provider-system composition, and began the first page marker sequence at
 
 ## Automatic observations
 
-- structural v1/v2/v3 oracle focused test: 1 file / 10 tests passed;
+- structural v1-v4 oracle focused test: 1 file / 11 tests passed;
 - structural paid-runner and legacy provider focused tests after the L1
-  preservation fix: 2 files / 20 tests passed;
+  preservation fix: 2 files / 19 tests passed;
 - checkpoint write failure controls: failed start persistence caused zero
   fake-provider cells, and failed completion persistence allowed one completed
   cell but no second cell;
 - paid-disabled CLI control: exited with code 2 before fixture/provider work;
 - dry-run: four fixtures completed, paid execution remained false;
 - canonical server validation: maximum and balanced forms accepted;
-- current output-control classification: 512 `MAX_TOKENS` -> one 2048 control;
-  2048 `MAX_TOKENS` -> no further control; historical 1024 behavior remains
-  covered separately;
+- current output classification: every cell receives one 2048 attempt and
+  `MAX_TOKENS` is terminal inconclusive; historical 512/1024/2048 controls
+  remain covered separately;
 - unknown synthetic answer fields: removed from retained observation;
 - dry public output: no PDF bytes;
 - patcher source suite: 45/45 files passed; and
@@ -413,6 +413,43 @@ treated as credential evidence. Across the whole database, exact stored API
 keys, PDF, canonical marker, bearer/access-token, and private-key hit counts
 were zero at this observation point.
 
+## Structural oracle v4 — exact extraction versus semantic recall
+
+The v3 low/medium agreement showed that exact typographic run length and emoji
+glyph scalar decomposition are properties of the already-qualified PDF.js
+extraction path, not reliable visual conversational-recall outputs. v4 keeps
+those exact obligations unchanged in extraction and replaces only the model
+byte response with:
+
+- `spaceRunPositions`: `leading`, `between`, `trailing`;
+- `zwjSemanticMembers`: `man`, `woman`, `girl`, `boy` in order;
+- `zwjJoinerCount`: `3`;
+- exact words, variation scalars, and tag scalar; and
+- the same three start/middle/end sample separation.
+
+Grammar role objects/order, page markers, balanced hierarchy, fixtures,
+resolutions, repeats, and every 3/3 final-cell rule remain unchanged. Any
+canonical-to-PDF.js byte mismatch still fails before provider work, including
+whitespace multiplicity and full scalar sequences.
+
+v4 also removes output-budget retry as an experimental variable. Every paid
+cell receives one first-shot 2048 budget; `MAX_TOKENS` is terminal
+inconclusive, maximum controls are zero, and maximum physical calls are 21.
+The cost cap remains `USD 0.25` with no fallback. Checkpoints, summaries, and
+resume state are pinned to `oracleVersion=4`.
+
+Observed local v4 gates:
+
+- structural oracle + paid runner + legacy provider: 3 files / 30 tests passed;
+- patcher source suite: 45/45 files passed;
+- exact PocketRisu 1.10 v3-to-v4 update: four owned files plus private state,
+  zero collisions, `current`, zero drift;
+- repeated v4 plan: zero changes;
+- final wire builder independently enforces 2048 even when given a historical
+  512 logical cell; and
+- no v4 provider call, catalog registration, generated installer change, or
+  live apply occurred during implementation.
+
 ## L2.5 runtime audit
 
 ### Phase 1 — flat discovery
@@ -427,14 +464,15 @@ The changed path can perform these actions and outcomes:
 - select one credential by normalized-name hash and validate its shape;
 - sign an RS256 OAuth assertion and exchange it for an access token;
 - create text-only or PDF-first Vertex request bodies;
-- select a versioned v1/v2/v3 response and recognition oracle;
+- select a versioned v1-v4 response and recognition oracle;
 - issue timed OAuth and model HTTPS calls;
 - parse HTTP, provider JSON, structured answer JSON, finish reason, and usage;
 - rate usage and compare a pre-call reservation and post-call total to the cap;
 - sanitize observed synthetic fields, differences, hashes, errors, and logs;
 - fsync `call-start` and `call-complete` checkpoint records;
 - stop, select one resolution, pause for a two-resolution decision, or resume;
-- admit at most two output-cap controls without recall retry or fallback;
+- preserve historical output controls while current v4 makes one 2048 attempt
+  with no retry or fallback;
 - write a final sanitized summary or a code-only stderr failure;
 - close the checkpoint descriptor;
 - install/revert 27 focused owner units on an exact-1.10 disposable target; and
@@ -453,26 +491,26 @@ process interruption between lifecycle points, and pricing/version drift.
   fallback (`pageFoldStructuralPaidRunner.cjs:62-164`). The fake-provider suite
   observed L1 stop, five-call decision pause, single-resolution 21-call close,
   resume without screening replay, and bounded output controls.
-- **Call lifecycle:** the 23-call and rated-cost preflight precede OAuth/model
+- **Call lifecycle:** the 21-call and rated-cost preflight precede OAuth/model
   work; sanitized `call-start` precedes the request and `call-complete`
-  precedes any next cell (`pageFoldStructuralPaidRunner.cjs:196-334`). Injected
+  precedes any next cell (`pageFoldStructuralPaidRunner.cjs:180-318`). Injected
   start-write failure produced zero fake calls; injected completion-write
   failure produced one call and no second call.
 - **Wire and errors:** the only model endpoint is global Vertex, with a
   five-minute timeout, PDF-first part ordering, per-part low/medium resolution,
   compact structured output, low thinking, and no tools or cache
-  (`pageFoldStructuralPaidRunner.cjs:345-449`). Network, HTTP, provider-JSON,
+  (`pageFoldStructuralPaidRunner.cjs:329-433`). Network, HTTP, provider-JSON,
   answer-JSON, usage, and finish paths are normalized without retaining raw
-  bodies (`pageFoldStructuralPaidRunner.cjs:345-471`).
-- **Oracle separation:** v1 hex/raw expectations and the exact v2 contract
-  remain addressable only by their historical versions. Version 3 supplies
-  visible decimal L1 facts, explicit sequence/length fields, object role pairs,
-  actual marker order, integer scalar arrays, and a 2048 control
-  (`pageFoldStructuralRequalification.cjs:197-464`). The paid runner pins v3 in
-  request, evaluation, checkpoint, summary, and resume validation. Focused
-  tests observed v1/v2 preservation, v3 pass/fail evaluation, object/integer
-  schemas, actual marker order, 512-to-2048 control, visible control text, and
-  rejection of an unknown oracle version.
+  bodies (`pageFoldStructuralPaidRunner.cjs:329-455`).
+- **Oracle separation:** v1-v3 exact contracts remain addressable only by their
+  historical versions. Version 4 keeps exact bytes in the independent reader
+  and measures visual semantic recall through run positions, family members,
+  joiner count, words, variation/tag, object roles, markers, and hierarchy
+  (`pageFoldStructuralRequalification.cjs:209-569`). The paid runner pins v4
+  and one-shot 2048 in request, evaluation, checkpoint, summary, and resume
+  validation. Focused tests observed historical preservation, v4 pass/fail
+  evaluation, semantic/object schemas, actual marker order, no-control
+  `MAX_TOKENS`, visible control text, and unknown-version rejection.
 - **Credential lifecycle:** the database reader closes its read transaction in
   `finally`; selectors require exactly one hash match; the service-account
   token URI and PKCS8 shape are validated; OAuth is RS256 and time-bounded
@@ -482,12 +520,12 @@ process interruption between lifecycle points, and pricing/version drift.
 - **Fixture integrity/resources:** fixture generation is sequential and its
   renderer enforces the previously measured worker, queue, source, page, span,
   PDF-byte, and cache ceilings. Each paid-run fixture matched its frozen hash
-  and exact PDF.js extraction (`pageFoldStructuralRequalification.cjs:465-516`).
+  and exact PDF.js extraction (`pageFoldStructuralRequalification.cjs:570-621`).
 - **Resume and result safety:** resume revalidates schema, model, fixture
   identity, call count, cost, controls, every observation, and the two-pass
-  decision (`pageFoldStructuralPaidRunner.cjs:473-582`). Public records are
+  decision (`pageFoldStructuralPaidRunner.cjs:457-566`). Public records are
   schema-bounded; actual secret strings and prohibited value-bearing keys are
-  rejected (`pageFoldStructuralPaidRunner.cjs:584-881`). The original boolean
+  rejected (`pageFoldStructuralPaidRunner.cjs:567-865`). The original boolean
   field-name false positive was observed, fixed, and retained as failed
   evidence rather than hidden.
 - **Ownership and no-live claim:** catalog search found no PageFold entry;
@@ -505,7 +543,7 @@ process interruption between lifecycle points, and pricing/version drift.
 
 ### Phase 3 — triage
 
-- **Q1:** v1 L1 failed and v2 L2 qualified no resolution; v3 has no provider
+- **Q1:** v1 L1 failed and v2/v3 L2 qualified no resolution; v4 has no provider
   observation, so support admission and every downstream runtime/live owner
   remain closed.
 - **Q1:** no PageFold-created credential, PDF, canonical transcript, token, or
@@ -522,6 +560,8 @@ process interruption between lifecycle points, and pricing/version drift.
 - **Q3 fixed:** v2's ambiguous run/ZWJ fields, string-pair orientation, wrong
   marker order, and insufficient observed control ceiling are corrected in the
   versioned v3 oracle without rewriting v2 evidence.
+- **Q3 fixed:** v4 stops duplicating exact-reader obligations in visual recall
+  and removes output-control retry as an experimental variable.
 - **Q3 resolved by observed gates:** source tests, focused server tests,
   exact-target owner lifecycle, reference-line comparison, secret sweep,
   official price/model-limit check, and request-log queries are recorded above.
@@ -533,10 +573,10 @@ process interruption between lifecycle points, and pricing/version drift.
 #### S1 — strict rated-cost ceiling
 
 1. **Claim:** the run does not exceed `USD 0.25` rated usage.
-2. **Resolved:** maximum calls/output tokens are structural, a conservative
-   per-cell prompt reservation is checked before each call, actual usage is
-   rated after each response, and the latest approved run stopped at
-   `$0.010484250`.
+2. **Resolved:** current maximum calls are 21, every cell has one 2048 output
+   budget, a conservative per-cell prompt reservation is checked before each
+   call, actual usage is rated after each response, and the latest approved run
+   stopped at `$0.012216000`.
 3. **Blocked link:** Vertex supplies authoritative prompt usage only after a
    call; an unobserved future request could exceed the reservation before the
    post-call stop executes.
@@ -567,8 +607,9 @@ process interruption between lifecycle points, and pricing/version drift.
 
 No Vertex resolution is support-qualified. Under the integration authority,
 adapter/UI/BG composition, catalog admission, candidate live apply, and stable
-release remain closed. The v3 design and automatic gates are complete, but
-another provider call is a new experiment and requires separate explicit
-paid-call approval. An approved v3 run starts again at its visible L1 response
-control; v1/v2 approvals and results cannot be resumed. Independent PDF
-extraction cannot substitute for a model-recognition gate.
+release remain closed because v3 qualified no route. The v4 design and
+automatic gates are complete, and the user has explicitly approved v4 and
+same-bound plan-derived reruns through L4.
+v4 starts again at its visible L1 response control; v1-v3 results cannot be
+resumed. Independent PDF extraction remains a separate mandatory gate and
+cannot substitute for model understanding.

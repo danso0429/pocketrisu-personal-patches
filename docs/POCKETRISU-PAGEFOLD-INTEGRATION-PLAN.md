@@ -1409,10 +1409,9 @@ and L4.
   structural and grammar claims pass;
 - every final qualification cell must pass three total observations (screening
   plus two fresh repeats); majority success is insufficient;
-- `maxOutputTokens=512` is the normal compact-response bound; at most two
-  predeclared 2048-token controls may distinguish output truncation from recall,
-  with no cell receiving more than one control; these are not retries of a
-  failed recall result. Historical v1/v2 used 1024 and remain recorded as such;
+- current v4 uses `maxOutputTokens=2048` on the first and only attempt for every
+  cell, with zero output-control calls. Historical v1-v3 512/1024/2048 control
+  behavior remains recorded but is not resumed into v4;
 - actual synthetic answer fields and bounded first-difference metrics are
   retained for diagnosis, while credentials, request bodies, PDF Base64, and
   provider tokens remain prohibited;
@@ -1539,8 +1538,8 @@ pass. Requalification changes the experiment so each call establishes one
 claim and each transition has an external stop condition.
 
 1. **L0 local harness gate — no provider work.** Add structural whitespace and
-   Unicode oracles, compact schemas, sanitized observed fields/diffs, the
-   current 512/2048 output-budget control with historical 512/1024 retained,
+   Unicode/semantic oracles, compact schemas, sanitized observed fields/diffs,
+   the current one-shot 2048 output budget with historical controls retained,
    dry-run fixture identity, focused tests, and secret sweep.
 2. **L1 text oracle control — one Vertex call.** The byte-sensitive and role
    facts are supplied as visible, already-computed ordinary text. The model
@@ -1642,6 +1641,27 @@ replace those two fields only with position/semantic obligations while keeping
 word, variation, tag, grammar, marker, hierarchy, cost, and exact-extraction
 requirements intact. It must also remove the observed 512/1024 truncation
 confound by budgeting PDF cells adequately on their first and only attempt.
+
+The result-driven `v4` performs exactly that separation:
+
+- PDF.js remains the sole exact-byte authority for `[2,3,2]` whitespace-run
+  lengths and complete Unicode scalar sequences;
+- model byte cells require the three run positions `leading`, `between`, and
+  `trailing`, semantic family members `man`, `woman`, `girl`, `boy`, U+200D
+  joiner count `3`, words, variation scalars, and tag scalar;
+- grammar role objects/order, page markers, hierarchy, fixtures, resolutions,
+  repeats, and 3/3 final-cell requirements remain unchanged;
+- every paid cell uses one first-shot 2048 output budget, output controls are
+  removed, and maximum physical calls fall from 23 to 21;
+- result/checkpoint metadata carries `oracleVersion=4`, so v3 cannot resume;
+  and
+- the rated-cost ceiling remains `USD 0.25`, with no retry or fallback.
+
+This is not a relaxation of exact transport: exact extraction still fails on
+any source-byte difference. It prevents that exact-reader result from being
+counted a second time as a visual conversational-recall obligation. v4 local
+gates do not themselves qualify a route; only its explicitly approved paid
+matrix can do so.
 
 ### 20.2 Candidate catalog admission — experimental only
 

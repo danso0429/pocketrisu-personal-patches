@@ -187,3 +187,7 @@ cells failed their frozen exact run-length/full-emoji-scalar obligations after
 `USD 0.012216000` rated usage and qualified no route. The structural receipt
 retains its exact fields and the resulting extraction-versus-semantic-recall
 boundary; v3 remains failed evidence.
+
+The result-driven v4 semantic-recall oracle and one-shot 2048 budget are
+locally implemented and tested but have made no provider call. They do not
+rewrite v3 or qualify a route without their own paid matrix.
