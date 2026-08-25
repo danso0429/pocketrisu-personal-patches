@@ -2039,21 +2039,11 @@ import { resolvePageFoldOutputReserve, resolvePageFoldSourceBudget } from 'src/t
             where: 'after',
             anchor: '    modelPresetAbilities: "Model abilities",\n',
             content: `    pageFoldTitle: "PageFold",
-    pageFoldHelp: "Send the final ModelPreset transcript as one dense PDF. Off by default; every eligible request uses PDF while enabled.",
-    pageFoldMode: "System hierarchy mode",
-    pageFoldModeRequired: "Choose a mode first",
-    pageFoldModeMaximum: "PDF role emulation",
-    pageFoldModeBalanced: "Keep native system hierarchy",
-    pageFoldModeHelp: "PDF role emulation includes system rows in the PDF. Native hierarchy keeps system messages in Gemini's system instruction.",
-    pageFoldQualified: "Qualified for this exact route",
-    pageFoldBlocked: "Blocked: {reason}",
-    pageFoldQualifiedRoute: "Vertex global · {model} · fixed low media resolution · up to {pages} PDF pages · oracle v8",
-    pageFoldNoResolutionPicker: "Resolution and page ceiling are qualification metadata, not editable settings.",
-    pageFoldConflictWarning: "Images, tool use, and PocketRisu explicit Gemini caching are blocked while PageFold is on.",
-    pageFoldFidelityTitle: "Evidence and fidelity",
-    pageFoldFidelityExact: "Canonical JSONL → PDF.js extraction is byte-exact.",
-    pageFoldFidelitySemantic: "Vertex-low semantic recall, order, boundaries, and both hierarchy modes passed v8.",
-    pageFoldFidelityDeferred: "Verbatim typography and narrative quality remain separate gates.",
+    pageFoldHelp: "Send the conversation to the model as a dense PDF.",
+    pageFoldMode: "What to put in the PDF",
+    pageFoldModeRequired: "Choose what to include",
+    pageFoldModeMaximum: "Everything, including system messages",
+    pageFoldModeBalanced: "Conversation only",
     pageFoldRoleOverrides: "PageFold role overrides",
     pageFoldRoleOverridesHelp: "Each logical task can inherit the selected preset, force PageFold on, or force it off.",
     pageFoldInherit: "Inherit",
@@ -2064,12 +2054,8 @@ import { resolvePageFoldOutputReserve, resolvePageFoldSourceBudget } from 'src/t
     pageFoldBadgeBlocked: "PF BLOCKED",
     serviceAccountImportJson: "Import Service Account JSON",
     serviceAccountImporting: "Reading and validating…",
-    serviceAccountImportSuccess: "Imported {email} · Project {project}",
-    serviceAccountImportKeyId: "Key ID {id}",
-    pageFoldPriceConfirmed: "Standard price: {input}/1M input · {output}/1M output",
-    pageFoldPriceUnconfirmed: "Price unconfirmed",
-    pageFoldManualInputPrice: "Manual input price (USD / 1M)",
-    pageFoldManualInputPriceHelp: "Optional input-only override. It never changes route support.",
+    serviceAccountImportSuccess: "Service Account JSON imported",
+    pageFoldPriceUnconfirmed: "Price unavailable",
     pageFoldGenerationTitle: "PageFold request",
     pageFoldGenerationMode: "Mode",
     pageFoldGenerationPdf: "PDF",
@@ -2090,21 +2076,11 @@ import { resolvePageFoldOutputReserve, resolvePageFoldSourceBudget } from 'src/t
             where: 'after',
             anchor: '  modelPresetAbilities: "모델 능력",\n',
             content: `  pageFoldTitle: "PageFold",
-  pageFoldHelp: "최종 ModelPreset 대화를 고밀도 PDF 하나로 전송해요. 기본은 꺼짐이며, 켜진 동안 모든 eligible 요청이 PDF를 사용해요.",
-  pageFoldMode: "시스템 계층 모드",
-  pageFoldModeRequired: "먼저 모드를 선택하세요",
-  pageFoldModeMaximum: "PDF 역할 에뮬레이션",
-  pageFoldModeBalanced: "네이티브 시스템 계층 유지",
-  pageFoldModeHelp: "PDF 역할 에뮬레이션은 system 행도 PDF에 넣고, 네이티브 계층 유지는 system 메시지를 Gemini system instruction에 남겨요.",
-  pageFoldQualified: "이 exact route는 qualification을 통과했어요",
-  pageFoldBlocked: "차단됨: {reason}",
-  pageFoldQualifiedRoute: "Vertex global · {model} · 고정 low media resolution · PDF 최대 {pages}페이지 · oracle v8",
-  pageFoldNoResolutionPicker: "해상도와 페이지 상한은 qualification metadata이며 편집 설정이 아니에요.",
-  pageFoldConflictWarning: "PageFold가 켜진 동안 이미지, 도구 사용, PocketRisu 명시적 Gemini 캐시는 차단돼요.",
-  pageFoldFidelityTitle: "증거와 fidelity",
-  pageFoldFidelityExact: "Canonical JSONL → PDF.js 추출은 byte-exact예요.",
-  pageFoldFidelitySemantic: "Vertex-low 의미 recall·순서·페이지 경계·두 계층 모드는 v8을 통과했어요.",
-  pageFoldFidelityDeferred: "Verbatim typography와 narrative quality는 별도 gate예요.",
+  pageFoldHelp: "대화 내용을 고밀도 PDF로 만들어 모델에 전송해요.",
+  pageFoldMode: "PDF로 보낼 내용",
+  pageFoldModeRequired: "보낼 내용을 선택하세요",
+  pageFoldModeMaximum: "시스템 메시지까지 모두",
+  pageFoldModeBalanced: "일반 대화만",
   pageFoldRoleOverrides: "PageFold 역할별 override",
   pageFoldRoleOverridesHelp: "각 논리 작업은 선택 preset을 상속하거나 PageFold를 강제로 켜고 끌 수 있어요.",
   pageFoldInherit: "상속",
@@ -2115,12 +2091,8 @@ import { resolvePageFoldOutputReserve, resolvePageFoldSourceBudget } from 'src/t
   pageFoldBadgeBlocked: "PF 차단됨",
   serviceAccountImportJson: "Service Account JSON 가져오기",
   serviceAccountImporting: "읽고 검증하는 중…",
-  serviceAccountImportSuccess: "{email} · 프로젝트 {project} 가져옴",
-  serviceAccountImportKeyId: "키 ID {id}",
-  pageFoldPriceConfirmed: "Standard 가격: 입력 100만 token당 {input} · 출력 100만 token당 {output}",
+  serviceAccountImportSuccess: "Service Account JSON을 가져왔어요",
   pageFoldPriceUnconfirmed: "가격 미확인",
-  pageFoldManualInputPrice: "수동 입력 가격 (USD / 100만 token)",
-  pageFoldManualInputPriceHelp: "선택적인 입력 가격 override예요. Route support는 바꾸지 않아요.",
   pageFoldGenerationTitle: "PageFold 요청",
   pageFoldGenerationMode: "모드",
   pageFoldGenerationPdf: "PDF",
@@ -2201,8 +2173,8 @@ import { resolvePageFoldOutputReserve, resolvePageFoldSourceBudget } from 'src/t
             content: `    import {
         applyServiceAccountImport,
         planServiceAccountFileImport,
-        type ServiceAccountImportPlan,
     } from "src/ts/pagefold/serviceAccountImport";
+    import { notifySuccess } from "src/ts/alert";
 `,
             requires: ['pagefold-model-preset:service-account-import-tests:1.10'],
             targetVersions: pocketRisu1100,
@@ -2220,7 +2192,6 @@ import { resolvePageFoldOutputReserve, resolvePageFoldSourceBudget } from 'src/t
     let serviceAccountInput = $state<HTMLInputElement>();
     let serviceAccountImporting = $state(false);
     let serviceAccountImportError = $state('');
-    let serviceAccountImportPlan = $state<ServiceAccountImportPlan | null>(null);
 
     async function importServiceAccount(event: Event & { currentTarget: HTMLInputElement }) {
         const file = event.currentTarget.files?.[0];
@@ -2228,13 +2199,12 @@ import { resolvePageFoldOutputReserve, resolvePageFoldSourceBudget } from 'src/t
         if (!file || serviceAccountImporting) return;
         serviceAccountImporting = true;
         serviceAccountImportError = '';
-        serviceAccountImportPlan = null;
         try {
             const plan = await planServiceAccountFileImport(file, preset, fieldKey);
             applyServiceAccountImport(preset, plan);
             userValues = preset.userValues;
             mode = 'direct';
-            serviceAccountImportPlan = plan;
+            notifySuccess(language.serviceAccountImportSuccess);
         } catch (error) {
             serviceAccountImportError = error instanceof Error ? error.message : String(error);
         } finally {
@@ -2252,7 +2222,7 @@ import { resolvePageFoldOutputReserve, resolvePageFoldSourceBudget } from 'src/t
             type: 'insert',
             where: 'before',
             anchor: '</div>\n\n<ShDialog bind:open={showSaveDialog} size="sm">\n',
-            managed: `    {#if isServiceAccountField}
+            managed: `    {#if isServiceAccountField && mode === 'direct'}
         <input
             bind:this={serviceAccountInput}
             class="hidden"
@@ -2260,26 +2230,14 @@ import { resolvePageFoldOutputReserve, resolvePageFoldSourceBudget } from 'src/t
             accept=".json,application/json"
             onchange={importServiceAccount}
         />
-        <div class="flex justify-end mt-1">
-            <ShButton
-                variant="outline"
-                size="sm"
-                disabled={serviceAccountImporting}
-                onclick={() => serviceAccountInput?.click()}
-            >
-                {serviceAccountImporting ? language.serviceAccountImporting : language.serviceAccountImportJson}
-            </ShButton>
-        </div>
-        {#if serviceAccountImportPlan}
-            <span class="text-xs text-success">
-                {language.serviceAccountImportSuccess
-                    .replace('{email}', serviceAccountImportPlan.summary.clientEmail)
-                    .replace('{project}', serviceAccountImportPlan.projectId)}
-                {#if serviceAccountImportPlan.summary.privateKeyId}
-                    · {language.serviceAccountImportKeyId.replace('{id}', serviceAccountImportPlan.summary.privateKeyId)}
-                {/if}
-            </span>
-        {/if}
+        <ShButton
+            variant="outline"
+            className="w-full h-[42px]"
+            disabled={serviceAccountImporting}
+            onclick={() => serviceAccountInput?.click()}
+        >
+            {serviceAccountImporting ? language.serviceAccountImporting : language.serviceAccountImportJson}
+        </ShButton>
         {#if serviceAccountImportError}
             <span class="text-xs text-red-400">{serviceAccountImportError}</span>
         {/if}
