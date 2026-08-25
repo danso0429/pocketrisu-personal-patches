@@ -340,5 +340,21 @@ module.exports = {
             requires: ['pagefold-model-preset:structural-requalification:1.10'],
             targetVersions: pocketRisu1100,
         },
+        {
+            id: 'pagefold-model-preset:structural-paid-runner:1.10',
+            file: 'server/node/pageFoldStructuralPaidRunner.cjs',
+            type: 'owned',
+            content: owned('server/node/pageFoldStructuralPaidRunner.cjs'),
+            requires: ['pagefold-model-preset:structural-requalification-tests:1.10'],
+            targetVersions: pocketRisu1100,
+        },
+        {
+            id: 'pagefold-model-preset:structural-paid-runner-tests:1.10',
+            file: 'server/node/pageFoldStructuralPaidRunner.test.ts',
+            type: 'owned',
+            content: owned('server/node/pageFoldStructuralPaidRunner.test.ts'),
+            requires: ['pagefold-model-preset:structural-paid-runner:1.10'],
+            targetVersions: pocketRisu1100,
+        },
     ],
 }
