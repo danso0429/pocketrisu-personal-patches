@@ -1,7 +1,7 @@
 # PageFold structural-oracle requalification
 
-> **Status:** v1 L1 failed; v2/v3 L2 qualified no resolution; v4-v7 stopped in
-> L3; result-driven v8 implemented locally; no v8 paid call or route qualification
+> **Status:** v8 Vertex low completed L1-L4 and is support-qualified; medium is
+> screening-only; AI Studio/OpenRouter remain unqualified
 >
 > **Date:** 2026-08-25 KST
 >
@@ -697,6 +697,63 @@ Observed local v8 gates:
 - no v8 provider call, catalog registration, generated installer change, or
   live apply occurred during implementation.
 
+## Paid structural oracle v8 — qualified result
+
+The approved v8 screening regenerated all frozen fixture hashes and passed L1
+plus low/medium byte and grammar. The prior user low selection was retained;
+this run again favored low with L2 cost `USD 0.002301000` versus `0.006562500`
+and latency 11,092 ms versus 22,312 ms. Screening's five calls cost
+`USD 0.009682500` and were not replayed during resume.
+
+The low resume completed every remaining cell:
+
+| Final claim | Pages/mode | Required observations | Result | Rated USD | Latency ms |
+| --- | --- | ---: | --- | ---: | ---: |
+| semantic byte | 1 / maximum | screening + repeats 2/3 | 3/3 pass | 0.007281000 | 21,149 |
+| grammar/roles | 1 / maximum | screening + repeats 2/3 | 3/3 pass | 0.003818250 | 15,218 |
+| grammar/roles | 2 / maximum | repeats 1/2/3 | 3/3 pass | 0.005358000 | 15,530 |
+| physical page boundaries | 8 / maximum | repeats 1/2/3 | 3/3 pass | 0.009760500 | 66,094 |
+| semantic byte | 8 / maximum | repeats 1/2/3 | 3/3 pass | 0.008196750 | 55,546 |
+| native system + PDF hierarchy | 2 / balanced | repeats 1/2/3 | 3/3 pass | 0.008457000 | 20,582 |
+
+The v8 final summary observed:
+
+- `complete=true`, `supportQualified=true`, `stage=complete`;
+- selected provider/model/resolution: Vertex / `gemini-3.7-flash` / low;
+- 21/21 calls `HTTP 200`, `STOP`, `pass`, zero differences;
+- L3 all 13/13 cells passed;
+- L4 balanced hierarchy 3/3 passed;
+- output-control, retry, alternate resolution, fallback, AI Studio, and
+  OpenRouter calls: zero; and
+- rated v8 cost `USD 0.050253000`, below the `USD 0.25` cap.
+
+Cumulative exploratory v1-v8 rated usage was `USD 0.168057750`; each version
+remained under its separately approved cap and preserved its failed evidence.
+
+The initial/resume summaries were 17,794/49,698 bytes. Their mode-`0600`
+checkpoints were 8,494/26,404 bytes and contained 42 ordered lifecycle records:
+one `call-start` and one `call-complete` for each of 21 calls, all
+`oracleVersion=8`. All four files had zero PDF Base64, canonical marker,
+API-key shape, bearer/access-token, or private-key hits. The post-cutoff actual
+`request-logs.db` query had zero rows and zero sensitive delta hits.
+
+All four fixture extractions were exact and hashes matched the prior frozen
+values. The final exact-target lifecycle observed zero-change re-plan,
+`current` with zero drift, normal 18-change revert including private state, 17
+managed paths with zero byte/mode mismatch, state absent, and final `clean`.
+
+### Support matrix after v8
+
+| Provider route | Resolution | Evidence | Support |
+| --- | --- | --- | --- |
+| Vertex `gemini-3.7-flash` | low | L1, L2, L3 13/13, L4 3/3 | qualified |
+| Vertex `gemini-3.7-flash` | medium | L2 byte+grammar only | unqualified; not expanded |
+| AI Studio | low/medium | historical first-call `429`; no v8 replication | unqualified |
+| OpenRouter | native | user-excluded, no calls | unqualified |
+
+This qualifies only the paid feasibility/support route. Runtime adapter, UI,
+BG, catalog, live apply, and stable release remain separate downstream gates.
+
 ## L2.5 runtime audit
 
 ### Phase 1 — flat discovery
@@ -789,12 +846,16 @@ process interruption between lifecycle points, and pricing/version drift.
   exact stored Google-key counts were also zero. The ten generic `AIza` pattern
   matches were isolated to pre-existing response bodies and did not equal a
   stored key.
+- **Paid outcome:** v8 observed 21/21 `HTTP 200 / STOP / pass`, all final low
+  cells 3/3, L3 13/13, L4 3/3, complete/support flags true, 42 ordered
+  lifecycle records, and `USD 0.050253000` rated usage. This is the external
+  measurement anchor for route admission, not an inference from local tests.
 
 ### Phase 3 — triage
 
-- **Q1:** v1 L1 failed, v2/v3 L2 qualified no resolution, and v4-v7 stopped in
-  L3; v8 has no provider observation, so support admission and every downstream
-  runtime/live owner remain closed.
+- **Q1:** v8 Vertex low is support-qualified by its own L1-L4 evidence. Medium,
+  AI Studio, and OpenRouter remain unqualified. Downstream runtime/live owners
+  remain absent because paid feasibility does not implement or admit them.
 - **Q1:** no PageFold-created credential, PDF, canonical transcript, token, or
   private-key persistence finding remains in tracked output or request-log
   delta.
@@ -835,8 +896,8 @@ process interruption between lifecycle points, and pricing/version drift.
 1. **Claim:** the run does not exceed `USD 0.25` rated usage.
 2. **Resolved:** current maximum calls are 21, every cell has one 2048 output
    budget, a conservative per-cell prompt reservation is checked before each
-   call, actual usage is rated after each response, and the latest approved run
-   stopped at `$0.012216000`.
+   call, actual usage is rated after each response, and the completed v8 run
+   used `$0.050253000`.
 3. **Blocked link:** Vertex supplies authoritative prompt usage only after a
    call; an unobserved future request could exceed the reservation before the
    post-call stop executes.
@@ -865,11 +926,14 @@ process interruption between lifecycle points, and pricing/version drift.
 
 ## Next gate
 
-No Vertex resolution is support-qualified. Under the integration authority,
-adapter/UI/BG composition, catalog admission, candidate live apply, and stable
-release remain closed because v3 qualified no route. The v4 design and
-paid run then stopped in L3, as did v5-v7. The v8 design and automatic gates
-are complete, and the user has explicitly approved same-bound plan-derived
-reruns through L4. v8 starts again at its visible L1 response control; v1-v7
-results cannot be resumed. Independent PDF extraction remains a separate
-mandatory gate and cannot substitute for model understanding.
+The Vertex low paid feasibility gate through L4 is complete and support-
+qualified. The next integration-authority stage may implement the common render
+port, adapter wire/final-prepared invariants, budgeting, preset/UI, logging,
+BG composition, and candidate admission using only this qualified route.
+
+This receipt does not authorize or claim that those downstream owners already
+exist. PageFold remains outside the catalog/live tree, medium remains screening-
+only, AI Studio remains behind its separate quota/admission replication gate,
+OpenRouter remains user-excluded, and stable release remains behind physical L3
+and L4 delivery gates. Independent PDF extraction remains a separate mandatory
+authority and cannot be replaced by the model result.

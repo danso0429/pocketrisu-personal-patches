@@ -1737,6 +1737,29 @@ implementation passed 34 focused tests, the 45-file patcher suite, exact
 v7-to-v8 update, zero-change re-plan, and zero-drift status; these gates do not
 replace the approved paid matrix.
 
+The approved v8 matrix then completed:
+
+- L1 response oracle pass;
+- low and medium L2 byte/grammar pass;
+- user-selected low one-page byte 3/3;
+- low one-page grammar 3/3;
+- low two-page grammar 3/3;
+- low eight-page physical boundaries 3/3;
+- low eight-page semantic byte 3/3; and
+- low balanced hierarchy L4 3/3.
+
+All 21 calls returned `HTTP 200 / STOP / pass` with zero field differences,
+zero controls, retry, or fallback. Rated v8 usage was `USD 0.050253000`; exact
+fixture extraction and hashes remained frozen. Final flags were
+`complete=true`, `supportQualified=true`, and selected resolution `low`.
+
+The first support matrix therefore contains only Vertex
+`gemini-3.7-flash` low. Vertex medium is screening-only and unqualified, AI
+Studio remains unqualified behind its observed `429` replication gate, and
+OpenRouter remains user-excluded. Downstream adapter/UI/BG/catalog/live work may
+now proceed only for the qualified Vertex-low route and remains separately
+subject to sections 20.2-24.
+
 ### 20.2 Candidate catalog admission — experimental only
 
 After the prototype gate:

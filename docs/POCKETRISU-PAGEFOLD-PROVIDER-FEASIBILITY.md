@@ -229,3 +229,10 @@ only marker contract.
 The v8 boundary-only page-marker oracle is locally implemented and tested but
 has made no provider call. Exact centers remain retained by the reader and v7
 evidence.
+
+The approved v8 run completed all 21 cells: L1, both L2 resolutions, selected
+low L3 13/13, and balanced hierarchy L4 3/3. Every call returned
+`HTTP 200 / STOP / pass`, with zero retry, control, fallback, or field
+difference. Rated usage was `USD 0.050253000`; final support is Vertex
+`gemini-3.7-flash` low only. Medium, AI Studio, and OpenRouter remain
+unqualified under their own evidence boundaries.
