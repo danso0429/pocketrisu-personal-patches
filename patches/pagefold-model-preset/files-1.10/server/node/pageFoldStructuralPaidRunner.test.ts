@@ -115,13 +115,28 @@ describe('PageFold structural paid runner', () => {
         expect(touched).toBe(false)
     })
 
-    it('does not start a second provider call after checkpoint persistence fails', async () => {
+    it('does not start a provider call when its durable start checkpoint fails', async () => {
         let calls = 0
         const options = baseOptions(async ({ cell, fixture: fixtureValue }: any) => {
             calls++
             return passResult(cell, fixtureValue)
         })
         options.onCheckpoint = async () => { throw new Error('fixture-checkpoint-failure') }
+        await expect(runStructuralPaid(options)).rejects.toThrow('fixture-checkpoint-failure')
+        expect(calls).toBe(0)
+    })
+
+    it('does not start a second provider call when completion checkpointing fails', async () => {
+        let calls = 0
+        let checkpoints = 0
+        const options = baseOptions(async ({ cell, fixture: fixtureValue }: any) => {
+            calls++
+            return passResult(cell, fixtureValue)
+        })
+        options.onCheckpoint = async () => {
+            checkpoints++
+            if (checkpoints === 2) throw new Error('fixture-checkpoint-failure')
+        }
         await expect(runStructuralPaid(options)).rejects.toThrow('fixture-checkpoint-failure')
         expect(calls).toBe(1)
     })
@@ -333,8 +348,13 @@ describe('PageFold structural paid runner', () => {
         expect(serialized).not.toContain('fixture-pdf')
         expect(serialized).not.toContain('privateNoise')
         expect(summary.records.every((record: any) => !Object.hasOwn(record, 'pdf'))).toBe(true)
-        expect(checkpoints).toHaveLength(summary.completedCalls)
+        expect(checkpoints).toHaveLength(summary.completedCalls * 2)
         expect(JSON.stringify(checkpoints)).not.toContain(CREDENTIAL_SECRET)
-        expect(checkpoints[0]).toMatchObject({ completedCalls: 1, record: { call: 1 } })
+        expect(checkpoints[0]).toMatchObject({
+            phase: 'call-start', attemptedCall: 1, completedCalls: 0,
+        })
+        expect(checkpoints[1]).toMatchObject({
+            phase: 'call-complete', attemptedCall: 1, completedCalls: 1, record: { call: 1 },
+        })
     })
 })

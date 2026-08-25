@@ -221,6 +221,23 @@ async function runPhysicalCell({
 
     const fixture = fixtureForCell(fixtures, cell)
     const call = state.records.length + 1
+    const startCheckpoint = {
+        schemaVersion: 1,
+        experiment: 'pagefold-structural-requalification',
+        provider: 'vertex',
+        model: MODEL_ID,
+        phase: 'call-start',
+        attemptedCall: call,
+        completedCalls: state.records.length,
+        outputControlsUsed: state.controlsUsed,
+        ratedCostUsd: state.ratedCostUsd,
+        cell: publicCell(cell),
+        control,
+        controlForCall,
+    }
+    assertSecretsAbsent(startCheckpoint, secrets)
+    assertNoProhibitedResultKeys(startCheckpoint)
+    await options.onCheckpoint(startCheckpoint)
     progress(options, `call-start call=${call}/${MAX_CALLS} stage=${cell.stage} claim=${cell.claim} resolution=${cell.resolution || 'none'} pages=${cell.pages} repeat=${cell.repeat} outputTokens=${cell.outputTokens} control=${control}`)
     const started = performance.now()
     let raw
@@ -283,6 +300,8 @@ async function runPhysicalCell({
         experiment: 'pagefold-structural-requalification',
         provider: 'vertex',
         model: MODEL_ID,
+        phase: 'call-complete',
+        attemptedCall: record.call,
         completedCalls: state.records.length,
         outputControlsUsed: state.controlsUsed + (control ? 1 : 0),
         ratedCostUsd: state.ratedCostUsd,
