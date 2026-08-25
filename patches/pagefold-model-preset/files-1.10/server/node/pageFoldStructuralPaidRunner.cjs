@@ -6,7 +6,7 @@ const {
     MODEL_ID,
     NORMAL_OUTPUT_TOKENS,
     PAID_OUTPUT_TOKENS_V4,
-    STRUCTURAL_ORACLE_V7,
+    STRUCTURAL_ORACLE_V8,
     VERTEX_RATED_COST_CAP_USD,
     PageFoldStructuralError,
     chooseResolution,
@@ -31,7 +31,7 @@ const {
 
 const MAX_CALLS = 21
 const MAX_OUTPUT_CONTROLS = 0
-const PAID_ORACLE_VERSION = STRUCTURAL_ORACLE_V7
+const PAID_ORACLE_VERSION = STRUCTURAL_ORACLE_V8
 const PAID_OUTPUT_TOKENS = PAID_OUTPUT_TOKENS_V4
 const REQUEST_TIMEOUT_MS = 300_000
 const MEDIA_RESOLUTION = Object.freeze({
@@ -710,8 +710,10 @@ function validateFixtures(fixtures) {
             || !/^[a-f0-9]{64}$/.test(fixture.pdfSha256 || '')
             || fixture.extractionExact !== true || !Array.isArray(fixture.markerTriples)
             || !Array.isArray(fixture.markerWindows)
+            || !Array.isArray(fixture.markerBoundaries)
             || fixture.markerTriples.length !== pages
             || fixture.markerWindows.length !== pages
+            || fixture.markerBoundaries.length !== pages
             || fixture.markerWindows.some((window) =>
                 !/^L\d{6}$/.test(window?.first || '')
                 || !/^L\d{6}$/.test(window?.last || '')
@@ -719,6 +721,10 @@ function validateFixtures(fixtures) {
                 || window.centers.length < 1
                 || window.centers.length > 2
                 || window.centers.some((code) => !/^L\d{6}$/.test(code || ''))
+            )
+            || fixture.markerBoundaries.some((boundary) =>
+                !/^L\d{6}$/.test(boundary?.first || '')
+                || !/^L\d{6}$/.test(boundary?.last || '')
             )
             || (mode === 'balanced' && (typeof fixture.retainedSystem !== 'string' || fixture.retainedSystem.length === 0))) {
             throw new PageFoldStructuralPaidError('FIXTURES_INVALID')
@@ -742,6 +748,10 @@ function summarizeFixtures(fixtures) {
                 first: window.first,
                 centers: window.centers.slice(0, 2),
                 last: window.last,
+            })),
+            markerBoundaries: fixture.markerBoundaries.map((boundary) => ({
+                first: boundary.first,
+                last: boundary.last,
             })),
             retainedSystemPresent: fixture.retainedSystem.length > 0,
         }

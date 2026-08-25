@@ -49,6 +49,10 @@ function fixture(mode: string, pages: number, messageCount: number, hashSeed: st
             centers: [`L${String(index * 3 + 1).padStart(6, '0')}`],
             last: `L${String(index * 3 + 2).padStart(6, '0')}`,
         })),
+        markerBoundaries: Array.from({ length: pages }, (_, index) => ({
+            first: `L${String(index * 3).padStart(6, '0')}`,
+            last: `L${String(index * 3 + 2).padStart(6, '0')}`,
+        })),
         retainedSystem: mode === 'balanced'
             ? 'L000000|SYSTEM_AUTHORITY_41D7\n\nL000004|ROLE:R_SYS'
             : '',
@@ -158,7 +162,7 @@ describe('PageFold structural paid runner', () => {
         expect(summary).toMatchObject({
             complete: false,
             stage: 'L1',
-            oracleVersion: 7,
+            oracleVersion: 8,
             stopReason: 'text-oracle-not-passed',
             completedCalls: 1,
         })
@@ -297,7 +301,7 @@ describe('PageFold structural paid runner', () => {
 
         await expect(runStructuralPaid({
             ...baseOptions(executeCell),
-            resumeSummary: { ...paused, oracleVersion: 6 },
+            resumeSummary: { ...paused, oracleVersion: 7 },
             selectedResolution: 'medium',
         })).rejects.toMatchObject({ code: 'RESUME_STATE_INVALID' })
     })
@@ -333,7 +337,7 @@ describe('PageFold structural paid runner', () => {
             cell: createScreeningPlan()[0],
             fixture: null,
         })
-        expect(textBody.contents[0].parts[0].text).toContain('PAGEFOLD_RESPONSE_ORACLE_V7')
+        expect(textBody.contents[0].parts[0].text).toContain('PAGEFOLD_RESPONSE_ORACLE_V8')
         expect(textBody.contents[0].parts[0].text).toContain('ZWJ_SEMANTIC_KIND|family')
         expect(textBody.contents[0].parts[0].text).not.toContain('👨‍👩‍👧‍👦')
         expect(textBody.generationConfig.responseSchema.required).toContain('roles')
@@ -358,10 +362,10 @@ describe('PageFold structural paid runner', () => {
         expect(checkpoints).toHaveLength(summary.completedCalls * 2)
         expect(JSON.stringify(checkpoints)).not.toContain(CREDENTIAL_SECRET)
         expect(checkpoints[0]).toMatchObject({
-            oracleVersion: 7, phase: 'call-start', attemptedCall: 1, completedCalls: 0,
+            oracleVersion: 8, phase: 'call-start', attemptedCall: 1, completedCalls: 0,
         })
         expect(checkpoints[1]).toMatchObject({
-            oracleVersion: 7,
+            oracleVersion: 8,
             phase: 'call-complete',
             attemptedCall: 1,
             completedCalls: 1,
