@@ -60,6 +60,9 @@ async function runStructuralPaid(options = {}) {
     if (options.executionApproved !== true) {
         throw new PageFoldStructuralPaidError('PAID_EXECUTION_NOT_ENABLED')
     }
+    if (typeof options.onCheckpoint !== 'function') {
+        throw new PageFoldStructuralPaidError('CHECKPOINT_REQUIRED')
+    }
     const maxCostUsd = validateCostCap(options.maxCostUsd ?? VERTEX_RATED_COST_CAP_USD)
     const fixtures = options.fixtures || await (options.createFixtures || createLocalFixtures)({
         fontCacheRoot: options.fontCacheRoot,
@@ -275,6 +278,19 @@ async function runPhysicalCell({
     }
     state.records.push(record)
     state.ratedCostUsd = roundMoney(state.ratedCostUsd + record.ratedCostUsd)
+    const checkpoint = {
+        schemaVersion: 1,
+        experiment: 'pagefold-structural-requalification',
+        provider: 'vertex',
+        model: MODEL_ID,
+        completedCalls: state.records.length,
+        outputControlsUsed: state.controlsUsed + (control ? 1 : 0),
+        ratedCostUsd: state.ratedCostUsd,
+        record: publicRecord(record),
+    }
+    assertSecretsAbsent(checkpoint, secrets)
+    assertNoProhibitedResultKeys(checkpoint)
+    await options.onCheckpoint(checkpoint)
     progress(options, `call-end call=${call}/${MAX_CALLS} http=${record.httpStatus} status=${record.status} finish=${record.finishReason || 'none'} promptTokens=${record.usage.promptTokens} outputTokens=${record.usage.outputTokens} ratedCostUsd=${record.ratedCostUsd.toFixed(9)} cumulativeUsd=${state.ratedCostUsd.toFixed(9)}`)
 
     if (record.httpStatus < 200 || record.httpStatus >= 300) {
@@ -706,6 +722,7 @@ function validateCredentials(credentials) {
         || !credentials.vertexServiceAccount
         || typeof credentials.vertexProjectId !== 'string' || credentials.vertexProjectId.length === 0
         || !credentials.checks || typeof credentials.checks !== 'object'
+        || Object.values(credentials.checks).some((value) => typeof value !== 'boolean')
         || !Array.isArray(credentials.secrets)) {
         throw new PageFoldStructuralPaidError('VERTEX_CREDENTIAL_INVALID')
     }
@@ -855,7 +872,12 @@ async function main() {
         process.exitCode = 2
         return
     }
+    let checkpointFd = null
     try {
+        if (!process.env.PAGEFOLD_CHECKPOINT_FILE) {
+            throw new PageFoldStructuralPaidError('CHECKPOINT_FILE_REQUIRED')
+        }
+        checkpointFd = fs.openSync(process.env.PAGEFOLD_CHECKPOINT_FILE, 'wx', 0o600)
         const resumeSummary = process.env.PAGEFOLD_RESUME_FILE
             ? JSON.parse(fs.readFileSync(process.env.PAGEFOLD_RESUME_FILE, 'utf8'))
             : undefined
@@ -867,6 +889,10 @@ async function main() {
             maxCostUsd: process.env.PAGEFOLD_MAX_USD || VERTEX_RATED_COST_CAP_USD,
             selectedResolution: process.env.PAGEFOLD_SELECTED_RESOLUTION || undefined,
             resumeSummary,
+            onCheckpoint: async (checkpoint) => {
+                fs.writeSync(checkpointFd, JSON.stringify(checkpoint) + '\n')
+                fs.fsyncSync(checkpointFd)
+            },
             onProgress: (message) => process.stderr.write(`[pagefold-structural-paid] ${message}\n`),
         })
         process.stdout.write(JSON.stringify(summary, null, 2) + '\n')
@@ -877,6 +903,10 @@ async function main() {
             : 'STRUCTURAL_PAID_UNEXPECTED'
         process.stderr.write(`[pagefold-structural-paid] failed code=${code}\n`)
         process.exitCode = 1
+    } finally {
+        if (checkpointFd !== null) {
+            try { fs.closeSync(checkpointFd) } catch {}
+        }
     }
 }
 

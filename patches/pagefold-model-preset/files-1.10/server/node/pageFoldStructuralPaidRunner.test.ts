@@ -55,6 +55,9 @@ function credentials() {
         checks: {
             vertexEntryUnique: true,
             vertexServiceAccountShape: true,
+            vertexProjectIdPresent: true,
+            vertexPrivateKeyPresent: true,
+            vertexTokenUriAllowlisted: true,
         },
         secrets: [CREDENTIAL_SECRET],
     }
@@ -90,6 +93,7 @@ function baseOptions(executeCell: (args: any) => Promise<any>) {
             refreshAt: Date.now() + 60_000,
         }),
         executeCell,
+        onCheckpoint: async () => {},
     }
 }
 
@@ -100,6 +104,26 @@ describe('PageFold structural paid runner', () => {
             createFixtures: async () => { touched = true; return fixtures() },
         })).rejects.toMatchObject({ code: 'PAID_EXECUTION_NOT_ENABLED' })
         expect(touched).toBe(false)
+    })
+
+    it('requires durable checkpoint ownership before fixtures or paid calls', async () => {
+        let touched = false
+        await expect(runStructuralPaid({
+            executionApproved: true,
+            createFixtures: async () => { touched = true; return fixtures() },
+        })).rejects.toMatchObject({ code: 'CHECKPOINT_REQUIRED' })
+        expect(touched).toBe(false)
+    })
+
+    it('does not start a second provider call after checkpoint persistence fails', async () => {
+        let calls = 0
+        const options = baseOptions(async ({ cell, fixture: fixtureValue }: any) => {
+            calls++
+            return passResult(cell, fixtureValue)
+        })
+        options.onCheckpoint = async () => { throw new Error('fixture-checkpoint-failure') }
+        await expect(runStructuralPaid(options)).rejects.toThrow('fixture-checkpoint-failure')
+        expect(calls).toBe(1)
     })
 
     it('stops after the one text call when the response oracle fails', async () => {
@@ -294,16 +318,23 @@ describe('PageFold structural paid runner', () => {
         expect(balancedBody.systemInstruction.parts[1].text).toContain('SYSTEM_AUTHORITY_41D7')
         expect(balancedBody.contents[0].parts[0].mediaResolution.level).toBe('MEDIA_RESOLUTION_MEDIUM')
 
-        const summary = await runStructuralPaid(baseOptions(async ({ cell, fixture: fixtureValue }: any) => {
-            const result = passResult(cell, fixtureValue)
-            result.answer.privateNoise = `${CREDENTIAL_SECRET}:${TOKEN_SECRET}`
-            return result
-        }))
+        const checkpoints: any[] = []
+        const summary = await runStructuralPaid({
+            ...baseOptions(async ({ cell, fixture: fixtureValue }: any) => {
+                const result = passResult(cell, fixtureValue)
+                result.answer.privateNoise = `${CREDENTIAL_SECRET}:${TOKEN_SECRET}`
+                return result
+            }),
+            onCheckpoint: async (checkpoint: any) => { checkpoints.push(checkpoint) },
+        })
         const serialized = JSON.stringify(summary)
         expect(serialized).not.toContain(CREDENTIAL_SECRET)
         expect(serialized).not.toContain(TOKEN_SECRET)
         expect(serialized).not.toContain('fixture-pdf')
         expect(serialized).not.toContain('privateNoise')
         expect(summary.records.every((record: any) => !Object.hasOwn(record, 'pdf'))).toBe(true)
+        expect(checkpoints).toHaveLength(summary.completedCalls)
+        expect(JSON.stringify(checkpoints)).not.toContain(CREDENTIAL_SECRET)
+        expect(checkpoints[0]).toMatchObject({ completedCalls: 1, record: { call: 1 } })
     })
 })
