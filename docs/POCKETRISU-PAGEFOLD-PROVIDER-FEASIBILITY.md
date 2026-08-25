@@ -208,3 +208,6 @@ marker call recovered every first/last marker and page order but exposed an
 even-set lower/upper center convention defect. Thirteen calls used
 `USD 0.033129000`; strict 3/3 stopped before remaining L3/L4. The structural
 receipt retains the result and v6 center-window boundary.
+
+The v6 lower/upper center-window oracle is locally implemented and tested but
+has made no provider call. It changes no v5 observation or support decision.

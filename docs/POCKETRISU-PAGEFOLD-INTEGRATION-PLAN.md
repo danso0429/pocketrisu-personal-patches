@@ -1700,7 +1700,10 @@ The result-driven `v6` removes only this even-set convention:
   one-shot 2048, 21-call, cost, no-retry, and no-fallback boundaries remain.
 
 v6 must independently rerun screening and every 3/3 cell; v5 results cannot be
-resumed across the oracle-version boundary.
+resumed across the oracle-version boundary. Its local implementation passed 32
+focused tests, the 45-file patcher suite, exact v5-to-v6 update, zero-change
+re-plan, and zero-drift status; these gates do not replace the approved paid
+matrix.
 
 ### 20.2 Candidate catalog admission — experimental only
 

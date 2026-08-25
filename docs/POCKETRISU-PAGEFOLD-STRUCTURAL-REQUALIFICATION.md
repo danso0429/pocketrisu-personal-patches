@@ -1,7 +1,7 @@
 # PageFold structural-oracle requalification
 
-> **Status:** v1 L1 failed; v2/v3 L2 qualified no resolution; v4 stopped in L3;
-> result-driven v5 implemented locally; no v5 paid call or route qualification
+> **Status:** v1 L1 failed; v2/v3 L2 qualified no resolution; v4/v5 stopped in
+> L3; result-driven v6 implemented locally; no v6 paid call or route qualification
 >
 > **Date:** 2026-08-25 KST
 >
@@ -160,7 +160,7 @@ for provider-system composition, and began the first page marker sequence at
 
 ## Automatic observations
 
-- structural v1-v5 oracle focused test: 1 file / 12 tests passed;
+- structural v1-v6 oracle focused test: 1 file / 13 tests passed;
 - structural paid-runner and legacy provider focused tests after the L1
   preservation fix: 2 files / 19 tests passed;
 - checkpoint write failure controls: failed start persistence caused zero
@@ -564,6 +564,34 @@ mode-`0600` checkpoint files contained zero PDF/Base64, canonical, API-key,
 bearer/access-token, or private-key hits. The post-cutoff request-log delta was
 also zero rows and zero sensitive hits.
 
+## Structural oracle v6 — exact center windows
+
+v6 changes only the ambiguous page-marker center representation:
+
+- each page returns `{first, centers, last}`;
+- odd marker counts yield one exact center;
+- even marker counts yield exact lower and upper centers in order;
+- the independent PDF.js page spans derive all values; and
+- first/last/page order remain exact obligations.
+
+Semantic byte v5, grammar, low selection rule, hierarchy, fixtures, repeats,
+3/3, one-shot 2048, 21 calls, zero controls, cost cap, no retry, and no fallback
+remain unchanged. PDF bytes and hashes do not change. Checkpoint/summary/resume
+metadata is pinned to `oracleVersion=6`; v5 cannot resume.
+
+Observed local v6 gates:
+
+- structural oracle + paid runner + legacy provider: 3 files / 32 tests passed;
+- even six-marker unit page: centers `[L000002,L000003]`;
+- odd five-marker unit page: center `[L000012]`;
+- patcher source suite: 45/45 files passed;
+- exact PocketRisu 1.10 v5-to-v6 update: four owned files plus private state,
+  zero collisions, `current`, zero drift;
+- repeated v6 plan: zero changes;
+- runner identity: oracle 6, 21 calls, zero controls, one-shot 2048; and
+- no v6 provider call, catalog registration, generated installer change, or
+  live apply occurred during implementation.
+
 ## L2.5 runtime audit
 
 ### Phase 1 — flat discovery
@@ -578,7 +606,7 @@ The changed path can perform these actions and outcomes:
 - select one credential by normalized-name hash and validate its shape;
 - sign an RS256 OAuth assertion and exchange it for an access token;
 - create text-only or PDF-first Vertex request bodies;
-- select a versioned v1-v5 response and recognition oracle;
+- select a versioned v1-v6 response and recognition oracle;
 - issue timed OAuth and model HTTPS calls;
 - parse HTTP, provider JSON, structured answer JSON, finish reason, and usage;
 - rate usage and compare a pre-call reservation and post-call total to the cap;
@@ -616,14 +644,13 @@ process interruption between lifecycle points, and pricing/version drift.
   (`pageFoldStructuralPaidRunner.cjs:329-433`). Network, HTTP, provider-JSON,
   answer-JSON, usage, and finish paths are normalized without retaining raw
   bodies (`pageFoldStructuralPaidRunner.cjs:329-455`).
-- **Oracle separation:** v1-v4 contracts remain addressable only by their
-  historical versions. Version 5 keeps exact bytes/member codepoints in the
-  independent reader and measures visual semantic recall through run positions,
-  joined-emoji kind, joiner count, words, variation/tag, object roles, markers,
-  and hierarchy (`pageFoldStructuralRequalification.cjs:220-667`). The paid
-  runner pins v5 and one-shot 2048 in request, evaluation, checkpoint, summary,
-  and resume validation. Focused tests observed historical preservation, v5
-  pass/fail evaluation, semantic/object schemas, actual marker order,
+- **Oracle separation:** v1-v5 contracts remain addressable only by their
+  historical versions. Version 6 keeps exact bytes/member codepoints in the
+  independent reader, measures stable semantic recall, and represents physical
+  page centers without an even-set convention (`pageFoldStructuralRequalification.cjs:224-847`).
+  The paid runner pins v6 and one-shot 2048 in request, evaluation, checkpoint,
+  summary, and resume validation. Focused tests observed historical
+  preservation, v6 semantic/object schemas, exact odd/even center windows,
   no-control `MAX_TOKENS`, visible control text, and unknown-version rejection.
 - **Credential lifecycle:** the database reader closes its read transaction in
   `finally`; selectors require exactly one hash match; the service-account
@@ -634,7 +661,8 @@ process interruption between lifecycle points, and pricing/version drift.
 - **Fixture integrity/resources:** fixture generation is sequential and its
   renderer enforces the previously measured worker, queue, source, page, span,
   PDF-byte, and cache ceilings. Each paid-run fixture matched its frozen hash
-  and exact PDF.js extraction (`pageFoldStructuralRequalification.cjs:668-719`).
+  and exact PDF.js extraction/center derivation
+  (`pageFoldStructuralRequalification.cjs:715-847`).
 - **Resume and result safety:** resume revalidates schema, model, fixture
   identity, call count, cost, controls, every observation, and the two-pass
   decision (`pageFoldStructuralPaidRunner.cjs:457-566`). Public records are
@@ -657,8 +685,8 @@ process interruption between lifecycle points, and pricing/version drift.
 
 ### Phase 3 — triage
 
-- **Q1:** v1 L1 failed, v2/v3 L2 qualified no resolution, and v4 stopped in L3;
-  v5 has no provider observation, so support admission and every downstream
+- **Q1:** v1 L1 failed, v2/v3 L2 qualified no resolution, and v4/v5 stopped in
+  L3; v6 has no provider observation, so support admission and every downstream
   runtime/live owner remain closed.
 - **Q1:** no PageFold-created credential, PDF, canonical transcript, token, or
   private-key persistence finding remains in tracked output or request-log
@@ -679,6 +707,8 @@ process interruption between lifecycle points, and pricing/version drift.
 - **Q3 fixed:** v5 removes unstable individual glyph-member enumeration while
   retaining stable joined-emoji meaning and exact member bytes in their
   separate authorities.
+- **Q3 fixed:** v6 removes lower-versus-upper even-page median convention while
+  retaining exact first, both centers, last, and page order.
 - **Q3 resolved by observed gates:** source tests, focused server tests,
   exact-target owner lifecycle, reference-line comparison, secret sweep,
   official price/model-limit check, and request-log queries are recorded above.
@@ -725,8 +755,9 @@ process interruption between lifecycle points, and pricing/version drift.
 No Vertex resolution is support-qualified. Under the integration authority,
 adapter/UI/BG composition, catalog admission, candidate live apply, and stable
 release remain closed because v3 qualified no route. The v4 design and
-paid run then stopped in L3. The v5 design and automatic gates are complete,
-and the user has explicitly approved same-bound plan-derived reruns through L4.
-v5 starts again at its visible L1 response control; v1-v4 results cannot be
-resumed. Independent PDF extraction remains a separate mandatory gate and
-cannot substitute for model understanding.
+paid run then stopped in L3, as did v5 on its first eight-page marker cell. The
+v6 design and automatic gates are complete, and the user has explicitly
+approved same-bound plan-derived reruns through L4. v6 starts again at its
+visible L1 response control; v1-v5 results cannot be resumed. Independent PDF
+extraction remains a separate mandatory gate and cannot substitute for model
+understanding.
