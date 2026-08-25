@@ -165,5 +165,8 @@ changes without approving new paid calls:
 
 The staged L0–L4 sequence is in section 20.1.1 of the integration authority.
 Its L0 receipt is `docs/POCKETRISU-PAGEFOLD-STRUCTURAL-REQUALIFICATION.md`.
-The original 0/12 result above remains unchanged evidence. No structural-oracle
-provider call has been made yet.
+The original 0/12 result above remains unchanged evidence. The subsequently
+approved structural-oracle run stopped after its single Vertex L1 text control
+returned `HTTP 200 / STOP` but failed the structural evaluator. Its actual
+usage, local partial-result preservation defect, no-retry decision, and closed
+admission outcome are recorded in that structural receipt.

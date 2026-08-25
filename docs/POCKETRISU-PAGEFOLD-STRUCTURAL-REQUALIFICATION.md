@@ -1,6 +1,6 @@
 # PageFold structural-oracle requalification
 
-> **Status:** L0 local gate complete; paid execution disabled
+> **Status:** L1 stopped on failed text oracle; L2-L4 not run; no route qualified
 >
 > **Date:** 2026-08-25 KST
 >
@@ -25,10 +25,13 @@ reinterpreted as a pass by this revision.
 
 ## L0 harness boundary
 
-`server/node/pageFoldStructuralRequalification.cjs` is deliberately incapable
-of provider work. Running it without `PAGEFOLD_REQUAL_DRY_RUN=1` exits before
-font loading, credential access, or network work. The future paid runner must
-be separately reviewed and enabled after approval.
+`server/node/pageFoldStructuralRequalification.cjs` remains deliberately
+incapable of provider work. Running it without
+`PAGEFOLD_REQUAL_DRY_RUN=1` exits before font loading, credential access, or
+network work. Separately approved provider execution lives in
+`server/node/pageFoldStructuralPaidRunner.cjs` and requires its explicit paid
+flag, a durable checkpoint destination, the `USD 0.25` ceiling, and a
+Vertex-only credential selector.
 
 The L0 harness defines:
 
@@ -79,7 +82,7 @@ Grammar cells independently report:
 Page-marker cells return only three compact `Ldddddd` codes per physical page,
 avoiding the previous omnibus response-size confound.
 
-Observed synthetic answers in a future paid run are retained only through the
+Observed synthetic answers in a paid run are retained only through the
 declared schema, bounded depth/array/string limits, and field-level expected vs
 observed differences. Unknown response fields are dropped. Credentials,
 request bodies, PDF Base64, user content, and provider tokens remain prohibited.
@@ -116,17 +119,86 @@ for provider-system composition, and began the first page marker sequence at
 ## Automatic observations
 
 - structural L0 focused test: 1 file / 8 tests passed;
+- structural paid-runner and legacy provider focused tests after the L1
+  preservation fix: 2 files / 19 tests passed;
+- checkpoint write failure control: one fake-provider cell completed and a
+  second cell was not started;
 - paid-disabled CLI control: exited with code 2 before fixture/provider work;
 - dry-run: four fixtures completed, paid execution remained false;
 - canonical server validation: maximum and balanced forms accepted;
 - output-control classification: 512 `MAX_TOKENS` -> one 1024 control;
   1024 `MAX_TOKENS` -> no further control;
 - unknown synthetic answer fields: removed from retained observation;
-- dry public output: no PDF bytes.
+- dry public output: no PDF bytes;
+- patcher source suite: 45/45 files passed; and
+- exact PocketRisu 1.10 focused owner lifecycle: 27 units, 17 managed paths,
+  18 apply changes including private state, zero-change re-plan, `current`
+  status with zero drift, and exact managed-byte/mode revert with state absent.
+
+## Paid L1 observation
+
+The user approved the conditional Vertex sequence with at most 23 calls,
+`USD 0.25` rated cost, no automatic retry, and no classic fallback. The paid
+runner regenerated all four fixtures before provider work. Their PDF hashes
+matched the L0 table above, and each independent PDF.js extraction remained
+exact.
+
+Only the L1 text-oracle cell ran:
+
+| Provider | Model | Stage | Transport | HTTP | Finish | Prompt tokens | Rated output aggregate | Rated USD | Structural result |
+| --- | --- | --- | --- | ---: | --- | ---: | ---: | ---: | --- |
+| Vertex | `gemini-3.7-flash` | L1 | text | 200 | `STOP` | 431 | 464 | 0.002063250 | fail |
+
+The failed text oracle triggered the predeclared stop. PDF calls, low/medium
+screening, resolution selection, L3 qualification, and L4 hierarchy cells all
+remained at zero calls. No output-cap control, retry, alternate resolution, AI
+Studio call, OpenRouter call, or classic fallback ran.
+
+### Partial-result preservation defect
+
+The provider result reached the local structural evaluator and produced
+`status=fail`. The then-current final-result guard subsequently mistook the
+boolean credential check field named `vertexProjectId` for a prohibited project
+id value. It rejected the summary before stdout, leaving the result file at
+zero bytes. Consequently the bounded observed fields, field-level differences,
+answer hash, and latency are unavailable and are not inferred here.
+
+No credential value was printed or placed in the rejected summary. The defect
+was local and post-call; it does not change the observed provider failure. The
+call was not repeated because doing so would violate the approved no-retry
+contract.
+
+The follow-up fix:
+
+- renamed existence checks to boolean-only `*Present` fields;
+- rejects any non-boolean credential-check value;
+- requires a newly created exclusive mode-`0600` checkpoint file before
+  fixtures, credential access, or paid work;
+- fsyncs one sanitized record before another provider call can begin; and
+- fails closed before the next call if checkpoint persistence fails.
+
+These controls were validated only with fake-provider observations after the
+actual L1 stop. They do not recover or reinterpret the lost per-field L1 data.
+
+### Request-log observation
+
+The paid harness used its direct HTTPS path and did not add a PocketRisu
+`request-logs.db` row. A read-only query from a cutoff preceding the run found
+zero new rows and therefore zero delta hits for PDF MIME/Base64 indicators,
+the canonical transcript marker, API-key shapes, bearer/access-token shapes,
+or private-key markers.
+
+The whole existing database was not globally clean for every historical
+secret shape: it contained ten API-key-shape hits, all predating the cutoff.
+They were pre-existing and were neither deleted nor attributed to PageFold.
+Across the whole database, PDF, canonical marker, bearer/access-token, and
+private-key hit counts were zero at this observation point.
 
 ## Next gate
 
-No new provider call is authorized by L0. Before L1, the future paid runner must
-reuse these frozen fixtures and oracles, pass the same focused tests and secret
-sweep, and receive explicit approval for the conditional Vertex sequence with
-the `USD 0.25` ceiling.
+No Vertex resolution is support-qualified. Under the integration authority,
+adapter/UI/BG composition, catalog admission, candidate live apply, and stable
+release remain closed. Another provider call would be a new experiment: it
+requires a revised diagnostic design that accounts for the missing L1
+field-level evidence and separate explicit paid-call approval. Independent PDF
+extraction cannot substitute for the failed model-recognition gate.
