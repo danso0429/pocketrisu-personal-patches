@@ -170,3 +170,10 @@ approved structural-oracle run stopped after its single Vertex L1 text control
 returned `HTTP 200 / STOP` but failed the structural evaluator. Its actual
 usage, local partial-result preservation defect, no-retry decision, and closed
 admission outcome are recorded in that structural receipt.
+
+The later v2 run kept v1 as failed history, passed its visible L1 response
+control, and stopped after low/medium one-page L2 qualified no resolution. Its
+six calls, `USD 0.010484250` rated usage, retained field-level observations,
+oracle defects, checkpoint evidence, and unchanged empty support matrix are
+also recorded in the structural receipt. The original omnibus and v1 results
+remain unchanged evidence.

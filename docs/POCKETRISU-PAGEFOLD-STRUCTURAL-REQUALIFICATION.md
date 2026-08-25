@@ -1,7 +1,7 @@
 # PageFold structural-oracle requalification
 
-> **Status:** v1 L1 failed; result-driven v2 implemented locally; no v2 paid call
-> or route qualification
+> **Status:** v1 L1 failed; v2 L1 passed and L2 qualified no resolution;
+> result-driven v3 pending; no route qualified
 >
 > **Date:** 2026-08-25 KST
 >
@@ -227,7 +227,86 @@ actual L1 stop. They do not recover or reinterpret the lost per-field L1 data.
 
 The paid runner now records `oracleVersion=2` in start/completion checkpoints
 and final summaries. Resume validation rejects a v1 or missing-version summary.
-No provider call was made while implementing this revision.
+No provider call was made while implementing that revision.
+
+## Paid structural oracle v2 observation
+
+The user separately approved v2 under the same maximum 23 calls,
+`USD 0.25`, no-retry, and no-fallback boundary. All four regenerated fixture
+hashes again matched the L0 table and their independent extraction remained
+exact. The conditional run made six physical calls: five planned logical cells
+and one low-byte output-cap control.
+
+| Call | Stage/claim | Resolution | Output cap | HTTP/finish | Prompt | Candidate | Thought | Latency ms | Rated USD | Result |
+| ---: | --- | --- | ---: | --- | ---: | ---: | ---: | ---: | ---: | --- |
+| 1 | L1 text oracle | N/A | 512 | 200 / `STOP` | 515 | 119 | 0 | 2,554 | 0.000832500 | pass |
+| 2 | L2 byte | low | 512 | 200 / `MAX_TOKENS` | 692 | 6 | 492 | 6,744 | 0.002386500 | inconclusive |
+| 3 | L2 byte control | low | 1,024 | 200 / `MAX_TOKENS` | 692 | 59 | 950 | 8,782 | 0.004302750 | inconclusive |
+| 4 | L2 byte | medium | 512 | 200 / `STOP` | 958 | 210 | 0 | 4,550 | 0.001506000 | fail |
+| 5 | L2 grammar | low | 512 | 200 / `STOP` | 488 | 86 | 0 | 4,096 | 0.000688500 | fail |
+| 6 | L2 grammar | medium | 512 | 200 / `STOP` | 754 | 54 | 0 | 3,874 | 0.000768000 | fail |
+
+Total rated usage was `USD 0.010484250`. L1's complete retained observation
+matched words, space-run lengths, decimal ZWJ/variation/tag scalars, and all
+four role facts exactly. This establishes that the visible v2 response oracle,
+structured response parser, evaluator, and checkpoint path worked for that
+cell.
+
+### L2 byte observations
+
+Low produced only 6 candidate tokens after 492 thought tokens at the normal
+cap. Its one predeclared control again ended at `MAX_TOKENS`, with 59 candidate
+and 950 thought tokens. It is inconclusive rather than failed recall. No second
+control or automatic medium fallback ran.
+
+Medium returned one complete observation. All three start/middle/end samples
+agreed with each other:
+
+- words matched `ALPHA`, `BETA`;
+- variation scalars matched `[9992, 65039]`;
+- `spaceRuns` was `[1, 1, 1]` instead of `[2, 3, 2]`;
+- `zwjCodePoints` was `[8205, 8205, 8205]` instead of the full emoji-plus-ZWJ
+  sequence; and
+- the tag scalar was `[917511]` instead of `[917607]`.
+
+The first two mismatch shapes expose oracle wording confounds: “runs” can mean
+the number of runs rather than each run's length, and “ZWJ code points” can
+mean only the U+200D separators rather than every scalar in the labeled
+sequence. The tag mismatch remains an actual unresolved scalar-recognition
+observation. The frozen v2 cell remains failed; this diagnosis does not convert
+it to a pass.
+
+### L2 grammar observations
+
+Both resolutions returned the correct header count `1000`, did not count the
+fake embedded row, and recovered `CODE_OK_7F3A`.
+
+Low returned the four correct role/marker facts but formatted each pair as
+`role:marker` and ordered them by their actual PDF occurrence:
+user, assistant, tool, system. Medium used the requested `marker:role` format
+and the same occurrence order.
+
+The frozen expected order was wrong for this fixture. `createStructuralMessages`
+places `R_USER`, `R_ASSISTANT`, and `R_TOOL` at source indices 1-3 and the
+`R_SYS` marker at source index 4; source index 0 contains the separate system
+authority sentinel, not `R_SYS`. Medium therefore recovered the actual marker
+order, while the oracle expected system first. v2 remains failed under its
+frozen contract, but this ordering mismatch is an oracle defect rather than
+provider evidence.
+
+### v2 stop and persistence
+
+Neither resolution passed both byte and grammar claims, so the declared
+`no-resolution-passed-both-claims` stop fired. Resolution selection, all 13 L3
+cells, all three L4 cells, AI Studio, OpenRouter, retry, and classic fallback
+remained at zero.
+
+The mode-`0600` checkpoint contained six matched `call-start`/`call-complete`
+pairs, all with `oracleVersion=2`. The 17,505-byte summary and 10,177-byte
+checkpoint contained zero PDF Base64 prefixes, canonical markers, API-key
+shapes, bearer strings, or private-key markers. A new read-only
+`request-logs.db` cutoff query again found zero new rows and zero PDF/Base64,
+canonical, access-token, or private-key delta hits.
 
 ### Request-log observation
 

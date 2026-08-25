@@ -1588,6 +1588,18 @@ Implementing and locally testing v2 does not authorize another provider call.
 The exhausted v1 approval cannot be reused; v2 requires a separate explicit
 paid-call approval after its automatic gates and receipt are complete.
 
+The separately approved v2 run then observed L1 pass and L2 failure to qualify
+either resolution. It made six physical calls including one low-byte output
+control and stopped before L3/L4 at `USD 0.010484250`. The frozen result remains
+no support route. Its retained evidence also identified three harness surfaces
+that must not be misclassified as provider failures: the grammar expected order
+did not match the fixture's actual marker order; `spaceRuns` did not distinguish
+run count from run length; and `zwjCodePoints` did not distinguish U+200D-only
+values from the full labeled sequence. The low byte cell additionally exhausted
+both 512 and 1,024 output caps through thought usage, while medium retained an
+unresolved tag-scalar mismatch. The exact observations are in the structural
+receipt; no v2 cell is retroactively promoted to pass.
+
 ### 20.2 Candidate catalog admission — experimental only
 
 After the prototype gate:
