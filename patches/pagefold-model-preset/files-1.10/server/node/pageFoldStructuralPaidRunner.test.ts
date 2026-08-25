@@ -153,7 +153,7 @@ describe('PageFold structural paid runner', () => {
         expect(summary).toMatchObject({
             complete: false,
             stage: 'L1',
-            oracleVersion: 4,
+            oracleVersion: 5,
             stopReason: 'text-oracle-not-passed',
             completedCalls: 1,
         })
@@ -292,7 +292,7 @@ describe('PageFold structural paid runner', () => {
 
         await expect(runStructuralPaid({
             ...baseOptions(executeCell),
-            resumeSummary: { ...paused, oracleVersion: 3 },
+            resumeSummary: { ...paused, oracleVersion: 4 },
             selectedResolution: 'medium',
         })).rejects.toMatchObject({ code: 'RESUME_STATE_INVALID' })
     })
@@ -311,8 +311,8 @@ describe('PageFold structural paid runner', () => {
         expect(pdfBody.contents[0].parts[1]).toHaveProperty('text')
         expect(pdfBody.contents[0].parts[1].text).toMatch(/base-10 Unicode scalar values/)
         expect(pdfBody.generationConfig.maxOutputTokens).toBe(2048)
-        expect(pdfBody.generationConfig.responseSchema.properties.samples.items.properties.zwjSemanticMembers)
-            .toEqual({ type: 'array', items: { type: 'string' } })
+        expect(pdfBody.generationConfig.responseSchema.properties.samples.items.properties.zwjSemanticKind)
+            .toEqual({ type: 'string' })
         expect(pdfBody).not.toHaveProperty('tools')
         expect(JSON.stringify(pdfBody)).not.toContain('cachedContent')
 
@@ -328,8 +328,8 @@ describe('PageFold structural paid runner', () => {
             cell: createScreeningPlan()[0],
             fixture: null,
         })
-        expect(textBody.contents[0].parts[0].text).toContain('PAGEFOLD_RESPONSE_ORACLE_V4')
-        expect(textBody.contents[0].parts[0].text).toContain('ZWJ_SEMANTIC_MEMBERS|man|woman|girl|boy')
+        expect(textBody.contents[0].parts[0].text).toContain('PAGEFOLD_RESPONSE_ORACLE_V5')
+        expect(textBody.contents[0].parts[0].text).toContain('ZWJ_SEMANTIC_KIND|family')
         expect(textBody.contents[0].parts[0].text).not.toContain('👨‍👩‍👧‍👦')
         expect(textBody.generationConfig.responseSchema.required).toContain('roles')
         expect(textBody.generationConfig.responseSchema.properties.roles.items.required)
@@ -353,10 +353,10 @@ describe('PageFold structural paid runner', () => {
         expect(checkpoints).toHaveLength(summary.completedCalls * 2)
         expect(JSON.stringify(checkpoints)).not.toContain(CREDENTIAL_SECRET)
         expect(checkpoints[0]).toMatchObject({
-            oracleVersion: 4, phase: 'call-start', attemptedCall: 1, completedCalls: 0,
+            oracleVersion: 5, phase: 'call-start', attemptedCall: 1, completedCalls: 0,
         })
         expect(checkpoints[1]).toMatchObject({
-            oracleVersion: 4,
+            oracleVersion: 5,
             phase: 'call-complete',
             attemptedCall: 1,
             completedCalls: 1,

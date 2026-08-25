@@ -9,10 +9,12 @@ const {
     STRUCTURAL_ORACLE_V2,
     STRUCTURAL_ORACLE_V3,
     STRUCTURAL_ORACLE_V4,
+    STRUCTURAL_ORACLE_V5,
     STRUCTURAL_EXPECTATION,
     STRUCTURAL_EXPECTATION_V2,
     STRUCTURAL_EXPECTATION_V3,
     STRUCTURAL_EXPECTATION_V4,
+    STRUCTURAL_EXPECTATION_V5,
     VERTEX_RATED_COST_CAP_USD,
     chooseResolution,
     createHierarchyPlan,
@@ -148,7 +150,7 @@ describe('PageFold structural requalification L0', () => {
             status: 'fail',
             differences: [expect.objectContaining({ field: 'tagCodePoints' })],
         })
-        expect(() => responseSchemaForClaim('text-oracle', 5))
+        expect(() => responseSchemaForClaim('text-oracle', 6))
             .toThrowError(expect.objectContaining({ code: 'ORACLE_VERSION_INVALID' }))
     })
 
@@ -288,6 +290,46 @@ describe('PageFold structural requalification L0', () => {
         })
     })
 
+    it('uses stable family meaning while preserving exact v4 decomposition history', () => {
+        expect(STRUCTURAL_ORACLE_V5).toBe(5)
+        expect(STRUCTURAL_EXPECTATION_V4.zwjSemanticMembers).toEqual([
+            'man', 'woman', 'girl', 'boy',
+        ])
+        expect(STRUCTURAL_EXPECTATION_V5).toEqual({
+            words: ['ALPHA', 'BETA'],
+            spaceRunPositions: ['leading', 'between', 'trailing'],
+            zwjSemanticKind: 'family',
+            zwjJoinerCount: 3,
+            variationSequenceCodePoints: [9992, 65039],
+            tagSequenceCodePoints: [917607],
+        })
+
+        const expected = expectedForClaim('byte-structure', {}, STRUCTURAL_ORACLE_V5)
+        expect(expected.samples[0]).toMatchObject({
+            zwjSemanticKind: 'family',
+            zwjJoinerCount: 3,
+        })
+        expect(expected.samples[0]).not.toHaveProperty('zwjSemanticMembers')
+        const control = createTextControl(STRUCTURAL_ORACLE_V5)
+        expect(control).toContain('PAGEFOLD_RESPONSE_ORACLE_V5')
+        expect(control).toContain('ZWJ_SEMANTIC_KIND|family')
+        expect(promptForClaim('byte-structure', STRUCTURAL_ORACLE_V5))
+            .toMatch(/single lowercase semantic kind/)
+        expect(responseSchemaForClaim('byte-structure', STRUCTURAL_ORACLE_V5))
+            .toMatchObject({
+                properties: {
+                    samples: {
+                        items: {
+                            properties: {
+                                zwjSemanticKind: { type: 'string' },
+                                zwjJoinerCount: { type: 'integer' },
+                            },
+                        },
+                    },
+                },
+            })
+    })
+
     it('treats MAX_TOKENS as one predeclared cap control, not failed recall', () => {
         const inputCell = createScreeningPlan()[1]
         expect(evaluateObservation({
@@ -385,7 +427,7 @@ describe('PageFold structural requalification L0', () => {
         const output = publicDryRun({ 'maximum:1': fixture })
         expect(output.paidExecutionEnabled).toBe(false)
         expect(output.maximumCallsAfterApproval).toBe(21)
-        expect(output.oracleVersions).toEqual({ historical: [1, 2, 3], paidRunner: 4 })
+        expect(output.oracleVersions).toEqual({ historical: [1, 2, 3, 4], paidRunner: 5 })
         expect(output.historicalOutputCapControlTokens).toEqual([1024, 2048])
         expect(output.paidOutputTokens).toBe(2048)
         expect(output.outputCapControlTokens).toBeNull()
@@ -417,6 +459,18 @@ describe('PageFold structural requalification L0', () => {
             responseSchema: {
                 properties: {
                     zwjSemanticMembers: { type: 'array', items: { type: 'string' } },
+                },
+            },
+        })
+        expect(output.responseOracleV5).toMatchObject({
+            control: expect.stringContaining('PAGEFOLD_RESPONSE_ORACLE_V5'),
+            expected: {
+                zwjSemanticKind: 'family',
+                zwjJoinerCount: 3,
+            },
+            responseSchema: {
+                properties: {
+                    zwjSemanticKind: { type: 'string' },
                 },
             },
         })
