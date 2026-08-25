@@ -88,9 +88,9 @@ Generated-installer behavior was exercised on a fresh exact-1.10 tree:
    revert: missing 0, byte mismatches 0, mode mismatches 0.
 
 The final two consecutive installer builds were byte-identical. Both the
-primary installer and `all` compatibility alias are mode 0755, 7,832,618
+primary installer and `all` compatibility alias are mode 0755, 7,832,633
 bytes, CJS syntax-valid, and SHA-256
-`b0a9a6078087edd64e4eecd43277077c6ce50ef2f3b87364357160177caced90`.
+`27e636134791232e1f9a0b108a98696e2f7cf2a9e22ab8ac9e37eef09a2f7f0b`.
 
 A clean frozen offline dependency install previously resolved all 493
 packages from the local store with zero downloads. The final target refresh
@@ -106,7 +106,7 @@ downloading zero.
 | PageFold-off exact wire | 1 file, 3/3 tests passed; ordinary system/text/image body exact JSON bytes retained, no PDF/media-resolution fields |
 | Persistence lifecycle | 1 file, 4/4 tests passed; save -> patch absence -> old 1.10 MessagePack load/save -> reapply retained config/roles |
 | PageFold server focused | 9 files, 55 tests passed, 12 provider-call tests skipped by their explicit gate |
-| Complete client | 151 files, 1,728 tests passed |
+| Complete client | 151 files, 1,730 tests passed after the two final explicit lifecycle assertions |
 | Complete server | 22 files, 232 tests passed, 12 skipped |
 | Compatibility | 10 files passed and 1 file skipped; 74 tests passed, 5 environment-dependent tests skipped |
 | Svelte diagnostics | 0 errors, 0 warnings |
@@ -188,7 +188,7 @@ outside the v8 harness constants.
 | Browser/BG render identity | `PageFoldRenderPort`, `getPageFoldRuntimeRenderPort`, HTTP route, `createPageFoldBgRenderPort` | focused differential hash/metadata and abort tests | browser uses authenticated binary HTTP; BG injects the in-process port before bundle import |
 | Renderer integrity | `createPageFoldPdfService`, `pageFoldFontCache`, independent `pageFoldPdfReader` | exact extraction, first/middle/last columns/pages, corruption/abort/singleflight/resource tests | pinned font version/hash; in-memory PDF; eight-page and byte ceilings |
 | Qualified provider wire | `resolvePageFoldQualifiedRoute`, `previewGoogleChatRequest`, final Gemini invariant | v8 L1-L4 support receipt; custom medium/cache/profile/model/location attacks | one native Vertex global low route only; no support inferred from price |
-| Off-path preservation | `pageFoldState.kind === 'on'` caller branch and `toUserParts(..., pageFold)` | exact ordinary system/text/image JSON string; complete 1,728-test client suite | no PageFold tokenizer, canonical bytes, render, document, or fallback state while off |
+| Off-path preservation | `pageFoldState.kind === 'on'` caller branch and `toUserParts(..., pageFold)` | exact ordinary system/text/image JSON string; complete 1,730-test client suite | no PageFold tokenizer, canonical bytes, render, document, or fallback state while off |
 | Budget/retry | `resolvePageFoldSourceBudget`, final canonical recount, `pageFoldFailurePolicy`, outer request loop | page/output/source/wire failures, live-preset mutation, exact-PDF retry tests | same-route retry only; classic fallback always false once PageFold state exists |
 | Credential handling | `prepareServiceAccountImport` plus existing `parseServiceAccountJson` | wrong type/size/MIME/token URI/private key and compute-before-commit tests | 262,144-byte limit; direct mode clears stale pool/inline precedence; no plugin write |
 | Redaction/logging | client structural redaction plus `normalizeEntry` defense in `request-logs.cjs` | actual five SQLite rows with deliberate PDF/canonical/key/token/private-key markers | usage metadata retained; content/credentials omitted from all covered routes |

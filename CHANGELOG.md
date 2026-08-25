@@ -26,14 +26,14 @@
   `reviewing` candidate packs. The complete graph is 40 packs, 929 units, and
   339 managed paths; ordinary installer apply remains fail-closed and only the
   maintainer qualification path may stage it for L3.
-- Pass 46/46 patcher files, 151 client files / 1,728 tests, 22 server files /
+- Pass 46/46 patcher files, 151 client files / 1,730 tests, 22 server files /
   232 tests with 12 explicit skips, 74 compatibility tests with five skips,
   Svelte 0/0, the 7,940-module production build, and BG bundle build/load.
   Exercise current/zero-plan/generated revert and compare 1,426 official
   baseline files with zero missing/byte/mode mismatches.
 - Generate the primary installer and byte-identical `all` alias twice at mode
-  0755. Both are 7,832,618 bytes, CJS syntax-valid, and SHA-256
-  `b0a9a6078087edd64e4eecd43277077c6ce50ef2f3b87364357160177caced90`.
+  0755. Both are 7,832,633 bytes, CJS syntax-valid, and SHA-256
+  `27e636134791232e1f9a0b108a98696e2f7cf2a9e22ab8ac9e37eef09a2f7f0b`.
   Keep live observations, physical iPhone L3, stable verification, tag, and
   release behind their separate gates.
 

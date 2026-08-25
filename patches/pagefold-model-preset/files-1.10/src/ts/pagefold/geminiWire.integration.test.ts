@@ -100,7 +100,7 @@ describe('PageFold final Gemini prepared wire', () => {
                 {
                     role: 'user',
                     content: 'ordinary user',
-                    images: [{ mime: 'image/png', base64: 'AQID' }],
+                    images: [{ kind: 'image', mime: 'image/png', base64: 'AQID' }],
                 },
             ],
         }, { apiKey: SA_JSON })
