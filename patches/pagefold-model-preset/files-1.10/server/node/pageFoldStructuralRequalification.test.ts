@@ -10,11 +10,13 @@ const {
     STRUCTURAL_ORACLE_V3,
     STRUCTURAL_ORACLE_V4,
     STRUCTURAL_ORACLE_V5,
+    STRUCTURAL_ORACLE_V6,
     STRUCTURAL_EXPECTATION,
     STRUCTURAL_EXPECTATION_V2,
     STRUCTURAL_EXPECTATION_V3,
     STRUCTURAL_EXPECTATION_V4,
     STRUCTURAL_EXPECTATION_V5,
+    STRUCTURAL_EXPECTATION_V6,
     VERTEX_RATED_COST_CAP_USD,
     chooseResolution,
     createHierarchyPlan,
@@ -26,6 +28,7 @@ const {
     encodeTranscript,
     evaluateObservation,
     expectedForClaim,
+    markerWindow,
     promptForClaim,
     publicDryRun,
     responseSchemaForClaim,
@@ -150,7 +153,7 @@ describe('PageFold structural requalification L0', () => {
             status: 'fail',
             differences: [expect.objectContaining({ field: 'tagCodePoints' })],
         })
-        expect(() => responseSchemaForClaim('text-oracle', 6))
+        expect(() => responseSchemaForClaim('text-oracle', 7))
             .toThrowError(expect.objectContaining({ code: 'ORACLE_VERSION_INVALID' }))
     })
 
@@ -330,6 +333,47 @@ describe('PageFold structural requalification L0', () => {
             })
     })
 
+    it('uses exact one-or-two center windows for v6 physical pages', () => {
+        expect(STRUCTURAL_ORACLE_V6).toBe(6)
+        expect(STRUCTURAL_EXPECTATION_V6).toEqual(STRUCTURAL_EXPECTATION_V5)
+        expect(markerWindow({
+            spans: [{ actualText: 'L000000 L000001 L000002 L000003 L000004 L000005' }],
+        })).toEqual({
+            first: 'L000000',
+            centers: ['L000002', 'L000003'],
+            last: 'L000005',
+        })
+        expect(markerWindow({
+            spans: [{ actualText: 'L000010 L000011 L000012 L000013 L000014' }],
+        })).toEqual({
+            first: 'L000010',
+            centers: ['L000012'],
+            last: 'L000014',
+        })
+
+        const fixture = {
+            markerWindows: [{
+                first: 'L000000',
+                centers: ['L000002', 'L000003'],
+                last: 'L000005',
+            }],
+        }
+        expect(expectedForClaim('page-markers', fixture, STRUCTURAL_ORACLE_V6))
+            .toEqual({ markers: fixture.markerWindows })
+        expect(promptForClaim('page-markers', STRUCTURAL_ORACLE_V6))
+            .toMatch(/both lower and upper center codes/)
+        expect(responseSchemaForClaim('page-markers', STRUCTURAL_ORACLE_V6))
+            .toMatchObject({
+                properties: {
+                    markers: {
+                        items: { required: ['first', 'centers', 'last'] },
+                    },
+                },
+            })
+        expect(createTextControl(STRUCTURAL_ORACLE_V6))
+            .toContain('PAGEFOLD_RESPONSE_ORACLE_V6')
+    })
+
     it('treats MAX_TOKENS as one predeclared cap control, not failed recall', () => {
         const inputCell = createScreeningPlan()[1]
         expect(evaluateObservation({
@@ -421,13 +465,16 @@ describe('PageFold structural requalification L0', () => {
             pdfSha256: 'a'.repeat(64),
             extractionExact: true,
             markerTriples: [['L000001', 'L000005', 'L000009']],
+            markerWindows: [{
+                first: 'L000001', centers: ['L000005'], last: 'L000009',
+            }],
             retainedSystem: '',
             pdf: Buffer.from('must-not-escape'),
         }
         const output = publicDryRun({ 'maximum:1': fixture })
         expect(output.paidExecutionEnabled).toBe(false)
         expect(output.maximumCallsAfterApproval).toBe(21)
-        expect(output.oracleVersions).toEqual({ historical: [1, 2, 3, 4], paidRunner: 5 })
+        expect(output.oracleVersions).toEqual({ historical: [1, 2, 3, 4, 5], paidRunner: 6 })
         expect(output.historicalOutputCapControlTokens).toEqual([1024, 2048])
         expect(output.paidOutputTokens).toBe(2048)
         expect(output.outputCapControlTokens).toBeNull()
@@ -472,6 +519,13 @@ describe('PageFold structural requalification L0', () => {
                 properties: {
                     zwjSemanticKind: { type: 'string' },
                 },
+            },
+        })
+        expect(output.responseOracleV6).toMatchObject({
+            control: expect.stringContaining('PAGEFOLD_RESPONSE_ORACLE_V6'),
+            expected: {
+                zwjSemanticKind: 'family',
+                zwjJoinerCount: 3,
             },
         })
         expect(JSON.stringify(output)).not.toContain('must-not-escape')

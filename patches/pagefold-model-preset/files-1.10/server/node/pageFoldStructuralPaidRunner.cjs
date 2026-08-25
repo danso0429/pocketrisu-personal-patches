@@ -6,7 +6,7 @@ const {
     MODEL_ID,
     NORMAL_OUTPUT_TOKENS,
     PAID_OUTPUT_TOKENS_V4,
-    STRUCTURAL_ORACLE_V5,
+    STRUCTURAL_ORACLE_V6,
     VERTEX_RATED_COST_CAP_USD,
     PageFoldStructuralError,
     chooseResolution,
@@ -31,7 +31,7 @@ const {
 
 const MAX_CALLS = 21
 const MAX_OUTPUT_CONTROLS = 0
-const PAID_ORACLE_VERSION = STRUCTURAL_ORACLE_V5
+const PAID_ORACLE_VERSION = STRUCTURAL_ORACLE_V6
 const PAID_OUTPUT_TOKENS = PAID_OUTPUT_TOKENS_V4
 const REQUEST_TIMEOUT_MS = 300_000
 const MEDIA_RESOLUTION = Object.freeze({
@@ -709,6 +709,17 @@ function validateFixtures(fixtures) {
             || !Number.isSafeInteger(fixture.sourceBytes) || fixture.sourceBytes < 1
             || !/^[a-f0-9]{64}$/.test(fixture.pdfSha256 || '')
             || fixture.extractionExact !== true || !Array.isArray(fixture.markerTriples)
+            || !Array.isArray(fixture.markerWindows)
+            || fixture.markerTriples.length !== pages
+            || fixture.markerWindows.length !== pages
+            || fixture.markerWindows.some((window) =>
+                !/^L\d{6}$/.test(window?.first || '')
+                || !/^L\d{6}$/.test(window?.last || '')
+                || !Array.isArray(window?.centers)
+                || window.centers.length < 1
+                || window.centers.length > 2
+                || window.centers.some((code) => !/^L\d{6}$/.test(code || ''))
+            )
             || (mode === 'balanced' && (typeof fixture.retainedSystem !== 'string' || fixture.retainedSystem.length === 0))) {
             throw new PageFoldStructuralPaidError('FIXTURES_INVALID')
         }
@@ -727,6 +738,11 @@ function summarizeFixtures(fixtures) {
             pdfSha256: fixture.pdfSha256,
             extractionExact: fixture.extractionExact,
             markerTriples: fixture.markerTriples.map((triple) => triple.slice(0, 3)),
+            markerWindows: fixture.markerWindows.map((window) => ({
+                first: window.first,
+                centers: window.centers.slice(0, 2),
+                last: window.last,
+            })),
             retainedSystemPresent: fixture.retainedSystem.length > 0,
         }
     })
