@@ -401,6 +401,48 @@ function validateAnswer(answer, expected) {
 }
 
 async function loadCredentials({ databasePath, aiNameHash, vertexNameHash }) {
+    const entries = await loadKeyPoolEntries(databasePath)
+    const ai = selectEntry(entries, aiNameHash)
+    const vertex = selectEntry(entries, vertexNameHash)
+    const aiApiKey = requireSecretString(ai.key, 'AI_STUDIO_KEY_INVALID')
+    if (!aiApiKey.startsWith('AIza')) throw new PageFoldFeasibilityError('AI_STUDIO_KEY_INVALID')
+    const { serviceAccount, vertexJson } = parseVertexEntry(vertex)
+    return {
+        aiApiKey,
+        vertexServiceAccount: serviceAccount,
+        vertexProjectId: serviceAccount.project_id,
+        checks: {
+            aiStudioEntryUnique: true,
+            aiStudioKeyShape: true,
+            vertexEntryUnique: true,
+            vertexServiceAccountShape: true,
+            vertexProjectId: true,
+            vertexPrivateKey: true,
+            vertexTokenUriAllowlisted: true,
+        },
+        secrets: credentialSecrets(serviceAccount, vertexJson, aiApiKey),
+    }
+}
+
+async function loadVertexCredential({ databasePath, vertexNameHash }) {
+    const entries = await loadKeyPoolEntries(databasePath)
+    const vertex = selectEntry(entries, vertexNameHash)
+    const { serviceAccount, vertexJson } = parseVertexEntry(vertex)
+    return {
+        vertexServiceAccount: serviceAccount,
+        vertexProjectId: serviceAccount.project_id,
+        checks: {
+            vertexEntryUnique: true,
+            vertexServiceAccountShape: true,
+            vertexProjectId: true,
+            vertexPrivateKey: true,
+            vertexTokenUriAllowlisted: true,
+        },
+        secrets: credentialSecrets(serviceAccount, vertexJson),
+    }
+}
+
+async function loadKeyPoolEntries(databasePath) {
     if (typeof databasePath !== 'string' || databasePath.length === 0) {
         throw new PageFoldFeasibilityError('CREDENTIAL_DB_REQUIRED')
     }
@@ -415,43 +457,32 @@ async function loadCredentials({ databasePath, aiNameHash, vertexNameHash }) {
     } finally {
         snapshot.close()
     }
-    const entries = Object.values(
+    return Object.values(
         database.apiKeyPool && typeof database.apiKeyPool === 'object'
             ? database.apiKeyPool
             : {},
     )
-    const ai = selectEntry(entries, aiNameHash)
-    const vertex = selectEntry(entries, vertexNameHash)
-    const aiApiKey = requireSecretString(ai.key, 'AI_STUDIO_KEY_INVALID')
-    if (!aiApiKey.startsWith('AIza')) throw new PageFoldFeasibilityError('AI_STUDIO_KEY_INVALID')
+}
+
+function parseVertexEntry(vertex) {
     const vertexJson = requireSecretString(vertex.key, 'VERTEX_CREDENTIAL_INVALID')
     let serviceAccount
     try { serviceAccount = JSON.parse(vertexJson) } catch {
         throw new PageFoldFeasibilityError('VERTEX_CREDENTIAL_INVALID')
     }
     validateServiceAccount(serviceAccount)
-    return {
-        aiApiKey,
-        vertexServiceAccount: serviceAccount,
-        vertexProjectId: serviceAccount.project_id,
-        checks: {
-            aiStudioEntryUnique: true,
-            aiStudioKeyShape: true,
-            vertexEntryUnique: true,
-            vertexServiceAccountShape: true,
-            vertexProjectId: true,
-            vertexPrivateKey: true,
-            vertexTokenUriAllowlisted: true,
-        },
-        secrets: [
-            aiApiKey,
-            vertexJson,
-            serviceAccount.private_key,
-            serviceAccount.client_email,
-            serviceAccount.project_id,
-            serviceAccount.private_key_id,
-        ].filter(Boolean),
-    }
+    return { serviceAccount, vertexJson }
+}
+
+function credentialSecrets(serviceAccount, vertexJson, ...additional) {
+    return [
+        ...additional,
+        vertexJson,
+        serviceAccount.private_key,
+        serviceAccount.client_email,
+        serviceAccount.project_id,
+        serviceAccount.private_key_id,
+    ].filter(Boolean)
 }
 
 function selectEntry(entries, expectedHash) {
@@ -799,5 +830,7 @@ module.exports = {
     rateUsage,
     predictCost,
     parseAnswerJson,
+    loadVertexCredential,
+    exchangeServiceAccount,
     runFeasibility,
 }

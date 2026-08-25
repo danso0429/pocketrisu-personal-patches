@@ -312,6 +312,7 @@ async function renderFixture({ renderer, pages, mode }) {
         pages,
         messageCount,
         sourceBytes: canonicalBytes.byteLength,
+        pdf: rendered.pdf,
         pdfBytes: rendered.pdfBytes,
         pdfSha256: rendered.sha256,
         extractionExact: true,
