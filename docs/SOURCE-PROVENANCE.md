@@ -20,6 +20,31 @@ feature validation receipts.
 | Source | Frozen basis | Ideas reviewed or adapted | Current boundary |
 | --- | --- | --- | --- |
 | [`rhplus0831/PocketRisu` `serve`](https://github.com/rhplus0831/PocketRisu/tree/serve) | Build fence `3e65d76e4768b87156ba4dd93b2c954fe34cc784`; point-in-time source line from `f3efd3b1b03a9773a9121802ed3f95e8088d3353` through `3e758f9a4c95e9c18d4a9d428c85ded148cbf7ba` | Client/server build admission and pinned backup-source concepts. | GPL-3.0 reference. Local packs were rebuilt around BG, lazy storage, Kei, purge, and restore owners; the fork is not imported wholesale. |
+| User-supplied PageFold plugin artifact | `0.1.1`; SHA-256 `8291b14f7330e8e4fa0438ea12d1e8f125073945d817fe74693fe9030891ef77` | Behavioral observations of dense PDF transcript delivery, the two hierarchy modes, direct provider request shapes, and renderer constraints. | Behavioral reference / independent implementation only. The artifact identifies no author, source repository, or license. No PageFold-owned source text or bundled vendor code is copied, and no upstream endorsement is claimed. |
+
+## Independently selected PageFold renderer inputs
+
+The PageFold integration obtains its implementation dependencies and fonts from
+their authoritative distributions rather than extracting them from the supplied
+artifact:
+
+- `pdf-lib` `1.17.1`, MIT, npm integrity
+  `sha512-V/mpyJAoTsN4cnP31vc0wfNA1+p20evqqnap0KLoRUN0Yk/p3wN52DOEsL4oBFcLdb76hlpKPtzJIgo67j/XLw==`;
+- `@pdf-lib/fontkit` `1.1.1`, MIT, npm integrity
+  `sha512-KjMd7grNapIWS/Dm0gvfHEilSyAmeLvrEGVcqLGi0VYebuqqzTbgF29efCx7tvx+IEbG3zQciRSWl3GkUSvjZg==`;
+- Noto Sans CJK KR Regular from `notofonts/noto-cjk` revision
+  `f8d157532fbfaeda587e826d4cd5b21a49186f7c`, SIL Open Font License 1.1,
+  16,433,112 bytes, SHA-256
+  `6bcb2a0703aa137e874fc2dffa85f6c21ba9a67fa329e81b8c801663af7e992a`; and
+- Noto Emoji variable font from `google/fonts` revision
+  `ec626514f79f831f1ab848a82114a0ce7e2d6372`, SIL Open Font License 1.1,
+  1,982,596 bytes, SHA-256
+  `de6c18832938afc99caf132b39d6a30a19bac7f2e812e28db2535b4608d27551`.
+
+PocketRisu's existing `pdfjs-dist` `4.10.38` (Apache-2.0) remains the
+independent extraction oracle. Matching a dependency version or observed
+behavior from the reference artifact does not change this classification into
+a source-code adaptation.
 
 ## Project-owned sources
 

@@ -37,6 +37,51 @@ adapted around PocketRisu 1.9/1.10, lazy storage, bg-preserve, Kei, orphan
 purge, and restore-safety owners. Detailed local contracts and exclusions are
 recorded in `docs/POCKETRISU-SERVE-HIGH-VALUE-INTEGRATION.md`.
 
+## PageFold behavioral reference and independent renderer inputs
+
+A user-supplied PageFold plugin artifact was reviewed as a behavioral reference:
+
+- Artifact version: `0.1.1`
+- SHA-256:
+  `8291b14f7330e8e4fa0438ea12d1e8f125073945d817fe74693fe9030891ef77`
+- Classification: behavioral reference / independent implementation
+
+The artifact header does not identify an author, source repository, or license.
+This repository does not redistribute the artifact, copy PageFold-owned source
+text, or extract its bundled vendor modules. The local integration makes no
+claim of endorsement by an unidentified PageFold author or project.
+
+The independent server renderer selects these packages directly from their
+authoritative npm distributions:
+
+- `pdf-lib` 1.17.1 — MIT —
+  https://github.com/Hopding/pdf-lib — npm integrity
+  `sha512-V/mpyJAoTsN4cnP31vc0wfNA1+p20evqqnap0KLoRUN0Yk/p3wN52DOEsL4oBFcLdb76hlpKPtzJIgo67j/XLw==`
+- `@pdf-lib/fontkit` 1.1.1 — MIT —
+  https://github.com/Hopding/fontkit — npm integrity
+  `sha512-KjMd7grNapIWS/Dm0gvfHEilSyAmeLvrEGVcqLGi0VYebuqqzTbgF29efCx7tvx+IEbG3zQciRSWl3GkUSvjZg==`
+
+PocketRisu's existing `pdfjs-dist` 4.10.38 package, licensed under
+Apache-2.0, is used as the independent PDF extraction oracle:
+https://github.com/mozilla/pdf.js.
+
+The renderer downloads font binaries at runtime from immutable official source
+revisions, verifies their exact byte lengths and SHA-256 values before use, and
+retains their license texts. No font binary is committed to or redistributed by
+this repository:
+
+- Noto Sans CJK KR Regular — `notofonts/noto-cjk`
+  `f8d157532fbfaeda587e826d4cd5b21a49186f7c` — SIL Open Font License 1.1 —
+  16,433,112 bytes — SHA-256
+  `6bcb2a0703aa137e874fc2dffa85f6c21ba9a67fa329e81b8c801663af7e992a`
+- Noto Emoji variable font — `google/fonts`
+  `ec626514f79f831f1ab848a82114a0ce7e2d6372` — SIL Open Font License 1.1 —
+  1,982,596 bytes — SHA-256
+  `de6c18832938afc99caf132b39d6a30a19bac7f2e812e28db2535b4608d27551`
+
+Using the same public package versions or reproducing an observed wire behavior
+does not incorporate source code from the supplied PageFold artifact.
+
 ## Optional web fonts
 
 The PocketRisu 1.9 Personal appearance feature declares optional web-font
