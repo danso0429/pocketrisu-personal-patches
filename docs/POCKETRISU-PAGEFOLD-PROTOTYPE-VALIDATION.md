@@ -48,19 +48,21 @@ that similarity analysis can prove authorship.
 
 The manifest exists at `patches/pagefold-model-preset/manifest.cjs` but remains
 outside `src/catalog.cjs` with `allDefault: false`, target state `reviewing`, and
-no distributed selector. It currently owns 21 exact-1.10 units over 11 outputs:
+no distributed selector. After adding the paid-feasibility harness and its pure
+tests, it owns 23 exact-1.10 units over 13 outputs:
 
 - `src/ts/pagefold/canonicalTranscript.ts` and its focused test;
 - `server/node/pageFoldFontCache.cjs` and its focused test;
 - `server/node/pageFoldPdfWorker.cjs`;
 - `server/node/pageFoldPdfService.cjs`;
 - `server/node/pageFoldPdfReader.cjs`;
-- the renderer focused test and measurement harness; and
+- the renderer focused test and measurement harness;
+- the credential-redacted provider-feasibility harness and focused test; and
 - exact package/lock units for `pdf-lib 1.17.1` and
   `@pdf-lib/fontkit 1.1.1`.
 
-The dependency graph composes against the current exact target with 21 units,
-11 outputs, and zero collisions. Its `package.json` and `pnpm-lock.yaml` outputs
+The dependency graph composes against the current exact target with 23 units,
+13 outputs, and zero collisions. Its `package.json` and `pnpm-lock.yaml` outputs
 are byte-identical to an isolated `pnpm add --save-exact --lockfile-only` result.
 A frozen install reused the exact target lockfile, installed the six added
 package nodes, and left the lockfile unchanged.
@@ -243,15 +245,16 @@ diagnostic success nor sandbox failure is rewritten as the other result.
 Production build remains a candidate-catalog gate after paid feasibility and
 runtime integration; this prototype has no browser call site or catalog entry.
 
-## Gate now reached
+## Provider gate follow-up
 
-The next authorized step is a separately approved paid feasibility matrix:
+The separately approved paid feasibility matrix was subsequently executed:
 
-- AI Studio Gemini 3 at low and medium resolution;
-- Vertex Gemini 3 at low and medium resolution; and
-- OpenRouter fixed native-PDF route with its native default;
-- each at 1, 2, and 8 pages with repeated recall/order probes.
+- AI Studio stopped on its first `429` response with usage zero;
+- Vertex completed 12 low/medium 1/2/8-page calls but passed exact recall 0/12;
+- OpenRouter was user-excluded and not called; and
+- the standard-rate Vertex total was `USD 0.02580975`.
 
-Only routes that pass their own model-recall matrix may proceed into adapter
-wire, UI, BG, catalog, or live work. Independent PDF extraction above is a
-prerequisite and is not treated as model recall evidence.
+No route qualified, so adapter wire, UI, BG, catalog, and live work remain
+closed. Independent PDF extraction above remains a prerequisite and was not
+treated as model recall evidence. The detailed result is
+`docs/POCKETRISU-PAGEFOLD-PROVIDER-FEASIBILITY.md`.

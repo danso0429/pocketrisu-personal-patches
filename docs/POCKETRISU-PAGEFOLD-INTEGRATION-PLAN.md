@@ -1,8 +1,8 @@
 # PocketRisu PageFold ModelPreset integration plan
 
-> **Status:** review-revised implementation authority; provenance, canonical
-> serializer, and server renderer prototype are implemented and validated;
-> paid provider feasibility remains the active gate
+> **Status:** review-revised implementation authority; prototype is validated
+> and paid feasibility is complete, but no provider route qualified; downstream
+> runtime/UI/BG/catalog/live work is paused
 >
 > **Date:** 2026-08-25 KST
 >
@@ -11,6 +11,8 @@
 > **Source under review:** PageFold plugin `0.1.1`, SHA-256 `8291b14f7330e8e4fa0438ea12d1e8f125073945d817fe74693fe9030891ef77`
 >
 > **Prototype receipt:** `docs/POCKETRISU-PAGEFOLD-PROTOTYPE-VALIDATION.md`
+>
+> **Provider feasibility receipt:** `docs/POCKETRISU-PAGEFOLD-PROVIDER-FEASIBILITY.md`
 
 ## 1. Outcome
 

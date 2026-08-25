@@ -308,5 +308,21 @@ module.exports = {
             requires: ['pagefold-model-preset:pdf-service-tests:1.10'],
             targetVersions: pocketRisu1100,
         },
+        {
+            id: 'pagefold-model-preset:provider-feasibility:1.10',
+            file: 'server/node/pageFoldProviderFeasibility.cjs',
+            type: 'owned',
+            content: owned('server/node/pageFoldProviderFeasibility.cjs'),
+            requires: ['pagefold-model-preset:prototype-measure:1.10'],
+            targetVersions: pocketRisu1100,
+        },
+        {
+            id: 'pagefold-model-preset:provider-feasibility-tests:1.10',
+            file: 'server/node/pageFoldProviderFeasibility.test.ts',
+            type: 'owned',
+            content: owned('server/node/pageFoldProviderFeasibility.test.ts'),
+            requires: ['pagefold-model-preset:provider-feasibility:1.10'],
+            targetVersions: pocketRisu1100,
+        },
     ],
 }
