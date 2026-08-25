@@ -29,9 +29,12 @@ function transform(
         },
         config: {
             mode,
+            routeProfileId: 'vertex-gemini-3.7-flash-low-v8',
             serializerVersion: 1,
             layoutVersion: 1,
             fontVersion: 'noto-test-v1',
+            directiveVersion: 1,
+            wirePredictionVersion: 1,
         },
         messages,
     }
@@ -218,7 +221,9 @@ describe('PageFold deterministic canonical JSONL', () => {
             { ...transform([]), version: 2 as 1 },
             { ...transform([]), task: 'unknown' as 'model' },
             { ...transform([]), config: { ...transform([]).config, mode: 'auto' as 'maximum' } },
+            { ...transform([]), config: { ...transform([]).config, routeProfileId: 'other' as 'vertex-gemini-3.7-flash-low-v8' } },
             { ...transform([]), config: { ...transform([]).config, serializerVersion: 2 as 1 } },
+            { ...transform([]), config: { ...transform([]).config, directiveVersion: 2 as 1 } },
             transform([{ role: 'invalid' as 'user', content: 'x' }]),
             transform([{ role: 'user', content: 7 as unknown as string }]),
             transform([{ role: 'user', content: 'x', name: null as unknown as string }]),

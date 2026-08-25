@@ -1,10 +1,10 @@
 import type { AdapterChatMessage } from 'src/ts/preset/adapter'
-import type { ResolvedTask } from 'src/ts/preset/types'
+import type { PageFoldMode, ResolvedTask } from 'src/ts/preset/types'
+export type { PageFoldMode } from 'src/ts/preset/types'
 
 export const PAGEFOLD_TRANSFORM_VERSION = 1 as const
 export const PAGEFOLD_SERIALIZER_VERSION = 1 as const
 
-export type PageFoldMode = 'maximum' | 'balanced'
 export type PageFoldBindingSource = 'chat' | 'global-lock-default' | 'module'
 
 export interface PageFoldTransformInput {
@@ -24,9 +24,12 @@ export interface PageFoldTransformInput {
     }
     config: {
         mode: PageFoldMode
+        routeProfileId: 'vertex-gemini-3.7-flash-low-v8'
         serializerVersion: typeof PAGEFOLD_SERIALIZER_VERSION
-        layoutVersion: number
+        layoutVersion: 1
         fontVersion: string
+        directiveVersion: 1
+        wirePredictionVersion: 1
     }
     messages: readonly AdapterChatMessage[]
 }
@@ -288,7 +291,11 @@ function validateTransformInput(input: PageFoldTransformInput): void {
         || !TASKS.has(input.task)
         || !input.config
         || !MODES.has(input.config.mode)
+        || input.config.routeProfileId !== 'vertex-gemini-3.7-flash-low-v8'
         || input.config.serializerVersion !== PAGEFOLD_SERIALIZER_VERSION
+        || input.config.layoutVersion !== 1
+        || input.config.directiveVersion !== 1
+        || input.config.wirePredictionVersion !== 1
         || !Array.isArray(input.messages)) {
         throw new PageFoldCanonicalError('invalid-transform', 'Unsupported PageFold transform input')
     }

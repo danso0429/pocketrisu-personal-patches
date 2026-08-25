@@ -41,6 +41,12 @@ test('prototype dependency and owned-file graph composes and reverts exactly', (
     assert.match(plan.outputs.get('server/node/pageFoldStructuralPaidRunner.cjs'), /const MAX_OUTPUT_CONTROLS = 0/)
     assert.match(plan.outputs.get('server/node/pageFoldStructuralPaidRunner.cjs'), /STRUCTURAL_ORACLE_V8/)
     assert.match(plan.outputs.get('server/node/pageFoldStructuralPaidRunner.test.ts'), /resumes an exact two-pass decision/)
+    assert.match(plan.outputs.get('src/ts/preset/types.ts'), /pageFold\?: ModelPresetPageFoldConfig/)
+    assert.match(plan.outputs.get('src/ts/preset/types.ts'), /pageFold\?: PageFoldRoleOverrides/)
+    assert.match(plan.outputs.get('src/ts/pagefold/qualifiedRoute.ts'), /vertex-gemini-native:gemini-37-flash/)
+    assert.match(plan.outputs.get('src/ts/pagefold/qualifiedRoute.ts'), /MEDIA_RESOLUTION_LOW/)
+    assert.match(plan.outputs.get('src/ts/pagefold/resolve.ts'), /resolvePageFoldState/)
+    assert.match(plan.outputs.get('src/ts/preset/dbDefaults.ts'), /normalizePageFoldConfig/)
 
     const byId = new Map(manifest.units.map((unit) => [unit.id, unit]))
     const reverted = new Map(plan.outputs)

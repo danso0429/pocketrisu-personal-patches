@@ -356,5 +356,115 @@ module.exports = {
             requires: ['pagefold-model-preset:structural-paid-runner:1.10'],
             targetVersions: pocketRisu1100,
         },
+        {
+            id: 'pagefold-model-preset:preset-pagefold-types:1.10',
+            file: 'src/ts/preset/types.ts',
+            type: 'insert',
+            where: 'before',
+            anchor: 'export interface ModelPreset {\n',
+            content: `export type PageFoldMode = 'maximum' | 'balanced'
+export type PageFoldRoleOverride = 'inherit' | 'on' | 'off'
+export type PageFoldRoleOverrides = Partial<Record<ResolvedTask, PageFoldRoleOverride>>
+
+export interface ModelPresetPageFoldConfig {
+    enabled: boolean
+    // Optional only for old/malformed persistence. Runtime blocks enabled
+    // configs without an explicit mode instead of inferring hierarchy.
+    mode?: PageFoldMode
+    inputPriceOverride?: {
+        usdPerMillion: number
+        note?: string
+        updatedAt: number
+    }
+}
+`,
+            requires: ['pagefold-model-preset:structural-paid-runner-tests:1.10'],
+            targetVersions: pocketRisu1100,
+        },
+        {
+            id: 'pagefold-model-preset:preset-pagefold-field:1.10',
+            file: 'src/ts/preset/types.ts',
+            type: 'insert',
+            where: 'after',
+            anchor: '    maxContext?: number\n',
+            content: `    // Optional ModelPreset transform. Absent/disabled preserves the
+    // ordinary request graph; enabled requires an explicit hierarchy mode.
+    pageFold?: ModelPresetPageFoldConfig
+`,
+            requires: ['pagefold-model-preset:preset-pagefold-types:1.10'],
+            targetVersions: pocketRisu1100,
+        },
+        {
+            id: 'pagefold-model-preset:binding-pagefold-field:1.10',
+            file: 'src/ts/preset/types.ts',
+            type: 'insert',
+            where: 'before',
+            anchor: `}
+
+/** A fully-normalized empty binding bundle`,
+            content: `    // Per-logical-task transform override. Missing keys inherit the
+    // selected preset; invalid persisted values are treated as inherit.
+    pageFold?: PageFoldRoleOverrides
+`,
+            requires: ['pagefold-model-preset:preset-pagefold-field:1.10'],
+            targetVersions: pocketRisu1100,
+        },
+        {
+            id: 'pagefold-model-preset:qualified-route:1.10',
+            file: 'src/ts/pagefold/qualifiedRoute.ts',
+            type: 'owned',
+            content: owned('src/ts/pagefold/qualifiedRoute.ts'),
+            requires: ['pagefold-model-preset:binding-pagefold-field:1.10'],
+            targetVersions: pocketRisu1100,
+        },
+        {
+            id: 'pagefold-model-preset:qualified-route-tests:1.10',
+            file: 'src/ts/pagefold/qualifiedRoute.test.ts',
+            type: 'owned',
+            content: owned('src/ts/pagefold/qualifiedRoute.test.ts'),
+            requires: ['pagefold-model-preset:qualified-route:1.10'],
+            targetVersions: pocketRisu1100,
+        },
+        {
+            id: 'pagefold-model-preset:state-resolver:1.10',
+            file: 'src/ts/pagefold/resolve.ts',
+            type: 'owned',
+            content: owned('src/ts/pagefold/resolve.ts'),
+            requires: ['pagefold-model-preset:qualified-route-tests:1.10'],
+            targetVersions: pocketRisu1100,
+        },
+        {
+            id: 'pagefold-model-preset:state-resolver-tests:1.10',
+            file: 'src/ts/pagefold/resolve.test.ts',
+            type: 'owned',
+            content: owned('src/ts/pagefold/resolve.test.ts'),
+            requires: ['pagefold-model-preset:state-resolver:1.10'],
+            targetVersions: pocketRisu1100,
+        },
+        {
+            id: 'pagefold-model-preset:db-defaults-normalizer-import:1.10',
+            file: 'src/ts/preset/dbDefaults.ts',
+            type: 'insert',
+            where: 'after',
+            anchor: "import { loadBundledRegistry, getBundledRegistryId } from './registry/loader'\n",
+            content: "import { normalizePageFoldConfig } from 'src/ts/pagefold/resolve'\n",
+            requires: ['pagefold-model-preset:state-resolver-tests:1.10'],
+            targetVersions: pocketRisu1100,
+        },
+        {
+            id: 'pagefold-model-preset:db-defaults-normalizer:1.10',
+            file: 'src/ts/preset/dbDefaults.ts',
+            type: 'insert',
+            where: 'after',
+            anchor: '    sanitizeModelPresetSnapshots(data.modelPresets)\n',
+            content: `    for (const preset of data.modelPresets) {
+        const normalized = normalizePageFoldConfig(preset.pageFold)
+        if (normalized) preset.pageFold = normalized
+        else delete preset.pageFold
+    }
+`,
+            requires: ['pagefold-model-preset:db-defaults-normalizer-import:1.10'],
+            targetVersions: pocketRisu1100,
+        },
     ],
 }
