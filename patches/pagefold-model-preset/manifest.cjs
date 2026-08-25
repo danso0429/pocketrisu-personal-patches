@@ -542,5 +542,704 @@ app.use((req, res, next) => {
             requires: ['pagefold-model-preset:server-binary-body-limit:1.10'],
             targetVersions: pocketRisu1100,
         },
+        {
+            id: 'pagefold-model-preset:production-directives:1.10',
+            file: 'src/ts/pagefold/directives.ts',
+            type: 'owned',
+            content: owned('src/ts/pagefold/directives.ts'),
+            requires: ['pagefold-model-preset:server-render-route-registration:1.10'],
+            targetVersions: pocketRisu1100,
+        },
+        {
+            id: 'pagefold-model-preset:runtime-render-port:1.10',
+            file: 'src/ts/pagefold/runtimePort.ts',
+            type: 'owned',
+            content: owned('src/ts/pagefold/runtimePort.ts'),
+            requires: ['pagefold-model-preset:production-directives:1.10'],
+            targetVersions: pocketRisu1100,
+        },
+        {
+            id: 'pagefold-model-preset:wire-prepare:1.10',
+            file: 'src/ts/pagefold/prepare.ts',
+            type: 'owned',
+            content: owned('src/ts/pagefold/prepare.ts'),
+            requires: ['pagefold-model-preset:runtime-render-port:1.10'],
+            targetVersions: pocketRisu1100,
+        },
+        {
+            id: 'pagefold-model-preset:wire-prepare-tests:1.10',
+            file: 'src/ts/pagefold/prepare.test.ts',
+            type: 'owned',
+            content: owned('src/ts/pagefold/prepare.test.ts'),
+            requires: ['pagefold-model-preset:wire-prepare:1.10'],
+            targetVersions: pocketRisu1100,
+        },
+        {
+            id: 'pagefold-model-preset:redaction:1.10',
+            file: 'src/ts/pagefold/redaction.ts',
+            type: 'owned',
+            content: owned('src/ts/pagefold/redaction.ts'),
+            requires: ['pagefold-model-preset:wire-prepare-tests:1.10'],
+            targetVersions: pocketRisu1100,
+        },
+        {
+            id: 'pagefold-model-preset:redaction-tests:1.10',
+            file: 'src/ts/pagefold/redaction.test.ts',
+            type: 'owned',
+            content: owned('src/ts/pagefold/redaction.test.ts'),
+            requires: ['pagefold-model-preset:redaction:1.10'],
+            targetVersions: pocketRisu1100,
+        },
+        {
+            id: 'pagefold-model-preset:adapter-document-types:1.10',
+            file: 'src/ts/preset/adapter/types.ts',
+            type: 'insert',
+            where: 'before',
+            anchor: 'export interface AdapterChatMessage {\n',
+            content: `export interface AdapterDocumentPart {
+    kind: 'document'
+    mime: 'application/pdf'
+    filename: string
+    bytes: Uint8Array
+    pageCount: number
+    byteLength: number
+    sha256: string
+    mediaResolution: 'low'
+}
+
+export interface AdapterPageFoldWireContext {
+    routeProfileId: 'vertex-gemini-3.7-flash-low-v8'
+    mode: import('../types').PageFoldMode
+    directiveVersion: 1
+    documentSha256: string
+    pageCount: number
+    pdfBytes: number
+}
+`,
+            requires: ['pagefold-model-preset:redaction-tests:1.10'],
+            targetVersions: pocketRisu1100,
+        },
+        {
+            id: 'pagefold-model-preset:adapter-document-field:1.10',
+            file: 'src/ts/preset/adapter/types.ts',
+            type: 'insert',
+            where: 'after',
+            anchor: "    images?: AdapterImagePart[]          // role:'user' — image attachments (vision)\n",
+            content: `    // Internal binary documents. Only the explicit PageFold wire context
+    // admits this field; ordinary adapters reject/ignore no document implicitly.
+    documents?: AdapterDocumentPart[]
+`,
+            requires: ['pagefold-model-preset:adapter-document-types:1.10'],
+            targetVersions: pocketRisu1100,
+        },
+        {
+            id: 'pagefold-model-preset:adapter-pagefold-option:1.10',
+            file: 'src/ts/preset/adapter/types.ts',
+            type: 'insert',
+            where: 'after',
+            anchor: '    cache?: AdapterCacheContext\n',
+            content: `    // Explicit invariant switch. A document field alone never activates
+    // PageFold, keeping all ordinary callers on their existing wire.
+    pageFold?: AdapterPageFoldWireContext
+`,
+            requires: ['pagefold-model-preset:adapter-document-field:1.10'],
+            targetVersions: pocketRisu1100,
+        },
+        {
+            id: 'pagefold-model-preset:gemini-wire-helper:1.10',
+            file: 'src/ts/pagefold/geminiWire.ts',
+            type: 'owned',
+            content: owned('src/ts/pagefold/geminiWire.ts'),
+            requires: ['pagefold-model-preset:adapter-pagefold-option:1.10'],
+            targetVersions: pocketRisu1100,
+        },
+        {
+            id: 'pagefold-model-preset:gemini-pagefold-import:1.10',
+            file: 'src/ts/preset/adapter/googleGemini.ts',
+            type: 'insert',
+            where: 'after',
+            anchor: "import { resolveWireModelId } from './wireInvariants'\n",
+            content: `import {
+    assertPageFoldGeminiInput,
+    assertPreparedPageFoldGeminiBody,
+    toPageFoldGeminiUserParts,
+} from 'src/ts/pagefold/geminiWire'
+`,
+            requires: ['pagefold-model-preset:gemini-wire-helper:1.10'],
+            targetVersions: pocketRisu1100,
+        },
+        {
+            id: 'pagefold-model-preset:gemini-media-resolution-type:1.10',
+            file: 'src/ts/preset/adapter/googleGemini.ts',
+            type: 'insert',
+            where: 'after',
+            anchor: '    inlineData?: { mimeType: string; data: string }\n',
+            content: "    mediaResolution?: { level: 'MEDIA_RESOLUTION_LOW' }\n",
+            requires: ['pagefold-model-preset:gemini-pagefold-import:1.10'],
+            targetVersions: pocketRisu1100,
+        },
+        {
+            id: 'pagefold-model-preset:gemini-input-invariant:1.10',
+            file: 'src/ts/preset/adapter/googleGemini.ts',
+            type: 'insert',
+            where: 'after',
+            anchor: '    delete prepared.body.model\n',
+            content: `
+    if (options.pageFold) {
+        assertPageFoldGeminiInput(preset, options.messages, options.pageFold, {
+            toolsPresent: (options.tools?.length ?? 0) > 0,
+            cachePresent: options.cache !== undefined,
+        })
+    } else if (options.messages.some((message) => (message.documents?.length ?? 0) > 0)) {
+        throw new ModelPresetAdapterError('invalid-request', 'Document input requires an explicit PageFold wire context', {
+            retryable: false,
+            fallbackEligible: false,
+        })
+    }
+`,
+            requires: ['pagefold-model-preset:gemini-media-resolution-type:1.10'],
+            targetVersions: pocketRisu1100,
+        },
+        {
+            id: 'pagefold-model-preset:gemini-contents-context:1.10',
+            file: 'src/ts/preset/adapter/googleGemini.ts',
+            type: 'replace',
+            anchor: '    const { contents, cacheBoundary } = toGeminiContents(chat)\n',
+            content: '    const { contents, cacheBoundary } = toGeminiContents(chat, options.pageFold)\n',
+            requires: ['pagefold-model-preset:gemini-input-invariant:1.10'],
+            targetVersions: pocketRisu1100,
+        },
+        {
+            id: 'pagefold-model-preset:gemini-final-invariant:1.10',
+            file: 'src/ts/preset/adapter/googleGemini.ts',
+            type: 'insert',
+            where: 'before',
+            anchor: "    const suffix = stream ? ':streamGenerateContent?alt=sse' : ':generateContent'\n",
+            content: `    if (options.pageFold) {
+        assertPreparedPageFoldGeminiBody(prepared.body, options.pageFold)
+    }
+
+`,
+            requires: ['pagefold-model-preset:gemini-contents-context:1.10'],
+            targetVersions: pocketRisu1100,
+        },
+        {
+            id: 'pagefold-model-preset:gemini-contents-signature:1.10',
+            file: 'src/ts/preset/adapter/googleGemini.ts',
+            type: 'replace',
+            anchor: `function toGeminiContents(chat: AdapterChatMessage[]): {
+    contents: GeminiContent[]
+    cacheBoundary: number | null
+} {`,
+            content: `function toGeminiContents(
+    chat: AdapterChatMessage[],
+    pageFold: AdapterChatOptions['pageFold'],
+): {
+    contents: GeminiContent[]
+    cacheBoundary: number | null
+} {`,
+            requires: ['pagefold-model-preset:gemini-final-invariant:1.10'],
+            targetVersions: pocketRisu1100,
+        },
+        {
+            id: 'pagefold-model-preset:gemini-user-parts-call:1.10',
+            file: 'src/ts/preset/adapter/googleGemini.ts',
+            type: 'replace',
+            anchor: "            out.push({ role: 'user', parts: toUserParts(message) })\n",
+            content: "            out.push({ role: 'user', parts: toUserParts(message, pageFold) })\n",
+            requires: ['pagefold-model-preset:gemini-contents-signature:1.10'],
+            targetVersions: pocketRisu1100,
+        },
+        {
+            id: 'pagefold-model-preset:gemini-user-parts-document:1.10',
+            file: 'src/ts/preset/adapter/googleGemini.ts',
+            type: 'replace',
+            anchor: `function toUserParts(message: AdapterChatMessage): GeminiPart[] {
+    const parts: GeminiPart[] = []`,
+            content: `function toUserParts(
+    message: AdapterChatMessage,
+    pageFold: AdapterChatOptions['pageFold'],
+): GeminiPart[] {
+    if (pageFold) return toPageFoldGeminiUserParts(message, pageFold)
+    const parts: GeminiPart[] = []`,
+            requires: ['pagefold-model-preset:gemini-user-parts-call:1.10'],
+            targetVersions: pocketRisu1100,
+        },
+        {
+            id: 'pagefold-model-preset:binding-context-type:1.10',
+            file: 'src/ts/process/request/modelPresetBinding.ts',
+            type: 'insert',
+            where: 'after',
+            anchor: "    | { kind: 'block'; reason: 'main-unset' | 'sub-unset' }\n",
+            content: `
+export type ResolvedBindingWithContext =
+    | Exclude<ResolvedBinding, { kind: 'modelPreset' }>
+    | {
+        kind: 'modelPreset'
+        preset: ModelPreset
+        bindingSource: 'chat' | 'global-lock-default' | 'module'
+        pageFoldBinding?: import('src/ts/preset/types').ModelBindingSet
+    }
+`,
+            requires: ['pagefold-model-preset:gemini-user-parts-document:1.10'],
+            targetVersions: pocketRisu1100,
+        },
+        {
+            id: 'pagefold-model-preset:binding-context-detailed-name:1.10',
+            file: 'src/ts/process/request/modelPresetBinding.ts',
+            type: 'replace',
+            anchor: `export function resolveChatModelBinding(
+    chat: Chat | null | undefined,
+    mode: ModelModeExtended,
+    moduleId?: string,
+): ResolvedBinding {`,
+            content: `export function resolveChatModelBindingWithContext(
+    chat: Chat | null | undefined,
+    mode: ModelModeExtended,
+    moduleId?: string,
+): ResolvedBindingWithContext {`,
+            requires: ['pagefold-model-preset:binding-context-type:1.10'],
+            targetVersions: pocketRisu1100,
+        },
+        {
+            id: 'pagefold-model-preset:binding-context-compatible-wrapper:1.10',
+            file: 'src/ts/process/request/modelPresetBinding.ts',
+            type: 'insert',
+            where: 'before',
+            anchor: 'export function resolveChatModelBinding(\n',
+            content: `export function resolveChatModelBinding(chat: Chat | null | undefined, mode: ModelModeExtended, moduleId?: string): ResolvedBinding {
+    const resolved = resolveChatModelBindingWithContext(chat, mode, moduleId)
+    return resolved.kind === 'modelPreset'
+        ? { kind: 'modelPreset', preset: resolved.preset }
+        : resolved
+}
+
+`,
+            requires: ['pagefold-model-preset:binding-context-type:1.10'],
+            before: ['pagefold-model-preset:binding-context-detailed-name:1.10'],
+            targetVersions: pocketRisu1100,
+        },
+        {
+            id: 'pagefold-model-preset:binding-context-module:1.10',
+            file: 'src/ts/process/request/modelPresetBinding.ts',
+            type: 'replace',
+            anchor: "        if (bound) return { kind: 'modelPreset', preset: bound }\n",
+            content: "        if (bound) return { kind: 'modelPreset', preset: bound, bindingSource: 'module' }\n",
+            requires: [
+                'pagefold-model-preset:binding-context-detailed-name:1.10',
+                'pagefold-model-preset:binding-context-compatible-wrapper:1.10',
+            ],
+            targetVersions: pocketRisu1100,
+        },
+        {
+            id: 'pagefold-model-preset:binding-context-source:1.10',
+            file: 'src/ts/process/request/modelPresetBinding.ts',
+            type: 'insert',
+            where: 'after',
+            anchor: `    if (!set) {
+        return { kind: 'block', reason: mode === 'model' ? 'main-unset' : 'sub-unset' }
+    }
+`,
+            content: `    const bindingSource = set === chat?.modelBinding ? 'chat' : 'global-lock-default'
+`,
+            requires: ['pagefold-model-preset:binding-context-module:1.10'],
+            targetVersions: pocketRisu1100,
+        },
+        {
+            id: 'pagefold-model-preset:binding-context-main:1.10',
+            file: 'src/ts/process/request/modelPresetBinding.ts',
+            type: 'replace',
+            anchor: `        return main
+            ? { kind: 'modelPreset', preset: main }
+            : { kind: 'block', reason: 'main-unset' }
+`,
+            content: `        return main
+            ? { kind: 'modelPreset', preset: main, bindingSource, pageFoldBinding: set }
+            : { kind: 'block', reason: 'main-unset' }
+`,
+            requires: ['pagefold-model-preset:binding-context-source:1.10'],
+            targetVersions: pocketRisu1100,
+        },
+        {
+            id: 'pagefold-model-preset:binding-context-aux:1.10',
+            file: 'src/ts/process/request/modelPresetBinding.ts',
+            type: 'replace',
+            anchor: "        if (auxPreset) return { kind: 'modelPreset', preset: auxPreset }\n",
+            content: "        if (auxPreset) return { kind: 'modelPreset', preset: auxPreset, bindingSource, pageFoldBinding: set }\n",
+            requires: ['pagefold-model-preset:binding-context-main:1.10'],
+            targetVersions: pocketRisu1100,
+        },
+        {
+            id: 'pagefold-model-preset:binding-context-sub:1.10',
+            file: 'src/ts/process/request/modelPresetBinding.ts',
+            type: 'replace',
+            anchor: `    return sub
+        ? { kind: 'modelPreset', preset: sub }
+        : { kind: 'block', reason: 'sub-unset' }
+`,
+            content: `    return sub
+        ? { kind: 'modelPreset', preset: sub, bindingSource, pageFoldBinding: set }
+        : { kind: 'block', reason: 'sub-unset' }
+`,
+            requires: ['pagefold-model-preset:binding-context-aux:1.10'],
+            targetVersions: pocketRisu1100,
+        },
+        {
+            id: 'pagefold-model-preset:request-pagefold-imports:1.10',
+            file: 'src/ts/process/request/request.ts',
+            type: 'insert',
+            where: 'after',
+            anchor: `import {
+    startStatus, appendText, endStatus, setStatusTokenCounter, addBadge,
+    type RequestKind,
+} from "src/ts/status/requestStatus";
+`,
+            content: `import { resolvePageFoldState } from 'src/ts/pagefold/resolve'
+import { preparePageFoldWire } from 'src/ts/pagefold/prepare'
+import { getPageFoldRuntimeRenderPort } from 'src/ts/pagefold/runtimePort'
+import { redactPreparedRequestForDisplay } from 'src/ts/pagefold/redaction'
+import type { ResolvedBindingWithContext } from './modelPresetBinding'
+`,
+            requires: ['pagefold-model-preset:binding-context-sub:1.10'],
+            targetVersions: pocketRisu1100,
+        },
+        {
+            id: 'pagefold-model-preset:request-detailed-binding-import:1.10',
+            file: 'src/ts/process/request/request.ts',
+            type: 'replace',
+            anchor: "import { resolveChatModelBinding, buildModelPresetCredential, applyPromptPresetParams } from \"./modelPresetBinding\";\n",
+            content: "import { resolveChatModelBinding, resolveChatModelBindingWithContext, buildModelPresetCredential, applyPromptPresetParams } from \"./modelPresetBinding\";\n",
+            requires: ['pagefold-model-preset:request-pagefold-imports:1.10'],
+            targetVersions: pocketRisu1100,
+        },
+        {
+            id: 'pagefold-model-preset:request-detailed-binding-call:1.10',
+            file: 'src/ts/process/request/request.ts',
+            type: 'replace',
+            anchor: '        const binding = resolveChatModelBinding(currentChat, model, arg.moduleId)\n',
+            content: '        const binding = resolveChatModelBindingWithContext(currentChat, model, arg.moduleId)\n',
+            requires: ['pagefold-model-preset:request-detailed-binding-import:1.10'],
+            targetVersions: pocketRisu1100,
+        },
+        {
+            id: 'pagefold-model-preset:request-preset-binding-context:1.10',
+            file: 'src/ts/process/request/request.ts',
+            type: 'replace',
+            anchor: "            return requestModelPreset(targ, applyPromptPresetParams(binding.preset, currentChat, model), abortSignal, model)\n",
+            content: "            return requestModelPreset(targ, applyPromptPresetParams(binding.preset, currentChat, model), abortSignal, model, binding)\n",
+            requires: ['pagefold-model-preset:request-detailed-binding-call:1.10'],
+            targetVersions: pocketRisu1100,
+        },
+        {
+            id: 'pagefold-model-preset:request-preset-signature:1.10',
+            file: 'src/ts/process/request/request.ts',
+            type: 'replace',
+            anchor: "async function requestModelPreset(arg:RequestDataArgumentExtended, preset:ModelPreset, abortSignal:AbortSignal=null, mode:ModelModeExtended='model'):Promise<requestDataResponse> {\n",
+            content: `async function requestModelPreset(
+    arg: RequestDataArgumentExtended,
+    preset: ModelPreset,
+    abortSignal: AbortSignal = null,
+    mode: ModelModeExtended = 'model',
+    bindingContext?: Extract<ResolvedBindingWithContext, { kind: 'modelPreset' }>,
+): Promise<requestDataResponse> {
+`,
+            requires: ['pagefold-model-preset:request-preset-binding-context:1.10'],
+            targetVersions: pocketRisu1100,
+        },
+        {
+            id: 'pagefold-model-preset:request-mutable-messages:1.10',
+            file: 'src/ts/process/request/request.ts',
+            type: 'replace',
+            anchor: `    const messages = tools
+        ? await expandAdapterMessages(arg.formated, decodeToolCall, supportsVision)
+        : arg.formated.map((m) => toAdapterMessage(m, supportsVision))
+`,
+            content: `    let messages = tools
+        ? await expandAdapterMessages(arg.formated, decodeToolCall, supportsVision)
+        : arg.formated.map((m) => toAdapterMessage(m, supportsVision))
+`,
+            requires: ['pagefold-model-preset:request-preset-signature:1.10'],
+            targetVersions: pocketRisu1100,
+        },
+        {
+            id: 'pagefold-model-preset:request-prepare-wire:1.10',
+            file: 'src/ts/process/request/request.ts',
+            type: 'insert',
+            where: 'after',
+            anchor: `    const messages = tools
+        ? await expandAdapterMessages(arg.formated, decodeToolCall, supportsVision)
+        : arg.formated.map((m) => toAdapterMessage(m, supportsVision))
+`,
+            content: `
+    const pageFoldState = resolvePageFoldState({
+        preset,
+        task: mode,
+        binding: bindingContext?.pageFoldBinding,
+        moduleBound: bindingContext?.bindingSource === 'module',
+    })
+    let pageFoldContext: AdapterChatOptions['pageFold']
+    let pageFoldStatusStarted = false
+    if (pageFoldState.kind === 'blocked') {
+        void logScope.close()
+        return {
+            type: 'fail',
+            result: 'PageFold blocked: ' + pageFoldState.reason,
+            model: wireModel,
+            noRetry: true,
+        }
+    }
+    if (pageFoldState.kind === 'on') {
+        const incompatible = preset.toolUse === true
+            ? 'tools-enabled'
+            : preset.promptCaching?.enabled === true
+                ? 'explicit-cache-enabled'
+                : messages.some((message) => (message.images?.length ?? 0) > 0)
+                    ? 'image-present'
+                    : null
+        if (incompatible) {
+            void logScope.close()
+            return {
+                type: 'fail',
+                result: 'PageFold blocked: ' + incompatible,
+                model: wireModel,
+                noRetry: true,
+            }
+        }
+        if (reportStatus) {
+            safeStatus(() => startStatus(genId, {
+                kind: statusKind,
+                label: preset.name + ' · PageFold',
+                chatId: arg.realChatId,
+                phase: 'connecting',
+                now: Date.now(),
+            }))
+            pageFoldStatusStarted = true
+        }
+        try {
+            const preparedPageFold = await preparePageFoldWire({
+                state: pageFoldState,
+                preset,
+                task: mode,
+                binding: {
+                    source: bindingContext?.bindingSource ?? 'chat',
+                    ...(bindingContext?.bindingSource === 'module' && arg.moduleId
+                        ? { moduleId: arg.moduleId }
+                        : {}),
+                },
+                messages,
+                renderPort: getPageFoldRuntimeRenderPort(),
+                signal: abortSignal ?? undefined,
+            })
+            messages = preparedPageFold.messages
+            pageFoldContext = preparedPageFold.context
+        } catch (err) {
+            if (pageFoldStatusStarted) safeStatus(() => endStatus(genId, abortSignal?.aborted ? 'aborted' : 'failed', {
+                now: Date.now(),
+                error: err instanceof Error ? err.message : String(err),
+            }))
+            void logScope.close()
+            return {
+                type: 'fail',
+                result: err instanceof Error ? err.message : String(err),
+                model: wireModel,
+                noRetry: true,
+            }
+        }
+    }
+`,
+            requires: ['pagefold-model-preset:request-preset-signature:1.10'],
+            before: ['pagefold-model-preset:request-mutable-messages:1.10'],
+            targetVersions: pocketRisu1100,
+        },
+        {
+            id: 'pagefold-model-preset:request-preview-redaction:1.10',
+            file: 'src/ts/process/request/request.ts',
+            type: 'replace',
+            anchor: `    if (arg.previewBody) {
+        try {
+            // Mirror the real request's options so the preview shows the body that
+            // would actually be sent (cache breakpoints included).
+            const prepared = await previewModelPreset(kind, preset, {
+                messages, tools, fetchImpl,
+                anthropicCache1h: getDatabase().claude1HourCaching === true,
+            }, credential)
+            return {
+                type: 'success',
+                result: JSON.stringify({ url: prepared.url, body: prepared.body, headers: prepared.headers }),
+                model: wireModel,
+            }
+        } catch (err) {
+            return { type: 'fail', result: err instanceof Error ? err.message : String(err), model: wireModel }
+        } finally {
+            void logScope.close()
+        }
+    }
+`,
+            content: `    if (arg.previewBody) {
+        let previewOutcome: 'done' | 'failed' = 'done'
+        let previewError: string | undefined
+        try {
+            // Mirror the real request's options so preview and send execute the
+            // same final prepared invariant; redact only the display copy.
+            const prepared = await previewModelPreset(kind, preset, {
+                messages, tools, fetchImpl, pageFold: pageFoldContext,
+                anthropicCache1h: getDatabase().claude1HourCaching === true,
+            }, credential)
+            return {
+                type: 'success',
+                result: JSON.stringify(redactPreparedRequestForDisplay(prepared)),
+                model: wireModel,
+            }
+        } catch (err) {
+            previewOutcome = 'failed'
+            previewError = err instanceof Error ? err.message : String(err)
+            return { type: 'fail', result: previewError, model: wireModel, noRetry: pageFoldContext ? true : undefined }
+        } finally {
+            if (pageFoldStatusStarted) safeStatus(() => endStatus(genId, previewOutcome, {
+                now: Date.now(),
+                error: previewError,
+            }))
+            void logScope.close()
+        }
+    }
+`,
+            requires: ['pagefold-model-preset:request-prepare-wire:1.10'],
+            targetVersions: pocketRisu1100,
+        },
+        {
+            id: 'pagefold-model-preset:request-options-context:1.10',
+            file: 'src/ts/process/request/request.ts',
+            type: 'replace',
+            anchor: '            messages, abortSignal: abortSignal ?? undefined, fetchImpl, generationId: genId, cache,\n',
+            content: '            messages, abortSignal: abortSignal ?? undefined, fetchImpl, generationId: genId, cache, pageFold: pageFoldContext,\n',
+            requires: ['pagefold-model-preset:request-preview-redaction:1.10'],
+            targetVersions: pocketRisu1100,
+        },
+        {
+            id: 'pagefold-model-preset:request-status-no-restart:1.10',
+            file: 'src/ts/process/request/request.ts',
+            type: 'replace',
+            anchor: '        if (reportStatus) {\n            safeStatus(() => startStatus(genId, { kind: statusKind, label: preset.name, chatId: arg.realChatId, phase: \'connecting\', now: Date.now() }))\n        }\n',
+            content: `        if (reportStatus && !pageFoldStatusStarted) {
+            safeStatus(() => startStatus(genId, { kind: statusKind, label: preset.name, chatId: arg.realChatId, phase: 'connecting', now: Date.now() }))
+        }
+`,
+            requires: ['pagefold-model-preset:request-options-context:1.10'],
+            targetVersions: pocketRisu1100,
+        },
+        {
+            id: 'pagefold-model-preset:request-log-redaction-import:1.10',
+            file: 'src/ts/requestLog.ts',
+            type: 'insert',
+            where: 'after',
+            anchor: "import { getClientId } from './log'\n",
+            content: `import {
+    redactRequestLogBody,
+    redactRequestLogHeaders,
+    redactRequestLogUrl,
+} from 'src/ts/pagefold/redaction'
+`,
+            requires: ['pagefold-model-preset:request-status-no-restart:1.10'],
+            targetVersions: pocketRisu1100,
+        },
+        {
+            id: 'pagefold-model-preset:request-log-media-redaction:1.10',
+            file: 'src/ts/requestLog.ts',
+            type: 'replace',
+            anchor: `function stripInlineMedia(body: string): string {
+    return body.replace(
+        /"data:([a-z]+)\\/([a-z0-9.+-]+);base64,[A-Za-z0-9+/=]+"/gi,
+        (match, type: string, subtype: string) =>
+            \`"[\${type}/\${subtype}: \${Math.round(match.length * 0.75 / 1024)} KB omitted]"\`,
+    )
+}`,
+            content: `function stripInlineMedia(body: string): string {
+    return redactRequestLogBody(body) ?? ''
+}`,
+            requires: ['pagefold-model-preset:request-log-redaction-import:1.10'],
+            targetVersions: pocketRisu1100,
+        },
+        {
+            id: 'pagefold-model-preset:request-log-header-redaction:1.10',
+            file: 'src/ts/requestLog.ts',
+            type: 'replace',
+            anchor: `function headersToString(headers: unknown): string | undefined {
+    if (!headers) return undefined
+    try {
+        if (headers instanceof Headers) {
+            return JSON.stringify(Object.fromEntries(headers.entries()))
+        }
+        return JSON.stringify(headers)
+    } catch {
+        return undefined
+    }
+}`,
+            content: `function headersToString(headers: unknown): string | undefined {
+    return redactRequestLogHeaders(headers)
+}`,
+            requires: ['pagefold-model-preset:request-log-media-redaction:1.10'],
+            targetVersions: pocketRisu1100,
+        },
+        {
+            id: 'pagefold-model-preset:request-log-url-redaction:1.10',
+            file: 'src/ts/requestLog.ts',
+            type: 'replace',
+            anchor: "            const url = typeof input === 'string' ? input : input.toString()\n",
+            content: "            const url = redactRequestLogUrl(typeof input === 'string' ? input : input.toString())\n",
+            requires: ['pagefold-model-preset:request-log-header-redaction:1.10'],
+            targetVersions: pocketRisu1100,
+        },
+        {
+            id: 'pagefold-model-preset:server-log-redaction-helper:1.10',
+            file: 'server/node/pageFoldRequestLogRedaction.cjs',
+            type: 'owned',
+            content: owned('server/node/pageFoldRequestLogRedaction.cjs'),
+            requires: ['pagefold-model-preset:request-log-url-redaction:1.10'],
+            targetVersions: pocketRisu1100,
+        },
+        {
+            id: 'pagefold-model-preset:server-log-redaction-import:1.10',
+            file: 'server/node/request-logs.cjs',
+            type: 'insert',
+            where: 'after',
+            anchor: "const { maskSensitive } = require('./logs.cjs');\n",
+            content: "const { redactPageFoldRequestLogText } = require('./pageFoldRequestLogRedaction.cjs');\n",
+            requires: ['pagefold-model-preset:server-log-redaction-helper:1.10'],
+            targetVersions: pocketRisu1100,
+        },
+        {
+            id: 'pagefold-model-preset:server-log-redaction-tests:1.10',
+            file: 'server/node/pageFoldRequestLogRedaction.test.ts',
+            type: 'owned',
+            content: owned('server/node/pageFoldRequestLogRedaction.test.ts'),
+            requires: ['pagefold-model-preset:server-log-redaction-import:1.10'],
+            targetVersions: pocketRisu1100,
+        },
+        {
+            id: 'pagefold-model-preset:server-log-request-body-redaction:1.10',
+            file: 'server/node/request-logs.cjs',
+            type: 'replace',
+            anchor: "        ? truncateBody(maskSensitive(String(entry.requestBody)), MAX_BODY_BYTES)\n",
+            content: "        ? truncateBody(maskSensitive(redactPageFoldRequestLogText(entry.requestBody)), MAX_BODY_BYTES)\n",
+            requires: ['pagefold-model-preset:server-log-redaction-tests:1.10'],
+            targetVersions: pocketRisu1100,
+        },
+        {
+            id: 'pagefold-model-preset:server-log-response-body-redaction:1.10',
+            file: 'server/node/request-logs.cjs',
+            type: 'replace',
+            anchor: "        ? truncateTail(maskSensitive(String(entry.responseBody)), MAX_BODY_BYTES)\n",
+            content: "        ? truncateTail(maskSensitive(redactPageFoldRequestLogText(entry.responseBody)), MAX_BODY_BYTES)\n",
+            requires: ['pagefold-model-preset:server-log-request-body-redaction:1.10'],
+            targetVersions: pocketRisu1100,
+        },
+        {
+            id: 'pagefold-model-preset:gemini-wire-integration-tests:1.10',
+            file: 'src/ts/pagefold/geminiWire.integration.test.ts',
+            type: 'owned',
+            content: owned('src/ts/pagefold/geminiWire.integration.test.ts'),
+            requires: ['pagefold-model-preset:server-log-response-body-redaction:1.10'],
+            targetVersions: pocketRisu1100,
+        },
     ],
 }

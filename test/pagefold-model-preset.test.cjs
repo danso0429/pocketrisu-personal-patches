@@ -26,7 +26,11 @@ test('prototype dependency and owned-file graph composes and reverts exactly', (
             if (!baselines.has(unit.file)) baselines.set(unit.file, null)
             continue
         }
+        // Some later PageFold units deliberately anchor inside the exact marker
+        // produced by an earlier PageFold owner. That marker is not baseline
+        // source and must not be synthesized independently here.
         const prior = baselines.get(unit.file) ?? ''
+        if (prior.includes(unit.anchor)) continue
         baselines.set(unit.file, prior + unit.anchor + `# synthetic-boundary:${unit.id}\n`)
     }
     const plan = compose(manifest.units, baselines)
@@ -52,6 +56,14 @@ test('prototype dependency and owned-file graph composes and reverts exactly', (
     assert.match(plan.outputs.get('server/node/pageFoldRenderRoute.cjs'), /cache-control/)
     assert.match(plan.outputs.get('server/node/server.cjs'), /const pageFoldRawParser = express\.raw/)
     assert.match(plan.outputs.get('server/node/server.cjs'), /pageFoldRenderRoute\.cjs/)
+    assert.match(plan.outputs.get('src/ts/pagefold/directives.ts'), /PAGEFOLD_SYSTEM_DECODER_V1/)
+    assert.match(plan.outputs.get('src/ts/pagefold/prepare.ts'), /preparePageFoldWire/)
+    assert.match(plan.outputs.get('src/ts/pagefold/geminiWire.ts'), /MEDIA_RESOLUTION_LOW/)
+    assert.match(plan.outputs.get('src/ts/preset/adapter/googleGemini.ts'), /assertPreparedPageFoldGeminiBody/)
+    assert.match(plan.outputs.get('src/ts/process/request/request.ts'), /PageFold blocked:/)
+    assert.match(plan.outputs.get('src/ts/process/request/request.ts'), /redactPreparedRequestForDisplay/)
+    assert.match(plan.outputs.get('src/ts/requestLog.ts'), /redactRequestLogHeaders/)
+    assert.match(plan.outputs.get('server/node/request-logs.cjs'), /redactPageFoldRequestLogText/)
 
     const byId = new Map(manifest.units.map((unit) => [unit.id, unit]))
     const reverted = new Map(plan.outputs)
