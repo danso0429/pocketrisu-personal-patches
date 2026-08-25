@@ -1,7 +1,7 @@
 # PageFold structural-oracle requalification
 
-> **Status:** v1 L1 failed; v2/v3 L2 qualified no resolution; v4-v6 stopped in
-> L3; result-driven v7 implemented locally; no v7 paid call or route qualification
+> **Status:** v1 L1 failed; v2/v3 L2 qualified no resolution; v4-v7 stopped in
+> L3; result-driven v8 implemented locally; no v8 paid call or route qualification
 >
 > **Date:** 2026-08-25 KST
 >
@@ -160,7 +160,7 @@ for provider-system composition, and began the first page marker sequence at
 
 ## Automatic observations
 
-- structural v1-v7 oracle focused test: 1 file / 14 tests passed;
+- structural v1-v8 oracle focused test: 1 file / 15 tests passed;
 - structural paid-runner and legacy provider focused tests after the L1
   preservation fix: 2 files / 19 tests passed;
 - checkpoint write failure controls: failed start persistence caused zero
@@ -671,6 +671,32 @@ mode-`0600` checkpoints contained zero PDF/Base64, canonical, API-key,
 bearer/access-token, or private-key hits. The post-cutoff request-log delta was
 zero rows and zero sensitive hits.
 
+## Structural oracle v8 — physical page boundaries only
+
+v8 changes only provider page-marker output from `{first,centers,last}` to
+`{first,last}` for every physical page. Exact center windows remain in fixture
+metadata and PDF.js evidence. Three separate eight-page byte-sentinel cells
+retain interior start/middle/end coverage, so no content-coverage obligation is
+removed from the matrix.
+
+Semantic byte, grammar, role canonicalization, hierarchy, fixtures, low choice,
+repeats, 3/3, one-shot 2048, 21 calls, zero controls, cost, no retry, and no
+fallback remain unchanged. Checkpoint/summary/resume metadata is pinned to
+`oracleVersion=8`; v7 cannot resume.
+
+Observed local v8 gates:
+
+- structural oracle + paid runner + legacy provider: 3 files / 34 tests passed;
+- page-marker response schema contains exact `first`/`last` and no `centers`;
+- exact center-window metadata remains present in dry fixture output;
+- patcher source suite: 45/45 files passed;
+- exact PocketRisu 1.10 v7-to-v8 update: four owned files plus private state,
+  zero collisions, `current`, zero drift;
+- repeated v8 plan: zero changes;
+- runner identity: oracle 8, 21 calls, zero controls, one-shot 2048; and
+- no v8 provider call, catalog registration, generated installer change, or
+  live apply occurred during implementation.
+
 ## L2.5 runtime audit
 
 ### Phase 1 — flat discovery
@@ -685,7 +711,7 @@ The changed path can perform these actions and outcomes:
 - select one credential by normalized-name hash and validate its shape;
 - sign an RS256 OAuth assertion and exchange it for an access token;
 - create text-only or PDF-first Vertex request bodies;
-- select a versioned v1-v7 response and recognition oracle;
+- select a versioned v1-v8 response and recognition oracle;
 - issue timed OAuth and model HTTPS calls;
 - parse HTTP, provider JSON, structured answer JSON, finish reason, and usage;
 - rate usage and compare a pre-call reservation and post-call total to the cap;
@@ -723,16 +749,16 @@ process interruption between lifecycle points, and pricing/version drift.
   (`pageFoldStructuralPaidRunner.cjs:329-433`). Network, HTTP, provider-JSON,
   answer-JSON, usage, and finish paths are normalized without retaining raw
   bodies (`pageFoldStructuralPaidRunner.cjs:329-455`).
-- **Oracle separation:** v1-v6 contracts remain addressable only by their
-  historical versions. Version 7 keeps exact bytes/member codepoints in the
-  independent reader, measures stable semantic recall, represents physical
-  page centers without an even-set convention, and canonicalizes only the
-  source-literal role prefix for comparison
-  (`pageFoldStructuralRequalification.cjs:233-1014`). The paid runner pins v7
-  and one-shot 2048 in request, evaluation, checkpoint, summary, and resume
-  validation. Focused tests observed historical preservation, odd/even center
-  windows, raw-versus-comparison marker handling, no-control `MAX_TOKENS`, and
-  unknown-version rejection.
+- **Oracle separation:** v1-v7 contracts remain addressable only by their
+  historical versions. Version 8 keeps exact bytes/member codepoints/centers in
+  the independent reader, measures stable semantic recall, requires every
+  physical page boundary, and canonicalizes only the source-literal role prefix
+  for comparison (`pageFoldStructuralRequalification.cjs:237-1069`). The paid
+  runner pins v8 and one-shot 2048 in request, evaluation, checkpoint, summary,
+  and resume validation. Focused tests observed historical preservation,
+  boundary-only response schema, retained center metadata, raw-versus-
+  comparison marker handling, no-control `MAX_TOKENS`, and unknown-version
+  rejection.
 - **Credential lifecycle:** the database reader closes its read transaction in
   `finally`; selectors require exactly one hash match; the service-account
   token URI and PKCS8 shape are validated; OAuth is RS256 and time-bounded
@@ -743,7 +769,7 @@ process interruption between lifecycle points, and pricing/version drift.
   renderer enforces the previously measured worker, queue, source, page, span,
   PDF-byte, and cache ceilings. Each paid-run fixture matched its frozen hash
   and exact PDF.js extraction/center derivation
-  (`pageFoldStructuralRequalification.cjs:753-883`).
+  (`pageFoldStructuralRequalification.cjs:797-927`).
 - **Resume and result safety:** resume revalidates schema, model, fixture
   identity, call count, cost, controls, every observation, and the two-pass
   decision (`pageFoldStructuralPaidRunner.cjs:457-566`). Public records are
@@ -766,8 +792,8 @@ process interruption between lifecycle points, and pricing/version drift.
 
 ### Phase 3 — triage
 
-- **Q1:** v1 L1 failed, v2/v3 L2 qualified no resolution, and v4-v6 stopped in
-  L3; v7 has no provider observation, so support admission and every downstream
+- **Q1:** v1 L1 failed, v2/v3 L2 qualified no resolution, and v4-v7 stopped in
+  L3; v8 has no provider observation, so support admission and every downstream
   runtime/live owner remain closed.
 - **Q1:** no PageFold-created credential, PDF, canonical transcript, token, or
   private-key persistence finding remains in tracked output or request-log
@@ -793,6 +819,9 @@ process interruption between lifecycle points, and pricing/version drift.
 - **Q3 fixed:** v7 treats the optional source-literal `ROLE:` marker prefix as
   representation while preserving every semantic mapping/order check and raw
   observation.
+- **Q3 fixed:** v8 keeps page-marker responsibility to exact physical
+  boundaries/order while separate reader and byte cells retain center/interior
+  coverage.
 - **Q3 resolved by observed gates:** source tests, focused server tests,
   exact-target owner lifecycle, reference-line comparison, secret sweep,
   official price/model-limit check, and request-log queries are recorded above.
@@ -839,8 +868,8 @@ process interruption between lifecycle points, and pricing/version drift.
 No Vertex resolution is support-qualified. Under the integration authority,
 adapter/UI/BG composition, catalog admission, candidate live apply, and stable
 release remain closed because v3 qualified no route. The v4 design and
-paid run then stopped in L3, as did v5 and v6. The v7 design and automatic
-gates are complete, and the user has explicitly approved same-bound
-plan-derived reruns through L4. v7 starts again at its visible L1 response
-control; v1-v6 results cannot be resumed. Independent PDF extraction remains a
-separate mandatory gate and cannot substitute for model understanding.
+paid run then stopped in L3, as did v5-v7. The v8 design and automatic gates
+are complete, and the user has explicitly approved same-bound plan-derived
+reruns through L4. v8 starts again at its visible L1 response control; v1-v7
+results cannot be resumed. Independent PDF extraction remains a separate
+mandatory gate and cannot substitute for model understanding.

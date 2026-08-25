@@ -1732,7 +1732,10 @@ eight physical pages must still return exact `first` and exact `last` in order.
 Interior eight-page content remains independently covered by the three 8-page
 byte-sentinel cells, while PDF.js still owns every exact page span and center.
 All v7 semantic, role, hierarchy, one-shot, cost, safety, and 3/3 boundaries
-remain unchanged. v8 must rerun every cell independently.
+remain unchanged. v8 must rerun every cell independently. Its local
+implementation passed 34 focused tests, the 45-file patcher suite, exact
+v7-to-v8 update, zero-change re-plan, and zero-drift status; these gates do not
+replace the approved paid matrix.
 
 ### 20.2 Candidate catalog admission — experimental only
 

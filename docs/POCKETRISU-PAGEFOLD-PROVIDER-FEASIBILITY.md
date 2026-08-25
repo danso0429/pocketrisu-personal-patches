@@ -225,3 +225,7 @@ The approved v7 run passed both L2 resolutions and low one-/two-page claims
 to an otherwise exact eight-page boundary/order result. Thirteen calls used
 `USD 0.034548750`; the structural receipt retains the result and v8 boundary-
 only marker contract.
+
+The v8 boundary-only page-marker oracle is locally implemented and tested but
+has made no provider call. Exact centers remain retained by the reader and v7
+evidence.
