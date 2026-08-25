@@ -1,6 +1,7 @@
 # PageFold paid provider feasibility receipt
 
-> **Status:** completed; no provider route qualified
+> **Status:** original omnibus qualified no route; structural v8 later
+> qualified Vertex `gemini-3.7-flash` low through L4
 >
 > **Date:** 2026-08-25 KST
 >
@@ -8,7 +9,7 @@
 >
 > **Prototype basis:** `5720915`
 
-## Outcome
+## Original omnibus outcome
 
 The separately approved paid feasibility gate was executed without retry or
 classic fallback. OpenRouter was excluded by user scope. AI Studio stopped on
@@ -133,7 +134,7 @@ sources:
 
 The run stayed below its approved `USD 5` ceiling and used no automatic retry.
 
-## Admission decision
+## Original omnibus admission decision
 
 No route remains in the first PageFold support matrix:
 
@@ -236,3 +237,16 @@ low L3 13/13, and balanced hierarchy L4 3/3. Every call returned
 difference. Rated usage was `USD 0.050253000`; final support is Vertex
 `gemini-3.7-flash` low only. Medium, AI Studio, and OpenRouter remain
 unqualified under their own evidence boundaries.
+
+## Current admission after structural v8
+
+| Provider route | Resolution | Current admission |
+| --- | --- | --- |
+| Vertex `gemini-3.7-flash` | low | qualified through L1-L4 |
+| Vertex `gemini-3.7-flash` | medium | unqualified; L2 screening only |
+| AI Studio | low/medium | unqualified; historical `429`, v8 not replicated |
+| OpenRouter | native | unqualified; user-excluded |
+
+The original omnibus and every intermediate failure remain historical evidence;
+none is rewritten as a pass. The current support decision comes only from the
+complete v8 matrix recorded in the structural receipt.
