@@ -1391,11 +1391,13 @@ and L4.
 ### 19.3 Paid provider feasibility
 
 - separate user approval before paid calls;
-- a text-only control validates the response oracle before PDF calls;
+- a text-only control validates only response-schema/evaluator behavior before
+  PDF calls by supplying visible, already-computed facts;
 - 1/2/8 pages with start/middle/end markers on every page;
 - whitespace uses run lengths/positions and ZWJ/variation/tag content uses
-  ordered Unicode code points, so perception is not conflated with response
-  trimming, normalization, or emoji rendering;
+  ordered base-10 JSON integer code points, so perception is not conflated with
+  response trimming, hex-prefix/case notation, normalization, or emoji
+  rendering;
 - verbatim output remains separately deferred and disclosed;
 - JSON, code, fake role/message records, and interleaved roles use compact,
   independently expected identifiers;
@@ -1414,6 +1416,8 @@ and L4.
 - actual synthetic answer fields and bounded first-difference metrics are
   retained for diagnosis, while credentials, request bodies, PDF Base64, and
   provider tokens remain prohibited;
+- a sanitized `call-start` marker is fsynced before provider work and a
+  sanitized `call-complete` record is fsynced before another call;
 - Vertex is qualified first; AI Studio receives the identical frozen matrix
   only after a separate non-recall quota/admission gate succeeds;
 - OpenRouter is not part of the current requalification scope; native-default
@@ -1538,8 +1542,10 @@ claim and each transition has an external stop condition.
    Unicode oracles, compact schemas, sanitized observed fields/diffs, a
    512/1024 output-budget control, dry-run fixture identity, focused tests, and
    secret sweep.
-2. **L1 text oracle control — one Vertex call.** The same byte-sensitive and
-   role facts are supplied as ordinary text. Failure stops all PDF calls and
+2. **L1 text oracle control — one Vertex call.** The byte-sensitive and role
+   facts are supplied as visible, already-computed ordinary text. The model
+   only maps those facts into the declared response schema; raw whitespace or
+   invisible Unicode perception belongs to L2. Failure stops all PDF calls and
    returns to the evaluator; it is not a renderer verdict.
 3. **L2 one-page paired screening — four Vertex calls.** Low and medium each
    receive one byte-sensitive fixture and one grammar/role/fake-record fixture.
@@ -1559,6 +1565,28 @@ claim and each transition has an external stop condition.
 The Vertex structural requalification has a separate rated-cost ceiling of
 `USD 0.25`, no automatic retry, and no classic fallback. Paid calls require a
 new approval after L0 is implemented, tested, and reviewed.
+
+The first structural oracle (`v1`) incorrectly combined three claims in L1:
+response-schema behavior, raw invisible-character perception, and exact
+uppercase-hex notation. Its one approved L1 call returned `HTTP 200 / STOP` but
+failed the evaluator, and a local post-call result-guard defect prevented
+field-level retention. That result remains failed evidence and was not retried.
+
+The result-driven `v2` revision changes only the oracle boundary:
+
+- L1 uses visible precomputed decimal facts and therefore isolates the response
+  schema/evaluator;
+- L2 PDF cells remain responsible for whitespace and Unicode recognition;
+- Unicode scalar answers use base-10 JSON integers rather than formatting-
+  sensitive hex strings;
+- result/checkpoint metadata carries `oracleVersion=2`, and a v1 resume receipt
+  cannot enter the v2 sequence; and
+- fixture bytes, low/medium comparison, repeats, page expansion, cost cap,
+  output-cap controls, no-retry rule, and no-fallback rule remain unchanged.
+
+Implementing and locally testing v2 does not authorize another provider call.
+The exhausted v1 approval cannot be reused; v2 requires a separate explicit
+paid-call approval after its automatic gates and receipt are complete.
 
 ### 20.2 Candidate catalog admission — experimental only
 

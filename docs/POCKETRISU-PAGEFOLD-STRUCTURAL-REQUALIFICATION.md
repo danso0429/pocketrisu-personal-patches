@@ -1,6 +1,7 @@
 # PageFold structural-oracle requalification
 
-> **Status:** L1 stopped on failed text oracle; L2-L4 not run; no route qualified
+> **Status:** v1 L1 failed; result-driven v2 implemented locally; no v2 paid call
+> or route qualification
 >
 > **Date:** 2026-08-25 KST
 >
@@ -53,7 +54,7 @@ usage/latency for a user choice. A later failure on the chosen resolution does
 not automatically select the other one; a new paired control would require the
 exact trigger specified in the integration authority.
 
-## Structural oracle
+## Structural oracle v1 — historical failed boundary
 
 The byte-sensitive expectation is:
 
@@ -87,6 +88,47 @@ declared schema, bounded depth/array/string limits, and field-level expected vs
 observed differences. Unknown response fields are dropped. Credentials,
 request bodies, PDF Base64, user content, and provider tokens remain prohibited.
 
+## Structural oracle v2 — result-driven revision
+
+The v1 L1 control combined response-schema behavior with raw whitespace,
+invisible-character perception, and formatting-sensitive uppercase-hex output.
+Because its field-level response was not retained, the observed failure cannot
+identify which of those claims failed. The v2 change removes the confounds
+without reinterpreting v1.
+
+L1 now receives visible precomputed facts:
+
+```text
+PAGEFOLD_RESPONSE_ORACLE_V2
+WORDS|ALPHA|BETA
+SPACE_RUNS_DECIMAL|2|3|2
+ZWJ_SCALARS_DECIMAL|128104|8205|128105|8205|128103|8205|128102
+VARIATION_SCALARS_DECIMAL|9992|65039
+TAG_SCALARS_DECIMAL|917607
+ROLES|R_SYS:system|R_USER:user|R_ASSISTANT:assistant|R_TOOL:tool
+```
+
+Its only claim is that the model can map already-computed visible values into
+the declared JSON schema. Actual source recognition begins in L2. PDF byte
+cells report this deterministic expectation for each `B_START`, `B_MIDDLE`,
+and `B_END` sample:
+
+```json
+{
+  "words": ["ALPHA", "BETA"],
+  "spaceRuns": [2, 3, 2],
+  "zwjCodePoints": [128104, 8205, 128105, 8205, 128103, 8205, 128102],
+  "variationCodePoints": [9992, 65039],
+  "tagCodePoints": [917607]
+}
+```
+
+Base-10 JSON integers remove hex-prefix, hex-case, and string-format variation
+from the model-recognition verdict. They do not weaken order, whitespace-run,
+or Unicode-scalar equality. Grammar, markers, hierarchy, fixture bytes,
+resolution comparison, repeats, output controls, cost cap, no-retry, and
+no-fallback rules remain unchanged.
+
 ## L0 fixture observations
 
 All fixtures were independently extracted through PDF.js and matched their
@@ -118,7 +160,7 @@ for provider-system composition, and began the first page marker sequence at
 
 ## Automatic observations
 
-- structural L0 focused test: 1 file / 8 tests passed;
+- structural v1/v2 oracle focused test: 1 file / 9 tests passed;
 - structural paid-runner and legacy provider focused tests after the L1
   preservation fix: 2 files / 20 tests passed;
 - checkpoint write failure controls: failed start persistence caused zero
@@ -136,7 +178,7 @@ for provider-system composition, and began the first page marker sequence at
   18 apply changes including private state, zero-change re-plan, `current`
   status with zero drift, and exact managed-byte/mode revert with state absent.
 
-## Paid L1 observation
+## Paid L1 v1 observation
 
 The user approved the conditional Vertex sequence with at most 23 calls,
 `USD 0.25` rated cost, no automatic retry, and no classic fallback. The paid
@@ -183,6 +225,10 @@ The follow-up fix:
 These controls were validated only with fake-provider observations after the
 actual L1 stop. They do not recover or reinterpret the lost per-field L1 data.
 
+The paid runner now records `oracleVersion=2` in start/completion checkpoints
+and final summaries. Resume validation rejects a v1 or missing-version summary.
+No provider call was made while implementing this revision.
+
 ### Request-log observation
 
 The paid harness used its direct HTTPS path and did not add a PocketRisu
@@ -213,6 +259,7 @@ The changed path can perform these actions and outcomes:
 - select one credential by normalized-name hash and validate its shape;
 - sign an RS256 OAuth assertion and exchange it for an access token;
 - create text-only or PDF-first Vertex request bodies;
+- select a versioned v1/v2 response and recognition oracle;
 - issue timed OAuth and model HTTPS calls;
 - parse HTTP, provider JSON, structured answer JSON, finish reason, and usage;
 - rate usage and compare a pre-call reservation and post-call total to the cap;
@@ -235,20 +282,27 @@ process interruption between lifecycle points, and pricing/version drift.
 - **Authority and sequencing:** paid/checkpoint gates precede fixtures and
   credentials; L1 failure returns before L2; two passing resolutions return a
   decision instead of choosing; later failure returns without alternate-route
-  fallback (`pageFoldStructuralPaidRunner.cjs:59-161`). The fake-provider suite
+  fallback (`pageFoldStructuralPaidRunner.cjs:61-163`). The fake-provider suite
   observed L1 stop, five-call decision pause, single-resolution 21-call close,
   resume without screening replay, and bounded output controls.
 - **Call lifecycle:** the 23-call and rated-cost preflight precede OAuth/model
   work; sanitized `call-start` precedes the request and `call-complete`
-  precedes any next cell (`pageFoldStructuralPaidRunner.cjs:193-324`). Injected
+  precedes any next cell (`pageFoldStructuralPaidRunner.cjs:195-332`). Injected
   start-write failure produced zero fake calls; injected completion-write
   failure produced one call and no second call.
 - **Wire and errors:** the only model endpoint is global Vertex, with a
   five-minute timeout, PDF-first part ordering, per-part low/medium resolution,
   compact structured output, low thinking, and no tools or cache
-  (`pageFoldStructuralPaidRunner.cjs:339-443`). Network, HTTP, provider-JSON,
+  (`pageFoldStructuralPaidRunner.cjs:344-448`). Network, HTTP, provider-JSON,
   answer-JSON, usage, and finish paths are normalized without retaining raw
-  bodies (`pageFoldStructuralPaidRunner.cjs:339-463`).
+  bodies (`pageFoldStructuralPaidRunner.cjs:344-470`).
+- **Oracle separation:** v1 hex/raw expectations remain addressable only by
+  version 1. Version 2 supplies visible decimal L1 facts, requires integer
+  scalar arrays, and uses those same integer expectations for PDF byte cells
+  (`pageFoldStructuralRequalification.cjs:166-335`). The paid runner pins v2 in
+  request, evaluation, checkpoint, summary, and resume validation. Focused
+  tests observed v1 preservation, v2 pass/fail evaluation, integer schema,
+  visible control text, and rejection of an unknown oracle version.
 - **Credential lifecycle:** the database reader closes its read transaction in
   `finally`; selectors require exactly one hash match; the service-account
   token URI and PKCS8 shape are validated; OAuth is RS256 and time-bounded
@@ -258,12 +312,12 @@ process interruption between lifecycle points, and pricing/version drift.
 - **Fixture integrity/resources:** fixture generation is sequential and its
   renderer enforces the previously measured worker, queue, source, page, span,
   PDF-byte, and cache ceilings. Each paid-run fixture matched its frozen hash
-  and exact PDF.js extraction (`pageFoldStructuralRequalification.cjs:272-323`).
+  and exact PDF.js extraction (`pageFoldStructuralRequalification.cjs:337-388`).
 - **Resume and result safety:** resume revalidates schema, model, fixture
   identity, call count, cost, controls, every observation, and the two-pass
-  decision (`pageFoldStructuralPaidRunner.cjs:465-570`). Public records are
+  decision (`pageFoldStructuralPaidRunner.cjs:472-580`). Public records are
   schema-bounded; actual secret strings and prohibited value-bearing keys are
-  rejected (`pageFoldStructuralPaidRunner.cjs:573-850`). The original boolean
+  rejected (`pageFoldStructuralPaidRunner.cjs:582-879`). The original boolean
   field-name false positive was observed, fixed, and retained as failed
   evidence rather than hidden.
 - **Ownership and no-live claim:** catalog search found no PageFold entry;
@@ -281,8 +335,8 @@ process interruption between lifecycle points, and pricing/version drift.
 
 ### Phase 3 — triage
 
-- **Q1:** the actual L1 recognition gate failed, so support admission and every
-  downstream runtime/live owner remain closed.
+- **Q1:** the actual v1 L1 gate failed; v2 has no provider observation, so
+  support admission and every downstream runtime/live owner remain closed.
 - **Q1:** no PageFold-created credential, PDF, canonical transcript, token, or
   private-key persistence finding remains in tracked output or request-log
   delta.
@@ -292,6 +346,8 @@ process interruption between lifecycle points, and pricing/version drift.
   guard, and every check value must be boolean.
 - **Q3 fixed:** start/completion checkpoints now fail closed around each model
   call, with a persisted start marker available even if completion is lost.
+- **Q3 fixed:** L1 response plumbing no longer doubles as raw invisible-
+  character recognition, and scalar formatting no longer affects L2 recall.
 - **Q3 resolved by observed gates:** source tests, focused server tests,
   exact-target owner lifecycle, reference-line comparison, secret sweep,
   official price/model-limit check, and request-log queries are recorded above.
@@ -336,7 +392,8 @@ process interruption between lifecycle points, and pricing/version drift.
 
 No Vertex resolution is support-qualified. Under the integration authority,
 adapter/UI/BG composition, catalog admission, candidate live apply, and stable
-release remain closed. Another provider call would be a new experiment: it
-requires a revised diagnostic design that accounts for the missing L1
-field-level evidence and separate explicit paid-call approval. Independent PDF
-extraction cannot substitute for the failed model-recognition gate.
+release remain closed. The v2 design and automatic gates are complete, but
+another provider call is a new experiment and requires separate explicit
+paid-call approval. An approved v2 run starts again at its visible L1 response
+control; the exhausted v1 approval and result cannot be resumed. Independent
+PDF extraction cannot substitute for a model-recognition gate.
