@@ -1672,11 +1672,13 @@ rule stopped before remaining L3/L4 cells. v4 remains failed evidence.
 
 This repeated pattern moves individual member enumeration back to the exact
 reader: it is still unstable visual decomposition, not stable conversational
-meaning. A result-driven `v5` may require `zwjSemanticKind="family"` plus
-joiner count `3`, while exact member order/codepoints remain mandatory in
-PDF.js extraction. All other v4 obligations and the one-shot 2048/21-call
-budget remain unchanged. v5 must independently pass its own 3/3 cells; v4's
-single low screening pass cannot be carried forward.
+meaning. The result-driven `v5` requires `zwjSemanticKind="family"` plus joiner
+count `3`, while exact member order/codepoints remain mandatory in PDF.js
+extraction. All other v4 obligations and the one-shot 2048/21-call budget remain
+unchanged. Checkpoint/summary metadata carries `oracleVersion=5`, so v4 cannot
+resume. v5 must independently pass its own 3/3 cells; v4's single low screening
+pass cannot be carried forward. Local gates do not qualify a route without the
+approved v5 paid matrix.
 
 ### 20.2 Candidate catalog admission — experimental only
 

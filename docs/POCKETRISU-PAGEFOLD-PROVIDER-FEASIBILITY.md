@@ -197,3 +197,7 @@ failed medium byte and low L3 repeat 2 only on unstable individual family-member
 enumeration. Six calls used `USD 0.008766750`; strict 3/3 stopped before later
 L3/L4, so v4 qualified no route. The structural receipt retains the full
 observations and v5 semantic-kind boundary.
+
+The v5 joined-emoji semantic-kind oracle is locally implemented and tested but
+has made no provider call. It preserves every v4 observation and exact-reader
+obligation.
