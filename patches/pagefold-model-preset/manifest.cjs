@@ -935,6 +935,30 @@ export type ResolvedBindingWithContext =
             targetVersions: pocketRisu1100,
         },
         {
+            id: 'pagefold-model-preset:pricing:1.10',
+            file: 'src/ts/pagefold/pricing.ts',
+            type: 'owned',
+            content: owned('src/ts/pagefold/pricing.ts'),
+            requires: ['pagefold-model-preset:failure-policy-tests:1.10'],
+            targetVersions: pocketRisu1100,
+        },
+        {
+            id: 'pagefold-model-preset:metrics:1.10',
+            file: 'src/ts/pagefold/metrics.ts',
+            type: 'owned',
+            content: owned('src/ts/pagefold/metrics.ts'),
+            requires: ['pagefold-model-preset:pricing:1.10'],
+            targetVersions: pocketRisu1100,
+        },
+        {
+            id: 'pagefold-model-preset:metrics-tests:1.10',
+            file: 'src/ts/pagefold/metrics.test.ts',
+            type: 'owned',
+            content: owned('src/ts/pagefold/metrics.test.ts'),
+            requires: ['pagefold-model-preset:metrics:1.10'],
+            targetVersions: pocketRisu1100,
+        },
+        {
             id: 'pagefold-model-preset:chat-tokenizer-encoder-field:1.10',
             file: 'src/ts/tokenizer.ts',
             type: 'insert',
@@ -942,7 +966,7 @@ export type ResolvedBindingWithContext =
             anchor: "    private useName:'name'|'noName'\n",
             content: `    private encodeText: typeof encode
 `,
-            requires: ['pagefold-model-preset:failure-policy-tests:1.10'],
+            requires: ['pagefold-model-preset:metrics-tests:1.10'],
             targetVersions: pocketRisu1100,
         },
         {
@@ -1023,6 +1047,11 @@ import {
     type PageFoldRouteState,
     type RequestFailurePolicy,
 } from 'src/ts/pagefold/failurePolicy'
+import {
+    applyPageFoldActualUsage,
+    createPageFoldGenerationInfo,
+    type PageFoldGenerationInfo,
+} from 'src/ts/pagefold/metrics'
 import type { ResolvedBindingWithContext } from './modelPresetBinding'
 `,
             requires: ['pagefold-model-preset:chat-tokenizer-thought-encoder:1.10'],
@@ -1048,6 +1077,7 @@ import type { ResolvedBindingWithContext } from './modelPresetBinding'
             anchor: '    noRetry?: boolean,\n',
             content: `    pageFoldRouteState?: PageFoldRouteState
     failurePolicy?: RequestFailurePolicy
+    pageFoldInfo?: PageFoldGenerationInfo
 `,
             requires: ['pagefold-model-preset:request-route-state-argument:1.10'],
             targetVersions: pocketRisu1100,
@@ -1060,6 +1090,7 @@ import type { ResolvedBindingWithContext } from './modelPresetBinding'
             anchor: '    result: ReadableStream<StreamResponseChunk>,\n',
             content: `    pageFoldRouteState?: PageFoldRouteState
     failurePolicy?: RequestFailurePolicy
+    pageFoldInfo?: PageFoldGenerationInfo
 `,
             requires: ['pagefold-model-preset:request-route-state-response:1.10'],
             targetVersions: pocketRisu1100,
@@ -1330,6 +1361,7 @@ ${'        '}
     })
     let pageFoldContext: AdapterChatOptions['pageFold']
     let pageFoldRouteState = arg.pageFoldRouteState
+    let pageFoldInfo: PageFoldGenerationInfo | undefined
     let pageFoldStatusStarted = false
     const bindingSource = bindingContext?.bindingSource ?? 'chat'
     const bindingModuleId = bindingSource === 'module' ? arg.moduleId : undefined
@@ -1446,6 +1478,14 @@ ${'        '}
                     preparedPageFold.budget,
                 )
             }
+            if (pageFoldRouteState.stage === 'rendered') {
+                pageFoldInfo = createPageFoldGenerationInfo(pageFoldRouteState, preset)
+                if (reportStatus) safeStatus(() => addBadge(genId, {
+                    key: 'pagefold',
+                    text: 'PF ON · ' + pageFoldInfo!.pdfPages + 'p',
+                    tone: 'success',
+                }))
+            }
         } catch (err) {
             if (pageFoldStatusStarted) safeStatus(() => endStatus(genId, abortSignal?.aborted ? 'aborted' : 'failed', {
                 now: Date.now(),
@@ -1544,12 +1584,32 @@ ${'        '}
             targetVersions: pocketRisu1100,
         },
         {
+            id: 'pagefold-model-preset:request-stream-actual-usage:1.10',
+            file: 'src/ts/process/request/request.ts',
+            type: 'insert',
+            where: 'before',
+            anchor: '                            logScope.setUsage(toLogUsage(lastUsage))\n',
+            content: '                            applyPageFoldActualUsage(pageFoldInfo, lastUsage)\n',
+            requires: ['pagefold-model-preset:request-status-no-restart:1.10'],
+            targetVersions: pocketRisu1100,
+        },
+        {
+            id: 'pagefold-model-preset:request-nonstream-actual-usage:1.10',
+            file: 'src/ts/process/request/request.ts',
+            type: 'insert',
+            where: 'after',
+            anchor: '        const response = await sendModelPreset(kind, preset, options, credential)\n',
+            content: '        applyPageFoldActualUsage(pageFoldInfo, response.usage)\n',
+            requires: ['pagefold-model-preset:request-stream-actual-usage:1.10'],
+            targetVersions: pocketRisu1100,
+        },
+        {
             id: 'pagefold-model-preset:request-decoupled-route-state:1.10',
             file: 'src/ts/process/request/request.ts',
             type: 'replace',
             anchor: "                return { type: 'success', result: text, model: wireModel }\n",
-            content: "                return { type: 'success', result: text, model: wireModel, pageFoldRouteState }\n",
-            requires: ['pagefold-model-preset:request-status-no-restart:1.10'],
+            content: "                return { type: 'success', result: text, model: wireModel, pageFoldRouteState, pageFoldInfo }\n",
+            requires: ['pagefold-model-preset:request-nonstream-actual-usage:1.10'],
             targetVersions: pocketRisu1100,
         },
         {
@@ -1557,7 +1617,7 @@ ${'        '}
             file: 'src/ts/process/request/request.ts',
             type: 'replace',
             anchor: "            return { type: 'streaming', result: stream, model: wireModel }\n",
-            content: "            return { type: 'streaming', result: stream, model: wireModel, pageFoldRouteState }\n",
+            content: "            return { type: 'streaming', result: stream, model: wireModel, pageFoldRouteState, pageFoldInfo }\n",
             requires: ['pagefold-model-preset:request-decoupled-route-state:1.10'],
             targetVersions: pocketRisu1100,
         },
@@ -1566,7 +1626,7 @@ ${'        '}
             file: 'src/ts/process/request/request.ts',
             type: 'replace',
             anchor: "        return { type: 'success', result: formatPresetReasoning(response.reasoning) + response.text, model: wireModel }\n",
-            content: "        return { type: 'success', result: formatPresetReasoning(response.reasoning) + response.text, model: wireModel, pageFoldRouteState }\n",
+            content: "        return { type: 'success', result: formatPresetReasoning(response.reasoning) + response.text, model: wireModel, pageFoldRouteState, pageFoldInfo }\n",
             requires: ['pagefold-model-preset:request-stream-route-state:1.10'],
             targetVersions: pocketRisu1100,
         },
@@ -1668,7 +1728,7 @@ ${'        '}
             type: 'insert',
             where: 'after',
             anchor: "const { maskSensitive } = require('./logs.cjs');\n",
-            content: "const { redactPageFoldRequestLogText } = require('./pageFoldRequestLogRedaction.cjs');\n",
+            content: "const { redactPageFoldRequestLogText, redactPageFoldRequestLogUrl } = require('./pageFoldRequestLogRedaction.cjs');\n",
             requires: ['pagefold-model-preset:server-log-redaction-helper:1.10'],
             targetVersions: pocketRisu1100,
         },
@@ -1696,6 +1756,15 @@ ${'        '}
             anchor: "        ? truncateTail(maskSensitive(String(entry.responseBody)), MAX_BODY_BYTES)\n",
             content: "        ? truncateTail(maskSensitive(redactPageFoldRequestLogText(entry.responseBody)), MAX_BODY_BYTES)\n",
             requires: ['pagefold-model-preset:server-log-request-body-redaction:1.10'],
+            targetVersions: pocketRisu1100,
+        },
+        {
+            id: 'pagefold-model-preset:server-log-url-redaction:1.10',
+            file: 'server/node/request-logs.cjs',
+            type: 'replace',
+            anchor: "        url: str(maskSensitive(entry.url ?? ''), 2048) ?? '',\n",
+            content: "        url: str(maskSensitive(redactPageFoldRequestLogUrl(entry.url ?? '')), 2048) ?? '',\n",
+            requires: ['pagefold-model-preset:server-log-response-body-redaction:1.10'],
             targetVersions: pocketRisu1100,
         },
         {
@@ -1984,6 +2053,19 @@ import { resolvePageFoldOutputReserve, resolvePageFoldSourceBudget } from 'src/t
     serviceAccountImporting: "Reading and validating…",
     serviceAccountImportSuccess: "Imported {email} · Project {project}",
     serviceAccountImportKeyId: "Key ID {id}",
+    pageFoldPriceConfirmed: "Standard price: {input}/1M input · {output}/1M output",
+    pageFoldPriceUnconfirmed: "Price unconfirmed",
+    pageFoldManualInputPrice: "Manual input price (USD / 1M)",
+    pageFoldManualInputPriceHelp: "Optional input-only override. It never changes route support.",
+    pageFoldGenerationTitle: "PageFold request",
+    pageFoldGenerationMode: "Mode",
+    pageFoldGenerationPdf: "PDF",
+    pageFoldGenerationSource: "Source estimate",
+    pageFoldGenerationWirePredicted: "Predicted wire input",
+    pageFoldGenerationWireActual: "Actual wire input",
+    pageFoldGenerationDelta: "Signed token delta",
+    pageFoldGenerationCost: "Input cost",
+    pageFoldGenerationPricing: "Pricing evidence",
 `,
             requires: ['pagefold-model-preset:database-chat-role-normalizer:1.10'],
             targetVersions: pocketRisu1100,
@@ -2022,6 +2104,19 @@ import { resolvePageFoldOutputReserve, resolvePageFoldSourceBudget } from 'src/t
   serviceAccountImporting: "읽고 검증하는 중…",
   serviceAccountImportSuccess: "{email} · 프로젝트 {project} 가져옴",
   serviceAccountImportKeyId: "키 ID {id}",
+  pageFoldPriceConfirmed: "Standard 가격: 입력 100만 token당 {input} · 출력 100만 token당 {output}",
+  pageFoldPriceUnconfirmed: "가격 미확인",
+  pageFoldManualInputPrice: "수동 입력 가격 (USD / 100만 token)",
+  pageFoldManualInputPriceHelp: "선택적인 입력 가격 override예요. Route support는 바꾸지 않아요.",
+  pageFoldGenerationTitle: "PageFold 요청",
+  pageFoldGenerationMode: "모드",
+  pageFoldGenerationPdf: "PDF",
+  pageFoldGenerationSource: "Source 추정치",
+  pageFoldGenerationWirePredicted: "예측 wire 입력",
+  pageFoldGenerationWireActual: "실제 wire 입력",
+  pageFoldGenerationDelta: "Signed token delta",
+  pageFoldGenerationCost: "입력 비용",
+  pageFoldGenerationPricing: "가격 증거",
 `,
             requires: ['pagefold-model-preset:lang-en:1.10'],
             targetVersions: pocketRisu1100,
@@ -2179,6 +2274,106 @@ import { resolvePageFoldOutputReserve, resolvePageFoldSourceBudget } from 'src/t
 `,
             markerNeedle: 'serviceAccountImportJson',
             requires: ['pagefold-model-preset:credential-import-state:1.10'],
+            targetVersions: pocketRisu1100,
+        },
+        {
+            id: 'pagefold-model-preset:generation-info-component:1.10',
+            file: 'src/lib/Others/PageFoldGenerationInfo.svelte',
+            type: 'owned',
+            content: owned('src/lib/Others/PageFoldGenerationInfo.svelte'),
+            requires: ['pagefold-model-preset:credential-import-ui:1.10'],
+            targetVersions: pocketRisu1100,
+        },
+        {
+            id: 'pagefold-model-preset:request-logs-db-tests:1.10',
+            file: 'server/node/pageFoldRequestLogs.integration.test.ts',
+            type: 'owned',
+            content: owned('server/node/pageFoldRequestLogs.integration.test.ts'),
+            requires: ['pagefold-model-preset:generation-info-component:1.10'],
+            targetVersions: pocketRisu1100,
+        },
+        {
+            id: 'pagefold-model-preset:message-generation-info-type:1.10',
+            file: 'src/ts/storage/database.svelte.ts',
+            type: 'insert',
+            where: 'after',
+            anchor: '    generationId?: string\n',
+            content: "    pageFold?: import('../pagefold/metrics').PageFoldGenerationInfo\n",
+            requires: ['pagefold-model-preset:request-logs-db-tests:1.10'],
+            after: ['pagefold-model-preset:database-chat-role-normalizer:1.10'],
+            targetVersions: pocketRisu1100,
+        },
+        {
+            id: 'pagefold-model-preset:index-generation-info:1.10',
+            file: 'src/ts/process/index.svelte.ts',
+            type: 'insert',
+            where: 'after',
+            anchor: '        generationInfo.model = getGenerationModelString(req.model)\n',
+            content: `        if (req.pageFoldInfo) generationInfo.pageFold = req.pageFoldInfo
+`,
+            requires: ['pagefold-model-preset:message-generation-info-type:1.10'],
+            after: ['pagefold-model-preset:index-output-no-clamp:1.10'],
+            targetVersions: pocketRisu1100,
+        },
+        {
+            id: 'pagefold-model-preset:alert-generation-info-import:1.10',
+            file: 'src/lib/Others/AlertComp.svelte',
+            type: 'insert',
+            where: 'after',
+            anchor: '    import Help from "./Help.svelte";\n',
+            content: '    import PageFoldGenerationInfo from "./PageFoldGenerationInfo.svelte";\n',
+            requires: ['pagefold-model-preset:index-generation-info:1.10'],
+            targetVersions: pocketRisu1100,
+        },
+        {
+            id: 'pagefold-model-preset:alert-generation-info-ui:1.10',
+            file: 'src/lib/Others/AlertComp.svelte',
+            type: 'insert',
+            where: 'after',
+            anchor: '                    <span class="text-textcolor2 text-sm">{language.tokenWarning}</span>\n',
+            managed: `                    {#if $alertGenerationInfoStore.genInfo.pageFold}
+                        <PageFoldGenerationInfo info={$alertGenerationInfoStore.genInfo.pageFold} />
+                    {/if}
+`,
+            markerNeedle: '<PageFoldGenerationInfo',
+            requires: ['pagefold-model-preset:alert-generation-info-import:1.10'],
+            targetVersions: pocketRisu1100,
+        },
+        {
+            id: 'pagefold-model-preset:chat-generation-badge:1.10',
+            file: 'src/lib/ChatScreens/Chat.svelte',
+            type: 'insert',
+            where: 'after',
+            anchor: `                <span class="ml-1 max-w-[288px] truncate">
+                    {capitalize(getModelInfo(messageGenerationInfo.model).shortName.replace(/^pluginmodel:::/, ''))}
+                </span>
+`,
+            managed: `                {#if messageGenerationInfo.pageFold}
+                    <span class="ml-1 text-[10px] text-success">PF · {messageGenerationInfo.pageFold.pdfPages}p</span>
+                {/if}
+`,
+            markerNeedle: 'messageGenerationInfo.pageFold.pdfPages',
+            requires: ['pagefold-model-preset:alert-generation-info-ui:1.10'],
+            after: [
+                'bg-preserve:hook:chat-risu-control-touch-import',
+                'bg-preserve:hook:chat-risu-control-touch-bridge',
+                'bg-preserve:hook:chat-standard-risu-control-touch-events',
+                'bg-preserve:hook:chat-themed-risu-control-touch-events',
+                'haejeok-chat-width-adapter:chat-import:1.10',
+                'haejeok-chat-width-adapter:chat-class:1.10',
+                'kei-chat-render-bg-adapter:chat-helper-import:1.9',
+                'kei-chat-render-bg-adapter:chat-reactive-metadata:1.9',
+                'kei-chat-render-bg-adapter:chat-reload-key:1.9',
+                'kei-chat-render-bg-adapter:chat-body-streaming-prop:1.9',
+                'kei-partial-edit-bg-adapter:chat-remove-controller-import:1.9',
+                'kei-partial-edit-bg-adapter:chat-root-state:1.9',
+                'kei-partial-edit-bg-adapter:chat-remove-controller-state:1.9',
+                'kei-partial-edit-bg-adapter:chat-remove-controller-save:1.9',
+                'kei-partial-edit-bg-adapter:chat-translation-bridge:1.9',
+                'kei-partial-edit-bg-adapter:chat-remove-controller:1.9',
+                'kei-partial-edit-bg-adapter:chat-standard-root:1.9',
+                'kei-partial-edit-bg-adapter:chat-themed-root:1.9',
+            ],
             targetVersions: pocketRisu1100,
         },
     ],

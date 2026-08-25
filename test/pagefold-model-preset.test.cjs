@@ -83,6 +83,13 @@ test('prototype dependency and owned-file graph composes and reverts exactly', (
     assert.doesNotMatch(plan.outputs.get('src/ts/pagefold/serviceAccountImport.ts'), /addApiKey|apiKeyPool|plugins/)
     assert.match(plan.outputs.get('src/lib/Setting/Pages/Model/CredentialField.svelte'), /planServiceAccountFileImport/)
     assert.match(plan.outputs.get('src/ts/preset/adapter/googleServiceAccount/serviceAccount.ts'), /projectIdRaw/)
+    assert.match(plan.outputs.get('src/ts/pagefold/pricing.ts'), /inputUsdPerMillion: 0\.75/)
+    assert.match(plan.outputs.get('src/ts/pagefold/pricing.ts'), /2027-01-01T00:00:00\.000Z/)
+    assert.match(plan.outputs.get('src/ts/pagefold/metrics.ts'), /signedTokenDelta/)
+    assert.doesNotMatch(plan.outputs.get('src/ts/pagefold/metrics.ts'), /0\.050253/)
+    assert.match(plan.outputs.get('src/ts/storage/database.svelte.ts'), /pageFold\?: import\('\.\.\/pagefold\/metrics'\)/)
+    assert.match(plan.outputs.get('src/lib/Others/AlertComp.svelte'), /PageFoldGenerationInfo/)
+    assert.match(plan.outputs.get('server/node/pageFoldRequestLogs.integration.test.ts'), /request-logs\.db redaction/)
 
     const byId = new Map(manifest.units.map((unit) => [unit.id, unit]))
     const reverted = new Map(plan.outputs)

@@ -2,9 +2,11 @@
     import type { ModelPreset, PageFoldMode } from 'src/ts/preset/types';
     import { language } from 'src/lang';
     import { resolvePageFoldQualifiedRoute, PAGEFOLD_QUALIFIED_ROUTE } from 'src/ts/pagefold/qualifiedRoute';
+    import { resolvePageFoldPrice } from 'src/ts/pagefold/pricing';
     import ShSwitch from 'src/lib/UI/GUI/ShSwitch.svelte';
     import SelectInput from 'src/lib/UI/GUI/SelectInput.svelte';
     import OptionInput from 'src/lib/UI/GUI/OptionInput.svelte';
+    import NumberInput from 'src/lib/UI/GUI/NumberInput.svelte';
 
     interface Props { preset: ModelPreset }
     let { preset }: Props = $props();
@@ -18,6 +20,7 @@
         || preset.promptCaching?.enabled === true
         || preset.imageInput === true
     );
+    const price = $derived(resolvePageFoldPrice(preset));
 
     function setMode(value: string) {
         if (value !== 'maximum' && value !== 'balanced') {
@@ -36,6 +39,21 @@
             ...(preset.pageFold ?? {}),
             enabled: value,
             ...(modeReady ? { mode: mode as PageFoldMode } : {}),
+        };
+    }
+
+    function setManualPrice(event: Event & { currentTarget: HTMLInputElement }) {
+        const value = event.currentTarget.valueAsNumber;
+        if (!Number.isFinite(value) || value <= 0) {
+            if (preset.pageFold?.inputPriceOverride) {
+                const { inputPriceOverride: _removed, ...rest } = preset.pageFold;
+                preset.pageFold = rest;
+            }
+            return;
+        }
+        preset.pageFold = {
+            ...(preset.pageFold ?? { enabled: false }),
+            inputPriceOverride: { usdPerMillion: value, updatedAt: Date.now() },
         };
     }
 </script>
@@ -80,6 +98,27 @@
                 .replace('{pages}', String(PAGEFOLD_QUALIFIED_ROUTE.maxPdfPages))}
         </span>
         <span class="text-textcolor2">{language.pageFoldNoResolutionPicker}</span>
+        <span class="text-textcolor2">
+            {price.state === 'confirmed'
+                ? language.pageFoldPriceConfirmed
+                    .replace('{input}', String(price.record.inputUsdPerMillion))
+                    .replace('{output}', String(price.record.outputUsdPerMillion))
+                : language.pageFoldPriceUnconfirmed}
+        </span>
+    </div>
+
+    <div class="flex items-center justify-between gap-3">
+        <div class="flex flex-col gap-0.5 min-w-0">
+            <span class="text-sm text-textcolor">{language.pageFoldManualInputPrice}</span>
+            <span class="text-xs text-textcolor2">{language.pageFoldManualInputPriceHelp}</span>
+        </div>
+        <NumberInput
+            value={preset.pageFold?.inputPriceOverride?.usdPerMillion as number}
+            placeholder="0.75"
+            min={0.000001}
+            className="w-28 shrink-0"
+            onChange={setManualPrice}
+        />
     </div>
 
     {#if conflict}

@@ -17,6 +17,21 @@ function redactPageFoldRequestLogText(input) {
   }
 }
 
+function redactPageFoldRequestLogUrl(input) {
+  const text = String(input || '')
+  try {
+    const url = new URL(text)
+    for (const key of [...url.searchParams.keys()]) {
+      if (['key', 'api_key', 'apikey', 'token', 'access_token'].includes(key.toLowerCase())) {
+        url.searchParams.set(key, '[redacted]')
+      }
+    }
+    return url.toString()
+  } catch {
+    return text.replace(/([?&](?:key|api_key|apikey|token|access_token)=)[^&#\s]*/gi, '$1[redacted]')
+  }
+}
+
 function redactValue(value, key = '') {
   if (SENSITIVE_KEYS.has(String(key).toLowerCase())) return '[redacted]'
   if (Array.isArray(value)) return value.map((item) => redactValue(item))
@@ -35,4 +50,4 @@ function redactValue(value, key = '') {
   return out
 }
 
-module.exports = { redactPageFoldRequestLogText }
+module.exports = { redactPageFoldRequestLogText, redactPageFoldRequestLogUrl }
