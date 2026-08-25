@@ -72,6 +72,12 @@ test('prototype dependency and owned-file graph composes and reverts exactly', (
     assert.match(plan.outputs.get('src/ts/process/request/request.ts'), /if\(!pageFoldRouteState\)/)
     assert.match(plan.outputs.get('src/ts/process/request/request.ts'), /pageFoldContentRetryPolicy\('blank-response'\)/)
     assert.match(plan.outputs.get('src/ts/process/request/request.ts'), /pageFoldRouteState\.stage === 'rendered'/)
+    assert.match(plan.outputs.get('src/lib/Setting/Pages/Model/PageFoldPresetSettings.svelte'), /disabled=\{!modeReady\}/)
+    assert.match(plan.outputs.get('src/lib/Setting/Pages/Model/PageFoldPresetSettings.svelte'), /pageFoldNoResolutionPicker/)
+    assert.match(plan.outputs.get('src/lib/SideBars/PageFoldBindingOverrides.svelte'), /task: 'otherAx'/)
+    assert.match(plan.outputs.get('src/lib/SideBars/ModelBind.svelte'), /PageFoldBindingOverrides/)
+    assert.match(plan.outputs.get('src/ts/storage/database.svelte.ts'), /normalizePageFoldRoleOverrides/)
+    assert.doesNotMatch(plan.outputs.get('src/ts/pagefold/resolve.ts'), /setDatabase(?:Lite)?\s*\(/)
 
     const byId = new Map(manifest.units.map((unit) => [unit.id, unit]))
     const reverted = new Map(plan.outputs)
