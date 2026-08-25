@@ -78,6 +78,11 @@ test('prototype dependency and owned-file graph composes and reverts exactly', (
     assert.match(plan.outputs.get('src/lib/SideBars/ModelBind.svelte'), /PageFoldBindingOverrides/)
     assert.match(plan.outputs.get('src/ts/storage/database.svelte.ts'), /normalizePageFoldRoleOverrides/)
     assert.doesNotMatch(plan.outputs.get('src/ts/pagefold/resolve.ts'), /setDatabase(?:Lite)?\s*\(/)
+    assert.match(plan.outputs.get('src/ts/pagefold/serviceAccountImport.ts'), /262_144/)
+    assert.match(plan.outputs.get('src/ts/pagefold/serviceAccountImport.ts'), /preset\.apiKeyRef = undefined/)
+    assert.doesNotMatch(plan.outputs.get('src/ts/pagefold/serviceAccountImport.ts'), /addApiKey|apiKeyPool|plugins/)
+    assert.match(plan.outputs.get('src/lib/Setting/Pages/Model/CredentialField.svelte'), /planServiceAccountFileImport/)
+    assert.match(plan.outputs.get('src/ts/preset/adapter/googleServiceAccount/serviceAccount.ts'), /projectIdRaw/)
 
     const byId = new Map(manifest.units.map((unit) => [unit.id, unit]))
     const reverted = new Map(plan.outputs)

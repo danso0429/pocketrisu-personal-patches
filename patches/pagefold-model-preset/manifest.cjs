@@ -1980,6 +1980,10 @@ import { resolvePageFoldOutputReserve, resolvePageFoldSourceBudget } from 'src/t
     pageFoldBadgeOn: "PF ON",
     pageFoldBadgeOff: "PF OFF",
     pageFoldBadgeBlocked: "PF BLOCKED",
+    serviceAccountImportJson: "Import Service Account JSON",
+    serviceAccountImporting: "Reading and validating…",
+    serviceAccountImportSuccess: "Imported {email} · Project {project}",
+    serviceAccountImportKeyId: "Key ID {id}",
 `,
             requires: ['pagefold-model-preset:database-chat-role-normalizer:1.10'],
             targetVersions: pocketRisu1100,
@@ -2014,6 +2018,10 @@ import { resolvePageFoldOutputReserve, resolvePageFoldSourceBudget } from 'src/t
   pageFoldBadgeOn: "PF 켜짐",
   pageFoldBadgeOff: "PF 꺼짐",
   pageFoldBadgeBlocked: "PF 차단됨",
+  serviceAccountImportJson: "Service Account JSON 가져오기",
+  serviceAccountImporting: "읽고 검증하는 중…",
+  serviceAccountImportSuccess: "{email} · 프로젝트 {project} 가져옴",
+  serviceAccountImportKeyId: "키 ID {id}",
 `,
             requires: ['pagefold-model-preset:lang-en:1.10'],
             targetVersions: pocketRisu1100,
@@ -2024,6 +2032,153 @@ import { resolvePageFoldOutputReserve, resolvePageFoldSourceBudget } from 'src/t
             type: 'owned',
             content: owned('src/ts/pagefold/persistence.test.ts'),
             requires: ['pagefold-model-preset:lang-ko:1.10'],
+            targetVersions: pocketRisu1100,
+        },
+        {
+            id: 'pagefold-model-preset:service-account-project-type:1.10',
+            file: 'src/ts/preset/adapter/googleServiceAccount/serviceAccount.ts',
+            type: 'insert',
+            where: 'after',
+            anchor: '    privateKeyId?: string\n',
+            content: '    projectId?: string\n',
+            requires: ['pagefold-model-preset:persistence-tests:1.10'],
+            targetVersions: pocketRisu1100,
+        },
+        {
+            id: 'pagefold-model-preset:service-account-project-parse:1.10',
+            file: 'src/ts/preset/adapter/googleServiceAccount/serviceAccount.ts',
+            type: 'insert',
+            where: 'before',
+            anchor: '    return {\n        type: \'service_account\',\n',
+            content: `    const projectIdRaw = obj.project_id
+    const projectId = typeof projectIdRaw === 'string' && projectIdRaw.trim().length > 0
+        ? projectIdRaw.trim()
+        : undefined
+`,
+            requires: ['pagefold-model-preset:service-account-project-type:1.10'],
+            targetVersions: pocketRisu1100,
+        },
+        {
+            id: 'pagefold-model-preset:service-account-project-return:1.10',
+            file: 'src/ts/preset/adapter/googleServiceAccount/serviceAccount.ts',
+            type: 'insert',
+            where: 'after',
+            anchor: '        privateKeyId,\n',
+            content: '        ...(projectId ? { projectId } : {}),\n',
+            requires: ['pagefold-model-preset:service-account-project-parse:1.10'],
+            targetVersions: pocketRisu1100,
+        },
+        {
+            id: 'pagefold-model-preset:service-account-import-helper:1.10',
+            file: 'src/ts/pagefold/serviceAccountImport.ts',
+            type: 'owned',
+            content: owned('src/ts/pagefold/serviceAccountImport.ts'),
+            requires: ['pagefold-model-preset:service-account-project-return:1.10'],
+            targetVersions: pocketRisu1100,
+        },
+        {
+            id: 'pagefold-model-preset:service-account-import-tests:1.10',
+            file: 'src/ts/pagefold/serviceAccountImport.test.ts',
+            type: 'owned',
+            content: owned('src/ts/pagefold/serviceAccountImport.test.ts'),
+            requires: ['pagefold-model-preset:service-account-import-helper:1.10'],
+            targetVersions: pocketRisu1100,
+        },
+        {
+            id: 'pagefold-model-preset:credential-import-helper-import:1.10',
+            file: 'src/lib/Setting/Pages/Model/CredentialField.svelte',
+            type: 'insert',
+            where: 'after',
+            anchor: '    import SegmentedControl from "src/lib/UI/GUI/SegmentedControl.svelte";\n',
+            content: `    import {
+        applyServiceAccountImport,
+        planServiceAccountFileImport,
+        type ServiceAccountImportPlan,
+    } from "src/ts/pagefold/serviceAccountImport";
+`,
+            requires: ['pagefold-model-preset:service-account-import-tests:1.10'],
+            targetVersions: pocketRisu1100,
+        },
+        {
+            id: 'pagefold-model-preset:credential-import-state:1.10',
+            file: 'src/lib/Setting/Pages/Model/CredentialField.svelte',
+            type: 'insert',
+            where: 'before',
+            anchor: '</script>\n\n<div class="flex flex-col gap-1">\n',
+            content: `    const isServiceAccountField = $derived(
+        preset.profileSnapshot.auth.kind === 'google-service-account'
+        && schemaField.key === 'serviceAccountJson'
+    );
+    let serviceAccountInput = $state<HTMLInputElement>();
+    let serviceAccountImporting = $state(false);
+    let serviceAccountImportError = $state('');
+    let serviceAccountImportPlan = $state<ServiceAccountImportPlan | null>(null);
+
+    async function importServiceAccount(event: Event & { currentTarget: HTMLInputElement }) {
+        const file = event.currentTarget.files?.[0];
+        event.currentTarget.value = '';
+        if (!file || serviceAccountImporting) return;
+        serviceAccountImporting = true;
+        serviceAccountImportError = '';
+        serviceAccountImportPlan = null;
+        try {
+            const plan = await planServiceAccountFileImport(file, preset, fieldKey);
+            applyServiceAccountImport(preset, plan);
+            userValues = preset.userValues;
+            mode = 'direct';
+            serviceAccountImportPlan = plan;
+        } catch (error) {
+            serviceAccountImportError = error instanceof Error ? error.message : String(error);
+        } finally {
+            serviceAccountImporting = false;
+        }
+    }
+
+`,
+            requires: ['pagefold-model-preset:credential-import-helper-import:1.10'],
+            targetVersions: pocketRisu1100,
+        },
+        {
+            id: 'pagefold-model-preset:credential-import-ui:1.10',
+            file: 'src/lib/Setting/Pages/Model/CredentialField.svelte',
+            type: 'insert',
+            where: 'before',
+            anchor: '</div>\n\n<ShDialog bind:open={showSaveDialog} size="sm">\n',
+            managed: `    {#if isServiceAccountField}
+        <input
+            bind:this={serviceAccountInput}
+            class="hidden"
+            type="file"
+            accept=".json,application/json"
+            onchange={importServiceAccount}
+        />
+        <div class="flex justify-end mt-1">
+            <ShButton
+                variant="outline"
+                size="sm"
+                disabled={serviceAccountImporting}
+                onclick={() => serviceAccountInput?.click()}
+            >
+                {serviceAccountImporting ? language.serviceAccountImporting : language.serviceAccountImportJson}
+            </ShButton>
+        </div>
+        {#if serviceAccountImportPlan}
+            <span class="text-xs text-success">
+                {language.serviceAccountImportSuccess
+                    .replace('{email}', serviceAccountImportPlan.summary.clientEmail)
+                    .replace('{project}', serviceAccountImportPlan.projectId)}
+                {#if serviceAccountImportPlan.summary.privateKeyId}
+                    · {language.serviceAccountImportKeyId.replace('{id}', serviceAccountImportPlan.summary.privateKeyId)}
+                {/if}
+            </span>
+        {/if}
+        {#if serviceAccountImportError}
+            <span class="text-xs text-red-400">{serviceAccountImportError}</span>
+        {/if}
+    {/if}
+`,
+            markerNeedle: 'serviceAccountImportJson',
+            requires: ['pagefold-model-preset:credential-import-state:1.10'],
             targetVersions: pocketRisu1100,
         },
     ],
