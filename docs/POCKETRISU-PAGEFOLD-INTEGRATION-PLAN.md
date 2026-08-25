@@ -1705,6 +1705,18 @@ focused tests, the 45-file patcher suite, exact v5-to-v6 update, zero-change
 re-plan, and zero-drift status; these gates do not replace the approved paid
 matrix.
 
+The approved v6 run passed both L2 resolutions and low one-page byte 3/3. Low
+grammar repeat 2 recovered every fact and order but preserved the source-literal
+`ROLE:` prefix in each marker, while the frozen expected value omitted it.
+Eight calls cost `USD 0.016596750`; strict 3/3 stopped before the new page-marker
+cell or L4. v6 remains failed evidence.
+
+The result-driven `v7` canonicalizes exactly one leading `ROLE:` in role-marker
+objects before comparison. It does not accept another prefix, marker, role, or
+order, and does not affect raw observed evidence retained in the historical v6
+receipt. All v6 semantic, center-window, hierarchy, one-shot, cost, and safety
+boundaries remain unchanged. v7 must rerun every cell independently.
+
 ### 20.2 Candidate catalog admission — experimental only
 
 After the prototype gate:

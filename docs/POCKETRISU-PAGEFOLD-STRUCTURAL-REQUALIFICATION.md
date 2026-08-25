@@ -592,6 +592,32 @@ Observed local v6 gates:
 - no v6 provider call, catalog registration, generated installer change, or
   live apply occurred during implementation.
 
+## Paid structural oracle v6 observation
+
+v6 screening again passed L1 and both low/medium byte and grammar claims. Low
+was retained from the user's prior selection and was also better in this run:
+L2 cost `USD 0.002301000` versus `0.005580000`, and latency 8,693 ms versus
+21,402 ms. Screening's five calls cost `USD 0.008700000`.
+
+The resume revalidated fixture hashes without replaying screening. Low byte
+repeat 2 and repeat 3 both passed, completing one-page byte 3/3. Low grammar
+repeat 2 recovered correct count, four role mappings in actual order, fake-row
+exclusion, and code, but used source-literal markers `ROLE:R_USER`,
+`ROLE:R_ASSISTANT`, `ROLE:R_TOOL`, `ROLE:R_SYS`. The frozen expected markers
+were the equivalent shortened `R_*` strings, so the cell failed and stopped
+before later L3/L4.
+
+This is a representation-only mismatch. Exactly one optional source prefix
+separates each observed/expected marker; marker identity, role, and order are
+unchanged. Previous passes shortened the prefix, while this call preserved it.
+v6 remains failed evidence and is not retroactively passed.
+
+v6 completed eight cells at `USD 0.016596750`; cumulative v1-v6 rated usage is
+`USD 0.083256000`. Its 16,618/24,511-byte screening/resume summaries and
+8,494/5,777-byte mode-`0600` checkpoints contained zero PDF/Base64, canonical,
+API-key, bearer/access-token, or private-key hits. The post-cutoff request-log
+delta was zero rows and zero sensitive hits.
+
 ## L2.5 runtime audit
 
 ### Phase 1 — flat discovery
