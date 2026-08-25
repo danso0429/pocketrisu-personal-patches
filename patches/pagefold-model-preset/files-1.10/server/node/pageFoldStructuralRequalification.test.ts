@@ -11,12 +11,14 @@ const {
     STRUCTURAL_ORACLE_V4,
     STRUCTURAL_ORACLE_V5,
     STRUCTURAL_ORACLE_V6,
+    STRUCTURAL_ORACLE_V7,
     STRUCTURAL_EXPECTATION,
     STRUCTURAL_EXPECTATION_V2,
     STRUCTURAL_EXPECTATION_V3,
     STRUCTURAL_EXPECTATION_V4,
     STRUCTURAL_EXPECTATION_V5,
     STRUCTURAL_EXPECTATION_V6,
+    STRUCTURAL_EXPECTATION_V7,
     VERTEX_RATED_COST_CAP_USD,
     chooseResolution,
     createHierarchyPlan,
@@ -29,6 +31,7 @@ const {
     evaluateObservation,
     expectedForClaim,
     markerWindow,
+    normalizeAnswerForComparison,
     promptForClaim,
     publicDryRun,
     responseSchemaForClaim,
@@ -153,7 +156,7 @@ describe('PageFold structural requalification L0', () => {
             status: 'fail',
             differences: [expect.objectContaining({ field: 'tagCodePoints' })],
         })
-        expect(() => responseSchemaForClaim('text-oracle', 7))
+        expect(() => responseSchemaForClaim('text-oracle', 8))
             .toThrowError(expect.objectContaining({ code: 'ORACLE_VERSION_INVALID' }))
     })
 
@@ -374,6 +377,48 @@ describe('PageFold structural requalification L0', () => {
             .toContain('PAGEFOLD_RESPONSE_ORACLE_V6')
     })
 
+    it('canonicalizes exactly one source-literal ROLE prefix for v7 comparison', () => {
+        expect(STRUCTURAL_ORACLE_V7).toBe(7)
+        expect(STRUCTURAL_EXPECTATION_V7).toEqual(STRUCTURAL_EXPECTATION_V6)
+        const cell = createScreeningPlan()[3]
+        const expected = expectedForClaim('grammar-role', { messageCount: 1000 }, STRUCTURAL_ORACLE_V7)
+        const answer = {
+            ...expected,
+            roles: expected.roles.map((entry: any) => ({
+                ...entry,
+                marker: `ROLE:${entry.marker}`,
+            })),
+        }
+        const evaluated = evaluateObservation({
+            cell,
+            answer,
+            expected,
+            finishReason: 'STOP',
+            outputTokens: 100,
+            oracleVersion: STRUCTURAL_ORACLE_V7,
+        })
+        expect(evaluated).toMatchObject({ status: 'pass', differences: [] })
+        expect(evaluated.observed.roles[0].marker).toBe('ROLE:R_USER')
+        expect(normalizeAnswerForComparison('grammar-role', answer, STRUCTURAL_ORACLE_V7).roles[0].marker)
+            .toBe('R_USER')
+
+        expect(evaluateObservation({
+            cell,
+            answer: {
+                ...answer,
+                roles: [{ ...answer.roles[0], marker: 'PREFIX:R_USER' }, ...answer.roles.slice(1)],
+            },
+            expected,
+            finishReason: 'STOP',
+            outputTokens: 100,
+            oracleVersion: STRUCTURAL_ORACLE_V7,
+        })).toMatchObject({
+            status: 'fail', differences: [expect.objectContaining({ field: 'roles' })],
+        })
+        expect(createTextControl(STRUCTURAL_ORACLE_V7))
+            .toContain('PAGEFOLD_RESPONSE_ORACLE_V7')
+    })
+
     it('treats MAX_TOKENS as one predeclared cap control, not failed recall', () => {
         const inputCell = createScreeningPlan()[1]
         expect(evaluateObservation({
@@ -474,7 +519,7 @@ describe('PageFold structural requalification L0', () => {
         const output = publicDryRun({ 'maximum:1': fixture })
         expect(output.paidExecutionEnabled).toBe(false)
         expect(output.maximumCallsAfterApproval).toBe(21)
-        expect(output.oracleVersions).toEqual({ historical: [1, 2, 3, 4, 5], paidRunner: 6 })
+        expect(output.oracleVersions).toEqual({ historical: [1, 2, 3, 4, 5, 6], paidRunner: 7 })
         expect(output.historicalOutputCapControlTokens).toEqual([1024, 2048])
         expect(output.paidOutputTokens).toBe(2048)
         expect(output.outputCapControlTokens).toBeNull()
@@ -527,6 +572,10 @@ describe('PageFold structural requalification L0', () => {
                 zwjSemanticKind: 'family',
                 zwjJoinerCount: 3,
             },
+        })
+        expect(output.responseOracleV7).toMatchObject({
+            control: expect.stringContaining('PAGEFOLD_RESPONSE_ORACLE_V7'),
+            expected: { zwjSemanticKind: 'family' },
         })
         expect(JSON.stringify(output)).not.toContain('must-not-escape')
         expect(output.fixtures[0]).not.toHaveProperty('pdf')

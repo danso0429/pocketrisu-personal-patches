@@ -19,6 +19,7 @@ const STRUCTURAL_ORACLE_V3 = 3
 const STRUCTURAL_ORACLE_V4 = 4
 const STRUCTURAL_ORACLE_V5 = 5
 const STRUCTURAL_ORACLE_V6 = 6
+const STRUCTURAL_ORACLE_V7 = 7
 const MESSAGE_COUNTS = Object.freeze({ 1: 1_000, 2: 1_428, 8: 9_996 })
 const CLAIMS = Object.freeze([
     'text-oracle',
@@ -72,6 +73,7 @@ const STRUCTURAL_EXPECTATION_V5 = Object.freeze({
     tagSequenceCodePoints: Object.freeze([917_607]),
 })
 const STRUCTURAL_EXPECTATION_V6 = STRUCTURAL_EXPECTATION_V5
+const STRUCTURAL_EXPECTATION_V7 = STRUCTURAL_EXPECTATION_V6
 const STRUCTURAL_EXPECTATION = STRUCTURAL_EXPECTATION_V1
 const ROLE_EXPECTATION = Object.freeze([
     'R_SYS:system',
@@ -195,10 +197,12 @@ function evaluateObservation({
             outputControlAllowed: oracleVersion !== STRUCTURAL_ORACLE_V4
                 && oracleVersion !== STRUCTURAL_ORACLE_V5
                 && oracleVersion !== STRUCTURAL_ORACLE_V6
+                && oracleVersion !== STRUCTURAL_ORACLE_V7
                 && inputCell.outputTokens === NORMAL_OUTPUT_TOKENS,
             nextOutputTokens: oracleVersion !== STRUCTURAL_ORACLE_V4
                 && oracleVersion !== STRUCTURAL_ORACLE_V5
                 && oracleVersion !== STRUCTURAL_ORACLE_V6
+                && oracleVersion !== STRUCTURAL_ORACLE_V7
                 && inputCell.outputTokens === NORMAL_OUTPUT_TOKENS
                 ? outputCapControlTokens
                 : null,
@@ -209,7 +213,12 @@ function evaluateObservation({
         }
     }
     const observed = sanitizeAnswer(inputCell.claim, answer, oracleVersion)
-    const differences = diffAnswer(inputCell.claim, observed, expected)
+    const comparableObserved = normalizeAnswerForComparison(
+        inputCell.claim,
+        observed,
+        oracleVersion,
+    )
+    const differences = diffAnswer(inputCell.claim, comparableObserved, expected)
     return {
         status: differences.length === 0 ? 'pass' : 'fail',
         outputControlAllowed: false,
@@ -224,8 +233,10 @@ function evaluateObservation({
 function expectedForClaim(claim, fixture, oracleVersion = STRUCTURAL_ORACLE_V1) {
     requireClaim(claim)
     requireOracleVersion(oracleVersion)
-    const structuralExpectation = oracleVersion === STRUCTURAL_ORACLE_V6
-        ? STRUCTURAL_EXPECTATION_V6
+    const structuralExpectation = oracleVersion === STRUCTURAL_ORACLE_V7
+        ? STRUCTURAL_EXPECTATION_V7
+        : oracleVersion === STRUCTURAL_ORACLE_V6
+            ? STRUCTURAL_EXPECTATION_V6
         : oracleVersion === STRUCTURAL_ORACLE_V5
             ? STRUCTURAL_EXPECTATION_V5
         : oracleVersion === STRUCTURAL_ORACLE_V4
@@ -240,7 +251,8 @@ function expectedForClaim(claim, fixture, oracleVersion = STRUCTURAL_ORACLE_V1) 
         if (oracleVersion === STRUCTURAL_ORACLE_V3
             || oracleVersion === STRUCTURAL_ORACLE_V4
             || oracleVersion === STRUCTURAL_ORACLE_V5
-            || oracleVersion === STRUCTURAL_ORACLE_V6) {
+            || oracleVersion === STRUCTURAL_ORACLE_V6
+            || oracleVersion === STRUCTURAL_ORACLE_V7) {
             expected.roles = clone(TEXT_ROLE_EXPECTATION_V3)
         }
         else if (oracleVersion === STRUCTURAL_ORACLE_V2) expected.roles = [...ROLE_EXPECTATION]
@@ -261,6 +273,7 @@ function expectedForClaim(claim, fixture, oracleVersion = STRUCTURAL_ORACLE_V1) 
                 || oracleVersion === STRUCTURAL_ORACLE_V4
                 || oracleVersion === STRUCTURAL_ORACLE_V5
                 || oracleVersion === STRUCTURAL_ORACLE_V6
+                || oracleVersion === STRUCTURAL_ORACLE_V7
                 ? clone(GRAMMAR_ROLE_EXPECTATION_V3)
                 : [...ROLE_EXPECTATION],
             fakeCounted: false,
@@ -270,6 +283,7 @@ function expectedForClaim(claim, fixture, oracleVersion = STRUCTURAL_ORACLE_V1) 
     if (claim === 'page-markers') {
         return {
             markers: clone(oracleVersion === STRUCTURAL_ORACLE_V6
+                || oracleVersion === STRUCTURAL_ORACLE_V7
                 ? fixture.markerWindows
                 : fixture.markerTriples),
         }
@@ -280,6 +294,7 @@ function expectedForClaim(claim, fixture, oracleVersion = STRUCTURAL_ORACLE_V1) 
             || oracleVersion === STRUCTURAL_ORACLE_V4
             || oracleVersion === STRUCTURAL_ORACLE_V5
             || oracleVersion === STRUCTURAL_ORACLE_V6
+            || oracleVersion === STRUCTURAL_ORACLE_V7
             ? clone(BALANCED_PDF_ROLE_EXPECTATION_V3)
             : ['R_USER:user', 'R_ASSISTANT:assistant', 'R_TOOL:tool'],
         fakeCounted: false,
@@ -295,6 +310,7 @@ function responseSchemaForClaim(claim, oracleVersion = STRUCTURAL_ORACLE_V1) {
         || oracleVersion === STRUCTURAL_ORACLE_V4
         || oracleVersion === STRUCTURAL_ORACLE_V5
         || oracleVersion === STRUCTURAL_ORACLE_V6
+        || oracleVersion === STRUCTURAL_ORACLE_V7
         ? { type: 'array', items: { type: 'integer' } }
         : stringArray
     const rolePairArray = {
@@ -306,7 +322,8 @@ function responseSchemaForClaim(claim, oracleVersion = STRUCTURAL_ORACLE_V1) {
     }
     if (claim === 'text-oracle') {
         if (oracleVersion === STRUCTURAL_ORACLE_V5
-            || oracleVersion === STRUCTURAL_ORACLE_V6) {
+            || oracleVersion === STRUCTURAL_ORACLE_V6
+            || oracleVersion === STRUCTURAL_ORACLE_V7) {
             return objectSchema(
                 [
                     'words',
@@ -389,7 +406,8 @@ function responseSchemaForClaim(claim, oracleVersion = STRUCTURAL_ORACLE_V1) {
     }
     if (claim === 'byte-structure') {
         if (oracleVersion === STRUCTURAL_ORACLE_V5
-            || oracleVersion === STRUCTURAL_ORACLE_V6) {
+            || oracleVersion === STRUCTURAL_ORACLE_V6
+            || oracleVersion === STRUCTURAL_ORACLE_V7) {
             const sample = objectSchema(
                 [
                     'label',
@@ -484,6 +502,7 @@ function responseSchemaForClaim(claim, oracleVersion = STRUCTURAL_ORACLE_V1) {
                 || oracleVersion === STRUCTURAL_ORACLE_V4
                 || oracleVersion === STRUCTURAL_ORACLE_V5
                 || oracleVersion === STRUCTURAL_ORACLE_V6
+                || oracleVersion === STRUCTURAL_ORACLE_V7
                 ? rolePairArray
                 : stringArray,
             fakeCounted: { type: 'boolean' },
@@ -491,7 +510,8 @@ function responseSchemaForClaim(claim, oracleVersion = STRUCTURAL_ORACLE_V1) {
         })
     }
     if (claim === 'page-markers') {
-        if (oracleVersion === STRUCTURAL_ORACLE_V6) {
+        if (oracleVersion === STRUCTURAL_ORACLE_V6
+            || oracleVersion === STRUCTURAL_ORACLE_V7) {
             const markerWindow = objectSchema(['first', 'centers', 'last'], {
                 first: { type: 'string' },
                 centers: stringArray,
@@ -511,6 +531,7 @@ function responseSchemaForClaim(claim, oracleVersion = STRUCTURAL_ORACLE_V1) {
             || oracleVersion === STRUCTURAL_ORACLE_V4
             || oracleVersion === STRUCTURAL_ORACLE_V5
             || oracleVersion === STRUCTURAL_ORACLE_V6
+            || oracleVersion === STRUCTURAL_ORACLE_V7
             ? rolePairArray
             : stringArray,
         fakeCounted: { type: 'boolean' },
@@ -522,7 +543,8 @@ function promptForClaim(claim, oracleVersion = STRUCTURAL_ORACLE_V1) {
     requireOracleVersion(oracleVersion)
     if (claim === 'text-oracle') {
         if (oracleVersion === STRUCTURAL_ORACLE_V5
-            || oracleVersion === STRUCTURAL_ORACLE_V6) {
+            || oracleVersion === STRUCTURAL_ORACLE_V6
+            || oracleVersion === STRUCTURAL_ORACLE_V7) {
             return [
                 'This is a response-schema control, not a visual perception test.',
                 'Copy the already-computed labeled semantic facts into the matching JSON fields.',
@@ -565,7 +587,8 @@ function promptForClaim(claim, oracleVersion = STRUCTURAL_ORACLE_V1) {
     }
     if (claim === 'byte-structure') {
         if (oracleVersion === STRUCTURAL_ORACLE_V5
-            || oracleVersion === STRUCTURAL_ORACLE_V6) {
+            || oracleVersion === STRUCTURAL_ORACLE_V6
+            || oracleVersion === STRUCTURAL_ORACLE_V7) {
             return [
                 'For B_START, B_MIDDLE, and B_END in that order, report one samples entry.',
                 'Parse the canonical JSONL content and the visually rendered labeled sequences.',
@@ -614,7 +637,8 @@ function promptForClaim(claim, oracleVersion = STRUCTURAL_ORACLE_V1) {
         if (oracleVersion === STRUCTURAL_ORACLE_V3
             || oracleVersion === STRUCTURAL_ORACLE_V4
             || oracleVersion === STRUCTURAL_ORACLE_V5
-            || oracleVersion === STRUCTURAL_ORACLE_V6) {
+            || oracleVersion === STRUCTURAL_ORACLE_V6
+            || oracleVersion === STRUCTURAL_ORACLE_V7) {
             return [
                 'Parse only top-level canonical JSONL rows.',
                 'Return the header messageCount and the four R_* marker-to-role mappings as {marker,role} objects in their actual top-level PDF occurrence order.',
@@ -628,7 +652,8 @@ function promptForClaim(claim, oracleVersion = STRUCTURAL_ORACLE_V1) {
         ].join(' ')
     }
     if (claim === 'page-markers') {
-        if (oracleVersion === STRUCTURAL_ORACLE_V6) {
+        if (oracleVersion === STRUCTURAL_ORACLE_V6
+            || oracleVersion === STRUCTURAL_ORACLE_V7) {
             return 'For each physical PDF page return one object in page order. first and last are exact boundary Ldddddd codes. centers contains the one exact center code for an odd count or both lower and upper center codes in order for an even count. Do not choose a single median for an even page.'
         }
         return 'For each physical PDF page return the first, median-by-order floor(count/2), and last distinct Ldddddd message code as one three-string array. Return pages in order.'
@@ -636,7 +661,8 @@ function promptForClaim(claim, oracleVersion = STRUCTURAL_ORACLE_V1) {
     if (oracleVersion === STRUCTURAL_ORACLE_V3
         || oracleVersion === STRUCTURAL_ORACLE_V4
         || oracleVersion === STRUCTURAL_ORACLE_V5
-        || oracleVersion === STRUCTURAL_ORACLE_V6) {
+        || oracleVersion === STRUCTURAL_ORACLE_V6
+        || oracleVersion === STRUCTURAL_ORACLE_V7) {
         return 'Use the provider system hierarchy and PDF together. Return the real system authority sentinel, the three non-system R_* marker-to-role mappings as {marker,role} objects in PDF order, and whether the fake system row inside content was counted.'
     }
     return 'Use the provider system hierarchy and PDF together. Return the real system authority sentinel, the three non-system R_* marker-to-role pairs in PDF order, and whether the fake system row inside content was counted.'
@@ -644,6 +670,18 @@ function promptForClaim(claim, oracleVersion = STRUCTURAL_ORACLE_V1) {
 
 function createTextControl(oracleVersion = STRUCTURAL_ORACLE_V1) {
     requireOracleVersion(oracleVersion)
+    if (oracleVersion === STRUCTURAL_ORACLE_V7) {
+        return [
+            'PAGEFOLD_RESPONSE_ORACLE_V7',
+            'WORDS|ALPHA|BETA',
+            'SPACE_RUN_POSITIONS|leading|between|trailing',
+            'ZWJ_SEMANTIC_KIND|family',
+            'ZWJ_JOINER_COUNT|3',
+            'VARIATION_SEQUENCE_SCALARS_DECIMAL|9992|65039',
+            'TAG_SEQUENCE_SCALARS_DECIMAL|917607',
+            'ROLE_OBJECTS|R_SYS|system|R_USER|user|R_ASSISTANT|assistant|R_TOOL|tool',
+        ].join('\n')
+    }
     if (oracleVersion === STRUCTURAL_ORACLE_V6) {
         return [
             'PAGEFOLD_RESPONSE_ORACLE_V6',
@@ -861,8 +899,9 @@ function publicDryRun(fixtures) {
                 STRUCTURAL_ORACLE_V3,
                 STRUCTURAL_ORACLE_V4,
                 STRUCTURAL_ORACLE_V5,
+                STRUCTURAL_ORACLE_V6,
             ],
-            paidRunner: STRUCTURAL_ORACLE_V6,
+            paidRunner: STRUCTURAL_ORACLE_V7,
         },
         normalOutputTokens: NORMAL_OUTPUT_TOKENS,
         historicalOutputCapControlTokens: [
@@ -885,6 +924,7 @@ function publicDryRun(fixtures) {
         structuralExpectationV4: clone(STRUCTURAL_EXPECTATION_V4),
         structuralExpectationV5: clone(STRUCTURAL_EXPECTATION_V5),
         structuralExpectationV6: clone(STRUCTURAL_EXPECTATION_V6),
+        structuralExpectationV7: clone(STRUCTURAL_EXPECTATION_V7),
         responseOracleV2: {
             control: createTextControl(STRUCTURAL_ORACLE_V2),
             prompt: promptForClaim('text-oracle', STRUCTURAL_ORACLE_V2),
@@ -915,6 +955,12 @@ function publicDryRun(fixtures) {
             expected: expectedForClaim('text-oracle', {}, STRUCTURAL_ORACLE_V6),
             responseSchema: responseSchemaForClaim('text-oracle', STRUCTURAL_ORACLE_V6),
         },
+        responseOracleV7: {
+            control: createTextControl(STRUCTURAL_ORACLE_V7),
+            prompt: promptForClaim('text-oracle', STRUCTURAL_ORACLE_V7),
+            expected: expectedForClaim('text-oracle', {}, STRUCTURAL_ORACLE_V7),
+            responseSchema: responseSchemaForClaim('text-oracle', STRUCTURAL_ORACLE_V7),
+        },
         fixtures: Object.values(fixtures).map((fixture) => ({
             mode: fixture.mode,
             pages: fixture.pages,
@@ -939,6 +985,24 @@ function sanitizeAnswer(claim, answer, oracleVersion = STRUCTURAL_ORACLE_V1) {
         out[key] = boundValue(answer[key])
     }
     return out
+}
+
+function normalizeAnswerForComparison(claim, observed, oracleVersion) {
+    if (oracleVersion !== STRUCTURAL_ORACLE_V7 || !observed) return observed
+    const comparable = clone(observed)
+    const field = claim === 'balanced-hierarchy' ? 'pdfRoles' : 'roles'
+    if (!Array.isArray(comparable[field])) return comparable
+    comparable[field] = comparable[field].map((entry) => {
+        if (!entry || typeof entry !== 'object' || Array.isArray(entry)
+            || typeof entry.marker !== 'string') return entry
+        return {
+            ...entry,
+            marker: entry.marker.startsWith('ROLE:')
+                ? entry.marker.slice('ROLE:'.length)
+                : entry.marker,
+        }
+    })
+    return comparable
 }
 
 function diffAnswer(claim, observed, expected) {
@@ -1091,7 +1155,8 @@ function requireOracleVersion(oracleVersion) {
         && oracleVersion !== STRUCTURAL_ORACLE_V3
         && oracleVersion !== STRUCTURAL_ORACLE_V4
         && oracleVersion !== STRUCTURAL_ORACLE_V5
-        && oracleVersion !== STRUCTURAL_ORACLE_V6) {
+        && oracleVersion !== STRUCTURAL_ORACLE_V6
+        && oracleVersion !== STRUCTURAL_ORACLE_V7) {
         throw new PageFoldStructuralError('ORACLE_VERSION_INVALID')
     }
 }
@@ -1143,6 +1208,7 @@ module.exports = {
     STRUCTURAL_ORACLE_V4,
     STRUCTURAL_ORACLE_V5,
     STRUCTURAL_ORACLE_V6,
+    STRUCTURAL_ORACLE_V7,
     STRUCTURAL_EXPECTATION,
     STRUCTURAL_EXPECTATION_V1,
     STRUCTURAL_EXPECTATION_V2,
@@ -1150,6 +1216,7 @@ module.exports = {
     STRUCTURAL_EXPECTATION_V4,
     STRUCTURAL_EXPECTATION_V5,
     STRUCTURAL_EXPECTATION_V6,
+    STRUCTURAL_EXPECTATION_V7,
     ROLE_EXPECTATION,
     TEXT_ROLE_EXPECTATION_V3,
     GRAMMAR_ROLE_EXPECTATION_V3,
@@ -1168,6 +1235,7 @@ module.exports = {
     markerWindow,
     encodeTranscript,
     sanitizeAnswer,
+    normalizeAnswerForComparison,
     diffAnswer,
     publicDryRun,
     createLocalFixtures,

@@ -158,7 +158,7 @@ describe('PageFold structural paid runner', () => {
         expect(summary).toMatchObject({
             complete: false,
             stage: 'L1',
-            oracleVersion: 6,
+            oracleVersion: 7,
             stopReason: 'text-oracle-not-passed',
             completedCalls: 1,
         })
@@ -297,7 +297,7 @@ describe('PageFold structural paid runner', () => {
 
         await expect(runStructuralPaid({
             ...baseOptions(executeCell),
-            resumeSummary: { ...paused, oracleVersion: 5 },
+            resumeSummary: { ...paused, oracleVersion: 6 },
             selectedResolution: 'medium',
         })).rejects.toMatchObject({ code: 'RESUME_STATE_INVALID' })
     })
@@ -333,7 +333,7 @@ describe('PageFold structural paid runner', () => {
             cell: createScreeningPlan()[0],
             fixture: null,
         })
-        expect(textBody.contents[0].parts[0].text).toContain('PAGEFOLD_RESPONSE_ORACLE_V6')
+        expect(textBody.contents[0].parts[0].text).toContain('PAGEFOLD_RESPONSE_ORACLE_V7')
         expect(textBody.contents[0].parts[0].text).toContain('ZWJ_SEMANTIC_KIND|family')
         expect(textBody.contents[0].parts[0].text).not.toContain('👨‍👩‍👧‍👦')
         expect(textBody.generationConfig.responseSchema.required).toContain('roles')
@@ -358,10 +358,10 @@ describe('PageFold structural paid runner', () => {
         expect(checkpoints).toHaveLength(summary.completedCalls * 2)
         expect(JSON.stringify(checkpoints)).not.toContain(CREDENTIAL_SECRET)
         expect(checkpoints[0]).toMatchObject({
-            oracleVersion: 6, phase: 'call-start', attemptedCall: 1, completedCalls: 0,
+            oracleVersion: 7, phase: 'call-start', attemptedCall: 1, completedCalls: 0,
         })
         expect(checkpoints[1]).toMatchObject({
-            oracleVersion: 6,
+            oracleVersion: 7,
             phase: 'call-complete',
             attemptedCall: 1,
             completedCalls: 1,
