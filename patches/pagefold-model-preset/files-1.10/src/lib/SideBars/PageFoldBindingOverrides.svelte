@@ -58,9 +58,9 @@
         {#each tasks as item (item.task)}
             {@const state = effective(item.task)}
             <div class="flex items-center gap-2 min-h-10">
-                <label id={`pagefold-role-${item.task}`} class="text-xs text-textcolor flex-1 min-w-0">
+                <span id={`pagefold-role-${item.task}`} class="text-xs text-textcolor flex-1 min-w-0">
                     {item.label}
-                </label>
+                </span>
                 <span class="text-[10px] rounded px-1.5 py-0.5 {state === 'on' ? 'bg-success/20 text-success' : state === 'blocked' ? 'bg-draculared/20 text-red-400' : 'bg-darkbg text-textcolor2'}">
                     {badge(state)}
                 </span>

@@ -2,7 +2,7 @@ import type {
     AdapterChatMessage,
     AdapterDocumentPart,
     AdapterPageFoldWireContext,
-} from 'src/ts/preset/adapter'
+} from 'src/ts/preset/adapter/types'
 import type { ModelPreset, ResolvedTask } from 'src/ts/preset/types'
 import {
     evaluatePageFoldBudgets,

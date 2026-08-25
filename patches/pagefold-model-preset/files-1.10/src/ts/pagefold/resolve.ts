@@ -67,7 +67,7 @@ export function resolvePageFoldState(input: ResolvePageFoldStateInput): Resolved
     }
 
     const route = resolvePageFoldQualifiedRoute(input.preset)
-    if (!route.ok) return blocked(route.reason)
+    if (route.ok === false) return blocked(route.reason)
     return {
         kind: 'on',
         reason: 'qualified',

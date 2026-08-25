@@ -91,6 +91,29 @@ beforeEach(() => {
 })
 
 describe('PageFold final Gemini prepared wire', () => {
+    it('keeps the PageFold-off ordinary text/image request body byte-exact', async () => {
+        const ordinaryPreset = preset()
+        ordinaryPreset.pageFold = { enabled: false }
+        const prepared = await previewGoogleChatRequest(ordinaryPreset, {
+            messages: [
+                { role: 'system', content: 'ordinary system' },
+                {
+                    role: 'user',
+                    content: 'ordinary user',
+                    images: [{ mime: 'image/png', base64: 'AQID' }],
+                },
+            ],
+        }, { apiKey: SA_JSON })
+
+        expect(JSON.stringify(prepared.body)).toBe(
+            '{"contents":[{"role":"user","parts":[{"text":"ordinary user"},'
+            + '{"inlineData":{"mimeType":"image/png","data":"AQID"}}]}],'
+            + '"systemInstruction":{"parts":[{"text":"ordinary system"}]}}',
+        )
+        expect(JSON.stringify(prepared.body)).not.toContain('mediaResolution')
+        expect(JSON.stringify(prepared.body)).not.toContain('application/pdf')
+    })
+
     it('puts one native low-resolution PDF first and preserves production generation fields', async () => {
         const prepared = await previewGoogleChatRequest(preset({
             generationConfig: {

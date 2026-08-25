@@ -21,6 +21,6 @@ describe('PageFold server request-log defense in depth', () => {
 
     it('masks credential query parameters independent of token format', () => {
         expect(redactPageFoldRequestLogUrl('https://example.invalid/generate?key=API_KEY_MARKER&safe=1'))
-            .toBe('https://example.invalid/generate?key=%5Bredacted%5D&safe=1')
+            .toBe('https://example.invalid/generate?key=REDACTED&safe=1')
     })
 })

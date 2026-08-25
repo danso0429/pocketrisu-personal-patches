@@ -1,11 +1,11 @@
 # PocketRisu PageFold ModelPreset integration plan
 
-> **Status:** review-revised implementation authority; prototype and exact
-> extraction are validated; structural v8 qualified Vertex
-> `gemini-3.7-flash` low through L1-L4; downstream runtime/UI/BG/catalog/live
-> owners are not yet implemented or admitted
+> **Status:** review-revised implementation authority; F1-F8 runtime/UI/BG
+> owners and the F9 automatic candidate gate are implemented; exact-1.10
+> catalog admission remains `under-review`; live apply and physical L3 are
+> pending and no stable tag/release is authorized
 >
-> **Date:** 2026-08-25 KST
+> **Date:** 2026-08-26 KST
 >
 > **Target:** exact official PocketRisu `1.10.0` plus patcher stable `v0.2.0` (`de1fa40`)
 >
@@ -18,6 +18,8 @@
 > **Deferred verbatim-copy authority:** `docs/POCKETRISU-PAGEFOLD-VERBATIM-COPY-FOLLOWUP.md`
 >
 > **Structural requalification:** `docs/POCKETRISU-PAGEFOLD-STRUCTURAL-REQUALIFICATION.md`
+>
+> **Candidate validation:** `docs/POCKETRISU-PAGEFOLD-CANDIDATE-VALIDATION.md`
 
 ## 1. Outcome
 
@@ -1971,32 +1973,32 @@ boundaries.
 4. **Complete** — `test(pagefold): qualify Vertex low through L4`
    - v1-v8 evidence preserved; exact support matrix is Vertex global
      `gemini-3.7-flash` low, maximum/balanced, at most eight pages.
-5. `feat(pagefold): add v8 qualified-route resolver`
+5. **Complete** — `feat(pagefold): add v8 qualified-route resolver`
    - F1 pure support profile/state normalization/task-role resolver and blocked
      reasons; no renderer, provider, or UI effect.
-6. `feat(pagefold): add runtime-neutral render ports`
+6. **Complete** — `feat(pagefold): add runtime-neutral render ports`
    - F2 HTTP/in-process interface, authenticated binary route, browser/BG
      differential identity, abort/resource/redaction boundary.
-7. `feat(pagefold): add Vertex-low final adapter wire`
+7. **Complete** — `feat(pagefold): add Vertex-low final adapter wire`
    - F3 internal document type, maximum/balanced shaping, final prepared
      invariants, shared media redaction, focused direct/model-job/preview/error
      paths; no AI Studio/OpenRouter branch.
-8. `feat(pagefold): add retry and source/wire budget policy`
+8. **Complete** — `feat(pagefold): add retry and source/wire budget policy`
    - tokenizer injection for PageFold-on, Hypa/current-token preservation,
      canonical estimate, failure-policy propagation, no classic fallback.
-9. `feat(pagefold): add preset defaults and role overrides`
+9. **Complete** — `feat(pagefold): add preset defaults and role overrides`
    - resolver, required mode choice, ModelPreset editor, binding accordion,
      defaults, load normalization, persistence lifecycle.
-10. `feat(model-preset): import Google service-account JSON`
+10. **Complete** — `feat(model-preset): import Google service-account JSON`
    - shared parser, direct credential precedence cleanup, iOS file behavior,
      no PageFold runtime dependency.
-11. `feat(pagefold): add qualified pricing and metrics`
+11. **Complete** — `feat(pagefold): add qualified pricing and metrics`
    - separate support/price states, signed delta, usage/status/request-info,
      actual SQLite redaction checks.
-12. `feat(pagefold): compose bg-preserve execution`
+12. **Complete** — `feat(pagefold): compose bg-preserve execution`
     - injected in-process port, cancellation, status, recovery, stale-source
       list, owner-focused tests.
-13. `build(patcher): admit PageFold candidate graph`
+13. **Automatic gate complete; commit/live pending** — `build(patcher): admit PageFold candidate graph`
     - register manifest only after feasibility/focused/complete automatic gates;
       generate deterministic experimental installer and validation receipt.
 14. experimental commit/push/safe live apply and physical L3.

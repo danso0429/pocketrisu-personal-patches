@@ -105,11 +105,15 @@ test('packs qualified on PocketRisu 1.9.0 remain explicitly verified', () =>
         assert.equal(rollingCatalog.status, 'review-required')
         assert.deepEqual(
             rollingCatalog.reviewRequiredPacks.map((entry) => entry.id),
-            ['charx-archive-integrity'],
+            [
+                'charx-archive-integrity',
+                'pagefold-model-preset',
+                'pagefold-bg-adapter',
+            ],
         )
     }))
 
-test('only the shipped complete graph is verified on exact PocketRisu 1.10.0', () =>
+test('the PageFold candidate keeps the complete exact-1.10 graph under review', () =>
     withRoot('1.10.0', (root) => {
         const catalog = loadCatalog()
         const resolution = resolveSelection(
@@ -121,13 +125,20 @@ test('only the shipped complete graph is verified on exact PocketRisu 1.10.0', (
         const inactive = catalog.filter((entry) => !resolvedIds.has(entry.id))
         const result = evaluateTargetCompatibility(root, resolved)
 
-        assert.equal(resolution.resolvedIds.length, 38)
+        assert.equal(resolution.resolvedIds.length, 40)
         assert.equal(inactive.length, 13)
-        assert.equal(result.status, 'verified')
+        assert.equal(result.status, 'under-review')
         assert.equal(result.verifiedPacks.length, 38)
-        assert.deepEqual(result.underReviewPacks, [])
+        assert.deepEqual(
+            result.underReviewPacks.map((entry) => entry.id),
+            ['pagefold-model-preset', 'pagefold-bg-adapter'],
+        )
         assert.deepEqual(result.reviewRequiredPacks, [])
-        assert.doesNotThrow(() => assertTargetVerified(result))
+        assert.throws(
+            () => assertTargetVerified(result),
+            (error) => error.code === 'TARGET_REVIEW_REQUIRED',
+        )
+        assert.doesNotThrow(() => assertTargetReviewable(result))
         assert.deepEqual(
             inactive.filter((entry) =>
                 entry.targets.pocketrisu.verified.includes('1.10.0')

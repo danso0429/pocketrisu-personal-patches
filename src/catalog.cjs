@@ -79,6 +79,8 @@ function loadCatalog(repositoryRoot = path.resolve(__dirname, '..')) {
         require(path.join(repositoryRoot, 'patches/kei-backup-restore-safety-standard-adapter/manifest.cjs')),
         require(path.join(repositoryRoot, 'patches/kei-backup-restore-safety-lazy-adapter/manifest.cjs')),
         require(path.join(repositoryRoot, 'patches/pocketrisu-kei/manifest.cjs')),
+        require(path.join(repositoryRoot, 'patches/pagefold-model-preset/manifest.cjs')),
+        require(path.join(repositoryRoot, 'patches/pagefold-bg-adapter/manifest.cjs')),
     ].map((pack) => ({
         targets: DEFAULT_TARGETS,
         ...pack,

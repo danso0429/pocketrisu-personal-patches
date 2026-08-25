@@ -23,12 +23,12 @@ function redactPageFoldRequestLogUrl(input) {
     const url = new URL(text)
     for (const key of [...url.searchParams.keys()]) {
       if (['key', 'api_key', 'apikey', 'token', 'access_token'].includes(key.toLowerCase())) {
-        url.searchParams.set(key, '[redacted]')
+        url.searchParams.set(key, 'REDACTED')
       }
     }
     return url.toString()
   } catch {
-    return text.replace(/([?&](?:key|api_key|apikey|token|access_token)=)[^&#\s]*/gi, '$1[redacted]')
+    return text.replace(/([?&](?:key|api_key|apikey|token|access_token)=)[^&#\s]*/gi, '$1REDACTED')
   }
 }
 

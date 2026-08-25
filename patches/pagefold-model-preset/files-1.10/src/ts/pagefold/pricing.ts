@@ -47,8 +47,11 @@ export const PAGEFOLD_VERTEX_PRICE_RECORDS: readonly PageFoldPriceRecord[] = Obj
 
 export function resolvePageFoldPrice(preset: ModelPreset, now = Date.now()): PageFoldResolvedPrice {
     const route = resolvePageFoldQualifiedRoute(preset)
-    if (!route.ok || route.route !== PAGEFOLD_QUALIFIED_ROUTE) {
-        return { state: 'unconfirmed', reason: route.ok ? 'route-profile-mismatch' : route.reason }
+    if (route.ok === false) {
+        return { state: 'unconfirmed', reason: route.reason }
+    }
+    if (route.route !== PAGEFOLD_QUALIFIED_ROUTE) {
+        return { state: 'unconfirmed', reason: 'route-profile-mismatch' }
     }
     const manual = preset.pageFold?.inputPriceOverride
     if (manual && Number.isFinite(manual.usdPerMillion) && manual.usdPerMillion > 0) {

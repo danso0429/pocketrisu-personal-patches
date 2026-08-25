@@ -58,7 +58,7 @@ describe('PageFold browser HTTP render port', () => {
         const [url, init] = fetchImpl.mock.calls[0]
         expect(url).toBe('/api/pagefold/render')
         expect(init?.method).toBe('POST')
-        expect(init?.body).toBe(canonical)
+        expect(new Uint8Array(init?.body as ArrayBuffer)).toEqual(canonical)
         expect(init?.headers).toMatchObject({
             'risu-auth': 'session-auth',
             'x-pagefold-route-profile': PAGEFOLD_QUALIFIED_ROUTE.id,

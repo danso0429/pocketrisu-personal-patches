@@ -23,6 +23,7 @@ test('catalog exposes the expected user packs and keeps integration packs intern
             'toolchain-hardening',
             'charx-archive-integrity',
             'pocketrisu-kei',
+            'pagefold-model-preset',
         ],
     )
     assert.deepEqual(
@@ -66,6 +67,7 @@ test('catalog exposes the expected user packs and keeps integration packs intern
             'kei-backup-restore-safety-core',
             'kei-backup-restore-safety-standard-adapter',
             'kei-backup-restore-safety-lazy-adapter',
+            'pagefold-bg-adapter',
         ],
     )
 })

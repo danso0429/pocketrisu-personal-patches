@@ -35,9 +35,9 @@ module.exports = {
         },
     },
     userSelectable: true,
-    // Prototype-only. The manifest deliberately stays outside src/catalog.cjs
-    // until independent extraction and paid route feasibility have passed.
-    allDefault: false,
+    // Candidate-admitted after exact extraction, v8 Vertex-low L1-L4, focused
+    // owners, and the complete automatic graph. Stable remains behind L3/L4.
+    allDefault: true,
     units: [
         {
             id: 'pagefold-model-preset:package-fontkit:1.10',
@@ -1062,7 +1062,7 @@ import type { ResolvedBindingWithContext } from './modelPresetBinding'
             file: 'src/ts/process/request/request.ts',
             type: 'insert',
             where: 'after',
-            anchor: '    logSource?:RequestLogSource\n',
+            anchor: '    moduleId?: string\n',
             content: `    /** Runtime-only exact source/PDF reuse. Never persisted or sent to BG result state. */
     pageFoldRouteState?: PageFoldRouteState
 `,
@@ -1096,6 +1096,19 @@ import type { ResolvedBindingWithContext } from './modelPresetBinding'
             targetVersions: pocketRisu1100,
         },
         {
+            id: 'pagefold-model-preset:request-route-state-multiline-response:1.10',
+            file: 'src/ts/process/request/request.ts',
+            type: 'insert',
+            where: 'after',
+            anchor: "    result: ['user'|'char',string][],\n",
+            content: `    pageFoldRouteState?: PageFoldRouteState
+    failurePolicy?: RequestFailurePolicy
+    pageFoldInfo?: PageFoldGenerationInfo
+`,
+            requires: ['pagefold-model-preset:request-route-state-stream-response:1.10'],
+            targetVersions: pocketRisu1100,
+        },
+        {
             id: 'pagefold-model-preset:request-outer-route-state:1.10',
             file: 'src/ts/process/request/request.ts',
             type: 'insert',
@@ -1103,7 +1116,7 @@ import type { ResolvedBindingWithContext } from './modelPresetBinding'
             anchor: '    let da:requestDataResponse\n',
             content: `    let pageFoldRouteState: PageFoldRouteState | undefined
 `,
-            requires: ['pagefold-model-preset:request-route-state-stream-response:1.10'],
+            requires: ['pagefold-model-preset:request-route-state-multiline-response:1.10'],
             targetVersions: pocketRisu1100,
         },
         {

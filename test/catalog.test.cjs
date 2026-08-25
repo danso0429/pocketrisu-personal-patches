@@ -74,6 +74,8 @@ test('one delivery profile contains every admitted root pack', () => {
         'kei-backup-restore-safety-standard-adapter',
         'kei-backup-restore-safety-lazy-adapter',
         'pocketrisu-kei',
+        'pagefold-model-preset',
+        'pagefold-bg-adapter',
     ])
     assert.deepEqual(
         resolveProfile('all', catalog).defaults,
@@ -91,6 +93,7 @@ test('one delivery profile contains every admitted root pack', () => {
             'toolchain-hardening',
             'charx-archive-integrity',
             'pocketrisu-kei',
+            'pagefold-model-preset',
         ],
     )
     assert.doesNotThrow(

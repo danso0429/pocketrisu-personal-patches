@@ -1,5 +1,42 @@
 # Changelog
 
+## 0.2.0-experimental.22
+
+- Add PageFold as an opt-in ModelPreset transform for the one structurally
+  qualified route: bundled `vertex-gemini-native:gemini-37-flash` profile v1,
+  provider base v7, native Vertex global `gemini-3.7-flash`, fixed low media
+  resolution, and at most eight PDF pages. Existing presets remain off; six
+  logical roles retain `inherit/on/off`; unsupported routes, images, tools,
+  and explicit cache stop before rendering or provider work.
+- Serialize final post-replacer/trigger/reformater ordinary adapter messages
+  as deterministic UTF-8 JSONL, render them with pinned fonts on NodeOnly, and
+  require independent PDF.js exact extraction separately from the frozen v8
+  model-support evidence. Browser HTTP and BG in-process rendering implement
+  one binary `PageFoldRenderPort` contract.
+- Preserve production output/schema/streaming/header authority, separate
+  source-plus-output and wire-context budgets, reuse exact PDF bytes only for
+  same-route retry, and prohibit classic fallback for every PageFold failure.
+  Add an exact PageFold-off ordinary Gemini system/text/image body regression.
+- Add explicit maximum/balanced preset UI, per-role binding/default
+  persistence, a bounded independent Google Service Account JSON import,
+  versioned price evidence, signed predicted/actual usage metadata, and
+  defense-in-depth PDF/canonical/credential redaction in previews and the
+  actual native SQLite request-log owner. Do not read or write plugin arrays.
+- Register the visible PageFold root and hidden BG adapter as exact-1.10
+  `reviewing` candidate packs. The complete graph is 40 packs, 929 units, and
+  339 managed paths; ordinary installer apply remains fail-closed and only the
+  maintainer qualification path may stage it for L3.
+- Pass 46/46 patcher files, 151 client files / 1,728 tests, 22 server files /
+  232 tests with 12 explicit skips, 74 compatibility tests with five skips,
+  Svelte 0/0, the 7,940-module production build, and BG bundle build/load.
+  Exercise current/zero-plan/generated revert and compare 1,426 official
+  baseline files with zero missing/byte/mode mismatches.
+- Generate the primary installer and byte-identical `all` alias twice at mode
+  0755. Both are 7,832,618 bytes, CJS syntax-valid, and SHA-256
+  `b0a9a6078087edd64e4eecd43277077c6ce50ef2f3b87364357160177caced90`.
+  Keep live observations, physical iPhone L3, stable verification, tag, and
+  release behind their separate gates.
+
 ## 0.2.0
 
 - Promote the all-or-nothing exact PocketRisu 1.10 graph to stable: 38

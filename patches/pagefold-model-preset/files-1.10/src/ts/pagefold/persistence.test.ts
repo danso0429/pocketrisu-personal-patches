@@ -1,4 +1,5 @@
 import { describe, expect, it } from 'vitest'
+import { Packr, Unpackr } from 'msgpackr/index-no-eval'
 import { applyModelPresetDefaults } from 'src/ts/preset/dbDefaults'
 import { applyProfileSnapshotUpdate } from 'src/ts/preset/profileUpdate'
 import type { ModelPreset } from 'src/ts/preset/types'
@@ -21,6 +22,37 @@ function preset(pageFold?: unknown): ModelPreset {
 }
 
 describe('PageFold optional persistence lifecycle', () => {
+    it('survives save, patch absence, old-runtime load/save, and reapply normalization', () => {
+        const packr = new Packr({ useRecords: false })
+        const unpackr = new Unpackr({ int64AsType: 'number', useRecords: false })
+        const stored: any = {
+            modelPresets: [preset({ enabled: true, mode: 'balanced' })],
+            defaultModelBinding: {
+                main: 'p', sub: 'p', separateAux: true,
+                aux: { memory: 'p', translate: 'p', emotion: 'p', otherAx: 'p' },
+                pageFold: {
+                    model: 'on', submodel: 'off', memory: 'on',
+                    translate: 'off', emotion: 'inherit', otherAx: 'on',
+                },
+            },
+        }
+
+        // PocketRisu 1.10's old runtime uses this generic MessagePack shape and
+        // does not schema-strip unknown optional object properties while the
+        // PageFold patch is absent.
+        const oldRuntimeLoaded: any = unpackr.decode(packr.encode(stored))
+        oldRuntimeLoaded.oldRuntimeSaveMarker = true
+        const reapplied: any = unpackr.decode(packr.encode(oldRuntimeLoaded))
+        applyModelPresetDefaults(reapplied)
+
+        expect(reapplied.modelPresets[0].pageFold).toEqual({ enabled: true, mode: 'balanced' })
+        expect(reapplied.defaultModelBinding.pageFold).toEqual({
+            model: 'on', submodel: 'off', memory: 'on',
+            translate: 'off', otherAx: 'on',
+        })
+        expect(reapplied.oldRuntimeSaveMarker).toBe(true)
+    })
+
     it('leaves old presets absent/off and preserves enabled malformed intent as blocked data', () => {
         const old = preset()
         const malformed = preset({ enabled: true, mode: 'automatic', inputPriceOverride: { usdPerMillion: 0 } })

@@ -51,6 +51,7 @@ export function createPageFoldHttpRenderPort(
 
             let response: Response
             try {
+                const bodyBytes = new Uint8Array(request.canonicalUtf8)
                 response = await fetchImpl(RENDER_URL, {
                     method: 'POST',
                     headers: {
@@ -62,7 +63,7 @@ export function createPageFoldHttpRenderPort(
                         'x-pagefold-layout': String(request.layoutVersion),
                         'x-pagefold-font': request.fontVersion,
                     },
-                    body: request.canonicalUtf8,
+                    body: bodyBytes.buffer,
                     signal,
                 })
             } catch (error) {

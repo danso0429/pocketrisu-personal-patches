@@ -12,6 +12,7 @@
     let { preset }: Props = $props();
 
     const route = $derived(resolvePageFoldQualifiedRoute(preset));
+    const routeReason = $derived(route.ok === false ? route.reason : '');
     const mode = $derived(preset.pageFold?.mode ?? '');
     const enabled = $derived(preset.pageFold?.enabled === true);
     const modeReady = $derived(mode === 'maximum' || mode === 'balanced');
@@ -90,7 +91,7 @@
 
     <div class="rounded-md bg-darkbg p-2 text-xs flex flex-col gap-1">
         <span class={route.ok ? 'text-success' : 'text-red-400'}>
-            {route.ok ? language.pageFoldQualified : language.pageFoldBlocked.replace('{reason}', route.reason)}
+            {route.ok ? language.pageFoldQualified : language.pageFoldBlocked.replace('{reason}', routeReason)}
         </span>
         <span class="text-textcolor2">
             {language.pageFoldQualifiedRoute
