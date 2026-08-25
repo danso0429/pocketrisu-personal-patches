@@ -30,9 +30,12 @@ function transform(messages: readonly AdapterChatMessage[]): PageFoldTransformIn
         },
         config: {
             mode: 'maximum',
+            routeProfileId: 'vertex-gemini-3.7-flash-low-v8',
             serializerVersion: 1,
             layoutVersion: 1,
             fontVersion: PAGEFOLD_FONT_VERSION,
+            directiveVersion: 1,
+            wirePredictionVersion: 1,
         },
         messages,
     }
@@ -45,6 +48,7 @@ function canonical(messages: readonly AdapterChatMessage[]) {
 function request(bytes: Uint8Array) {
     return {
         version: 1,
+        routeProfileId: 'vertex-gemini-3.7-flash-low-v8',
         serializerVersion: 1,
         layoutVersion: 1,
         fontVersion: PAGEFOLD_FONT_VERSION,

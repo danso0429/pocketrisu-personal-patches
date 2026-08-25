@@ -466,5 +466,81 @@ export interface ModelPresetPageFoldConfig {
             requires: ['pagefold-model-preset:db-defaults-normalizer-import:1.10'],
             targetVersions: pocketRisu1100,
         },
+        {
+            id: 'pagefold-model-preset:render-port-types:1.10',
+            file: 'src/ts/pagefold/renderPort.ts',
+            type: 'owned',
+            content: owned('src/ts/pagefold/renderPort.ts'),
+            requires: ['pagefold-model-preset:db-defaults-normalizer:1.10'],
+            targetVersions: pocketRisu1100,
+        },
+        {
+            id: 'pagefold-model-preset:http-render-port:1.10',
+            file: 'src/ts/pagefold/httpRenderPort.ts',
+            type: 'owned',
+            content: owned('src/ts/pagefold/httpRenderPort.ts'),
+            requires: ['pagefold-model-preset:render-port-types:1.10'],
+            targetVersions: pocketRisu1100,
+        },
+        {
+            id: 'pagefold-model-preset:http-render-port-tests:1.10',
+            file: 'src/ts/pagefold/httpRenderPort.test.ts',
+            type: 'owned',
+            content: owned('src/ts/pagefold/httpRenderPort.test.ts'),
+            requires: ['pagefold-model-preset:http-render-port:1.10'],
+            targetVersions: pocketRisu1100,
+        },
+        {
+            id: 'pagefold-model-preset:render-route:1.10',
+            file: 'server/node/pageFoldRenderRoute.cjs',
+            type: 'owned',
+            content: owned('server/node/pageFoldRenderRoute.cjs'),
+            requires: ['pagefold-model-preset:http-render-port-tests:1.10'],
+            targetVersions: pocketRisu1100,
+        },
+        {
+            id: 'pagefold-model-preset:render-route-tests:1.10',
+            file: 'server/node/pageFoldRenderRoute.test.ts',
+            type: 'owned',
+            content: owned('server/node/pageFoldRenderRoute.test.ts'),
+            requires: ['pagefold-model-preset:render-route:1.10'],
+            targetVersions: pocketRisu1100,
+        },
+        {
+            id: 'pagefold-model-preset:server-binary-body-limit:1.10',
+            file: 'server/node/server.cjs',
+            type: 'replace',
+            anchor: `app.use((req, res, next) => {
+    // Skip express.raw() for backup import — it must stream, not buffer into memory
+    if (req.path === '/api/backup/import') return next();
+    return express.raw({ type: 'application/octet-stream', limit: '2gb' })(req, res, next);
+});`,
+            content: `const pageFoldRawParser = express.raw({ type: 'application/octet-stream', limit: '2mb' });
+app.use((req, res, next) => {
+    // PageFold canonical input has an observed 2 MiB ceiling. Enforce it while
+    // parsing so an oversized request is never buffered under the generic 2 GiB
+    // binary-import allowance.
+    if (req.path === '/api/pagefold/render') return pageFoldRawParser(req, res, next);
+    // Skip express.raw() for backup import — it must stream, not buffer into memory
+    if (req.path === '/api/backup/import') return next();
+    return express.raw({ type: 'application/octet-stream', limit: '2gb' })(req, res, next);
+});`,
+            requires: ['pagefold-model-preset:render-route-tests:1.10'],
+            targetVersions: pocketRisu1100,
+        },
+        {
+            id: 'pagefold-model-preset:server-render-route-registration:1.10',
+            file: 'server/node/server.cjs',
+            type: 'insert',
+            where: 'after',
+            anchor: "requestLogs.registerRoutes(app, { auth: checkAuth, activeSession: checkActiveSession });\n",
+            content: `require('./pageFoldRenderRoute.cjs')(app, {
+    checkAuth,
+    checkActiveSession,
+});
+`,
+            requires: ['pagefold-model-preset:server-binary-body-limit:1.10'],
+            targetVersions: pocketRisu1100,
+        },
     ],
 }

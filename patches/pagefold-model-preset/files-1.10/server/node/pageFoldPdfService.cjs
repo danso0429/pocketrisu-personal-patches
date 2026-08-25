@@ -11,6 +11,7 @@ const {
 const PAGEFOLD_RENDER_VERSION = 1
 const PAGEFOLD_LAYOUT_VERSION = 1
 const PAGEFOLD_SERIALIZER_VERSION = 1
+const PAGEFOLD_ROUTE_PROFILE_ID = 'vertex-gemini-3.7-flash-low-v8'
 
 const PAGEFOLD_LAYOUT_V1 = Object.freeze({
     pageWidth: 595.28,
@@ -74,15 +75,16 @@ function createPageFoldPdfService(options = {}) {
         const canonical = validateRenderRequest(request, limits, fontCache.version)
         const key = createRenderKey(request, canonical.bytes)
         const cached = getCached(key)
-        if (cached) return cloneResult(cached, true)
+        if (cached) return cloneResult(cached, 'memory')
 
         let entry = inflight.get(key)
+        const shared = Boolean(entry)
         if (!entry) {
             entry = startRender(key, canonical.bytes)
             inflight.set(key, entry)
         }
         const result = await subscribe(entry, signal)
-        return cloneResult(result, false)
+        return cloneResult(result, shared ? 'shared' : 'miss')
     }
 
     function startRender(key, canonicalBytes) {
@@ -180,6 +182,7 @@ function createPageFoldPdfService(options = {}) {
 function validateRenderRequest(request, limits, fontVersion) {
     if (!request || typeof request !== 'object'
         || request.version !== PAGEFOLD_RENDER_VERSION
+        || request.routeProfileId !== PAGEFOLD_ROUTE_PROFILE_ID
         || request.serializerVersion !== PAGEFOLD_SERIALIZER_VERSION
         || request.layoutVersion !== PAGEFOLD_LAYOUT_VERSION
         || request.fontVersion !== fontVersion
@@ -263,6 +266,8 @@ function createRenderKey(request, canonicalBytes) {
     const hash = crypto.createHash('sha256')
     hash.update('pocketrisu-pagefold-pdf\0')
     hash.update(String(request.version))
+    hash.update('\0')
+    hash.update(request.routeProfileId)
     hash.update('\0')
     hash.update(String(request.serializerVersion))
     hash.update('\0')
@@ -444,12 +449,13 @@ function releaseSubscriber(entry, aborted) {
     if (aborted && entry.subscribers === 0 && !entry.settled) entry.controller.abort()
 }
 
-function cloneResult(result, cacheHit) {
+function cloneResult(result, cacheStatus) {
     return {
         ...result,
         pdf: Buffer.from(result.pdf),
         memory: { ...result.memory },
-        cacheHit,
+        cacheHit: cacheStatus === 'memory',
+        cacheStatus,
     }
 }
 
@@ -580,6 +586,7 @@ module.exports = {
     PAGEFOLD_RENDER_VERSION,
     PAGEFOLD_LAYOUT_VERSION,
     PAGEFOLD_SERIALIZER_VERSION,
+    PAGEFOLD_ROUTE_PROFILE_ID,
     PAGEFOLD_LAYOUT_V1,
     PAGEFOLD_PROTOTYPE_LIMITS,
     PageFoldPdfError,

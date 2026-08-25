@@ -172,6 +172,7 @@ async function createFixture({ pages, renderer }) {
     const canonicalBytes = new TextEncoder().encode(canonicalText)
     const rendered = await renderer.render({
         version: 1,
+        routeProfileId: 'vertex-gemini-3.7-flash-low-v8',
         serializerVersion: 1,
         layoutVersion: 1,
         fontVersion: PAGEFOLD_FONT_VERSION,

@@ -47,6 +47,11 @@ test('prototype dependency and owned-file graph composes and reverts exactly', (
     assert.match(plan.outputs.get('src/ts/pagefold/qualifiedRoute.ts'), /MEDIA_RESOLUTION_LOW/)
     assert.match(plan.outputs.get('src/ts/pagefold/resolve.ts'), /resolvePageFoldState/)
     assert.match(plan.outputs.get('src/ts/preset/dbDefaults.ts'), /normalizePageFoldConfig/)
+    assert.match(plan.outputs.get('src/ts/pagefold/httpRenderPort.ts'), /application\/octet-stream/)
+    assert.match(plan.outputs.get('src/ts/pagefold/httpRenderPort.ts'), /PAGEFOLD_RENDER_HASH_MISMATCH/)
+    assert.match(plan.outputs.get('server/node/pageFoldRenderRoute.cjs'), /cache-control/)
+    assert.match(plan.outputs.get('server/node/server.cjs'), /const pageFoldRawParser = express\.raw/)
+    assert.match(plan.outputs.get('server/node/server.cjs'), /pageFoldRenderRoute\.cjs/)
 
     const byId = new Map(manifest.units.map((unit) => [unit.id, unit]))
     const reverted = new Map(plan.outputs)
