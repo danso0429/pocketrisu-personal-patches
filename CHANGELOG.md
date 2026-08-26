@@ -16,6 +16,12 @@
   0755. Both are 7,847,445 bytes, CJS syntax-valid, and SHA-256
   `6c945b0b6f598266b83bb3e2c94d05781bc8d65cc1a89eaa668fb7094d2329c3`.
   No provider call was made by this presentation-only follow-up.
+- Apply live after two zero-work reads and a process-first stop. Change only
+  English/Korean labels, the PageFold detail component, and patch state. Pass
+  stopped-tree client 96/96, Svelte 0/0, 7,940-module build, BG build/load,
+  production prune/load, and 40/934/340 current/zero-plan. After restart,
+  served/local asset and stamp match, four SQLite databases remain
+  `quick_check=ok`, native/BG work remains zero, and error-log delta is zero.
 
 ## 0.2.0-experimental.25
 

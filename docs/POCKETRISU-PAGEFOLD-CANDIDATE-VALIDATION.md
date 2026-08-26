@@ -1,8 +1,8 @@
 # PocketRisu PageFold candidate validation receipt
 
-> **Status:** experimental.26 savings UI follow-up automatic gate passed;
-> experimental.25 remains safely live and exact-1.10 catalog remains
-> `under-review` while physical iPhone L3 continues
+> **Status:** experimental.26 savings UI follow-up automatic gate passed and is
+> safely live; exact-1.10 catalog remains `under-review` while physical iPhone
+> L3 continues
 >
 > **Date:** 2026-08-26 KST
 >
@@ -688,4 +688,52 @@ primary installer and `all` alias are mode 0755, 7,847,445 bytes, CJS
 syntax-valid, and SHA-256
 `6c945b0b6f598266b83bb3e2c94d05781bc8d65cc1a89eaa668fb7094d2329c3`.
 No provider call was made. This subsection records automatic qualification;
-live apply and its direct readback remain below the next delivery boundary.
+the live readback follows below.
+
+### 12.1 experimental.26 live apply
+
+The first and immediately pre-stop reads both found zero native running jobs,
+zero pending sends, zero active BG operations, 136 delivered BG states, and
+zero BG result payloads. Request logs were 3,916 rows / max ID 5,889 / 5,244
+usage rows. The current error-log boundary was 189,765 bytes; growth since the
+prior follow-up occurred during ongoing user L3 and was not attributed to this
+apply.
+
+The application-only rollback
+`risuai-nodeonly-pre-pagefold-exp26.20260826-112228` contains 1,663 files /
+328,073,047 bytes, excludes live `save/`, `backups/`, and `node_modules/`, and
+adds mode-0600 prior patch state/intent. The process-first transaction changed
+only:
+
+- `src/lang/en.ts`;
+- `src/lang/ko.ts`;
+- `src/lib/Others/PageFoldGenerationInfo.svelte`;
+- `save/pocketrisu-patches/state.json`.
+
+The stopped live tree passed focused PageFold client 96/96, Svelte 0/0, the
+7,940-module production build, BG build/load, production prune and post-prune
+load. Exact source readback found the two Saved tokens labels, plain signed
+number rendering, no pricing-evidence row, and retained input cost. Patch
+status and next plan were 40 packs / 934 units / 340 current paths and zero
+changed files.
+
+After restart, PM2 reported PocketRisu 1.10.0 online, restart count 6 and
+unstable restarts 0. Root HTTP and the main asset returned 200. Served/local
+artifacts matched exactly:
+
+| Artifact | Bytes | SHA-256 |
+| --- | ---: | --- |
+| main `index-CUGfscHE.js` | 2,047,743 | `a42018fd3336351a5214f1bf87e79eb1d7268db192143cb2cb6ebdf7d4516eb8` |
+| BG `bgOrchBundle.mjs` | 8,844,463 | `13e229bcbd6a2970d6979dcf8d4ce19792fd2053f7cbddeefc58936de270da77` |
+
+Served/local build stamps matched at
+`1.10.0-347e425225d1cece027bf0b8eccd13bb2fae595bad6c8bf32ab886909a496c96`.
+All four SQLite databases returned `quick_check=ok`; their inode/size pairs
+were unchanged. Native running/pending and BG active/result counts remained
+zero, all 136 BG states remained delivered, request-log rows/max ID/usage
+remained 3,916 / 5,889 / 5,244, and the error log remained 189,765 bytes for a
+zero-byte delta. Live patch status remains current with a zero-change 340-path
+plan.
+
+experimental.26 is live for the remaining physical L3. Stable metadata, tag,
+and release remain prohibited until L3 and L4 complete.
