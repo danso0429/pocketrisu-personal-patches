@@ -1,8 +1,8 @@
 # PocketRisu PageFold candidate and stable validation receipt
 
 > **Status:** physical iPhone L3 complete; exact-1.10 PageFold packs promoted
-> to stable `0.2.1`; final live stable metadata and publication receipt follow
-> the release commit
+> to stable `0.2.1`; live metadata applied and publication gate recorded in
+> `docs/POCKETRISU-0.2.1-PAGEFOLD-STABLE-RELEASE.md`
 >
 > **Date:** 2026-08-26 KST
 >
@@ -735,8 +735,9 @@ remained 3,916 / 5,889 / 5,244, and the error log remained 189,765 bytes for a
 zero-byte delta. Live patch status remains current with a zero-change 340-path
 plan.
 
-experimental.26 is live for the remaining physical L3. Stable metadata, tag,
-and release remain prohibited until L3 and L4 complete.
+At the experimental.26 checkpoint, remaining physical L3 and stable
+publication were still open. Section 13 records the later user completion and
+stable promotion that supersede that checkpoint status.
 
 ## 13. Physical L3 completion and stable admission — 0.2.1
 

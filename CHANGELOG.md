@@ -33,6 +33,17 @@
 - Generate the primary installer and byte-identical `all` alias twice at mode
   0755. Both are 7,847,429 bytes, CJS syntax-valid, and SHA-256
   `a406e48ad8ffded50a7a6bc4a18cbb4204c1bae23f305ebb0e625c93b2426a9c`.
+- Apply stable qualification live with the ordinary installer after waiting
+  for a newly appeared BG operation/result to reach delivered/payload-zero
+  without cancellation. Change only patch `state.json`; keep all 340 runtime
+  paths current and avoid stop/build/restart. Verify 40/934 verified status,
+  zero-plan, HTTP/served-local asset/stamp identity, four SQLite
+  `quick_check=ok` results, and unchanged DB/intent inode-size pairs.
+- Disclose concurrent user activity during readback: BG states finish at 152
+  delivered with active/result 0, request logs advance by three, and the error
+  log grows 78,792 bytes. Content-free classification finds no PageFold,
+  patch/state/version, or credential terms and retains existing regex/tokenizer
+  terms; no user operation or data is cancelled, deleted, claimed, or rewritten.
 
 ## 0.2.0-experimental.26
 

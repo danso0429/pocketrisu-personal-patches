@@ -1,8 +1,8 @@
 # PocketRisu PageFold ModelPreset integration plan
 
 > **Status:** implementation authority fulfilled; physical L3 complete;
-> exact-1.10 PageFold manifests promoted to stable `0.2.1`; final live metadata,
-> tag, and GitHub Release publication are in progress
+> exact-1.10 PageFold manifests promoted to stable `0.2.1`; live stable metadata
+> applied; tag and GitHub Release await the final release workflow
 >
 > **Date:** 2026-08-26 KST
 >
@@ -19,6 +19,8 @@
 > **Structural requalification:** `docs/POCKETRISU-PAGEFOLD-STRUCTURAL-REQUALIFICATION.md`
 >
 > **Candidate validation:** `docs/POCKETRISU-PAGEFOLD-CANDIDATE-VALIDATION.md`
+>
+> **Stable release:** `docs/POCKETRISU-0.2.1-PAGEFOLD-STABLE-RELEASE.md`
 
 ## 0. Latest L3 revision — model authority and compact UI
 

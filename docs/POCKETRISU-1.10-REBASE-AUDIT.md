@@ -4,7 +4,8 @@
 > delivery and verifies PageFold plus its BG adapter after candidate automatic
 > gates and physical L3. The complete graph is 40 packs / 934 units / 340
 > managed paths. Route-specific PageFold limitations remain disclosed rather
-> than rewritten as universal model evidence.
+> than rewritten as universal model evidence. See
+> `docs/POCKETRISU-0.2.1-PAGEFOLD-STABLE-RELEASE.md`.
 
 > **2026-08-24 stable overlay:** `v0.2.0` promotes the later
 > `0.2.0-experimental.21` complete graph: 38 packs / 769 units / 280 managed

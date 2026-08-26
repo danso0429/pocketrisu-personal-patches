@@ -5,7 +5,8 @@
 > inside the complete 40-pack graph; direct Kei-wide porting and the deferred
 > catalog rows remain excluded. Historical partial or not-exercised L3 rows
 > below remain limitations rather than passes. See
-> `docs/POCKETRISU-1.10-STABLE-RELEASE.md` for the promotion decision.
+> `docs/POCKETRISU-1.10-STABLE-RELEASE.md` and
+> `docs/POCKETRISU-0.2.1-PAGEFOLD-STABLE-RELEASE.md` for the promotion decisions.
 
 > **Superseded live boundary — 2026-08-22 KST:** Official PocketRisu 1.10.0
 > (`98e968339d1b3f91b9dac85bb3f2ebb5f90f9d14`) is now the pristine live

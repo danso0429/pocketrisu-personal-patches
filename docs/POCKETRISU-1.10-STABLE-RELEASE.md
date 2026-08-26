@@ -4,7 +4,7 @@
 > the verified PageFold ModelPreset transform plus hidden BG adapter. This
 > document remains the exact `v0.2.0` decision receipt; PageFold evidence is in
 > `docs/POCKETRISU-PAGEFOLD-CANDIDATE-VALIDATION.md` and the final `v0.2.1`
-> release receipt.
+> release receipt at `docs/POCKETRISU-0.2.1-PAGEFOLD-STABLE-RELEASE.md`.
 
 Date: 2026-08-24 KST
 

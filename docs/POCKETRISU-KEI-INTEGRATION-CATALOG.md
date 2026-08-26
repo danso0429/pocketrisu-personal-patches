@@ -18,8 +18,8 @@ a downloader-selectable pack. Historical comparison counts remain unchanged.
 PageFold plus its BG adapter. The deferred and
 excluded rows below do not enter through that promotion, and partial or
 not-exercised physical observations remain disclosed limitations rather than
-passes. See `docs/POCKETRISU-1.10-STABLE-RELEASE.md` and the PageFold release
-receipt.
+passes. See `docs/POCKETRISU-1.10-STABLE-RELEASE.md` and
+`docs/POCKETRISU-0.2.1-PAGEFOLD-STABLE-RELEASE.md`.
 
 The comparison is frozen to:
 

@@ -27,7 +27,8 @@ artifact, but it is absent from the catalog and both generated installers.
 Character and module imports therefore use the existing foreground flow.
 
 See the [delivery design](docs/PATCHER-V2-DESIGN.md),
-[v0.2.0 stable receipt](docs/POCKETRISU-1.10-STABLE-RELEASE.md),
+[v0.2.1 stable receipt](docs/POCKETRISU-0.2.1-PAGEFOLD-STABLE-RELEASE.md),
+[v0.2.0 base receipt](docs/POCKETRISU-1.10-STABLE-RELEASE.md),
 [source provenance ledger](docs/SOURCE-PROVENANCE.md), and
 [Haejeok comparison](docs/HAEJEOK-RISUAI-OVERLAP-AUDIT.md).
 
@@ -67,7 +68,9 @@ maintainer review bypass. The graph passed its complete automatic gate and the
 user reported all presented remaining PageFold iPhone L3 scenarios normal. The
 [candidate validation receipt](docs/POCKETRISU-PAGEFOLD-CANDIDATE-VALIDATION.md)
 retains the implementation, paid/runtime, SQLite-redaction, L2.5, candidate
-live, and physical L3 evidence that led to stable admission.
+live, and physical L3 evidence that led to stable admission. The final
+[stable release receipt](docs/POCKETRISU-0.2.1-PAGEFOLD-STABLE-RELEASE.md)
+records the ordinary installer lifecycle and live metadata promotion.
 
 ## Haejeok integration status
 
@@ -155,8 +158,9 @@ legacy, base, standard-storage, or superseded catalog packs remain
 unqualified for 1.10. The release decision does not convert unexercised Kei,
 backup, fence, or accessibility scenarios into physical passes. Their exact
 accepted limits and the complete automated gate are recorded in the
-[v0.2.0 stable receipt](docs/POCKETRISU-1.10-STABLE-RELEASE.md) and the
-PageFold validation receipt. The final local gate passes 46/46 patcher files,
+[v0.2.1 stable receipt](docs/POCKETRISU-0.2.1-PAGEFOLD-STABLE-RELEASE.md), the
+[v0.2.0 base receipt](docs/POCKETRISU-1.10-STABLE-RELEASE.md), and the PageFold
+validation receipt. The final local gate passes 46/46 patcher files,
 1,731/1,731 frontend tests, 232 server tests with 12 explicit provider-gated
 skips, and 74 compatibility tests with five environment skips, plus Svelte
 0/0, help 439/439 with zero missing keys, the 7,940-module build, and BG bundle
