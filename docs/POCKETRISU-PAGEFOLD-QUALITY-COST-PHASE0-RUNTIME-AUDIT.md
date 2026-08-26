@@ -367,6 +367,8 @@ selected-case resource behavior remains measurement-dependent.
 | phase/call plan could omit or reorder metered roles | high / manifest-dependent | Q3 fixed | contiguous phases and exact full call-plan coverage |
 | fake label accepted an arbitrary callback | high / library-caller-dependent | Q3 fixed | branded static fake queue only |
 | paid callback could run before a full call-plan orchestrator existed | critical / any attempted activation | Q3 fixed | all non-simulated runner execution disabled |
+| target decoder import created cwd-relative `save/logs.db` | medium / every resolver process | Q3 fixed | exact `logs.cjs` import is replaced with a no-op logger and the loader is restored immediately |
+| empty chats could be frozen as real evaluation cases | high / selection-dependent | Q3 fixed | exact selection now rejects a hydrated zero-message chat before capture config creation |
 
 ### Remaining surfaces
 

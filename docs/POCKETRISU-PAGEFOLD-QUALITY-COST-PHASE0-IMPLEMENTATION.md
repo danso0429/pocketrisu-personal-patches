@@ -153,6 +153,7 @@ The CLI is disabled by default in the sense that every operation requires an
 explicit subcommand, and no subcommand implements provider transport:
 
 ~~~bash
+node research/pagefold-quality-cost/offline-runner.cjs initialize-evaluation --repository-root /absolute/repository --target-root /absolute/target --database-path /absolute/main.db --model-jobs-path /absolute/jobs.db --private-root /absolute/private/run --calibration-character NAME --locked-character NAME
 node research/pagefold-quality-cost/offline-runner.cjs verify-synthetic
 node research/pagefold-quality-cost/offline-runner.cjs activation-draft
 node research/pagefold-quality-cost/offline-runner.cjs inspect-quiescence --config /absolute/private/config.json
@@ -165,6 +166,27 @@ The config itself must be outside the repository and mode `0600`. It records
 absolute private paths and opaque case coordinates, so it is not a tracked
 template. `capture-source` requires a dedicated process and performs two
 read-only quiescence checks around one immutable source capture.
+
+### 4.1 First private selection observation
+
+The first user-selected pair resolved as two unique characters. Each character
+had exactly one active chat, but both selected chats contained zero messages;
+neither supplied string matched a chat title, and the selected characters had
+no cold-storage chat or first-message payload. Phase 0 therefore stopped before
+source capture instead of treating empty chats as long-distance evidence.
+
+The private root retains the original selection manifest and a content-free
+`blocked-empty-conversation` receipt. No character/chat name or ID was copied to
+tracked files. Provider calls and live writes remained zero.
+
+This observation also exposed a harness side effect: importing target
+`utils.cjs` loaded its cwd-relative logger and created an empty local
+`save/logs.db`. The database had `quick_check=ok`, `logs=0`, and
+`sqlite_sequence=0`; it was moved intact to a recoverable temporary quarantine,
+not deleted. The decoder loader now substitutes only the exact target
+`logs.cjs` dependency with a no-op logger during import, restores the module
+loader immediately, rejects empty selected chats, and no longer recreates a
+worktree `save/` directory.
 
 ## 5. Remaining Phase 0 closure inputs
 
