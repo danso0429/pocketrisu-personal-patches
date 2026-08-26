@@ -12,7 +12,7 @@ module.exports = {
   title: 'PageFold bg-preserve adapter',
   version: '0.1.0',
   source: 'Independent PageFold render-port composition',
-  targets: { pocketrisu: { verified: [], reviewing: ['1.10.0'] } },
+  targets: { pocketrisu: { verified: ['1.10.0'], reviewing: [] } },
   userSelectable: false,
   requires: ['pagefold-model-preset', 'bg-preserve'],
   autoWhen: { all: ['pagefold-model-preset', 'bg-preserve'] },

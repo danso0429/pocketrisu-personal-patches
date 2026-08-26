@@ -113,7 +113,7 @@ test('packs qualified on PocketRisu 1.9.0 remain explicitly verified', () =>
         )
     }))
 
-test('the PageFold candidate keeps the complete exact-1.10 graph under review', () =>
+test('the PageFold release verifies the complete exact-1.10 graph', () =>
     withRoot('1.10.0', (root) => {
         const catalog = loadCatalog()
         const resolution = resolveSelection(
@@ -127,17 +127,11 @@ test('the PageFold candidate keeps the complete exact-1.10 graph under review', 
 
         assert.equal(resolution.resolvedIds.length, 40)
         assert.equal(inactive.length, 13)
-        assert.equal(result.status, 'under-review')
-        assert.equal(result.verifiedPacks.length, 38)
-        assert.deepEqual(
-            result.underReviewPacks.map((entry) => entry.id),
-            ['pagefold-model-preset', 'pagefold-bg-adapter'],
-        )
+        assert.equal(result.status, 'verified')
+        assert.equal(result.verifiedPacks.length, 40)
+        assert.deepEqual(result.underReviewPacks, [])
         assert.deepEqual(result.reviewRequiredPacks, [])
-        assert.throws(
-            () => assertTargetVerified(result),
-            (error) => error.code === 'TARGET_REVIEW_REQUIRED',
-        )
+        assert.doesNotThrow(() => assertTargetVerified(result))
         assert.doesNotThrow(() => assertTargetReviewable(result))
         assert.deepEqual(
             inactive.filter((entry) =>

@@ -30,13 +30,13 @@ module.exports = {
     source: 'Independent implementation; PageFold 0.1.1 behavioral reference only',
     targets: {
         pocketrisu: {
-            verified: [],
-            reviewing: ['1.10.0'],
+            verified: ['1.10.0'],
+            reviewing: [],
         },
     },
     userSelectable: true,
-    // Candidate-admitted after exact extraction, v8 Vertex-low L1-L4, focused
-    // owners, and the complete automatic graph. Stable remains behind L3/L4.
+    // Stable on exact 1.10 after exact extraction, v8 Vertex-low L1-L4,
+    // complete automatic gates, candidate live operation, and physical L3.
     allDefault: true,
     units: [
         {

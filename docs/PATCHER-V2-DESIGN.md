@@ -94,8 +94,9 @@ does not mark the version verified or allow cutover by itself.
 - Two consecutive builds must be byte-identical.
 - CI runs patcher tests, reproducible generation, syntax checks, the complete
   graph lifecycle on exact PocketRisu 1.10, target tests/check/build, and exact
-  tracked-source revert. Stable `v0.2.0` verifies only the resolved 38-pack
-  exact-1.10 graph, so its generated installer performs ordinary apply/revert
+  tracked-source revert. Stable `v0.2.1` verifies the resolved 40-pack
+  exact-1.10 graph, including PageFold and its BG adapter, so its generated
+  installer performs ordinary apply/revert
   without the source-only maintainer gate. Inactive adapter alternatives and
   future PocketRisu versions remain fail-closed and use the `reviewing`
   qualification path first.

@@ -9,6 +9,7 @@ const adapter = require('../patches/pagefold-bg-adapter/manifest.cjs')
 
 test('PageFold BG adapter is hidden and enters only the exact dual-owner graph', () => {
   assert.equal(adapter.userSelectable, false)
+  assert.deepEqual(adapter.targets.pocketrisu, { verified: ['1.10.0'], reviewing: [] })
   assert.deepEqual(adapter.requires, ['pagefold-model-preset', 'bg-preserve'])
   assert.deepEqual(adapter.autoWhen, { all: ['pagefold-model-preset', 'bg-preserve'] })
   const catalog = loadCatalog()
