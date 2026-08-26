@@ -1,8 +1,8 @@
 # PocketRisu PageFold ModelPreset integration plan
 
-> **Status:** L3-revised implementation authority; experimental.24 is safely
-> live with Service Account import-before-save ordering; physical L3 continues
-> and no stable tag/release is authorized
+> **Status:** L3-revised implementation authority; experimental.25 status UI
+> follow-up is automatically qualified while experimental.24 remains live;
+> physical L3 continues and no stable tag/release is authorized
 >
 > **Date:** 2026-08-26 KST
 >
@@ -53,6 +53,11 @@ price field. Later exact-3.7/v8 text remains historical evidence only.
 - Service Account import appears only in `직접 입력`, matches the secret
   input width/height, and reports a generic top toast. Client email, project,
   and key ID are not rendered as an inline success line.
+- Request progress renders `PF ON 1p` immediately after elapsed seconds with
+  the same neutral text color. The compact chat model badge remains unchanged.
+- Generation details keep PageFold metadata out of Tokens and expose it in a
+  conditional `PageFold` tab beside Log and Prompt. Opening a non-PageFold
+  generation after that tab resets the unavailable selection to Tokens.
 
 ## 1. Outcome
 

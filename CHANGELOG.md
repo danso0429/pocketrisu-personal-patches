@@ -1,5 +1,27 @@
 # Changelog
 
+## 0.2.0-experimental.25
+
+- Move the request-progress `PF ON 1p` marker directly after elapsed seconds
+  and render it with the same neutral text color. Remove only the PageFold
+  marker from the separate colored badge row; all other request badges retain
+  their existing placement and tones.
+- Keep the compact `PF · 1p` badge beside the chat model name. Remove PageFold
+  detail from the Tokens panel and add a conditional `PageFold` tab beside Log
+  and Prompt. Reset a retained PageFold-only tab selection when the next opened
+  generation has no PageFold metadata, preventing a blank detail dialog.
+- Pass 46/46 patcher files, 12 focused PageFold client files / 96 tests, nine
+  focused server files / 55 tests with 12 explicit provider-gated skips, and
+  Svelte diagnostics at 0 errors / 0 warnings. Pass the 7,940-module production
+  build and BG bundle build/load with `sendChat=function`.
+- Exercise fresh exact-1.10 apply/current/zero-plan/revert. Observe the complete
+  graph at 40 packs / 934 units / 340 managed paths, a zero-change next plan,
+  and zero tracked-source differences after revert.
+- Generate the primary installer and byte-identical `all` alias twice at mode
+  0755. Both are 7,847,807 bytes, CJS syntax-valid, and SHA-256
+  `b9368840ba1335fa043c52546b8dd7d5e5cd7cce8feac9ab4171230a0372a656`.
+  No paid/provider call was made by this follow-up gate.
+
 ## 0.2.0-experimental.24
 
 - Move the existing `이 키 저장` action below `Service Account JSON 가져오기`

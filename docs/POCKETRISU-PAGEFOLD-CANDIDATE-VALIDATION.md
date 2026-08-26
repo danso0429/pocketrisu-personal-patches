@@ -1,12 +1,12 @@
 # PocketRisu PageFold candidate validation receipt
 
-> **Status:** experimental.23 L3 follow-up automatic gate passed; exact-1.10
-> catalog remains `under-review` and the revision is safely live; physical
-> iPhone L3 has resumed but is not complete
+> **Status:** experimental.25 status UI follow-up automatic gate passed;
+> exact-1.10 catalog remains `under-review`; experimental.24 is safely live
+> while physical iPhone L3 continues
 >
 > **Date:** 2026-08-26 KST
 >
-> **Candidate:** `0.2.0-experimental.24`
+> **Candidate:** `0.2.0-experimental.25`
 >
 > **Target:** exact official PocketRisu `1.10.0`
 
@@ -544,3 +544,58 @@ Content-free request-log metadata observed during the user's ongoing L3:
 These are transport/logging observations only. User-visible UI, response
 quality, role persistence, background return, and remaining scenarios await the
 user's physical L3 report.
+
+## 11. L3 status presentation follow-up — experimental.25
+
+The next physical review requested two presentation corrections without
+changing PageFold routing or request content.
+
+- Request progress now takes the PageFold marker out of the lower green badge
+  row and renders `PF ON 1p` immediately after elapsed seconds using the same
+  neutral `textcolor2` style.
+- The compact `PF · 1p` badge beside the chat model name remains unchanged.
+- The generation detail dialog removes PageFold metadata from Tokens and adds
+  a conditional `PageFold` tab beside Log and Prompt.
+- If a PageFold tab was last selected and the next opened generation has no
+  PageFold metadata, the dialog resets to Tokens instead of rendering an empty
+  panel.
+
+### 11.1 Automatic observations
+
+- PageFold manifest compose/revert and exact markup assertions passed;
+- patcher source: 46/46 files passed;
+- focused PageFold client: 12 files / 96 tests passed;
+- focused PageFold server: nine files / 55 tests passed, 12 explicit
+  provider-gated tests skipped;
+- Svelte diagnostics: 0 errors / 0 warnings;
+- production client: 7,940 modules transformed;
+- BG bundle build/load: `sendChat=function`;
+- fresh exact-1.10 graph: 40 packs / 934 units / 340 managed paths, current
+  status and zero-change next plan;
+- generated revert: zero tracked-source differences; only the deliberately
+  generated disposable BG bundle artifacts remained untracked.
+
+Two consecutive experimental.25 installer builds were byte-identical. The
+primary installer and `all` alias are mode 0755, 7,847,807 bytes, CJS
+syntax-valid, and SHA-256
+`b9368840ba1335fa043c52546b8dd7d5e5cd7cce8feac9ab4171230a0372a656`.
+No paid/provider call was made by this follow-up gate.
+
+### 11.2 L2.5 delta
+
+Phase 1 adds only two presentation leaves: request-status rendering and the
+generation-detail tab selection. It adds no provider, render, tokenizer,
+database, credential, or BG operation effect.
+
+Phase 2 traces the request marker from the existing bounded `pagefold` status
+badge metadata. The toast consumes that key inline and filters the same key
+from the old lower row; every non-PageFold badge keeps the prior loop and tone.
+The detail dialog consumes the already persisted bounded `genInfo.pageFold`
+object behind a conditional button/panel. The model-name badge owner is not
+modified. A state guard invalidates tab 4 only when the next generation lacks
+PageFold metadata.
+
+Phase 3 finds no new Q1/Q2 runtime authority or content-persistence defect.
+Exact iPhone spacing, tap behavior, and visible tab content remain the physical
+L3 surface. The follow-up is not stable admission and has not yet been applied
+live in this subsection.
