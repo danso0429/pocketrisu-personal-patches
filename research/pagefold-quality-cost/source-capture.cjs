@@ -72,6 +72,27 @@ function assertAbsolutePath(value, code) {
     return path.resolve(value)
 }
 
+function loadTargetUtilsWithoutLogging(targetRoot) {
+    const target = assertAbsolutePath(targetRoot, 'CAPTURE_TARGET_ROOT_INVALID')
+    const utilsPath = require.resolve(path.join(target, 'server/node/utils.cjs'))
+    const logsPath = require.resolve(path.join(target, 'server/node/logs.cjs'))
+    if (require.cache[utilsPath] || require.cache[logsPath]) fail('CAPTURE_TARGET_LOGGER_ALREADY_LOADED')
+    const silentLoggerMethod = () => {}
+    const silentLogger = new Proxy({}, { get: () => silentLoggerMethod })
+    const originalLoad = Module._load
+    Module._load = function pageFoldQualityTargetLoad(request, parent, isMain) {
+        let resolved
+        try { resolved = Module._resolveFilename(request, parent, isMain) } catch {}
+        if (resolved === logsPath) return { logger: silentLogger }
+        return originalLoad.call(this, request, parent, isMain)
+    }
+    try {
+        return require(utilsPath)
+    } finally {
+        Module._load = originalLoad
+    }
+}
+
 function installCaptureNetworkDeny() {
     let blockedAttempts = 0
     const blocked = () => {
@@ -372,7 +393,7 @@ async function loadSelectedCaseSnapshot({ targetRoot, databasePath, characterId,
         || typeof chatId !== 'string' || chatId.length === 0) fail('CAPTURE_CASE_ID_INVALID')
     const quiescence = validateQuiescenceProof(quiescenceProof, characterId, chatId)
     const { openKvSnapshot } = require(path.join(targetRoot, 'server/node/backupSnapshot.cjs'))
-    const { decodeRisuSave, normalizeJSON } = require(path.join(targetRoot, 'server/node/utils.cjs'))
+    const { decodeRisuSave, normalizeJSON } = loadTargetUtilsWithoutLogging(targetRoot)
     const snapshot = openKvSnapshot(databasePath)
     try {
         const databaseBlobSize = snapshot.kvSize('database/database.bin')
@@ -696,6 +717,7 @@ module.exports = {
     installCaptureNetworkDeny,
     journalStorageKey,
     loadSelectedCaseSnapshot,
+    loadTargetUtilsWithoutLogging,
     materializeInstrumentedRuntime,
     readSnapshotHeadIdentity,
     sanitizeCapturedPayload,

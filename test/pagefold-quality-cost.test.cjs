@@ -37,6 +37,7 @@ const {
     instrumentOrchestratorSource,
     installCaptureNetworkDeny,
     journalStorageKey,
+    loadTargetUtilsWithoutLogging,
     sanitizeCapturedPayload,
     sanitizePresetValue,
     validateQuiescenceProof,
@@ -112,7 +113,7 @@ test('private case resolver uses exact character identity and the active chat by
                 name: '캐릭터 A',
                 chatPage: 1,
                 chats: [
-                    { id: 'chat-a1', name: '첫 채팅', message: [] },
+                    { id: 'chat-a1', name: '첫 채팅', message: [{ chatId: 'm-0' }] },
                     { id: 'chat-a2', name: '현재 채팅', message: [{ chatId: 'm-1' }] },
                 ],
             },
@@ -143,6 +144,12 @@ test('private case resolver uses exact character identity and the active chat by
     const stub = resolveNamedCase(database, { characterName: '캐릭터 B' })
     assert.equal(stub.hydrated, false)
     assert.equal(stub.messageCount, null)
+
+    database.characters[0].chats[0].message = []
+    assert.throws(
+        () => resolveNamedCase(database, { characterName: '캐릭터 A', chatName: '첫 채팅' }),
+        /CASE_SELECTION_CHAT_EMPTY/,
+    )
 
     database.characters.push({ ...database.characters[0], chaId: 'char-a-duplicate' })
     assert.throws(() => resolveNamedCase(database, { characterName: '캐릭터 A' }), /CASE_SELECTION_CHARACTER_NOT_UNIQUE/)
@@ -1113,4 +1120,25 @@ test('capture network deny blocks fetch and core socket entry points and restore
     assert.equal(globalThis.fetch, priorFetch)
     assert.equal(http.request, priorRequest)
     assert.equal(net.connect, priorConnect)
+})
+
+test('target decoder import substitutes its cwd-writing logger without loading it', () => {
+    const target = fs.mkdtempSync(path.join(os.tmpdir(), 'pagefold-quality-target-utils-'))
+    tempRoots.push(target)
+    const nodeRoot = path.join(target, 'server', 'node')
+    fs.mkdirSync(nodeRoot, { recursive: true })
+    fs.writeFileSync(path.join(nodeRoot, 'logs.cjs'), [
+        "require('node:fs').writeFileSync(require('node:path').join(__dirname, 'logger-loaded'), 'x')",
+        'module.exports = { logger: {} }',
+        '',
+    ].join('\n'))
+    fs.writeFileSync(path.join(nodeRoot, 'utils.cjs'), [
+        "const { logger } = require('./logs.cjs')",
+        "module.exports = { decodeRisuSave: () => 'decoded', normalizeJSON: (value) => value, logger }",
+        '',
+    ].join('\n'))
+    const loaded = loadTargetUtilsWithoutLogging(target)
+    assert.equal(loaded.decodeRisuSave(), 'decoded')
+    assert.equal(typeof loaded.logger.info, 'function')
+    assert.equal(fs.existsSync(path.join(nodeRoot, 'logger-loaded')), false)
 })

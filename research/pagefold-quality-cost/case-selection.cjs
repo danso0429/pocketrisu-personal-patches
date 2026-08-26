@@ -13,7 +13,10 @@ const {
     preparePrivateRunRoot,
     writeJsonExclusive,
 } = require('./artifact-store.cjs')
-const { CAPTURE_MAX_DATABASE_BLOB_BYTES } = require('./source-capture.cjs')
+const {
+    CAPTURE_MAX_DATABASE_BLOB_BYTES,
+    loadTargetUtilsWithoutLogging,
+} = require('./source-capture.cjs')
 
 function fail(code) {
     throw new QualityCostProtocolError(code)
@@ -53,6 +56,7 @@ function resolveNamedCase(database, { characterName, chatName }) {
     }
     const chat = character.chats[chatIndex]
     if (!chat || typeof chat.id !== 'string' || chat.id.length === 0) fail('CASE_SELECTION_CHAT_ID_INVALID')
+    if (Array.isArray(chat.message) && chat.message.length === 0) fail('CASE_SELECTION_CHAT_EMPTY')
     return Object.freeze({
         characterId: character.chaId,
         chatId: chat.id,
@@ -79,7 +83,7 @@ async function loadSelectionsFromSnapshot({
         fail('CASE_SELECTION_PATH_INVALID')
     }
     const { openKvSnapshot } = require(path.join(targetRoot, 'server/node/backupSnapshot.cjs'))
-    const { decodeRisuSave, normalizeJSON } = require(path.join(targetRoot, 'server/node/utils.cjs'))
+    const { decodeRisuSave, normalizeJSON } = loadTargetUtilsWithoutLogging(targetRoot)
     const snapshot = openKvSnapshot(databasePath)
     try {
         const size = snapshot.kvSize('database/database.bin')
