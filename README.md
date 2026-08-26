@@ -2,7 +2,7 @@
 
 Private, all-or-nothing patch delivery for PocketRisu NodeOnly. The current
 stable release is `v0.2.0`, and its complete manifest graph targets exact
-PocketRisu `v1.10.0`. The newer `0.2.0-experimental.23` PageFold graph is an
+PocketRisu `v1.10.0`. The newer `0.2.0-experimental.24` PageFold graph is an
 exact-target candidate, not a stable replacement.
 
 ## Complete installer
@@ -33,7 +33,7 @@ See the [delivery design](docs/PATCHER-V2-DESIGN.md),
 
 ## PageFold candidate status
 
-`0.2.0-experimental.23` adds PageFold as an opt-in ModelPreset transform. It is
+`0.2.0-experimental.24` adds PageFold as an opt-in ModelPreset transform. It is
 not a standalone provider and does not alter old presets until the user
 explicitly selects maximum or balanced mode and enables it. Main, sub,
 memory, translation, emotion, and other-aux bindings expose independent
@@ -88,6 +88,7 @@ retains the detailed source and path review.
 
 | Release | What changed |
 | --- | --- |
+| `v0.2.0-experimental.24` | Keeps the experimental.23 PageFold behavior and moves `이 키 저장` directly below the full-width Service Account JSON import button, without moving it for any other credential type. |
 | `v0.2.0-experimental.23` | Applies L3 feedback: compact PageFold UI, input-sized direct Service Account import with identifier-free toast, no manual price UI, and preset-authoritative Gemini models across native Vertex and AI Studio. Gemini 3 uses part-low and earlier Gemini uses global-low; 3.7/v8 remains evidence rather than a model override. |
 | `v0.2.0-experimental.22` | Adds the exact-1.10 PageFold ModelPreset candidate for one v8-qualified native Vertex global `gemini-3.7-flash` low route, server-owned deterministic PDF rendering, role overrides, explicit mode/persistence UI, Service Account import, budgets/retry/redaction/metrics, and BG composition. The 40-pack / 929-unit / 339-path graph remains review-only for candidate L3. |
 | `v0.2.0` | Promotes the exact PocketRisu 1.10 all-or-nothing graph: 38 resolved packs, 769 units, and 280 managed paths. Ordinary generated-installer apply is enabled only for that complete graph; retired and alternative adapters stay outside stable qualification. The release preserves the recorded physical passes and explicitly accepts, without relabelling, the remaining unavailable or not-exercised device surfaces. |

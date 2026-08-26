@@ -1,5 +1,19 @@
 # Changelog
 
+## 0.2.0-experimental.24
+
+- Move the existing `이 키 저장` action below `Service Account JSON 가져오기`
+  only for the direct Google Service Account field. Preserve its existing
+  appearance and behavior; every non-Service-Account direct credential keeps
+  the old save-button position.
+- Add one exact Svelte owner unit so the original save action is suppressed
+  only in the Service Account branch and reinserted immediately below import
+  when a direct key exists. Pass PageFold composition/revert, 46/46 patcher
+  files, Svelte 0/0, and the 40-pack / 930-unit / 339-path current zero-plan.
+- Generate two byte-identical mode-0755 installers at 7,845,294 bytes with
+  SHA-256
+  `f76678745fbfbffeb411795364e389d17c5721ad5ea2f36e55b0c052f0a1ad8b`.
+
 ## 0.2.0-experimental.23
 
 - Apply the first physical L3 UI feedback. Keep one short PageFold definition,

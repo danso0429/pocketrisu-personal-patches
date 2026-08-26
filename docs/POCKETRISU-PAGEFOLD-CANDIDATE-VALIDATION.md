@@ -6,7 +6,7 @@
 >
 > **Date:** 2026-08-26 KST
 >
-> **Candidate:** `0.2.0-experimental.23`
+> **Candidate:** `0.2.0-experimental.24`
 >
 > **Target:** exact official PocketRisu `1.10.0`
 
@@ -473,3 +473,28 @@ zero-change 339-path plan.
 
 experimental.23 is ready to restart physical L3. Stable metadata/tag/release
 remain prohibited until the revised scenarios and L4 complete.
+
+## 10. L3 credential action order follow-up — experimental.24
+
+While the remaining physical L3 scenarios continued, the user requested one
+narrow layout correction: in direct Service Account mode, `이 키 저장` must
+appear immediately below `Service Account JSON 가져오기`.
+
+The patch adds one exact Svelte owner that hides the original direct save
+action only when `isServiceAccountField` is true. The PageFold import owner then
+renders the unchanged save action below the full-width 42px import button when
+`hasDirectKey` is true. Other credential types retain their original order.
+
+Observed automatic results:
+
+- PageFold compose/revert test passed;
+- exact composed markup order was import then save;
+- Svelte diagnostics 0 errors / 0 warnings;
+- patcher source 46/46 files passed;
+- complete graph current at 40 packs / 930 units / 339 paths with zero-change
+  next plan;
+- two deterministic mode-0755 installers, 7,845,294 bytes, SHA-256
+  `f76678745fbfbffeb411795364e389d17c5721ad5ea2f36e55b0c052f0a1ad8b`.
+
+No provider call was made. Commit/push and live apply remain, with restart
+deferred while physical L3 activity may still be in progress.

@@ -2221,6 +2221,30 @@ import { resolvePageFoldOutputReserve, resolvePageFoldSourceBudget } from 'src/t
             targetVersions: pocketRisu1100,
         },
         {
+            id: 'pagefold-model-preset:credential-direct-save-placement:1.10',
+            file: 'src/lib/Setting/Pages/Model/CredentialField.svelte',
+            type: 'replace',
+            anchor: `        {#if hasDirectKey}
+            <div class="flex justify-end mt-1">
+                <ShButton variant="ghost" size="sm" onclick={openSaveDialog}>
+                    {language.apiKeySave}
+                </ShButton>
+            </div>
+        {/if}
+`,
+            managed: `        {#if hasDirectKey && !isServiceAccountField}
+            <div class="flex justify-end mt-1">
+                <ShButton variant="ghost" size="sm" onclick={openSaveDialog}>
+                    {language.apiKeySave}
+                </ShButton>
+            </div>
+        {/if}
+`,
+            markerNeedle: 'hasDirectKey && !isServiceAccountField',
+            requires: ['pagefold-model-preset:credential-import-state:1.10'],
+            targetVersions: pocketRisu1100,
+        },
+        {
             id: 'pagefold-model-preset:credential-import-ui:1.10',
             file: 'src/lib/Setting/Pages/Model/CredentialField.svelte',
             type: 'insert',
@@ -2242,13 +2266,20 @@ import { resolvePageFoldOutputReserve, resolvePageFoldSourceBudget } from 'src/t
         >
             {serviceAccountImporting ? language.serviceAccountImporting : language.serviceAccountImportJson}
         </ShButton>
+        {#if hasDirectKey}
+            <div class="flex justify-end mt-1">
+                <ShButton variant="ghost" size="sm" onclick={openSaveDialog}>
+                    {language.apiKeySave}
+                </ShButton>
+            </div>
+        {/if}
         {#if serviceAccountImportError}
             <span class="text-xs text-red-400">{serviceAccountImportError}</span>
         {/if}
     {/if}
 `,
             markerNeedle: 'serviceAccountImportJson',
-            requires: ['pagefold-model-preset:credential-import-state:1.10'],
+            requires: ['pagefold-model-preset:credential-direct-save-placement:1.10'],
             targetVersions: pocketRisu1100,
         },
         {

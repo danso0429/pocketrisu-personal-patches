@@ -1,9 +1,9 @@
 # PocketRisu PageFold ModelPreset integration plan
 
-> **Status:** L3-revised implementation authority; experimental.23 compact UI
-> and preset-selected Gemini model follow-up passed the complete automatic gate,
-> commit/push, and safe live reapply; revised physical L3 is pending and no
-> stable tag/release is authorized
+> **Status:** L3-revised implementation authority; experimental.23 is live and
+> experimental.24 moves the Service Account save action below import with its
+> automatic gate complete; safe live apply waits for the ongoing L3 activity,
+> and no stable tag/release is authorized
 >
 > **Date:** 2026-08-26 KST
 >
