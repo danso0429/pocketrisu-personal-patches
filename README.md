@@ -2,7 +2,7 @@
 
 Private, all-or-nothing patch delivery for PocketRisu NodeOnly. The current
 stable release is `v0.2.0`, and its complete manifest graph targets exact
-PocketRisu `v1.10.0`. The newer `0.2.0-experimental.25` PageFold graph is an
+PocketRisu `v1.10.0`. The newer `0.2.0-experimental.26` PageFold graph is an
 exact-target candidate, not a stable replacement.
 
 ## Complete installer
@@ -33,7 +33,7 @@ See the [delivery design](docs/PATCHER-V2-DESIGN.md),
 
 ## PageFold candidate status
 
-`0.2.0-experimental.25` adds PageFold as an opt-in ModelPreset transform. It is
+`0.2.0-experimental.26` adds PageFold as an opt-in ModelPreset transform. It is
 not a standalone provider and does not alter old presets until the user
 explicitly selects maximum or balanced mode and enables it. Main, sub,
 memory, translation, emotion, and other-aux bindings expose independent
@@ -56,6 +56,10 @@ Request progress shows `PF ON 1p` immediately after elapsed time using the
 same neutral text color. The chat model badge remains compact, while generation
 details expose PageFold metadata in a dedicated conditional tab beside Log and
 Prompt rather than inside Tokens.
+
+The PageFold detail tab labels the signed source-minus-wire delta as Saved
+tokens (`절약 토큰`), omits the redundant positive `+`, and does not render the
+internal pricing-evidence identifier. Negative values remain negative.
 
 Both PageFold packs remain exact-1.10 `reviewing`; ordinary generated-installer
 apply therefore fails closed. The private qualification path is used only for
@@ -93,6 +97,7 @@ retains the detailed source and path review.
 
 | Release | What changed |
 | --- | --- |
+| `v0.2.0-experimental.26` | Renames the PageFold signed token delta to Saved tokens / `절약 토큰`, removes the redundant positive `+`, and removes the pricing-evidence row while preserving cost and negative values. |
 | `v0.2.0-experimental.25` | Places neutral `PF ON 1p` progress beside elapsed seconds, keeps the chat model badge, and moves detailed PageFold metadata from Tokens into its own conditional generation-info tab beside Log and Prompt. |
 | `v0.2.0-experimental.24` | Keeps the experimental.23 PageFold behavior and moves `이 키 저장` directly below the full-width Service Account JSON import button, without moving it for any other credential type. |
 | `v0.2.0-experimental.23` | Applies L3 feedback: compact PageFold UI, input-sized direct Service Account import with identifier-free toast, no manual price UI, and preset-authoritative Gemini models across native Vertex and AI Studio. Gemini 3 uses part-low and earlier Gemini uses global-low; 3.7/v8 remains evidence rather than a model override. |

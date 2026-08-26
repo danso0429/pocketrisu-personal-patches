@@ -1,5 +1,22 @@
 # Changelog
 
+## 0.2.0-experimental.26
+
+- Rename the PageFold generation-info signed token delta to `Saved tokens` /
+  `절약 토큰`. Preserve the source-estimate-minus-actual-wire-input formula and
+  negative values, while removing the redundant `+` prefix from positive
+  values.
+- Remove the pricing-evidence row from the PageFold tab. Keep the input-cost
+  row and all internal versioned pricing/metric calculations unchanged.
+- Pass PageFold compose/revert assertions, 46/46 patcher files, 12 focused
+  PageFold client files / 96 tests, Svelte diagnostics at 0 errors / 0 warnings,
+  and the 7,940-module production build. The complete graph remains 40 packs /
+  934 units / 340 managed paths with a zero-change next plan.
+- Generate the primary installer and byte-identical `all` alias twice at mode
+  0755. Both are 7,847,445 bytes, CJS syntax-valid, and SHA-256
+  `6c945b0b6f598266b83bb3e2c94d05781bc8d65cc1a89eaa668fb7094d2329c3`.
+  No provider call was made by this presentation-only follow-up.
+
 ## 0.2.0-experimental.25
 
 - Move the request-progress `PF ON 1p` marker directly after elapsed seconds

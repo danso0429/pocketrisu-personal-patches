@@ -1,12 +1,12 @@
 # PocketRisu PageFold candidate validation receipt
 
-> **Status:** experimental.25 status UI follow-up automatic gate passed and is
-> safely live; exact-1.10 catalog remains `under-review` while physical iPhone
-> L3 continues
+> **Status:** experimental.26 savings UI follow-up automatic gate passed;
+> experimental.25 remains safely live and exact-1.10 catalog remains
+> `under-review` while physical iPhone L3 continues
 >
 > **Date:** 2026-08-26 KST
 >
-> **Candidate:** `0.2.0-experimental.25`
+> **Candidate:** `0.2.0-experimental.26`
 >
 > **Target:** exact official PocketRisu `1.10.0`
 
@@ -654,3 +654,38 @@ remains a separate physical/user evaluation and is not inferred from HTTP 200.
 
 experimental.25 is live for the remaining physical L3. Stable metadata, tag,
 and release remain prohibited until L3 and L4 complete.
+
+## 12. L3 savings-label follow-up — experimental.26
+
+The next PageFold detail review recognized that the existing signed delta was
+already the requested savings value. The follow-up therefore changes only its
+presentation:
+
+- `Signed token delta` becomes `Saved tokens` / `절약 토큰`;
+- a positive value no longer receives a `+` prefix;
+- negative values retain their minus sign and amber tone;
+- the pricing-evidence row is removed;
+- input cost and all internal metric/pricing calculations remain unchanged.
+
+Automatic observations:
+
+- PageFold manifest compose/revert and exact component assertions passed;
+- patcher source: 46/46 files passed;
+- focused PageFold client: 12 files / 96 tests passed;
+- Svelte diagnostics: 0 errors / 0 warnings;
+- production client: 7,940 modules transformed;
+- complete graph: 40 packs / 934 units / 340 managed paths, current with a
+  zero-change next plan.
+
+The L2.5 delta has one client presentation leaf and two localized labels. The
+component continues to read the same bounded `signedTokenDelta` and cost
+fields; metric calculation, provider usage, request logging, persistence,
+pricing lookup, and BG ownership are unchanged. Exact iPhone wording and row
+absence remain the physical L3 surface.
+
+Two consecutive experimental.26 installer builds were byte-identical. The
+primary installer and `all` alias are mode 0755, 7,847,445 bytes, CJS
+syntax-valid, and SHA-256
+`6c945b0b6f598266b83bb3e2c94d05781bc8d65cc1a89eaa668fb7094d2329c3`.
+No provider call was made. This subsection records automatic qualification;
+live apply and its direct readback remain below the next delivery boundary.

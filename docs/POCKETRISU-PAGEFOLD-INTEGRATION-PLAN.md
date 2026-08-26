@@ -1,8 +1,8 @@
 # PocketRisu PageFold ModelPreset integration plan
 
-> **Status:** L3-revised implementation authority; experimental.25 status UI
-> follow-up is automatically qualified and safely live; physical L3 continues
-> and no stable tag/release is authorized
+> **Status:** L3-revised implementation authority; experimental.26 savings UI
+> follow-up is automatically qualified while experimental.25 remains safely
+> live; physical L3 continues and no stable tag/release is authorized
 >
 > **Date:** 2026-08-26 KST
 >
@@ -58,6 +58,9 @@ price field. Later exact-3.7/v8 text remains historical evidence only.
 - Generation details keep PageFold metadata out of Tokens and expose it in a
   conditional `PageFold` tab beside Log and Prompt. Opening a non-PageFold
   generation after that tab resets the unavailable selection to Tokens.
+- The PageFold tab labels the signed source-estimate-minus-wire-input value as
+  `절약 토큰`, renders positive values without `+`, preserves negative values,
+  and omits the pricing-evidence row. Input cost remains visible.
 
 ## 1. Outcome
 
