@@ -80,6 +80,11 @@ const {
     createRunnerArtifactSink,
     inspectRunnerCheckpointState,
 } = require('../research/pagefold-quality-cost/runner-artifacts.cjs')
+const {
+    captureConfig,
+    contentFreeSelection,
+    resolveNamedCase,
+} = require('../research/pagefold-quality-cost/case-selection.cjs')
 
 const tempRoots = []
 test.afterEach(() => {
@@ -97,6 +102,82 @@ test('core Phase C matrix contains direct plus the complete 3x2x2 PDF cells', ()
         assert.deepEqual(new Set(cells.map((condition) => condition.systemPlacement)), new Set(['pdf', 'native']))
         assert.deepEqual(new Set(cells.map((condition) => condition.currentUserPlacement)), new Set(['pdf', 'native']))
     }
+})
+
+test('private case resolver uses exact character identity and the active chat by default', () => {
+    const database = {
+        characters: [
+            {
+                chaId: 'char-a',
+                name: '캐릭터 A',
+                chatPage: 1,
+                chats: [
+                    { id: 'chat-a1', name: '첫 채팅', message: [] },
+                    { id: 'chat-a2', name: '현재 채팅', message: [{ chatId: 'm-1' }] },
+                ],
+            },
+            {
+                chaId: 'char-b',
+                name: '캐릭터 B',
+                chatPage: 0,
+                chats: [{ id: 'chat-b1', name: '잠금 채팅', _stub: true }],
+            },
+        ],
+    }
+    const active = resolveNamedCase(database, { characterName: '캐릭터 A' })
+    assert.deepEqual(active, {
+        characterId: 'char-a',
+        chatId: 'chat-a2',
+        characterName: '캐릭터 A',
+        chatName: '현재 채팅',
+        characterIndex: 0,
+        chatIndex: 1,
+        chatCount: 2,
+        messageCount: 1,
+        hydrated: true,
+        selectionPolicy: 'active-chat-page',
+    })
+    const named = resolveNamedCase(database, { characterName: '캐릭터 A', chatName: '첫 채팅' })
+    assert.equal(named.chatId, 'chat-a1')
+    assert.equal(named.selectionPolicy, 'exact-chat-name')
+    const stub = resolveNamedCase(database, { characterName: '캐릭터 B' })
+    assert.equal(stub.hydrated, false)
+    assert.equal(stub.messageCount, null)
+
+    database.characters.push({ ...database.characters[0], chaId: 'char-a-duplicate' })
+    assert.throws(() => resolveNamedCase(database, { characterName: '캐릭터 A' }), /CASE_SELECTION_CHARACTER_NOT_UNIQUE/)
+})
+
+test('capture config keeps names out while content-free selection hides coordinates', () => {
+    const selection = {
+        characterId: 'char-private',
+        chatId: 'chat-private',
+        characterName: '비공개 캐릭터',
+        chatName: '비공개 채팅',
+        characterIndex: 2,
+        chatIndex: 3,
+        chatCount: 4,
+        messageCount: 5,
+        hydrated: true,
+        selectionPolicy: 'active-chat-page',
+    }
+    const config = captureConfig({
+        repositoryRoot: '/workspace/repository',
+        targetRoot: '/target',
+        databasePath: '/target/save/main.db',
+        modelJobsPath: '/target/save/jobs.db',
+        privateRoot: '/private/run',
+        cohort: 'calibration',
+        caseId: 'real-calibration-fixture',
+        selection,
+    })
+    assert.equal(config.characterId, 'char-private')
+    assert.equal(config.runRoot, '/private/run/calibration')
+    assert.equal(JSON.stringify(config).includes('비공개'), false)
+    const summary = contentFreeSelection('calibration', selection)
+    assert.equal(JSON.stringify(summary).includes('char-private'), false)
+    assert.equal(JSON.stringify(summary).includes('비공개'), false)
+    assert.equal(summary.selectedChatIndex, 3)
 })
 
 test('canonical identities reject excessive structural depth and non-sequential effective indexes', () => {

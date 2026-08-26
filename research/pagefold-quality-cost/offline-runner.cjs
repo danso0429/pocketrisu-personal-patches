@@ -14,6 +14,7 @@ const { createDossierTemplate, closeDossierForActivation } = require('./dossier.
 const { verifySyntheticManifest } = require('./fixtures-v1.cjs')
 const { inspectReadOnlyQuiescence } = require('./quiescence.cjs')
 const { executeSourceCapture } = require('./source-capture.cjs')
+const { initializePrivateEvaluation } = require('./case-selection.cjs')
 
 function fail(code) {
     throw new QualityCostProtocolError(code)
@@ -66,6 +67,21 @@ function publicQuiescence(proof) {
 async function main(argv = process.argv.slice(2)) {
     const args = parseArgs(argv)
     switch (args.command) {
+        case 'initialize-evaluation': {
+            const summary = await initializePrivateEvaluation({
+                repositoryRoot: args['repository-root'],
+                targetRoot: args['target-root'],
+                databasePath: args['database-path'],
+                modelJobsPath: args['model-jobs-path'],
+                privateRoot: args['private-root'],
+                calibrationCharacter: args['calibration-character'],
+                calibrationChat: args['calibration-chat'],
+                lockedCharacter: args['locked-character'],
+                lockedChat: args['locked-chat'],
+            })
+            process.stdout.write(JSON.stringify(summary, null, 2) + '\n')
+            return
+        }
         case 'activation-draft':
             process.stdout.write(JSON.stringify(buildActivationDraft(), null, 2) + '\n')
             return
