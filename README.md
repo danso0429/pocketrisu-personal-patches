@@ -62,6 +62,17 @@ The PageFold detail tab labels the signed source-minus-wire delta as Saved
 tokens (`절약 토큰`), omits the redundant positive `+`, and does not render the
 internal pricing-evidence identifier. Negative values remain negative.
 
+PageFold is qualified for PDF-based context understanding and cost reduction,
+not byte-exact source reproduction. **Verbatim copy is not supported:** do not
+rely on model output to preserve exact code, leading/trailing whitespace, line
+endings, Unicode sequences, or arbitrary source-document bytes. The executed
+qualification observed required renderer glyph failures, a provider-added
+trailing LF in the corrected literal-copy control, and final PocketRisu edge
+trimming. These failures do not change the separate structural/context support
+decision, and the product does not re-inject the full extracted transcript as
+text to simulate exact copy. See the
+[verbatim-copy validation receipt](docs/POCKETRISU-PAGEFOLD-VERBATIM-COPY-VALIDATION.md).
+
 Both PageFold packs are exact-1.10 `verified`, so the ordinary distributed
 installer applies the complete 40-pack / 934-unit / 340-path graph without the
 maintainer review bypass. The graph passed its complete automatic gate and the

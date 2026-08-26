@@ -1,12 +1,14 @@
 # PageFold verbatim-copy follow-up
 
-> **Status:** deferred qualification design; exact-copy support is unqualified,
-> and this file authorizes no provider calls, implementation, catalog change,
-> live apply, or release
+> **Status:** executed and closed for the frozen profile; provider-copy and
+> product-copy failed, so verbatim copy is not supported
 >
 > **Date:** 2026-08-26 KST
 >
 > **Authority:** `docs/POCKETRISU-PAGEFOLD-INTEGRATION-PLAN.md`
+>
+> **Execution receipt:**
+> `docs/POCKETRISU-PAGEFOLD-VERBATIM-COPY-VALIDATION.md`
 
 ## 1. Verification objective and qualification boundary
 
@@ -35,9 +37,20 @@ Byte-sensitive recognition uses structural answers:
 - role/order, fake-record isolation, and page markers use compact identifiers;
 - PDF.js continues to prove exact canonical bytes independently of the model.
 
-Verbatim copying remains a separate deferred capability. It is not removed or
-treated as unimportant; it is isolated so response normalization cannot be
-mistaken for PDF-reading failure.
+Verbatim copying remains a separate capability from PageFold context
+understanding. The 2026-08-26 execution closed the frozen Vertex global
+`gemini-3.7-flash` / low / maximum profile with negative decisions:
+
+- three required content cells failed in the PDF renderer before provider
+  work;
+- the corrected provider response control returned `각` plus one trailing LF
+  instead of the exact three-byte source; and
+- the current PocketRisu final sink independently removed leading/trailing
+  bytes through unconditional `trim()`.
+
+The provider run stopped fail-fast after two total calls at cumulative rated
+cost USD 0.00066825. No canonical-text/PDF provider result is inferred from the
+cells that correctly remained unexecuted.
 
 There are two separately named support surfaces:
 
@@ -50,7 +63,8 @@ There are two separately named support surfaces:
 
 Provider-copy support must not be presented as product-copy support. A product
 claim requires both surfaces to pass under the same versioned support profile.
-Neither claim is currently qualified.
+Both claims failed under the executed profile, so PageFold must not be
+advertised or used as a byte-exact document copier.
 
 ## 2. Why it is separate
 
@@ -86,24 +100,24 @@ The current production chat path is not byte-preserving at its final sink:
 - decoupled streaming and BG journal recovery assemble the response through
   distinct callers even though they reuse the provider parsers.
 
-The unconditional trim is already enough to prevent a user-visible claim for
-leading or trailing whitespace. This is a code observation, not a paid-run
-result. Provider research may still be activated independently, but no product
-copy call should begin until the activation decision does one of the following:
+The executed target-path differential confirmed this boundary: a locked 1,516-
+byte payload became 1,512 bytes before save/reload/plain-copy, classified as
+`edge-trim`. Save/reload preserved that already-modified value and the copy
+path had no metadata from which to reconstruct the lost bytes.
 
-- explicitly limits the result to provider-copy research with no user-facing
-  copier claim; or
-- defines a dedicated verbatim operation and raw sink that bypass only the
-  versioned copy transforms while preserving ordinary chat behavior.
+No product-copy implementation was admitted. Any future proposal must use a
+new versioned profile and either remain explicitly provider-only or define a
+dedicated exact-data channel while preserving ordinary chat behavior.
 
 Globally removing normal chat trimming or disabling user-owned output scripts
 is not part of this plan. Any product implementation must isolate the new
 operation and prove that PageFold-off and ordinary chat processing remain
 unchanged.
 
-## 4. Activation triggers and required decision
+## 4. Future reactivation triggers and required decision
 
-This follow-up becomes active when at least one of these is true:
+The executed profile is closed and is not resumed or retried. A new versioned
+follow-up becomes active only when at least one of these is true:
 
 - a real workflow requires byte-identical copying from PageFold context;
 - code, JSON, HTML, prompt templates, or preformatted text are observed to
@@ -115,7 +129,7 @@ This follow-up becomes active when at least one of these is true:
 
 It does not activate merely because a normal answer paraphrases source text.
 
-Activation is a separate recorded decision. Before offline harness
+Future activation is a separate recorded decision. Before offline harness
 implementation, it must freeze:
 
 - the user-visible workflow and exact sink being claimed;
@@ -278,8 +292,9 @@ retroactively turn an exact-copy failure into a pass.
 
 ## 7. Frozen fixture and matrix contract
 
-When activated, qualification must keep text-only and PDF inputs paired so
-source perception and output serialization remain distinguishable.
+The executed qualification kept text-only and PDF inputs paired in its locked
+manifest. A future version must retain that rule so source perception and
+output serialization remain distinguishable.
 
 ### 7.1 Manifest and byte authority
 
@@ -672,36 +687,39 @@ shortened into a general support badge. A narrower future claim, such as an
 ASCII-only or internal provider-only profile, requires its own explicit product
 scope and complete matrix; it is not inferred from failures in this plan.
 
-## 13. Planned implementation and delivery sequence
+## 13. Executed implementation and delivery sequence
 
-This sequence becomes actionable only after `V0` is explicitly activated:
+1. The frozen manifest, comparator, coverage checker, and offline negative
+   controls were committed without runtime PageFold changes.
+2. Exact-live-source parser, live/decoupled stream, BG journal, persistence,
+   reload, and copy-path differentials ran against the locked corpus.
+3. The paid profile, call count, USD 1.00 hard cap, privacy boundary, and
+   fail-fast policy were frozen before credential access.
+4. The gated runner's disabled, checkpoint, secret-exclusion, and cumulative
+   cost controls passed fake-provider tests.
+5. Response-control v1 froze its same-turn part-boundary failure. Protocol v2
+   removed that harness ambiguity and observed a genuine trailing-LF copy
+   failure. Fail-fast correctly left later text/PDF provider cells unexecuted.
+6. Product support was not chosen: the existing final sink independently failed
+   exact edge preservation, and no runtime bypass was introduced.
+7. Patcher 47/47, exact-live-source target-path 8/8, remote ref readback, and
+   GitHub `patch-integrity` run `32940566589` passed.
+8. The sanitized receipt records offline/provider/product evidence, call/cost
+   totals, artifact hashes, privacy sweeps, and the final negative decisions.
+9. No product implementation candidate existed, so no device L3 or stable
+   release/version change was claimed.
+10. README disclosure now states that PageFold supports context understanding,
+    not byte-exact code/whitespace/Unicode reproduction.
 
-1. commit the frozen fixture schema, byte comparator, coverage checker, and
-   offline negative controls without provider access;
-2. add production-parser/stream/BG/persistence differential tests using fake
-   responses and close every deterministic mutation before paid work;
-3. generate the exact paid activation receipt containing profile, cells,
-   repeats, call list, cost ceiling, privacy boundary, and stop policy, then
-   obtain the separate provider-call decision;
-4. add the separately paid-gated runner and its checkpoint/failure tests;
-5. run provider screening and qualification only under that receipt;
-6. if product support is chosen, design the explicit copy operation/sink in a
-   separate reviewed change that preserves ordinary trimming and output
-   processing;
-7. run focused tests, complete patch-combination verification when owner/
-   manifest units change, and L2.5 on the final callers;
-8. commit a sanitized provider/product receipt without raw payloads or secrets;
-9. deliver any implementation candidate and run the concrete iPhone L3; and
-10. only after L3, update support disclosure, README/CHANGELOG/version, and
-    stable release metadata.
+## 14. Product disclosure after negative qualification
 
-The plan itself ends before step 1: it makes no paid request and changes no
-runtime behavior.
+PageFold may be used for its admitted PDF-based context-understanding and cost-
+reduction workflow. **Verbatim copy is not supported.** Users must not rely on
+model output for byte-exact code, whitespace, line endings, Unicode sequences,
+or source-document reproduction. The negative verbatim result does not weaken
+the separate structural/context support evidence.
 
-## 14. Product disclosure while deferred
-
-If structural PageFold support is admitted before this follow-up, documentation
-and UI must say that exact code/whitespace/Unicode reproduction is not yet
-qualified. PageFold may be used for context understanding, but users should not
-rely on it as a byte-exact document copier until this file's gate is activated
-and passed.
+A future exact-copy proposal must use a new versioned profile and pass every
+required gate. Reference-based application insertion may be investigated as a
+separate design, but full extracted text must not be re-injected into the model
+in a way that defeats PageFold's cost-reduction purpose.
