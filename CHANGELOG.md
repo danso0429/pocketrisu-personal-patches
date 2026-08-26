@@ -21,6 +21,13 @@
   0755. Both are 7,847,807 bytes, CJS syntax-valid, and SHA-256
   `b9368840ba1335fa043c52546b8dd7d5e5cd7cce8feac9ab4171230a0372a656`.
   No paid/provider call was made by this follow-up gate.
+- Apply live after two zero-work reads and a process-first stop. Change only
+  request badge metadata, request-status markup, generation-detail markup, and
+  patch state. Pass stopped-tree focused tests/check/build/BG load, production
+  prune/load, and 40/934/340 current/zero-plan. After restart, match the served
+  and local 2,048,032-byte main asset and build stamp, preserve four SQLite
+  `quick_check=ok`, 135 delivered BG states, zero native/BG work, unchanged
+  request-log counts/max ID, and a zero-byte error-log delta.
 
 ## 0.2.0-experimental.24
 

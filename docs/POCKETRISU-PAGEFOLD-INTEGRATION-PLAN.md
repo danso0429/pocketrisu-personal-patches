@@ -1,8 +1,8 @@
 # PocketRisu PageFold ModelPreset integration plan
 
 > **Status:** L3-revised implementation authority; experimental.25 status UI
-> follow-up is automatically qualified while experimental.24 remains live;
-> physical L3 continues and no stable tag/release is authorized
+> follow-up is automatically qualified and safely live; physical L3 continues
+> and no stable tag/release is authorized
 >
 > **Date:** 2026-08-26 KST
 >

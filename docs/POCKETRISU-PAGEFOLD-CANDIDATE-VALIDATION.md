@@ -1,8 +1,8 @@
 # PocketRisu PageFold candidate validation receipt
 
-> **Status:** experimental.25 status UI follow-up automatic gate passed;
-> exact-1.10 catalog remains `under-review`; experimental.24 is safely live
-> while physical iPhone L3 continues
+> **Status:** experimental.25 status UI follow-up automatic gate passed and is
+> safely live; exact-1.10 catalog remains `under-review` while physical iPhone
+> L3 continues
 >
 > **Date:** 2026-08-26 KST
 >
@@ -597,5 +597,60 @@ PageFold metadata.
 
 Phase 3 finds no new Q1/Q2 runtime authority or content-persistence defect.
 Exact iPhone spacing, tap behavior, and visible tab content remain the physical
-L3 surface. The follow-up is not stable admission and has not yet been applied
-live in this subsection.
+L3 surface. The follow-up is not stable admission.
+
+### 11.3 experimental.25 live apply and request readback
+
+The first and immediately pre-stop reads both found zero native running jobs,
+zero pending sends, zero active BG operations, 135 delivered BG states, and
+zero BG result payloads. PM2 was online with active requests 0 and unstable
+restarts 0. Four SQLite databases returned `quick_check=ok`; request logs were
+3,914 rows / max ID 5,887 / 5,243 usage rows, and the error log boundary was
+170,593 bytes.
+
+The application-only rollback
+`risuai-nodeonly-pre-pagefold-exp25.20260826-095210` contains 1,663 files /
+328,066,950 bytes, excludes live `save/`, `backups/`, and `node_modules/`, and
+adds only mode-0600 copies of prior patch state/intent. The process-first
+transaction changed three source files plus patch state:
+
+- `src/ts/process/request/request.ts`;
+- `src/lib/UI/GUI/RequestStatusToast.svelte`;
+- `src/lib/Others/AlertComp.svelte`;
+- `save/pocketrisu-patches/state.json`.
+
+The stopped tree completed frozen offline install with 109 reused / zero
+downloaded packages, focused client 96/96, focused server 55 passed / 12
+skipped, Svelte 0/0, the 7,940-module production build, BG build/load,
+production prune and post-prune load. Patch status and next plan were
+40 packs / 934 units / 340 current paths and zero changed files.
+
+After restart, PM2 reported PocketRisu 1.10.0 online, restart count 6, unstable
+restarts 0. Root HTTP and the main asset returned 200. Served/local artifacts
+matched exactly:
+
+| Artifact | Bytes | SHA-256 |
+| --- | ---: | --- |
+| main `index-BVHT4PCq.js` | 2,048,032 | `ffab306dad71460cb99637748240cf5ca3fd7cbfb559b4760d433ac1ac2ea6d2` |
+| BG `bgOrchBundle.mjs` | 8,844,577 | `efd9905b8462420d27dd638302d2c67c71712ea86c4b8172a7bdb369faab2083` |
+
+Served/local build stamps matched at
+`1.10.0-259a02c8cf64f99105f344a43b932c2a9592955451ed4785673639562ddbeb6b`.
+All four SQLite databases again returned `quick_check=ok`; their inode/size
+pairs were unchanged. Native running/pending and BG active/result counts
+remained zero, all 135 BG states remained delivered, request-log rows/max ID/
+usage remained 3,914 / 5,887 / 5,243, and the error log remained 170,593 bytes
+for a zero-byte delta. Live patch status remains current with a zero-change
+340-path plan.
+
+The latest user-triggered integrated request predates this presentation-only
+apply and remains request ID 5,887 at 2026-08-26 09:17:07 KST. Its content-free
+readback reports native Vertex `gemini-3.7-flash`, HTTP 200, 29,801 ms, input
+384 / output 1,680 tokens, recorded JSON response, PDF MIME, and low media
+resolution. Persisted hits are zero for PDF Base64, canonical markers,
+unredacted API keys, access tokens, and private keys. This proves transport,
+response, usage, and redaction for that request; semantic response quality
+remains a separate physical/user evaluation and is not inferred from HTTP 200.
+
+experimental.25 is live for the remaining physical L3. Stable metadata, tag,
+and release remain prohibited until L3 and L4 complete.

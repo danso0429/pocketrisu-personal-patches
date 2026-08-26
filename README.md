@@ -60,7 +60,8 @@ Prompt rather than inside Tokens.
 Both PageFold packs remain exact-1.10 `reviewing`; ordinary generated-installer
 apply therefore fails closed. The private qualification path is used only for
 candidate L3 delivery. The candidate graph is 40 packs / 934 units / 340
-managed paths after its automatic gates; this does not promote it to stable. The
+managed paths and is currently live after its stopped-tree automatic gates;
+this does not promote it to stable. The
 [candidate validation receipt](docs/POCKETRISU-PAGEFOLD-CANDIDATE-VALIDATION.md)
 records the complete graph, deterministic artifact, automatic tests, SQLite
 redaction, L2.5 audit, live state, and remaining physical iPhone surfaces.
