@@ -24,6 +24,7 @@ const {
     buildRequestBody,
     buildResearchCallPlan,
     parseSseResponseText,
+    prepareRuntimeCwd,
     runResearchPaid,
     validateMaxCost,
 } = require('../research/pagefold-verbatim/paid-runner.cjs')
@@ -142,12 +143,14 @@ function fakeOffline() {
     }
 }
 
-test('bounded paid research plan is fixed to eight calls', () => {
+test('bounded v2 research plan keeps prior plus seven new calls at eight total', () => {
     const calls = buildResearchCallPlan()
-    assert.equal(calls.length, 8)
-    assert.deepEqual(calls.slice(2).map((call) => call.carrier), ['text', 'pdf', 'pdf', 'text', 'text', 'pdf'])
+    assert.equal(calls.length, 7)
+    assert.deepEqual(calls.map((call) => call.sequence), [2, 3, 4, 5, 6, 7, 8])
+    assert.deepEqual(calls.slice(1).map((call) => call.carrier), ['text', 'pdf', 'pdf', 'text', 'text', 'pdf'])
     assert.throws(() => validateMaxCost(1.01), /COST_CAP_INVALID/)
     assert.equal(validateMaxCost(1), 1)
+    assert.throws(() => prepareRuntimeCwd('relative-path'), /RUNTIME_CWD_REQUIRED/)
 })
 
 test('request bodies preserve plain response mode and production PageFold wire shape', () => {
@@ -156,7 +159,9 @@ test('request bodies preserve plain response mode and production PageFold wire s
     const direct = buildRequestBody(calls[0], offline.documents[0])
     assert.equal(direct.generationConfig.responseMimeType, undefined)
     assert.equal(direct.generationConfig.thinkingConfig.includeThoughts, false)
-    assert.equal(direct.contents[0].parts.length, 2)
+    assert.equal(direct.contents[0].parts.length, 1)
+    assert.match(direct.contents[0].parts[0].text, /PAGEFOLD_VERBATIM_SOURCE_START/)
+    assert.match(direct.contents[0].parts[0].text, /PAGEFOLD_VERBATIM_SOURCE_END/)
 
     const pdfCall = calls.find((call) => call.carrier === 'pdf')
     const pdf = buildRequestBody(pdfCall, offline.documents[1])
@@ -184,7 +189,22 @@ test('SSE parser joins visible parts without thought text or normalization', () 
     assert.equal(parsed.finishReason, 'STOP')
 })
 
-test('paid research runner checkpoints every passing fake call and enforces the cap', async () => {
+function fakePriorEvidence() {
+    return {
+        experiment: 'pagefold-verbatim-research-v1',
+        manifestSha256: MANIFEST_SHA256,
+        completedCalls: 1,
+        ratedCostUsd: 0.000144,
+        records: [{
+            call: { sequence: 1, carrier: 'direct-literal' },
+            status: 'copy-fail',
+            answerSha256: '42ecf5c81f74fefd49438229ec9acdd3183d4ed927eb4ef459e6e92243f18300',
+            comparison: { classification: 'fence/prefix' },
+        }],
+    }
+}
+
+test('paid v2 research runner checkpoints every passing fake call and enforces cumulative cap', async () => {
     const offline = fakeOffline()
     const checkpoints = []
     const providerModule = {
@@ -202,6 +222,7 @@ test('paid research runner checkpoints every passing fake call and enforces the 
             secrets: ['fixture-project', 'fixture-secret'],
         },
         providerModule,
+        priorEvidence: fakePriorEvidence(),
         onCheckpoint: async (record) => { checkpoints.push(record) },
         executeCall: async ({ call }) => ({
             httpStatus: 200,
@@ -219,9 +240,10 @@ test('paid research runner checkpoints every passing fake call and enforces the 
         }),
     })
     assert.equal(summary.completedCalls, 8)
+    assert.equal(summary.newCompletedCalls, 7)
     assert.equal(summary.providerResearchPassed, true)
     assert.equal(summary.supportQualified, false)
-    assert.equal(checkpoints.length, 16)
+    assert.equal(checkpoints.length, 14)
     assert.equal(JSON.stringify(summary).includes('fixture-secret'), false)
 
     const capped = await runResearchPaid({
@@ -235,10 +257,12 @@ test('paid research runner checkpoints every passing fake call and enforces the 
             secrets: [],
         },
         providerModule,
+        priorEvidence: fakePriorEvidence(),
         onCheckpoint: async () => {},
         executeCall: async () => { throw new Error('must not run') },
     })
-    assert.equal(capped.completedCalls, 0)
+    assert.equal(capped.completedCalls, 1)
+    assert.equal(capped.newCompletedCalls, 0)
     assert.equal(capped.stopReason, 'cost-cap-before-call')
 })
 
@@ -258,6 +282,7 @@ test('failed start checkpoint prevents a fake provider call', async () => {
             extractUsage: (raw) => raw,
             exchangeServiceAccount: async () => ({ accessToken: 'fixture-token', refreshAt: Date.now() + 60_000 }),
         },
+        priorEvidence: fakePriorEvidence(),
         onCheckpoint: async () => { throw new Error('checkpoint-failed') },
         executeCall: async () => { calls++; throw new Error('must not run') },
     }), /checkpoint-failed/)

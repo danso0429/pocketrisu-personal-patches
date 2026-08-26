@@ -1,7 +1,7 @@
 # PageFold verbatim-copy validation receipt
 
-> **Status:** V0/V1 and deterministic V5 surfaces observed; general support is
-> unqualified; V2-V4 external provider research has not run
+> **Status:** validation complete with negative provider/product decisions;
+> general verbatim-copy support is unqualified
 >
 > **Date:** 2026-08-26 KST
 >
@@ -107,6 +107,11 @@ An application-only copy of the exact live source used the existing dev
 dependency graph and no user data. The focused Vitest result was 1 file / 8
 tests passed.
 
+The JSON test receipt is
+`.code-review/pagefold-verbatim-target-path.20260826.json`, mode `0600`,
+3 suites / 8 tests passed / 0 failed, SHA-256
+`508f4576545507d4ec99641a1b7fbf7eeec622992995659cdd386ed59b95ddba`.
+
 For all ten transportable payloads:
 
 - Gemini non-stream response parsing preserved visible non-thought parts;
@@ -143,35 +148,114 @@ Ordinary chat trimming was not changed or bypassed by this validation.
 
 ## Paid provider state
 
-The bounded research continuation is fixed to:
+After direct user approval, the bounded research continuation used the unique
+enabled PageFold maximum/global/`gemini-3.7-flash` preset's configured private
+Service Account. No credential value or secret-derived identifier entered an
+artifact.
 
-1. one non-stream direct-literal minimum control;
-2. one non-stream canonical-text minimum control; and
-3. atomic-A text/PDF streaming pairs for repeats 1-3.
+### Response-control v1 — frozen harness failure
 
-Maximum calls are eight; general support remains false even if all eight pass
-because the required transport cells above already failed.
+The first non-stream call returned `HTTP 200 / STOP`. Its expected payload was
+the three UTF-8 bytes for `각`, while the 122-byte response was exactly the
+target followed by the 119-byte second text-part instruction:
 
-The external call was submitted with the explicit paid/research flags and USD
-1.00 cap, but the runtime reviewer rejected it before process creation because
-the user-visible conversation did not directly authorize use of the configured
-private Service Account against Vertex and the potential charge. Therefore:
+- expected SHA-256:
+  `45ec909f30174e6585c67833638ece2b73752a2e17b142f2071d058792f16c89`;
+- observed SHA-256:
+  `42ecf5c81f74fefd49438229ec9acdd3183d4ed927eb4ef459e6e92243f18300`;
+- target + instruction SHA-256: the same observed hash; and
+- rated cost: USD 0.000144.
 
-- provider calls: 0;
-- rated cost: USD 0;
-- OAuth/token exchange: 0;
-- checkpoint/result files: absent; and
-- provider-copy result: not yet observed.
+This froze a real failed v1 result but isolated a harness boundary: adjacent
+Gemini text parts were perceived as one continuous copy source. It was not
+promoted to a model-copy verdict.
 
-The rejected action was not retried or routed through another mechanism.
+### Response-control v2 — provider-copy failure
+
+Protocol v2 retained v1 as prior evidence, used one text part with explicit
+ASCII source markers, and counted the prior call/cost against the same approved
+maximum of eight calls and USD 1.00 hard cap.
+
+The next non-stream call returned `HTTP 200 / STOP`:
+
+- expected: `각`, 3 UTF-8 bytes;
+- observed: `각` followed by LF, 4 UTF-8 bytes;
+- first differing byte/scalar offset: 3;
+- classification: `fence/prefix`;
+- expected SHA-256:
+  `45ec909f30174e6585c67833638ece2b73752a2e17b142f2071d058792f16c89`;
+- observed SHA-256:
+  `e0a66ffafb57df6576fd5c0e089beb9a32437446bc696e5d4d122d2482629360`;
+- prompt/output/thought/total tokens: 104 / 119 / 117 / 223; and
+- call cost: USD 0.00052425.
+
+This result contains neither marker nor instruction text. The provider response
+generator added a trailing LF to the selected content, so the frozen profile's
+direct literal control is not byte-exact. V2 fail-fast stopped canonical-text
+and PDF calls; they remain not run rather than inferred.
+
+Final external totals:
+
+- calls: 2 / 8 maximum;
+- cumulative rated cost: USD 0.00066825 / USD 1.00 hard cap;
+- retry, fallback, alternate route/model/resolution, and automatic prompt
+  mutation: zero; and
+- canonical-text/PDF provider calls after V2 failure: zero.
+
+Private mode-`0600` artifacts:
+
+- v1 checkpoint/result SHA-256:
+  `02923b3d9fe0f6ab3bed1d14d95eb19e9fb8dd14b61ebb62ded9e5eb16fb898d` /
+  `90e42319700aec748feba8a08e0ff520eebaab6d2cca526ce85653f646331547`;
+- v2 checkpoint/result SHA-256:
+  `e88eb3a20de5eb920f61858c2fcd227a9778de82d0f81116c906f6aa2a908458` /
+  `57ed5e8a1e6e49897686d4d6e9922c39102c8a3c75a095ffa4ba63282af3f985`.
+
+All four artifacts had zero private-key, client-email, access-token,
+authorization, PDF Base64/`inlineData`, or API-key-shape hits.
+
+The target provider module also initialized `save/logs.db` relative to the
+runner's then-current patcher working directory. Read-only inspection found the
+`logs` and `sqlite_sequence` tables both at zero rows. The generated directory
+was not deleted; it was moved recoverably to
+`/tmp/pagefold-verbatim-runner-empty-save.20260826` and remained outside git.
+The final runner now requires an explicit empty mode-`0700` runtime scratch cwd
+before loading target provider modules, preventing future source-worktree
+artifacts.
 
 ## Current decision
 
 - **General PageFold verbatim-copy support:** unqualified due three required
   transport failures.
-- **Provider-copy for the transportable atomic payload:** not yet observed.
+- **Provider-copy under the frozen profile:** failed at V2 because the provider
+  added one trailing LF to a one-scalar source.
 - **Production parser/stream/BG/save preservation:** exact for all ten
   transportable synthetic payloads.
 - **Final product postprocess/save/reload/plain-copy preservation:** failed at
   unconditional edge trimming.
+- **Canonical-text/PDF provider matrix:** correctly not run after the required
+  response control failed; no claim is inferred from the skipped cells.
 - **Existing PageFold structural/context support:** unchanged.
+
+## Completion audit against the objective
+
+| Required objective surface | Authoritative evidence | Decision |
+| --- | --- | --- |
+| frozen provider/model/PageFold identity | manifest/profile hash and paid body-shape records | observed |
+| designated `content` UTF-8 authority | committed Base64 payload, byte count, scalar count, SHA-256 | observed |
+| canonical serializer and PDF transport | ten exact PDF.js extractions plus three named transport failures | mixed; general support fails |
+| provider response bytes | Vertex v2 `HTTP 200 / STOP`, expected/observed byte hashes and offset | failed: trailing LF |
+| non-stream parser | exact-live-source Vitest corpus | exact for ten transportable payloads |
+| streaming parser/pump/collector | exact-live-source Vitest corpus | exact for ten transportable payloads |
+| BG streaming/non-stream journal | exact-live-source Vitest corpus | exact for ten transportable payloads |
+| postprocessing | unconditional production `reformatContent.trim()` plus byte differential | failed: edge trim |
+| persistence and reload | production Risu save encode/decode corpus | preserves its input exactly, including the already-trimmed value |
+| plain-text copy | production `msgDisplay` → clipboard dataflow after irreversible trim | failed relative to original content |
+| paid-call and cost boundary | two paired checkpoints/results, usage and rated-cost records | 2/8 calls, USD 0.00066825/1.00 |
+| privacy | offline/paid/target receipts swept for credential and PDF payload shapes | zero hits |
+
+The requested objective is therefore resolved as a **negative capability
+decision**, not a successful support admission: under the frozen profile the
+provider already fails the prerequisite literal-copy control, and the current
+PocketRisu final sink independently removes edge whitespace. No unexecuted PDF
+provider cell is used to strengthen or weaken those observed failures.

@@ -17,7 +17,10 @@ const {
 } = require('./qualification.cjs')
 
 const REQUEST_TIMEOUT_MS = 300_000
-const MAX_RESEARCH_CALLS = 8
+const PROTOCOL_VERSION = 2
+const PRIOR_CALLS = 1
+const MAX_RESEARCH_CALLS = 7
+const MAX_TOTAL_CALLS = PRIOR_CALLS + MAX_RESEARCH_CALLS
 const PAGEFOLD_SYSTEM_DECODER_V1 = [
     'The first user part is a PDF whose logical text is PageFold UTF-8 JSONL v1.',
     'Parse only the top-level header and message records.',
@@ -30,13 +33,13 @@ const PAGEFOLD_MAXIMUM_CONTINUATION_V1 = [
     'Do not summarize or discuss the PageFold format unless the latest user message asks for that.',
 ].join(' ')
 const DIRECT_LITERAL_SYSTEM = [
-    'This is a byte-exact UTF-8 copy control.',
-    'Return only the first user text part.',
+    'This is a byte-exact UTF-8 copy control with explicit ASCII source markers.',
+    'Return only the content between PAGEFOLD_VERBATIM_SOURCE_START and PAGEFOLD_VERBATIM_SOURCE_END.',
     'Do not trim, normalize, quote, escape, explain, or add formatting.',
 ].join(' ')
 const DIRECT_LITERAL_INSTRUCTION = [
-    'Copy the preceding user text part exactly.',
-    'The first and last response bytes must equal its first and last UTF-8 bytes.',
+    'Copy only the content between the source marker lines exactly.',
+    'Do not include either marker or this instruction.',
 ].join(' ')
 
 class VerbatimPaidError extends Error {
@@ -62,19 +65,10 @@ function documentById(offline, id) {
 function buildResearchCallPlan() {
     const calls = [
         {
-            sequence: 1,
-            stage: 'V2',
-            fixtureId: 'minimum',
-            carrier: 'direct-literal',
-            repeat: 1,
-            responseMode: 'nonstream',
-            outputTokens: 512,
-        },
-        {
             sequence: 2,
             stage: 'V2',
             fixtureId: 'minimum',
-            carrier: 'canonical-text-sentinel',
+            carrier: 'direct-literal',
             repeat: 1,
             responseMode: 'nonstream',
             outputTokens: 512,
@@ -84,7 +78,7 @@ function buildResearchCallPlan() {
         const carriers = repeat % 2 === 1 ? ['text', 'pdf'] : ['pdf', 'text']
         for (const carrier of carriers) {
             calls.push({
-                sequence: calls.length + 1,
+                sequence: PRIOR_CALLS + calls.length + 1,
                 stage: repeat === 1 ? 'V3' : 'V4',
                 fixtureId: 'atomic-a',
                 carrier,
@@ -113,14 +107,17 @@ function buildRequestBody(call, document) {
     const fixture = fixtureById(call.fixtureId)
     const payload = decodeFixturePayload(fixture).text
     if (call.carrier === 'direct-literal') {
+        const framed = [
+            'PAGEFOLD_VERBATIM_SOURCE_START',
+            payload,
+            'PAGEFOLD_VERBATIM_SOURCE_END',
+            DIRECT_LITERAL_INSTRUCTION,
+        ].join('\n')
         return {
             systemInstruction: { parts: [{ text: DIRECT_LITERAL_SYSTEM }] },
             contents: [{
                 role: 'user',
-                parts: [
-                    { text: payload },
-                    { text: DIRECT_LITERAL_INSTRUCTION },
-                ],
+                parts: [{ text: framed }],
             }],
             generationConfig: generationConfig(call.outputTokens),
         }
@@ -378,6 +375,26 @@ function assertSecretsAbsent(value, secrets) {
     }
 }
 
+function validatePriorEvidence(value) {
+    const record = value?.records?.[0]
+    if (value?.experiment !== 'pagefold-verbatim-research-v1'
+        || value?.manifestSha256 !== MANIFEST_SHA256
+        || value?.completedCalls !== PRIOR_CALLS
+        || value?.ratedCostUsd !== 0.000144
+        || record?.call?.sequence !== 1
+        || record?.call?.carrier !== 'direct-literal'
+        || record?.status !== 'copy-fail'
+        || record?.comparison?.classification !== 'fence/prefix'
+        || record?.answerSha256 !== '42ecf5c81f74fefd49438229ec9acdd3183d4ed927eb4ef459e6e92243f18300') {
+        throw new VerbatimPaidError('PRIOR_EVIDENCE_INVALID')
+    }
+    return {
+        completedCalls: PRIOR_CALLS,
+        ratedCostUsd: value.ratedCostUsd,
+        resultSha256: value.resultSha256 || null,
+    }
+}
+
 async function runResearchPaid(options = {}) {
     if (options.executionApproved !== true || options.researchContinuationApproved !== true) {
         throw new VerbatimPaidError('PAID_EXECUTION_NOT_ENABLED')
@@ -400,10 +417,11 @@ async function runResearchPaid(options = {}) {
     if (!providerModule || typeof providerModule.extractUsage !== 'function') {
         throw new VerbatimPaidError('PROVIDER_MODULE_INVALID')
     }
+    const prior = validatePriorEvidence(options.priorEvidence)
     const secrets = [...credentials.secrets]
     const calls = buildResearchCallPlan()
     const records = []
-    let ratedCostUsd = 0
+    let ratedCostUsd = prior.ratedCostUsd
     let token = null
     let stopReason = null
 
@@ -419,12 +437,13 @@ async function runResearchPaid(options = {}) {
         const shape = bodyShape(call, document)
         const start = {
             schemaVersion: 1,
-            experiment: 'pagefold-verbatim-research-v1',
+            experiment: 'pagefold-verbatim-research-v2',
+            protocolVersion: PROTOCOL_VERSION,
             profileId: PROFILE.id,
             manifestSha256: MANIFEST_SHA256,
             phase: 'call-start',
             attemptedCall: call.sequence,
-            completedCalls: records.length,
+            completedCalls: prior.completedCalls + records.length,
             ratedCostUsd,
             reservedCostUsd,
             call,
@@ -434,7 +453,7 @@ async function runResearchPaid(options = {}) {
         await options.onCheckpoint(start)
         options.onProgress?.(
             'call-start=' + call.sequence
-            + '/' + calls.length
+            + '/' + MAX_TOTAL_CALLS
             + ' fixture=' + call.fixtureId
             + ' carrier=' + call.carrier
             + ' repeat=' + call.repeat
@@ -485,12 +504,13 @@ async function runResearchPaid(options = {}) {
         if (ratedCostUsd > maxCostUsd) throw new VerbatimPaidError('COST_CAP_EXCEEDED')
         const record = {
             schemaVersion: 1,
-            experiment: 'pagefold-verbatim-research-v1',
+            experiment: 'pagefold-verbatim-research-v2',
+            protocolVersion: PROTOCOL_VERSION,
             profileId: PROFILE.id,
             manifestSha256: MANIFEST_SHA256,
             phase: 'call-complete',
             attemptedCall: call.sequence,
-            completedCalls: records.length + 1,
+            completedCalls: prior.completedCalls + records.length + 1,
             call,
             bodyShape: shape,
             httpStatus: raw.httpStatus,
@@ -523,15 +543,20 @@ async function runResearchPaid(options = {}) {
     const providerResearchPassed = completedPlan && records.every((record) => record.status === 'pass')
     const summary = {
         schemaVersion: 1,
-        experiment: 'pagefold-verbatim-research-v1',
+        experiment: 'pagefold-verbatim-research-v2',
+        protocolVersion: PROTOCOL_VERSION,
         profile: PROFILE,
         manifestSha256: MANIFEST_SHA256,
         executionMode: 'bounded-research-continuation',
         generalAdmissionBlockedByTransport: offline.public.transportNegatives,
-        maximumCalls: calls.length,
-        completedCalls: records.length,
+        priorEvidence: prior,
+        maximumCalls: MAX_TOTAL_CALLS,
+        maximumNewCalls: calls.length,
+        completedCalls: prior.completedCalls + records.length,
+        newCompletedCalls: records.length,
         hardCapUsd: maxCostUsd,
         ratedCostUsd,
+        newRatedCostUsd: Math.round((ratedCostUsd - prior.ratedCostUsd) * 1_000_000_000) / 1_000_000_000,
         stopReason,
         completedPlan,
         providerResearchPassed,
@@ -545,6 +570,18 @@ async function runResearchPaid(options = {}) {
 function loadProviderModule(targetRoot) {
     const modulePath = path.join(targetRoot, 'server/node/pageFoldProviderFeasibility.cjs')
     return require(modulePath)
+}
+
+function prepareRuntimeCwd(value) {
+    if (typeof value !== 'string' || !path.isAbsolute(value)) {
+        throw new VerbatimPaidError('RUNTIME_CWD_REQUIRED')
+    }
+    fs.mkdirSync(value, { recursive: true, mode: 0o700 })
+    fs.chmodSync(value, 0o700)
+    if (fs.readdirSync(value).length !== 0) {
+        throw new VerbatimPaidError('RUNTIME_CWD_NOT_EMPTY')
+    }
+    process.chdir(value)
 }
 
 async function loadFrozenPresetCredential({ targetRoot, databasePath, providerModule }) {
@@ -613,14 +650,23 @@ async function main() {
     try {
         const checkpointFile = process.env.PAGEFOLD_CHECKPOINT_FILE
         const resultFile = process.env.PAGEFOLD_RESULT_FILE
-        if (!checkpointFile || !resultFile) throw new VerbatimPaidError('EVIDENCE_FILE_REQUIRED')
+        const priorResultFile = process.env.PAGEFOLD_PRIOR_RESULT_FILE
+        if (!checkpointFile || !resultFile || !priorResultFile) {
+            throw new VerbatimPaidError('EVIDENCE_FILE_REQUIRED')
+        }
         checkpointFd = fs.openSync(checkpointFile, 'wx', 0o600)
         fs.fsyncSync(checkpointFd)
+        const priorResultBytes = fs.readFileSync(priorResultFile)
+        const priorEvidence = {
+            ...JSON.parse(priorResultBytes.toString('utf8')),
+            resultSha256: sha256(priorResultBytes),
+        }
         const offline = await runOffline({
             targetRoot: process.env.PAGEFOLD_TARGET_ROOT,
             fontCacheRoot: process.env.PAGEFOLD_TEST_FONT_CACHE,
             onProgress: (message) => process.stderr.write('[pagefold-verbatim-paid] ' + message + '\n'),
         })
+        prepareRuntimeCwd(process.env.PAGEFOLD_RUNTIME_CWD)
         const providerModule = loadProviderModule(process.env.PAGEFOLD_TARGET_ROOT)
         const credentials = await loadFrozenPresetCredential({
             targetRoot: process.env.PAGEFOLD_TARGET_ROOT,
@@ -634,6 +680,7 @@ async function main() {
             offline,
             credentials,
             providerModule,
+            priorEvidence,
             onCheckpoint: async (record) => {
                 fs.writeSync(checkpointFd, JSON.stringify(record) + '\n')
                 fs.fsyncSync(checkpointFd)
@@ -668,8 +715,10 @@ module.exports = {
     DIRECT_LITERAL_INSTRUCTION,
     DIRECT_LITERAL_SYSTEM,
     MAX_RESEARCH_CALLS,
+    MAX_TOTAL_CALLS,
     PAGEFOLD_MAXIMUM_CONTINUATION_V1,
     PAGEFOLD_SYSTEM_DECODER_V1,
+    PROTOCOL_VERSION,
     VerbatimPaidError,
     bodyShape,
     buildRequestBody,
@@ -678,7 +727,9 @@ module.exports = {
     executeVertexCall,
     loadFrozenPresetCredential,
     parseSseResponseText,
+    prepareRuntimeCwd,
     reserveCost,
     runResearchPaid,
+    validatePriorEvidence,
     validateMaxCost,
 }
