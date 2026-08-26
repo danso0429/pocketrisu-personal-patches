@@ -25,10 +25,8 @@
         <span class="text-textcolor2">{info.actualWireInputTokens === undefined ? language.pageFoldGenerationWirePredicted : language.pageFoldGenerationWireActual}</span>
         <span class="justify-self-end text-textcolor">{wire.toLocaleString()}</span>
         <span class="text-textcolor2">{language.pageFoldGenerationDelta}</span>
-        <span class="justify-self-end {signedTone}">{signed > 0 ? '+' : ''}{signed.toLocaleString()}</span>
+        <span class="justify-self-end {signedTone}">{signed.toLocaleString()}</span>
         <span class="text-textcolor2">{language.pageFoldGenerationCost}</span>
         <span class="justify-self-end text-textcolor">{cost === undefined ? language.pageFoldPriceUnconfirmed : `$${cost.toFixed(9)}`}</span>
-        <span class="text-textcolor2">{language.pageFoldGenerationPricing}</span>
-        <span class="justify-self-end text-textcolor max-w-52 truncate">{info.pricingSource ?? language.pageFoldPriceUnconfirmed}</span>
     </div>
 </section>
