@@ -1,5 +1,11 @@
 # PocketRisu 1.10.0 rebase and live-cutover audit
 
+> **2026-08-26 stable overlay:** `v0.2.1` retains the `v0.2.0` exact-1.10
+> delivery and verifies PageFold plus its BG adapter after candidate automatic
+> gates and physical L3. The complete graph is 40 packs / 934 units / 340
+> managed paths. Route-specific PageFold limitations remain disclosed rather
+> than rewritten as universal model evidence.
+
 > **2026-08-24 stable overlay:** `v0.2.0` promotes the later
 > `0.2.0-experimental.21` complete graph: 38 packs / 769 units / 280 managed
 > paths on exact official PocketRisu 1.10.0. Ordinary generated-installer

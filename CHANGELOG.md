@@ -1,5 +1,39 @@
 # Changelog
 
+## 0.2.1
+
+- Promote `pagefold-model-preset` and its hidden `pagefold-bg-adapter` from
+  exact-1.10 `reviewing` to `verified`. The ordinary distributed installer now
+  applies the complete 40-pack / 934-unit / 340-path graph without the private
+  maintainer qualification bypass; 13 inactive legacy/base/standard or
+  superseded catalog alternatives remain unverified.
+- Retain PageFold as an opt-in ModelPreset transform with existing presets off,
+  explicit hierarchy mode, six role overrides, selected Gemini model
+  authority, deterministic JSONL/PDF rendering, browser/BG render ports,
+  source/wire budget separation, same-route retry without classic fallback,
+  Service Account import, signed savings/cost metadata, and request-log
+  redaction. OpenRouter and unsafe image/tool/explicit-cache requests remain
+  outside stable PageFold admission.
+- Record the user's report that all presented remaining PageFold iPhone L3
+  scenarios are normal. Preserve the actual paid/runtime scope: repeated
+  native Vertex `gemini-3.7-flash` PDF requests returned 200 with usage and
+  redacted logs; other Gemini routes do not inherit the frozen v8 semantic
+  evidence, and deferred verbatim-copy/quality-cost work is not relabelled as
+  complete.
+- Pass 46/46 patcher files. On a fresh official PocketRisu 1.10 tree, pass the
+  ordinary installer plan/apply/current/zero-plan/revert/reapply lifecycle at
+  `verified 40`, 934 units, 340 current paths, drift 0, and 13 deterministic
+  ordering collisions, with exact clean tracked-source revert.
+- Reuse all 493 frozen packages from the offline store with zero downloads.
+  Pass 151 frontend files / 1,731 tests, 22 server files / 232 tests with 12
+  explicit provider-gated skips, and compatibility 74 pass / five environment
+  skips. Pass Svelte 0/0, help 439/439 with zero missing keys, the 7,940-module
+  production build, BG `sendChat=function`, production prune, and post-prune
+  dependency/BG load.
+- Generate the primary installer and byte-identical `all` alias twice at mode
+  0755. Both are 7,847,429 bytes, CJS syntax-valid, and SHA-256
+  `a406e48ad8ffded50a7a6bc4a18cbb4204c1bae23f305ebb0e625c93b2426a9c`.
+
 ## 0.2.0-experimental.26
 
 - Rename the PageFold generation-info signed token delta to `Saved tokens` /

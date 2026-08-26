@@ -1,12 +1,12 @@
-# PocketRisu PageFold candidate validation receipt
+# PocketRisu PageFold candidate and stable validation receipt
 
-> **Status:** experimental.26 savings UI follow-up automatic gate passed and is
-> safely live; exact-1.10 catalog remains `under-review` while physical iPhone
-> L3 continues
+> **Status:** physical iPhone L3 complete; exact-1.10 PageFold packs promoted
+> to stable `0.2.1`; final live stable metadata and publication receipt follow
+> the release commit
 >
 > **Date:** 2026-08-26 KST
 >
-> **Candidate:** `0.2.0-experimental.26`
+> **Release:** `0.2.1`
 >
 > **Target:** exact official PocketRisu `1.10.0`
 
@@ -737,3 +737,75 @@ plan.
 
 experimental.26 is live for the remaining physical L3. Stable metadata, tag,
 and release remain prohibited until L3 and L4 complete.
+
+## 13. Physical L3 completion and stable admission — 0.2.1
+
+After the experimental.26 savings-label follow-up, the user reported that all
+presented remaining PageFold scenarios were normal and explicitly authorized
+stable `0.2.1`. This closes the physical PageFold L3 gate at the tested live
+scope. It does not rewrite route-specific evidence:
+
+- native Vertex `gemini-3.7-flash` is the paid semantic/runtime cell;
+- request-log IDs 5,886, 5,887, 5,889, and 5,891 through 5,894 returned 200
+  over the integrated PDF wire with prompt/output usage;
+- request 5,885 remains the truthful 400 result from the preset's unsupported
+  `THINKING_LEVEL_MINIMAL` setting before that setting was corrected;
+- AI Studio and other selected Gemini models retain their implemented Google
+  PDF transport without inheriting the frozen Vertex 3.7 v8 semantic label;
+- OpenRouter/non-Gemini adapters remain outside PageFold admission; and
+- the separately preserved verbatim-copy and quality/cost evaluation work is
+  deferred rather than claimed complete by this release.
+
+The user-visible physical result covers the revised preset UI, direct Service
+Account import/save placement, selected model authority, request progress,
+model badge, dedicated PageFold detail tab, savings label, removal of pricing
+evidence, successful replies, and the remaining presented role/background/
+return surfaces. Existing presets remain PageFold-off and no stable admission
+changes the provider call without an explicit eligible `on` state.
+
+### 13.1 Stable automatic gate
+
+The two PageFold manifests move exact PocketRisu 1.10.0 from `reviewing` to
+`verified`. The complete distributed graph reports `verified 40`,
+`under-review 0`, and `review-required 0`; all 13 inactive alternatives remain
+unverified.
+
+Observed local qualification:
+
+- patcher source: 46/46 files passed;
+- first ordinary plan: 40 packs / 934 units / 342 writes, compatibility
+  `verified`;
+- ordinary apply: passed without the maintainer wrapper;
+- status: 340/340 current paths, drift 0;
+- second ordinary plan: zero changed files / 340 skipped paths;
+- ordinary revert: exact clean tracked source and no untracked source;
+- ordinary reapply: passed;
+- frozen offline install: 493/493 packages reused, zero downloaded;
+- frontend: 151/151 files and 1,731/1,731 tests passed;
+- server: 22/22 files, 232 passed and 12 explicit provider-gated skips;
+- compatibility: ten files passed, one environment-dependent file skipped,
+  74 tests passed and five skipped;
+- Svelte diagnostics: 0 errors / 0 warnings;
+- help keys: 439 English / 439 Korean, zero missing Korean keys, 37 existing
+  unreferenced warnings;
+- production build: 7,940 modules transformed;
+- BG bundle: 8,844,679 bytes,
+  SHA-256 `54a190b0cb3da64fa2d7e05c6aea0ec38fd12726267998791fa20fa815b77c17`,
+  `sendChat=function` before and after production prune;
+- post-prune production dependency resolution: passed; and
+- final plan: compatibility `verified`, 40 packs / 934 units / 340 skipped
+  paths / zero changed files / 13 deterministic ordering collisions.
+
+The stable installers were built twice and remained byte-identical to each
+other and across both builds. Each is mode 0755, 7,847,429 bytes, CJS
+syntax-valid, and SHA-256
+`a406e48ad8ffded50a7a6bc4a18cbb4204c1bae23f305ebb0e625c93b2426a9c`.
+
+### 13.2 Stable boundary
+
+Stable support remains exact official PocketRisu 1.10.0. A later PocketRisu
+version starts fail-closed review again. Provenance and third-party notice
+boundaries are unchanged; the supplied PageFold 0.1.1 file remains a
+behavioral reference, not redistributed source. Stable publication does not
+enable the disabled public update feed, migrate plugin secrets/statistics, or
+write the plugin array.

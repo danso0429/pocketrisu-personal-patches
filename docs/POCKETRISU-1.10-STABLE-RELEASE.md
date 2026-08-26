@@ -1,5 +1,11 @@
 # PocketRisu 1.10 stable `v0.2.0` release receipt
 
+> **Successor:** stable `v0.2.1` retains this accepted exact-1.10 base and adds
+> the verified PageFold ModelPreset transform plus hidden BG adapter. This
+> document remains the exact `v0.2.0` decision receipt; PageFold evidence is in
+> `docs/POCKETRISU-PAGEFOLD-CANDIDATE-VALIDATION.md` and the final `v0.2.1`
+> release receipt.
+
 Date: 2026-08-24 KST
 
 ## Outcome

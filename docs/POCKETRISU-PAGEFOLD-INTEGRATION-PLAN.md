@@ -1,12 +1,12 @@
 # PocketRisu PageFold ModelPreset integration plan
 
-> **Status:** L3-revised implementation authority; experimental.26 savings UI
-> follow-up is automatically qualified and safely live; physical L3 continues
-> and no stable tag/release is authorized
+> **Status:** implementation authority fulfilled; physical L3 complete;
+> exact-1.10 PageFold manifests promoted to stable `0.2.1`; final live metadata,
+> tag, and GitHub Release publication are in progress
 >
 > **Date:** 2026-08-26 KST
 >
-> **Target:** exact official PocketRisu `1.10.0` plus patcher stable `v0.2.0` (`de1fa40`)
+> **Target:** exact official PocketRisu `1.10.0` plus patcher stable `v0.2.1`
 >
 > **Source under review:** PageFold plugin `0.1.1`, SHA-256 `8291b14f7330e8e4fa0438ea12d1e8f125073945d817fe74693fe9030891ef77`
 >

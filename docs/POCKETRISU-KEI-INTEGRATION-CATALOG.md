@@ -13,11 +13,13 @@ internal ownership, while `T` now means a separately evaluated policy that
 stays excluded until it is approved for every installation. It no longer means
 a downloader-selectable pack. Historical comparison counts remain unchanged.
 
-**2026-08-24 stable overlay:** `v0.2.0` verifies the selected Kei outcomes only
-inside the resolved 38-pack graph on exact PocketRisu 1.10. The deferred and
+**2026-08-26 stable overlay:** `v0.2.1` retains the selected Kei outcomes from
+`v0.2.0` inside the resolved 40-pack graph on exact PocketRisu 1.10 and adds
+PageFold plus its BG adapter. The deferred and
 excluded rows below do not enter through that promotion, and partial or
 not-exercised physical observations remain disclosed limitations rather than
-passes. See `docs/POCKETRISU-1.10-STABLE-RELEASE.md`.
+passes. See `docs/POCKETRISU-1.10-STABLE-RELEASE.md` and the PageFold release
+receipt.
 
 The comparison is frozen to:
 

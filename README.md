@@ -1,7 +1,7 @@
 # PocketRisu Personal Patches
 
 Private, all-or-nothing patch delivery for PocketRisu NodeOnly. The current
-stable release is `v0.2.0`, and its complete manifest graph targets exact
+stable release is `v0.2.1`, and its complete manifest graph targets exact
 PocketRisu `v1.10.0`. The newer `0.2.0-experimental.26` PageFold graph is an
 exact-target candidate, not a stable replacement.
 
@@ -10,8 +10,8 @@ exact-target candidate, not a stable replacement.
 `pocketrisu-patcher.cjs` applies one complete admitted set or reverts it in
 full. `plan`, `apply`, and `stage` always resolve bg-preserve, lazy storage,
 organizers, import UX, Personal settings, parser/toolchain hardening, CharX
-integrity, the admitted Kei capabilities, and all matching integration
-adapters. The complete graph also includes the admitted Haejeok persistence,
+integrity, the admitted Kei capabilities, PageFold ModelPreset transform, and
+all matching integration adapters. The complete graph also includes the admitted Haejeok persistence,
 Korean-search, and Small-width adapters. `configure`, `--packs`, `--preset`, and the
 features/hardening installers are retired. `--all` and
 `pocketrisu-all.cjs` remain compatibility aliases for one transition.
@@ -27,13 +27,13 @@ artifact, but it is absent from the catalog and both generated installers.
 Character and module imports therefore use the existing foreground flow.
 
 See the [delivery design](docs/PATCHER-V2-DESIGN.md),
-[stable release receipt](docs/POCKETRISU-1.10-STABLE-RELEASE.md),
+[v0.2.0 stable receipt](docs/POCKETRISU-1.10-STABLE-RELEASE.md),
 [source provenance ledger](docs/SOURCE-PROVENANCE.md), and
 [Haejeok comparison](docs/HAEJEOK-RISUAI-OVERLAP-AUDIT.md).
 
-## PageFold candidate status
+## PageFold stable status
 
-`0.2.0-experimental.26` adds PageFold as an opt-in ModelPreset transform. It is
+`0.2.1` delivers PageFold as an opt-in ModelPreset transform. It is
 not a standalone provider and does not alter old presets until the user
 explicitly selects maximum or balanced mode and enables it. Main, sub,
 memory, translation, emotion, and other-aux bindings expose independent
@@ -61,15 +61,13 @@ The PageFold detail tab labels the signed source-minus-wire delta as Saved
 tokens (`절약 토큰`), omits the redundant positive `+`, and does not render the
 internal pricing-evidence identifier. Negative values remain negative.
 
-Both PageFold packs remain exact-1.10 `reviewing`; ordinary generated-installer
-apply therefore fails closed. The private qualification path is used only for
-candidate L3 delivery. The candidate graph is 40 packs / 934 units / 340
-managed paths and is currently live after its stopped-tree automatic gates;
-this does not promote it to stable. The
+Both PageFold packs are exact-1.10 `verified`, so the ordinary distributed
+installer applies the complete 40-pack / 934-unit / 340-path graph without the
+maintainer review bypass. The graph passed its complete automatic gate and the
+user reported all presented remaining PageFold iPhone L3 scenarios normal. The
 [candidate validation receipt](docs/POCKETRISU-PAGEFOLD-CANDIDATE-VALIDATION.md)
-records the complete graph, deterministic artifact, automatic tests, SQLite
-redaction, L2.5 audit, live state, and remaining physical iPhone surfaces.
-Stable verification, tag, and release remain behind physical L3 and L4.
+retains the implementation, paid/runtime, SQLite-redaction, L2.5, candidate
+live, and physical L3 evidence that led to stable admission.
 
 ## Haejeok integration status
 
@@ -97,6 +95,7 @@ retains the detailed source and path review.
 
 | Release | What changed |
 | --- | --- |
+| `v0.2.1` | Promotes the exact-1.10 PageFold ModelPreset transform and hidden BG adapter after automatic qualification, repeated live Vertex PDF requests, and physical iPhone L3. The stable all-or-nothing graph is 40 packs / 934 units / 340 paths; OpenRouter and unsafe image/tool/cache inputs remain excluded. |
 | `v0.2.0-experimental.26` | Renames the PageFold signed token delta to Saved tokens / `절약 토큰`, removes the redundant positive `+`, and removes the pricing-evidence row while preserving cost and negative values. |
 | `v0.2.0-experimental.25` | Places neutral `PF ON 1p` progress beside elapsed seconds, keeps the chat model badge, and moves detailed PageFold metadata from Tokens into its own conditional generation-info tab beside Log and Prompt. |
 | `v0.2.0-experimental.24` | Keeps the experimental.23 PageFold behavior and moves `이 키 저장` directly below the full-width Service Account JSON import button, without moving it for any other credential type. |
@@ -149,19 +148,21 @@ the frontend and server bundle rebuilt, and restart smoke checks returned the
 expected root, authenticated-status, and hashed-asset responses. A final
 unified plan reported no changed files.
 
-The current `v0.2.0` release supports one exact PocketRisu `1.10.0` surface:
-the complete 38-pack / 769-unit / 280-path graph. Its ordinary distributed
+The current `v0.2.1` release supports one exact PocketRisu `1.10.0` surface:
+the complete 40-pack / 934-unit / 340-path graph. Its ordinary distributed
 installer no longer needs the maintainer review gate, while the 13 inactive
 legacy, base, standard-storage, or superseded catalog packs remain
 unqualified for 1.10. The release decision does not convert unexercised Kei,
 backup, fence, or accessibility scenarios into physical passes. Their exact
 accepted limits and the complete automated gate are recorded in the
-[stable release receipt](docs/POCKETRISU-1.10-STABLE-RELEASE.md).
-The final gate passes 44/44 patcher files, 1,635/1,635 frontend tests,
-177/177 server tests, and 74 compatibility tests with five environment skips,
-plus Svelte 0/0, the 7,922-module build, and BG bundle load. The two
-byte-identical mode-0755 installers are 7,277,704 bytes with SHA-256
-`1b416a066894a0052005a4f3a1aaad3fc808b88302b0295dfd7b58d7d23db94c`.
+[v0.2.0 stable receipt](docs/POCKETRISU-1.10-STABLE-RELEASE.md) and the
+PageFold validation receipt. The final local gate passes 46/46 patcher files,
+1,731/1,731 frontend tests, 232 server tests with 12 explicit provider-gated
+skips, and 74 compatibility tests with five environment skips, plus Svelte
+0/0, help 439/439 with zero missing keys, the 7,940-module build, and BG bundle
+load. The two byte-identical mode-0755 installers are 7,847,429 bytes with
+SHA-256
+`a406e48ad8ffded50a7a6bc4a18cbb4204c1bae23f305ebb0e625c93b2426a9c`.
 
 The `v0.2.0-experimental.4` checkpoint passes all 126 patcher tests in 17
 files. The same 256 raw selections still normalize to 192 graphs and pass
