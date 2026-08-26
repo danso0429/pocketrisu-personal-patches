@@ -1,7 +1,9 @@
 # PageFold context-quality and cost evaluation plan
 
-> **Status:** deferred research plan; no provider calls, implementation changes,
-> route admission, catalog publication, or live work are authorized by this file
+> **Status:** Phase 0 offline harness implemented; private case selection,
+> source-anchored dossier review, current price/judge/uncertainty freeze, and
+> separate paid activation remain pending. No provider call, route admission,
+> catalog publication, or live work is authorized by this file.
 >
 > **Date:** 2026-08-26 KST
 >
@@ -12,6 +14,9 @@
 >
 > **Separate byte-copy follow-up:**
 > `docs/POCKETRISU-PAGEFOLD-VERBATIM-COPY-FOLLOWUP.md`
+>
+> **Phase 0 implementation receipt:**
+> `docs/POCKETRISU-PAGEFOLD-QUALITY-COST-PHASE0-IMPLEMENTATION.md`
 >
 > **Recorded but not activated execution constraints:** target generation uses
 > Vertex AI global, requested model `gemini-3.7-flash`, and explicit low
