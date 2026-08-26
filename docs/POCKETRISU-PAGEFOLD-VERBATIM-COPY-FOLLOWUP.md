@@ -8,7 +8,21 @@
 >
 > **Authority:** `docs/POCKETRISU-PAGEFOLD-INTEGRATION-PLAN.md`
 
-## 1. Decision and qualification boundary
+## 1. Verification objective and qualification boundary
+
+The primary verification objective is:
+
+> Under one frozen provider/model/PageFold profile, determine whether the
+> selected canonical message `content` is reproduced byte-for-byte as UTF-8,
+> and whether that result is preserved through PocketRisu parsing, streaming,
+> postprocessing, persistence, reload, and any advertised plain-text copy
+> action.
+
+Completion requires separate observed decisions for provider-copy and
+product-copy, plus the first exact boundary where a failure occurs. It does not
+require either surface to pass, and a negative result is not repaired or
+relabelled by normalization, majority success, or a narrower unannounced
+fixture set.
 
 Current provider admission proves that the model can **recognize** the exact
 logical content carried by the PDF. It does not require the model to reproduce
