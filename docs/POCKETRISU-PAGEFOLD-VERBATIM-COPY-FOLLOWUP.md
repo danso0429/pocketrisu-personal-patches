@@ -9,6 +9,9 @@
 >
 > **Execution receipt:**
 > `docs/POCKETRISU-PAGEFOLD-VERBATIM-COPY-VALIDATION.md`
+>
+> **Separate context-quality/cost evaluation:**
+> `docs/POCKETRISU-PAGEFOLD-QUALITY-COST-EVALUATION-PLAN.md`
 
 ## 1. Verification objective and qualification boundary
 
