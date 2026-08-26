@@ -1499,8 +1499,7 @@ ${'        '}
                 pageFoldInfo = createPageFoldGenerationInfo(pageFoldRouteState, preset)
                 if (reportStatus) safeStatus(() => addBadge(genId, {
                     key: 'pagefold',
-                    text: 'PF ON · ' + pageFoldInfo!.pdfPages + 'p',
-                    tone: 'success',
+                    text: 'PF ON ' + pageFoldInfo!.pdfPages + 'p',
                 }))
             }
         } catch (err) {
@@ -2322,27 +2321,90 @@ import { resolvePageFoldOutputReserve, resolvePageFoldSourceBudget } from 'src/t
             targetVersions: pocketRisu1100,
         },
         {
+            id: 'pagefold-model-preset:request-status-inline-badge:1.10',
+            file: 'src/lib/UI/GUI/RequestStatusToast.svelte',
+            type: 'insert',
+            where: 'after',
+            anchor: '                <span class="rs-elapsed">{elapsedStr(entry)}</span>\n',
+            managed: `                {#each entry.badges.filter((badge) => badge.key === 'pagefold') as badge (badge.key)}
+                    <span class="rs-elapsed">{badge.text}</span>
+                {/each}
+`,
+            markerNeedle: "badge.key === 'pagefold'",
+            requires: ['pagefold-model-preset:request-prepare-wire:1.10'],
+            targetVersions: pocketRisu1100,
+        },
+        {
+            id: 'pagefold-model-preset:request-status-remove-badge-row:1.10',
+            file: 'src/lib/UI/GUI/RequestStatusToast.svelte',
+            type: 'replace',
+            anchor: '            {#each entry.badges as badge (badge.key)}\n',
+            managed: `            {#each entry.badges.filter((badge) => badge.key !== 'pagefold') as badge (badge.key)}
+`,
+            markerNeedle: "badge.key !== 'pagefold'",
+            requires: ['pagefold-model-preset:request-status-inline-badge:1.10'],
+            targetVersions: pocketRisu1100,
+        },
+        {
             id: 'pagefold-model-preset:alert-generation-info-import:1.10',
             file: 'src/lib/Others/AlertComp.svelte',
             type: 'insert',
             where: 'after',
             anchor: '    import Help from "./Help.svelte";\n',
             content: '    import PageFoldGenerationInfo from "./PageFoldGenerationInfo.svelte";\n',
-            requires: ['pagefold-model-preset:index-generation-info:1.10'],
+            requires: [
+                'pagefold-model-preset:index-generation-info:1.10',
+                'pagefold-model-preset:request-status-remove-badge-row:1.10',
+            ],
+            targetVersions: pocketRisu1100,
+        },
+        {
+            id: 'pagefold-model-preset:alert-generation-info-pagefold-tab-reset:1.10',
+            file: 'src/lib/Others/AlertComp.svelte',
+            type: 'insert',
+            where: 'after',
+            anchor: '    let generationInfoMenuIndex = $state(0)\n',
+            managed: `    $effect(() => {
+        if (generationInfoMenuIndex === 4 && !$alertGenerationInfoStore?.genInfo?.pageFold) {
+            generationInfoMenuIndex = 0
+        }
+    })
+`,
+            markerNeedle: "generationInfoMenuIndex === 4 && !$alertGenerationInfoStore?.genInfo?.pageFold",
+            requires: ['pagefold-model-preset:alert-generation-info-import:1.10'],
+            targetVersions: pocketRisu1100,
+        },
+        {
+            id: 'pagefold-model-preset:alert-generation-info-tab:1.10',
+            file: 'src/lib/Others/AlertComp.svelte',
+            type: 'insert',
+            where: 'after',
+            anchor: `                    <Button selected={generationInfoMenuIndex === 3} size="sm" onclick={() => {generationInfoMenuIndex = 3}}>
+                        {language.prompt}
+                    </Button>
+`,
+            managed: `                    {#if $alertGenerationInfoStore.genInfo.pageFold}
+                        <Button selected={generationInfoMenuIndex === 4} size="sm" onclick={() => {generationInfoMenuIndex = 4}}>
+                            {language.pageFoldTitle}
+                        </Button>
+                    {/if}
+`,
+            markerNeedle: '{language.pageFoldTitle}',
+            requires: ['pagefold-model-preset:alert-generation-info-pagefold-tab-reset:1.10'],
             targetVersions: pocketRisu1100,
         },
         {
             id: 'pagefold-model-preset:alert-generation-info-ui:1.10',
             file: 'src/lib/Others/AlertComp.svelte',
             type: 'insert',
-            where: 'after',
-            anchor: '                    <span class="text-textcolor2 text-sm">{language.tokenWarning}</span>\n',
-            managed: `                    {#if $alertGenerationInfoStore.genInfo.pageFold}
-                        <PageFoldGenerationInfo info={$alertGenerationInfoStore.genInfo.pageFold} />
-                    {/if}
+            where: 'before',
+            anchor: "            {:else if $alertStore.type === 'addchar'}\n",
+            managed: `                {#if generationInfoMenuIndex === 4 && $alertGenerationInfoStore.genInfo.pageFold}
+                    <PageFoldGenerationInfo info={$alertGenerationInfoStore.genInfo.pageFold} />
+                {/if}
 `,
             markerNeedle: '<PageFoldGenerationInfo',
-            requires: ['pagefold-model-preset:alert-generation-info-import:1.10'],
+            requires: ['pagefold-model-preset:alert-generation-info-tab:1.10'],
             targetVersions: pocketRisu1100,
         },
         {
