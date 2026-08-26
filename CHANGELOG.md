@@ -13,6 +13,11 @@
 - Generate two byte-identical mode-0755 installers at 7,845,294 bytes with
   SHA-256
   `f76678745fbfbffeb411795364e389d17c5721ad5ea2f36e55b0c052f0a1ad8b`.
+- Apply live in a zero-active-work L3 gap with a process-first stop. Change only
+  `CredentialField.svelte` plus patch state, rebuild/prune, and verify
+  import-before-save source order, served/local asset and stamp identity,
+  40/930/339 current zero-plan, four SQLite `quick_check=ok`, BG/native zero,
+  and zero new error-log bytes.
 
 ## 0.2.0-experimental.23
 

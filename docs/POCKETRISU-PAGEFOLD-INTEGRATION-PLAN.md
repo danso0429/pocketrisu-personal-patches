@@ -1,8 +1,7 @@
 # PocketRisu PageFold ModelPreset integration plan
 
-> **Status:** L3-revised implementation authority; experimental.23 is live and
-> experimental.24 moves the Service Account save action below import with its
-> automatic gate complete; safe live apply waits for the ongoing L3 activity,
+> **Status:** L3-revised implementation authority; experimental.24 is safely
+> live with Service Account import-before-save ordering; physical L3 continues
 > and no stable tag/release is authorized
 >
 > **Date:** 2026-08-26 KST

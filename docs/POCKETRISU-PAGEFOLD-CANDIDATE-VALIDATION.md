@@ -496,5 +496,51 @@ Observed automatic results:
 - two deterministic mode-0755 installers, 7,845,294 bytes, SHA-256
   `f76678745fbfbffeb411795364e389d17c5721ad5ea2f36e55b0c052f0a1ad8b`.
 
-No provider call was made. Commit/push and live apply remain, with restart
-deferred while physical L3 activity may still be in progress.
+No provider call was made by the delivery work.
+
+### 10.1 experimental.24 live apply
+
+The first active/native/BG reads were all zero, so the follow-up used the next
+safe L3 gap. The `.23` application-only rollback
+`risuai-nodeonly-pre-pagefold-exp24.20260826-091727` contains 1,663 files /
+328,064,571 bytes and excludes `save/`, `backups/`, and `node_modules/`.
+PM2 was stopped before the transaction, which changed only
+`CredentialField.svelte` and patch state.
+
+The stopped tree completed frozen offline install (109 reused / 0 downloaded),
+the 7,940-module production build, BG bundle build/load, production prune,
+40-pack / 930-unit / 339-path current status, and zero-change plan. After
+restart, PM2 returned online with unstable restarts 0 and active requests 0.
+
+Served/local `index-DdwjeJSw.js` matched at 2,047,490 bytes and SHA-256
+`55a80d3680ee84d441cc7977f0f951c91ff9d9bc4f43de1b06bfca6a9cef00f6`.
+Served/local build stamps matched at
+`1.10.0-2cf96d68edd4058a0f9b2bf7fbe23c94774f5bcd1c04e6e6305f51121f4af1aa`.
+The live composed source reported import-before-save true and retained the
+non-Service-Account original position. BG bundle size/hash remained 8,844,609 /
+`53cc24fd548f8a600ee2d50a605ba39e4df102246ef7c3915e35758d4bc0157f`.
+
+All four SQLite databases returned `quick_check=ok`. The error log stayed at
+its 170,593-byte pre-apply boundary; its preceding growth was existing L3 BG
+regex-script errors and one tokenizer fallback, not experimental.24 startup.
+Native active/pending and BG result payloads remained zero. Request-log rows
+moved during concurrent user L3 activity, so they are recorded below instead
+of being claimed unchanged.
+
+### 10.2 Partial objective L3 runtime observations
+
+Content-free request-log metadata observed during the user's ongoing L3:
+
+- six legacy standalone `pluginmodel:::PageFold` attempts returned 401;
+- integrated Vertex `gemini-3.7-flash` first returned 400 because the preset's
+  `THINKING_LEVEL_MINIMAL` was unsupported;
+- the next two integrated Vertex requests returned 200 with input tokens 384
+  each and output tokens 925 / 1,680;
+- all three integrated rows retained `application/pdf` metadata and usage while
+  replacing PDF data with `bytes omitted`;
+- persisted canonical marker, private-key, access-token, and unredacted API-key
+  checks were all false.
+
+These are transport/logging observations only. User-visible UI, response
+quality, role persistence, background return, and remaining scenarios await the
+user's physical L3 report.
