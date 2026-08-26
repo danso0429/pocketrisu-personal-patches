@@ -44,6 +44,11 @@
   log grows 78,792 bytes. Content-free classification finds no PageFold,
   patch/state/version, or credential terms and retains existing regex/tokenizer
   terms; no user operation or data is cancelled, deleted, claimed, or rewritten.
+- Fast-forward the release branch and `main` to `6119c6e`; pass GitHub
+  `patch-integrity` run `32925299594`; publish annotated `v0.2.1` as the
+  non-draft/non-prerelease Latest Release; and re-download both assets to prove
+  byte identity and the same SHA-256. Keep the tag fixed while a post-release
+  docs commit records the external publication readback.
 
 ## 0.2.0-experimental.26
 

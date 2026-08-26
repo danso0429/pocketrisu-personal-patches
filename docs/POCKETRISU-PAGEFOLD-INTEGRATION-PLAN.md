@@ -2,7 +2,8 @@
 
 > **Status:** implementation authority fulfilled; physical L3 complete;
 > exact-1.10 PageFold manifests promoted to stable `0.2.1`; live stable metadata
-> applied; tag and GitHub Release await the final release workflow
+> applied; CI, annotated tag, Latest GitHub Release, and downloaded-asset
+> identity verification complete
 >
 > **Date:** 2026-08-26 KST
 >

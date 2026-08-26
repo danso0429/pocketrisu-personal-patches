@@ -173,5 +173,19 @@ stable metadata application.
 - The public update feed remains disabled. Distribution is the private
   annotated tag, non-prerelease GitHub Release, and two attached installers.
 
-The annotated `v0.2.1` tag and non-draft/non-prerelease GitHub Release close
-publication after the release commit's `patch-integrity` workflow succeeds.
+## Publication readback
+
+- release branch, `origin/main`, and annotated `v0.2.1` tag all resolve to
+  `6119c6ece358fd7cd9be1c587d8cdd8699f58fc9`;
+- GitHub `patch-integrity` run `32925299594` completed successfully at that
+  exact head after ordinary Node 22 apply, embedded checks, and byte/mode
+  round-trip;
+- GitHub Release `v0.2.1 — PageFold ModelPreset stable` is the non-draft,
+  non-prerelease Latest Release;
+- both 7,847,429-byte installer assets were downloaded into a fresh temporary
+  directory and compared byte-for-byte with the local release artifacts; and
+- all four local/downloaded files have SHA-256
+  `a406e48ad8ffded50a7a6bc4a18cbb4204c1bae23f305ebb0e625c93b2426a9c`.
+
+Publication is complete. A post-release documentation commit records this
+external readback without moving the `v0.2.1` tag.

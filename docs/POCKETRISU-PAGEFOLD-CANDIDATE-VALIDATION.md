@@ -1,7 +1,7 @@
 # PocketRisu PageFold candidate and stable validation receipt
 
 > **Status:** physical iPhone L3 complete; exact-1.10 PageFold packs promoted
-> to stable `0.2.1`; live metadata applied and publication gate recorded in
+> to stable `0.2.1`; live metadata and publication complete as recorded in
 > `docs/POCKETRISU-0.2.1-PAGEFOLD-STABLE-RELEASE.md`
 >
 > **Date:** 2026-08-26 KST
