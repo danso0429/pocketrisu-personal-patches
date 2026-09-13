@@ -3,8 +3,9 @@
 Date: 2026-09-13 KST
 
 Status: **C0 contract experiments, C1 server commit primitive, and C2 opt-in
-BG result commit complete; C3–C7 integration, live application, and release
-are not complete**
+BG result commit complete; C3 projection/hydration/input foundations are
+implemented but product C3–C7 integration, live application, and release are
+not complete**
 
 ## Authority and frozen inputs
 
@@ -58,6 +59,7 @@ exit criteria.
 | C0-F | Do output stages remain foreground/BG-equivalent, and can a blank browser discover ownership after result TTL cleanup? | stage parity fixture and revision-bound projection fixture | **complete: current result/projection are insufficient; C2/C5/C6 contracts required** |
 | C1 | Can Node commit chat, metadata, effects, intent, owner, operation state, and receipt in one replay boundary? | split journal plus WAL-mode SQLite failure injection and recovery | **primitive complete and intentionally uncalled; C2 production writer/cancel/result wiring required** |
 | C2 | Can an opted-in detached BG final result reach the C1 owner and normal chat storage without a browser save? | exact route-to-owner fixture, recovery/route failure cases, complete graph lifecycle and server smoke | **opt-in server path complete; current client remains unopted and C3/C6 own hydration, projection, retention, and reconciliation** |
+| C3 foundation | Can the server own pre-canonical input state, expose revision-bound message ownership, and let a client adopt a committed normal chat without replaying legacy effects? | input/commit/projection owners, foreground/cold-boot hydration fixtures, publication/slot race injection, complete target and graph gates | **foundation implemented; capability remains 0 until immutable settings, true N+1 handling, pending/chat-open reconciliation, and client opt-in close** |
 
 C0-B precedes the other AC write experiments because claim/binding epochs are
 inputs to prepare, mutation, and settle identities. C0-E begins with a focused
@@ -480,22 +482,72 @@ production and BG bundle builds, maximum graph apply/re-plan/revert, and a
 loopback server/auth smoke are recorded in the detailed report.
 
 The current client intentionally sends no C2 flag, so existing browser
-merge/save/ACK behavior remains active. Pre-canonical input, receipt hydration,
-revision-bound owner projection, conflict copy, AC transport, and bounded
+merge/save/ACK behavior remains active. The following C3 section records the
+new input/projection/hydration foundations; client activation, immutable
+settings, true N+1 behavior, conflict copy, AC transport, and bounded
 reconciliation/retention remain C3–C6 work.
 
 The detailed discovery → external-anchor → triage report is
 `docs/POCKETRISU-1.10-BG-AC-C2-SERVER-RESULT-COMMIT-VALIDATION.md`; its SHA-256
 is `0737e5ec0f90f90fba9fd176957991aad74fab55d86bdbd3239eda6d766a6892`.
 
+### C3 projection, hydration, and input foundations
+
+Patcher commits `99d681b`, `d10c62f`, and `87dcf54` add a revision-bound
+message-owner projection, authenticated char/chat/revision lookup, receipt-
+aware foreground/cold-boot hydration, and preservation of server-owned root
+state through full and patch client writers. A committed result now adopts the
+normal server chat and sync baseline, skips legacy merge/save effects, follows
+one newer projection revision, and requires the exact operation owner before
+acknowledging an older receipt.
+
+Commits `d2012d8`, `5351932`, `a318c8c`, and `47a016b` add the pre-canonical
+server input store and route foundation. They bind operation/input/message
+identity, base revision, admission sequence, predecessor, transform lifecycle,
+input receipt, global intent, and an operation journal. Exact operation replay
+is idempotent, cross-operation command reuse conflicts, interrupted transform
+becomes unknown, terminal attachments recover, descendants are not rolled
+back, and global conflicts before or after the transaction prevent provider
+work.
+
+Commit `0203ea6` keeps the incomplete protocol unadvertised and permits
+receipt hydration through an authoritative descendant. Commit `db72ec0`
+separates local semantic revisions from server encoded-byte SHA revisions and
+delays NodeStorage sync-baseline adoption until the local slot CAS succeeds.
+Final installer commit `09ee8e0` contains the reproducible checkpoint.
+
+The observed final gates are patcher 52/52 files; focused server 56/56 and
+client 11/11 tests; frontend 153 files/1,742 tests; server 27 files with 279
+passed and 12 skipped; compatibility 10 files passed and one skipped with 74
+tests passed and five skipped; Svelte 0/0; 7,941-module production build; and
+an 8,861,860-byte BG bundle whose load condition checks `sendChat`,
+`runTrigger`, and `processScript`. The 40-pack/998-unit/352-path graph had 13
+ordered collisions, current status, zero-change re-plan, and zero exact-revert
+existence/byte/mode mismatches. Final installers are 8,187,942 bytes, mode
+0755, and SHA-256
+`8c8222c0a56f46cdb2ae319ff327961af36079c51bd1a3ad67e81aa7a706f1a3`.
+
+This is not the C3 product exit. Capabilities report
+`inputCommandVersion: 0` and `inputCommandFoundationVersion: 1`, while the
+current client sends neither the input nor server-commit flag. The settings
+reference is not an immutable snapshot, the owner admits only one active
+command rather than true N+1 pending lineage, ordinary chat-open/blank-browser
+pending reconciliation and UI are absent, and C6 still owns conflict and
+retention policy. No live PocketRisu, PM2, user data, provider, or AC runtime
+was changed.
+
+The detailed discovery → external-anchor → triage report is
+`docs/POCKETRISU-1.10-BG-AC-C3-FOUNDATION-VALIDATION.md`; its SHA-256 is
+`720c7b88d12168ebb3eb65c2a1b9b25e19bd586109be1e90eeb4cf7f04443414`.
+
 ## Existing owners to extend
 
 | Need | Existing owner | Confirmed gap |
 | --- | --- | --- |
-| Node serialization | `queueStorageOperation`, `fullChatStore`, and the C1 commit primitive through the C2 versioned detached owner | Opted-in final result/cancel/status are connected; current input still enters canonical save before operation admission and C6 retention is absent |
-| Chat payload WAL | split `chatWriteJournal` prepare/write/publish/recovery phases plus C2 operation-scoped rows | C2 connects metadata/effect/intent/owner publication and all current replacement cleanup owners; C6 must define bounded retirement and late-reference safety |
-| BG lifecycle/output | generated exact-1.10 `bgOrchestrator.cjs` and `bgOrchestrate.ts` | Flag 1 reaches normal chat commit, while the current unopted client keeps browser merge/save/ACK; C3 client hydration and C5 output transform remain absent |
-| BG delivery ownership | chat/root `bgOrchestrationDelivery` markers plus bounded result retention | markers are operation-level and require known operation ID; message/source AC ownership and char/chat/revision projection are absent |
+| Node serialization | `queueStorageOperation`, `fullChatStore`, C1/C2 commit owner, and C3 input owner | Input can be admitted and attached before provider work, but immutable settings and true N+1 pending lineage are absent; C6 retention remains undefined |
+| Chat payload WAL | split `chatWriteJournal` prepare/write/publish/recovery phases plus C2 commit and C3 input operation rows | terminal input and result recovery are wired through current replacement owners; C6 must define bounded retirement and late-reference safety |
+| BG lifecycle/output | generated exact-1.10 `bgOrchestrator.cjs` and `bgOrchestrate.ts` | internal flag 1 can exercise input→commit→hydrate, but capability remains 0/current client unopted; pending UI and C5 output transform remain absent |
+| BG delivery ownership | chat/root `bgOrchestrationDelivery` markers, bounded result retention, and `serverChatExecutionState` | char/chat/revision projection exists and reconciles exact owners; ordinary chat-open consumption, AC state, and owner/tombstone lifetime remain absent |
 | AC route identity | `SessionRouteBindingStore`, `HostSessionExecutionStore`, and serializable route/claim transactions | store acquire/status/settle and exact-stream watermarks exist; authenticated route, nonterminal phases, and receipt/context links remain absent |
 | AC source invalidation | durable source revisions, transactional invalidation/outbox fences, and the C0-C ordered host stream | store primitive is connected; Node durable writer, host transport, input/response completion, and multi-stream aggregation remain absent |
 | AC prepare/complete idempotency | durable `HostPrepareRegistryStore`, in-process complete request ledger, and durable source records | prepare store exists; authenticated HTTP/provider/startup recovery, typed result semantics, and server-host complete receipt remain absent |
@@ -516,7 +568,9 @@ revertible. A passing source test does not advance a later state automatically.
 5. PocketRisu server chat/effect commit primitive (**C1 complete**).
 6. PocketRisu opted-in BG final-result/cancel/status connection (**C2
    complete; current client intentionally unopted**).
-7. PocketRisu pre-canonical input admission and owner projection.
+7. PocketRisu C3 projection/hydration/input foundation (**implemented;
+   capability 0 until immutable settings, N+1 pending lineage, chat-open UI,
+   and client opt-in close**).
 8. AC JS/PocketRisu host adapter and output-transform parity.
 9. Integrated C6/C7 gates, runtime audit, controlled live candidate, and
    concrete device scenarios.
@@ -526,14 +580,16 @@ focused owner graphs and complete-graph lifecycle from `PATCHER-V2-DESIGN.md`.
 The retired subset-mask verifier is historical evidence, not the active
 delivery gate. Runtime L2.5 remains separate.
 
-## C0–C2 verdict and product gate
+## C0–C3 foundation verdict and product gate
 
 The C0-A through C0-F contract experiments are now recorded. Their result is
 not positive product qualification: C0-B/C/D supply store primitives, while
 C0-A/E/F prove that new typed host, Node storage/input, output, and owner
-contracts are required. C1 supplies the atomic Node commit primitive and C2
-connects an explicitly negotiated detached result to it. C3–C6 remain
-responsible for implementing and integrating the following product evidence:
+contracts are required. C1 supplies the atomic Node commit primitive, C2
+connects an explicitly negotiated detached result to it, and C3 now supplies
+owner projection, receipt hydration, and an unadvertised input foundation.
+C3–C6 remain responsible for completing and integrating the following product
+evidence:
 
 - one fenced execution owner across concurrent foreground/server acquire,
   route remap, late settle, and every terminal outcome;
@@ -543,11 +599,13 @@ responsible for implementing and integrating the following product evidence:
   and v1–v3 complete regression coverage;
 - durable prepare ready/running/unknown/skip behavior without automatic paid
   replay;
-- pre-canonical N+1 admission, predecessor lineage, one input transform, and
-  explicit blocked-edit behavior;
+- immutable request settings plus true pre-canonical N+1 admission,
+  predecessor terminal/rebase policy, pending UI, one input transform, and
+  explicit blocked-edit recovery;
 - chat/metadata/effect/intent/owner commit recovery across injected process and
   persistence failures;
-- output-stage parity and authoritative owner projection after BG payload TTL;
+- output-stage parity and authoritative owner/pending projection from an empty
+  browser after BG payload TTL;
 - versioned request/response/error DTOs, migration location, entry-point support
   table, and an exact list of unverified combinations.
 
