@@ -553,11 +553,12 @@ describe('pre-canonical server chat input owner', () => {
         await owner.admit(admission(operationId))
         await owner.beginTransform(operationId)
 
-        await expect(harness.makeOwner().recoverAll()).resolves.toMatchObject([{
+        await expect(owner.recoverAll()).resolves.toMatchObject([{
             operationId,
             status: 'blocked',
             reason: 'transform_outcome_unknown',
         }])
+        expect(owner.settingsSnapshotStats()).toMatchObject({ contexts: 0, bytes: 0 })
         await expect(harness.makeOwner().loadExecution(operationId)).resolves.toMatchObject({
             status: 'blocked',
             reason: 'transform_outcome_unknown',

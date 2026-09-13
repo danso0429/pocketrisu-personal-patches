@@ -810,6 +810,7 @@ function createServerChatInputOwner({
             if (record.transformState === 'running' && record.inputState === 'queued') {
                 const updated = { ...record, transformState: 'unknown' };
                 sqliteDb.transaction(() => write(updated))();
+                settingsSnapshots.delete(record.operationId);
                 results.push({ operationId: record.operationId, status: 'blocked', reason: 'transform_outcome_unknown' });
                 continue;
             }
