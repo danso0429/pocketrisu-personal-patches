@@ -597,14 +597,16 @@ function createServerChatInputOwner({
         return allRecords().filter((record) => (
             record.admission.charId === charId
             && record.admission.chatId === chatId
-            && !TERMINAL_INPUT_STATES.has(record.inputState)
+            && (record.inputState === 'queued' || record.inputState === 'blocked_edit')
         )).sort((left, right) => left.admissionSeq - right.admissionSeq).map((record) => ({
             operationId: record.operationId,
             inputCommandId: record.admission.inputCommandId,
             admissionSeq: record.admissionSeq,
             rawText: record.admission.rawText,
             cancelAllowed: record.inputState === 'queued',
-            state: record.inputState === 'queued' ? 'queued' : 'blocked_edit',
+            state: record.inputState === 'blocked_edit' || record.transformState === 'unknown'
+                ? 'blocked_edit'
+                : 'queued',
         }));
     }
 

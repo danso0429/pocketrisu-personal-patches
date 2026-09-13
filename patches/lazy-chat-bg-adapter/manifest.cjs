@@ -980,6 +980,7 @@ const serverChatCommitOwner = createServerChatCommitOwner({
         if (!transformedChat || !Array.isArray(transformedChat.message)) {
           throw new Error('server input transform returned an invalid chat')
         }
+        db.characters[charIdx].chats[chatIdx] = transformedChat
         if (transformedChat.message.some((message) => message?.chatId === command.userMessageId)) {
           throw new Error('server input message identity already exists')
         }
@@ -994,7 +995,6 @@ const serverChatCommitOwner = createServerChatCommitOwner({
           name: null,
           chatId: command.userMessageId,
         })
-        db.characters[charIdx].chats[chatIdx] = transformedChat
         const inputGlobalsAfter = db.globalChatVariables || {}
         let inputGlobalsBeforeObject = {}
         try { inputGlobalsBeforeObject = JSON.parse(inputGlobalsBefore) } catch { /* empty */ }
@@ -1182,6 +1182,27 @@ const serverChatCommitOwner = createServerChatCommitOwner({
                 ? admission.reason : 'server-input-admission-conflict',
               ...(admission && admission.blockingOperationId
                 ? { blockingOperationId: admission.blockingOperationId } : {}),
+            })
+          }
+          const inputActiveExisting = orchestrationRuns.get(operationId)
+          if (inputActiveExisting) {
+            if (inputActiveExisting.charId !== String(selectedCharId)
+              || inputActiveExisting.chatId !== String(selectedChatId)
+              || inputActiveExisting.inputCommandVersion !== 1) {
+              return res.status(409).json({
+                handled: false, started: false, operationId,
+                reason: 'operation-coordinate-conflict',
+              })
+            }
+            return res.json({
+              handled: true,
+              started: true,
+              operationId,
+              reused: true,
+              state: orchestrationRuns.status(operationId),
+              resultKeyVersion: inputActiveExisting.resultKeyVersion || 0,
+              serverChatCommitVersion: inputActiveExisting.serverChatCommitVersion === 1 ? 1 : 0,
+              inputCommandVersion: 1,
             })
           }
           serverInputExecution = await serverChatInputOwner.loadExecution(operationId)

@@ -231,12 +231,7 @@ describe('pre-canonical server chat input owner', () => {
             status: 'attached',
             record: { executionBaseRevision: attached.record.executionBaseRevision },
         })
-        expect(owner.pendingProjection('char-1', 'chat-1')).toMatchObject([{
-            operationId,
-            rawText: 'hello',
-            cancelAllowed: false,
-            state: 'blocked_edit',
-        }])
+        expect(owner.pendingProjection('char-1', 'chat-1')).toEqual([])
     })
 
     it('settles a completed input and assigns the next admission its predecessor', async () => {
@@ -324,6 +319,12 @@ describe('pre-canonical server chat input owner', () => {
             status: 'blocked',
             reason: 'transform_outcome_unknown',
         })
+        expect(harness.makeOwner().pendingProjection('char-1', 'chat-1')).toMatchObject([{
+            operationId,
+            rawText: 'hello',
+            cancelAllowed: true,
+            state: 'blocked_edit',
+        }])
     })
 
     it('rolls back admission writes and clears linked lifecycle rows on replacement', async () => {
