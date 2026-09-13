@@ -370,7 +370,12 @@ function assertNoUndefined(name, value, depth = 0) {
     if (value === undefined) throw invalidCommit(`${name} cannot contain undefined`);
     if (!value || typeof value !== 'object') return;
     if (Array.isArray(value)) {
-        value.forEach((entry, index) => assertNoUndefined(`${name}[${index}]`, entry, depth + 1));
+        for (let index = 0; index < value.length; index += 1) {
+            if (!Object.prototype.hasOwnProperty.call(value, index)) {
+                throw invalidCommit(`${name} cannot contain sparse arrays`);
+            }
+            assertNoUndefined(`${name}[${index}]`, value[index], depth + 1);
+        }
         return;
     }
     for (const key of Object.keys(value)) {

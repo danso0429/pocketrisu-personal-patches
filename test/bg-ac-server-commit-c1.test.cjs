@@ -388,6 +388,16 @@ test('C1: deeply nested recovery input fails before entering the storage queue',
     ))
     assert.equal(harness.kvGet(commitStorageKey(commitRequest.operationId)), null)
     assert.deepEqual(harness.kvList('internal/chat-write/v1/'), [])
+
+    const sparseRequest = request()
+    const sparse = []
+    sparse.length = 1
+    sparseRequest.effectIntents.globalVariables.changed.sparse = sparse
+    sparseRequest.effectIntents.globalVariables.expected.sparse = { present: false }
+    await assert.rejects(harness.makeCommitter().commit(sparseRequest), error => (
+        error?.code === 'SERVER_CHAT_COMMIT_INVALID'
+        && /sparse arrays/.test(error.message)
+    ))
 })
 
 test('C1: inconsistent per-key effect receipts roll the transaction back', async () => {
