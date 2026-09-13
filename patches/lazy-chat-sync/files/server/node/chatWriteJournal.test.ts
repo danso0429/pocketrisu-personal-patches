@@ -7,10 +7,20 @@ const { commitSnapshotRestore, createChatWriteJournal } = journalPackage as {
         runTransaction: (operation: () => void) => void
         restoreDatabase: () => void
         discardJournal: () => void
+        discardCommitRecovery?: () => void
         resetJournalMemory: () => void
     }) => void
     createChatWriteJournal: (options: any) => {
         prefix: string
+        prepareStage: (chaId: string, chatId: string, chat: any, options: { awaitingMetadata: boolean }) => Promise<any>
+        describePreparedStage: (prepared: any) => { storageKey: string; storageBytes: number }
+        writePreparedStage: (prepared: any) => { storageKey: string; storageBytes: number }
+        publishPreparedStage: (prepared: any) => void
+        restoreDurableStage: (
+            chaId: string,
+            chatId: string,
+            options?: { validate?: (record: any) => boolean },
+        ) => Promise<any | null>
         stage: (chaId: string, chatId: string, chat: any, options: { awaitingMetadata: boolean }) => Promise<void>
         restoreInto: (store: Map<string, Map<string, any>>) => Promise<void>
         clearAfterDatabasePersist: (database: any) => Promise<void>
@@ -64,10 +74,126 @@ function databaseWithChats(chats: any[]) {
 }
 
 describe('durable chat write journal', () => {
+    it('splits async preparation, synchronous durable write, and post-commit publication', async () => {
+        const { journal, kv } = makeHarness()
+        const prepared = await journal.prepareStage(
+            'char-1',
+            'chat-new',
+            chat(),
+            { awaitingMetadata: true },
+        )
+
+        expect(kv.size).toBe(0)
+        expect(journal.size()).toBe(0)
+        expect(() => journal.publishPreparedStage(prepared)).toThrow('unwritten')
+        expect(journal.describePreparedStage(prepared).storageKey).toMatch(/^internal\/chat-write\/v1\//)
+
+        const write = journal.writePreparedStage(prepared)
+        expect(write.storageKey).toMatch(/^internal\/chat-write\/v1\//)
+        expect(write.storageBytes).toBeGreaterThan(0)
+        expect(kv.size).toBe(1)
+        expect(journal.size()).toBe(0)
+
+        journal.publishPreparedStage(prepared)
+        expect(journal.size()).toBe(1)
+        expect(() => journal.publishPreparedStage(prepared)).toThrow('unknown or already-published')
+    })
+
+    it('reuses prepared bytes after a surrounding transaction rolls back', async () => {
+        const { journal, kv } = makeHarness()
+        const prepared = await journal.prepareStage(
+            'char-1',
+            'chat-new',
+            chat(),
+            { awaitingMetadata: true },
+        )
+        const receipts = new Map<string, string>()
+        const runTransaction = (operation: () => void) => {
+            const kvBefore = new Map(kv)
+            const receiptBefore = new Map(receipts)
+            try {
+                operation()
+            } catch (error) {
+                kv.clear()
+                for (const [key, value] of kvBefore) kv.set(key, value)
+                receipts.clear()
+                for (const [key, value] of receiptBefore) receipts.set(key, value)
+                throw error
+            }
+        }
+
+        expect(() => runTransaction(() => {
+            journal.writePreparedStage(prepared)
+            receipts.set('intent', 'pending')
+            throw new Error('owner receipt failed')
+        })).toThrow('owner receipt failed')
+        expect(kv.size).toBe(0)
+        expect(receipts.size).toBe(0)
+        expect(journal.size()).toBe(0)
+
+        runTransaction(() => {
+            journal.writePreparedStage(prepared)
+            receipts.set('intent', 'pending')
+            receipts.set('owner', 'server')
+        })
+        journal.publishPreparedStage(prepared)
+        expect(kv.size).toBe(1)
+        expect(receipts).toEqual(new Map([
+            ['intent', 'pending'],
+            ['owner', 'server'],
+        ]))
+        expect(journal.size()).toBe(1)
+    })
+
+    it('rejects a prepared stage superseded before its durable write', async () => {
+        const { journal } = makeHarness()
+        const stale = await journal.prepareStage(
+            'char-1',
+            'chat-new',
+            chat('first'),
+            { awaitingMetadata: false },
+        )
+        await journal.stage('char-1', 'chat-new', chat('newer'), {
+            awaitingMetadata: false,
+        })
+
+        expect(() => journal.writePreparedStage(stale)).toThrow('stale prepared')
+    })
+
+    it('rehydrates one transaction-committed record for post-commit recovery', async () => {
+        const first = makeHarness()
+        const prepared = await first.journal.prepareStage(
+            'char-1',
+            'chat-new',
+            chat('committed'),
+            { awaitingMetadata: true },
+        )
+        first.journal.writePreparedStage(prepared)
+        expect(first.journal.size()).toBe(0)
+
+        const restarted = makeHarness(first.kv).journal
+        const restored = await restarted.restoreDurableStage('char-1', 'chat-new')
+        expect(restored).toMatchObject({
+            chaId: 'char-1',
+            chatId: 'chat-new',
+            awaitingMetadata: true,
+            chat: chat('committed'),
+        })
+        expect(restarted.size()).toBe(1)
+        expect(await restarted.restoreDurableStage('char-1', 'missing')).toBeNull()
+
+        const rejected = makeHarness(first.kv).journal
+        await expect(rejected.restoreDurableStage('char-1', 'chat-new', {
+            validate: () => false,
+        })).rejects.toThrow('rejected by its commit receipt')
+        expect(rejected.size()).toBe(0)
+    })
+
     it('commits snapshot swap and journal discard as one failure-atomic transition', () => {
         const values = new Map<string, string>([
             ['database', 'current'],
             ['journal', 'acknowledged'],
+            ['commit', 'receipt'],
         ])
         const runTransaction = (operation: () => void) => {
             const before = new Map(values)
@@ -89,6 +215,21 @@ describe('durable chat write journal', () => {
         expect(values).toEqual(new Map([
             ['database', 'current'],
             ['journal', 'acknowledged'],
+            ['commit', 'receipt'],
+        ]))
+        expect(resets).toBe(0)
+
+        expect(() => commitSnapshotRestore({
+            runTransaction,
+            restoreDatabase: () => values.set('database', 'selected'),
+            discardJournal: () => { values.delete('journal') },
+            discardCommitRecovery: () => { throw new Error('commit recovery delete failed') },
+            resetJournalMemory: () => { resets += 1 },
+        })).toThrow('commit recovery delete failed')
+        expect(values).toEqual(new Map([
+            ['database', 'current'],
+            ['journal', 'acknowledged'],
+            ['commit', 'receipt'],
         ]))
         expect(resets).toBe(0)
 
@@ -96,6 +237,7 @@ describe('durable chat write journal', () => {
             runTransaction,
             restoreDatabase: () => values.set('database', 'selected'),
             discardJournal: () => { values.delete('journal') },
+            discardCommitRecovery: () => { values.delete('commit') },
             resetJournalMemory: () => { resets += 1 },
         })
         expect(values).toEqual(new Map([['database', 'selected']]))

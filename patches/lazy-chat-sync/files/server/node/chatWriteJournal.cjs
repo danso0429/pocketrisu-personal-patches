@@ -23,11 +23,13 @@ function commitSnapshotRestore({
     runTransaction,
     restoreDatabase,
     discardJournal,
+    discardCommitRecovery = () => {},
     resetJournalMemory,
 }) {
     runTransaction(() => {
         restoreDatabase()
         discardJournal()
+        discardCommitRecovery()
     })
     // Reset only after the durable transaction commits. On rollback the
     // in-memory owner remains aligned with the still-present journal rows.
@@ -59,6 +61,7 @@ function createChatWriteJournal({
     maxAwaitingBytes = DEFAULT_MAX_AWAITING_BYTES,
 }) {
     const records = new Map();
+    let preparedStages = new WeakSet();
     let loadPromise = null;
     let loaded = false;
 
@@ -126,7 +129,7 @@ function createChatWriteJournal({
         }
     }
 
-    async function stage(chaId, chatId, chat, { awaitingMetadata }) {
+    async function prepareStage(chaId, chatId, chat, { awaitingMetadata }) {
         await ensureLoaded();
         const key = pairKey(chaId, chatId);
         const previous = records.get(key);
@@ -170,13 +173,92 @@ function createChatWriteJournal({
                 throw error;
             }
         }
-        // Persist before publishing to memory or acknowledging the request.
-        kvSet(keyOnDisk, encoded);
-        records.set(key, {
+        const prepared = {
+            key,
+            previous,
+            record,
+            keyOnDisk,
+            encoded,
+            writeCount: 0,
+        };
+        preparedStages.add(prepared);
+        return prepared;
+    }
+
+    function requirePreparedStage(prepared) {
+        if (!prepared || typeof prepared !== 'object' || !preparedStages.has(prepared)) {
+            throw new Error('Refusing an unknown or already-published chat journal stage');
+        }
+        if (records.get(prepared.key) !== prepared.previous) {
+            throw new Error('Refusing a stale prepared chat journal stage');
+        }
+    }
+
+    function describePreparedStage(prepared) {
+        requirePreparedStage(prepared);
+        return {
+            storageKey: prepared.keyOnDisk,
+            storageBytes: prepared.encoded.byteLength,
+        };
+    }
+
+    // Synchronous by design: callers may compose this exact write with other
+    // already-prepared KV writes inside better-sqlite3's transaction callback.
+    // Repeating it before publication is safe and supports retry after rollback.
+    function writePreparedStage(prepared) {
+        requirePreparedStage(prepared);
+        kvSet(prepared.keyOnDisk, prepared.encoded);
+        prepared.writeCount += 1;
+        return describePreparedStage(prepared);
+    }
+
+    // Publish only after the surrounding durable transaction returns. This
+    // method performs no I/O and consumes the prepared token exactly once.
+    function publishPreparedStage(prepared) {
+        requirePreparedStage(prepared);
+        if (prepared.writeCount < 1) {
+            throw new Error('Refusing to publish an unwritten chat journal stage');
+        }
+        records.set(prepared.key, {
+            ...prepared.record,
+            storageKey: prepared.keyOnDisk,
+            storageBytes: prepared.encoded.byteLength,
+        });
+        preparedStages.delete(prepared);
+    }
+
+    // Rehydrate one transaction-committed record after a process restart or
+    // after commit-before-publication failure. The caller remains responsible
+    // for checking the chat hash/revision against its immutable commit record.
+    async function restoreDurableStage(chaId, chatId, { validate = () => true } = {}) {
+        const keyOnDisk = storageKey(prefix, chaId, chatId);
+        const value = kvGet(keyOnDisk);
+        if (!value) return null;
+        const record = await decode(value);
+        if (!isValidRecord(record) || record.chaId !== chaId || record.chatId !== chatId) {
+            throw new Error('Refusing to restore an invalid durable chat journal stage');
+        }
+        const accepted = validate(record);
+        if (accepted && typeof accepted.then === 'function') {
+            throw new Error('Durable chat journal validation must be synchronous');
+        }
+        if (!accepted) {
+            throw new Error('Refusing a durable chat journal stage rejected by its commit receipt');
+        }
+        const durable = {
             ...record,
             storageKey: keyOnDisk,
-            storageBytes: encoded.byteLength,
-        });
+            storageBytes: Buffer.byteLength(value),
+        };
+        records.set(pairKey(chaId, chatId), durable);
+        return durable;
+    }
+
+    async function stage(chaId, chatId, chat, { awaitingMetadata }) {
+        const prepared = await prepareStage(chaId, chatId, chat, { awaitingMetadata });
+        // Persist before publishing to memory or acknowledging the request.
+        writePreparedStage(prepared);
+        publishPreparedStage(prepared);
     }
 
     async function restoreInto(chatStore) {
@@ -218,6 +300,7 @@ function createChatWriteJournal({
 
     function resetMemory() {
         records.clear();
+        preparedStages = new WeakSet();
         loaded = false;
         loadPromise = null;
     }
@@ -225,6 +308,11 @@ function createChatWriteJournal({
     return {
         prefix,
         ensureLoaded,
+        prepareStage,
+        describePreparedStage,
+        writePreparedStage,
+        publishPreparedStage,
+        restoreDurableStage,
         stage,
         restoreInto,
         clearAfterDatabasePersist,
