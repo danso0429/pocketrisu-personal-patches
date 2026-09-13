@@ -133,11 +133,11 @@ function makeHarness() {
         scheduleChatStorePersist: () => { runtime.schedules += 1 },
         encodeSettingsSnapshot: encodeRisuSaveLegacy,
     })
-    const transformed = (operationId: string, rawText = 'hello') => ({
+    const transformed = (operationId: string, rawText = 'hello', sourceChat = baseChat()) => ({
         chat: {
-            ...baseChat(),
+            ...sourceChat,
             message: [
-                ...baseChat().message,
+                ...sourceChat.message,
                 {
                     role: 'user',
                     data: rawText,
@@ -182,7 +182,7 @@ describe('pre-canonical server chat input owner', () => {
             status: 'admitted',
             reused: false,
             record: {
-                recordVersion: 2,
+                recordVersion: 3,
                 admissionSeq: 1,
                 queuePredecessorId: null,
                 transformState: 'not_run',
@@ -218,7 +218,8 @@ describe('pre-canonical server chat input owner', () => {
             status: 'conflict', reason: 'operation_fingerprint_conflict',
         })
         await expect(owner.admit(admission('operation-input-admit-2'))).resolves.toMatchObject({
-            status: 'conflict', reason: 'chat_input_busy', blockingOperationId: operationId,
+            status: 'admitted',
+            record: { admissionSeq: 2, queuePredecessorId: operationId },
         })
     })
 
@@ -352,25 +353,20 @@ describe('pre-canonical server chat input owner', () => {
         expect(owner.pendingProjection('char-1', 'chat-1')).toEqual([])
     })
 
-    it('settles a completed input and assigns the next admission its predecessor', async () => {
+    it('admits N+1 outside canonical chat and advances only after N publishes', async () => {
         const harness = makeHarness()
         const owner = harness.makeOwner()
         const firstOperation = 'operation-input-sequence-1'
         await owner.admit(admission(firstOperation))
         await owner.beginTransform(firstOperation)
         const attached = await owner.attachTransformed(firstOperation, harness.transformed(firstOperation))
-        expect(owner.settleSynchronously(
-            firstOperation,
-            'completed',
-            attached.record.executionBaseRevision,
-        )).toBe(true)
-        expect(owner.settingsSnapshotStats()).toMatchObject({ contexts: 0, bytes: 0 })
 
         const secondOperation = 'operation-input-sequence-2'
         const secondAdmission = {
             ...admission(secondOperation),
             submittedBaseRevision: attached.record.executionBaseRevision,
         }
+        const attachedChat = harness.runtime.fullStore.get('char-1')?.get('chat-1') as any
         await expect(owner.admit({
             ...secondAdmission,
             inputCommandId: `input-${firstOperation}`,
@@ -382,6 +378,171 @@ describe('pre-canonical server chat input owner', () => {
         await expect(owner.admit(secondAdmission)).resolves.toMatchObject({
             status: 'admitted',
             record: { admissionSeq: 2, queuePredecessorId: firstOperation },
+        })
+        expect(harness.runtime.fullStore.get('char-1')?.get('chat-1')).toEqual(attachedChat)
+        expect(owner.pendingProjection('char-1', 'chat-1')).toMatchObject([{
+            operationId: secondOperation,
+            predecessorOperationId: firstOperation,
+            state: 'waiting_predecessor',
+        }])
+        await expect(owner.loadExecution(secondOperation)).resolves.toMatchObject({
+            status: 'waiting',
+            reason: 'predecessor_active',
+            predecessorOperationId: firstOperation,
+        })
+        await expect(owner.admit({
+            ...secondAdmission,
+            operationId: 'operation-input-sequence-3',
+            inputCommandId: 'input-operation-input-sequence-3',
+            userMessageId: 'user-operation-input-sequence-3',
+        })).resolves.toMatchObject({
+            status: 'conflict',
+            reason: 'chat_input_queue_full',
+            blockingOperationIds: [firstOperation, secondOperation],
+        })
+        const resultChat = {
+            ...attachedChat,
+            message: [
+                ...attachedChat.message,
+                { role: 'char', data: 'first answer', chatId: 'assistant-sequence-1' },
+            ],
+        }
+        const resultRevision = revision(resultChat)
+        expect(owner.settleSynchronously(firstOperation, 'completed', resultRevision)).toBe(true)
+        expect(owner.settingsSnapshotStats()).toMatchObject({ contexts: 1 })
+        await expect(owner.loadExecution(secondOperation)).resolves.toMatchObject({
+            status: 'waiting',
+            reason: 'predecessor_publication_pending',
+        })
+
+        harness.runtime.fullStore.get('char-1')?.set('chat-1', resultChat)
+        await expect(owner.loadExecution(secondOperation)).resolves.toMatchObject({
+            status: 'transform-required',
+            chat: resultChat,
+            record: {
+                effectiveBaseRevision: resultRevision,
+                predecessorResolution: {
+                    operationId: firstOperation,
+                    state: 'completed',
+                    revision: resultRevision,
+                },
+            },
+        })
+        expect(JSON.parse(harness.kvGet(operationStateKey(secondOperation)).toString('utf8')))
+            .toMatchObject({
+                state: 'queued',
+                baseChatRevision: resultRevision,
+                serverBaseChatRevision: resultRevision,
+            })
+        await expect(owner.beginTransform(secondOperation)).resolves.toMatchObject({
+            status: 'started',
+        })
+        await expect(owner.attachTransformed(
+            secondOperation,
+            harness.transformed(secondOperation, 'hello', resultChat),
+        )).resolves.toMatchObject({ status: 'attached', publication: 'published' })
+        expect(harness.runtime.fullStore.get('char-1')?.get('chat-1')?.message.at(-1))
+            .toMatchObject({ chatId: `user-${secondOperation}`, data: 'hello' })
+    })
+
+    it.each(['failed', 'cancelled'] as const)(
+        'advances N+1 over an input-only predecessor that settles %s',
+        async (terminalState) => {
+            const harness = makeHarness()
+            const owner = harness.makeOwner()
+            const firstOperation = `operation-input-lineage-${terminalState}-1`
+            await owner.admit(admission(firstOperation))
+            await owner.beginTransform(firstOperation)
+            const attached = await owner.attachTransformed(
+                firstOperation,
+                harness.transformed(firstOperation),
+            )
+            const secondOperation = `operation-input-lineage-${terminalState}-2`
+            await owner.admit({
+                ...admission(secondOperation),
+                submittedBaseRevision: attached.record.executionBaseRevision,
+            })
+            expect(owner.settleSynchronously(firstOperation, terminalState)).toBe(true)
+
+            await expect(owner.loadExecution(secondOperation)).resolves.toMatchObject({
+                status: 'transform-required',
+                record: {
+                    effectiveBaseRevision: attached.record.executionBaseRevision,
+                    predecessorResolution: {
+                        operationId: firstOperation,
+                        state: terminalState,
+                    },
+                },
+            })
+        },
+    )
+
+    it('advances N+1 over a cancelled predecessor that never attached input', async () => {
+        const harness = makeHarness()
+        const owner = harness.makeOwner()
+        const firstOperation = 'operation-input-lineage-cancel-before-1'
+        const secondOperation = 'operation-input-lineage-cancel-before-2'
+        await owner.admit(admission(firstOperation))
+        await owner.admit(admission(secondOperation))
+        expect(owner.settleSynchronously(firstOperation, 'cancelled')).toBe(true)
+
+        await expect(owner.loadExecution(secondOperation)).resolves.toMatchObject({
+            status: 'transform-required',
+            chat: baseChat(),
+            record: {
+                effectiveBaseRevision: revision(baseChat()),
+                predecessorResolution: {
+                    operationId: firstOperation,
+                    state: 'cancelled',
+                },
+            },
+        })
+    })
+
+    it('blocks N+1 when its predecessor input outcome is unknown', async () => {
+        const harness = makeHarness()
+        const owner = harness.makeOwner()
+        const firstOperation = 'operation-input-lineage-unknown-1'
+        const secondOperation = 'operation-input-lineage-unknown-2'
+        await owner.admit(admission(firstOperation))
+        await owner.admit(admission(secondOperation))
+        await owner.beginTransform(firstOperation)
+        expect(owner.markRunFailureSynchronously(firstOperation, false)).toBe(true)
+
+        await expect(owner.loadExecution(secondOperation)).resolves.toMatchObject({
+            status: 'blocked',
+            reason: 'predecessor_outcome_unknown',
+            predecessorOperationId: firstOperation,
+        })
+        expect(owner.pendingProjection('char-1', 'chat-1')).toEqual(
+            expect.arrayContaining([
+                expect.objectContaining({ operationId: firstOperation, state: 'blocked_edit' }),
+                expect.objectContaining({ operationId: secondOperation, state: 'blocked_edit' }),
+            ]),
+        )
+    })
+
+    it('blocks a non-adjacent predecessor identity instead of skipping an admitted command', async () => {
+        const harness = makeHarness()
+        const owner = harness.makeOwner()
+        const firstOperation = 'operation-input-lineage-adjacent-1'
+        const secondOperation = 'operation-input-lineage-adjacent-2'
+        const thirdOperation = 'operation-input-lineage-adjacent-3'
+        await owner.admit(admission(firstOperation))
+        expect(owner.settleSynchronously(firstOperation, 'cancelled')).toBe(true)
+        await owner.admit(admission(secondOperation))
+        expect(owner.settleSynchronously(secondOperation, 'cancelled')).toBe(true)
+        await owner.admit(admission(thirdOperation))
+
+        const thirdRecord = JSON.parse(
+            harness.kvGet(commandKey(thirdOperation)).toString('utf8'),
+        )
+        thirdRecord.queuePredecessorId = firstOperation
+        harness.kvSet(commandKey(thirdOperation), JSON.stringify(thirdRecord))
+
+        await expect(owner.loadExecution(thirdOperation)).resolves.toMatchObject({
+            status: 'blocked',
+            reason: 'predecessor_identity_unavailable',
         })
     })
 

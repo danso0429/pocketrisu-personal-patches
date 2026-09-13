@@ -18,7 +18,7 @@ function unit(id) {
 }
 
 test('C3: exact-1.10 graph owns revision-bound chat execution projection', () => {
-    assert.equal(adapter.version, '0.5.0')
+    assert.equal(adapter.version, '0.6.0')
     const resolution = resolveSelection(loadCatalog(), ['lazy-chat-sync', 'bg-preserve'])
     const units1100 = flattenUnits(resolution.packs, target1100)
     const units190 = flattenUnits(resolution.packs, target190)
@@ -27,6 +27,8 @@ test('C3: exact-1.10 graph owns revision-bound chat execution projection', () =>
         'server/node/serverChatExecutionProjection.test.ts',
         'server/node/serverChatInputOwner.cjs',
         'server/node/serverChatInputOwner.test.ts',
+        'server/node/serverChatSettingsContext.cjs',
+        'server/node/serverChatSettingsContext.test.ts',
         'src/ts/bgServerCommitHydration.ts',
         'src/ts/bgServerCommitHydration.test.ts',
         'src/ts/storage/serverCommittedChatAdoption.test.ts',
@@ -51,16 +53,19 @@ test('C3: pre-canonical server input remains an explicit dormant contract', () =
     const terminal = unit('lazy-chat-bg-adapter:server-chat-commit-terminal:1.10')
     const intermediate = unit('lazy-chat-bg-adapter:server-input-intermediate-policy:1.10')
     assert.match(capability.content, /inputCommandVersion: 0/)
-    assert.match(capability.content, /inputCommandFoundationVersion: serverChatInputOwner \? 2 : 0/)
+    assert.match(capability.content, /inputCommandFoundationVersion: serverChatInputOwner \? 3 : 0/)
     assert.match(start.content, /serverChatInputOwner\.admit/)
     assert.match(start.content, /serverRunChat/)
     assert.match(start.content, /serverRunChat = serverInputExecution\.chat/)
+    assert.match(start.content, /input-waiting-predecessor/)
+    assert.match(start.content, /record\.effectiveBaseRevision/)
     assert.match(transform.content, /runTrigger/)
     assert.match(transform.content, /processScript/)
     assert.match(transform.content, /attachInputTransform/)
     assert.match(settings.content, /readInputSettingsSnapshot/)
     assert.match(settings.content, /decodeRisuSave/)
     assert.match(settings.content, /settingsSnapshot\.contextDigest/)
+    assert.match(settings.content, /overlayServerChatDynamicState/)
     assert.match(settings.content, /server input settings context unavailable/)
     assert.match(
         unit('lazy-chat-bg-adapter:owned:server-chat-input-owner:1.10').content,
@@ -72,6 +77,10 @@ test('C3: pre-canonical server input remains an explicit dormant contract', () =
     assert.match(
         unit('lazy-chat-bg-adapter:server-chat-commit-operation-state:1.10').content,
         /inputCommandId/,
+    )
+    assert.match(
+        unit('lazy-chat-bg-adapter:server-chat-commit-operation-meta:1.10').content,
+        /record\.effectiveBaseRevision/,
     )
     assert.match(
         unit('lazy-chat-bg-adapter:server-chat-commit-run-context:1.10').content,

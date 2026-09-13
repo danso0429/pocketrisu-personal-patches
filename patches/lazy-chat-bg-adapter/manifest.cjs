@@ -21,7 +21,7 @@ const bgGlobalApiUnits = [
 module.exports = {
     id: 'lazy-chat-bg-adapter',
     title: 'BG preserve integration for lazy chat storage',
-    version: '0.5.0',
+    version: '0.6.0',
     targets: {
         pocketrisu: {
             verified: ['1.8.1', '1.9.0', '1.10.0'],
@@ -640,6 +640,22 @@ function rememberServerCommittedTarget(operationId: string, hydration: any): voi
             targetVersions: pocketRisu1100,
         },
         {
+            id: 'lazy-chat-bg-adapter:owned:server-chat-settings-context:1.10',
+            file: 'server/node/serverChatSettingsContext.cjs',
+            type: 'owned',
+            content: owned1100('server/node/serverChatSettingsContext.cjs'),
+            requires: ['lazy-chat-bg-adapter:owned:server-chat-input-owner-test:1.10'],
+            targetVersions: pocketRisu1100,
+        },
+        {
+            id: 'lazy-chat-bg-adapter:owned:server-chat-settings-context-test:1.10',
+            file: 'server/node/serverChatSettingsContext.test.ts',
+            type: 'owned',
+            content: owned1100('server/node/serverChatSettingsContext.test.ts'),
+            requires: ['lazy-chat-bg-adapter:owned:server-chat-settings-context:1.10'],
+            targetVersions: pocketRisu1100,
+        },
+        {
             id: 'lazy-chat-bg-adapter:owned:server-chat-execution-projection:1.10',
             file: 'server/node/serverChatExecutionProjection.cjs',
             type: 'owned',
@@ -1011,11 +1027,14 @@ const serverChatCommitOwner = createServerChatCommitOwner({
       if (!stripped || !Array.isArray(stripped.characters)) {
         throw new Error('server input settings snapshot is invalid')
       }
+      const currentStripped = dbCache && deps.DB_HEX_KEY ? dbCache[deps.DB_HEX_KEY] : null
+      const { overlayServerChatDynamicState } = require('./serverChatSettingsContext.cjs')
+      stripped = overlayServerChatDynamicState(stripped, currentStripped, selectedCharId)
     }
 `,
             requires: [
                 'bg-preserve:owned:server/node/bgOrchestrator.cjs:1.9',
-                'lazy-chat-bg-adapter:owned:server-chat-input-owner:1.10',
+                'lazy-chat-bg-adapter:owned:server-chat-settings-context-test:1.10',
             ],
             after: ['pagefold-bg-adapter:bundle-stale-sources:1.10'],
             targetVersions: pocketRisu1100,
@@ -1277,6 +1296,8 @@ const serverChatCommitOwner = createServerChatCommitOwner({
                 ? admission.reason : 'server-input-admission-conflict',
               ...(admission && admission.blockingOperationId
                 ? { blockingOperationId: admission.blockingOperationId } : {}),
+              ...(admission && Array.isArray(admission.blockingOperationIds)
+                ? { blockingOperationIds: admission.blockingOperationIds } : {}),
             })
           }
           const inputActiveExisting = orchestrationRuns.get(operationId)
@@ -1301,6 +1322,20 @@ const serverChatCommitOwner = createServerChatCommitOwner({
             })
           }
           serverInputExecution = await serverChatInputOwner.loadExecution(operationId)
+          if (serverInputExecution && serverInputExecution.status === 'waiting') {
+            return res.status(202).json({
+              handled: true,
+              started: false,
+              accepted: true,
+              operationId,
+              state: 'input-waiting-predecessor',
+              predecessorOperationId: serverInputExecution.predecessorOperationId,
+              reason: serverInputExecution.reason,
+              resultKeyVersion: 1,
+              serverChatCommitVersion: 1,
+              inputCommandVersion: 1,
+            })
+          }
           if (!serverInputExecution
             || (serverInputExecution.status !== 'transform-required'
               && serverInputExecution.status !== 'attached')) {
@@ -1317,7 +1352,7 @@ const serverChatCommitOwner = createServerChatCommitOwner({
           if (inputCommandVersion === 1) {
             const record = serverInputExecution.record
             const revision = serverInputExecution.status === 'attached'
-              ? record.executionBaseRevision : record.admission.submittedBaseRevision
+              ? record.executionBaseRevision : record.effectiveBaseRevision
             serverCommitBase = { revision, submittedRevision: revision, matches: true }
           } else {
             try {
@@ -1386,7 +1421,7 @@ const serverChatCommitOwner = createServerChatCommitOwner({
     res.json({
       contract: 'bg_orchestration_capabilities.v1',
       inputCommandVersion: 0,
-      inputCommandFoundationVersion: serverChatInputOwner ? 2 : 0,
+      inputCommandFoundationVersion: serverChatInputOwner ? 3 : 0,
       serverChatCommitVersion: serverChatCommitOwner ? 1 : 0,
       chatExecutionProjectionVersion: serverChatCommitOwner ? 1 : 0,
     })
@@ -1418,10 +1453,12 @@ const serverChatCommitOwner = createServerChatCommitOwner({
             ? { baseChatRevision: requestedBaseChatRevision }
             : {}),
 `,
-            content: `          ...(typeof requestedBaseChatRevision === 'string'
-            && requestedBaseChatRevision.length > 0 && requestedBaseChatRevision.length <= 256
-            ? { baseChatRevision: requestedBaseChatRevision }
-            : {}),
+            content: `          ...(inputCommandVersion === 1
+            ? { baseChatRevision: serverInputExecution.record.effectiveBaseRevision }
+            : typeof requestedBaseChatRevision === 'string'
+              && requestedBaseChatRevision.length > 0 && requestedBaseChatRevision.length <= 256
+              ? { baseChatRevision: requestedBaseChatRevision }
+              : {}),
           ...(serverChatCommitVersion === 1 ? {
             serverChatCommitVersion,
             serverBaseChatRevision,
@@ -1684,10 +1721,16 @@ const serverChatCommitOwner = createServerChatCommitOwner({
         || inputCommand.admission.chatId !== chatId) {
         return res.status(409).json({ accepted: false, operationId, state: 'coordinate-conflict' })
       }
+      const pendingInput = typeof serverChatInputOwner.pendingProjection === 'function'
+        ? serverChatInputOwner.pendingProjection(charId, chatId)
+          .find((entry) => entry.operationId === operationId)
+        : null
       const state = inputCommand.transformState === 'unknown'
         ? 'input-transform-unknown'
         : inputCommand.inputState === 'attached'
           ? 'input-attached'
+          : pendingInput && pendingInput.state === 'waiting_predecessor'
+            ? 'input-waiting-predecessor'
           : inputCommand.inputState === 'queued'
             ? 'input-queued'
             : 'input-' + inputCommand.inputState
@@ -1700,6 +1743,7 @@ const serverChatCommitOwner = createServerChatCommitOwner({
         inputCommandVersion: 1,
         inputCommandId: inputCommand.admission.inputCommandId,
         admissionSeq: inputCommand.admissionSeq,
+        predecessorOperationId: inputCommand.queuePredecessorId,
       })
     }
     const run = orchestrationRuns.get(operationId)

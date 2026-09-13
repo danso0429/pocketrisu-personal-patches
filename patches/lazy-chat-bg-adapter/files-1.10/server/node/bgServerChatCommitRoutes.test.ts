@@ -464,6 +464,90 @@ function detachedCommitHarness() {
 }
 
 describe('server chat commit route precedence', () => {
+    it('acknowledges a durable N+1 command without scheduling before its predecessor', async () => {
+        const routes = new Map<string, (request: any, response: any) => unknown>()
+        const app: Record<string, unknown> = {}
+        for (const method of ['get', 'post', 'delete']) {
+            app[method] = (
+                route: string,
+                ...handlers: Array<(request: any, response: any) => unknown>
+            ) => routes.set(`${method.toUpperCase()} ${route}`, handlers.at(-1)!)
+        }
+        const operationId = 'operation-input-waiting-route-2'
+        const predecessorOperationId = 'operation-input-waiting-route-1'
+        let startCalls = 0
+        registerBgOrchestrator(app, {
+            sessionAuthMiddleware: () => {},
+            ensureChatStore: async () => {},
+            getDbCache: () => ({ database: { characters: [] } }),
+            getFullChatStore: () => new Map(),
+            DB_HEX_KEY: 'database',
+            kvGet: () => null,
+            kvSet: () => {},
+            kvDel: () => {},
+            kvList: () => [],
+            kvGetUpdatedAt: () => Date.now(),
+            orchestrationRuns: {
+                get: () => null,
+                start: () => { startCalls += 1; return { started: false } },
+                status: () => null,
+                cancel: () => ({ cancelled: false, run: null }),
+                isActive: () => false,
+            },
+            serverChatCommitOwner: {},
+            serverChatInputOwner: {
+                admit: async () => ({ status: 'admitted', reused: false }),
+                loadExecution: async () => ({
+                    status: 'waiting',
+                    reason: 'predecessor_active',
+                    predecessorOperationId,
+                }),
+            },
+        })
+        const response = { status: 200, body: null as any }
+        const res = {
+            status(code: number) { response.status = code; return this },
+            json(body: unknown) { response.body = body; return this },
+        }
+        await routes.get('POST /api/bg-orchestrate')!({
+            body: {
+                detached: true,
+                startAckVersion: 1,
+                resultKeyVersion: 1,
+                serverChatCommitVersion: 1,
+                inputCommandVersion: 1,
+                selectedCharId: 'char-1',
+                selectedChatId: 'chat-1',
+                currentChat: { id: 'chat-1', message: [] },
+                baseChatRevision: 'a'.repeat(64),
+                operationId,
+                inputCommand: {
+                    inputCommandId: 'input-waiting-route-2',
+                    userMessageId: 'user-waiting-route-2',
+                    rawText: 'next',
+                    submittedAt: 1_700_000_000_000,
+                },
+            },
+        }, res)
+
+        expect(response).toEqual({
+            status: 202,
+            body: {
+                handled: true,
+                started: false,
+                accepted: true,
+                operationId,
+                state: 'input-waiting-predecessor',
+                predecessorOperationId,
+                reason: 'predecessor_active',
+                resultKeyVersion: 1,
+                serverChatCommitVersion: 1,
+                inputCommandVersion: 1,
+            },
+        })
+        expect(startCalls).toBe(0)
+    })
+
     it('admits, attaches, and commits a pre-canonical input through the detached route', async () => {
         const harness = detachedCommitHarness()
         await expect(harness.startInput()).resolves.toMatchObject({
