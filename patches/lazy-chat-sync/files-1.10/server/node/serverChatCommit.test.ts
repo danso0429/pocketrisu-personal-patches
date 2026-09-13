@@ -193,6 +193,7 @@ function makeHarness() {
         writeJson(`canonical/owners/${commitRequest.storedChatId}`, commitRequest.owners)
         writeJson(`canonical/effects/${commitRequest.operationId}`, commitRequest.effectIntents)
         return {
+            commitSequence: 1,
             effects: {
                 chat: { status: 'committed' },
                 metadata: { status: 'committed' },
@@ -386,6 +387,7 @@ describe('server chat commit primitive', () => {
         harness.prime(commitRequest)
         const committer = harness.makeCommitter({
             writeCanonicalState: () => ({
+                commitSequence: 1,
                 effects: {
                     chat: { status: 'committed' },
                     metadata: { status: 'committed' },
@@ -471,6 +473,7 @@ describe('server chat commit primitive', () => {
         harness.prime(commitRequest)
         const committer = harness.makeCommitter({
             writeCanonicalState: () => ({
+                commitSequence: 1,
                 effects: {
                     chat: { status: 'committed' },
                     metadata: { status: 'committed' },
@@ -556,6 +559,7 @@ describe('server chat commit primitive', () => {
         asynchronous.prime(commitRequest)
         const asyncCommitter = asynchronous.makeCommitter({
             writeCanonicalState: async () => ({
+                commitSequence: 1,
                 effects: {
                     chat: { status: 'committed' },
                     metadata: { status: 'committed' },

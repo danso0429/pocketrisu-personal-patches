@@ -12,14 +12,22 @@ const { commitSnapshotRestore, createChatWriteJournal } = journalPackage as {
     }) => void
     createChatWriteJournal: (options: any) => {
         prefix: string
-        prepareStage: (chaId: string, chatId: string, chat: any, options: { awaitingMetadata: boolean }) => Promise<any>
+        prepareStage: (
+            chaId: string,
+            chatId: string,
+            chat: any,
+            options: { awaitingMetadata: boolean; commitOperationId?: string },
+        ) => Promise<any>
         describePreparedStage: (prepared: any) => { storageKey: string; storageBytes: number }
         writePreparedStage: (prepared: any) => { storageKey: string; storageBytes: number }
         publishPreparedStage: (prepared: any) => void
         restoreDurableStage: (
             chaId: string,
             chatId: string,
-            options?: { validate?: (record: any) => boolean },
+            options?: {
+                validate?: (record: any) => boolean
+                expectedStorageKey?: string
+            },
         ) => Promise<any | null>
         stage: (chaId: string, chatId: string, chat: any, options: { awaitingMetadata: boolean }) => Promise<void>
         restoreInto: (store: Map<string, Map<string, any>>) => Promise<void>
@@ -187,6 +195,45 @@ describe('durable chat write journal', () => {
             validate: () => false,
         })).rejects.toThrow('rejected by its commit receipt')
         expect(rejected.size()).toBe(0)
+    })
+
+    it('keeps operation-scoped commit records distinct and out of ordinary replay cleanup', async () => {
+        const first = makeHarness()
+        const writes = []
+        for (const [operationId, data] of [
+            ['operation-journal-1', 'first'],
+            ['operation-journal-2', 'second'],
+        ]) {
+            const prepared = await first.journal.prepareStage(
+                'char-1',
+                'chat-new',
+                chat(data),
+                { awaitingMetadata: false, commitOperationId: operationId },
+            )
+            writes.push(first.journal.writePreparedStage(prepared))
+            first.journal.publishPreparedStage(prepared)
+        }
+        expect(first.kv.size).toBe(2)
+        expect(first.journal.size()).toBe(2)
+        expect(writes[0].storageKey).not.toBe(writes[1].storageKey)
+
+        const ordinaryRestore = new Map<string, Map<string, any>>()
+        await first.journal.restoreInto(ordinaryRestore)
+        expect(ordinaryRestore.size).toBe(0)
+        await first.journal.clearAfterDatabasePersist(databaseWithChats([
+            { id: 'chat-new', name: 'New chat', _stub: true },
+        ]))
+        expect(first.kv.size).toBe(2)
+
+        const restarted = makeHarness(first.kv).journal
+        const firstRecord = await restarted.restoreDurableStage('char-1', 'chat-new', {
+            expectedStorageKey: writes[0].storageKey,
+        })
+        const secondRecord = await restarted.restoreDurableStage('char-1', 'chat-new', {
+            expectedStorageKey: writes[1].storageKey,
+        })
+        expect(firstRecord.chat).toEqual(chat('first'))
+        expect(secondRecord.chat).toEqual(chat('second'))
     })
 
     it('commits snapshot swap and journal discard as one failure-atomic transition', () => {

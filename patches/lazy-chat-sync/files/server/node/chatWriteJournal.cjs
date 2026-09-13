@@ -8,8 +8,17 @@ function pairKey(chaId, chatId) {
     return JSON.stringify([chaId, chatId]);
 }
 
-function storageKey(prefix, chaId, chatId) {
-    return `${prefix}${Buffer.from(pairKey(chaId, chatId), 'utf8').toString('base64url')}`;
+function recordKey(chaId, chatId, commitOperationId = null) {
+    return commitOperationId
+        ? JSON.stringify([chaId, chatId, 'commit', commitOperationId])
+        : pairKey(chaId, chatId);
+}
+
+function storageKey(prefix, chaId, chatId, commitOperationId = null) {
+    return `${prefix}${Buffer.from(
+        recordKey(chaId, chatId, commitOperationId),
+        'utf8',
+    ).toString('base64url')}`;
 }
 
 function hasChatMetadata(database, chaId, chatId) {
@@ -93,7 +102,10 @@ function createChatWriteJournal({
             && typeof record.chat === 'object'
             && record.chat.id === record.chatId
             && Array.isArray(record.chat.message)
-            && typeof record.awaitingMetadata === 'boolean';
+            && typeof record.awaitingMetadata === 'boolean'
+            && (record.commitOperationId === undefined
+                || (typeof record.commitOperationId === 'string'
+                    && /^[A-Za-z0-9_-]{8,128}$/.test(record.commitOperationId)));
     }
 
     async function ensureLoaded() {
@@ -109,7 +121,11 @@ function createChatWriteJournal({
                         onInvalid(key, new Error('invalid chat write journal record'));
                         continue;
                     }
-                    records.set(pairKey(record.chaId, record.chatId), {
+                    records.set(recordKey(
+                        record.chaId,
+                        record.chatId,
+                        record.commitOperationId || null,
+                    ), {
                         ...record,
                         storageKey: key,
                         storageBytes: Buffer.byteLength(value),
@@ -129,9 +145,19 @@ function createChatWriteJournal({
         }
     }
 
-    async function prepareStage(chaId, chatId, chat, { awaitingMetadata }) {
+    async function prepareStage(
+        chaId,
+        chatId,
+        chat,
+        { awaitingMetadata, commitOperationId = null },
+    ) {
         await ensureLoaded();
-        const key = pairKey(chaId, chatId);
+        if (commitOperationId !== null
+            && (typeof commitOperationId !== 'string'
+                || !/^[A-Za-z0-9_-]{8,128}$/.test(commitOperationId))) {
+            throw new Error('Refusing an invalid commit operation journal identity');
+        }
+        const key = recordKey(chaId, chatId, commitOperationId);
         const previous = records.get(key);
         const record = {
             version: 1,
@@ -142,11 +168,12 @@ function createChatWriteJournal({
             // keep waiting until that stub is durably committed.
             awaitingMetadata: previous?.awaitingMetadata === true || awaitingMetadata === true,
             updatedAt: Date.now(),
+            ...(commitOperationId ? { commitOperationId } : {}),
         };
         if (!isValidRecord(record)) {
             throw new Error('Refusing to journal an invalid chat payload');
         }
-        const keyOnDisk = storageKey(prefix, chaId, chatId);
+        const keyOnDisk = storageKey(prefix, chaId, chatId, commitOperationId);
         const encoded = Buffer.from(encode(record));
         if (record.awaitingMetadata) {
             const currentStats = stats();
@@ -230,13 +257,23 @@ function createChatWriteJournal({
     // Rehydrate one transaction-committed record after a process restart or
     // after commit-before-publication failure. The caller remains responsible
     // for checking the chat hash/revision against its immutable commit record.
-    async function restoreDurableStage(chaId, chatId, { validate = () => true } = {}) {
-        const keyOnDisk = storageKey(prefix, chaId, chatId);
+    async function restoreDurableStage(
+        chaId,
+        chatId,
+        { validate = () => true, expectedStorageKey = null } = {},
+    ) {
+        const keyOnDisk = expectedStorageKey || storageKey(prefix, chaId, chatId);
+        if (typeof keyOnDisk !== 'string' || !keyOnDisk.startsWith(prefix)) {
+            throw new Error('Refusing an invalid durable chat journal storage key');
+        }
         const value = kvGet(keyOnDisk);
         if (!value) return null;
         const record = await decode(value);
         if (!isValidRecord(record) || record.chaId !== chaId || record.chatId !== chatId) {
             throw new Error('Refusing to restore an invalid durable chat journal stage');
+        }
+        if (storageKey(prefix, chaId, chatId, record.commitOperationId || null) !== keyOnDisk) {
+            throw new Error('Refusing a durable chat journal stage with a mismatched storage key');
         }
         const accepted = validate(record);
         if (accepted && typeof accepted.then === 'function') {
@@ -250,7 +287,7 @@ function createChatWriteJournal({
             storageKey: keyOnDisk,
             storageBytes: Buffer.byteLength(value),
         };
-        records.set(pairKey(chaId, chatId), durable);
+        records.set(recordKey(chaId, chatId, record.commitOperationId || null), durable);
         return durable;
     }
 
@@ -264,6 +301,7 @@ function createChatWriteJournal({
     async function restoreInto(chatStore) {
         await ensureLoaded();
         for (const record of records.values()) {
+            if (record.commitOperationId) continue;
             if (!chatStore.has(record.chaId)) {
                 chatStore.set(record.chaId, new Map());
             }
@@ -276,6 +314,7 @@ function createChatWriteJournal({
     async function clearAfterDatabasePersist(strippedDatabase) {
         await ensureLoaded();
         for (const [key, record] of [...records.entries()]) {
+            if (record.commitOperationId) continue;
             const metadataCommitted = hasChatMetadata(
                 strippedDatabase,
                 record.chaId,

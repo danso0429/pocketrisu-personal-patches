@@ -171,6 +171,7 @@ function createHarness() {
             writeJson(`canonical/intent/${commitRequest.operationId}`, commitRequest.hostChangeIntent)
             writeJson(`canonical/owners/${commitRequest.storedChatId}`, commitRequest.owners)
             return {
+                commitSequence: 1,
                 effects: {
                     chat: { status: 'committed' },
                     metadata: { status: 'committed' },
@@ -334,6 +335,7 @@ test('C1: a failed non-prompt effect remains in the durable committed receipt', 
     harness.prime(commitRequest)
     const committer = harness.makeCommitter({
         writeCanonicalState: () => ({
+            commitSequence: 1,
             effects: {
                 chat: { status: 'committed' },
                 metadata: { status: 'committed' },
@@ -357,6 +359,7 @@ test('C1: a failed non-prompt effect remains in the durable committed receipt', 
     assert.equal(result.receipt.effects.stats.status, 'failed')
     assert.deepEqual(committer.status(commitRequest.operationId).receipt, result.receipt)
     assert.deepEqual(committer.readRecovery(commitRequest.operationId).canonicalWrite, {
+        commitSequence: 1,
         effects: {
             chat: { status: 'committed' },
             metadata: { status: 'committed' },
@@ -408,6 +411,7 @@ test('C1: inconsistent per-key effect receipts roll the transaction back', async
     harness.prime(commitRequest)
     const committer = harness.makeCommitter({
         writeCanonicalState: () => ({
+            commitSequence: 1,
             effects: {
                 chat: { status: 'committed' },
                 metadata: { status: 'committed' },

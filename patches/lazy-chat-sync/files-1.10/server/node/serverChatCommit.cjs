@@ -15,6 +15,7 @@ const SHA256 = /^[a-f0-9]{64}$/;
 const COMMITTABLE_OPERATION_STATES = new Set([
     'running',
     'running-result-ready',
+    'running-result-consumed',
     'result-ready',
 ]);
 const EFFECT_STATUSES = new Set(['pending', 'committed', 'skipped', 'conflict', 'failed']);
@@ -356,7 +357,7 @@ function normalizeHostChangeIntent(value, expected, messages, owners) {
         || intent.afterRevision !== expected.storedRevision
         || intent.committedAt !== expected.committedAt
         || intent.payloadRef !== commitStorageKey(expected.operationId)
-        || intent.delivery !== 'pending') {
+        || (intent.delivery !== 'pending' && intent.delivery !== 'settled')) {
         throw invalidCommit('hostChangeIntent identity, sequence, or payload reference is inconsistent');
     }
     if (!owners.some((owner) => owner.sourceGeneration === intent.sourceGeneration)) {
@@ -529,8 +530,8 @@ function normalizeCommitRequest(value) {
     }
     if (owners.some((owner) => (
         acOwner === 'server'
-            ? owner.automaticBackfill !== 'excluded'
-            : owner.automaticBackfill !== 'eligible'
+            ? owner.automaticBackfill !== 'excluded' || owner.acState === 'disabled'
+            : owner.automaticBackfill !== 'eligible' || owner.acState !== 'disabled'
     ))) {
         throw invalidCommit('owner automatic-backfill disposition is inconsistent');
     }
@@ -565,6 +566,10 @@ function normalizeCommitRequest(value) {
     if (!hostChangeIntent.messageIdentities.includes(inputReceipt.messageId)
         || owners.some((owner) => !hostChangeIntent.messageIdentities.includes(owner.messageId))) {
         throw invalidCommit('hostChangeIntent does not cover the input and owner messages');
+    }
+    if ((acOwner === 'server' && hostChangeIntent.delivery !== 'pending')
+        || (acOwner === 'disabled' && hostChangeIntent.delivery !== 'settled')) {
+        throw invalidCommit('hostChangeIntent delivery is inconsistent with AC ownership');
     }
     return {
         contractVersion: SERVER_CHAT_COMMIT_CONTRACT,
@@ -683,6 +688,7 @@ function normalizeCanonicalWrite(value, effectIntents) {
             'globalVariableOutcomes',
             'staticsMessagesAppliedDelta',
             'promptEffectsResolved',
+            'commitSequence',
         ]),
     );
     const effectsSource = requirePlainObject('canonicalWrite.effects', source.effects);
@@ -717,6 +723,10 @@ function normalizeCanonicalWrite(value, effectIntents) {
         throw invalidCommit('prompt effects cannot be resolved while globals remain unresolved');
     }
     return {
+        commitSequence: requirePositiveInteger(
+            'canonicalWrite.commitSequence',
+            source.commitSequence,
+        ),
         effects,
         globalVariableOutcomes,
         staticsMessagesAppliedDelta: source.staticsMessagesAppliedDelta,
@@ -781,7 +791,8 @@ function normalizeStoredRecord(value, expectedOperationId = null) {
         const parsed = JSON.parse(Buffer.isBuffer(value) ? value.toString('utf8') : String(value));
         const record = requirePlainObject('storedRecord', parsed);
         if (record.recordVersion !== 1 || record.contractVersion !== SERVER_CHAT_COMMIT_CONTRACT
-            || !OPERATION_ID.test(record.operationId) || !SHA256.test(record.requestFingerprint)) {
+            || !OPERATION_ID.test(record.operationId) || !SHA256.test(record.requestFingerprint)
+            || !Number.isSafeInteger(record.commitSequence) || record.commitSequence <= 0) {
             return null;
         }
         if (expectedOperationId && record.operationId !== expectedOperationId) return null;
@@ -818,7 +829,12 @@ function normalizeStoredRecord(value, expectedOperationId = null) {
         }
         const journal = requirePlainObject('storedRecord.journal', record.journal);
         if (journal.storageKey !== `${CHAT_WRITE_JOURNAL_PREFIX}${Buffer.from(
-            JSON.stringify([material.requestedCharId, material.storedChatId]),
+            JSON.stringify([
+                material.requestedCharId,
+                material.storedChatId,
+                'commit',
+                material.operationId,
+            ]),
             'utf8',
         ).toString('base64url')}`
             || !Number.isSafeInteger(journal.storageBytes) || journal.storageBytes <= 0
@@ -830,6 +846,7 @@ function normalizeStoredRecord(value, expectedOperationId = null) {
             record.canonicalWrite,
             material.effectIntents,
         );
+        if (canonicalWrite.commitSequence !== record.commitSequence) return null;
         const expectedReceipt = createCommitReceipt(material, record.requestFingerprint, canonicalWrite);
         if (stableJSON(record.commitReceipt) !== stableJSON(expectedReceipt)) return null;
         return {
@@ -958,7 +975,10 @@ function createServerChatCommitter({
             normalized.requestedCharId,
             normalized.storedChatId,
             normalized.chat,
-            { awaitingMetadata: normalized.awaitingMetadata },
+            {
+                awaitingMetadata: normalized.awaitingMetadata,
+                commitOperationId: normalized.operationId,
+            },
         );
         const journalInfo = journal.describePreparedStage(preparedChat);
 
@@ -1008,6 +1028,7 @@ function createServerChatCommitter({
                     recordVersion: 1,
                     contractVersion: SERVER_CHAT_COMMIT_CONTRACT,
                     operationId: normalized.operationId,
+                    commitSequence: canonicalWrite.commitSequence,
                     requestFingerprint,
                     journal: {
                         storageKey: journalInfo.storageKey,
@@ -1045,6 +1066,7 @@ function createServerChatCommitter({
                     claimEpoch: normalized.claimEpoch,
                     acOwner: normalized.acOwner,
                     acState: normalized.acState,
+                    commitSequence: canonicalWrite.commitSequence,
                 });
                 ensureSynchronous('writeCommittedOperationState', stateWrite);
                 if (stateWrite === false || stateWrite?.written === false) {
@@ -1138,6 +1160,7 @@ function createServerChatCommitter({
                 record.recovery.requestedCharId,
                 record.recovery.storedChatId,
                 {
+                    expectedStorageKey: record.journal.storageKey,
                     validate: (candidate) => {
                         const revision = calculateRevision(candidate.chat);
                         ensureSynchronous('calculateRevision', revision);
@@ -1198,6 +1221,7 @@ function createServerChatCommitter({
             const keys = kvList(SERVER_CHAT_COMMIT_PREFIX);
             ensureSynchronous('kvList', keys);
             const results = [];
+            const recoverable = [];
             for (const key of [...keys].sort()) {
                 const record = normalizeStoredRecord(kvGet(key));
                 if (!record || commitStorageKey(record.operationId) !== key) {
@@ -1205,6 +1229,32 @@ function createServerChatCommitter({
                         key,
                         status: 'conflict',
                         reason: 'commit_record_invalid',
+                        receipt: null,
+                        reused: false,
+                    });
+                    continue;
+                }
+                recoverable.push({ key, record });
+            }
+            recoverable.sort((left, right) => (
+                left.record.commitSequence - right.record.commitSequence
+                || (left.record.operationId < right.record.operationId
+                    ? -1
+                    : left.record.operationId > right.record.operationId ? 1 : 0)
+            ));
+            const sequenceCounts = new Map();
+            for (const { record } of recoverable) {
+                sequenceCounts.set(
+                    record.commitSequence,
+                    (sequenceCounts.get(record.commitSequence) || 0) + 1,
+                );
+            }
+            for (const { key, record } of recoverable) {
+                if (sequenceCounts.get(record.commitSequence) !== 1) {
+                    results.push({
+                        key,
+                        status: 'conflict',
+                        reason: 'commit_sequence_conflict',
                         receipt: null,
                         reused: false,
                     });
