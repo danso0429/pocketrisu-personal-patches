@@ -8,6 +8,7 @@ const assert = require('node:assert/strict')
 const repositoryRoot = path.resolve(__dirname, '..')
 const lazyManifest = require('../patches/lazy-chat-sync/manifest.cjs')
 const bgAdapter = require('../patches/lazy-chat-bg-adapter/manifest.cjs')
+const { packEtag, unitMatchesTarget } = require('../src/manager.cjs')
 
 function payload(relative) {
     return fs.readFileSync(
@@ -32,7 +33,7 @@ function payload1100(relative) {
 
 test('lazy chat pack includes CAS, WAL, reconciliation, and safe hydration boundaries', () => {
     assert.equal(lazyManifest.id, 'lazy-chat-sync')
-    assert.equal(lazyManifest.version, '0.3.0')
+    assert.equal(lazyManifest.version, '0.4.0')
     assert.deepEqual(lazyManifest.targets, {
         pocketrisu: {
             verified: ['1.8.1', '1.9.0', '1.10.0'],
@@ -45,6 +46,21 @@ test('lazy chat pack includes CAS, WAL, reconciliation, and safe hydration bound
     assert.match(payload('server/node/server.cjs'), /CHAT_PAYLOAD_MISSING/)
     assert.match(payload('server/node/chatWriteJournal.cjs'), /CHAT_JOURNAL_CAPACITY/)
     assert.match(payload('server/node/chatWriteJournal.cjs'), /DEFAULT_MAX_AWAITING_RECORDS = 128/)
+    assert.match(payload('server/node/chatWriteJournal.cjs'), /prepareStage/)
+    assert.match(payload('server/node/chatWriteJournal.cjs'), /restoreDurableStage/)
+    const serverCommit = lazyManifest.units.find((unit) =>
+        unit.id === 'lazy-chat-sync:owned:server:node:serverChatCommit-cjs:1.10'
+    )
+    const serverCommitTest = lazyManifest.units.find((unit) =>
+        unit.id === 'lazy-chat-sync:owned:server:node:serverChatCommit-test-ts:1.10'
+    )
+    assert.ok(serverCommit)
+    assert.ok(serverCommitTest)
+    assert.deepEqual(serverCommit.targetVersions, { pocketrisu: ['1.10.0'] })
+    assert.deepEqual(serverCommitTest.targetVersions, { pocketrisu: ['1.10.0'] })
+    assert.match(serverCommit.content, /bg_server_chat_commit\.v1/)
+    assert.match(serverCommit.content, /writeCommittedOperationState/)
+    assert.match(serverCommit.content, /pending_recovery/)
     assert.match(payload('src/ts/storage/nodeStorage.ts'), /x-chat-base-revision/)
     assert.match(payload('src/ts/storage/nodeStorage.ts'), /ChatSaveIntent/)
     assert.match(
@@ -184,6 +200,36 @@ test('startup probe accepts either valid browser cache without joining stalled b
     )
     assert.match(probe, /Promise\.race\(pending\.values\(\)\)/)
     assert.doesNotMatch(probe, /Promise\.all/)
+})
+
+test('server commit payload and exact-1.10 scope participate in the lazy pack ETag', () => {
+    const commitIndex = lazyManifest.units.findIndex((unit) =>
+        unit.id === 'lazy-chat-sync:owned:server:node:serverChatCommit-cjs:1.10'
+    )
+    assert.ok(commitIndex >= 0)
+    const original = packEtag(lazyManifest)
+    const mutated = {
+        ...lazyManifest,
+        units: lazyManifest.units.map((unit, index) => (
+            index === commitIndex ? { ...unit, content: `${unit.content}\n// mutation` } : unit
+        )),
+    }
+    assert.notEqual(packEtag(mutated), original)
+    assert.equal(packEtag(lazyManifest), original)
+
+    const commitUnits = lazyManifest.units.filter((unit) =>
+        unit.file === 'server/node/serverChatCommit.cjs'
+        || unit.file === 'server/node/serverChatCommit.test.ts'
+    )
+    assert.equal(commitUnits.length, 2)
+    assert.equal(commitUnits.every((unit) => unitMatchesTarget(unit, {
+        packageName: 'pocketrisu',
+        packageVersion: '1.10.0',
+    })), true)
+    assert.equal(commitUnits.some((unit) => unitMatchesTarget(unit, {
+        packageName: 'pocketrisu',
+        packageVersion: '1.9.0',
+    })), false)
 })
 
 test('BG adapter preserves semantic revisions and adds only the durable flush barrier', () => {

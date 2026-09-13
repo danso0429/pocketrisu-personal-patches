@@ -49,6 +49,11 @@ const ownedFiles = [
     'src/ts/storage/startupDatabaseCache.ts',
 ]
 
+const owned1100Files = [
+    'server/node/serverChatCommit.cjs',
+    'server/node/serverChatCommit.test.ts',
+]
+
 function unitId(relative) {
     return relative.replaceAll('/', ':').replaceAll('.', '-')
 }
@@ -56,7 +61,7 @@ function unitId(relative) {
 module.exports = {
     id: 'lazy-chat-sync',
     title: 'Lazy chat synchronization and startup cache',
-    version: '0.3.0',
+    version: '0.4.0',
     targets: {
         pocketrisu: {
             verified: ['1.8.1', '1.9.0', '1.10.0'],
@@ -104,6 +109,19 @@ module.exports = {
             file: relative,
             type: 'owned',
             content: read(filesRoot, relative),
+        })),
+        ...owned1100Files.map((relative) => ({
+            id: `lazy-chat-sync:owned:${unitId(relative)}:1.10`,
+            file: relative,
+            type: 'owned',
+            content: read(files1100Root, relative),
+            ...(relative === 'server/node/serverChatCommit.test.ts' ? {
+                requires: [
+                    'lazy-chat-sync:owned:server:node:chatWriteJournal-cjs',
+                    'lazy-chat-sync:owned:server:node:serverChatCommit-cjs:1.10',
+                ],
+            } : {}),
+            targetVersions: pocketRisu1100,
         })),
         {
             id: 'lazy-chat-sync:chat-missing-payload-notice',
