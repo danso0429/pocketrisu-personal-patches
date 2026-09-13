@@ -2,7 +2,7 @@
 
 Date: 2026-09-13 KST
 
-Status: **C0 started; product integration, live application, and release are not complete**
+Status: **C0 contract experiments complete; product integration, live application, and release are not complete**
 
 ## Authority and frozen inputs
 
@@ -53,7 +53,7 @@ exit criteria.
 | C0-C | Can ordered host mutations survive gaps, retries, restart, and stale workers? | durable intent/`ingestedSeq`/`safeSeq` state-machine tests | **store primitive complete; Node writer and product route remain C1/C4/C6** |
 | C0-D | Can prepare registration prevent a second paid execution after response loss or restart, and can skip fence a late result? | durable prepare registry and timeout/ready CAS tests | **store primitive complete; HTTP/provider/startup integration remains C4/C6** |
 | C0-E | Can N+1 remain outside canonical chat until its turn, and can Node commit a result with chat, metadata, effects, intent, and owner in one replay boundary? | queued-input and server-commit failure-injection harness | **complete: current owners fail; C1/C3 split primitives are required** |
-| C0-F | Do output stages remain foreground/BG-equivalent, and can a blank browser discover ownership after result TTL cleanup? | stage parity fixture and revision-bound projection fixture | pending |
+| C0-F | Do output stages remain foreground/BG-equivalent, and can a blank browser discover ownership after result TTL cleanup? | stage parity fixture and revision-bound projection fixture | **complete: current result/projection are insufficient; C2/C5/C6 contracts required** |
 
 C0-B precedes the other AC write experiments because claim/binding epochs are
 inputs to prepare, mutation, and settle identities. C0-E begins with a focused
@@ -389,13 +389,51 @@ The detailed report is
 `docs/POCKETRISU-1.10-BG-AC-C0-E-NODE-STORAGE-CHARACTERIZATION.md`; its SHA-256
 is `a55470d3c4b96ed79ff51ded48d012a688ef5a4e2eb57273aa84aa5023a26ec4`.
 
+### C0-F output-stage and owner-projection characterization
+
+Patcher test commit `8cd6a47` adds five test-only probes against the exact
+PocketRisu 1.10 units emitted by the BG manifest adapter. It changes no managed
+unit, manifest, catalog, installer, target, or live process.
+
+Observed boundaries:
+
+- the current server result exposes final/intermediate chat, statics/global
+  deltas, and errors but no provider→native→AC→prefill→replacement→canonical→
+  AC-candidate stage trace; two distinct histories can produce the same current
+  projection;
+- the exact client still executes merge→strict chat/root save→result ACK and
+  has no versioned server-chat-commit branch;
+- durable delivery records are operation/chat-level six-field markers, not
+  message/source-generation owner records with AC/backfill state;
+- both durable marker lookups require a known operation ID and the root list is
+  capped at 128;
+- the proposed authenticated char/chat/revision chat-state endpoint and
+  authoritative coverage contract are absent; and
+- after result/local-marker cleanup, a new browser has no operation-free owner
+  lookup, so missing cannot be treated as an empty authoritative owner set.
+
+The first harness run was 3/5 because it incorrectly required explicit target
+metadata on a universal owned unit. The selector now prefers explicit 1.10 and
+otherwise requires one universal unit; the same five probes then passed 5/5.
+Full patcher `npm test` reports 49/49 files and the test passes `node --check`.
+
+This fixes the C2/C5/C6 design boundary: preserve the legacy client delivery
+path, add a versioned server commit and stage trace, share a pure AC output
+transform, and persist authoritative message/source ownership with normal chat
+lifetime plus a revision-fenced companion endpoint.
+
+The detailed report is
+`docs/POCKETRISU-1.10-BG-AC-C0-F-OUTPUT-OWNER-CHARACTERIZATION.md`; its SHA-256
+is `0df92f0ba7431ccbaab7241400b22771bd1e2e979698e50bcf6bdea3a5e4dd63`.
+
 ## Existing owners to extend
 
 | Need | Existing owner | Confirmed gap |
 | --- | --- | --- |
 | Node serialization | `queueStorageOperation` and `fullChatStore` in the exact-1.10 lazy server owner | C0-E fixes the gap: no server-level generation commit primitive; current input enters canonical save before operation admission |
 | Chat payload WAL | `chatWriteJournal` | C0-E proves async stage cannot be treated as a synchronous SQLite transaction and recovery lacks metadata/effect/intent/owner receipts |
-| BG lifecycle | generated `bgOrchestrator.cjs` source owned by `patches/bg-preserve.json` | terminal result is parked in KV for a browser consumer; it is not a normal chat commit |
+| BG lifecycle/output | generated exact-1.10 `bgOrchestrator.cjs` and `bgOrchestrate.ts` | C0-F proves terminal result collapses output stages and remains browser merge/save/ACK, not a server chat commit |
+| BG delivery ownership | chat/root `bgOrchestrationDelivery` markers plus bounded result retention | markers are operation-level and require known operation ID; message/source AC ownership and char/chat/revision projection are absent |
 | AC route identity | `SessionRouteBindingStore`, `HostSessionExecutionStore`, and serializable route/claim transactions | store acquire/status/settle and exact-stream watermarks exist; authenticated route, nonterminal phases, and receipt/context links remain absent |
 | AC source invalidation | durable source revisions, transactional invalidation/outbox fences, and the C0-C ordered host stream | store primitive is connected; Node durable writer, host transport, input/response completion, and multi-stream aggregation remain absent |
 | AC prepare/complete idempotency | durable `HostPrepareRegistryStore`, in-process complete request ledger, and durable source records | prepare store exists; authenticated HTTP/provider/startup recovery, typed result semantics, and server-host complete receipt remain absent |
@@ -424,10 +462,13 @@ focused owner graphs and complete-graph lifecycle from `PATCHER-V2-DESIGN.md`.
 The retired subset-mask verifier is historical evidence, not the active
 delivery gate. Runtime L2.5 remains separate.
 
-## C0 exit gate
+## C0 experiment verdict and product gate
 
-C0 remains open until all of the following are recorded with failure-injection
-evidence:
+The C0-A through C0-F contract experiments are now recorded. Their result is
+not positive product qualification: C0-B/C/D supply store primitives, while
+C0-A/E/F prove that new typed host, Node storage/input, output, and owner
+contracts are required. C1-C6 remain responsible for implementing and
+integrating the following product evidence:
 
 - one fenced execution owner across concurrent foreground/server acquire,
   route remap, late settle, and every terminal outcome;
@@ -445,5 +486,5 @@ evidence:
 - versioned request/response/error DTOs, migration location, entry-point support
   table, and an exact list of unverified combinations.
 
-Until that gate closes, C1–C7, live support, stable release, and browser-exit
-success all remain unclaimed.
+Until that product gate closes, live support, C7 qualification, stable release,
+and browser-exit success all remain unclaimed.
