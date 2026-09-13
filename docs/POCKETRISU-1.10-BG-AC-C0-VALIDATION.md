@@ -48,8 +48,8 @@ exit criteria.
 | Slice | Contract question | Primary evidence | State |
 | --- | --- | --- | --- |
 | C0-ENV | Can the fixed AC baseline and candidates run against disposable MariaDB/Chroma data without touching the future production install? | verified release staging, alternate loopback ports, readiness/schema smoke, process/readback receipt | **complete for the unmodified 4.3.1 baseline** |
-| C0-A | Can existing prepare/complete source contracts honestly represent the server host? | positive/negative Go characterization probes | **started: current contracts are insufficient** |
-| C0-B | Can one owner atomically claim a current route binding and can every terminal outcome release only its own epoch? | store-level concurrent acquire/status/settle tests plus route-remap fence | pending |
+| C0-A | Can existing prepare/complete source contracts honestly represent the server host? | positive/negative Go characterization probes | **complete: new typed contracts are required** |
+| C0-B | Can one owner atomically claim a current route binding and can every terminal outcome release only its own epoch? | store-level concurrent acquire/status/settle tests plus route-remap fence | **store primitive complete; authenticated product route remains C4** |
 | C0-C | Can ordered host mutations survive gaps, retries, restart, and stale workers? | durable intent/`ingestedSeq`/`safeSeq` state-machine tests | pending |
 | C0-D | Can prepare registration prevent a second paid execution after response loss or restart, and can skip fence a late result? | durable prepare registry and timeout/ready CAS tests | pending |
 | C0-E | Can N+1 remain outside canonical chat until its turn, and can Node commit a result with chat, metadata, effects, intent, and owner in one replay boundary? | queued-input and server-commit failure-injection harness | pending |
@@ -180,6 +180,60 @@ the proposed `pocketrisu_prepare_host_observation.v1` or
 `source_acceptance_observation.v4` has been implemented. C4 must replace these
 baseline expectations with positive and adversarial tests for the new typed
 contracts.
+
+### C0-B durable execution claim primitive
+
+Archive Center local implementation commit `2b16b56` adds an optional
+`HostSessionExecutionStore` and additive migration 014 without mounting an HTTP
+route. Validation/audit commit `3fad4ae` records the external anchors and
+`486e599` records the final isolated-runtime readback. One canonical AC session
+has one active slot; immutable terminal outcomes preserve operation/end-event
+replay after the slot advances.
+
+Observed boundaries:
+
+- the existing route binding is reread under a serializable transaction and an
+  opaque epoch changes with route revision;
+- two different host bindings resolving to one canonical session produce one
+  `acquired` and one `wait`;
+- identical active acquire returns the same claim, while a changed binding or
+  required host sequence cannot borrow it;
+- settle inserts the terminal outcome and clears only the exact
+  operation/claim epoch in one transaction;
+- route change produces a fenced `binding_changed` terminal, and its late
+  replay does not clear the newer owner;
+- all ten admitted terminal reasons release the slot for a later claim;
+- terminal replay still wins after a later route change or binding removal;
+- MariaDB 1205/1213 retries are bounded to three immutable transaction
+  attempts; the first real concurrent run exposed 1213 and the corrected run
+  converged;
+- the content session-migration contract remains v4; the two coordination
+  tables are explicit metadata exclusions rather than copied story content;
+  and
+- no production Go caller, HTTP route, JS adapter, or capability advertises
+  this primitive yet.
+
+Verification observed sixteen focused tests, the full store package, the full
+Go repository, `go vet ./...`, unchanged-JavaScript syntax, and the focused Go
+race detector. The production schema loader applied the complete fourteen-file
+inventory twice at 144/144 statements plus 103 compatibility statements.
+Disposable MariaDB readback showed the expected slot/outcome schemas and unique
+keys; post-test synthetic slot/outcome/route counts were 0/0/0.
+
+The final Linux arm64 source build is 36,510,228 bytes with SHA-256
+`a627ac978e561ede435ad71a18b92f34c2ba61fdbd8736bc662b39d38345b722`.
+Because the store interface is deliberately uncalled, the production linker
+retains zero host-execution contract/table strings. That is proof of current
+non-reachability, not product support.
+
+The detailed discovery → external-anchor → triage report is Archive Center
+`docs/pocketrisu-host-session-execution-c0-validation.md`. It keeps the
+following gates open for C0-C/C0-D/C4/C6: per-binding mutation watermarks,
+authenticated/versioned host transport, nonterminal phases, receipt/context
+references, terminal retention/compaction, admin-reset semantics, and actual
+backend-process restart through the mounted route.
+The report SHA-256 is
+`cec933f48f50ac451bea0d0852512e168a2966dc8ee25d58ff704bc5b9195a01`.
 
 ## Existing owners to extend
 
