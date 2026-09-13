@@ -21,7 +21,7 @@ const bgGlobalApiUnits = [
 module.exports = {
     id: 'lazy-chat-bg-adapter',
     title: 'BG preserve integration for lazy chat storage',
-    version: '0.3.0',
+    version: '0.4.0',
     targets: {
         pocketrisu: {
             verified: ['1.8.1', '1.9.0', '1.10.0'],
@@ -152,6 +152,26 @@ module.exports = {
             ],
         },
         {
+            id: 'lazy-chat-bg-adapter:owned:server-chat-execution-projection:1.10',
+            file: 'server/node/serverChatExecutionProjection.cjs',
+            type: 'owned',
+            content: owned1100('server/node/serverChatExecutionProjection.cjs'),
+            requires: [
+                'lazy-chat-sync:owned:server:node:serverChatCommit-cjs:1.10',
+            ],
+            targetVersions: pocketRisu1100,
+        },
+        {
+            id: 'lazy-chat-bg-adapter:owned:server-chat-execution-projection-test:1.10',
+            file: 'server/node/serverChatExecutionProjection.test.ts',
+            type: 'owned',
+            content: owned1100('server/node/serverChatExecutionProjection.test.ts'),
+            requires: [
+                'lazy-chat-bg-adapter:owned:server-chat-execution-projection:1.10',
+            ],
+            targetVersions: pocketRisu1100,
+        },
+        {
             id: 'lazy-chat-bg-adapter:owned:server-chat-commit-owner:1.10',
             file: 'server/node/serverChatCommitOwner.cjs',
             type: 'owned',
@@ -159,6 +179,7 @@ module.exports = {
             requires: [
                 'lazy-chat-sync:owned:server:node:serverChatCommit-cjs:1.10',
                 'bg-preserve:owned:server/node/bgOrchestrationOperationStore.cjs',
+                'lazy-chat-bg-adapter:owned:server-chat-execution-projection:1.10',
             ],
             targetVersions: pocketRisu1100,
         },
@@ -170,6 +191,7 @@ module.exports = {
             requires: [
                 'lazy-chat-bg-adapter:owned:server-chat-commit-owner:1.10',
                 'lazy-chat-sync:owned:server:node:chatWriteJournal-cjs',
+                'lazy-chat-bg-adapter:owned:server-chat-execution-projection-test:1.10',
             ],
             targetVersions: pocketRisu1100,
         },
@@ -364,6 +386,48 @@ const serverChatCommitOwner = createServerChatCommitOwner({
                 resetJournalMemory: () => chatWriteJournal.resetMemory(),
 `,
             requires: ['lazy-chat-bg-adapter:server-chat-commit-save-folder-reset:1.10'],
+            targetVersions: pocketRisu1100,
+        },
+        {
+            id: 'lazy-chat-bg-adapter:server-chat-owned-root-full-write:1.10',
+            file: 'server/node/server.cjs',
+            type: 'replace',
+            anchor: `                    incomingStrippedDb = canonicalizeStrippedDatabase(
+                        normalizeJSON(stripChatsFromDb(incomingDb))
+                    );
+                    try {
+`,
+            content: `                    incomingStrippedDb = canonicalizeStrippedDatabase(
+                        normalizeJSON(stripChatsFromDb(incomingDb))
+                    );
+                    incomingStrippedDb = serverChatCommitOwner.preserveDatabaseState(
+                        acceptedStrippedDb,
+                        incomingStrippedDb,
+                    );
+                    try {
+`,
+            requires: ['lazy-chat-bg-adapter:server-chat-commit-snapshot-reset:1.10'],
+            targetVersions: pocketRisu1100,
+        },
+        {
+            id: 'lazy-chat-bg-adapter:server-chat-owned-root-patch:1.10',
+            file: 'server/node/server.cjs',
+            type: 'replace',
+            anchor: `            if (decodedKey === 'database/database.bin') {
+                try {
+                    await ensureChatStore();
+                    validateStrippedDatabaseTransition(
+`,
+            content: `            if (decodedKey === 'database/database.bin') {
+                try {
+                    nextDocument = serverChatCommitOwner.preserveDatabaseState(
+                        dbCache[cacheKey],
+                        nextDocument,
+                    );
+                    await ensureChatStore();
+                    validateStrippedDatabaseTransition(
+`,
+            requires: ['lazy-chat-bg-adapter:server-chat-owned-root-full-write:1.10'],
             targetVersions: pocketRisu1100,
         },
         {
@@ -712,6 +776,53 @@ const serverChatCommitOwner = createServerChatCommitOwner({
             targetVersions: pocketRisu1100,
         },
         {
+            id: 'lazy-chat-bg-adapter:server-chat-execution-projection-route:1.10',
+            file: 'server/node/bgOrchestrator.cjs',
+            type: 'insert',
+            where: 'before',
+            anchor: `  // M4: whole-pipeline cancellation. Authentication matches the start/result routes. The ACK
+`,
+            content: `  app.get('/api/bg-orchestrate-chat-state/:charId/:chatId', sessionAuthMiddleware, async (req, res) => {
+    const charId = req.params.charId
+    const chatId = req.params.chatId
+    const requestedRevision = req.query && typeof req.query.revision === 'string'
+      ? req.query.revision : ''
+    if (!charId || !chatId || !requestedRevision || requestedRevision.length > 256) {
+      return res.status(400).json({ found: false, state: 'invalid-request' })
+    }
+    if (!serverChatCommitOwner || typeof serverChatCommitOwner.readChatProjection !== 'function') {
+      return res.status(503).json({ found: false, state: 'projection-unavailable' })
+    }
+    const outcome = await serverChatCommitOwner.readChatProjection(
+      charId,
+      chatId,
+      requestedRevision,
+    )
+    if (outcome.status === 'revision_mismatch') {
+      return res.status(409).json({
+        found: false,
+        state: 'revision_mismatch',
+        currentRevision: outcome.currentRevision,
+      })
+    }
+    if (outcome.status === 'missing') {
+      return res.status(404).json({
+        found: false,
+        state: 'ownership-unknown',
+        currentRevision: outcome.currentRevision,
+      })
+    }
+    if (outcome.status !== 'ok' || !outcome.projection) {
+      return res.status(503).json({ found: false, state: 'projection-invalid' })
+    }
+    return res.json({ found: true, ...outcome.projection })
+  })
+
+`,
+            requires: ['lazy-chat-bg-adapter:server-chat-commit-status:1.10'],
+            targetVersions: pocketRisu1100,
+        },
+        {
             id: 'lazy-chat-bg-adapter:server-chat-commit-cancel:1.10',
             file: 'server/node/bgOrchestrator.cjs',
             type: 'replace',
@@ -733,7 +844,7 @@ const serverChatCommitOwner = createServerChatCommitOwner({
     }
     const outcome = orchestrationRuns.cancel(operationId)
 `,
-            requires: ['lazy-chat-bg-adapter:server-chat-commit-status:1.10'],
+            requires: ['lazy-chat-bg-adapter:server-chat-execution-projection-route:1.10'],
             targetVersions: pocketRisu1100,
         },
         {

@@ -349,12 +349,27 @@ function detachedCommitHarness() {
         }
         return response
     }
+    const project = async (revision: string) => {
+        const handler = routes.get('GET /api/bg-orchestrate-chat-state/:charId/:chatId')
+        if (!handler) throw new Error('missing chat projection route')
+        const response = { status: 200, body: null as any }
+        const res = {
+            status(code: number) { response.status = code; return this },
+            json(body: unknown) { response.body = body; return this },
+        }
+        await handler({
+            params: { charId: 'char-1', chatId: 'chat-1' },
+            query: { revision },
+        }, res)
+        return response
+    }
     return {
         operationId,
         receipt: () => receipt,
         runtime,
         values,
         commitCalls,
+        project,
         start,
         finished: () => finished,
     }
@@ -401,6 +416,32 @@ describe('server chat commit route precedence', () => {
         expect(JSON.parse(
             harness.values.get(operationStateKey(harness.operationId))!.toString(),
         )).toMatchObject({ state: 'chat-committed' })
+        await expect(harness.project(harness.receipt().storedRevision)).resolves.toMatchObject({
+            status: 200,
+            body: {
+                found: true,
+                contract: 'bg_chat_execution_projection.v1',
+                charId: 'char-1',
+                chatId: 'chat-1',
+                chatRevision: harness.receipt().storedRevision,
+                coverage: 'authoritative',
+                owners: [{
+                    messageId: 'assistant-1',
+                    operationId: harness.operationId,
+                    authority: 'server',
+                    automaticBackfill: 'eligible',
+                }],
+                pendingInputCommands: [],
+            },
+        })
+        await expect(harness.project('stale-revision')).resolves.toMatchObject({
+            status: 409,
+            body: {
+                found: false,
+                state: 'revision_mismatch',
+                currentRevision: harness.receipt().storedRevision,
+            },
+        })
         expect(harness.finished()).toBe(true)
     })
 

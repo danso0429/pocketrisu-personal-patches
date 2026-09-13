@@ -241,6 +241,34 @@ describe('server-owned BG chat commit', () => {
         expect(JSON.parse(harness.kvGet(SERVER_CHAT_COMMIT_SEQUENCE_KEY).toString('utf8')))
             .toEqual({ version: 1, value: 1 })
         expect(harness.kvGet(commitStorageKey(operationId))).not.toBeNull()
+        await expect(owner.readChatProjection(
+            'char-1',
+            'chat-1',
+            revision(after),
+        )).resolves.toMatchObject({
+            status: 'ok',
+            projection: {
+                contract: 'bg_chat_execution_projection.v1',
+                chatRevision: revision(after),
+                coverage: 'authoritative',
+                owners: [{
+                    messageId: 'assistant-1',
+                    operationId,
+                    authority: 'server',
+                    acState: 'disabled',
+                    automaticBackfill: 'eligible',
+                }],
+            },
+        })
+        await expect(owner.readChatProjection(
+            'char-1',
+            'chat-1',
+            revision(before),
+        )).resolves.toMatchObject({
+            status: 'revision_mismatch',
+            currentRevision: revision(after),
+            projection: null,
+        })
 
         const replay = await owner.commitGenerationResult(
             harness.commitInput(operationId, result(after, 'old', 'new'), 1, revision(before)),
@@ -249,6 +277,43 @@ describe('server-owned BG chat commit', () => {
         expect(harness.runtime.database.statics.messages).toBe(11)
         expect(JSON.parse(harness.kvGet(SERVER_CHAT_COMMIT_SEQUENCE_KEY).toString('utf8')).value)
             .toBe(1)
+    })
+
+    it('reconciles edited message ownership against the requested canonical revision', async () => {
+        const harness = makeHarness()
+        const owner = harness.makeOwner()
+        const operationId = 'operation-c3-owner-edit-1'
+        const before = baseChat()
+        const after = withAnswer(before, 'owned answer', 'assistant-owner-edit')
+        harness.primeOperation(operationId)
+        await owner.commitGenerationResult(harness.commitInput(
+            operationId,
+            result(after, 'old', 'new'),
+            1,
+            revision(before),
+        ))
+        const edited = {
+            ...after,
+            message: after.message.map((entry: any) => (
+                entry.chatId === 'assistant-owner-edit'
+                    ? { ...entry, data: 'user edited answer' }
+                    : entry
+            )),
+        }
+        harness.runtime.fullStore.get('char-1')?.set('chat-1', edited)
+
+        await expect(owner.readChatProjection(
+            'char-1',
+            'chat-1',
+            revision(edited),
+        )).resolves.toMatchObject({
+            status: 'ok',
+            projection: {
+                chatRevision: revision(edited),
+                coverage: 'authoritative',
+                owners: [],
+            },
+        })
     })
 
     it('records a per-key conflict and preserves the newer canonical global value', async () => {

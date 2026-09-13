@@ -17,6 +17,11 @@ const {
     readOperationState,
     validOperationId,
 } = require('./bgOrchestrationOperationStore.cjs');
+const {
+    applyCommitProjection,
+    copyServerOwnedRootState,
+    projectChatExecution,
+} = require('./serverChatExecutionProjection.cjs');
 
 const SERVER_CHAT_COMMIT_SEQUENCE_KEY = 'internal/server-chat-commit-sequence/v1';
 const SERVER_CHAT_COMMIT_APPLIED_FIELD = 'serverChatCommitApplied';
@@ -46,6 +51,22 @@ function parseJson(value) {
     } catch {
         return null;
     }
+}
+
+function operationIdFromCommitKey(key) {
+    if (typeof key !== 'string' || !key.startsWith(SERVER_CHAT_COMMIT_PREFIX)) return null;
+    let operationId = '';
+    try {
+        operationId = Buffer.from(
+            key.slice(SERVER_CHAT_COMMIT_PREFIX.length),
+            'base64url',
+        ).toString('utf8');
+    } catch {
+        return null;
+    }
+    return validOperationId(operationId) && commitStorageKey(operationId) === key
+        ? operationId
+        : null;
 }
 
 function nextCommitSequence(kvGet, kvSet, appliedLedger) {
@@ -373,7 +394,27 @@ function createServerChatCommitOwner({
             if (existing && existing.commitReceiptId !== record.commitReceipt.commitReceiptId) {
                 throw new Error('server chat commit applied ledger conflicts with receipt');
             }
-            if (existing) return;
+            if (existing) {
+                const currentChat = getFullChatStore()?.get(record.recovery.requestedCharId)
+                    ?.get(record.recovery.storedChatId)
+                    || null;
+                if (!currentChat) {
+                    throw new Error('server chat execution projection chat is unavailable');
+                }
+                const projectedDatabase = { ...current };
+                const priorProjection = stableJSON(projectedDatabase.serverChatExecutionState);
+                applyCommitProjection(
+                    projectedDatabase,
+                    record,
+                    currentChat,
+                    chatRevision(currentChat),
+                );
+                if (stableJSON(projectedDatabase.serverChatExecutionState) !== priorProjection) {
+                    cacheStrippedDatabase(projectedDatabase);
+                    scheduleChatStorePersist();
+                }
+                return;
+            }
             const durableChat = context.chat
                 || getFullChatStore()?.get(record.recovery.requestedCharId)
                     ?.get(record.recovery.storedChatId)
@@ -389,6 +430,7 @@ function createServerChatCommitOwner({
             );
             applyGlobalOutcomes(nextDatabase, record);
             applyStaticsOutcome(nextDatabase, record);
+            applyCommitProjection(nextDatabase, record, durableChat);
             nextDatabase[SERVER_CHAT_COMMIT_APPLIED_FIELD] = [...ledger, {
                 operationId: record.operationId,
                 commitReceiptId: record.commitReceipt.commitReceiptId,
@@ -541,19 +583,52 @@ function createServerChatCommitOwner({
         return committer.recoverAll();
     }
 
+    async function readChatProjection(charId, chatId, requestedRevision) {
+        await ensureCanonicalState();
+        const chat = getFullChatStore()?.get(charId)?.get(chatId) || null;
+        if (!chat) return { status: 'missing', currentRevision: null, projection: null };
+        const currentRevision = chatRevision(chat);
+        if (requestedRevision !== currentRevision) {
+            return { status: 'revision_mismatch', currentRevision, projection: null };
+        }
+        const records = [];
+        try {
+            for (const key of kvList(SERVER_CHAT_COMMIT_PREFIX)) {
+                const operationId = operationIdFromCommitKey(key);
+                const record = operationId ? committer.readRecovery(operationId) : null;
+                if (!record) {
+                    return { status: 'conflict', currentRevision, projection: null };
+                }
+                records.push(record);
+            }
+            const database = getDbCache()?.[databaseKey];
+            if (!database || typeof database !== 'object') {
+                return { status: 'unavailable', currentRevision, projection: null };
+            }
+            const projection = projectChatExecution({
+                database,
+                records,
+                chat,
+                charId,
+                chatId,
+                chatRevision: currentRevision,
+            });
+            return projection
+                ? { status: 'ok', currentRevision, projection }
+                : { status: 'missing', currentRevision, projection: null };
+        } catch {
+            return { status: 'conflict', currentRevision, projection: null };
+        }
+    }
+
+    function preserveDatabaseState(currentDatabase, incomingDatabase) {
+        return copyServerOwnedRootState(currentDatabase, incomingDatabase);
+    }
+
     function discardRecovery() {
         for (const key of kvList(SERVER_CHAT_COMMIT_PREFIX)) {
-            if (typeof key !== 'string' || !key.startsWith(SERVER_CHAT_COMMIT_PREFIX)) continue;
-            let operationId = '';
-            try {
-                operationId = Buffer.from(
-                    key.slice(SERVER_CHAT_COMMIT_PREFIX.length),
-                    'base64url',
-                ).toString('utf8');
-            } catch {
-                continue;
-            }
-            if (!validOperationId(operationId) || commitStorageKey(operationId) !== key) continue;
+            const operationId = operationIdFromCommitKey(key);
+            if (!operationId) continue;
             kvDel(operationStateKey(operationId));
             kvDel(operationResultKey(operationId));
         }
@@ -566,6 +641,8 @@ function createServerChatCommitOwner({
         captureBase,
         currentRevision,
         discardRecovery,
+        preserveDatabaseState,
+        readChatProjection,
         readGenerationCommit: committer.status,
         readGenerationRecovery: committer.readRecovery,
         recover,
