@@ -12,8 +12,10 @@ const {
     stableJSON,
 } = require('./serverChatCommit.cjs');
 const {
+    operationResultKey,
     operationStateKey,
     readOperationState,
+    validOperationId,
 } = require('./bgOrchestrationOperationStore.cjs');
 
 const SERVER_CHAT_COMMIT_SEQUENCE_KEY = 'internal/server-chat-commit-sequence/v1';
@@ -46,14 +48,22 @@ function parseJson(value) {
     }
 }
 
-function nextCommitSequence(kvGet, kvSet) {
+function nextCommitSequence(kvGet, kvSet, appliedLedger) {
     const raw = kvGet(SERVER_CHAT_COMMIT_SEQUENCE_KEY);
     const record = raw ? parseJson(raw) : { version: 1, value: 0 };
     if (!record || record.version !== 1 || !Number.isSafeInteger(record.value)
         || record.value < 0 || record.value >= Number.MAX_SAFE_INTEGER) {
         throw new Error('server chat commit sequence is invalid');
     }
-    const value = record.value + 1;
+    const appliedFloor = appliedLedger.reduce(
+        (maximum, entry) => Math.max(maximum, entry.commitSequence),
+        0,
+    );
+    const previous = Math.max(record.value, appliedFloor);
+    if (previous >= Number.MAX_SAFE_INTEGER) {
+        throw new Error('server chat commit sequence is exhausted');
+    }
+    const value = previous + 1;
     kvSet(SERVER_CHAT_COMMIT_SEQUENCE_KEY, JSON.stringify({ version: 1, value }));
     return value;
 }
@@ -319,6 +329,7 @@ function createServerChatCommitOwner({
             if (!database || typeof database !== 'object') {
                 throw new Error('server chat commit database cache is unavailable');
             }
+            const appliedLedger = currentAppliedLedger(database);
             const currentGlobals = database.globalChatVariables
                 && typeof database.globalChatVariables === 'object'
                 && !Array.isArray(database.globalChatVariables)
@@ -331,7 +342,7 @@ function createServerChatCommitOwner({
             const staticsDelta = request.effectIntents.staticsMessagesDelta;
             const hasStatics = database.statics && typeof database.statics === 'object';
             return {
-                commitSequence: nextCommitSequence(kvGet, kvSet),
+                commitSequence: nextCommitSequence(kvGet, kvSet, appliedLedger),
                 effects: {
                     chat: { status: 'committed' },
                     metadata: { status: 'committed' },
@@ -531,6 +542,21 @@ function createServerChatCommitOwner({
     }
 
     function discardRecovery() {
+        for (const key of kvList(SERVER_CHAT_COMMIT_PREFIX)) {
+            if (typeof key !== 'string' || !key.startsWith(SERVER_CHAT_COMMIT_PREFIX)) continue;
+            let operationId = '';
+            try {
+                operationId = Buffer.from(
+                    key.slice(SERVER_CHAT_COMMIT_PREFIX.length),
+                    'base64url',
+                ).toString('utf8');
+            } catch {
+                continue;
+            }
+            if (!validOperationId(operationId) || commitStorageKey(operationId) !== key) continue;
+            kvDel(operationStateKey(operationId));
+            kvDel(operationResultKey(operationId));
+        }
         kvDelPrefix(SERVER_CHAT_COMMIT_PREFIX);
         kvDel(SERVER_CHAT_COMMIT_SEQUENCE_KEY);
     }

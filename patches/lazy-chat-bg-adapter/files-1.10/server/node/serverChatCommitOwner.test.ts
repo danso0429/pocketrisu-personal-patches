@@ -12,7 +12,7 @@ import utilsPackage from './utils.cjs'
 
 const { commitStorageKey, stableJSON } = commitPackage as any
 const { createChatWriteJournal } = journalPackage as any
-const { operationStateKey } = operationPackage as any
+const { operationResultKey, operationStateKey } = operationPackage as any
 const {
     SERVER_CHAT_COMMIT_APPLIED_FIELD,
     SERVER_CHAT_COMMIT_SEQUENCE_KEY,
@@ -181,6 +181,7 @@ function makeHarness() {
         db,
         runtime,
         kvGet,
+        kvSet,
         kvList,
         makeJournal,
         makeOwner,
@@ -371,6 +372,34 @@ describe('server-owned BG chat commit', () => {
         expect(harness.runtime.schedules).toBe(2)
     })
 
+    it('continues after the highest applied sequence restored with the database', async () => {
+        const harness = makeHarness()
+        const restoredOperation = 'operation-c2-restored-1'
+        harness.runtime.database[SERVER_CHAT_COMMIT_APPLIED_FIELD] = [{
+            operationId: restoredOperation,
+            commitReceiptId: 'receipt-restored-1',
+            commitSequence: 7,
+        }]
+        const operationId = 'operation-c2-after-restore-1'
+        const before = baseChat()
+        const after = withAnswer(before, 'after restore', 'assistant-after-restore')
+        harness.primeOperation(operationId)
+
+        await harness.makeOwner().commitGenerationResult(harness.commitInput(
+            operationId,
+            result(after, 'old', 'new'),
+            1,
+            revision(before),
+        ))
+
+        expect(JSON.parse(harness.kvGet(SERVER_CHAT_COMMIT_SEQUENCE_KEY).toString('utf8')))
+            .toEqual({ version: 1, value: 8 })
+        expect(harness.runtime.database[SERVER_CHAT_COMMIT_APPLIED_FIELD]).toMatchObject([
+            { operationId: restoredOperation, commitSequence: 7 },
+            { operationId, commitSequence: 8 },
+        ])
+    })
+
     it('leaves a revision conflict and cancellation uncommitted', async () => {
         const conflictHarness = makeHarness()
         const conflictOperation = 'operation-c2-conflict-1'
@@ -416,12 +445,18 @@ describe('server-owned BG chat commit', () => {
         expect(cancelledHarness.kvGet(commitStorageKey(cancelledOperation))).toBeNull()
     })
 
-    it('clears only commit recovery and its sequence owner', async () => {
+    it('clears commit recovery plus its exact operation lifecycle on database replacement', async () => {
         const harness = makeHarness()
         const operationId = 'operation-c2-discard-1'
+        const unrelatedOperation = 'operation-c2-unrelated-1'
         const before = baseChat()
         const after = withAnswer(before, 'discard answer', 'assistant-discard')
         harness.primeOperation(operationId)
+        harness.primeOperation(unrelatedOperation)
+        harness.kvSet(operationResultKey(operationId), JSON.stringify({ operationId }))
+        harness.kvSet(operationResultKey(unrelatedOperation), JSON.stringify({
+            operationId: unrelatedOperation,
+        }))
         const owner = harness.makeOwner()
         await owner.commitGenerationResult(harness.commitInput(
             operationId,
@@ -433,6 +468,10 @@ describe('server-owned BG chat commit', () => {
         owner.discardRecovery()
         expect(harness.kvGet(commitStorageKey(operationId))).toBeNull()
         expect(harness.kvGet(SERVER_CHAT_COMMIT_SEQUENCE_KEY)).toBeNull()
+        expect(harness.kvGet(operationStateKey(operationId))).toBeNull()
+        expect(harness.kvGet(operationResultKey(operationId))).toBeNull()
+        expect(harness.kvGet(operationStateKey(unrelatedOperation))).not.toBeNull()
+        expect(harness.kvGet(operationResultKey(unrelatedOperation))).not.toBeNull()
         expect(harness.kvList('internal/chat-write/v1/')).toHaveLength(1)
     })
 })

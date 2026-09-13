@@ -531,7 +531,36 @@ const serverChatCommitOwner = createServerChatCommitOwner({
         }
         const requestedBaseChatRevision = req.body && req.body.baseChatRevision
 `,
+            requires: ['lazy-chat-bg-adapter:server-chat-commit-preview-call:1.10'],
+            targetVersions: pocketRisu1100,
+        },
+        {
+            id: 'lazy-chat-bg-adapter:server-chat-commit-preview-owner:1.10',
+            file: 'server/node/bgOrchestrator.cjs',
+            type: 'insert',
+            where: 'after',
+            anchor: `  const orchestrationRuns = deps && deps.orchestrationRuns
+    ? deps.orchestrationRuns
+    : createOrchestrationRunRegistry()
+`,
+            content: `  const runDetachedServerPreview = deps && typeof deps.runServerPreview === 'function'
+    ? deps.runServerPreview
+    : runServerPreview
+`,
             requires: ['lazy-chat-bg-adapter:server-chat-commit-dependency:1.10'],
+            targetVersions: pocketRisu1100,
+        },
+        {
+            id: 'lazy-chat-bg-adapter:server-chat-commit-preview-call:1.10',
+            file: 'server/node/bgOrchestrator.cjs',
+            type: 'replace',
+            anchor: `            const result = await runServerPreview(
+              { getDbCache, DB_HEX_KEY, kvSet, kvGet, requestLogs: deps.requestLogs }, selectedCharId, selectedChatId, currentChat, 'full',
+`,
+            content: `            const result = await runDetachedServerPreview(
+              { getDbCache, DB_HEX_KEY, kvSet, kvGet, requestLogs: deps.requestLogs }, selectedCharId, selectedChatId, currentChat, 'full',
+`,
+            requires: ['lazy-chat-bg-adapter:server-chat-commit-preview-owner:1.10'],
             targetVersions: pocketRisu1100,
         },
         {
@@ -808,16 +837,59 @@ const serverChatCommitOwner = createServerChatCommitOwner({
             id: 'lazy-chat-bg-adapter:server-chat-commit-durable-response:1.10',
             file: 'server/node/bgOrchestrator.cjs',
             type: 'replace',
-            anchor: `              return res.json({
+            anchor: `        if (resultKeyVersion === 1) {
+          const durable = readOperationState(kvGet, operationId)
+          if (durable) {
+            if (durable.charId !== operationMeta.charId || durable.chatId !== operationMeta.chatId) {
+              return res.status(409).json({
+                handled: false, started: false, operationId,
+                reason: 'operation-coordinate-conflict',
+              })
+            }
+            // \`queued\` is the sole restartable state: it was durably recorded before provider work
+            // and a process death may have happened before the run began. Every later state is an
+            // exact paid-work tombstone and must never launch the same operation again.
+            if (durable.state !== 'queued') {
+              return res.json({
                 handled: true, started: true, operationId, reused: true,
                 state: durable.state, resultKeyVersion: 1,
               })
+            }
+          }
+        }
 `,
-            content: `              return res.json({
+            content: `        const durable = typeof kvGet === 'function'
+          ? readOperationState(kvGet, operationId)
+          : null
+        if (durable) {
+          if (durable.charId !== operationMeta.charId || durable.chatId !== operationMeta.chatId) {
+            return res.status(409).json({
+              handled: false, started: false, operationId,
+              reason: 'operation-coordinate-conflict',
+            })
+          }
+          const durableServerChatCommitVersion = durable.serverChatCommitVersion === 1 ? 1 : 0
+          const sameServerBase = durableServerChatCommitVersion !== 1
+            || durable.serverBaseChatRevision === serverBaseChatRevision
+          if (resultKeyVersion !== 1
+            || durableServerChatCommitVersion !== serverChatCommitVersion
+            || !sameServerBase) {
+            return res.status(409).json({
+              handled: false, started: false, operationId,
+              reason: 'operation-protocol-conflict',
+            })
+          }
+          // \`queued\` is the sole restartable state: it was durably recorded before provider work
+          // and a process death may have happened before the run began. Every later state is an
+          // exact paid-work tombstone and must never launch the same operation again.
+          if (durable.state !== 'queued') {
+            return res.json({
                 handled: true, started: true, operationId, reused: true,
                 state: durable.state, resultKeyVersion: 1,
                 serverChatCommitVersion: durable.serverChatCommitVersion === 1 ? 1 : 0,
               })
+          }
+        }
 `,
             requires: ['lazy-chat-bg-adapter:server-chat-commit-active-response:1.10'],
             targetVersions: pocketRisu1100,

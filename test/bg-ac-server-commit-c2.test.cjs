@@ -36,6 +36,10 @@ test('C2: exact-1.10 lazy BG graph owns the server commit adapter and route prec
     assert.match(terminal.content, /serverChatCommitOwner\.commitGenerationResult/)
     assert.match(terminal.content, /serverChatCommitVersion === 1/)
     assert.match(terminal.content, /serverChatCommit\.status !== 'committed'/)
+    assert.match(
+        unit('lazy-chat-bg-adapter:server-chat-commit-preview-call:1.10').content,
+        /runDetachedServerPreview/,
+    )
     const settings = unit('lazy-chat-bg-adapter:server-chat-commit-settings-digest:1.10')
     assert.match(settings.content, /control\.serverChatCommitVersion === 1/)
     assert.match(settings.content, /: null/)
@@ -46,6 +50,9 @@ test('C2: exact-1.10 lazy BG graph owns the server commit adapter and route prec
     assert.match(status.content, /state: 'chat-committed'/)
     assert.match(cancel.content, /reason: 'already-committed'/)
     assert.match(missing.content, /serverChatCommit: committed\.receipt/)
+    const durable = unit('lazy-chat-bg-adapter:server-chat-commit-durable-response:1.10')
+    assert.match(durable.content, /durableServerChatCommitVersion/)
+    assert.match(durable.content, /reason: 'operation-protocol-conflict'/)
 })
 
 test('C2: server commit reset hooks cover every lazy journal reset owner', () => {
@@ -62,6 +69,10 @@ test('C2: server commit reset hooks cover every lazy journal reset owner', () =>
     assert.equal(resetUnits.every(candidate => (
         candidate.content.includes('serverChatCommitOwner.discardRecovery()')
     )), true)
+    assert.match(
+        unit('lazy-chat-bg-adapter:owned:server-chat-commit-owner:1.10').content,
+        /kvDel\(operationResultKey\(operationId\)\)/,
+    )
 })
 
 test('C2: adapter payload changes invalidate its pack ETag without mutating the source manifest', () => {
