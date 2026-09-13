@@ -51,7 +51,7 @@ exit criteria.
 | C0-A | Can existing prepare/complete source contracts honestly represent the server host? | positive/negative Go characterization probes | **complete: new typed contracts are required** |
 | C0-B | Can one owner atomically claim a current route binding and can every terminal outcome release only its own epoch? | store-level concurrent acquire/status/settle tests plus route-remap fence | **store primitive complete; authenticated product route remains C4** |
 | C0-C | Can ordered host mutations survive gaps, retries, restart, and stale workers? | durable intent/`ingestedSeq`/`safeSeq` state-machine tests | **store primitive complete; Node writer and product route remain C1/C4/C6** |
-| C0-D | Can prepare registration prevent a second paid execution after response loss or restart, and can skip fence a late result? | durable prepare registry and timeout/ready CAS tests | pending |
+| C0-D | Can prepare registration prevent a second paid execution after response loss or restart, and can skip fence a late result? | durable prepare registry and timeout/ready CAS tests | **store primitive complete; HTTP/provider/startup integration remains C4/C6** |
 | C0-E | Can N+1 remain outside canonical chat until its turn, and can Node commit a result with chat, metadata, effects, intent, and owner in one replay boundary? | queued-input and server-commit failure-injection harness | pending |
 | C0-F | Do output stages remain foreground/BG-equivalent, and can a blank browser discover ownership after result TTL cleanup? | stage parity fixture and revision-bound projection fixture | pending |
 
@@ -296,6 +296,68 @@ The detailed report is Archive Center
 `docs/pocketrisu-host-change-stream-c0-validation.md`; its SHA-256 is
 `6002b0c4f97ea0b89bbee5a31c9d7fd53e4570df46928159b632fb66620f6796`.
 
+### C0-D durable prepare registry primitive
+
+Archive Center local commit `31e3651` adds migration 016 and an optional
+`HostPrepareRegistryStore` without mounting an HTTP route or invoking a
+provider. Follow-up commits `d15acbd` and `043b587` close the pending
+host-change watermark and fenced-claim release gaps. Validation commit
+`7decdbb` records the discovery → external-anchor → triage audit.
+
+Observed boundaries:
+
+- `prepareKey` is fixed by host instance, binding epoch, operation, claim epoch,
+  and main request; a separate fingerprint binds character/chat, execution
+  context, settings, input receipt, source revision, semantic pre-injection
+  payload hash, main request type, and protocol;
+- two concurrent registrations and starts converge on one durable row/run
+  epoch, and only the successful registered-to-running CAS returns
+  `start_authorized=true`;
+- a running replay never authorizes paid work, while a changed external
+  operation, request fingerprint, result, or run epoch returns conflict;
+- an at-most-1-MiB valid JSON ready result is compacted, hash-bound, recovered
+  after store restart, and replayed without another start;
+- running survives reconnect and can be explicitly marked `outcome_unknown`,
+  which records unknown external-call disposition and refuses late ready;
+- `failed_known` separately records retryability and whether the external call
+  was known `started` or `not_started`, but no retry transition exists yet;
+- skip clears ready bytes, preserves key/fingerprint/event/reason and a durable
+  claim-release receipt, stores an immutable skip execution outcome, and fences
+  late results;
+- ready/timeout races converge to skipped after the authoritative skip, while
+  stale skip after an already terminal operation cannot erase retained ready;
+- prepare register/start/result transitions reread route, exact claim, and both
+  required/ingested host-change boundaries; `ingested > safe` blocks them;
+- source invalidation clears and fences ready/running prepare rows before it
+  releases execution, while a late skip after that already-released fence does
+  not create another outcome; and
+- a binding-change fence with an unreleased old slot can still accept the skip
+  tombstone and release only that exact claim.
+
+The real MariaDB fixture covered ready response recovery, running restart,
+unknown and known failures, skip ACK replay, concurrent register/start,
+ready/timeout race, stale skip after terminal outcome, route-change late ready,
+and fenced-claim release. The C0-C fixture additionally proved pending mutation
+registration rejection and source-change fencing of a ready prepare.
+
+Verification observed thirty-five combined host-prepare/change/execution tests
+(seven prepare-specific), all three disposable MariaDB tests, the full store
+package, focused race detector, the full Go repository, `go vet ./...`, and
+unchanged-JavaScript syntax. The production schema loader applied sixteen files
+twice at 147/147 statements plus 103 compatibility statements. Final readback
+showed 86 tables, 33 prepare columns, four indexes, all three prepare CHECK
+clauses, all five coordination tables `CHECK ... OK`, and zero prepare/change/
+execution or `c0-*` fixture rows.
+
+The final Linux arm64 source build is 36,486,406 bytes with SHA-256
+`79d03f143998bd51ecf1fb6d771e06d98a659cbd88c6325012d02e671e652e84`.
+The isolated runtime remains the unmodified verified 4.3.1 package and reports
+full readiness with `degraded=false`; no AC upstream write was attempted.
+
+The detailed report is Archive Center
+`docs/pocketrisu-host-prepare-registry-c0-validation.md`; its SHA-256 is
+`2b7cee91a743a70c6d74470cd070b030caecc9b59e9d772e7b492cb2240880f0`.
+
 ## Existing owners to extend
 
 | Need | Existing owner | Confirmed gap |
@@ -305,7 +367,7 @@ The detailed report is Archive Center
 | BG lifecycle | generated `bgOrchestrator.cjs` source owned by `patches/bg-preserve.json` | terminal result is parked in KV for a browser consumer; it is not a normal chat commit |
 | AC route identity | `SessionRouteBindingStore`, `HostSessionExecutionStore`, and serializable route/claim transactions | store acquire/status/settle and exact-stream watermarks exist; authenticated route, nonterminal phases, and receipt/context links remain absent |
 | AC source invalidation | durable source revisions, transactional invalidation/outbox fences, and the C0-C ordered host stream | store primitive is connected; Node durable writer, host transport, input/response completion, and multi-stream aggregation remain absent |
-| AC complete idempotency | in-process complete request ledger plus durable source records | no durable prepare registry and no server-host receipt contract |
+| AC prepare/complete idempotency | durable `HostPrepareRegistryStore`, in-process complete request ledger, and durable source records | prepare store exists; authenticated HTTP/provider/startup recovery, typed result semantics, and server-host complete receipt remain absent |
 
 No generated `bgOrchBundle.mjs` output will be edited directly. New storage is
 additive and remains inside the existing SQLite/MariaDB owners; C0 does not add
