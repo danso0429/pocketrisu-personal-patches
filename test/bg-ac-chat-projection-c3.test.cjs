@@ -65,6 +65,7 @@ test('C3: pre-canonical server input remains an explicit dormant contract', () =
     assert.match(settings.content, /readInputSettingsSnapshot/)
     assert.match(settings.content, /decodeRisuSave/)
     assert.match(settings.content, /settingsSnapshot\.contextDigest/)
+    assert.match(settings.content, /settingsSnapshot\.record\?\.predecessorResolution/)
     assert.match(settings.content, /overlayServerChatDynamicState/)
     assert.match(settings.content, /server input settings context unavailable/)
     assert.match(

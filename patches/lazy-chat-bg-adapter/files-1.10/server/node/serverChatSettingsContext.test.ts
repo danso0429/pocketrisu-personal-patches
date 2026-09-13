@@ -38,14 +38,14 @@ function currentDatabase() {
 }
 
 describe('server chat settings context overlay', () => {
-    it('keeps frozen settings while adopting predecessor-owned dynamic state', () => {
+    it('keeps frozen settings while adopting caller-supplied dynamic roots', () => {
         const snapshot = snapshotDatabase()
         const current = currentDatabase()
-        const result = overlayServerChatDynamicState(snapshot, current, 'char-1')
+        const result = overlayServerChatDynamicState(snapshot, current)
 
         expect(result.temperature).toBe(0.2)
         expect(result.characters[0].systemPrompt).toBe('frozen prompt')
-        expect(result.characters[0].chats).toEqual(current.characters[0].chats)
+        expect(result.characters[0].chats).toEqual(snapshotDatabase().characters[0].chats)
         for (const field of DYNAMIC_ROOT_FIELDS) {
             expect(result[field]).toEqual((current as any)[field])
             expect(result[field]).not.toBe((current as any)[field])
@@ -54,16 +54,14 @@ describe('server chat settings context overlay', () => {
         expect(current.characters[0].systemPrompt).toBe('later edit')
     })
 
-    it('fails closed when either side lacks the selected character metadata', () => {
+    it('fails closed when either database is unavailable', () => {
         expect(() => overlayServerChatDynamicState(
-            { ...snapshotDatabase(), characters: [] },
+            null,
             currentDatabase(),
-            'char-1',
-        )).toThrow('settings context character metadata is unavailable')
+        )).toThrow('snapshot settings database is invalid')
         expect(() => overlayServerChatDynamicState(
             snapshotDatabase(),
-            { ...currentDatabase(), characters: [] },
-            'char-1',
-        )).toThrow('settings context character metadata is unavailable')
+            null,
+        )).toThrow('current settings database is invalid')
     })
 })

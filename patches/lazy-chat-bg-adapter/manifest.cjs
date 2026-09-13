@@ -1027,9 +1027,11 @@ const serverChatCommitOwner = createServerChatCommitOwner({
       if (!stripped || !Array.isArray(stripped.characters)) {
         throw new Error('server input settings snapshot is invalid')
       }
-      const currentStripped = dbCache && deps.DB_HEX_KEY ? dbCache[deps.DB_HEX_KEY] : null
-      const { overlayServerChatDynamicState } = require('./serverChatSettingsContext.cjs')
-      stripped = overlayServerChatDynamicState(stripped, currentStripped, selectedCharId)
+      if (settingsSnapshot.record?.predecessorResolution) {
+        const currentStripped = dbCache && deps.DB_HEX_KEY ? dbCache[deps.DB_HEX_KEY] : null
+        const { overlayServerChatDynamicState } = require('./serverChatSettingsContext.cjs')
+        stripped = overlayServerChatDynamicState(stripped, currentStripped)
+      }
     }
 `,
             requires: [

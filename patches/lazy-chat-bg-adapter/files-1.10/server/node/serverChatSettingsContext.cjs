@@ -14,34 +14,21 @@ function own(value, key) {
 }
 
 function requireDatabase(name, value) {
-    if (!value || typeof value !== 'object' || Array.isArray(value)
-        || !Array.isArray(value.characters)) {
+    if (!value || typeof value !== 'object' || Array.isArray(value)) {
         throw new Error(`${name} settings database is invalid`);
     }
     return value;
 }
 
-function overlayServerChatDynamicState(snapshotDatabase, currentDatabase, charId) {
+function overlayServerChatDynamicState(snapshotDatabase, currentDatabase) {
     const snapshot = requireDatabase('snapshot', snapshotDatabase);
     const current = requireDatabase('current', currentDatabase);
-    if (typeof charId !== 'string' || !charId) {
-        throw new Error('settings context character identity is invalid');
-    }
+    // The caller owns predecessor-lineage validation. This helper only limits
+    // the mutable overlay surface once that gate has been crossed.
     for (const field of DYNAMIC_ROOT_FIELDS) {
         if (own(current, field)) snapshot[field] = structuredClone(current[field]);
         else delete snapshot[field];
     }
-    const snapshotIndex = snapshot.characters.findIndex((character) => character?.chaId === charId);
-    const currentCharacter = current.characters.find((character) => character?.chaId === charId);
-    if (snapshotIndex < 0 || !currentCharacter || !Array.isArray(currentCharacter.chats)) {
-        throw new Error('settings context character metadata is unavailable');
-    }
-    const characters = snapshot.characters.slice();
-    characters[snapshotIndex] = {
-        ...characters[snapshotIndex],
-        chats: structuredClone(currentCharacter.chats),
-    };
-    snapshot.characters = characters;
     return snapshot;
 }
 
