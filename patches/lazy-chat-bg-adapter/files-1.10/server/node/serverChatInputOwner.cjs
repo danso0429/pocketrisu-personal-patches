@@ -105,18 +105,21 @@ function parseRecord(value, expectedOperationId = null) {
                 && !validOperationId(parsed.queuePredecessorId))) {
             return null;
         }
-        if (parsed.inputState === 'attached' && (
+        if ((parsed.inputState === 'attached' && parsed.inputReceipt === null)
+            || (parsed.inputReceipt !== null && (
             parsed.transformState !== 'completed'
             || parsed.inputReceipt?.contractVersion !== SERVER_CHAT_INPUT_RECEIPT_CONTRACT
             || parsed.inputReceipt?.operationId !== admission.operationId
             || parsed.inputReceipt?.inputCommandId !== admission.inputCommandId
             || parsed.inputReceipt?.messageId !== admission.userMessageId
             || parsed.inputReceipt?.revision !== parsed.executionBaseRevision
+            || typeof parsed.inputMessageRevision !== 'string'
+            || !/^[a-f0-9]{64}$/.test(parsed.inputMessageRevision)
             || !Number.isSafeInteger(parsed.baselineMessageCount)
             || parsed.baselineMessageCount <= 0
             || typeof parsed.journal?.storageKey !== 'string'
             || !parsed.globalIntent || !Array.isArray(parsed.globalOutcomes)
-        )) {
+        ))) {
             return null;
         }
         return { ...parsed, admission };
@@ -305,6 +308,16 @@ function createServerChatInputOwner({
                     blockingOperationId: active.operationId,
                 };
             }
+            const duplicateCommand = allRecords().find((record) => (
+                record.admission.inputCommandId === admission.inputCommandId
+            ));
+            if (duplicateCommand) {
+                return {
+                    status: 'conflict',
+                    reason: 'input_command_identity_conflict',
+                    existingOperationId: duplicateCommand.operationId,
+                };
+            }
             const counterKey = sequenceKey(admission.charId, admission.chatId);
             const rawCounter = kvGet(counterKey);
             let counter = { version: 1, value: 0, lastOperationId: null };
@@ -330,6 +343,7 @@ function createServerChatInputOwner({
                 inputState: 'queued',
                 inputReceipt: null,
                 executionBaseRevision: null,
+                inputMessageRevision: null,
                 baselineMessageCount: null,
                 journal: null,
                 globalIntent: null,
@@ -390,6 +404,19 @@ function createServerChatInputOwner({
 
     async function publishAttached(record, suppliedChat = null) {
         await ensureCanonicalState();
+        const liveChat = currentChat(record.admission.charId, record.admission.chatId);
+        const liveRevision = liveChat ? chatRevision(liveChat) : null;
+        if (liveRevision !== record.admission.submittedBaseRevision
+            && liveRevision !== record.executionBaseRevision) {
+            const liveInput = liveChat?.message?.find((message) => (
+                message?.chatId === record.admission.userMessageId
+                && message?.role === 'user'
+            ));
+            if (liveInput && sha256(stableJSON(liveInput)) === record.inputMessageRevision) {
+                return liveChat;
+            }
+            throw new Error('attached input publication revision conflict');
+        }
         let chat = suppliedChat;
         if (!chat) {
             const durable = await chatWriteJournal.restoreDurableStage(
@@ -402,7 +429,6 @@ function createServerChatInputOwner({
             );
             chat = durable?.chat || null;
         }
-        const liveRevision = currentRevision(record.admission.charId, record.admission.chatId);
         if (!chat) {
             if (liveRevision !== record.executionBaseRevision) {
                 throw new Error('attached input chat is unavailable');
@@ -487,7 +513,24 @@ function createServerChatInputOwner({
                 ? database.globalChatVariables
                 : {};
             const outcomes = globalOutcomes(currentGlobals, globalIntent);
+            if (outcomes.some((entry) => entry.status === 'conflict')) {
+                const blocked = {
+                    ...record,
+                    transformState: 'completed',
+                    inputState: 'blocked_edit',
+                    globalIntent,
+                    globalOutcomes: outcomes,
+                    terminal: { state: 'blocked_edit', at: Date.now() },
+                };
+                write(blocked);
+                return {
+                    status: 'blocked',
+                    reason: 'global_variables_changed',
+                    record: clone(blocked),
+                };
+            }
             const executionBaseRevision = chatRevision(chat);
+            const inputMessageRevision = sha256(stableJSON(matches[0]));
             const inputReceipt = {
                 contractVersion: SERVER_CHAT_INPUT_RECEIPT_CONTRACT,
                 receiptId: sha256(stableJSON({
@@ -512,6 +555,7 @@ function createServerChatInputOwner({
                 inputState: 'attached',
                 inputReceipt,
                 executionBaseRevision,
+                inputMessageRevision,
                 baselineMessageCount: chat.message.length,
                 journal,
                 globalIntent,
@@ -612,7 +656,9 @@ function createServerChatInputOwner({
 
     async function recoverAll() {
         const records = allRecords();
-        const attached = records.filter((record) => record.inputState === 'attached');
+        const attached = records.filter((record) => (
+            record.inputReceipt && record.executionBaseRevision && record.journal
+        ));
         if (attached.length > 0) await ensureCanonicalState();
         const results = [];
         for (const record of records) {
@@ -622,7 +668,7 @@ function createServerChatInputOwner({
                 results.push({ operationId: record.operationId, status: 'blocked', reason: 'transform_outcome_unknown' });
                 continue;
             }
-            if (record.inputState !== 'attached') continue;
+            if (!record.inputReceipt || !record.executionBaseRevision || !record.journal) continue;
             try {
                 await publishAttached(record);
                 results.push({ operationId: record.operationId, status: 'attached' });

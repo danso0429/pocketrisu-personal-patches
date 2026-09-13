@@ -252,10 +252,43 @@ describe('pre-canonical server chat input owner', () => {
             ...admission(secondOperation),
             submittedBaseRevision: attached.record.executionBaseRevision,
         }
+        await expect(owner.admit({
+            ...secondAdmission,
+            inputCommandId: `input-${firstOperation}`,
+        })).resolves.toMatchObject({
+            status: 'conflict',
+            reason: 'input_command_identity_conflict',
+            existingOperationId: firstOperation,
+        })
         await expect(owner.admit(secondAdmission)).resolves.toMatchObject({
             status: 'admitted',
             record: { admissionSeq: 2, queuePredecessorId: firstOperation },
         })
+    })
+
+    it('blocks before provider work when input globals changed concurrently', async () => {
+        const harness = makeHarness()
+        const owner = harness.makeOwner()
+        const operationId = 'operation-input-global-conflict-1'
+        await owner.admit(admission(operationId))
+        await owner.beginTransform(operationId)
+        harness.runtime.database.globalChatVariables.mood = 'newer-user-value'
+
+        await expect(owner.attachTransformed(
+            operationId,
+            harness.transformed(operationId),
+        )).resolves.toMatchObject({
+            status: 'blocked',
+            reason: 'global_variables_changed',
+            record: { inputState: 'blocked_edit' },
+        })
+        expect(harness.runtime.fullStore.get('char-1')?.get('chat-1')).toEqual(baseChat())
+        expect(harness.runtime.database.globalChatVariables).toEqual({ mood: 'newer-user-value' })
+        expect(owner.pendingProjection('char-1', 'chat-1')).toMatchObject([{
+            operationId,
+            state: 'blocked_edit',
+            cancelAllowed: false,
+        }])
     })
 
     it('recovers an attached input after publication failure without rerunning transform', async () => {
@@ -277,6 +310,76 @@ describe('pre-canonical server chat input owner', () => {
         }])
         expect(harness.runtime.fullStore.get('char-1')?.get('chat-1')?.message.at(-1))
             .toMatchObject({ chatId: `user-${operationId}` })
+    })
+
+    it.each(['failed', 'cancelled'] as const)(
+        'recovers a durably attached input after the operation settles as %s',
+        async (terminalState) => {
+            const harness = makeHarness()
+            const owner = harness.makeOwner()
+            const operationId = `operation-input-terminal-recover-${terminalState}`
+            await owner.admit(admission(operationId))
+            await owner.beginTransform(operationId)
+            const attached = await owner.attachTransformed(
+                operationId,
+                harness.transformed(operationId),
+            )
+            expect(owner.settleSynchronously(
+                operationId,
+                terminalState,
+                attached.record.executionBaseRevision,
+            )).toBe(true)
+
+            harness.runtime.database = {
+                characters: [{
+                    chaId: 'char-1',
+                    chats: [{ id: 'chat-1', name: 'Chat', _stub: true }],
+                }],
+                globalChatVariables: { mood: 'old' },
+            }
+            harness.runtime.fullStore = new Map([
+                ['char-1', new Map([['chat-1', baseChat()]])],
+            ])
+
+            await expect(harness.makeOwner(harness.makeJournal()).recoverAll())
+                .resolves.toMatchObject([{ operationId, status: 'attached' }])
+            expect(harness.runtime.fullStore.get('char-1')?.get('chat-1')?.message.at(-1))
+                .toMatchObject({ chatId: `user-${operationId}` })
+            expect(harness.runtime.database.globalChatVariables).toEqual({ mood: 'input' })
+            expect(owner.read(operationId)).toMatchObject({ inputState: terminalState })
+        },
+    )
+
+    it('keeps a newer canonical descendant while recovering an attached terminal input', async () => {
+        const harness = makeHarness()
+        const owner = harness.makeOwner()
+        const operationId = 'operation-input-descendant-recover-1'
+        await owner.admit(admission(operationId))
+        await owner.beginTransform(operationId)
+        const attached = await owner.attachTransformed(
+            operationId,
+            harness.transformed(operationId),
+        )
+        expect(owner.settleSynchronously(
+            operationId,
+            'completed',
+            attached.record.executionBaseRevision,
+        )).toBe(true)
+        const attachedChat = harness.runtime.fullStore.get('char-1')?.get('chat-1') as any
+        const descendant = {
+            ...attachedChat,
+            message: [
+                ...attachedChat.message,
+                { role: 'char', data: 'newer reply', chatId: 'assistant-descendant' },
+            ],
+        }
+        harness.runtime.fullStore.get('char-1')?.set('chat-1', descendant)
+        const schedulesBeforeRecovery = harness.runtime.schedules
+
+        await expect(harness.makeOwner(harness.makeJournal()).recoverAll())
+            .resolves.toMatchObject([{ operationId, status: 'attached' }])
+        expect(harness.runtime.fullStore.get('char-1')?.get('chat-1')).toBe(descendant)
+        expect(harness.runtime.schedules).toBe(schedulesBeforeRecovery)
     })
 
     it('rolls back every attach write while retaining the owned transform state', async () => {
