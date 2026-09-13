@@ -1,3 +1,4 @@
+import { createHash } from 'node:crypto'
 import { createRequire } from 'node:module'
 import { describe, expect, it } from 'vitest'
 
@@ -6,6 +7,9 @@ const registerBgOrchestrator = require('./bgOrchestrator.cjs') as (
     app: Record<string, unknown>,
     dependencies: Record<string, unknown>,
 ) => void
+const { createChatWriteJournal } = require('./chatWriteJournal.cjs') as any
+const { createServerChatCommitOwner } = require('./serverChatCommitOwner.cjs') as any
+const { decodeRisuSave, encodeRisuSaveLegacy } = require('./utils.cjs') as any
 const { operationStateKey, writeOperationState } = require('./bgOrchestrationOperationStore.cjs') as {
     operationStateKey: (operationId: string) => string
     writeOperationState: (
@@ -188,7 +192,7 @@ function queuedRetryHarness(
 
 function detachedCommitHarness() {
     const operationId = 'operation-c2-detached-1'
-    const values = new Map<string, string>()
+    const values = new Map<string, string | Buffer>()
     const routes = new Map<string, (request: any, response: any) => unknown>()
     const app: Record<string, unknown> = {}
     for (const method of ['get', 'post', 'delete']) {
@@ -208,23 +212,69 @@ function detachedCommitHarness() {
             { role: 'char', data: 'answer', chatId: 'assistant-1' },
         ],
     }
-    const receipt = {
-        contractVersion: 'bg_server_chat_commit.v1',
-        operationId,
-        requestedCharId: 'char-1',
-        requestedChatId: 'chat-1',
-        storedChatId: 'chat-1',
-        storedRevision: 'stored-revision',
-        chatCommitted: true,
+    const runtime = {
+        database: {
+            characters: [{
+                chaId: 'char-1',
+                chats: [{ id: 'chat-1', name: 'Chat', _stub: true }],
+            }],
+            globalChatVariables: {},
+            statics: { messages: 10 },
+        } as any,
+        fullStore: new Map([['char-1', new Map([['chat-1', baseChat]])]]),
     }
+    const kvGet = (key: string) => values.get(key) ?? null
+    const kvSet = (key: string, value: string | Buffer | Uint8Array) => {
+        values.set(key, typeof value === 'string' ? value : Buffer.from(value))
+    }
+    const kvDel = (key: string) => values.delete(key)
+    const kvList = (prefix: string) => [...values.keys()].filter(key => key.startsWith(prefix))
+    const kvDelPrefix = (prefix: string) => {
+        for (const key of kvList(prefix)) values.delete(key)
+    }
+    const chatRevision = (chat: unknown) => createHash('sha256')
+        .update(Buffer.from(encodeRisuSaveLegacy(chat)))
+        .digest('hex')
+    let storageQueue = Promise.resolve<unknown>(undefined)
+    const queueStorageOperation = <T>(operation: () => T | Promise<T>): Promise<T> => {
+        const run = storageQueue.then(operation, operation)
+        storageQueue = run.catch(() => undefined)
+        return run
+    }
+    const journal = createChatWriteJournal({
+        kvGet,
+        kvSet,
+        kvDel,
+        kvList,
+        encode: encodeRisuSaveLegacy,
+        decode: decodeRisuSave,
+    })
+    const actualOwner = createServerChatCommitOwner({
+        chatWriteJournal: journal,
+        kvGet,
+        kvSet,
+        kvDel,
+        kvDelPrefix,
+        kvList,
+        sqliteDb: { transaction: (operation: () => unknown) => () => operation() },
+        queueStorageOperation,
+        chatRevision,
+        ensureCanonicalState: async () => {},
+        getDbCache: () => ({ database: runtime.database }),
+        getFullChatStore: () => runtime.fullStore,
+        databaseKey: 'database',
+        cacheStrippedDatabase: (database: unknown) => { runtime.database = database },
+        scheduleChatStorePersist: () => {},
+    })
     const commitCalls: any[] = []
+    let receipt: any = null
     let finished = false
     registerBgOrchestrator(app, {
         sessionAuthMiddleware: () => {},
-        kvGet: (key: string) => values.get(key) ?? null,
-        kvSet: (key: string, value: string) => values.set(key, value),
-        kvDel: (key: string) => values.delete(key),
-        kvList: (prefix: string) => [...values.keys()].filter(key => key.startsWith(prefix)),
+        kvGet,
+        kvSet,
+        kvDel,
+        kvList,
         kvGetUpdatedAt: () => Date.now(),
         orchestrationRuns: {
             get: () => null,
@@ -244,16 +294,13 @@ function detachedCommitHarness() {
             isActive: () => false,
         },
         serverChatCommitOwner: {
-            captureBase: async () => ({
-                revision: 'canonical-base-revision',
-                submittedRevision: 'canonical-base-revision',
-                matches: true,
-            }),
+            ...actualOwner,
             commitGenerationResult: async (value: unknown) => {
                 commitCalls.push(value)
-                return { status: 'committed', receipt, publication: 'published' }
+                const outcome = await actualOwner.commitGenerationResult(value)
+                receipt = outcome.receipt
+                return outcome
             },
-            readGenerationCommit: () => ({ status: 'missing', receipt: null }),
         },
         runServerPreview: async (
             _dependencies: unknown,
@@ -304,7 +351,8 @@ function detachedCommitHarness() {
     }
     return {
         operationId,
-        receipt,
+        receipt: () => receipt,
+        runtime,
         values,
         commitCalls,
         start,
@@ -327,20 +375,32 @@ describe('server chat commit route precedence', () => {
         expect(harness.commitCalls).toHaveLength(1)
         expect(harness.commitCalls[0]).toMatchObject({
             operationId: harness.operationId,
-            baseChatRevision: 'canonical-base-revision',
+            baseChatRevision: expect.stringMatching(/^[a-f0-9]{64}$/),
             baselineMessageCount: 1,
             settingsDigest: 'a'.repeat(64),
         })
         const resultRecord = JSON.parse(
-            harness.values.get(`bg-orch-result-op:${harness.operationId}`)!,
+            harness.values.get(`bg-orch-result-op:${harness.operationId}`)!.toString(),
         )
         expect(resultRecord).toMatchObject({
             operationId: harness.operationId,
             serverChatCommit: {
                 status: 'committed',
-                receipt: harness.receipt,
+                receipt: harness.receipt(),
             },
         })
+        expect(harness.runtime.fullStore.get('char-1')?.get('chat-1')).toEqual({
+            id: 'chat-1',
+            name: 'Chat',
+            message: [
+                { role: 'user', data: 'hello', chatId: 'user-1' },
+                { role: 'char', data: 'answer', chatId: 'assistant-1' },
+            ],
+        })
+        expect(harness.runtime.database.statics.messages).toBe(11)
+        expect(JSON.parse(
+            harness.values.get(operationStateKey(harness.operationId))!.toString(),
+        )).toMatchObject({ state: 'chat-committed' })
         expect(harness.finished()).toBe(true)
     })
 
