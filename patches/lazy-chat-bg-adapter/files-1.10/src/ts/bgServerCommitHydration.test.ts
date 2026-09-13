@@ -54,6 +54,7 @@ describe('server-committed result hydration', () => {
             operationId: 'operation-hydration-1',
             charId: 'char-1',
             chatId: 'chat-1',
+            allowedCurrentRevisions: ['base-local-revision'],
             readProjection,
             adoptChat,
         })).resolves.toMatchObject({
@@ -66,7 +67,7 @@ describe('server-committed result hydration', () => {
             charId: 'char-1',
             chatId: 'chat-1',
             expectedServerRevision: 'stored-revision',
-            allowedCurrentRevisions: ['base-revision', 'stored-revision'],
+            allowedCurrentRevisions: ['base-local-revision'],
         })
     })
 
@@ -78,6 +79,7 @@ describe('server-committed result hydration', () => {
             operationId: 'operation-other-1',
             charId: 'char-1',
             chatId: 'chat-1',
+            allowedCurrentRevisions: ['base-local-revision'],
             readProjection,
             adoptChat,
         })).resolves.toEqual({ hydrated: false, reason: 'commit-receipt-invalid' })
@@ -95,6 +97,7 @@ describe('server-committed result hydration', () => {
             operationId: 'operation-hydration-1',
             charId: 'char-1',
             chatId: 'chat-1',
+            allowedCurrentRevisions: ['base-local-revision'],
             readProjection: async () => ({ ...projection(), chatRevision: 'newer-revision' }),
             adoptChat,
         })).resolves.toMatchObject({
@@ -105,11 +108,7 @@ describe('server-committed result hydration', () => {
             charId: 'char-1',
             chatId: 'chat-1',
             expectedServerRevision: 'newer-revision',
-            allowedCurrentRevisions: [
-                'base-revision',
-                'stored-revision',
-                'newer-revision',
-            ],
+            allowedCurrentRevisions: ['base-local-revision'],
         })
     })
 
@@ -120,6 +119,7 @@ describe('server-committed result hydration', () => {
             operationId: 'operation-hydration-1',
             charId: 'char-1',
             chatId: 'chat-1',
+            allowedCurrentRevisions: ['base-local-revision'],
             readProjection: async () => ({
                 ...projection(),
                 chatRevision: 'newer-revision',
@@ -136,6 +136,7 @@ describe('server-committed result hydration', () => {
             operationId: 'operation-hydration-1',
             charId: 'char-1',
             chatId: 'chat-1',
+            allowedCurrentRevisions: ['base-local-revision'],
             readProjection: async () => projection(),
             adoptChat: async () => ({ adopted: false, reason: 'local-revision-conflict' }),
         })).resolves.toEqual({ hydrated: false, reason: 'local-revision-conflict' })

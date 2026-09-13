@@ -132,13 +132,26 @@ module.exports = {
         return serverSnapshot.chat
     }
 `,
-            content: `    async fetchChatContentSnapshot(
+            content: `    async peekChatContentSnapshot(
         chaId: string,
         chatIndex: number,
         chatId: string,
     ): Promise<ServerChatSnapshot | null> {
-        const serverSnapshot = await this.readServerChatSnapshot(chaId, chatIndex, chatId)
-        if (!serverSnapshot) return null
+        return this.readServerChatSnapshot(chaId, chatIndex, chatId)
+    }
+
+    rememberChatContentSnapshot(
+        chaId: string,
+        chatId: string,
+        serverSnapshot: ServerChatSnapshot,
+    ): void {
+        if (!serverSnapshot || serverSnapshot.chat?.id !== chatId
+            || !Array.isArray(serverSnapshot.chat?.message)
+            || typeof serverSnapshot.revision !== 'string' || !serverSnapshot.revision
+            || !Number.isSafeInteger(serverSnapshot.encodedBytes)
+            || serverSnapshot.encodedBytes < 0) {
+            throw new Error('cannot remember an invalid server chat snapshot')
+        }
         this.rememberChatSyncState(
             this.chatSyncKey(chaId, chatId),
             serverSnapshot.revision,
@@ -146,6 +159,16 @@ module.exports = {
             serverSnapshot.encodedBytes,
         )
         this.chatDeltaSupported = true
+    }
+
+    async fetchChatContentSnapshot(
+        chaId: string,
+        chatIndex: number,
+        chatId: string,
+    ): Promise<ServerChatSnapshot | null> {
+        const serverSnapshot = await this.peekChatContentSnapshot(chaId, chatIndex, chatId)
+        if (!serverSnapshot) return null
+        this.rememberChatContentSnapshot(chaId, chatId, serverSnapshot)
         return serverSnapshot
     }
 
@@ -196,7 +219,7 @@ export async function adoptServerCommittedChat(
     const key = chatKey(chaId, chatId)
     acquireHydrationState(hydrationInFlight, hydrationInFlightCounts, key)
     try {
-        const snapshot = await forageStorage.realStorage.fetchChatContentSnapshot(
+        const snapshot = await forageStorage.realStorage.peekChatContentSnapshot(
             chaId,
             initialIndex,
             chatId,
@@ -230,6 +253,7 @@ export async function adoptServerCommittedChat(
         acquireHydrationState(hydrationJustApplied, hydrationJustAppliedCounts, key)
         try {
             chats[currentIndex] = snapshot.chat
+            forageStorage.realStorage.rememberChatContentSnapshot(chaId, chatId, snapshot)
             await tick()
         } finally {
             releaseHydrationState(hydrationJustApplied, hydrationJustAppliedCounts, key)
@@ -390,11 +414,16 @@ async function hydrateServerCommittedResult(
     operationId: string,
     data: any,
 ) {
+    const target = mergeTargetByOperation.get(operationId)
+    const allowedCurrentRevisions = target
+        ? [target.expectedChatRevision, ...(target.acceptedChatRevisions || [])]
+        : []
     return hydrateServerCommittedOrchestration({
         data,
         operationId,
         charId,
         chatId,
+        allowedCurrentRevisions,
         readProjection: readServerChatExecutionProjection,
         adoptChat: async ({
             charId: storedCharId,
@@ -423,12 +452,20 @@ async function hydrateServerCommittedResult(
 
 function rememberServerCommittedTarget(operationId: string, hydration: any): void {
     const receipt = hydration && hydration.receipt
-    if (!receipt) return
+    if (!receipt || !hydration.chat) return
     try {
+        const expectedChatRevision = orchestrationChatRevision(hydration.chat)
+        const current = mergeTargetByOperation.get(operationId)
+        mergeTargetByOperation.set(operationId, {
+            deliveryChatId: receipt.storedChatId,
+            expectedChatRevision,
+            acceptedChatRevisions: [],
+            conflict: current?.conflict || false,
+        })
         updatePendingMarker(localStorage, operationId, (marker) => ({
             ...marker,
             deliveryChatId: receipt.storedChatId,
-            expectedChatRevision: hydration?.projection?.chatRevision || receipt.storedRevision,
+            expectedChatRevision,
         }))
     } catch { /* canonical chat and in-memory watch remain authoritative */ }
 }

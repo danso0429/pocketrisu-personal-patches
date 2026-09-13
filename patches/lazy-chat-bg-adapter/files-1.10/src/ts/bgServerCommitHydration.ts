@@ -82,6 +82,7 @@ export async function hydrateServerCommittedOrchestration(options: {
     operationId: string
     charId: string
     chatId: string
+    allowedCurrentRevisions: string[]
     readProjection: (
         charId: string,
         chatId: string,
@@ -119,17 +120,16 @@ export async function hydrateServerCommittedOrchestration(options: {
         return { hydrated: false as const, reason: 'projection-invalid' }
     }
     const projectionRevision = projection.chatRevision
+    const allowedCurrentRevisions = [...new Set(
+        options.allowedCurrentRevisions.filter(requiredText),
+    )]
     let adoption: { adopted: boolean, reason?: string, chat?: unknown }
     try {
         adoption = await options.adoptChat({
             charId: receipt.requestedCharId,
             chatId: receipt.storedChatId,
             expectedServerRevision: projectionRevision,
-            allowedCurrentRevisions: [...new Set([
-                receipt.baseChatRevision,
-                receipt.storedRevision,
-                projectionRevision,
-            ])],
+            allowedCurrentRevisions,
         })
     } catch {
         return { hydrated: false as const, reason: 'chat-readback-failed' }

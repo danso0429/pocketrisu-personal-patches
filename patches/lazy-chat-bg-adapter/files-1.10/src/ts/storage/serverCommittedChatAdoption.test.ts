@@ -2,6 +2,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 const storageMock = vi.hoisted(() => ({ realStorage: null as any }))
 const tickMock = vi.hoisted(() => vi.fn(async () => {}))
+const rememberSnapshotMock = vi.hoisted(() => vi.fn())
 
 vi.mock('../globalApi.svelte', () => ({ forageStorage: storageMock }))
 vi.mock('svelte', () => ({ tick: tickMock }))
@@ -22,17 +23,23 @@ function chat(data: string) {
 describe('server-committed chat adoption', () => {
     beforeEach(() => {
         tickMock.mockClear()
+        rememberSnapshotMock.mockClear()
     })
 
     it('replaces an unchanged full slot and adopts the server revision baseline', async () => {
         const before = chat('before')
         const after = chat('after')
         const chats = [before]
-        const fetchChatContentSnapshot = vi.fn().mockResolvedValue({
+        const snapshot = {
             chat: after,
             revision: 'stored-revision',
-        })
-        storageMock.realStorage = { fetchChatContentSnapshot }
+            encodedBytes: 123,
+        }
+        const peekChatContentSnapshot = vi.fn().mockResolvedValue(snapshot)
+        storageMock.realStorage = {
+            peekChatContentSnapshot,
+            rememberChatContentSnapshot: rememberSnapshotMock,
+        }
 
         await expect(adoptServerCommittedChat(
             chats,
@@ -43,15 +50,19 @@ describe('server-committed chat adoption', () => {
             (value) => value === before ? 'base-revision' : 'unexpected',
         )).resolves.toMatchObject({ adopted: true, revision: 'stored-revision', chat: after })
         expect(chats[0]).toBe(after)
-        expect(fetchChatContentSnapshot).toHaveBeenCalledWith('char-1', 0, 'chat-1')
+        expect(peekChatContentSnapshot).toHaveBeenCalledWith('char-1', 0, 'chat-1')
+        expect(rememberSnapshotMock).toHaveBeenCalledWith('char-1', 'chat-1', snapshot)
         expect(tickMock).toHaveBeenCalledTimes(1)
         expect(isHydrating('char-1', 'chat-1')).toBe(false)
     })
 
     it('refuses an edited local slot before fetching server content', async () => {
         const chats = [chat('local edit')]
-        const fetchChatContentSnapshot = vi.fn()
-        storageMock.realStorage = { fetchChatContentSnapshot }
+        const peekChatContentSnapshot = vi.fn()
+        storageMock.realStorage = {
+            peekChatContentSnapshot,
+            rememberChatContentSnapshot: rememberSnapshotMock,
+        }
 
         await expect(adoptServerCommittedChat(
             chats,
@@ -61,17 +72,20 @@ describe('server-committed chat adoption', () => {
             ['base-revision'],
             () => 'local-edit-revision',
         )).resolves.toEqual({ adopted: false, reason: 'local-revision-conflict' })
-        expect(fetchChatContentSnapshot).not.toHaveBeenCalled()
+        expect(peekChatContentSnapshot).not.toHaveBeenCalled()
+        expect(rememberSnapshotMock).not.toHaveBeenCalled()
     })
 
     it('keeps the local slot when the fetched server revision differs from the receipt', async () => {
         const before = chat('before')
         const chats = [before]
         storageMock.realStorage = {
-            fetchChatContentSnapshot: vi.fn().mockResolvedValue({
+            peekChatContentSnapshot: vi.fn().mockResolvedValue({
                 chat: chat('newer'),
                 revision: 'newer-revision',
+                encodedBytes: 123,
             }),
+            rememberChatContentSnapshot: rememberSnapshotMock,
         }
 
         await expect(adoptServerCommittedChat(
@@ -87,6 +101,7 @@ describe('server-committed chat adoption', () => {
             currentRevision: 'newer-revision',
         })
         expect(chats[0]).toBe(before)
+        expect(rememberSnapshotMock).not.toHaveBeenCalled()
     })
 
     it('does not overwrite a slot replaced while canonical fetch is in flight', async () => {
@@ -95,9 +110,10 @@ describe('server-committed chat adoption', () => {
         const chats = [before]
         let resolveFetch!: (value: unknown) => void
         storageMock.realStorage = {
-            fetchChatContentSnapshot: vi.fn().mockReturnValue(new Promise(resolve => {
+            peekChatContentSnapshot: vi.fn().mockReturnValue(new Promise(resolve => {
                 resolveFetch = resolve
             })),
+            rememberChatContentSnapshot: rememberSnapshotMock,
         }
         const adopting = adoptServerCommittedChat(
             chats,
@@ -108,13 +124,14 @@ describe('server-committed chat adoption', () => {
             () => 'base-revision',
         )
         chats[0] = replacement
-        resolveFetch({ chat: chat('server'), revision: 'stored-revision' })
+        resolveFetch({ chat: chat('server'), revision: 'stored-revision', encodedBytes: 123 })
 
         await expect(adopting).resolves.toEqual({
             adopted: false,
             reason: 'local-slot-replaced',
         })
         expect(chats[0]).toBe(replacement)
+        expect(rememberSnapshotMock).not.toHaveBeenCalled()
     })
 
     it('hydrates a placeholder because it cannot contain an unsaved local edit', async () => {
@@ -122,10 +139,12 @@ describe('server-committed chat adoption', () => {
         const after = chat('server')
         const chats = [placeholder]
         storageMock.realStorage = {
-            fetchChatContentSnapshot: vi.fn().mockResolvedValue({
+            peekChatContentSnapshot: vi.fn().mockResolvedValue({
                 chat: after,
                 revision: 'stored-revision',
+                encodedBytes: 123,
             }),
+            rememberChatContentSnapshot: rememberSnapshotMock,
         }
 
         await expect(adoptServerCommittedChat(
@@ -136,5 +155,6 @@ describe('server-committed chat adoption', () => {
             ['base-revision'],
             () => 'placeholder-revision',
         )).resolves.toMatchObject({ adopted: true, chat: after })
+        expect(rememberSnapshotMock).toHaveBeenCalledTimes(1)
     })
 })
