@@ -50,7 +50,7 @@ exit criteria.
 | C0-ENV | Can the fixed AC baseline and candidates run against disposable MariaDB/Chroma data without touching the future production install? | verified release staging, alternate loopback ports, readiness/schema smoke, process/readback receipt | **complete for the unmodified 4.3.1 baseline** |
 | C0-A | Can existing prepare/complete source contracts honestly represent the server host? | positive/negative Go characterization probes | **complete: new typed contracts are required** |
 | C0-B | Can one owner atomically claim a current route binding and can every terminal outcome release only its own epoch? | store-level concurrent acquire/status/settle tests plus route-remap fence | **store primitive complete; authenticated product route remains C4** |
-| C0-C | Can ordered host mutations survive gaps, retries, restart, and stale workers? | durable intent/`ingestedSeq`/`safeSeq` state-machine tests | pending |
+| C0-C | Can ordered host mutations survive gaps, retries, restart, and stale workers? | durable intent/`ingestedSeq`/`safeSeq` state-machine tests | **store primitive complete; Node writer and product route remain C1/C4/C6** |
 | C0-D | Can prepare registration prevent a second paid execution after response loss or restart, and can skip fence a late result? | durable prepare registry and timeout/ready CAS tests | pending |
 | C0-E | Can N+1 remain outside canonical chat until its turn, and can Node commit a result with chat, metadata, effects, intent, and owner in one replay boundary? | queued-input and server-commit failure-injection harness | pending |
 | C0-F | Do output stages remain foreground/BG-equivalent, and can a blank browser discover ownership after result TTL cleanup? | stage parity fixture and revision-bound projection fixture | pending |
@@ -235,6 +235,67 @@ backend-process restart through the mounted route.
 The report SHA-256 is
 `cec933f48f50ac451bea0d0852512e168a2966dc8ee25d58ff704bc5b9195a01`.
 
+### C0-C ordered host-change and source-safety primitive
+
+Archive Center local commits `17fcdd1` and `d063b68` add an optional
+`HostChangeStreamStore`, migration 015, exact binding-stream watermark checks,
+and transactional mutation safety without mounting an HTTP route. Commit
+`6866ccd` adds real durable vector-delete readback, and validation commit
+`701f1ad` records the discovery → external-anchor → triage audit.
+
+Observed boundaries:
+
+- the exact `(host instance, character, chat, binding epoch)` stream owns
+  independent durable `ingested_seq` and `safe_seq` values;
+- immutable event receipts reject event-fingerprint and sequence collisions,
+  return the first missing sequence, and replay exactly after store restart or
+  route remap;
+- concurrent sequence 3/4 delivery converges after the reported gap, while a
+  new binding epoch begins at sequence 1 and cannot inherit the old stream;
+- content-changing events enter pending, and individually safe
+  `ac_skip`/`operation_end` events cannot leap over an earlier pending event;
+- an edit/delete/reroll/branch is safe only after its stored identities match
+  source history; an unobserved target remains pending;
+- a matched edit invalidates source revisions from the earliest matched turn,
+  rejects leased critic/vector work, durably queues vector deletes, removes
+  stale raw/derived Archive Center tail projections, and advances only the
+  contiguous safe prefix in one MariaDB transaction;
+- a read-exclusion write failure rolls the transaction back before any safety
+  receipt or watermark ACK;
+- the same safety transaction records an immutable invalidated/deleted outcome
+  and releases only the active execution claim, after which a new acquire at
+  the new required sequence succeeds; and
+- input/response safety, missing-source reconciliation, multi-stream session
+  aggregation, retention, in-memory worker cancellation, and authenticated
+  transport remain explicit later gates.
+
+The real MariaDB fixtures covered gap/replay/restart/concurrency/binding epoch
+and source invalidation across a store reconnect. The latter started with a
+live source, leased reprocessing job, leased vector upsert, raw chat pair, and
+aggregate memory. It ended with source `invalidated`, both workers
+`stale_rejected`, at least one pending vector delete, zero stale raw/aggregate
+readback, late vector completion rejected as `ErrSourceRevisionStale`, a
+durable invalidated execution outcome, and a new claim at `safe_seq=1`.
+
+Verification observed twenty-eight combined host-change/host-execution tests,
+both disposable MariaDB tests, the full store package, focused race detector,
+the full Go repository, `go vet ./...`, and unchanged-JavaScript syntax. The
+production schema loader applied the complete fifteen-file inventory twice at
+146/146 statements plus 103 compatibility statements. Final post-test readback
+showed 85 tables, all four coordination tables `CHECK ... OK`, and zero stream,
+event, slot, outcome, or `c0-*` source/job/vector/chat fixture rows.
+
+The final Linux arm64 source build is 36,485,982 bytes with SHA-256
+`4125df825f91687aeeabc3fa506e3d900bfd326916d850c17d297e39986b77e3`.
+The isolated runtime deliberately remains the unmodified verified 4.3.1
+package; it still reports full store/vector/reference readiness and
+`degraded=false`, while the distro MariaDB service remains inactive/disabled.
+No AC upstream write was attempted.
+
+The detailed report is Archive Center
+`docs/pocketrisu-host-change-stream-c0-validation.md`; its SHA-256 is
+`6002b0c4f97ea0b89bbee5a31c9d7fd53e4570df46928159b632fb66620f6796`.
+
 ## Existing owners to extend
 
 | Need | Existing owner | Confirmed gap |
@@ -242,8 +303,8 @@ The report SHA-256 is
 | Node serialization | `queueStorageOperation` and `fullChatStore` in the exact-1.10 lazy server owner | no server-level generation commit primitive or focused cross-boundary test |
 | Chat payload WAL | `chatWriteJournal` | restores payload but does not create missing chat metadata or carry effect/intent/owner receipts |
 | BG lifecycle | generated `bgOrchestrator.cjs` source owned by `patches/bg-preserve.json` | terminal result is parked in KV for a browser consumer; it is not a normal chat commit |
-| AC route identity | `SessionRouteBindingStore` and serializable `BindSessionRoute` transaction | no acquire/status/settle, claim epoch, terminal outcome, or source watermarks |
-| AC source invalidation | durable source revisions and transactional invalidation/outbox fences | not connected to an ordered PocketRisu host mutation stream |
+| AC route identity | `SessionRouteBindingStore`, `HostSessionExecutionStore`, and serializable route/claim transactions | store acquire/status/settle and exact-stream watermarks exist; authenticated route, nonterminal phases, and receipt/context links remain absent |
+| AC source invalidation | durable source revisions, transactional invalidation/outbox fences, and the C0-C ordered host stream | store primitive is connected; Node durable writer, host transport, input/response completion, and multi-stream aggregation remain absent |
 | AC complete idempotency | in-process complete request ledger plus durable source records | no durable prepare registry and no server-host receipt contract |
 
 No generated `bgOrchBundle.mjs` output will be edited directly. New storage is
