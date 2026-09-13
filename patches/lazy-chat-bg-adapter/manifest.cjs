@@ -104,6 +104,153 @@ module.exports = {
             requires: ['lazy-chat-bg-adapter:adaptive-asset-upload-retry'],
         },
         {
+            id: 'lazy-chat-bg-adapter:server-chat-snapshot-type:1.10',
+            file: 'src/ts/storage/nodeStorage.ts',
+            type: 'replace',
+            anchor: 'interface ServerChatSnapshot {\n',
+            content: 'export interface ServerChatSnapshot {\n',
+            requires: ['lazy-chat-bg-adapter:asset-upload-error-detail'],
+            after: [
+                'client-build-fence-kei-lazy-storage-adapter:backup-xhr-response:1.9',
+            ],
+            targetVersions: pocketRisu1100,
+        },
+        {
+            id: 'lazy-chat-bg-adapter:server-chat-snapshot-read:1.10',
+            file: 'src/ts/storage/nodeStorage.ts',
+            type: 'replace',
+            anchor: `    async fetchChatContent(chaId: string, chatIndex: number, chatId: string): Promise<any | null> {
+        const serverSnapshot = await this.readServerChatSnapshot(chaId, chatIndex, chatId)
+        if (!serverSnapshot) return null
+        this.rememberChatSyncState(
+            this.chatSyncKey(chaId, chatId),
+            serverSnapshot.revision,
+            serverSnapshot.chat,
+            serverSnapshot.encodedBytes,
+        )
+        this.chatDeltaSupported = true
+        return serverSnapshot.chat
+    }
+`,
+            content: `    async fetchChatContentSnapshot(
+        chaId: string,
+        chatIndex: number,
+        chatId: string,
+    ): Promise<ServerChatSnapshot | null> {
+        const serverSnapshot = await this.readServerChatSnapshot(chaId, chatIndex, chatId)
+        if (!serverSnapshot) return null
+        this.rememberChatSyncState(
+            this.chatSyncKey(chaId, chatId),
+            serverSnapshot.revision,
+            serverSnapshot.chat,
+            serverSnapshot.encodedBytes,
+        )
+        this.chatDeltaSupported = true
+        return serverSnapshot
+    }
+
+    async fetchChatContent(chaId: string, chatIndex: number, chatId: string): Promise<any | null> {
+        return (await this.fetchChatContentSnapshot(chaId, chatIndex, chatId))?.chat ?? null
+    }
+`,
+            requires: ['lazy-chat-bg-adapter:server-chat-snapshot-type:1.10'],
+            targetVersions: pocketRisu1100,
+        },
+        {
+            id: 'lazy-chat-bg-adapter:server-committed-chat-adoption:1.10',
+            file: 'src/ts/storage/chatStorage.ts',
+            type: 'insert',
+            where: 'after',
+            anchor: `export async function fetchChatFromServer(chaId: string, chatIndex: number, chatId: string): Promise<Chat | null> {
+    const storage = forageStorage.realStorage
+    return storage.fetchChatContent(chaId, chatIndex, chatId)
+}
+`,
+            content: `
+export async function adoptServerCommittedChat(
+    chats: Chat[],
+    chaId: string,
+    chatId: string,
+    expectedServerRevision: string,
+    allowedCurrentRevisions: string[],
+    revisionOf: (chat: Chat) => string,
+): Promise<{
+    adopted: boolean
+    reason?: string
+    currentRevision?: string
+    revision?: string
+    chat?: Chat
+}> {
+    const initialIndex = chats.findIndex(chat => chat?.id === chatId)
+    if (initialIndex < 0) return { adopted: false, reason: 'chat-missing' }
+    const initial = chats[initialIndex]
+    const allowed = new Set(allowedCurrentRevisions)
+    if (!initial._placeholder) {
+        let currentRevision = ''
+        try { currentRevision = revisionOf(initial) } catch { /* invalid local chat */ }
+        if (!allowed.has(currentRevision)) {
+            return { adopted: false, reason: 'local-revision-conflict' }
+        }
+    }
+
+    const key = chatKey(chaId, chatId)
+    acquireHydrationState(hydrationInFlight, hydrationInFlightCounts, key)
+    try {
+        const snapshot = await forageStorage.realStorage.fetchChatContentSnapshot(
+            chaId,
+            initialIndex,
+            chatId,
+        )
+        if (!snapshot || !isValidHydratedChat(snapshot.chat, chatId)) {
+            return { adopted: false, reason: 'server-chat-missing' }
+        }
+        if (snapshot.revision !== expectedServerRevision) {
+            return {
+                adopted: false,
+                reason: 'server-revision-mismatch',
+                currentRevision: snapshot.revision,
+            }
+        }
+        snapshot.chat.isStreaming = false
+        snapshot.chat.activeStreamingDisplayOptimizationMode = undefined
+        await yieldForHydrationPaint()
+
+        const currentIndex = chats.findIndex(chat => chat?.id === chatId)
+        if (currentIndex < 0) return { adopted: false, reason: 'chat-removed' }
+        const current = chats[currentIndex]
+        if (current !== initial) return { adopted: false, reason: 'local-slot-replaced' }
+        if (!current._placeholder) {
+            let currentRevision = ''
+            try { currentRevision = revisionOf(current) } catch { /* invalid local chat */ }
+            if (!allowed.has(currentRevision)) {
+                return { adopted: false, reason: 'local-revision-conflict' }
+            }
+        }
+
+        acquireHydrationState(hydrationJustApplied, hydrationJustAppliedCounts, key)
+        try {
+            chats[currentIndex] = snapshot.chat
+            await tick()
+        } finally {
+            releaseHydrationState(hydrationJustApplied, hydrationJustAppliedCounts, key)
+        }
+        return {
+            adopted: true,
+            revision: snapshot.revision,
+            chat: snapshot.chat,
+        }
+    } finally {
+        releaseHydrationState(hydrationInFlight, hydrationInFlightCounts, key)
+    }
+}
+`,
+            requires: [
+                'lazy-chat-sync:replace:src:ts:storage:chatStorage-ts:1.10',
+                'lazy-chat-bg-adapter:server-chat-snapshot-read:1.10',
+            ],
+            targetVersions: pocketRisu1100,
+        },
+        {
             id: 'lazy-chat-bg-adapter:barrier',
             file: 'src/ts/bgDurableSaveBarrier.ts',
             type: 'owned',
@@ -114,6 +261,32 @@ module.exports = {
             file: 'src/ts/bgDurableSaveBarrier.test.ts',
             type: 'owned',
             content: owned('src/ts/bgDurableSaveBarrier.test.ts'),
+        },
+        {
+            id: 'lazy-chat-bg-adapter:owned:bg-server-commit-hydration:1.10',
+            file: 'src/ts/bgServerCommitHydration.ts',
+            type: 'owned',
+            content: owned1100('src/ts/bgServerCommitHydration.ts'),
+            targetVersions: pocketRisu1100,
+        },
+        {
+            id: 'lazy-chat-bg-adapter:owned:bg-server-commit-hydration-test:1.10',
+            file: 'src/ts/bgServerCommitHydration.test.ts',
+            type: 'owned',
+            content: owned1100('src/ts/bgServerCommitHydration.test.ts'),
+            requires: ['lazy-chat-bg-adapter:owned:bg-server-commit-hydration:1.10'],
+            targetVersions: pocketRisu1100,
+        },
+        {
+            id: 'lazy-chat-bg-adapter:owned:server-committed-chat-adoption-test:1.10',
+            file: 'src/ts/storage/serverCommittedChatAdoption.test.ts',
+            type: 'owned',
+            content: owned1100('src/ts/storage/serverCommittedChatAdoption.test.ts'),
+            requires: [
+                'lazy-chat-bg-adapter:server-committed-chat-adoption:1.10',
+                'lazy-chat-bg-adapter:owned:bg-server-commit-hydration-test:1.10',
+            ],
+            targetVersions: pocketRisu1100,
         },
         {
             id: 'lazy-chat-bg-adapter:global-import',
@@ -150,6 +323,250 @@ module.exports = {
                 'lazy-chat-sync:replace:src:ts:globalApi-svelte-ts:1.9',
                 'lazy-chat-bg-adapter:global-import',
             ],
+        },
+        {
+            id: 'lazy-chat-bg-adapter:server-commit-client-import:1.10',
+            file: 'src/ts/bgOrchestrate.ts',
+            type: 'replace',
+            anchor: "import { ensureChatHydrated, fetchChatFromServer } from './storage/chatStorage'\n",
+            content: `import {
+    adoptServerCommittedChat,
+    ensureChatHydrated,
+    fetchChatFromServer,
+} from './storage/chatStorage'
+import {
+    hydrateServerCommittedOrchestration,
+    serverChatCommitReceipt,
+} from './bgServerCommitHydration'
+`,
+            requires: [
+                'client-build-fence-bg-adapter:orchestration-control:1.9',
+                'lazy-chat-bg-adapter:owned:server-committed-chat-adoption-test:1.10',
+            ],
+            targetVersions: pocketRisu1100,
+        },
+        {
+            id: 'lazy-chat-bg-adapter:server-commit-client-hydration:1.10',
+            file: 'src/ts/bgOrchestrate.ts',
+            type: 'insert',
+            where: 'before',
+            anchor: 'async function pollOrchestrationResult(): Promise<void> {\n',
+            content: `async function readServerChatExecutionProjection(
+    charId: string,
+    chatId: string,
+    revision: string,
+): Promise<unknown> {
+    const query = new URLSearchParams({ revision })
+    const url = '/api/bg-orchestrate-chat-state/'
+        + encodeURIComponent(charId) + '/' + encodeURIComponent(chatId)
+        + '?' + query.toString()
+    const response = await fetchOrchestrationControl(url, {
+        method: 'GET',
+        credentials: 'same-origin',
+    })
+    if (!response.ok) throw new Error('chat execution projection unavailable')
+    const projection = await response.json()
+    if (projection?.found !== true) throw new Error('chat execution projection missing')
+    return projection
+}
+
+async function hydrateServerCommittedResult(
+    charId: string,
+    chatId: string,
+    operationId: string,
+    data: any,
+) {
+    return hydrateServerCommittedOrchestration({
+        data,
+        operationId,
+        charId,
+        chatId,
+        readProjection: readServerChatExecutionProjection,
+        adoptChat: async ({
+            charId: storedCharId,
+            chatId: storedChatId,
+            expectedServerRevision,
+            allowedCurrentRevisions,
+        }) => {
+            const characters: any[] = (DBState as any)?.db?.characters
+            const character = Array.isArray(characters)
+                ? characters.find((candidate: any) => candidate?.chaId === storedCharId)
+                : null
+            if (!character || !Array.isArray(character.chats)) {
+                return { adopted: false, reason: 'character-missing' }
+            }
+            return adoptServerCommittedChat(
+                character.chats,
+                storedCharId,
+                storedChatId,
+                expectedServerRevision,
+                allowedCurrentRevisions,
+                orchestrationChatRevision,
+            )
+        },
+    })
+}
+
+function rememberServerCommittedTarget(operationId: string, hydration: any): void {
+    const receipt = hydration && hydration.receipt
+    if (!receipt) return
+    try {
+        updatePendingMarker(localStorage, operationId, (marker) => ({
+            ...marker,
+            deliveryChatId: receipt.storedChatId,
+            expectedChatRevision: receipt.storedRevision,
+        }))
+    } catch { /* canonical chat and in-memory watch remain authoritative */ }
+}
+
+`,
+            requires: ['lazy-chat-bg-adapter:server-commit-client-import:1.10'],
+            targetVersions: pocketRisu1100,
+        },
+        {
+            id: 'lazy-chat-bg-adapter:server-commit-client-missing-result:1.10',
+            file: 'src/ts/bgOrchestrate.ts',
+            type: 'replace',
+            anchor: `        if (!data || !data.found) {
+            if (data?.operationState === 'start-retry-required') {
+`,
+            content: `        if (!data || !data.found) {
+            if (data?.operationState === 'chat-committed'
+                && operationId && serverChatCommitReceipt(data)) {
+                const hydration = await hydrateServerCommittedResult(
+                    charId, chatId, operationId, data,
+                )
+                if (pollEpoch !== watchEpoch) return
+                if (!hydration.hydrated) {
+                    console.warn('[bg-orch] committed chat hydrate deferred:', hydration.reason)
+                    return
+                }
+                rememberServerCommittedTarget(operationId, hydration)
+                runServerCompletionEpilogue(operationId, { ...data, chat: hydration.chat })
+                stopWatch()
+                return
+            }
+            if (data?.operationState === 'start-retry-required') {
+`,
+            requires: ['lazy-chat-bg-adapter:server-commit-client-hydration:1.10'],
+            targetVersions: pocketRisu1100,
+        },
+        {
+            id: 'lazy-chat-bg-adapter:server-commit-client-found-result:1.10',
+            file: 'src/ts/bgOrchestrate.ts',
+            type: 'replace',
+            anchor: `        try {
+            const newMsgs = data.chat && Array.isArray(data.chat.message) ? data.chat.message.length : -1
+`,
+            content: `        try {
+            const committedReceipt = serverChatCommitReceipt(data)
+            if (committedReceipt && operationId) {
+                const hydration = await hydrateServerCommittedResult(
+                    charId, chatId, operationId, data,
+                )
+                if (pollEpoch !== watchEpoch) return
+                if (!hydration.hydrated) {
+                    console.warn('[bg-orch] committed result hydrate deferred:', hydration.reason)
+                    return
+                }
+                const acknowledgement = resultId
+                    ? await acknowledgeResultRevision(
+                        charId, chatId, operationId, resultKeyVersion, resultId,
+                    )
+                    : 'unconfirmed'
+                if (pollEpoch !== watchEpoch || acknowledgement === 'superseded') return
+                commitOrchestrationResultOrder(data, appliedResultOrderByOperation)
+                rememberServerCommittedTarget(operationId, hydration)
+                runServerCompletionEpilogue(operationId, { ...data, chat: hydration.chat })
+                if (isConfirmedOrchestrationAcknowledgement(acknowledgement)) stopWatch()
+                else stopWatch({ preservePendingMarker: true })
+                return
+            }
+            const newMsgs = data.chat && Array.isArray(data.chat.message) ? data.chat.message.length : -1
+`,
+            requires: ['lazy-chat-bg-adapter:server-commit-client-missing-result:1.10'],
+            targetVersions: pocketRisu1100,
+        },
+        {
+            id: 'lazy-chat-bg-adapter:server-commit-boot-missing-result:1.10',
+            file: 'src/ts/bgOrchestrate.ts',
+            type: 'replace',
+            anchor: `            if (!data || !data.found) {
+                const stage = data && typeof data.stage === 'number' ? data.stage : 0
+`,
+            content: `            if (!data || !data.found) {
+                if (data?.operationState === 'chat-committed'
+                    && operationId && serverChatCommitReceipt(data)) {
+                    const hydration = await hydrateServerCommittedResult(
+                        charId, chatId, operationId, data,
+                    )
+                    if (epoch !== bootRecoveryEpoch) return
+                    if (!hydration.hydrated) {
+                        setTimeout(() => bootRecoverPoll(
+                            charId, chatId, baselineMsgs, operationId,
+                            resultKeyVersion, deadline, emptyCount, epoch,
+                        ), ORCH_POLL_MS)
+                        return
+                    }
+                    rememberServerCommittedTarget(operationId, hydration)
+                    runServerCompletionEpilogue(operationId, { ...data, chat: hydration.chat })
+                    finishBootRecovery(operationId)
+                    return
+                }
+                const stage = data && typeof data.stage === 'number' ? data.stage : 0
+`,
+            requires: ['lazy-chat-bg-adapter:server-commit-client-found-result:1.10'],
+            targetVersions: pocketRisu1100,
+        },
+        {
+            id: 'lazy-chat-bg-adapter:server-commit-boot-found-result:1.10',
+            file: 'src/ts/bgOrchestrate.ts',
+            type: 'replace',
+            anchor: `            const newMsgs = data.chat && Array.isArray(data.chat.message) ? data.chat.message.length : -1
+            if (data.chat && newMsgs > baselineMsgs) {
+`,
+            content: `            const committedReceipt = serverChatCommitReceipt(data)
+            if (committedReceipt && operationId) {
+                const hydration = await hydrateServerCommittedResult(
+                    charId, chatId, operationId, data,
+                )
+                if (epoch !== bootRecoveryEpoch) return
+                if (!hydration.hydrated) {
+                    setTimeout(() => bootRecoverPoll(
+                        charId, chatId, baselineMsgs, operationId,
+                        resultKeyVersion, deadline, 0, epoch,
+                    ), ORCH_POLL_MS)
+                    return
+                }
+                const resultId = typeof data.resultId === 'string' ? data.resultId : null
+                const acknowledgement = resultId
+                    ? await acknowledgeResultRevision(
+                        charId, chatId, operationId, resultKeyVersion, resultId,
+                    )
+                    : 'unconfirmed'
+                if (epoch !== bootRecoveryEpoch) return
+                if (acknowledgement === 'superseded') {
+                    setTimeout(() => bootRecoverPoll(
+                        charId, chatId, baselineMsgs, operationId,
+                        resultKeyVersion, deadline, 0, epoch,
+                    ), ORCH_POLL_MS)
+                    return
+                }
+                commitOrchestrationResultOrder(data, appliedResultOrderByOperation)
+                rememberServerCommittedTarget(operationId, hydration)
+                runServerCompletionEpilogue(operationId, { ...data, chat: hydration.chat })
+                if (isConfirmedOrchestrationAcknowledgement(acknowledgement)) {
+                    finishBootRecovery(operationId)
+                } else {
+                    deferBootRecovery(operationId)
+                }
+                return
+            }
+            const newMsgs = data.chat && Array.isArray(data.chat.message) ? data.chat.message.length : -1
+            if (data.chat && newMsgs > baselineMsgs) {
+`,
+            requires: ['lazy-chat-bg-adapter:server-commit-boot-missing-result:1.10'],
+            targetVersions: pocketRisu1100,
         },
         {
             id: 'lazy-chat-bg-adapter:owned:server-chat-execution-projection:1.10',
@@ -444,7 +861,10 @@ const serverChatCommitOwner = createServerChatCommitOwner({
         .digest('hex')
       : null
 `,
-            requires: ['bg-preserve:owned:server/node/bgOrchestrator.cjs:1.9'],
+            requires: [
+                'bg-preserve:owned:server/node/bgOrchestrator.cjs:1.9',
+                'lazy-chat-bg-adapter:server-commit-boot-found-result:1.10',
+            ],
             after: ['pagefold-bg-adapter:bundle-stale-sources:1.10'],
             targetVersions: pocketRisu1100,
         },

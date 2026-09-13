@@ -25,6 +25,9 @@ test('C3: exact-1.10 graph owns revision-bound chat execution projection', () =>
     for (const file of [
         'server/node/serverChatExecutionProjection.cjs',
         'server/node/serverChatExecutionProjection.test.ts',
+        'src/ts/bgServerCommitHydration.ts',
+        'src/ts/bgServerCommitHydration.test.ts',
+        'src/ts/storage/serverCommittedChatAdoption.test.ts',
     ]) {
         assert.equal(units1100.filter(candidate => candidate.file === file).length, 1)
         assert.equal(units190.filter(candidate => candidate.file === file).length, 0)
@@ -36,6 +39,30 @@ test('C3: exact-1.10 graph owns revision-bound chat execution projection', () =>
     assert.match(route.content, /state: 'revision_mismatch'/)
     assert.match(route.content, /state: 'ownership-unknown'/)
     assert.match(route.content, /found: true, \.\.\.outcome\.projection/)
+})
+
+test('C3: committed-result client path hydrates canonical chat and skips legacy save effects', () => {
+    const imports = unit('lazy-chat-bg-adapter:server-commit-client-import:1.10')
+    const hydration = unit('lazy-chat-bg-adapter:server-commit-client-hydration:1.10')
+    const foreground = unit('lazy-chat-bg-adapter:server-commit-client-found-result:1.10')
+    const boot = unit('lazy-chat-bg-adapter:server-commit-boot-found-result:1.10')
+    assert.match(imports.content, /hydrateServerCommittedOrchestration/)
+    assert.match(imports.content, /adoptServerCommittedChat/)
+    assert.match(hydration.content, /fetchOrchestrationControl/)
+    assert.match(hydration.content, /orchestrationChatRevision/)
+    assert.match(foreground.content, /serverChatCommitReceipt/)
+    assert.match(foreground.content, /acknowledgeResultRevision/)
+    assert.doesNotMatch(foreground.content, /persistMergedOrchestrationResult/)
+    assert.doesNotMatch(foreground.content, /requestDurableSave/)
+    assert.match(boot.content, /hydrateServerCommittedResult/)
+
+    const snapshot = unit('lazy-chat-bg-adapter:server-chat-snapshot-read:1.10')
+    const adoption = unit('lazy-chat-bg-adapter:server-committed-chat-adoption:1.10')
+    assert.match(snapshot.content, /fetchChatContentSnapshot/)
+    assert.match(snapshot.content, /rememberChatSyncState/)
+    assert.match(adoption.content, /hydrationJustApplied/)
+    assert.match(adoption.content, /local-revision-conflict/)
+    assert.match(adoption.content, /server-revision-mismatch/)
 })
 
 test('C3: server-owned root state survives both full and patch database writers', () => {
