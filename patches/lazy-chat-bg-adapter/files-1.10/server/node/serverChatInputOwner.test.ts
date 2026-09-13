@@ -92,6 +92,7 @@ function makeHarness() {
         fullStore: new Map([['char-1', new Map([['chat-1', baseChat()]])]]),
         schedules: 0,
         cacheFailures: 0,
+        ensureCanonicalHook: null as null | (() => void | Promise<void>),
     }
     let queue = Promise.resolve<unknown>(undefined)
     const queueStorageOperation = <T>(operation: () => T | Promise<T>): Promise<T> => {
@@ -117,7 +118,9 @@ function makeHarness() {
         sqliteDb: db,
         queueStorageOperation,
         chatRevision: revision,
-        ensureCanonicalState: async () => {},
+        ensureCanonicalState: async () => {
+            await runtime.ensureCanonicalHook?.()
+        },
         getDbCache: () => ({ database: runtime.database }),
         getFullChatStore: () => runtime.fullStore,
         databaseKey: 'database',
@@ -289,6 +292,33 @@ describe('pre-canonical server chat input owner', () => {
             state: 'blocked_edit',
             cancelAllowed: false,
         }])
+    })
+
+    it('defers provider work when globals change after the durable attach write', async () => {
+        const harness = makeHarness()
+        const owner = harness.makeOwner()
+        const operationId = 'operation-input-publication-conflict-1'
+        await owner.admit(admission(operationId))
+        await owner.beginTransform(operationId)
+        harness.runtime.ensureCanonicalHook = () => {
+            harness.runtime.ensureCanonicalHook = null
+            harness.runtime.database.globalChatVariables.mood = 'newer-publication-value'
+        }
+
+        await expect(owner.attachTransformed(
+            operationId,
+            harness.transformed(operationId),
+        )).resolves.toMatchObject({
+            status: 'attached',
+            publication: 'pending_recovery',
+        })
+        expect(harness.runtime.fullStore.get('char-1')?.get('chat-1')).toEqual(baseChat())
+        expect(harness.runtime.database.globalChatVariables)
+            .toEqual({ mood: 'newer-publication-value' })
+        await expect(owner.loadExecution(operationId)).resolves.toMatchObject({
+            status: 'blocked',
+            reason: 'attached_chat_changed',
+        })
     })
 
     it('recovers an attached input after publication failure without rerunning transform', async () => {

@@ -183,11 +183,14 @@ function applyGlobals(database, record) {
         : {};
     const intent = record.globalIntent;
     for (const outcome of record.globalOutcomes) {
-        if (outcome.status !== 'committed') continue;
-        if (!expectationMatches(current, outcome.key, intent.expected[outcome.key])
+        if (outcome.status === 'committed'
+            && !expectationMatches(current, outcome.key, intent.expected[outcome.key])
             && !desiredMatches(current, outcome.key, intent)) {
-            continue;
+            throw new Error('attached input global variables changed before publication');
         }
+    }
+    for (const outcome of record.globalOutcomes) {
+        if (outcome.status !== 'committed') continue;
         if (own(intent.changed, outcome.key)) current[outcome.key] = clone(intent.changed[outcome.key]);
         else delete current[outcome.key];
     }
