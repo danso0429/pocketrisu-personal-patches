@@ -47,7 +47,7 @@ exit criteria.
 
 | Slice | Contract question | Primary evidence | State |
 | --- | --- | --- | --- |
-| C0-ENV | Can the fixed AC baseline and candidates run against disposable MariaDB/Chroma data without touching the future production install? | verified release staging, alternate loopback ports, readiness/schema smoke, process/readback receipt | **planned: install authorization required** |
+| C0-ENV | Can the fixed AC baseline and candidates run against disposable MariaDB/Chroma data without touching the future production install? | verified release staging, alternate loopback ports, readiness/schema smoke, process/readback receipt | **complete for the unmodified 4.3.1 baseline** |
 | C0-A | Can existing prepare/complete source contracts honestly represent the server host? | positive/negative Go characterization probes | **started: current contracts are insufficient** |
 | C0-B | Can one owner atomically claim a current route binding and can every terminal outcome release only its own epoch? | store-level concurrent acquire/status/settle tests plus route-remap fence | pending |
 | C0-C | Can ordered host mutations survive gaps, retries, restart, and stale workers? | durable intent/`ingestedSeq`/`safeSeq` state-machine tests | pending |
@@ -98,6 +98,45 @@ launcher owns MariaDB package installation, a managed ChromaDB 1.5.9 virtual
 environment, data initialization, schema bootstrap, and process startup. C0
 does not replace that path with an ad-hoc Docker stack or manually invented
 runtime layout.
+
+### C0-ENV observed receipt
+
+- GitHub Latest resolved to non-draft, non-prerelease `v4.3.1`. The selected
+  Linux arm64 asset was 16,193,522 bytes with SHA-256
+  `fb439f6cc530e0a56eb4371a77d0b6e8d3d23de4b8cb7bead6c58499b038171e`;
+  the checksum asset digest was
+  `23cf99bcb963498c8b2ebe7fd36f44d8f9055d6656af5341ae2ae6e96515f39d`.
+- The custom non-systemd install selected release `v4.3.1`, and every entry in
+  the package's internal `SHA256SUMS.txt` verified successfully.
+- The managed launcher installed the Ubuntu MariaDB 10.11.14 client/server
+  packages and a private Python environment containing exactly ChromaDB
+  1.5.9. The package install automatically enabled and started the distro
+  MariaDB service on its default port; that unintended non-isolated service
+  was stopped and disabled. No database files were deleted.
+- The first managed start correctly used the alternate MariaDB and ChromaDB
+  ports but inherited the package's all-interface backend bind default. It was
+  stopped immediately, all three ports were observed closed, and the same data
+  was restarted with an explicit loopback backend bind.
+- Kernel listener readback then showed the Go backend on 28192, MariaDB on
+  33192, and ChromaDB on 8192, each bound only to `127.0.0.1`.
+- MariaDB initialization and the first schema run reported 142/142 statements,
+  all thirteen migration files, managed-account verification, and the intended
+  disposable data directory. Direct SQL readback reported 81 Archive Center
+  tables and `CHECK TABLE session_route_bindings` returned `OK`.
+- `/version` returned 4.3.1. `/ready` returned `ready`, `store_ready`,
+  `vector_ready`, and `reference_vector_ready` true, `degraded=false`, and the
+  expected `full_local` / `mariadb_authority` / `local_native` owners. The
+  ChromaDB v2 heartbeat responded.
+- A controlled stop closed all three C0 listeners. Restarting from the same
+  isolated data repeated schema readback, returned the same 81-table count and
+  route-table check, restored ChromaDB heartbeat, and returned full readiness.
+- The restarted baseline remains in the dedicated `archive-center-c0` tmux
+  session. It is not registered as a system service and its JavaScript plugin
+  is not loaded into live PocketRisu.
+
+This receipt qualifies only the unmodified 4.3.1 disposable runtime substrate.
+It does not qualify the C0 claim, mutation, prepare, server-host, or chat-commit
+contracts and does not count as the plan's browser-process-exit evidence.
 
 ## Started evidence
 
