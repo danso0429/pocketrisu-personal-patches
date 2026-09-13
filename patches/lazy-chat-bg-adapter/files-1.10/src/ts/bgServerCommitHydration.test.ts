@@ -33,7 +33,7 @@ function projection() {
         chatId: 'chat-1',
         chatRevision: 'stored-revision',
         coverage: 'authoritative',
-        owners: [],
+        owners: [{ operationId: 'operation-hydration-1' }],
         pendingInputCommands: [],
     }
 }
@@ -85,14 +85,46 @@ describe('server-committed result hydration', () => {
         expect(adoptChat).not.toHaveBeenCalled()
     })
 
-    it('refuses projection revision drift before chat adoption', async () => {
-        const adoptChat = vi.fn()
+    it('adopts an authoritative descendant that still owns the receipt operation', async () => {
+        const adoptChat = vi.fn().mockResolvedValue({
+            adopted: true,
+            chat: { id: 'chat-1' },
+        })
         await expect(hydrateServerCommittedOrchestration({
             data: { serverChatCommit: receipt() },
             operationId: 'operation-hydration-1',
             charId: 'char-1',
             chatId: 'chat-1',
             readProjection: async () => ({ ...projection(), chatRevision: 'newer-revision' }),
+            adoptChat,
+        })).resolves.toMatchObject({
+            hydrated: true,
+            projection: { chatRevision: 'newer-revision' },
+        })
+        expect(adoptChat).toHaveBeenCalledWith({
+            charId: 'char-1',
+            chatId: 'chat-1',
+            expectedServerRevision: 'newer-revision',
+            allowedCurrentRevisions: [
+                'base-revision',
+                'stored-revision',
+                'newer-revision',
+            ],
+        })
+    })
+
+    it('refuses a descendant projection that no longer owns the receipt operation', async () => {
+        const adoptChat = vi.fn()
+        await expect(hydrateServerCommittedOrchestration({
+            data: { serverChatCommit: receipt() },
+            operationId: 'operation-hydration-1',
+            charId: 'char-1',
+            chatId: 'chat-1',
+            readProjection: async () => ({
+                ...projection(),
+                chatRevision: 'newer-revision',
+                owners: [{ operationId: 'operation-other-1' }],
+            }),
             adoptChat,
         })).resolves.toEqual({ hydrated: false, reason: 'projection-invalid' })
         expect(adoptChat).not.toHaveBeenCalled()

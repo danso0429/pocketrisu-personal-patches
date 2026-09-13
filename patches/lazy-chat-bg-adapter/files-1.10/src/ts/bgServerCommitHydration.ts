@@ -67,9 +67,13 @@ function validProjection(
     return projection.contract === 'bg_chat_execution_projection.v1'
         && projection.charId === receipt.requestedCharId
         && projection.chatId === receipt.storedChatId
-        && projection.chatRevision === receipt.storedRevision
+        && requiredText(projection.chatRevision)
         && projection.coverage === 'authoritative'
         && Array.isArray(projection.owners)
+        && projection.owners.some((owner: unknown) => (
+            !!owner && typeof owner === 'object'
+            && (owner as any).operationId === receipt.operationId
+        ))
         && Array.isArray(projection.pendingInputCommands)
 }
 
@@ -114,13 +118,18 @@ export async function hydrateServerCommittedOrchestration(options: {
     if (!validProjection(projection, receipt)) {
         return { hydrated: false as const, reason: 'projection-invalid' }
     }
+    const projectionRevision = projection.chatRevision
     let adoption: { adopted: boolean, reason?: string, chat?: unknown }
     try {
         adoption = await options.adoptChat({
             charId: receipt.requestedCharId,
             chatId: receipt.storedChatId,
-            expectedServerRevision: receipt.storedRevision,
-            allowedCurrentRevisions: [receipt.baseChatRevision, receipt.storedRevision],
+            expectedServerRevision: projectionRevision,
+            allowedCurrentRevisions: [...new Set([
+                receipt.baseChatRevision,
+                receipt.storedRevision,
+                projectionRevision,
+            ])],
         })
     } catch {
         return { hydrated: false as const, reason: 'chat-readback-failed' }

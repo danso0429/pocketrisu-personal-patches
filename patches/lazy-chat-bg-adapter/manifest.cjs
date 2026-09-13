@@ -356,18 +356,32 @@ import {
     chatId: string,
     revision: string,
 ): Promise<unknown> {
-    const query = new URLSearchParams({ revision })
-    const url = '/api/bg-orchestrate-chat-state/'
-        + encodeURIComponent(charId) + '/' + encodeURIComponent(chatId)
-        + '?' + query.toString()
-    const response = await fetchOrchestrationControl(url, {
-        method: 'GET',
-        credentials: 'same-origin',
-    })
-    if (!response.ok) throw new Error('chat execution projection unavailable')
-    const projection = await response.json()
-    if (projection?.found !== true) throw new Error('chat execution projection missing')
-    return projection
+    let requestedRevision = revision
+    for (let attempt = 0; attempt < 2; attempt += 1) {
+        const query = new URLSearchParams({ revision: requestedRevision })
+        const url = '/api/bg-orchestrate-chat-state/'
+            + encodeURIComponent(charId) + '/' + encodeURIComponent(chatId)
+            + '?' + query.toString()
+        const response = await fetchOrchestrationControl(url, {
+            method: 'GET',
+            credentials: 'same-origin',
+        })
+        const projection = await response.json()
+        if (response.ok && projection?.found === true) return projection
+        if (attempt === 0 && response.status === 409
+            && projection?.state === 'revision_mismatch'
+            && typeof projection.currentRevision === 'string'
+            && projection.currentRevision.length > 0
+            && projection.currentRevision.length <= 256
+            && projection.currentRevision !== requestedRevision) {
+            requestedRevision = projection.currentRevision
+            continue
+        }
+        throw new Error(response.ok
+            ? 'chat execution projection missing'
+            : 'chat execution projection unavailable')
+    }
+    throw new Error('chat execution projection unavailable')
 }
 
 async function hydrateServerCommittedResult(
@@ -414,7 +428,7 @@ function rememberServerCommittedTarget(operationId: string, hydration: any): voi
         updatePendingMarker(localStorage, operationId, (marker) => ({
             ...marker,
             deliveryChatId: receipt.storedChatId,
-            expectedChatRevision: receipt.storedRevision,
+            expectedChatRevision: hydration?.projection?.chatRevision || receipt.storedRevision,
         }))
     } catch { /* canonical chat and in-memory watch remain authoritative */ }
 }
@@ -1290,7 +1304,8 @@ const serverChatCommitOwner = createServerChatCommitOwner({
             content: `  app.get('/api/bg-orchestrate-capabilities', sessionAuthMiddleware, (_req, res) => {
     res.json({
       contract: 'bg_orchestration_capabilities.v1',
-      inputCommandVersion: serverChatInputOwner ? 1 : 0,
+      inputCommandVersion: 0,
+      inputCommandFoundationVersion: serverChatInputOwner ? 1 : 0,
       serverChatCommitVersion: serverChatCommitOwner ? 1 : 0,
       chatExecutionProjectionVersion: serverChatCommitOwner ? 1 : 0,
     })
