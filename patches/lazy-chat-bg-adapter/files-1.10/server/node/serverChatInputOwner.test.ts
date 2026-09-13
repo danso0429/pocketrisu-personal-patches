@@ -200,6 +200,11 @@ describe('pre-canonical server chat input owner', () => {
         })
         await expect(decodeRisuSave(settingsSnapshot.bytes))
             .resolves.toEqual(harness.runtime.database)
+        expect(owner.settingsSnapshotStats()).toMatchObject({
+            contexts: 1,
+            maxContexts: 2,
+            maxBytes: 512 * 1024 * 1024,
+        })
         expect(harness.runtime.fullStore.get('char-1')?.get('chat-1')).toEqual(before)
         expect(JSON.parse(harness.kvGet(operationStateKey(operationId)).toString('utf8')))
             .toMatchObject({ state: 'queued', serverChatCommitVersion: 1 })
@@ -270,6 +275,41 @@ describe('pre-canonical server chat input owner', () => {
         }])
     })
 
+    it('bounds volatile settings contexts across chats before admitting another command', async () => {
+        const harness = makeHarness()
+        const owner = harness.makeOwner()
+        const commandFor = (index: number) => {
+            const chat = { ...baseChat(), id: `chat-${index}` }
+            const charId = `char-${index}`
+            harness.runtime.database.characters.push({
+                chaId: charId,
+                chats: [{ id: chat.id, name: 'Chat', _stub: true }],
+            })
+            harness.runtime.fullStore.set(charId, new Map([[chat.id, chat]]))
+            return {
+                ...admission(`operation-input-capacity-${index}`),
+                inputCommandId: `input-capacity-${index}`,
+                userMessageId: `user-capacity-${index}`,
+                charId,
+                chatId: chat.id,
+                submittedBaseRevision: revision(chat),
+            }
+        }
+        const first = commandFor(2)
+        const second = commandFor(3)
+        const refused = commandFor(4)
+
+        await expect(owner.admit(first)).resolves.toMatchObject({ status: 'admitted' })
+        await expect(owner.admit(second)).resolves.toMatchObject({ status: 'admitted' })
+        expect(owner.settingsSnapshotStats()).toMatchObject({ contexts: 2, maxContexts: 2 })
+        await expect(owner.admit(refused)).resolves.toEqual({
+            status: 'conflict',
+            reason: 'settings_context_capacity',
+        })
+        expect(owner.read(refused.operationId)).toBeNull()
+        expect(owner.settingsSnapshotStats()).toMatchObject({ contexts: 2 })
+    })
+
     it('runs the transform once, attaches one identified input, and exposes its receipt', async () => {
         const harness = makeHarness()
         const owner = harness.makeOwner()
@@ -317,6 +357,7 @@ describe('pre-canonical server chat input owner', () => {
             'completed',
             attached.record.executionBaseRevision,
         )).toBe(true)
+        expect(owner.settingsSnapshotStats()).toMatchObject({ contexts: 0, bytes: 0 })
 
         const secondOperation = 'operation-input-sequence-2'
         const secondAdmission = {
@@ -360,6 +401,7 @@ describe('pre-canonical server chat input owner', () => {
             state: 'blocked_edit',
             cancelAllowed: false,
         }])
+        expect(owner.settingsSnapshotStats()).toMatchObject({ contexts: 0, bytes: 0 })
     })
 
     it('defers provider work when globals change after the durable attach write', async () => {
@@ -551,6 +593,7 @@ describe('pre-canonical server chat input owner', () => {
         owner.discardRecovery()
         expect(harness.kvGet(commandKey(operationId))).toBeNull()
         expect(owner.loadSettingsSnapshot(operationId)).toEqual({ status: 'missing' })
+        expect(owner.settingsSnapshotStats()).toMatchObject({ contexts: 0, bytes: 0 })
         expect(harness.kvGet(operationStateKey(operationId))).toBeNull()
         expect(harness.kvGet(operationResultKey(operationId))).toBeNull()
     })

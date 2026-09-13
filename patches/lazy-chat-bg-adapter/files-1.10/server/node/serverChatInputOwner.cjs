@@ -20,6 +20,7 @@ const SERVER_CHAT_SETTINGS_SNAPSHOT_REF_PREFIX = 'volatile/server-chat-settings/
 const SERVER_CHAT_INPUT_MAX_RECORD_BYTES = 2 * 1024 * 1024;
 const SERVER_CHAT_INPUT_MAX_TEXT_BYTES = 1024 * 1024;
 const SERVER_CHAT_SETTINGS_SNAPSHOT_MAX_BYTES = 256 * 1024 * 1024;
+const SERVER_CHAT_SETTINGS_SNAPSHOT_MAX_CONTEXTS = 2;
 const TERMINAL_INPUT_STATES = new Set(['completed', 'failed', 'cancelled', 'blocked_edit']);
 
 function sha256(value) {
@@ -334,6 +335,18 @@ function createServerChatInputOwner({
             : { status: 'blocked', reason: 'settings_context_unavailable', record: clone(record) };
     }
 
+    function settingsSnapshotStats() {
+        let bytes = 0;
+        for (const snapshot of settingsSnapshots.values()) bytes += snapshot.bytes.byteLength;
+        return {
+            contexts: settingsSnapshots.size,
+            bytes,
+            maxContexts: SERVER_CHAT_SETTINGS_SNAPSHOT_MAX_CONTEXTS,
+            maxBytes: SERVER_CHAT_SETTINGS_SNAPSHOT_MAX_CONTEXTS
+                * SERVER_CHAT_SETTINGS_SNAPSHOT_MAX_BYTES,
+        };
+    }
+
     async function admit(value) {
         const command = normalizeCommand(value);
         await ensureCanonicalState();
@@ -393,6 +406,9 @@ function createServerChatInputOwner({
                 || counter.value < 0 || counter.value >= Number.MAX_SAFE_INTEGER
                 || (counter.lastOperationId !== null && !validOperationId(counter.lastOperationId))) {
                 throw new Error('server input sequence is invalid');
+            }
+            if (settingsSnapshots.size >= SERVER_CHAT_SETTINGS_SNAPSHOT_MAX_CONTEXTS) {
+                return { status: 'conflict', reason: 'settings_context_capacity' };
             }
             const snapshotDatabase = getDbCache()?.[databaseKey];
             if (!snapshotDatabase || typeof snapshotDatabase !== 'object') {
@@ -837,6 +853,7 @@ function createServerChatInputOwner({
         pendingProjection,
         read: (operationId) => clone(read(operationId)),
         recoverAll,
+        settingsSnapshotStats,
         settleSynchronously,
     };
 }

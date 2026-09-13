@@ -61,6 +61,10 @@ test('C3: pre-canonical server input remains an explicit dormant contract', () =
     assert.match(settings.content, /readInputSettingsSnapshot/)
     assert.match(settings.content, /decodeRisuSave/)
     assert.match(settings.content, /server input settings context unavailable/)
+    assert.match(
+        unit('lazy-chat-bg-adapter:owned:server-chat-input-owner:1.10').content,
+        /SERVER_CHAT_SETTINGS_SNAPSHOT_MAX_CONTEXTS = 2/,
+    )
     assert.match(terminal.content, /serverInputReceipt/)
     assert.match(terminal.content, /serverCommitBaselineMessageCount/)
     assert.match(intermediate.content, /inputCommandVersion !== 1/)
