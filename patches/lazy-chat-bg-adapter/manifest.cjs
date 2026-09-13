@@ -990,6 +990,7 @@ const serverChatCommitOwner = createServerChatCommitOwner({
             content: `    const dbCache = typeof deps.getDbCache === 'function' ? deps.getDbCache() : null
     const inputSettingsSnapshotRequired = mode === 'full'
       && control && control.inputCommandVersion === 1
+    let inputSettingsContextDigest = null
     let stripped = dbCache && deps.DB_HEX_KEY ? dbCache[deps.DB_HEX_KEY] : null
     if (inputSettingsSnapshotRequired) {
       if (typeof control.readInputSettingsSnapshot !== 'function') {
@@ -997,9 +998,12 @@ const serverChatCommitOwner = createServerChatCommitOwner({
       }
       const settingsSnapshot = control.readInputSettingsSnapshot()
       if (!settingsSnapshot || settingsSnapshot.status !== 'ready'
-        || !Buffer.isBuffer(settingsSnapshot.bytes)) {
+        || !Buffer.isBuffer(settingsSnapshot.bytes)
+        || typeof settingsSnapshot.contextDigest !== 'string'
+        || !/^[a-f0-9]{64}$/.test(settingsSnapshot.contextDigest)) {
         throw new Error('server input settings context unavailable')
       }
+      inputSettingsContextDigest = settingsSnapshot.contextDigest
       const snapshotUtils = require('./utils.cjs')
       stripped = snapshotUtils.normalizeJSON(
         await snapshotUtils.decodeRisuSave(settingsSnapshot.bytes),
@@ -1024,10 +1028,12 @@ const serverChatCommitOwner = createServerChatCommitOwner({
             anchor: '    stores.selectedCharID.set(charIdx)\n',
             content: `    const serverChatCommitSettingsDigest = mode === 'full'
       && control && control.serverChatCommitVersion === 1
-      ? nodeCrypto
-        .createHash('sha256')
-        .update(JSON.stringify({ database: db, selectedCharId, selectedChatId }))
-        .digest('hex')
+      ? (control.inputCommandVersion === 1
+        ? inputSettingsContextDigest
+        : nodeCrypto
+          .createHash('sha256')
+          .update(JSON.stringify({ database: db, selectedCharId, selectedChatId }))
+          .digest('hex'))
       : null
 `,
             requires: [

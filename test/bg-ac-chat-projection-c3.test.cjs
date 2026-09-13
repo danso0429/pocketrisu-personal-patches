@@ -60,6 +60,7 @@ test('C3: pre-canonical server input remains an explicit dormant contract', () =
     assert.match(transform.content, /attachInputTransform/)
     assert.match(settings.content, /readInputSettingsSnapshot/)
     assert.match(settings.content, /decodeRisuSave/)
+    assert.match(settings.content, /settingsSnapshot\.contextDigest/)
     assert.match(settings.content, /server input settings context unavailable/)
     assert.match(
         unit('lazy-chat-bg-adapter:owned:server-chat-input-owner:1.10').content,
@@ -75,6 +76,10 @@ test('C3: pre-canonical server input remains an explicit dormant contract', () =
     assert.match(
         unit('lazy-chat-bg-adapter:server-chat-commit-run-context:1.10').content,
         /loadSettingsSnapshot/,
+    )
+    assert.match(
+        unit('lazy-chat-bg-adapter:server-chat-commit-settings-digest:1.10').content,
+        /inputSettingsContextDigest/,
     )
     assert.match(
         unit('lazy-chat-bg-adapter:server-chat-commit-status:1.10').content,

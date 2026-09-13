@@ -94,12 +94,18 @@ function normalizeAdmission(value) {
         settingsSnapshotRef: text('settingsSnapshotRef', value.settingsSnapshotRef, 255),
         settingsSnapshotMode: value.settingsSnapshotMode,
         settingsSnapshotBytes: value.settingsSnapshotBytes,
+        settingsContextDigest: text(
+            'settingsContextDigest',
+            value.settingsContextDigest,
+            64,
+        ),
     };
     if (admission.settingsSnapshotRef !== settingsSnapshotKey(admission.operationId)
         || admission.settingsSnapshotMode !== 'volatile'
         || !Number.isSafeInteger(admission.settingsSnapshotBytes)
         || admission.settingsSnapshotBytes <= 0
-        || admission.settingsSnapshotBytes > SERVER_CHAT_SETTINGS_SNAPSHOT_MAX_BYTES) {
+        || admission.settingsSnapshotBytes > SERVER_CHAT_SETTINGS_SNAPSHOT_MAX_BYTES
+        || !/^[a-f0-9]{64}$/.test(admission.settingsContextDigest)) {
         throw new Error('server input settings snapshot identity is invalid');
     }
     return admission;
@@ -311,7 +317,8 @@ function createServerChatInputOwner({
 
     function readSettingsSnapshotRecord(record) {
         const snapshot = settingsSnapshots.get(record.operationId);
-        if (!snapshot || snapshot.ref !== record.admission.settingsSnapshotRef) return null;
+        if (!snapshot || snapshot.ref !== record.admission.settingsSnapshotRef
+            || snapshot.contextDigest !== record.admission.settingsContextDigest) return null;
         const bytes = Buffer.from(snapshot.bytes);
         if (bytes.byteLength !== record.admission.settingsSnapshotBytes
             || sha256(bytes) !== snapshot.integrity) {
@@ -319,6 +326,7 @@ function createServerChatInputOwner({
         }
         return {
             ref: record.admission.settingsSnapshotRef,
+            contextDigest: record.admission.settingsContextDigest,
             bytes,
         };
     }
@@ -360,6 +368,7 @@ function createServerChatInputOwner({
                     settingsSnapshotRef: existing.admission.settingsSnapshotRef,
                     settingsSnapshotMode: existing.admission.settingsSnapshotMode,
                     settingsSnapshotBytes: existing.admission.settingsSnapshotBytes,
+                    settingsContextDigest: existing.admission.settingsContextDigest,
                 });
                 return existing.requestFingerprint === requestFingerprint(replayAdmission)
                     ? { status: 'admitted', reused: true, record: clone(existing) }
@@ -425,10 +434,12 @@ function createServerChatInputOwner({
                 settingsSnapshotRef,
                 settingsSnapshotMode: 'volatile',
                 settingsSnapshotBytes: settingsSnapshot.byteLength,
+                settingsContextDigest: crypto.randomBytes(32).toString('hex'),
             });
             const fingerprint = requestFingerprint(admission);
             preparedSnapshot = {
                 ref: settingsSnapshotRef,
+                contextDigest: admission.settingsContextDigest,
                 integrity: sha256(settingsSnapshot),
                 bytes: settingsSnapshot,
             };

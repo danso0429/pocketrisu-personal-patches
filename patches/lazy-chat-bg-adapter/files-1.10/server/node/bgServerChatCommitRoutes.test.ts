@@ -320,12 +320,14 @@ function detachedCommitHarness() {
             control: any,
         ) => {
             let resultChat = finalChat
+            let settingsDigest = 'a'.repeat(64)
             if (control.inputCommandVersion === 1) {
                 const settingsSnapshot = control.readInputSettingsSnapshot()
                 inputSettingsSnapshots.push({
                     ...settingsSnapshot,
                     bytes: await decodeRisuSave(settingsSnapshot.bytes),
                 })
+                settingsDigest = settingsSnapshot.contextDigest
                 const transform = await control.beginInputTransform()
                 const command = transform.record.admission
                 const inputChat = {
@@ -361,7 +363,7 @@ function detachedCommitHarness() {
                 globalChatVariables: {},
                 globalChatVariablesDeleted: [],
                 globalChatVariablesExpected: {},
-                settingsDigest: 'a'.repeat(64),
+                settingsDigest,
                 threw: null,
             }
         },
@@ -496,6 +498,7 @@ describe('server chat commit route precedence', () => {
         expect(harness.commitCalls).toHaveLength(1)
         expect(harness.commitCalls[0]).toMatchObject({
             baselineMessageCount: 2,
+            settingsDigest: harness.inputSettingsSnapshots[0].contextDigest,
             inputReceipt: {
                 contractVersion: 'bg_server_input_receipt.v1',
                 inputCommandId: `input-${harness.operationId}`,

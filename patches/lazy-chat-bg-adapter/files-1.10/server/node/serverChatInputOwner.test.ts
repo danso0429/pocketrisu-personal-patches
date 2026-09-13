@@ -190,6 +190,7 @@ describe('pre-canonical server chat input owner', () => {
                 admission: {
                     settingsSnapshotRef: settingsSnapshotKey(operationId),
                     settingsSnapshotMode: 'volatile',
+                    settingsContextDigest: expect.stringMatching(/^[a-f0-9]{64}$/),
                 },
             },
         })
@@ -197,6 +198,7 @@ describe('pre-canonical server chat input owner', () => {
         expect(settingsSnapshot).toMatchObject({
             status: 'ready',
             ref: settingsSnapshotKey(operationId),
+            contextDigest: first.record.admission.settingsContextDigest,
         })
         await expect(decodeRisuSave(settingsSnapshot.bytes))
             .resolves.toEqual(harness.runtime.database)
@@ -224,10 +226,14 @@ describe('pre-canonical server chat input owner', () => {
         const harness = makeHarness()
         const owner = harness.makeOwner()
         const operationId = 'operation-input-settings-snapshot-1'
+        harness.runtime.database.providerSecret = 'SYNTHETIC_SETTINGS_SECRET_MARKER'
         const admitted = await owner.admit(admission(operationId))
+        expect(harness.kvGet(commandKey(operationId)).toString('utf8'))
+            .not.toContain('SYNTHETIC_SETTINGS_SECRET_MARKER')
         const initialSettings = owner.loadSettingsSnapshot(operationId)
         expect(initialSettings).toMatchObject({ status: 'ready' })
         const originalSnapshot = await decodeRisuSave(initialSettings.bytes)
+        expect(originalSnapshot.providerSecret).toBe('SYNTHETIC_SETTINGS_SECRET_MARKER')
         await expect(owner.loadExecution(operationId)).resolves.toMatchObject({
             status: 'transform-required',
             chat: baseChat(),
@@ -251,6 +257,7 @@ describe('pre-canonical server chat input owner', () => {
         expect(loaded).toMatchObject({
             status: 'ready',
             ref: settingsSnapshotKey(operationId),
+            contextDigest: admitted.record.admission.settingsContextDigest,
         })
         await expect(decodeRisuSave(loaded.bytes)).resolves.toEqual(originalSnapshot)
         expect(originalSnapshot).not.toHaveProperty('temperature')
