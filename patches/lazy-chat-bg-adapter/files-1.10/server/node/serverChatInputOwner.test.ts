@@ -13,6 +13,7 @@ const {
     SERVER_CHAT_INPUT_COMMAND_PREFIX,
     commandKey,
     createServerChatInputOwner,
+    settingsSnapshotKey,
 } = inputPackage as any
 const { createChatWriteJournal } = journalPackage as any
 const { operationResultKey, operationStateKey } = operationPackage as any
@@ -45,7 +46,6 @@ function admission(operationId: string, rawText = 'hello') {
         chatId: 'chat-1',
         rawText,
         submittedBaseRevision: revision(baseChat()),
-        settingsSnapshotRef: 'pocketrisu-server-runtime-v1',
         submittedAt: 1_700_000_000_000,
     }
 }
@@ -103,7 +103,6 @@ function makeHarness() {
     const makeJournal = () => createChatWriteJournal({
         kvGet,
         kvSet,
-        kvDel,
         kvList,
         encode: encodeRisuSaveLegacy,
         decode: decodeRisuSave,
@@ -132,6 +131,7 @@ function makeHarness() {
             runtime.database = database
         },
         scheduleChatStorePersist: () => { runtime.schedules += 1 },
+        encodeSettingsSnapshot: encodeRisuSaveLegacy,
     })
     const transformed = (operationId: string, rawText = 'hello') => ({
         chat: {
@@ -162,6 +162,7 @@ function makeHarness() {
         runtime,
         kvGet,
         kvSet,
+        kvDel,
         kvList,
         makeJournal,
         makeOwner,
@@ -181,12 +182,24 @@ describe('pre-canonical server chat input owner', () => {
             status: 'admitted',
             reused: false,
             record: {
+                recordVersion: 2,
                 admissionSeq: 1,
                 queuePredecessorId: null,
                 transformState: 'not_run',
                 inputState: 'queued',
+                admission: {
+                    settingsSnapshotRef: settingsSnapshotKey(operationId),
+                    settingsSnapshotMode: 'volatile',
+                },
             },
         })
+        const settingsSnapshot = owner.loadSettingsSnapshot(operationId)
+        expect(settingsSnapshot).toMatchObject({
+            status: 'ready',
+            ref: settingsSnapshotKey(operationId),
+        })
+        await expect(decodeRisuSave(settingsSnapshot.bytes))
+            .resolves.toEqual(harness.runtime.database)
         expect(harness.runtime.fullStore.get('char-1')?.get('chat-1')).toEqual(before)
         expect(JSON.parse(harness.kvGet(operationStateKey(operationId)).toString('utf8')))
             .toMatchObject({ state: 'queued', serverChatCommitVersion: 1 })
@@ -200,6 +213,61 @@ describe('pre-canonical server chat input owner', () => {
         await expect(owner.admit(admission('operation-input-admit-2'))).resolves.toMatchObject({
             status: 'conflict', reason: 'chat_input_busy', blockingOperationId: operationId,
         })
+    })
+
+    it('reuses one immutable server settings snapshot and rejects missing snapshot recovery', async () => {
+        const harness = makeHarness()
+        const owner = harness.makeOwner()
+        const operationId = 'operation-input-settings-snapshot-1'
+        const admitted = await owner.admit(admission(operationId))
+        const initialSettings = owner.loadSettingsSnapshot(operationId)
+        expect(initialSettings).toMatchObject({ status: 'ready' })
+        const originalSnapshot = await decodeRisuSave(initialSettings.bytes)
+        await expect(owner.loadExecution(operationId)).resolves.toMatchObject({
+            status: 'transform-required',
+            chat: baseChat(),
+        })
+        harness.runtime.database = {
+            ...harness.runtime.database,
+            temperature: 1.7,
+        }
+
+        await expect(owner.admit(admission(operationId))).resolves.toMatchObject({
+            status: 'admitted',
+            reused: true,
+            record: {
+                requestFingerprint: admitted.record.requestFingerprint,
+                admission: {
+                    settingsSnapshotRef: settingsSnapshotKey(operationId),
+                },
+            },
+        })
+        const loaded = owner.loadSettingsSnapshot(operationId)
+        expect(loaded).toMatchObject({
+            status: 'ready',
+            ref: settingsSnapshotKey(operationId),
+        })
+        await expect(decodeRisuSave(loaded.bytes)).resolves.toEqual(originalSnapshot)
+        expect(originalSnapshot).not.toHaveProperty('temperature')
+
+        const restarted = harness.makeOwner(harness.makeJournal())
+        await expect(restarted.loadExecution(operationId)).resolves.toMatchObject({
+            status: 'blocked',
+            reason: 'settings_context_unavailable',
+        })
+        expect(restarted.loadSettingsSnapshot(operationId)).toMatchObject({
+            status: 'blocked',
+            reason: 'settings_context_unavailable',
+        })
+        await expect(restarted.beginTransform(operationId)).resolves.toEqual({
+            status: 'blocked',
+            reason: 'settings_context_unavailable',
+        })
+        await expect(restarted.recoverAll()).resolves.toMatchObject([{
+            operationId,
+            status: 'blocked',
+            reason: 'settings_context_unavailable',
+        }])
     })
 
     it('runs the transform once, attaches one identified input, and exposes its receipt', async () => {
@@ -461,20 +529,28 @@ describe('pre-canonical server chat input owner', () => {
     })
 
     it('rolls back admission writes and clears linked lifecycle rows on replacement', async () => {
-        const failureHarness = makeHarness()
-        failureHarness.failWriteAt(2)
-        await expect(failureHarness.makeOwner().admit(
-            admission('operation-input-failure-1'),
-        )).rejects.toThrow('injected-input-write-failure')
-        expect(failureHarness.kvList(SERVER_CHAT_INPUT_COMMAND_PREFIX)).toEqual([])
+        for (const failureAt of [1, 2, 3]) {
+            const failureHarness = makeHarness()
+            const failureOwner = failureHarness.makeOwner()
+            failureHarness.failWriteAt(failureAt)
+            await expect(failureOwner.admit(
+                admission(`operation-input-failure-${failureAt}`),
+            )).rejects.toThrow('injected-input-write-failure')
+            expect(failureHarness.kvList(SERVER_CHAT_INPUT_COMMAND_PREFIX)).toEqual([])
+            expect(failureOwner.loadSettingsSnapshot(
+                `operation-input-failure-${failureAt}`,
+            )).toEqual({ status: 'missing' })
+        }
 
         const harness = makeHarness()
         const owner = harness.makeOwner()
         const operationId = 'operation-input-discard-1'
         await owner.admit(admission(operationId))
         harness.kvSet(operationResultKey(operationId), JSON.stringify({ operationId }))
+        expect(owner.loadSettingsSnapshot(operationId)).toMatchObject({ status: 'ready' })
         owner.discardRecovery()
         expect(harness.kvGet(commandKey(operationId))).toBeNull()
+        expect(owner.loadSettingsSnapshot(operationId)).toEqual({ status: 'missing' })
         expect(harness.kvGet(operationStateKey(operationId))).toBeNull()
         expect(harness.kvGet(operationResultKey(operationId))).toBeNull()
     })

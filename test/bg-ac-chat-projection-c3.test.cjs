@@ -18,7 +18,7 @@ function unit(id) {
 }
 
 test('C3: exact-1.10 graph owns revision-bound chat execution projection', () => {
-    assert.equal(adapter.version, '0.4.0')
+    assert.equal(adapter.version, '0.5.0')
     const resolution = resolveSelection(loadCatalog(), ['lazy-chat-sync', 'bg-preserve'])
     const units1100 = flattenUnits(resolution.packs, target1100)
     const units190 = flattenUnits(resolution.packs, target190)
@@ -47,21 +47,30 @@ test('C3: pre-canonical server input remains an explicit dormant contract', () =
     const capability = unit('lazy-chat-bg-adapter:server-input-capabilities:1.10')
     const start = unit('lazy-chat-bg-adapter:server-chat-commit-start-gate:1.10')
     const transform = unit('lazy-chat-bg-adapter:server-input-transform:1.10')
+    const settings = unit('lazy-chat-bg-adapter:server-input-settings-snapshot:1.10')
     const terminal = unit('lazy-chat-bg-adapter:server-chat-commit-terminal:1.10')
     const intermediate = unit('lazy-chat-bg-adapter:server-input-intermediate-policy:1.10')
     assert.match(capability.content, /inputCommandVersion: 0/)
-    assert.match(capability.content, /inputCommandFoundationVersion: serverChatInputOwner \? 1 : 0/)
+    assert.match(capability.content, /inputCommandFoundationVersion: serverChatInputOwner \? 2 : 0/)
     assert.match(start.content, /serverChatInputOwner\.admit/)
     assert.match(start.content, /serverRunChat/)
+    assert.match(start.content, /serverRunChat = serverInputExecution\.chat/)
     assert.match(transform.content, /runTrigger/)
     assert.match(transform.content, /processScript/)
     assert.match(transform.content, /attachInputTransform/)
+    assert.match(settings.content, /readInputSettingsSnapshot/)
+    assert.match(settings.content, /decodeRisuSave/)
+    assert.match(settings.content, /server input settings context unavailable/)
     assert.match(terminal.content, /serverInputReceipt/)
     assert.match(terminal.content, /serverCommitBaselineMessageCount/)
     assert.match(intermediate.content, /inputCommandVersion !== 1/)
     assert.match(
         unit('lazy-chat-bg-adapter:server-chat-commit-operation-state:1.10').content,
         /inputCommandId/,
+    )
+    assert.match(
+        unit('lazy-chat-bg-adapter:server-chat-commit-run-context:1.10').content,
+        /loadSettingsSnapshot/,
     )
     assert.match(
         unit('lazy-chat-bg-adapter:server-chat-commit-status:1.10').content,

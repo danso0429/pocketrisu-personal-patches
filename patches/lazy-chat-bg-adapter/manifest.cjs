@@ -21,7 +21,7 @@ const bgGlobalApiUnits = [
 module.exports = {
     id: 'lazy-chat-bg-adapter',
     title: 'BG preserve integration for lazy chat storage',
-    version: '0.4.0',
+    version: '0.5.0',
     targets: {
         pocketrisu: {
             verified: ['1.8.1', '1.9.0', '1.10.0'],
@@ -728,6 +728,7 @@ const serverChatInputOwner = createServerChatInputOwner({
     databaseKey: DB_HEX_KEY,
     cacheStrippedDatabase,
     scheduleChatStorePersist,
+    encodeSettingsSnapshot: encodeRisuSaveLegacy,
 });
 
 const serverChatCommitOwner = createServerChatCommitOwner({
@@ -980,6 +981,42 @@ const serverChatCommitOwner = createServerChatCommitOwner({
             targetVersions: pocketRisu1100,
         },
         {
+            id: 'lazy-chat-bg-adapter:server-input-settings-snapshot:1.10',
+            file: 'server/node/bgOrchestrator.cjs',
+            type: 'replace',
+            anchor: `    const dbCache = typeof deps.getDbCache === 'function' ? deps.getDbCache() : null
+    let stripped = dbCache && deps.DB_HEX_KEY ? dbCache[deps.DB_HEX_KEY] : null
+`,
+            content: `    const dbCache = typeof deps.getDbCache === 'function' ? deps.getDbCache() : null
+    const inputSettingsSnapshotRequired = mode === 'full'
+      && control && control.inputCommandVersion === 1
+    let stripped = dbCache && deps.DB_HEX_KEY ? dbCache[deps.DB_HEX_KEY] : null
+    if (inputSettingsSnapshotRequired) {
+      if (typeof control.readInputSettingsSnapshot !== 'function') {
+        throw new Error('server input settings snapshot owner unavailable')
+      }
+      const settingsSnapshot = control.readInputSettingsSnapshot()
+      if (!settingsSnapshot || settingsSnapshot.status !== 'ready'
+        || !Buffer.isBuffer(settingsSnapshot.bytes)) {
+        throw new Error('server input settings context unavailable')
+      }
+      const snapshotUtils = require('./utils.cjs')
+      stripped = snapshotUtils.normalizeJSON(
+        await snapshotUtils.decodeRisuSave(settingsSnapshot.bytes),
+      )
+      if (!stripped || !Array.isArray(stripped.characters)) {
+        throw new Error('server input settings snapshot is invalid')
+      }
+    }
+`,
+            requires: [
+                'bg-preserve:owned:server/node/bgOrchestrator.cjs:1.9',
+                'lazy-chat-bg-adapter:owned:server-chat-input-owner:1.10',
+            ],
+            after: ['pagefold-bg-adapter:bundle-stale-sources:1.10'],
+            targetVersions: pocketRisu1100,
+        },
+        {
             id: 'lazy-chat-bg-adapter:server-chat-commit-settings-digest:1.10',
             file: 'server/node/bgOrchestrator.cjs',
             type: 'insert',
@@ -996,6 +1033,7 @@ const serverChatCommitOwner = createServerChatCommitOwner({
             requires: [
                 'bg-preserve:owned:server/node/bgOrchestrator.cjs:1.9',
                 'lazy-chat-bg-adapter:server-commit-boot-found-result:1.10',
+                'lazy-chat-bg-adapter:server-input-settings-snapshot:1.10',
             ],
             after: ['pagefold-bg-adapter:bundle-stale-sources:1.10'],
             targetVersions: pocketRisu1100,
@@ -1266,7 +1304,7 @@ const serverChatCommitOwner = createServerChatCommitOwner({
                 ? serverInputExecution.reason : 'server-input-command-blocked',
             })
           }
-          if (serverInputExecution.status === 'attached') serverRunChat = serverInputExecution.chat
+          serverRunChat = serverInputExecution.chat
         }
         let serverCommitBase = null
         if (serverChatCommitVersion === 1) {
@@ -1342,7 +1380,7 @@ const serverChatCommitOwner = createServerChatCommitOwner({
     res.json({
       contract: 'bg_orchestration_capabilities.v1',
       inputCommandVersion: 0,
-      inputCommandFoundationVersion: serverChatInputOwner ? 1 : 0,
+      inputCommandFoundationVersion: serverChatInputOwner ? 2 : 0,
       serverChatCommitVersion: serverChatCommitOwner ? 1 : 0,
       chatExecutionProjectionVersion: serverChatCommitOwner ? 1 : 0,
     })
@@ -1403,6 +1441,9 @@ const serverChatCommitOwner = createServerChatCommitOwner({
                 resultKeyVersion,
                 serverChatCommitVersion,
                 inputCommandVersion,
+                readInputSettingsSnapshot: () => serverChatInputOwner.loadSettingsSnapshot(
+                  operationId,
+                ),
                 beginInputTransform: () => serverChatInputOwner.beginTransform(operationId),
                 attachInputTransform: (value) => serverChatInputOwner.attachTransformed(
                   operationId,

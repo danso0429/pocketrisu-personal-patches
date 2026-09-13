@@ -16,8 +16,10 @@ const {
 const SERVER_CHAT_INPUT_COMMAND_CONTRACT = 'bg_server_input_command.v1';
 const SERVER_CHAT_INPUT_COMMAND_PREFIX = 'internal/server-chat-input/v1/';
 const SERVER_CHAT_INPUT_SEQUENCE_PREFIX = 'internal/server-chat-input-sequence/v1/';
+const SERVER_CHAT_SETTINGS_SNAPSHOT_REF_PREFIX = 'volatile/server-chat-settings/v1/';
 const SERVER_CHAT_INPUT_MAX_RECORD_BYTES = 2 * 1024 * 1024;
 const SERVER_CHAT_INPUT_MAX_TEXT_BYTES = 1024 * 1024;
+const SERVER_CHAT_SETTINGS_SNAPSHOT_MAX_BYTES = 256 * 1024 * 1024;
 const TERMINAL_INPUT_STATES = new Set(['completed', 'failed', 'cancelled', 'blocked_edit']);
 
 function sha256(value) {
@@ -32,6 +34,11 @@ function commandKey(operationId) {
 function sequenceKey(charId, chatId) {
     return SERVER_CHAT_INPUT_SEQUENCE_PREFIX
         + Buffer.from(stableJSON([charId, chatId]), 'utf8').toString('base64url');
+}
+
+function settingsSnapshotKey(operationId) {
+    return SERVER_CHAT_SETTINGS_SNAPSHOT_REF_PREFIX
+        + Buffer.from(operationId, 'utf8').toString('base64url');
 }
 
 function journalOperationId(operationId) {
@@ -51,11 +58,11 @@ function clone(value) {
     return structuredClone(value);
 }
 
-function normalizeAdmission(value) {
+function normalizeCommand(value) {
     if (!value || typeof value !== 'object' || Array.isArray(value)) {
-        throw new Error('server input admission is invalid');
+        throw new Error('server input command is invalid');
     }
-    const admission = {
+    const command = {
         operationId: text('operationId', value.operationId, 128),
         inputCommandId: text('inputCommandId', value.inputCommandId, 255),
         userMessageId: text('userMessageId', value.userMessageId, 255),
@@ -67,17 +74,34 @@ function normalizeAdmission(value) {
             value.submittedBaseRevision,
             256,
         ),
-        settingsSnapshotRef: text('settingsSnapshotRef', value.settingsSnapshotRef, 255),
         submittedAt: value.submittedAt,
     };
-    if (!validOperationId(admission.operationId)
-        || !Number.isSafeInteger(admission.submittedAt) || admission.submittedAt <= 0) {
-        throw new Error('server input admission identity is invalid');
+    if (!validOperationId(command.operationId)
+        || !Number.isSafeInteger(command.submittedAt) || command.submittedAt <= 0) {
+        throw new Error('server input command identity is invalid');
     }
     return {
-        ...admission,
-        rawTextHash: sha256(admission.rawText),
+        ...command,
+        rawTextHash: sha256(command.rawText),
     };
+}
+
+function normalizeAdmission(value) {
+    const command = normalizeCommand(value);
+    const admission = {
+        ...command,
+        settingsSnapshotRef: text('settingsSnapshotRef', value.settingsSnapshotRef, 255),
+        settingsSnapshotMode: value.settingsSnapshotMode,
+        settingsSnapshotBytes: value.settingsSnapshotBytes,
+    };
+    if (admission.settingsSnapshotRef !== settingsSnapshotKey(admission.operationId)
+        || admission.settingsSnapshotMode !== 'volatile'
+        || !Number.isSafeInteger(admission.settingsSnapshotBytes)
+        || admission.settingsSnapshotBytes <= 0
+        || admission.settingsSnapshotBytes > SERVER_CHAT_SETTINGS_SNAPSHOT_MAX_BYTES) {
+        throw new Error('server input settings snapshot identity is invalid');
+    }
+    return admission;
 }
 
 function requestFingerprint(admission) {
@@ -88,7 +112,7 @@ function parseRecord(value, expectedOperationId = null) {
     if (!value || Buffer.byteLength(value) > SERVER_CHAT_INPUT_MAX_RECORD_BYTES) return null;
     try {
         const parsed = JSON.parse(Buffer.isBuffer(value) ? value.toString('utf8') : String(value));
-        if (!parsed || parsed.recordVersion !== 1
+        if (!parsed || parsed.recordVersion !== 2
             || parsed.contractVersion !== SERVER_CHAT_INPUT_COMMAND_CONTRACT
             || !Number.isSafeInteger(parsed.admissionSeq) || parsed.admissionSeq <= 0
             || !['not_run', 'running', 'completed', 'unknown'].includes(parsed.transformState)
@@ -232,6 +256,7 @@ function createServerChatInputOwner({
     databaseKey,
     cacheStrippedDatabase,
     scheduleChatStorePersist,
+    encodeSettingsSnapshot,
 }) {
     const dependencies = {
         chatWriteJournal,
@@ -249,6 +274,7 @@ function createServerChatInputOwner({
         databaseKey,
         cacheStrippedDatabase,
         scheduleChatStorePersist,
+        encodeSettingsSnapshot,
     };
     for (const [name, value] of Object.entries(dependencies)) {
         if (value === undefined || value === null) {
@@ -258,6 +284,7 @@ function createServerChatInputOwner({
 
     const read = (operationId) => parseRecord(kvGet(commandKey(operationId)), operationId);
     const write = (record) => kvSet(commandKey(record.operationId), encodeRecord(record));
+    const settingsSnapshots = new Map();
     const currentChat = (charId, chatId) => getFullChatStore()?.get(charId)?.get(chatId) || null;
     const currentRevision = (charId, chatId) => {
         const chat = currentChat(charId, chatId);
@@ -281,27 +308,61 @@ function createServerChatInputOwner({
         return records;
     }
 
+    function readSettingsSnapshotRecord(record) {
+        const snapshot = settingsSnapshots.get(record.operationId);
+        if (!snapshot || snapshot.ref !== record.admission.settingsSnapshotRef) return null;
+        const bytes = Buffer.from(snapshot.bytes);
+        if (bytes.byteLength !== record.admission.settingsSnapshotBytes
+            || sha256(bytes) !== snapshot.integrity) {
+            return null;
+        }
+        return {
+            ref: record.admission.settingsSnapshotRef,
+            bytes,
+        };
+    }
+
+    function loadSettingsSnapshot(operationId) {
+        const record = read(operationId);
+        if (!record) return { status: 'missing' };
+        if (TERMINAL_INPUT_STATES.has(record.inputState)) {
+            return { status: 'blocked', reason: record.inputState, record: clone(record) };
+        }
+        const snapshot = readSettingsSnapshotRecord(record);
+        return snapshot
+            ? { status: 'ready', ...snapshot, record: clone(record) }
+            : { status: 'blocked', reason: 'settings_context_unavailable', record: clone(record) };
+    }
+
     async function admit(value) {
-        const admission = normalizeAdmission(value);
-        const fingerprint = requestFingerprint(admission);
+        const command = normalizeCommand(value);
         await ensureCanonicalState();
-        return queueStorageOperation(() => sqliteDb.transaction(() => {
-            const existing = read(admission.operationId);
+        return queueStorageOperation(() => {
+            let preparedSnapshot = null;
+            const outcome = sqliteDb.transaction(() => {
+            const existing = read(command.operationId);
             if (existing) {
-                return existing.requestFingerprint === fingerprint
+                const replayAdmission = normalizeAdmission({
+                    ...command,
+                    settingsSnapshotRef: existing.admission.settingsSnapshotRef,
+                    settingsSnapshotMode: existing.admission.settingsSnapshotMode,
+                    settingsSnapshotBytes: existing.admission.settingsSnapshotBytes,
+                });
+                return existing.requestFingerprint === requestFingerprint(replayAdmission)
                     ? { status: 'admitted', reused: true, record: clone(existing) }
                     : { status: 'conflict', reason: 'operation_fingerprint_conflict' };
             }
-            if (kvGet(commandKey(admission.operationId))) {
+            if (kvGet(commandKey(command.operationId))) {
                 return { status: 'conflict', reason: 'command_record_invalid' };
             }
-            if (currentRevision(admission.charId, admission.chatId)
-                !== admission.submittedBaseRevision) {
+            if (currentRevision(command.charId, command.chatId)
+                !== command.submittedBaseRevision) {
                 return { status: 'conflict', reason: 'submitted_base_changed' };
             }
-            const active = allRecords().find((record) => (
-                record.admission.charId === admission.charId
-                && record.admission.chatId === admission.chatId
+            const records = allRecords();
+            const active = records.find((record) => (
+                record.admission.charId === command.charId
+                && record.admission.chatId === command.chatId
                 && !TERMINAL_INPUT_STATES.has(record.inputState)
             ));
             if (active) {
@@ -311,8 +372,8 @@ function createServerChatInputOwner({
                     blockingOperationId: active.operationId,
                 };
             }
-            const duplicateCommand = allRecords().find((record) => (
-                record.admission.inputCommandId === admission.inputCommandId
+            const duplicateCommand = records.find((record) => (
+                record.admission.inputCommandId === command.inputCommandId
             ));
             if (duplicateCommand) {
                 return {
@@ -321,7 +382,7 @@ function createServerChatInputOwner({
                     existingOperationId: duplicateCommand.operationId,
                 };
             }
-            const counterKey = sequenceKey(admission.charId, admission.chatId);
+            const counterKey = sequenceKey(command.charId, command.chatId);
             const rawCounter = kvGet(counterKey);
             let counter = { version: 1, value: 0, lastOperationId: null };
             if (rawCounter) {
@@ -333,8 +394,30 @@ function createServerChatInputOwner({
                 || (counter.lastOperationId !== null && !validOperationId(counter.lastOperationId))) {
                 throw new Error('server input sequence is invalid');
             }
+            const snapshotDatabase = getDbCache()?.[databaseKey];
+            if (!snapshotDatabase || typeof snapshotDatabase !== 'object') {
+                throw new Error('server input settings snapshot source is unavailable');
+            }
+            const settingsSnapshotRef = settingsSnapshotKey(command.operationId);
+            const settingsSnapshot = Buffer.from(encodeSettingsSnapshot(snapshotDatabase));
+            if (settingsSnapshot.byteLength <= 0
+                || settingsSnapshot.byteLength > SERVER_CHAT_SETTINGS_SNAPSHOT_MAX_BYTES) {
+                throw new Error('server input settings snapshot is too large');
+            }
+            const admission = normalizeAdmission({
+                ...command,
+                settingsSnapshotRef,
+                settingsSnapshotMode: 'volatile',
+                settingsSnapshotBytes: settingsSnapshot.byteLength,
+            });
+            const fingerprint = requestFingerprint(admission);
+            preparedSnapshot = {
+                ref: settingsSnapshotRef,
+                integrity: sha256(settingsSnapshot),
+                bytes: settingsSnapshot,
+            };
             const record = {
-                recordVersion: 1,
+                recordVersion: 2,
                 contractVersion: SERVER_CHAT_INPUT_COMMAND_CONTRACT,
                 operationId: admission.operationId,
                 requestFingerprint: fingerprint,
@@ -371,7 +454,12 @@ function createServerChatInputOwner({
             }, 'queued');
             if (!operation.written) throw operation.error || new Error('operation state write failed');
             return { status: 'admitted', reused: false, record: clone(record) };
-        })());
+            })();
+            if (outcome.status === 'admitted' && !outcome.reused && preparedSnapshot) {
+                settingsSnapshots.set(command.operationId, preparedSnapshot);
+            }
+            return outcome;
+        });
     }
 
     async function beginTransform(operationId) {
@@ -391,10 +479,14 @@ function createServerChatInputOwner({
                     terminal: { state: 'cancelled', at: Date.now() },
                 };
                 write(cancelled);
+                settingsSnapshots.delete(operationId);
                 return { status: 'blocked', reason: 'cancelled' };
             }
             if (record.transformState === 'running' || record.transformState === 'unknown') {
                 return { status: 'blocked', reason: 'transform_outcome_unknown' };
+            }
+            if (!readSettingsSnapshotRecord(record)) {
+                return { status: 'blocked', reason: 'settings_context_unavailable' };
             }
             if (record.transformState !== 'not_run') {
                 return { status: 'blocked', reason: 'transform_state_invalid' };
@@ -578,7 +670,12 @@ function createServerChatInputOwner({
             if (!operation.written) throw operation.error || new Error('operation state write failed');
             return { status: 'attached', reused: false, record: clone(next) };
         })());
-        if (outcome.status !== 'attached' || outcome.reused) return outcome;
+        if (outcome.status !== 'attached' || outcome.reused) {
+            if (outcome.record?.inputState === 'blocked_edit') {
+                settingsSnapshots.delete(operationId);
+            }
+            return outcome;
+        }
         const publicationErrors = [];
         try { chatWriteJournal.publishPreparedStage(prepared); } catch { publicationErrors.push('journal') }
         try { await publishAttached(outcome.record, chat); } catch { publicationErrors.push('canonical') }
@@ -592,9 +689,32 @@ function createServerChatInputOwner({
         const record = read(operationId);
         if (!record) return { status: 'missing' };
         if (record.inputState === 'queued' && record.transformState === 'not_run') {
-            return { status: 'transform-required', record: clone(record) };
+            if (!readSettingsSnapshotRecord(record)) {
+                return {
+                    status: 'blocked',
+                    reason: 'settings_context_unavailable',
+                    record: clone(record),
+                };
+            }
+            await ensureCanonicalState();
+            const chat = currentChat(record.admission.charId, record.admission.chatId);
+            if (!chat || chatRevision(chat) !== record.admission.submittedBaseRevision) {
+                return {
+                    status: 'blocked',
+                    reason: 'base_revision_changed',
+                    record: clone(record),
+                };
+            }
+            return { status: 'transform-required', record: clone(record), chat: clone(chat) };
         }
         if (record.inputState === 'attached') {
+            if (!readSettingsSnapshotRecord(record)) {
+                return {
+                    status: 'blocked',
+                    reason: 'settings_context_unavailable',
+                    record: clone(record),
+                };
+            }
             await ensureCanonicalState();
             let chat = currentChat(record.admission.charId, record.admission.chatId);
             if (!chat || chatRevision(chat) !== record.executionBaseRevision) {
@@ -617,12 +737,17 @@ function createServerChatInputOwner({
     function settleSynchronously(operationId, state, resultRevision = null) {
         if (!['completed', 'failed', 'cancelled'].includes(state)) return false;
         const record = read(operationId);
-        if (!record || TERMINAL_INPUT_STATES.has(record.inputState)) return !!record;
+        if (!record) return false;
+        if (TERMINAL_INPUT_STATES.has(record.inputState)) {
+            settingsSnapshots.delete(operationId);
+            return true;
+        }
         write({
             ...record,
             inputState: state,
             terminal: { state, resultRevision, at: Date.now() },
         });
+        settingsSnapshots.delete(operationId);
         return true;
     }
 
@@ -637,6 +762,7 @@ function createServerChatInputOwner({
             ...record,
             transformState: record.transformState === 'running' ? 'unknown' : record.transformState,
         });
+        if (record.transformState === 'running') settingsSnapshots.delete(operationId);
         return true;
     }
 
@@ -671,6 +797,14 @@ function createServerChatInputOwner({
                 results.push({ operationId: record.operationId, status: 'blocked', reason: 'transform_outcome_unknown' });
                 continue;
             }
+            if (record.inputState === 'queued' && !readSettingsSnapshotRecord(record)) {
+                results.push({
+                    operationId: record.operationId,
+                    status: 'blocked',
+                    reason: 'settings_context_unavailable',
+                });
+                continue;
+            }
             if (!record.inputReceipt || !record.executionBaseRevision || !record.journal) continue;
             try {
                 await publishAttached(record);
@@ -687,6 +821,7 @@ function createServerChatInputOwner({
             kvDel(operationStateKey(record.operationId));
             kvDel(operationResultKey(record.operationId));
         }
+        settingsSnapshots.clear();
         kvDelPrefix(SERVER_CHAT_INPUT_COMMAND_PREFIX);
         kvDelPrefix(SERVER_CHAT_INPUT_SEQUENCE_PREFIX);
     }
@@ -697,6 +832,7 @@ function createServerChatInputOwner({
         beginTransform,
         discardRecovery,
         loadExecution,
+        loadSettingsSnapshot,
         markRunFailureSynchronously,
         pendingProjection,
         read: (operationId) => clone(read(operationId)),
@@ -709,8 +845,10 @@ module.exports = {
     SERVER_CHAT_INPUT_COMMAND_CONTRACT,
     SERVER_CHAT_INPUT_COMMAND_PREFIX,
     SERVER_CHAT_INPUT_SEQUENCE_PREFIX,
+    SERVER_CHAT_SETTINGS_SNAPSHOT_REF_PREFIX,
     commandKey,
     createServerChatInputOwner,
     journalOperationId,
     parseRecord,
+    settingsSnapshotKey,
 };

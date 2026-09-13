@@ -266,6 +266,7 @@ function detachedCommitHarness() {
         databaseKey: 'database',
         cacheStrippedDatabase: (database: unknown) => { runtime.database = database },
         scheduleChatStorePersist: () => {},
+        encodeSettingsSnapshot: encodeRisuSaveLegacy,
     }
     const inputOwner = createServerChatInputOwner(ownerDependencies)
     const actualOwner = createServerChatCommitOwner({
@@ -273,6 +274,7 @@ function detachedCommitHarness() {
         serverChatInputOwner: inputOwner,
     })
     const commitCalls: any[] = []
+    const inputSettingsSnapshots: any[] = []
     let receipt: any = null
     let finished = false
     registerBgOrchestrator(app, {
@@ -313,18 +315,23 @@ function detachedCommitHarness() {
             _dependencies: unknown,
             _charId: string,
             _chatId: string,
-            _chat: unknown,
+            previewChat: any,
             _mode: string,
             control: any,
         ) => {
             let resultChat = finalChat
             if (control.inputCommandVersion === 1) {
+                const settingsSnapshot = control.readInputSettingsSnapshot()
+                inputSettingsSnapshots.push({
+                    ...settingsSnapshot,
+                    bytes: await decodeRisuSave(settingsSnapshot.bytes),
+                })
                 const transform = await control.beginInputTransform()
                 const command = transform.record.admission
                 const inputChat = {
-                    ...baseChat,
+                    ...previewChat,
                     message: [
-                        ...baseChat.message,
+                        ...previewChat.message,
                         {
                             role: 'user',
                             data: command.rawText,
@@ -399,7 +406,10 @@ function detachedCommitHarness() {
                 detached: true,
                 selectedCharId: 'char-1',
                 selectedChatId: 'chat-1',
-                currentChat: baseChat,
+                currentChat: {
+                    ...baseChat,
+                    message: [{ role: 'user', data: 'spoofed', chatId: 'user-spoofed' }],
+                },
                 operationId,
                 baseChatRevision: chatRevision(baseChat),
                 resultKeyVersion: 1,
@@ -411,7 +421,7 @@ function detachedCommitHarness() {
                     inputCommandId: `input-${operationId}`,
                     userMessageId: `user-${operationId}`,
                     rawText: 'next input',
-                    settingsSnapshotRef: 'pocketrisu-server-runtime-v1',
+                    settingsSnapshotRef: 'client-spoofed-settings-ref',
                     submittedAt: 1_700_000_000_000,
                 },
             },
@@ -442,6 +452,7 @@ function detachedCommitHarness() {
         runtime,
         values,
         commitCalls,
+        inputSettingsSnapshots,
         inputOwner,
         project,
         start,
@@ -472,6 +483,16 @@ describe('server chat commit route precedence', () => {
                 },
                 { role: 'char', data: 'answer', chatId: 'assistant-input-1' },
             ])
+        expect(harness.inputSettingsSnapshots).toHaveLength(1)
+        expect(harness.inputSettingsSnapshots[0]).toMatchObject({
+            status: 'ready',
+            bytes: {
+                characters: [{ chaId: 'char-1' }],
+                statics: { messages: 10 },
+            },
+        })
+        expect(harness.inputSettingsSnapshots[0].ref)
+            .not.toBe('client-spoofed-settings-ref')
         expect(harness.commitCalls).toHaveLength(1)
         expect(harness.commitCalls[0]).toMatchObject({
             baselineMessageCount: 2,
