@@ -2,7 +2,8 @@
 
 Date: 2026-09-13 KST
 
-Status: **C0 contract experiments complete; product integration, live application, and release are not complete**
+Status: **C0 contract experiments and C1 server commit primitive complete;
+C2–C7 product integration, live application, and release are not complete**
 
 ## Authority and frozen inputs
 
@@ -54,6 +55,7 @@ exit criteria.
 | C0-D | Can prepare registration prevent a second paid execution after response loss or restart, and can skip fence a late result? | durable prepare registry and timeout/ready CAS tests | **store primitive complete; HTTP/provider/startup integration remains C4/C6** |
 | C0-E | Can N+1 remain outside canonical chat until its turn, and can Node commit a result with chat, metadata, effects, intent, and owner in one replay boundary? | queued-input and server-commit failure-injection harness | **complete: current owners fail; C1/C3 split primitives are required** |
 | C0-F | Do output stages remain foreground/BG-equivalent, and can a blank browser discover ownership after result TTL cleanup? | stage parity fixture and revision-bound projection fixture | **complete: current result/projection are insufficient; C2/C5/C6 contracts required** |
+| C1 | Can Node commit chat, metadata, effects, intent, owner, operation state, and receipt in one replay boundary? | split journal plus WAL-mode SQLite failure injection and recovery | **primitive complete and intentionally uncalled; C2 production writer/cancel/result wiring required** |
 
 C0-B precedes the other AC write experiments because claim/binding epochs are
 inputs to prepare, mutation, and settle identities. C0-E begins with a focused
@@ -426,12 +428,38 @@ The detailed report is
 `docs/POCKETRISU-1.10-BG-AC-C0-F-OUTPUT-OWNER-CHARACTERIZATION.md`; its SHA-256
 is `0df92f0ba7431ccbaab7241400b22771bd1e2e979698e50bcf6bdea3a5e4dd63`.
 
+### C1 server commit primitive
+
+Patcher commits `81b2236`, `0e93888`, and L2.5 hardening `268ec7a` split the existing journal into async
+prepare, synchronous transaction write, and post-commit publication, then add
+an exact-1.10 `bg_server_chat_commit.v1` primitive. Chat bytes, metadata,
+input/commit receipt, ordered host intent, message/source owners, per-key
+global outcomes, exact statics applied delta, operation `chat-committed` state,
+and the immutable recovery envelope share one SQLite commit boundary.
+
+The WAL-mode exact-target harness injected failure after each of nine
+synchronous writes, exercised revision/fingerprint/cancellation conflicts,
+preserved optional metadata key presence through the real Risu codec, and
+recovered a post-commit publication failure without another commit. Focused
+lazy and lazy+BG graphs, the full patcher suite, complete exact-1.10 target
+tests/diagnostics/build/BG bundle, zero-change re-plan, and 342-path exact
+revert all passed with the observations recorded in the detailed report.
+
+The primitive deliberately has zero production callers. Current BG final
+result, cancel/status, fullChatStore/dbCache/effect writers, snapshot cleanup,
+retention, conflict copy, input admission, and owner projection remain C2/C3/C6
+work rather than being inferred from the passing primitive tests.
+
+The detailed discovery → external-anchor → triage report is
+`docs/POCKETRISU-1.10-BG-AC-C1-SERVER-COMMIT-VALIDATION.md`; its SHA-256 is
+`de6292babda6502e6edd54b961ee2a1538981662434f81e8dfd7e84ef41cf4e1`.
+
 ## Existing owners to extend
 
 | Need | Existing owner | Confirmed gap |
 | --- | --- | --- |
-| Node serialization | `queueStorageOperation` and `fullChatStore` in the exact-1.10 lazy server owner | C0-E fixes the gap: no server-level generation commit primitive; current input enters canonical save before operation admission |
-| Chat payload WAL | `chatWriteJournal` | C0-E proves async stage cannot be treated as a synchronous SQLite transaction and recovery lacks metadata/effect/intent/owner receipts |
+| Node serialization | `queueStorageOperation`, `fullChatStore`, and the uncalled C1 commit primitive in the exact-1.10 lazy server owner | C2 must connect the BG final result, canonical writer, operation state, and cancellation route; current input still enters canonical save before operation admission |
+| Chat payload WAL | split `chatWriteJournal` prepare/write/publish/recovery phases | C1 supplies the transaction-safe primitive; C2/C6 must connect metadata/effect/intent/owner publication, cleanup, and retention to production callers |
 | BG lifecycle/output | generated exact-1.10 `bgOrchestrator.cjs` and `bgOrchestrate.ts` | C0-F proves terminal result collapses output stages and remains browser merge/save/ACK, not a server chat commit |
 | BG delivery ownership | chat/root `bgOrchestrationDelivery` markers plus bounded result retention | markers are operation-level and require known operation ID; message/source AC ownership and char/chat/revision projection are absent |
 | AC route identity | `SessionRouteBindingStore`, `HostSessionExecutionStore`, and serializable route/claim transactions | store acquire/status/settle and exact-stream watermarks exist; authenticated route, nonterminal phases, and receipt/context links remain absent |
@@ -451,7 +479,8 @@ revertible. A passing source test does not advance a later state automatically.
 2. AC durable binding claim and terminal settle primitive.
 3. AC ordered host-change ingestion and source-generation fence.
 4. AC durable prepare registry, immutable execution context, and explicit skip.
-5. PocketRisu server chat/effect commit primitive.
+5. PocketRisu server chat/effect commit primitive (**C1 complete; production
+   caller remains C2**).
 6. PocketRisu pre-canonical input admission and owner projection.
 7. AC JS/PocketRisu host adapter and output-transform parity.
 8. Integrated C6/C7 gates, runtime audit, controlled live candidate, and
@@ -462,13 +491,14 @@ focused owner graphs and complete-graph lifecycle from `PATCHER-V2-DESIGN.md`.
 The retired subset-mask verifier is historical evidence, not the active
 delivery gate. Runtime L2.5 remains separate.
 
-## C0 experiment verdict and product gate
+## C0/C1 verdict and product gate
 
 The C0-A through C0-F contract experiments are now recorded. Their result is
 not positive product qualification: C0-B/C/D supply store primitives, while
 C0-A/E/F prove that new typed host, Node storage/input, output, and owner
-contracts are required. C1-C6 remain responsible for implementing and
-integrating the following product evidence:
+contracts are required. C1 supplies the deliberately unattached Node commit
+primitive; C2-C6 remain responsible for implementing and integrating the
+following product evidence:
 
 - one fenced execution owner across concurrent foreground/server acquire,
   route remap, late settle, and every terminal outcome;
