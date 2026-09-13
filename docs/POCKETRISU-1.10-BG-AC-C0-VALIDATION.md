@@ -2,8 +2,9 @@
 
 Date: 2026-09-13 KST
 
-Status: **C0 contract experiments and C1 server commit primitive complete;
-C2–C7 product integration, live application, and release are not complete**
+Status: **C0 contract experiments, C1 server commit primitive, and C2 opt-in
+BG result commit complete; C3–C7 integration, live application, and release
+are not complete**
 
 ## Authority and frozen inputs
 
@@ -56,6 +57,7 @@ exit criteria.
 | C0-E | Can N+1 remain outside canonical chat until its turn, and can Node commit a result with chat, metadata, effects, intent, and owner in one replay boundary? | queued-input and server-commit failure-injection harness | **complete: current owners fail; C1/C3 split primitives are required** |
 | C0-F | Do output stages remain foreground/BG-equivalent, and can a blank browser discover ownership after result TTL cleanup? | stage parity fixture and revision-bound projection fixture | **complete: current result/projection are insufficient; C2/C5/C6 contracts required** |
 | C1 | Can Node commit chat, metadata, effects, intent, owner, operation state, and receipt in one replay boundary? | split journal plus WAL-mode SQLite failure injection and recovery | **primitive complete and intentionally uncalled; C2 production writer/cancel/result wiring required** |
+| C2 | Can an opted-in detached BG final result reach the C1 owner and normal chat storage without a browser save? | exact route-to-owner fixture, recovery/route failure cases, complete graph lifecycle and server smoke | **opt-in server path complete; current client remains unopted and C3/C6 own hydration, projection, retention, and reconciliation** |
 
 C0-B precedes the other AC write experiments because claim/binding epochs are
 inputs to prepare, mutation, and settle identities. C0-E begins with a focused
@@ -445,22 +447,54 @@ lazy and lazy+BG graphs, the full patcher suite, complete exact-1.10 target
 tests/diagnostics/build/BG bundle, zero-change re-plan, and 342-path exact
 revert all passed with the observations recorded in the detailed report.
 
-The primitive deliberately has zero production callers. Current BG final
-result, cancel/status, fullChatStore/dbCache/effect writers, snapshot cleanup,
-retention, conflict copy, input admission, and owner projection remain C2/C3/C6
-work rather than being inferred from the passing primitive tests.
+At the C1 checkpoint the primitive deliberately had zero production callers.
+The later C2 section records the versioned caller; this paragraph remains the
+boundary of the C1-only receipt rather than a claim about current HEAD.
 
 The detailed discovery → external-anchor → triage report is
 `docs/POCKETRISU-1.10-BG-AC-C1-SERVER-COMMIT-VALIDATION.md`; its SHA-256 is
 `de6292babda6502e6edd54b961ee2a1538981662434f81e8dfd7e84ef41cf4e1`.
 
+### C2 opted-in BG result commit
+
+Patcher commits `f59ceb1`, `d4928e3`, `d1c97df`, and `23d44cf` connect the
+exact-1.10 detached terminal result to the C1 primitive behind
+`serverChatCommitVersion=1`. They bind the canonical pre-run chat revision and
+server settings digest, persist the negotiation in operation state, publish
+chat metadata/globals/statics/fullChatStore state, and expose the same durable
+receipt through status, cancel, and result-cleanup paths.
+
+Operation-specific journal rows and a transaction-allocated sequence preserve
+multiple unflushed commits in creation order. Recovery avoids eager database
+load when no rows exist, refuses duplicate sequence identities, and skips a
+previously applied envelope rather than rolling the current chat back.
+Database replacement deletes each envelope's exact operation state/result and
+the next sequence is seeded above the restored canonical ledger. Queued retry
+negotiation and canonical-base drift are rejected before provider scheduling.
+
+The exact detached route fixture uses a fixed no-provider result with the real
+commit owner and journal codec. It observes the normal chat, metadata, statics,
+operation state, and result receipt without a browser save. Patcher tests,
+focused target tests, complete frontend/server suites, Svelte diagnostics,
+production and BG bundle builds, maximum graph apply/re-plan/revert, and a
+loopback server/auth smoke are recorded in the detailed report.
+
+The current client intentionally sends no C2 flag, so existing browser
+merge/save/ACK behavior remains active. Pre-canonical input, receipt hydration,
+revision-bound owner projection, conflict copy, AC transport, and bounded
+reconciliation/retention remain C3–C6 work.
+
+The detailed discovery → external-anchor → triage report is
+`docs/POCKETRISU-1.10-BG-AC-C2-SERVER-RESULT-COMMIT-VALIDATION.md`; its SHA-256
+is `0737e5ec0f90f90fba9fd176957991aad74fab55d86bdbd3239eda6d766a6892`.
+
 ## Existing owners to extend
 
 | Need | Existing owner | Confirmed gap |
 | --- | --- | --- |
-| Node serialization | `queueStorageOperation`, `fullChatStore`, and the uncalled C1 commit primitive in the exact-1.10 lazy server owner | C2 must connect the BG final result, canonical writer, operation state, and cancellation route; current input still enters canonical save before operation admission |
-| Chat payload WAL | split `chatWriteJournal` prepare/write/publish/recovery phases | C1 supplies the transaction-safe primitive; C2/C6 must connect metadata/effect/intent/owner publication, cleanup, and retention to production callers |
-| BG lifecycle/output | generated exact-1.10 `bgOrchestrator.cjs` and `bgOrchestrate.ts` | C0-F proves terminal result collapses output stages and remains browser merge/save/ACK, not a server chat commit |
+| Node serialization | `queueStorageOperation`, `fullChatStore`, and the C1 commit primitive through the C2 versioned detached owner | Opted-in final result/cancel/status are connected; current input still enters canonical save before operation admission and C6 retention is absent |
+| Chat payload WAL | split `chatWriteJournal` prepare/write/publish/recovery phases plus C2 operation-scoped rows | C2 connects metadata/effect/intent/owner publication and all current replacement cleanup owners; C6 must define bounded retirement and late-reference safety |
+| BG lifecycle/output | generated exact-1.10 `bgOrchestrator.cjs` and `bgOrchestrate.ts` | Flag 1 reaches normal chat commit, while the current unopted client keeps browser merge/save/ACK; C3 client hydration and C5 output transform remain absent |
 | BG delivery ownership | chat/root `bgOrchestrationDelivery` markers plus bounded result retention | markers are operation-level and require known operation ID; message/source AC ownership and char/chat/revision projection are absent |
 | AC route identity | `SessionRouteBindingStore`, `HostSessionExecutionStore`, and serializable route/claim transactions | store acquire/status/settle and exact-stream watermarks exist; authenticated route, nonterminal phases, and receipt/context links remain absent |
 | AC source invalidation | durable source revisions, transactional invalidation/outbox fences, and the C0-C ordered host stream | store primitive is connected; Node durable writer, host transport, input/response completion, and multi-stream aggregation remain absent |
@@ -479,11 +513,12 @@ revertible. A passing source test does not advance a later state automatically.
 2. AC durable binding claim and terminal settle primitive.
 3. AC ordered host-change ingestion and source-generation fence.
 4. AC durable prepare registry, immutable execution context, and explicit skip.
-5. PocketRisu server chat/effect commit primitive (**C1 complete; production
-   caller remains C2**).
-6. PocketRisu pre-canonical input admission and owner projection.
-7. AC JS/PocketRisu host adapter and output-transform parity.
-8. Integrated C6/C7 gates, runtime audit, controlled live candidate, and
+5. PocketRisu server chat/effect commit primitive (**C1 complete**).
+6. PocketRisu opted-in BG final-result/cancel/status connection (**C2
+   complete; current client intentionally unopted**).
+7. PocketRisu pre-canonical input admission and owner projection.
+8. AC JS/PocketRisu host adapter and output-transform parity.
+9. Integrated C6/C7 gates, runtime audit, controlled live candidate, and
    concrete device scenarios.
 
 Before a manifest or managed unit changes, run the current all-or-nothing
@@ -491,14 +526,14 @@ focused owner graphs and complete-graph lifecycle from `PATCHER-V2-DESIGN.md`.
 The retired subset-mask verifier is historical evidence, not the active
 delivery gate. Runtime L2.5 remains separate.
 
-## C0/C1 verdict and product gate
+## C0–C2 verdict and product gate
 
 The C0-A through C0-F contract experiments are now recorded. Their result is
 not positive product qualification: C0-B/C/D supply store primitives, while
 C0-A/E/F prove that new typed host, Node storage/input, output, and owner
-contracts are required. C1 supplies the deliberately unattached Node commit
-primitive; C2-C6 remain responsible for implementing and integrating the
-following product evidence:
+contracts are required. C1 supplies the atomic Node commit primitive and C2
+connects an explicitly negotiated detached result to it. C3–C6 remain
+responsible for implementing and integrating the following product evidence:
 
 - one fenced execution owner across concurrent foreground/server acquire,
   route remap, late settle, and every terminal outcome;
