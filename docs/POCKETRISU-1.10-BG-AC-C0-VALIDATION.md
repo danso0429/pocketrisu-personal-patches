@@ -123,10 +123,13 @@ runtime layout.
   all thirteen migration files, managed-account verification, and the intended
   disposable data directory. Direct SQL readback reported 81 Archive Center
   tables and `CHECK TABLE session_route_bindings` returned `OK`.
-- `/version` returned 4.3.1. `/ready` returned `ready`, `store_ready`,
-  `vector_ready`, and `reference_vector_ready` true, `degraded=false`, and the
-  expected `full_local` / `mariadb_authority` / `local_native` owners. The
-  ChromaDB v2 heartbeat responded.
+- `/version` returned 4.3.1, while its packaged `commit` and `go_version`
+  metadata remained `unknown`. Runtime provenance is therefore bound to the
+  verified release asset and internal file checksums rather than those two
+  endpoint fields. `/ready` returned `ready`, `store_ready`, `vector_ready`,
+  and `reference_vector_ready` true, `degraded=false`, and the expected
+  `full_local` / `mariadb_authority` / `local_native` owners. The ChromaDB v2
+  heartbeat responded.
 - A controlled stop closed all three C0 listeners. Restarting from the same
   isolated data repeated schema readback, returned the same 81-table count and
   route-table check, restored ChromaDB heartbeat, and returned full readiness.
