@@ -169,5 +169,13 @@ describe('server chat execution projection', () => {
             },
         })
         expect(copyServerOwnedRootState({}, incoming)).toEqual({ statics: { messages: 12 } })
+        expect(copyServerOwnedRootState(current, {})).toEqual({
+            serverChatCommitApplied: current.serverChatCommitApplied,
+            bgOrchestrationGlobalConflicts: current.bgOrchestrationGlobalConflicts,
+            serverChatExecutionState: current.serverChatExecutionState,
+            statics: {
+                bgOrchestrationApplied: current.statics.bgOrchestrationApplied,
+            },
+        })
     })
 })

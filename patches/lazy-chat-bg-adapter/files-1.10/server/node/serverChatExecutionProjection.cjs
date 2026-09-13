@@ -252,16 +252,17 @@ function copyServerOwnedRootState(currentDatabase, incomingDatabase) {
         if (own(current, field)) next[field] = structuredClone(current[field]);
         else delete next[field];
     }
-    if (next.statics && typeof next.statics === 'object' && !Array.isArray(next.statics)) {
+    const currentStaticsOwnsLedger = current.statics && typeof current.statics === 'object'
+        && !Array.isArray(current.statics) && own(current.statics, 'bgOrchestrationApplied');
+    if (currentStaticsOwnsLedger) {
+        next.statics = next.statics && typeof next.statics === 'object'
+            && !Array.isArray(next.statics) ? { ...next.statics } : {};
+        next.statics.bgOrchestrationApplied = structuredClone(
+            current.statics.bgOrchestrationApplied,
+        );
+    } else if (next.statics && typeof next.statics === 'object' && !Array.isArray(next.statics)) {
         next.statics = { ...next.statics };
-        if (current.statics && typeof current.statics === 'object'
-            && own(current.statics, 'bgOrchestrationApplied')) {
-            next.statics.bgOrchestrationApplied = structuredClone(
-                current.statics.bgOrchestrationApplied,
-            );
-        } else {
-            delete next.statics.bgOrchestrationApplied;
-        }
+        delete next.statics.bgOrchestrationApplied;
     }
     return next;
 }

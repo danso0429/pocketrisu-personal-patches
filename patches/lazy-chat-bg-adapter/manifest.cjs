@@ -1207,7 +1207,8 @@ const serverChatCommitOwner = createServerChatCommitOwner({
     const chatId = req.params.chatId
     const requestedRevision = req.query && typeof req.query.revision === 'string'
       ? req.query.revision : ''
-    if (!charId || !chatId || !requestedRevision || requestedRevision.length > 256) {
+    if (!charId || charId.length > 255 || !chatId || chatId.length > 255
+      || !requestedRevision || requestedRevision.length > 256) {
       return res.status(400).json({ found: false, state: 'invalid-request' })
     }
     if (!serverChatCommitOwner || typeof serverChatCommitOwner.readChatProjection !== 'function') {
