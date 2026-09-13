@@ -308,6 +308,7 @@ function createServerChatCommitOwner({
     databaseKey,
     cacheStrippedDatabase,
     scheduleChatStorePersist,
+    serverChatInputOwner = null,
 }) {
     const dependencies = {
         chatWriteJournal,
@@ -362,6 +363,18 @@ function createServerChatCommitOwner({
             );
             const staticsDelta = request.effectIntents.staticsMessagesDelta;
             const hasStatics = database.statics && typeof database.statics === 'object';
+            const inputCommand = serverChatInputOwner?.read(request.operationId) || null;
+            if (inputCommand) {
+                if (inputCommand.inputReceipt?.receiptId !== request.inputReceipt.receiptId
+                    || inputCommand.executionBaseRevision !== request.baseChatRevision
+                    || !serverChatInputOwner.settleSynchronously(
+                        request.operationId,
+                        'completed',
+                        request.storedRevision,
+                    )) {
+                    throw new Error('server chat commit input receipt is inconsistent');
+                }
+            }
             return {
                 commitSequence: nextCommitSequence(kvGet, kvSet, appliedLedger),
                 effects: {
@@ -476,6 +489,7 @@ function createServerChatCommitOwner({
         settingsDigest,
         result,
         committedAt,
+        inputReceipt = null,
     }) {
         await ensureCanonicalState();
         if (!result?.chat || result.chat.id !== chatId || !Array.isArray(result.chat.message)) {
@@ -500,7 +514,7 @@ function createServerChatCommitOwner({
             };
         });
         const bindingEpoch = `ac-disabled-${operationId}`;
-        const inputReceipt = {
+        const committedInputReceipt = inputReceipt || {
             contractVersion: SERVER_CHAT_INPUT_RECEIPT_CONTRACT,
             receiptId: sha256(stableJSON({
                 operationId,
@@ -516,15 +530,28 @@ function createServerChatCommitOwner({
             revision: baseChatRevision,
             hostChangeSeq: 1,
         };
+        if (inputReceipt && (
+            inputReceipt.operationId !== operationId
+            || inputReceipt.charId !== charId
+            || inputReceipt.chatId !== chatId
+            || inputReceipt.messageId !== input.chatId
+            || inputReceipt.role !== 'user'
+            || inputReceipt.revision !== baseChatRevision
+            || !Number.isSafeInteger(inputReceipt.hostChangeSeq)
+            || inputReceipt.hostChangeSeq <= 0
+        )) {
+            throw new Error('server chat commit input receipt does not match the result base');
+        }
+        const hostChangeSeq = inputReceipt ? committedInputReceipt.hostChangeSeq + 1 : 1;
         const hostChangeIntent = {
             contractVersion: HOST_CHANGE_INTENT_CONTRACT,
-            eventId: `${bindingEpoch}-response-1`,
+            eventId: `${bindingEpoch}-response-${hostChangeSeq}`,
             hostInstanceId: 'pocketrisu-server-unbound',
             charId,
             chatId,
             bindingEpoch,
-            seq: 1,
-            previousSeq: 0,
+            seq: hostChangeSeq,
+            previousSeq: hostChangeSeq - 1,
             operationId,
             kind: 'response_commit',
             beforeRevision: baseChatRevision,
@@ -551,8 +578,8 @@ function createServerChatCommitOwner({
             prepareKey: null,
             prepareFingerprint: null,
             bindingEpoch,
-            hostChangeSeq: 1,
-            inputReceipt,
+            hostChangeSeq,
+            inputReceipt: committedInputReceipt,
             claimEpoch: null,
             chat: result.chat,
             metadata: chatMetadata(result.chat),

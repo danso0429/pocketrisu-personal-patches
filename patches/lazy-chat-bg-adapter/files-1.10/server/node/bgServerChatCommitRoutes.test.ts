@@ -9,6 +9,7 @@ const registerBgOrchestrator = require('./bgOrchestrator.cjs') as (
 ) => void
 const { createChatWriteJournal } = require('./chatWriteJournal.cjs') as any
 const { createServerChatCommitOwner } = require('./serverChatCommitOwner.cjs') as any
+const { createServerChatInputOwner } = require('./serverChatInputOwner.cjs') as any
 const { decodeRisuSave, encodeRisuSaveLegacy } = require('./utils.cjs') as any
 const { operationStateKey, writeOperationState } = require('./bgOrchestrationOperationStore.cjs') as {
     operationStateKey: (operationId: string) => string
@@ -249,7 +250,7 @@ function detachedCommitHarness() {
         encode: encodeRisuSaveLegacy,
         decode: decodeRisuSave,
     })
-    const actualOwner = createServerChatCommitOwner({
+    const ownerDependencies = {
         chatWriteJournal: journal,
         kvGet,
         kvSet,
@@ -265,6 +266,11 @@ function detachedCommitHarness() {
         databaseKey: 'database',
         cacheStrippedDatabase: (database: unknown) => { runtime.database = database },
         scheduleChatStorePersist: () => {},
+    }
+    const inputOwner = createServerChatInputOwner(ownerDependencies)
+    const actualOwner = createServerChatCommitOwner({
+        ...ownerDependencies,
+        serverChatInputOwner: inputOwner,
     })
     const commitCalls: any[] = []
     let receipt: any = null
@@ -302,17 +308,48 @@ function detachedCommitHarness() {
                 return outcome
             },
         },
+        serverChatInputOwner: inputOwner,
         runServerPreview: async (
             _dependencies: unknown,
             _charId: string,
             _chatId: string,
             _chat: unknown,
             _mode: string,
-            control: { onProviderStart?: () => void },
+            control: any,
         ) => {
+            let resultChat = finalChat
+            if (control.inputCommandVersion === 1) {
+                const transform = await control.beginInputTransform()
+                const command = transform.record.admission
+                const inputChat = {
+                    ...baseChat,
+                    message: [
+                        ...baseChat.message,
+                        {
+                            role: 'user',
+                            data: command.rawText,
+                            chatId: command.userMessageId,
+                            time: command.submittedAt,
+                            name: null,
+                        },
+                    ],
+                }
+                const attached = await control.attachInputTransform({
+                    chat: inputChat,
+                    globalIntent: { changed: {}, deleted: [], expected: {} },
+                })
+                control.onInputCommitted(attached.record)
+                resultChat = {
+                    ...inputChat,
+                    message: [
+                        ...inputChat.message,
+                        { role: 'char', data: 'answer', chatId: 'assistant-input-1' },
+                    ],
+                }
+            }
             control.onProviderStart?.()
             return {
-                chat: finalChat,
+                chat: resultChat,
                 staticsMessagesDelta: 1,
                 globalChatVariables: {},
                 globalChatVariablesDeleted: [],
@@ -349,6 +386,42 @@ function detachedCommitHarness() {
         }
         return response
     }
+    const startInput = async () => {
+        const handler = routes.get('POST /api/bg-orchestrate')
+        if (!handler) throw new Error('missing detached input start route')
+        const response = { status: 200, body: null as any }
+        const res = {
+            status(code: number) { response.status = code; return this },
+            json(body: unknown) { response.body = body; return this },
+        }
+        await handler({
+            body: {
+                detached: true,
+                selectedCharId: 'char-1',
+                selectedChatId: 'chat-1',
+                currentChat: baseChat,
+                operationId,
+                baseChatRevision: chatRevision(baseChat),
+                resultKeyVersion: 1,
+                resultOrderVersion: 1,
+                startAckVersion: 1,
+                serverChatCommitVersion: 1,
+                inputCommandVersion: 1,
+                inputCommand: {
+                    inputCommandId: `input-${operationId}`,
+                    userMessageId: `user-${operationId}`,
+                    rawText: 'next input',
+                    settingsSnapshotRef: 'pocketrisu-server-runtime-v1',
+                    submittedAt: 1_700_000_000_000,
+                },
+            },
+        }, res)
+        for (let attempt = 0; attempt < 20
+            && (commitCalls.length === 0 || !finished); attempt += 1) {
+            await new Promise(resolve => setTimeout(resolve, 0))
+        }
+        return response
+    }
     const project = async (revision: string) => {
         const handler = routes.get('GET /api/bg-orchestrate-chat-state/:charId/:chatId')
         if (!handler) throw new Error('missing chat projection route')
@@ -369,13 +442,60 @@ function detachedCommitHarness() {
         runtime,
         values,
         commitCalls,
+        inputOwner,
         project,
         start,
+        startInput,
         finished: () => finished,
     }
 }
 
 describe('server chat commit route precedence', () => {
+    it('admits, attaches, and commits a pre-canonical input through the detached route', async () => {
+        const harness = detachedCommitHarness()
+        await expect(harness.startInput()).resolves.toMatchObject({
+            status: 200,
+            body: {
+                handled: true,
+                started: true,
+                serverChatCommitVersion: 1,
+                inputCommandVersion: 1,
+            },
+        })
+        expect(harness.runtime.fullStore.get('char-1')?.get('chat-1')?.message)
+            .toMatchObject([
+                { role: 'user', data: 'hello', chatId: 'user-1' },
+                {
+                    role: 'user',
+                    data: 'next input',
+                    chatId: `user-${harness.operationId}`,
+                },
+                { role: 'char', data: 'answer', chatId: 'assistant-input-1' },
+            ])
+        expect(harness.commitCalls).toHaveLength(1)
+        expect(harness.commitCalls[0]).toMatchObject({
+            baselineMessageCount: 2,
+            inputReceipt: {
+                contractVersion: 'bg_server_input_receipt.v1',
+                inputCommandId: `input-${harness.operationId}`,
+                messageId: `user-${harness.operationId}`,
+                hostChangeSeq: 1,
+            },
+        })
+        expect(harness.inputOwner.read(harness.operationId)).toMatchObject({
+            inputState: 'completed',
+            admissionSeq: 1,
+            terminal: { state: 'completed' },
+        })
+        await expect(harness.project(harness.receipt().storedRevision)).resolves.toMatchObject({
+            status: 200,
+            body: {
+                pendingInputCommands: [],
+                owners: [{ messageId: 'assistant-input-1' }],
+            },
+        })
+    })
+
     it('routes a synthetic detached final result through the server commit owner', async () => {
         const harness = detachedCommitHarness()
         const response = await harness.start()

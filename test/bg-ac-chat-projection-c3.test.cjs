@@ -25,6 +25,8 @@ test('C3: exact-1.10 graph owns revision-bound chat execution projection', () =>
     for (const file of [
         'server/node/serverChatExecutionProjection.cjs',
         'server/node/serverChatExecutionProjection.test.ts',
+        'server/node/serverChatInputOwner.cjs',
+        'server/node/serverChatInputOwner.test.ts',
         'src/ts/bgServerCommitHydration.ts',
         'src/ts/bgServerCommitHydration.test.ts',
         'src/ts/storage/serverCommittedChatAdoption.test.ts',
@@ -38,7 +40,50 @@ test('C3: exact-1.10 graph owns revision-bound chat execution projection', () =>
     assert.match(route.content, /requestedRevision/)
     assert.match(route.content, /state: 'revision_mismatch'/)
     assert.match(route.content, /state: 'ownership-unknown'/)
-    assert.match(route.content, /found: true, \.\.\.outcome\.projection/)
+    assert.match(route.content, /found: true,[\s\S]*\.\.\.outcome\.projection/)
+})
+
+test('C3: pre-canonical server input remains an explicit dormant contract', () => {
+    const capability = unit('lazy-chat-bg-adapter:server-input-capabilities:1.10')
+    const start = unit('lazy-chat-bg-adapter:server-chat-commit-start-gate:1.10')
+    const transform = unit('lazy-chat-bg-adapter:server-input-transform:1.10')
+    const terminal = unit('lazy-chat-bg-adapter:server-chat-commit-terminal:1.10')
+    const intermediate = unit('lazy-chat-bg-adapter:server-input-intermediate-policy:1.10')
+    assert.match(capability.content, /inputCommandVersion: serverChatInputOwner \? 1 : 0/)
+    assert.match(start.content, /serverChatInputOwner\.admit/)
+    assert.match(start.content, /serverRunChat/)
+    assert.match(transform.content, /runTrigger/)
+    assert.match(transform.content, /processScript/)
+    assert.match(transform.content, /attachInputTransform/)
+    assert.match(terminal.content, /serverInputReceipt/)
+    assert.match(terminal.content, /serverCommitBaselineMessageCount/)
+    assert.match(intermediate.content, /inputCommandVersion !== 1/)
+    assert.match(
+        unit('lazy-chat-bg-adapter:server-chat-commit-operation-state:1.10').content,
+        /inputCommandId/,
+    )
+    assert.match(
+        unit('lazy-chat-bg-adapter:server-chat-commit-status:1.10').content,
+        /input-transform-unknown/,
+    )
+    assert.match(
+        unit('lazy-chat-bg-adapter:server-chat-commit-missing-result:1.10').content,
+        /input-transform-unknown/,
+    )
+    assert.match(
+        unit('lazy-chat-bg-adapter:server-input-bundle-exports:1.10').content,
+        /triggers, scripts/,
+    )
+    const resets = adapter.units.filter(candidate => (
+        candidate.id.includes('server-chat-commit-')
+        && candidate.id.endsWith('reset:1.10')
+    ))
+    assert.equal(resets.every(candidate => (
+        candidate.content.includes('serverChatInputOwner.discardRecovery()')
+    )), true)
+
+    const clientImport = unit('lazy-chat-bg-adapter:server-commit-client-import:1.10')
+    assert.doesNotMatch(clientImport.content, /inputCommandVersion/)
 })
 
 test('C3: committed-result client path hydrates canonical chat and skips legacy save effects', () => {
