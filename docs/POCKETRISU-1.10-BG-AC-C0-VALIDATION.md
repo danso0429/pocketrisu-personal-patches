@@ -52,7 +52,7 @@ exit criteria.
 | C0-B | Can one owner atomically claim a current route binding and can every terminal outcome release only its own epoch? | store-level concurrent acquire/status/settle tests plus route-remap fence | **store primitive complete; authenticated product route remains C4** |
 | C0-C | Can ordered host mutations survive gaps, retries, restart, and stale workers? | durable intent/`ingestedSeq`/`safeSeq` state-machine tests | **store primitive complete; Node writer and product route remain C1/C4/C6** |
 | C0-D | Can prepare registration prevent a second paid execution after response loss or restart, and can skip fence a late result? | durable prepare registry and timeout/ready CAS tests | **store primitive complete; HTTP/provider/startup integration remains C4/C6** |
-| C0-E | Can N+1 remain outside canonical chat until its turn, and can Node commit a result with chat, metadata, effects, intent, and owner in one replay boundary? | queued-input and server-commit failure-injection harness | pending |
+| C0-E | Can N+1 remain outside canonical chat until its turn, and can Node commit a result with chat, metadata, effects, intent, and owner in one replay boundary? | queued-input and server-commit failure-injection harness | **complete: current owners fail; C1/C3 split primitives are required** |
 | C0-F | Do output stages remain foreground/BG-equivalent, and can a blank browser discover ownership after result TTL cleanup? | stage parity fixture and revision-bound projection fixture | pending |
 
 C0-B precedes the other AC write experiments because claim/binding epochs are
@@ -358,12 +358,43 @@ The detailed report is Archive Center
 `docs/pocketrisu-host-prepare-registry-c0-validation.md`; its SHA-256 is
 `2b7cee91a743a70c6d74470cd070b030caecc9b59e9d772e7b492cb2240880f0`.
 
+### C0-E Node storage and input-order characterization
+
+Patcher test commit `1fc03d7` adds five test-only failure/source-order probes;
+it changes no managed unit, manifest, catalog, installer, target, or live
+process.
+
+Observed boundaries:
+
+- current `chatWriteJournal.stage()` is async; when passed to a synchronous
+  SQLite transaction callback its `kvSet` executes after the callback scope;
+- durable chat payload can survive while separately written host intent or
+  owner/effect receipts are absent or contradictory;
+- a new-chat payload replays into `fullChatStore`, but without a stripped DB
+  stub normal metadata discovery remains false and the journal must stay;
+- the full-chat route correctly stages before memory publication and success,
+  but its durable record has no operation/intent/owner/effect envelope; and
+- `runServerOrchestratedChat()` strictly saves the already-inserted browser
+  message before allocating the operation ID, so it is not pre-canonical N+1
+  admission.
+
+Direct C0-E execution reports 5/5 assertions, full patcher `npm test` reports
+48/48 files, and the new test passes `node --check`. These observations fix the
+C1/C3 design boundary: split async prepare/encode from synchronous durable
+write and post-commit publication; commit payload, minimum metadata, intent,
+receipts, owner, and required effects in one SQLite recovery unit; and intercept
+the supported send path before input insertion/script/autosave.
+
+The detailed report is
+`docs/POCKETRISU-1.10-BG-AC-C0-E-NODE-STORAGE-CHARACTERIZATION.md`; its SHA-256
+is `a55470d3c4b96ed79ff51ded48d012a688ef5a4e2eb57273aa84aa5023a26ec4`.
+
 ## Existing owners to extend
 
 | Need | Existing owner | Confirmed gap |
 | --- | --- | --- |
-| Node serialization | `queueStorageOperation` and `fullChatStore` in the exact-1.10 lazy server owner | no server-level generation commit primitive or focused cross-boundary test |
-| Chat payload WAL | `chatWriteJournal` | restores payload but does not create missing chat metadata or carry effect/intent/owner receipts |
+| Node serialization | `queueStorageOperation` and `fullChatStore` in the exact-1.10 lazy server owner | C0-E fixes the gap: no server-level generation commit primitive; current input enters canonical save before operation admission |
+| Chat payload WAL | `chatWriteJournal` | C0-E proves async stage cannot be treated as a synchronous SQLite transaction and recovery lacks metadata/effect/intent/owner receipts |
 | BG lifecycle | generated `bgOrchestrator.cjs` source owned by `patches/bg-preserve.json` | terminal result is parked in KV for a browser consumer; it is not a normal chat commit |
 | AC route identity | `SessionRouteBindingStore`, `HostSessionExecutionStore`, and serializable route/claim transactions | store acquire/status/settle and exact-stream watermarks exist; authenticated route, nonterminal phases, and receipt/context links remain absent |
 | AC source invalidation | durable source revisions, transactional invalidation/outbox fences, and the C0-C ordered host stream | store primitive is connected; Node durable writer, host transport, input/response completion, and multi-stream aggregation remain absent |
