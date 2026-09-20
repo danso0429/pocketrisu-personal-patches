@@ -6,6 +6,7 @@ on:
     branches:
       - main
       - agent/composable-patch-engine
+      - codex/pocketrisu-maintenance-fixes
 
 permissions:
   contents: read
