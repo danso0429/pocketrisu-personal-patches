@@ -6,8 +6,10 @@ Status: **C0 contract experiments, C1 server commit primitive, and C2 opt-in
 BG result commit complete; C3 projection/hydration/input, same-process settings,
 owner-level N+1, external-audit connection hardening, and the AC-off HTTP
 boundary fixture plus the C4 process-memory execution-context foundations are
-implemented, but product C3–C7 integration, live application, and release are
-not complete**
+implemented; H1 now validates the generated AC-off Node process, normal chat
+readback, blank-client adoption, named restart boundaries, and transaction
+failures, but product H2–H7 integration, live application, and release are not
+complete**
 
 ## Fresh-session continuation
 
@@ -19,9 +21,9 @@ depending on prior conversation:
 3. `docs/POCKETRISU-1.10-BG-AC-FRESH-START-INSTRUCTIONS.md` — reproducible
    startup and first slice.
 
-The first incomplete dependency is the AC-off composed Node process boundary.
-Archive Center production caller wiring and client capability activation occur
-only after their preceding gates in the next-work plan.
+The first incomplete dependency is H2 Archive Center production context
+transport and consumers. Client capability activation remains after the H3/H4
+gates in the next-work plan.
 
 ## Authority and frozen inputs
 
@@ -76,7 +78,8 @@ exit criteria.
 | C1 | Can Node commit chat, metadata, effects, intent, owner, operation state, and receipt in one replay boundary? | split journal plus WAL-mode SQLite failure injection and recovery | **primitive implemented and called by the opted-in C2 server path; product lifecycle remains open** |
 | C2 | Can an opted-in detached BG final result reach the C1 owner and normal chat storage without a browser save? | exact route-to-owner fixture, recovery/route failure cases, complete graph lifecycle and server smoke | **internal opt-in server path implemented; current client remains unopted and C3/C6 own hydration, projection, retention, and reconciliation** |
 | C3 foundation | Can the server own pre-canonical input state, expose revision-bound message ownership, let a client adopt a committed normal chat without replaying legacy effects, and preserve one successor's exact predecessor lineage? | input/commit/projection owners, immutable same-process settings context, N+1 terminal/revision fixtures, foreground/cold-boot hydration fixtures, publication/slot race injection, complete target and graph gates | **foundation implemented; capability remains 0 until automatic drain, receipt-scoped dynamic effects, pending/chat-open reconciliation, client opt-in, and the separate C4 AC settings contract close** |
-| C4 context foundation | Can AC freeze one explicit device/backend settings snapshot without persisting or publicly hashing secret values? | typed allowlist, process-memory owner, exact replay/conflict, configuration-lock, secret-independence, capacity/restart and full race fixtures | **capture owner implemented; no HTTP/HostPrepare/provider caller, resolver, release, or product capability exists** |
+| C4 context foundation | Can AC freeze one explicit device/backend settings snapshot without persisting or publicly hashing secret values? | typed allowlist, process-memory owner, exact replay/conflict, configuration-lock, secret-independence, captured-only resolver, capacity/restart and full race fixtures | **capture owner and resolver implemented; no HTTP/HostPrepare/provider caller, release, or product capability exists** |
+| H1 composed process | Does the AC-off ownership contract survive the generated `server.cjs`, request-process exit, production chat readback, blank storage, named child restart, and commit failures? | isolated child-process harness, actual SQLite and routes, real NodeStorage/chatStorage adoption, failpoints, complete server and graph lifecycle | **complete: process evidence recorded; capability remains 0 and no production implementation unit changed** |
 
 C0-B precedes the other AC write experiments because claim/binding epochs are
 inputs to prepare, mutation, and settle identities. C0-E begins with a focused
@@ -732,12 +735,39 @@ The detailed discovery → external-anchor → triage report is AC
 `docs/pocketrisu-execution-context-c4-validation.md`; its SHA-256 is
 `a3ee48bccf949280bd942d3ba9828675535c4ecbd4966296463d3ce0dff34a05`.
 
+### H1 AC-off composed Node process boundary
+
+Patcher commit `7ce4259` adds a test-only child-process harness without
+changing production behavior. It runs the generated exact-1.10
+`server/node/server.cjs` against an isolated runtime root and actual SQLite,
+uses a separate request process that exits after the start ACK, reads the
+committed binary chat through the production normal-chat API, and adopts it
+through actual `NodeStorage` and `chatStorage` from empty storage contexts both
+before and after short-lived result/state removal.
+
+The primary case observed provider 1, commit 1, client save 0, result ACK 0,
+and fallback provider 0. After short-lived result and operation-state removal,
+the input owner still returned `input-completed`, the durable server commit
+receipt, and the authoritative projection. Six transaction failures rolled
+back chat/receipt state while the settings context remained present at the
+failure boundary. Child kills after input attachment, after the commit
+transaction, before the publication marker, and during causal N+1 recovery
+produced the documented non-resuming or recovery outcome without provider or
+commit replay.
+
+Observed gates are H1 process 11/11 with a clean repeat; focused owner/route/
+process 61/61; complete server 313 pass/12 skip; patcher 52/52; reproducible
+8,327,213-byte installers with SHA-256 `b3eab53d…162012`; and a 40-pack,
+1,007-unit, 358-path, 13-collision complete graph with zero-change re-plan and
+clean exact revert. The detailed receipt is
+`docs/POCKETRISU-1.10-BG-AC-H1-COMPOSED-PROCESS-VALIDATION.md`.
+
 ## Existing owners to extend
 
 | Need | Existing owner | Confirmed gap |
 | --- | --- | --- |
 | Node serialization | `queueStorageOperation`, `fullChatStore`, C1/C2 commit owner, and C3 input/settings owner | admission order and execution dependency are separated in record v4; automatic drain, receipt-scoped dynamic effects, client pending UI, and transport to the unmounted AC context owner are absent; C6 retention remains undefined |
-| Chat payload WAL | split `chatWriteJournal` prepare/write/publish/recovery phases plus C2 commit and C3 input operation rows | bounded input↔response causal reconciliation and rollback-safe settings release are wired; actual process-kill timing, bounded retirement, and late-reference safety remain open |
+| Chat payload WAL | split `chatWriteJournal` prepare/write/publish/recovery phases plus C2 commit and C3 input operation rows | bounded input↔response causal reconciliation, rollback-safe settings release, and named process-kill boundaries are verified; arbitrary in-flight model resumption remains out of scope and bounded retirement/late-reference safety remain open |
 | BG lifecycle/output | generated exact-1.10 `bgOrchestrator.cjs` and `bgOrchestrate.ts` | internal flag 1 can exercise input→commit→hydrate, but capability remains 0/current client unopted; pending UI and C5 output transform remain absent |
 | BG delivery ownership | chat/root `bgOrchestrationDelivery` markers, bounded result retention, and `serverChatExecutionState` | char/chat/revision projection exists and reconciles exact owners; ordinary chat-open consumption, AC state, and owner/tombstone lifetime remain absent |
 | AC route identity | `SessionRouteBindingStore`, `HostSessionExecutionStore`, and serializable route/claim transactions | store acquire/status/settle and exact-stream watermarks exist; authenticated route, nonterminal phases, and receipt/context links remain absent |
@@ -766,9 +796,12 @@ revertible. A passing source test does not advance a later state automatically.
    server-owned failure fences; capability 0 until
    automatic drain, receipt-scoped effects, chat-open UI, client opt-in, and
    C4 AC settings close**).
-8. AC C4 typed execution-context resolver/transport, then C5 JS/PocketRisu
+8. H1 generated AC-off Node process, normal chat, blank-client, restart, and
+   transaction-failure boundary (**completed at `7ce4259`; capability remains
+   0**).
+9. AC C4 typed execution-context resolver/transport, then C5 JS/PocketRisu
    host adapter and output-transform parity.
-9. Integrated C6/C7 gates, runtime audit, controlled live candidate, and
+10. Integrated C6/C7 gates, runtime audit, controlled live candidate, and
    concrete device scenarios.
 
 Before a manifest or managed unit changes, run the current all-or-nothing

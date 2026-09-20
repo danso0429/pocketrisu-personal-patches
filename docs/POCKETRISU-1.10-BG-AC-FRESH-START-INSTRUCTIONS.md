@@ -1,20 +1,21 @@
 # PocketRisu 1.10 BG server chat save × Archive Center fresh-start instructions
 
 - Instruction date: 2026-09-20 KST
-- Starting implementation/evidence checkpoint: `df7fed77700a9695f0a78cb406ee8996c0920349`
-- First implementation objective: AC-off composed Node process boundary
+- Starting implementation/evidence checkpoint: `7ce4259`
+- First implementation objective: H2 C4 production context transport and consumers
 - Capability at start: disabled (`inputCommandVersion=0`)
-- Live deployment at start: prohibited by the first slice
+- Live deployment at start: prohibited by the H2 source slice
 
 ## 1. Session objective
 
 Reconstruct the current source and evidence state without relying on prior
-conversation, then continue with the first incomplete dependency: one
-server-owned AC-off turn across a spawned composed PocketRisu server process,
-client/request loss, normal-chat readback, blank-client adoption, restart, and
-commit-failure boundaries.
+conversation, accept the completed H1 process boundary unless source or
+evidence contradicts it, then continue with the first incomplete dependency:
+strict authenticated Archive Center context transport, claim/prepare/context
+joining, captured-only production consumers, prompt snapshotting, and context
+release/retention.
 
-Do not begin by redesigning the integration, reconnecting Archive Center, or
+Do not begin by rerunning H1, redesigning the integration, applying to live, or
 raising the capability version.
 
 ## 2. Initial repository discovery
@@ -49,8 +50,9 @@ Read these files in full:
 4. `docs/POCKETRISU-1.10-BG-AC-NEXT-WORK-PLAN.md`;
 5. `docs/POCKETRISU-1.10-BG-AC-C0-VALIDATION.md`;
 6. `docs/POCKETRISU-1.10-BG-AC-C3-CONNECTION-HARDENING-VALIDATION.md`;
-7. `docs/POCKETRISU-1.10-BG-AC-C4-INDEPENDENT-SNAPSHOT-VALIDATION.md`;
-8. `docs/PATCHER-V2-DESIGN.md`.
+7. `docs/POCKETRISU-1.10-BG-AC-H1-COMPOSED-PROCESS-VALIDATION.md`;
+8. `docs/POCKETRISU-1.10-BG-AC-C4-INDEPENDENT-SNAPSHOT-VALIDATION.md`;
+9. `docs/PATCHER-V2-DESIGN.md`.
 
 Use the integration progress report as a detailed map when a file, commit, test
 count, environment fact, or earlier decision must be traced. Do not reread all
@@ -73,10 +75,10 @@ Expected starting properties:
 - branch: `codex/pocketrisu-bg-ac-server-chat-save`;
 - clean worktree;
 - local/upstream divergence: `0 0`;
-- implementation/evidence parent checkpoint present: `df7fed7`;
+- H1 implementation/evidence checkpoint present: `7ce4259`;
 - current tip may be a later documentation-only handoff commit.
 
-If source commits appear after `df7fed7`, review them before continuing. Do not
+If source commits appear after `7ce4259`, review them before continuing. Do not
 reset them away to force the documented hash.
 
 Verify the public plan from its public checkout:
@@ -127,9 +129,9 @@ git write-tree
 Require 28 unique staged paths and tree
 `7806dd39f4acfa294ee67f9d7834bc6fed448730`.
 
-For the first H1 slice, AC remains disabled, so source reconstruction may be
-deferred after hash verification unless a contradiction in AC provenance is
-found.
+H2 changes Archive Center source, so reconstruct the candidate before editing
+and require the exact path count and tree ID. Do not replace or reset the
+existing local candidate to perform this check.
 
 ## 6. Establish the fact baseline
 
@@ -141,10 +143,11 @@ these facts:
 - C1 and C2 are implemented internal owners;
 - C3 foundations and R1–R5 fixes exist, but ordinary clients are unopted;
 - C4 has an unmounted context owner/resolver only;
+- H1 composed-process evidence is complete at `7ce4259`;
 - C5 and C6 are not implemented;
 - C7 has not been performed;
 - `inputCommandVersion=0` and `inputCommandFoundationVersion=4`;
-- the first task is H1 AC-off composed process evidence;
+- the first task is H2 strict transport/context consumers;
 - C6 gates precede capability promotion;
 - live PocketRisu, PM2, user data, provider traffic, AC runtime, tags, and
   releases are outside the first slice.
@@ -152,7 +155,37 @@ these facts:
 If any inspected source contradicts this list, investigate and update the
 handoff documents before implementation.
 
-## 7. Inspect the first-task source surface
+## 7. Closed H1 reference and H2 source surface
+
+Sections 8, 9, and 12 below preserve the exact H1 procedure and report shape
+as closed historical instructions. Do not repeat them at session start. Re-run
+H1 only when relevant PocketRisu source changes, the environment is no longer
+equivalent, or contradictory evidence appears.
+
+For H2, inspect the restored Archive Center candidate and the current public
+callers before editing:
+
+```text
+go-service/internal/httpapi/pocketrisu_execution_context.go
+go-service/internal/httpapi/pocketrisu_execution_context_resolver.go
+go-service/internal/httpapi/server.go
+go-service/internal/httpapi/auth.go
+go-service/internal/store/mariadb_session_execution.go
+go-service/internal/store/mariadb_host_change.go
+go-service/internal/store/mariadb_host_prepare.go
+go-service/internal/httpapi/group_turn_prepare.go
+go-service/internal/httpapi/group_turn_complete.go
+go-service/internal/httpapi/prepare_turn_multi_agent.go
+go-service/internal/httpapi/turn_extraction.go
+go-service/internal/httpapi/turn_extraction_critic.go
+go-service/internal/httpapi/runtime_config.go
+```
+
+Also inspect the H1 PocketRisu owners and generated target only to define the
+future transport caller. Do not modify PocketRisu capability or client wiring
+during the first H2 source slice.
+
+### Closed H1 source list
 
 Read the current source, not only validation prose:
 
@@ -176,7 +209,7 @@ chat routes, `chatStorage.ts`, and orchestration code after applying the
 installer to a disposable target. Use the source/manifest files above for
 edits.
 
-## 8. First implementation slice
+## 8. Closed H1 implementation slice
 
 ### 8.1 Build the disposable candidate
 
@@ -195,9 +228,9 @@ cmp dist/pocketrisu-patcher.cjs dist/pocketrisu-all.cjs
 ```
 
 Run `npm run build` a second time and require byte-identical outputs. If no
-source or manifest has changed yet, the expected starting installer is
-8,281,994 bytes, mode 0755, with SHA-256
-`146a892fde7b8a3bb9fe01926093d3a9e275660aaf00aae5e24d57dbc03b47e6`.
+source or manifest has changed yet, the expected H1 installer is
+8,327,213 bytes, mode 0755, with SHA-256
+`b3eab53d687d0bda5f9d8cc82aa09493945f1a61af4d1f8f7d08f2b500162012`.
 
 Apply the complete graph to the disposable target using the current patcher
 CLI. Confirm status is current, an immediate plan changes zero files, and the
@@ -258,7 +291,7 @@ If the same defect survives two attempts or the solution expands the ownership
 surface, stop patching and write a control/data-flow report with questioned
 design assumptions before a third attempt.
 
-## 9. Verification after the first slice
+## 9. Closed H1 verification procedure
 
 ### 9.1 If only tests/harness changed
 
@@ -316,9 +349,9 @@ For each completed slice:
 9. push the private candidate branch;
 10. verify local and upstream commit IDs and a clean worktree.
 
-Do not create a stable tag or release during H1.
+Do not create a stable tag or release during H2.
 
-## 11. Actions prohibited in the first slice
+## 11. Actions prohibited in the H2 source slice
 
 - do not modify or delete live user data;
 - do not cancel queued or active generation;
@@ -326,7 +359,10 @@ Do not create a stable tag or release during H1.
 - do not send a paid provider request;
 - do not install the candidate on the live source tree;
 - do not change the capability from 0;
-- do not wire AC production callers;
+- do not expose an unauthenticated or capability-advertised host route;
+- do not persist full secret-bearing context material;
+- do not let a context-aware final caller fall back to current mutable global
+  runtime, environment, or prompt files;
 - do not push the local AC candidate to an upstream without explicit authority;
 - do not force-push, hard-reset, clean, or discard unrelated changes;
 - do not remove existing worktrees, backups, ZIP files, or saved-data paths;
@@ -334,7 +370,7 @@ Do not create a stable tag or release during H1.
 - do not claim browser/device success from a Node helper test;
 - do not treat the unavailable external evidence ZIP as verified.
 
-## 12. H1 completion report format
+## 12. Closed H1 completion report format
 
 When H1 closes, record:
 
@@ -352,18 +388,22 @@ When H1 closes, record:
 12. confirmation that live services, data, provider, tag, and release were not
     changed.
 
-## 13. Continue after H1
+## 13. Continue with H2
 
-After H1 passes and its evidence is committed and pushed, continue directly to
-H2 in `POCKETRISU-1.10-BG-AC-NEXT-WORK-PLAN.md` unless a real blocker or a
-new user-visible design decision appears. H2 begins with strict AC DTO/auth and
-immutable production consumers; it does not begin with capability promotion.
+H1 passed at `7ce4259`. Begin H2 in
+`POCKETRISU-1.10-BG-AC-NEXT-WORK-PLAN.md` unless a real blocker or a new
+user-visible design decision appears. The first H2 commit defines strict DTO,
+body-size, unknown-field, mandatory-auth, version, and typed-error contracts
+without advertising capability. Follow with claim/HostPrepare/context joining,
+context lifecycle, then captured-only prepare/complete/provider consumers and
+prompt snapshots. Preserve v1–v3 behavior and add the v4 server-host contracts
+only behind their exact host/version fence.
 
 The complete continuation order is:
 
 ```text
-H1 composed AC-off process
-  -> H2 C4 context transport/consumers
+H1 composed AC-off process [complete]
+  -> H2 C4 context transport/consumers [next]
   -> H3 C5 output parity
   -> H4 C6 lifecycle/retention
   -> H5 client activation

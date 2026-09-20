@@ -8,7 +8,7 @@
 - Archive Center 기준: v4.3.1 (`026dcbf3b45adcf69b254673d439b24e943115b3`)
 - 개인 패처 기준: v0.2.1 (`3e69349d3b0ca3bf8011b597e080880238e5fa0a`)
 - 후속 연결부 hardening: `3315e4d`, 외부 검수 R1~R5 반영
-- 보고 범위: 통합 계획, C0 기반 실험, C1~C4 구현 경과, R1~R5 연결부 수정, 검증, 배포·보존 상태, 미완료 게이트
+- 보고 범위: 통합 계획, C0 기반 실험, C1~C4 구현 경과, R1~R5 연결부 수정, H1 composed-process 검증, 배포·보존 상태, 미완료 게이트
 
 ## 1. 요약
 
@@ -22,12 +22,13 @@
 | C1 | 서버 채팅/effect commit primitive 구현 | original-chat/AC-disabled 범위의 내부 primitive |
 | C2 | BG 최종 결과의 opt-in 서버 commit 경로 구현 | 현행 클라이언트는 opt-in하지 않음 |
 | C3 | projection, hydration, pre-canonical input, 설정, 실행 의존성, 인과 복구, 소유권 fence 구현 | capability 0, 자동 drain·일반 client UI 없음 |
+| H1 | generated AC-off Node process, normal chat, blank storage, restart/failure/retention 검증 완료 | evidence-only; capability 0 유지 |
 | C4 | AC process-memory execution-context owner와 effective resolver 구현 | 외부 DTO·route·HostPrepare/provider caller 없음 |
 | C5 | 미구현 | 사용 불가 |
 | C6 | 미구현 | 사용 불가 |
 | C7 | 미구현 | live qualification·release 없음 |
 
-C0의 환경·characterization·store primitive, C1의 atomic primitive, C2의 internal opt-in 연결은 각각 계획된 구현 slice를 마쳤다. 이는 원래 일곱 제품 계약의 종료를 뜻하지 않는다. C3~C4는 부분 구현이고 C5~C7은 미착수이며, 새 통합 기능은 아직 제품 admission gate 이전이다. PocketRisu capability는 `inputCommandVersion: 0`이고, Archive Center의 새 context도 production route나 provider가 사용하지 않는다.
+C0의 환경·characterization·store primitive, C1의 atomic primitive, C2의 internal opt-in 연결, H1의 AC-off process evidence는 각각 계획된 slice를 마쳤다. 이는 원래 일곱 제품 계약의 종료를 뜻하지 않는다. C3~C4는 부분 구현이고 C5~C7은 미착수이며, 새 통합 기능은 아직 제품 admission gate 이전이다. PocketRisu capability는 `inputCommandVersion: 0`이고, Archive Center의 새 context도 production route나 provider가 사용하지 않는다.
 
 이번 구현은 다음 두 축을 병렬로 진행했다.
 
@@ -137,13 +138,14 @@ live PocketRisu는 현재 pristine이 아니라 기존 all-preset patch graph가
 
 | 항목 | C3 connection-hardening checkpoint |
 | --- | --- |
-| implementation commit | `3315e4d` |
+| implementation/test checkpoint | `7ce4259` |
 | AC-off HTTP boundary test | `a286b96` |
-| adapter | `lazy-chat-bg-adapter` 0.7.0 |
+| H1 composed-process test | `7ce4259` |
+| adapter | `lazy-chat-bg-adapter` 0.7.1 |
 | capability | input 0, diagnostic foundation 4 |
-| complete graph | 40 packs, 1,003 units, 354 managed paths, 13 ordered collisions |
-| installer | 8,281,994 bytes, mode 0755 |
-| installer SHA-256 | `146a892fde7b8a3bb9fe01926093d3a9e275660aaf00aae5e24d57dbc03b47e6` |
+| complete graph | 40 packs, 1,007 units, 358 managed paths, 13 ordered collisions |
+| installer | 8,327,213 bytes, mode 0755 |
+| installer SHA-256 | `b3eab53d687d0bda5f9d8cc82aa09493945f1a61af4d1f8f7d08f2b500162012` |
 | disposable target final state | clean, empty custom intent |
 
 ### 4.4 격리 Archive Center 설치
@@ -528,6 +530,37 @@ audit에서 predecessor sequence를 단순히 더 작은 값으로만 검사하�
 | exact revert | 354-path existence/bytes/mode mismatch 0 |
 | HTTP smoke | prior N+1 checkpoint에서 root 200·미인증 capability/projection/start 401·graceful SIGINT; `3315e4d` 뒤 process smoke는 미재실행 |
 
+### 9.8 H1 generated AC-off process boundary
+
+test-only commit `7ce4259`는 exact-1.10 complete target의 generated
+`server.cjs`를 격리 child process로 실행한다. 별도 request process는 start
+ACK 뒤 종료하고, server는 실제 SQLite·input/commit/projection owner로 fixed
+preview를 완료한다. 결과는 production normal-chat API로 읽고, 별도
+frontend test process의 actual `NodeStorage`와 `chatStorage`가 빈 storage
+context 두 개에서 같은 revision을 채택한다.
+
+관찰값:
+
+- provider 1, commit 1, client save 0, result ACK 0, fallback provider 0;
+- capability input 0/foundation 4와 AC owner/state disabled 유지;
+- short-lived result/state 제거 뒤 `input-completed`, commit receipt, owner
+  projection과 normal chat 유지;
+- journal, commit sequence, metadata state, effect resolution, operation state,
+  commit record 여섯 실패에서 전체 transaction rollback과 failure 순간
+  settings context 1 유지;
+- input attached, post-transaction, result-marker, causal N+1 child restart에서
+  provider/commit replay 0;
+- N active 중 N+1은 202 waiting, 세 번째 nonterminal은 409, N publish 뒤
+  N+1 input attach와 restart 복원 확인.
+
+H1 process suite는 11/11을 두 차례 통과했다. focused owner/route/process는
+61/61, complete server는 313 pass/12 skip, patcher는 52/52였다. complete
+graph는 40 packs/1,007 units/358 paths/13 collisions, re-plan 0, exact revert
+clean/disabled/empty intent였다. 두 installer는 8,327,213 bytes·0755·
+SHA-256 `b3eab53d…162012`로 byte-identical이다. Production runtime unit과
+live 상태는 변경하지 않았다. 상세는
+`docs/POCKETRISU-1.10-BG-AC-H1-COMPOSED-PROCESS-VALIDATION.md`에 있다.
+
 ## 10. C4: Archive Center execution context
 
 ### 10.1 process-memory capture owner
@@ -632,6 +665,7 @@ local commit `9e23861`은 captured material만 사용하여 다음 최종 config
 | C1 | atomic chat/effect commit primitive와 rollback-safe settings release | C6 retention·joined reconciliation |
 | C2 | internal opt-in BG result commit과 server-owned failure 보존 | current client activation과 non-input TTL owner 없음 |
 | C3 | projection/hydration/input/settings/record-v4 lineage/causal recovery | auto drain, early-send, ACK recovery, UI, effect provenance, activation |
+| H1 | generated AC-off process, actual SQLite/normal chat, blank-client adoption, named restart/failure/retention evidence | actual browser process와 AC 연결은 후속 단계 소유 |
 | C4 | context capture + resolver | production accessors, DTO/route, claim/prepare join, v4 complete, v1~v3 regression |
 | C5 | 없음 | JS host export, PocketRisu adapter, injection/prefill/output parity |
 | C6 | 없음 | full lifecycle, next-input finalization, skip, conflict, response-loss, retention |
@@ -643,25 +677,25 @@ local commit `9e23861`은 captured material만 사용하여 다음 최종 config
 
 | ID | 현재 상태 | 현재 증거와 남은 차이 |
 | --- | --- | --- |
-| T01 | 미실행 | capability 0, live early admission 없음 |
+| T01 | H1 process 기반 | AC-off internal admission은 request process 종료 뒤 normal chat commit까지 통과; ordinary/live early admission은 capability 0으로 미실행 |
 | T02 | 미실행 | AC transport/prepare caller 없음 |
 | T03 | 부분 기반 | 기존 BG stream은 검증되어 있으나 새 commit+AC 조합 미실행 |
 | T04 | characterization만 완료 | stage gap 확인, AC pure output transform 미구현 |
 | T05 | 부분 기반 | durable prepare registry 검증, 실제 provider fallback/response drop 미연결 |
-| T06 | 부분 자동화 | actual SQLite input→response→input causal recovery fixture, 실제 process kill timing 미실행 |
-| T07 | 부분 자동화 | metadata/recovery boundary fixture, 실제 kill/list readback 미실행 |
-| T08 | 부분 자동화 | per-key effect failure와 commit rollback/settings 생존 fixture, integrated AC effect 재처리 미실행 |
+| T06 | H1 process 기반 | post-transaction과 result-marker actual child kill/restart에서 provider/commit replay 0; arbitrary model execution resume는 범위 밖 |
+| T07 | 부분 자동화 | normal original-chat list/readback과 metadata recovery는 process 경계 통과; conflict-copy metadata kill은 미실행 |
+| T08 | H1 process 기반 | 여섯 transaction failure에서 rollback/settings 생존 통과; integrated AC effect 재처리는 미실행 |
 | T09 | 부분 자동화 | cancel/commit owner race fixture, combined Node+AC claim race 미실행 |
 | T10 | 부분 자동화 | 완료 후 edit/delete 새 head와 waiting conflict fixture, branch AC routing 미구현 |
 | T11 | AC store 기반 완료 | reverse/gap/restart/source invalidation fixture, Node transport 미구현 |
-| T12 | 부분 기반 | result/commit replay와 uncommitted server-owner ACK/client-save 차단, AC raw 포함 ACK loss 미실행 |
-| T13 | 부분 기반 | actual route receipt/projection→client helper hydration, blank live browser + TTL 교차 미실행 |
+| T12 | H1 process 기반 | request process 종료와 반복 조회에서 provider 1/commit 1/client save 0/ACK 0; AC raw 포함 ACK loss는 미실행 |
+| T13 | H1 process 기반 | separate frontend process의 actual NodeStorage/chatStorage가 empty storage 두 번과 result/state 제거 뒤 다시 채택; 실제 browser는 미실행 |
 | T14 | 기존 BG 기반 | publish ordering tests 존재, 새 combined path 미실행 |
 | T15 | 부분 자동화 | C4 device/backend context unit coverage, 두 실제 기기/provider call 미실행 |
 | T16 | 부분 자동화 | captured config/global mutation 불변 fixture, actual prepare/complete consumers 미연결 |
 | T17 | gap characterization | prepare server variant와 complete v4 미구현 |
 | T18 | 미실행 | actual payload application observation adapter 미구현 |
-| T19 | owner 기반 부분 완료 | 취소 skip·편집·삭제·tamper·인과 복구 fixture, autosave/ACK/UI/auto drain 미실행 |
+| T19 | H1 process 기반 | N active→N+1 202 waiting→third 409→N publish→N+1 attach→restart 복원 통과; autosave/ACK/UI/auto drain은 미실행 |
 | T20 | store/owner 기반 일부 | current/previous Node recovery는 보강, AC finalization integrated path 미구현 |
 | T21 | AC store 기반 완료 | concurrent claim store fixture, authenticated foreground/server route 미구현 |
 | T22 | AC store 기반 부분 완료 | prepare/change/skip replay, actual HTTP/provider/startup path 미구현 |
@@ -669,7 +703,7 @@ local commit `9e23861`은 captured material만 사용하여 다음 최종 config
 | T24 | 미실행 | 네 설정 조합과 explicit skip integrated fixture 없음 |
 | T25 | 미실행 | PageFold adapter는 존재하나 AC memory PDF combined path 미검증 |
 | T26 | 미실행 | capability/build-fence compatibility matrix 미완성 |
-| T27 | 부분 기반 | input-owner 기반 result/state 제거 후 소유권 fixture, non-input TTL·blank browser 미실행 |
+| T27 | H1 process 기반 | result/state 제거 뒤 input-completed receipt/projection과 empty NodeStorage adoption 통과; non-input TTL·actual browser는 미실행 |
 | T28 | store 기반 부분 완료 | terminal release primitives 존재, integrated lock/queue timing 미실행 |
 
 ## 14. 저장소와 GitHub 보존 상태
@@ -682,12 +716,13 @@ local commit `9e23861`은 captured material만 사용하여 다음 최종 config
 
 - branch: `codex/pocketrisu-bg-ac-server-chat-save`
 - 최초 종합 보고서 commit: `3c27c4b`
-- 현재 구현·증거 checkpoint: `df7fed7`
+- 현재 구현·증거 checkpoint: `7ce4259`
 - PocketRisu production 구현 checkpoint: `3315e4d`
 - test-only AC-off HTTP boundary: `a286b96`
+- test-only H1 composed-process boundary: `7ce4259`
 - 포함 범위: C0 ledger, C1~C3 source/installer/docs, R1~R5 hardening,
-  handler-level AC-off HTTP evidence, C4 capture/resolver source snapshot과
-  independent validation
+  handler-level 및 generated-process AC-off evidence, C4 capture/resolver
+  source snapshot과 independent validation
 - 미포함: AC original 15 commit object와 production caller 연결
 
 이 보고서는 같은 private GitHub branch에 보존한다. 최초 보고서 이후 구현 변경과 검증은 별도 commit으로 분리한다.
@@ -748,7 +783,7 @@ record v4는 v3를 fail-closed한다. 후보가 live에 없으므로 현재 사�
 
 ## 16. 다음 권장 실행 순서
 
-### 16.1 AC-off composed Node process boundary
+### 16.1 AC-off composed Node process boundary — 완료
 
 1. composed `server.cjs` child process에서 internal admission과 fixed provider 주입
 2. production normal chat API로 commit 본문/revision readback
@@ -757,7 +792,9 @@ record v4는 v3를 fail-closed한다. 후보가 live에 없으므로 현재 사�
 5. input→response→input durable boundary별 child process restart
 6. commit failure와 result/status TTL 뒤 최소 owner readback
 
-현재 actual SQLite+HTTP handler fixture는 start ACK 이후 server 지속 실행과 result/projection/chat/helper hydration을 증명했다. 위 단계는 이를 composed process와 production normal-chat/client storage 경계로 올리는 작업이며 capability를 일반 사용자에게 공개하는 단계가 아니다.
+commit `7ce4259`와 H1 receipt가 위 단계를 generated process, production
+normal-chat, actual NodeStorage/chatStorage, named restart/failure/retention
+경계로 올렸다. Capability는 계속 0이며 다음 순서는 16.2이다.
 
 ### 16.2 C4 product 연결
 
@@ -817,13 +854,13 @@ record v4는 v3를 fail-closed한다. 후보가 live에 없으므로 현재 사�
 | 구분 | 저장소와 기준 revision | 대조 대상 | GitHub 상태 |
 | --- | --- | --- | --- |
 | 통합 계획 | public NAI Studio `e09a3b640e2a928f046b1145a6e8565c026f53fc` | [`docs/POCKETRISU-1.10-BG-PRESERVE-SERVER-CHAT-SAVE-ARCHIVE-CENTER-PLAN.md`](https://github.com/danso0429/nai-studio/blob/e09a3b640e2a928f046b1145a6e8565c026f53fc/docs/POCKETRISU-1.10-BG-PRESERVE-SERVER-CHAT-SAVE-ARCHIVE-CENTER-PLAN.md) | public GitHub에 보존됨 |
-| PocketRisu 구현 정본 | 이 보고서와 같은 private patcher 저장소, branch `codex/pocketrisu-bg-ac-server-chat-save`, 현재 구현 checkpoint `3315e4d` | 아래 34개 초기 implementation/evidence 파일, 이 보고서, connection-hardening validation | 구현 checkpoint는 원격 branch에 보존됨 |
+| PocketRisu 구현 정본 | 이 보고서와 같은 private patcher 저장소, branch `codex/pocketrisu-bg-ac-server-chat-save`, 현재 구현/test checkpoint `7ce4259` | 아래 초기 implementation/evidence 파일, H1 owned harness 4개, 이 보고서와 validation receipts | checkpoint는 private branch에 보존 |
 | 공식 PocketRisu 기준선 | [`PocketRisu/PocketRisu` `98e968339d1b3f91b9dac85bb3f2ebb5f90f9d14`](https://github.com/PocketRisu/PocketRisu/tree/98e968339d1b3f91b9dac85bb3f2ebb5f90f9d14) | installer 적용 전 v1.10.0 source | public GitHub에 보존됨. 이 프로젝트는 공식 저장소를 직접 수정하지 않음 |
 | Archive Center 기준선 | [`Flazer31/archive-center` `026dcbf3b45adcf69b254673d439b24e943115b3`](https://github.com/Flazer31/archive-center/tree/026dcbf3b45adcf69b254673d439b24e943115b3) | AC 4.3.1 source | public GitHub에 보존됨 |
 | Archive Center 후보 | local branch `codex/pocketrisu-bg-ac-server-chat-save`, `9e23861901f15cae46817158a21ea873bbde6fe1` | 아래 28개 local diff 파일과 full-index source patch | upstream branch에는 없음. Exact final tree patch는 private patcher 작업선에 보존됨 |
 | 생성·실행 대상 | disposable PocketRisu target, isolated AC runtime, live PocketRisu | installer 합성 결과와 runtime readback | source authority가 아니며 별도 GitHub 저장소로 취급하지 않음 |
 
-private patcher 파일 링크는 이 보고서에서 같은 저장소의 상대 경로로 작성했다. GitHub에서 이 branch의 보고서를 열면 해당 branch의 파일로 이동한다. 최초 N+1 구현은 `265b8e9`, 외부 검수 연결부 수정은 `3315e4d`를 checkout해 비교한다.
+private patcher 파일 링크는 이 보고서에서 같은 저장소의 상대 경로로 작성했다. GitHub에서 이 branch의 보고서를 열면 해당 branch의 파일로 이동한다. 최초 N+1 구현은 `265b8e9`, 외부 검수 연결부 수정은 `3315e4d`, H1 process evidence는 `7ce4259`를 checkout해 비교한다.
 
 Archive Center `9e23861`의 파일에는 현재 클릭 가능한 upstream GitHub blob URL이 없다. 아래 경로를 upstream `main`에서 찾지 못하거나 내용이 다르더라도 누락으로 판정하면 안 된다. upstream은 `026dcbf`, 후보는 그 위의 15 commits이며 exact final tree는 별도 patch에서 복원한다.
 
@@ -839,9 +876,9 @@ PocketRisu 쪽은 다음 세 층을 구분해야 한다.
 
 Archive Center 쪽은 별도 installer 합성 구조가 아니다. `026dcbf..9e23861`의 28개 파일이 local 후보의 직접 source diff이며, migration·store·HTTP owner와 test가 같은 Git history에 있다.
 
-### 17.3 private patcher의 exact branch-diff 파일 34개
+### 17.3 private patcher의 초기 branch-diff 34개와 H1 추가 4개
 
-아래 목록은 patcher v0.2.1 기준 commit `3e69349d3b0ca3bf8011b597e080880238e5fa0a`부터 최초 구현 checkpoint `265b8e9b65fc37493f5af670b6127edbadc812a3`까지 `git diff --name-only`로 전수 산출한 결과이다. 후속 `3315e4d`는 이 목록 안의 source/test/manifest/dist 12개 경로를 수정했으며 새 runtime target path를 추가하지 않았다. 이 보고서와 connection-hardening validation 문서는 34개에 포함되지 않는다.
+아래 초기 목록은 patcher v0.2.1 기준 commit `3e69349d3b0ca3bf8011b597e080880238e5fa0a`부터 최초 구현 checkpoint `265b8e9b65fc37493f5af670b6127edbadc812a3`까지 `git diff --name-only`로 전수 산출한 결과이다. 후속 `3315e4d`는 이 목록 안의 source/test/manifest/dist 12개 경로를 수정했으며 새 runtime target path를 추가하지 않았다. H1 `7ce4259`는 아래 test-only target path 4개를 추가하고 manifest/test/dist를 갱신했다. 이 보고서와 validation 문서는 초기 34개 또는 H1 4개 target-path count에 포함되지 않는다.
 
 #### C0~C3 검증 문서 8개
 
@@ -878,6 +915,13 @@ Archive Center 쪽은 별도 installer 합성 구조가 아니다. `026dcbf..9e2
 - [`patches/lazy-chat-bg-adapter/files-1.10/src/ts/bgServerCommitHydration.test.ts`](../patches/lazy-chat-bg-adapter/files-1.10/src/ts/bgServerCommitHydration.test.ts)
 - [`patches/lazy-chat-bg-adapter/files-1.10/src/ts/storage/serverCommittedChatAdoption.test.ts`](../patches/lazy-chat-bg-adapter/files-1.10/src/ts/storage/serverCommittedChatAdoption.test.ts)
 
+#### H1 composed-process test-only 정본 4개
+
+- [`patches/lazy-chat-bg-adapter/files-1.10/server/node/bgServerChatProcessPreload.cjs`](../patches/lazy-chat-bg-adapter/files-1.10/server/node/bgServerChatProcessPreload.cjs)
+- [`patches/lazy-chat-bg-adapter/files-1.10/server/node/bgServerChatProcessClient.cjs`](../patches/lazy-chat-bg-adapter/files-1.10/server/node/bgServerChatProcessClient.cjs)
+- [`patches/lazy-chat-bg-adapter/files-1.10/server/node/bgServerChatProcessBoundary.test.ts`](../patches/lazy-chat-bg-adapter/files-1.10/server/node/bgServerChatProcessBoundary.test.ts)
+- [`patches/lazy-chat-bg-adapter/files-1.10/src/ts/storage/bgServerChatProcessAdoption.test.ts`](../patches/lazy-chat-bg-adapter/files-1.10/src/ts/storage/bgServerChatProcessAdoption.test.ts)
+
 #### root characterization·contract test 6개
 
 - [`test/bg-ac-server-chat-save-c0.test.cjs`](../test/bg-ac-server-chat-save-c0.test.cjs)
@@ -904,14 +948,18 @@ Archive Center 쪽은 별도 installer 합성 구조가 아니다. `026dcbf..9e2
 | C2 | `serverChatCommitOwner.cjs`, route/owner tests, bg-adapter manifest | `server/node/serverChatCommitOwner.cjs`, `server/node/serverChatCommitOwner.test.ts`, `server/node/bgServerChatCommitRoutes.test.ts`, `server/node/server.cjs`, `server/node/bgOrchestrationOperationStore.cjs`, `server/node/bgOrchestrator.cjs` |
 | C3 client | `bgServerCommitHydration.ts`, adoption test, bg-adapter manifest | `src/ts/storage/nodeStorage.ts`, `src/ts/storage/chatStorage.ts`, `src/ts/bgServerCommitHydration.ts`, `src/ts/bgServerCommitHydration.test.ts`, `src/ts/storage/serverCommittedChatAdoption.test.ts`, `src/ts/bgOrchestrate.ts` |
 | C3 server | input/settings/projection owned source와 bg-adapter manifest | `server/node/serverChatInputOwner.cjs`, `server/node/serverChatInputOwner.test.ts`, `server/node/serverChatSettingsContext.cjs`, `server/node/serverChatSettingsContext.test.ts`, `server/node/serverChatExecutionProjection.cjs`, `server/node/serverChatExecutionProjection.test.ts`, `server/node/server.cjs`, `server/node/bgOrchBundle.build.cjs`, `server/node/bgOrchestrator.cjs` |
+| H1 process evidence | process preload/client/boundary/adoption owned tests와 bg-adapter manifest | `server/node/bgServerChatProcessPreload.cjs`, `server/node/bgServerChatProcessClient.cjs`, `server/node/bgServerChatProcessBoundary.test.ts`, `src/ts/storage/bgServerChatProcessAdoption.test.ts` |
 
-현재 `lazy-chat-bg-adapter` 0.7.0의 exact-1.10 전체 target surface는 22개이다. 여기에는 이번 branch에서 처음 추가한 파일뿐 아니라 기존 adapter unit이 계속 관리하는 파일도 포함된다.
+현재 `lazy-chat-bg-adapter` 0.7.1의 exact-1.10 전체 target surface는 26개이다. 여기에는 이번 branch에서 처음 추가한 파일뿐 아니라 기존 adapter unit이 계속 관리하는 파일도 포함된다.
 
 ```text
 server/node/bgOrchBundle.build.cjs
 server/node/bgOrchestrationOperationStore.cjs
 server/node/bgOrchestrator.cjs
 server/node/bgServerChatCommitRoutes.test.ts
+server/node/bgServerChatProcessBoundary.test.ts
+server/node/bgServerChatProcessClient.cjs
+server/node/bgServerChatProcessPreload.cjs
 server/node/server.cjs
 server/node/serverChatCommitOwner.cjs
 server/node/serverChatCommitOwner.test.ts
@@ -928,11 +976,12 @@ src/ts/bgServerCommitHydration.test.ts
 src/ts/bgServerCommitHydration.ts
 src/ts/globalApi.svelte.ts
 src/ts/storage/chatStorage.ts
+src/ts/storage/bgServerChatProcessAdoption.test.ts
 src/ts/storage/nodeStorage.ts
 src/ts/storage/serverCommittedChatAdoption.test.ts
 ```
 
-이 22개 목록은 current manifest의 1.10 적용 unit에서 file path를 전수 deduplicate한 값이다. branch에서 실제로 변경된 정본 파일은 17.3의 34개 목록으로 판단하고, target 충돌·합성 영향면은 이 22개 목록으로 판단한다.
+이 26개 목록은 current manifest의 1.10 적용 unit에서 file path를 전수 deduplicate한 값이다. branch에서 실제로 변경된 초기 정본과 H1 추가 파일은 17.3으로 판단하고, target 충돌·합성 영향면은 이 26개 목록으로 판단한다.
 
 ### 17.5 Archive Center local 후보의 exact diff 파일 28개
 
@@ -1059,6 +1108,7 @@ docs/pocketrisu-execution-context-c4-validation.md
 | C4 central ledger | `265b8e9` |
 | C3 external-audit connection hardening | `3315e4d` |
 | C3 AC-off HTTP boundary fixture | `a286b96` |
+| H1 composed Node process boundary | `7ce4259` |
 | AC full-index source snapshot | `a5ee89a` |
 | C4 independent snapshot validation | `03cef81` |
 | Connection receipt consolidation | `5d4b132`, `df7fed7` |
@@ -1077,6 +1127,7 @@ docs/pocketrisu-execution-context-c4-validation.md
 - `docs/POCKETRISU-1.10-BG-AC-C3-SETTINGS-CONTEXT-VALIDATION.md`
 - `docs/POCKETRISU-1.10-BG-AC-C3-NPLUS1-FOUNDATION-VALIDATION.md`
 - `docs/POCKETRISU-1.10-BG-AC-C3-CONNECTION-HARDENING-VALIDATION.md`
+- `docs/POCKETRISU-1.10-BG-AC-H1-COMPOSED-PROCESS-VALIDATION.md`
 - `docs/POCKETRISU-1.10-BG-AC-ARCHIVE-CENTER-SOURCE-SNAPSHOT.md`
 - `docs/POCKETRISU-1.10-BG-AC-C4-INDEPENDENT-SNAPSHOT-VALIDATION.md`
 - `artifacts/archive-center/pocketrisu-bg-ac-026dcbf-to-9e23861.patch`
@@ -1100,6 +1151,12 @@ docs/pocketrisu-execution-context-c4-validation.md
 - server-owned commit failure는 합성 foreground/boot 경로에서 legacy client save·ACK보다 먼저 차단된다.
 - actual SQLite route의 server receipt/projection이 client hydration helper 계약과 연결된다.
 - HTTP start ACK가 끝난 뒤에도 fixed provider 작업이 server에서 한 번만 계속되어 commit/result/projection/chat/hydration을 완성한다.
+- generated `server.cjs` child에서 request process 종료 뒤 provider 1·commit
+  1·client save 0·ACK 0·fallback 0으로 normal chat을 완성한다.
+- production normal-chat API와 actual NodeStorage/chatStorage가 empty storage
+  및 result/state 제거 뒤에도 같은 server-owned revision을 채택한다.
+- transaction failpoint 6개와 input/post-transaction/result-marker/N+1 child
+  restart가 partial commit이나 provider/commit replay를 만들지 않는다.
 - AC가 session claim, ordered host change, durable prepare state를 MariaDB에 보존할 수 있다.
 - AC가 device/backend settings와 private provider material을 process-memory context로 고정하고, mutable global을 다시 읽지 않는 resolver를 만들 수 있다.
 
@@ -1116,4 +1173,6 @@ docs/pocketrisu-execution-context-c4-validation.md
 - 양쪽 lifecycle이 response loss, restart, skip, conflict, retention에서 하나로 수렴한다.
 - 실제 browser process exit 뒤 새 브라우저에서 통합 결과가 복원된다.
 
-따라서 현재 결과는 C1~C3와 C4 owner/resolver의 명시된 자동검증 범위 안 기반 구현이며, 배포 가능한 최종 통합 제품이나 release-qualified 상태가 아니다.
+따라서 현재 결과는 C1~C3, H1 process boundary, C4 owner/resolver의 명시된
+자동검증 범위 안 기반 구현이며, 배포 가능한 최종 통합 제품이나
+release-qualified 상태가 아니다.

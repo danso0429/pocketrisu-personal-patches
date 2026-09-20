@@ -1,7 +1,7 @@
 # PocketRisu 1.10 BG server chat save × Archive Center handoff index
 
 - Handoff date: 2026-09-20 KST
-- PocketRisu implementation/evidence checkpoint: `df7fed77700a9695f0a78cb406ee8996c0920349`
+- PocketRisu implementation/evidence checkpoint: `7ce42595564258c598f5ecd4a04c9962e17521bd`
 - Private patcher branch: `codex/pocketrisu-bg-ac-server-chat-save`
 - Public plan commit: `e09a3b640e2a928f046b1145a6e8565c026f53fc`
 - Official PocketRisu target: `98e968339d1b3f91b9dac85bb3f2ebb5f90f9d14` (`v1.10.0`)
@@ -52,8 +52,9 @@ git --no-pager log -1 --format='%H %s' -- \
 | 4 | `docs/POCKETRISU-1.10-BG-AC-FRESH-START-INSTRUCTIONS.md` | Defines the reproducible fresh-session startup and first task. |
 | 5 | `docs/POCKETRISU-1.10-BG-AC-C0-VALIDATION.md` | Central execution ledger. Its latest sections supersede earlier phase shorthand. |
 | 6 | `docs/POCKETRISU-1.10-BG-AC-C3-CONNECTION-HARDENING-VALIDATION.md` | Current PocketRisu owner, recovery, and R1–R5 boundary. |
-| 7 | `docs/POCKETRISU-1.10-BG-AC-C4-INDEPENDENT-SNAPSHOT-VALIDATION.md` | Current Archive Center source/resolver evidence and remaining C4 gate. |
-| 8 | `docs/PATCHER-V2-DESIGN.md` | Current all-or-nothing delivery and complete-graph rules. |
+| 7 | `docs/POCKETRISU-1.10-BG-AC-H1-COMPOSED-PROCESS-VALIDATION.md` | Generated Node process, restart, failure, retention, and blank-client evidence. |
+| 8 | `docs/POCKETRISU-1.10-BG-AC-C4-INDEPENDENT-SNAPSHOT-VALIDATION.md` | Current Archive Center source/resolver evidence and remaining C4 gate. |
+| 9 | `docs/PATCHER-V2-DESIGN.md` | Current all-or-nothing delivery and complete-graph rules. |
 
 The public plan must match SHA-256
 `ef71282428589d3833a51c68130398bbdd8e6677d6b7bb00c4bc505981711ca6`.
@@ -72,6 +73,7 @@ not an unreviewed newer version.
 | Initial projection, hydration, and input foundation | `docs/POCKETRISU-1.10-BG-AC-C3-FOUNDATION-VALIDATION.md` |
 | PocketRisu immutable settings snapshot | `docs/POCKETRISU-1.10-BG-AC-C3-SETTINGS-CONTEXT-VALIDATION.md` |
 | Owner-level N+1 predecessor foundation | `docs/POCKETRISU-1.10-BG-AC-C3-NPLUS1-FOUNDATION-VALIDATION.md` |
+| AC-off generated process boundary | `docs/POCKETRISU-1.10-BG-AC-H1-COMPOSED-PROCESS-VALIDATION.md` |
 | AC source snapshot provenance and restore procedure | `docs/POCKETRISU-1.10-BG-AC-ARCHIVE-CENTER-SOURCE-SNAPSHOT.md` |
 
 These documents are evidence records, not a requirement to repeat already
@@ -96,13 +98,15 @@ evidence for the accepted findings.
 ### 3.1 PocketRisu integration source
 
 The authoritative implementation is the private patcher branch
-`codex/pocketrisu-bg-ac-server-chat-save`. At handoff preparation:
+`codex/pocketrisu-bg-ac-server-chat-save`. At H1 closure:
 
-- local and upstream branch tips both resolved to `df7fed77700a9695f0a78cb406ee8996c0920349`;
-- the worktree was clean;
+- implementation/test commit `7ce4259` contains the composed-process H1
+  harness and generated artifacts;
 - `df7fed7` contains the handler-level AC-off HTTP evidence and final updated receipts;
 - `3315e4d` is the production-source R1–R5 hardening commit;
 - `a286b96` changes the server test fixture only;
+- H1 changes test/harness ownership, manifest version, and generated installers,
+  but no production runtime unit;
 - no candidate source was applied to the live PocketRisu checkout.
 
 The exact worktree path is environment-local and must be discovered with
@@ -137,16 +141,16 @@ the restoring environment.
 
 ### 3.3 Generated PocketRisu artifacts
 
-At `df7fed7`, the two generated installers were byte-identical:
+At `7ce4259`, the two generated installers were byte-identical:
 
 - `dist/pocketrisu-patcher.cjs`
 - `dist/pocketrisu-all.cjs`
 
 Observed artifact properties:
 
-- size: 8,281,994 bytes;
+- size: 8,327,213 bytes;
 - mode: 0755;
-- SHA-256: `146a892fde7b8a3bb9fe01926093d3a9e275660aaf00aae5e24d57dbc03b47e6`.
+- SHA-256: `b3eab53d687d0bda5f9d8cc82aa09493945f1a61af4d1f8f7d08f2b500162012`.
 
 The generated BG bundle in the exact candidate target was:
 
@@ -169,13 +173,15 @@ that the five P1 and two P2 product contracts passed.
 | C1 | Atomic original-chat/effect commit primitive implemented and tested | Internal primitive |
 | C2 | Explicitly opted-in BG final result reaches the C1 owner | Ordinary client unopted |
 | C3 | Projection, hydration, input owner, immutable settings, N+1 lineage, causal recovery, and R1–R5 hardening implemented | `inputCommandVersion=0`; not active |
+| H1 | Generated AC-off Node process, normal-chat readback, empty-client adoption, named restarts, and transaction failures verified | Evidence complete; capability remains 0 |
 | C4 | AC process-memory context owner and captured-only settings resolver implemented | No production route or caller |
 | C5 | Host adapter and output-stage parity | Not implemented |
 | C6 | Unified claim/change/prepare/complete/effect/retention lifecycle | Not implemented |
 | C7 | Combined live/browser/device qualification | Not performed |
 
-The next implementation task is not capability activation. It is the AC-off
-composed Node process boundary described in the next-work plan.
+The next implementation task is not capability activation. It is H2 Archive
+Center production context transport and consumers described in the next-work
+plan.
 
 ## 5. System ownership model that must be preserved
 
@@ -305,6 +311,7 @@ contradicts the recorded behavior.
 | Revision-bound public projection | `patches/lazy-chat-bg-adapter/files-1.10/server/node/serverChatExecutionProjection.cjs` |
 | Server/client result ownership classifier | `patches/lazy-chat-bg-adapter/files-1.10/src/ts/bgServerCommitHydration.ts` |
 | Blank-client normal storage adoption | `patches/lazy-chat-bg-adapter/files-1.10/src/ts/storage/serverCommittedChatAdoption.test.ts` and composed target `src/ts/storage/chatStorage.ts` |
+| Generated process and empty storage integration | `bgServerChatProcessBoundary.test.ts`, `bgServerChatProcessPreload.cjs`, `bgServerChatProcessClient.cjs`, and `bgServerChatProcessAdoption.test.ts` |
 | Server route/startup and client wiring | `patches/lazy-chat-bg-adapter/manifest.cjs` |
 | Base lazy storage/server replacements | `patches/lazy-chat-sync/manifest.cjs` and `patches/lazy-chat-sync/files-1.10/**` |
 
@@ -318,6 +325,7 @@ files. A composed target file is a review output, not the only source of truth.
 | Input owner, lineage, cancel/edit/delete, recovery | `serverChatInputOwner.test.ts` |
 | Commit transaction, rollback, settings release, causal recovery | `serverChatCommitOwner.test.ts` |
 | Route, actual SQLite, AC-off HTTP request boundary | `bgServerChatCommitRoutes.test.ts` |
+| Generated process, restart, failure, retention, and blank client | `bgServerChatProcessBoundary.test.ts` and `bgServerChatProcessAdoption.test.ts` |
 | Projection | `serverChatExecutionProjection.test.ts` |
 | Client ownership and hydration | `bgServerCommitHydration.test.ts` |
 | Patcher ownership and composition contracts | `test/bg-ac-chat-projection-c3.test.cjs`, `test/bg-ac-server-commit-c2.test.cjs`, and related `test/bg-ac-*.test.cjs` |
@@ -345,25 +353,28 @@ candidate from the public AC base alone.
 | --- | --- |
 | Patcher source | 52/52 files passed |
 | Focused frontend | 2/2 files, 39/39 tests passed |
-| Focused server owner/route | 3/3 files, 50/50 tests passed |
+| Focused server owner/route/process | 4/4 files, 61/61 tests passed |
 | Complete frontend | 153/153 files, 1,743/1,743 tests passed |
-| Complete server | 28/28 files, 302 passed, 12 skipped |
+| Complete server | 29/29 files, 313 passed, 12 skipped |
 | Compatibility | 10 files passed, 1 skipped; 74 passed, 5 skipped |
 | Svelte diagnostics | 0 errors, 0 warnings |
 | Production build | 7,941 modules transformed |
-| Complete graph | 40 packs, 1,003 units, 354 managed paths, 13 ordered collisions |
+| Complete graph | 40 packs, 1,007 units, 358 managed paths, 13 ordered collisions |
 | Immediate re-plan | 0 changed files |
-| Exact revert | 354 path existence/bytes/modes, 0 mismatches |
+| Exact revert | Target Git tree clean; delivery disabled; empty custom intent |
 | Disposable target final state | clean, empty custom intent |
+| H1 composed process | 11/11 passed twice; provider 1, commit 1, client save 0, ACK 0, fallback 0; six transaction failures and named restart/causal boundaries passed |
 
 The AC-off HTTP fixture observed start ACK while a fixed provider gate remained
 blocked. After the initiating request ended and the gate was released, it
 observed provider count 1, commit count 1, result/projection/chat/hydration
 completion, and client result ACK count 0.
 
-This is a real loopback HTTP boundary around the composed route fixture and
-actual SQLite. It is not yet a spawned production `server.cjs` process, a real
-browser process, or the production normal-chat/client-storage boundary.
+H1 additionally spawns the generated production `server.cjs`, uses actual
+SQLite and the normal-chat API, exits the initiating request process, restarts
+the server at named durable boundaries, and runs actual NodeStorage/chatStorage
+adoption in a separate blank-client process. It is not yet a real browser
+process or device qualification.
 
 ### 8.2 Archive Center independent evidence
 
@@ -392,7 +403,8 @@ The following must not be described as completed:
 - early-send before client append/script/autosave;
 - admission ACK-loss retry and pending composer/chat-open reconciliation;
 - actual browser-process loss or browser restart;
-- actual child-process restart at each journal boundary;
+- arbitrary in-flight model execution resumption across process loss, which is
+  outside the selected settings-context contract;
 - joined result/state/input/owner TTL behavior;
 - non-input C2 ownership after all short-lived payloads expire;
 - receipt-scoped predecessor effect lineage;
@@ -411,7 +423,7 @@ At the last direct readback:
 - live PocketRisu was official 1.10.0 plus the pre-existing complete preset;
 - it reported 40 packs and 340 managed files;
 - its installed `lazy-chat-bg-adapter` was 0.2.1 and `lazy-chat-sync` was 0.3.0;
-- the new adapter 0.7.0 and C1–C4 candidate owners were not live;
+- the new adapter 0.7.1 and C1–C4 candidate owners were not live;
 - PM2 was online with zero unstable restarts and no active request;
 - the isolated Archive Center 4.3.1 runtime was preserved but its three
   loopback listeners were stopped;
@@ -481,7 +493,7 @@ with repository evidence:
 3. why C0 is not product completion;
 4. why capability remains 0;
 5. what R1–R5 changed and what remains unverified;
-6. why the next task is the composed AC-off process boundary;
+6. why H1 is closed and the next task is H2 context transport/consumers;
 7. why C4/C5/C6 must precede activation;
 8. which live systems and user data must remain untouched during the first
    continuation slice.

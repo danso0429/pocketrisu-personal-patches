@@ -4,8 +4,10 @@
 - Reviewed checkpoint: `3c27c4bc5a9caf270ad3ed594543913be72aaf17`
 - Implementation commit: `3315e4d`
 - AC-off HTTP boundary test commit: `a286b96`
+- H1 composed-process test commit: `7ce4259`
 - Target: PocketRisu 1.10.0 (`98e968339d1b3f91b9dac85bb3f2ebb5f90f9d14`)
-- Adapter: `lazy-chat-bg-adapter` 0.7.0
+- Adapter at reviewed checkpoint: `lazy-chat-bg-adapter` 0.7.0
+- H1 test-only adapter: `lazy-chat-bg-adapter` 0.7.1
 - Client capability: `inputCommandVersion: 0`
 - Diagnostic foundation: `inputCommandFoundationVersion: 4`
 - Archive Center mode in these tests: disabled/unbound
@@ -25,11 +27,12 @@ connection defects before extending Archive Center integration:
 | R4 | A later transaction failure rolled back SQL input state but could not restore an already deleted in-memory settings context | Fixed by separating durable settlement from post-commit context release |
 | R5 | A server-owned commit failure could fall through to legacy browser save and ACK behavior | Fixed for the input-command/server-commit candidate path by preserving server ownership before result ordering, ACK, or client persistence |
 
-The implementation remains a dormant foundation. It does not activate the
+The implementation remains a dormant foundation. H1 now verifies the generated
+AC-off server process, normal chat API, blank-client storage adoption, named
+restart boundaries, and transaction failures. It does not activate the
 ordinary PocketRisu composer, install Archive Center integration, or qualify a
-release. G1 through G4 now have automated foundation evidence; browser-process
-exit, result/owner retention, effect provenance, AC lifecycle, and device
-qualification remain open.
+release. Browser-process exit, joined owner retention, effect provenance, AC
+lifecycle, and device qualification remain open.
 
 ## 2. Phase terminology correction
 
@@ -294,31 +297,32 @@ advertises server ownership for this candidate path.
 | Exact revert | 354 path existence/bytes/modes, 0 mismatches |
 | Final disposable target | clean, empty custom intent |
 | AC-off HTTP boundary | start ACK observed while provider gate remained blocked; after request completion, provider 1, commit 1, result/projection/chat/hydration complete, ACK 0 |
-| Installers | both files byte-identical, 8,281,994 bytes, mode 0755, SHA-256 `146a892fde7b8a3bb9fe01926093d3a9e275660aaf00aae5e24d57dbc03b47e6` |
+| H1 composed process | 11/11 passed twice; generated `server.cjs`, actual SQLite, normal chat API, blank NodeStorage/chatStorage, six transaction failures, three restart/causal boundaries |
+| Updated complete server | 29/29 files; 313 passed, 12 skipped |
+| Updated complete graph | 40 packs, 1,007 units, 358 managed paths, 13 ordered collisions; zero-change re-plan and clean exact revert |
+| Installers | both files byte-identical, 8,327,213 bytes, mode 0755, SHA-256 `b3eab53d687d0bda5f9d8cc82aa09493945f1a61af4d1f8f7d08f2b500162012` |
 
-The complete frontend run preceded the test-only HTTP boundary refinement;
-that refinement changed only a server test source. The exact final installer
-then passed the focused route test, complete server suite, patcher suite,
-composition lifecycle, and exact revert. Compatibility, diagnostics,
-production build, and BG bundle evidence remain from the same runtime source;
-the later installer change contains only the owned server test.
+The rows through the original AC-off HTTP boundary record the connection-
+hardening checkpoint. The H1 rows supersede its server-suite, graph, and
+installer counts. H1 changed only owned test/harness files, manifest ownership,
+pack version, and generated installers; production runtime units are unchanged.
+The prior complete frontend, compatibility, diagnostics, production-build, and
+BG-bundle evidence therefore remains tied to the same runtime source, while H1
+reran the complete server, patcher, composition, and exact-revert gates.
 
 ## 8. Next dependency order
 
-1. Keep capability 0 and preserve the implementation checkpoint.
-2. Promote the AC-off HTTP handler fixture to the composed Node server process,
-   normal chat API readback, blank-client storage adoption, and explicit
-   response-loss counters.
-3. Restore the verified Archive Center full-index source patch into an
+1. Keep capability 0 and preserve the H1 checkpoint `7ce4259`.
+2. Restore the verified Archive Center full-index source patch into an
    independent public-base checkout and rerun C4 source/race/build audit there.
-4. Connect C4 immutable context to actual prepare/complete/provider consumers
+3. Connect C4 immutable context to actual prepare/complete/provider consumers
    and strict authenticated transport.
-5. Implement C5 output-stage parity.
-6. Close the activation-critical C6 subset: claim, change sequence, prepare/skip,
+4. Implement C5 output-stage parity.
+5. Close the activation-critical C6 subset: claim, change sequence, prepare/skip,
    effect lineage, stale-worker fences, conflict policy, and joined retention.
-7. Implement automatic drain and early-send/pending UI, then raise client and
+6. Implement automatic drain and early-send/pending UI, then raise client and
    server admission capability only after the C6 gates pass.
-8. Perform C7 Ubuntu browser-process-exit and iPhone qualification before any
+7. Perform C7 Ubuntu browser-process-exit and iPhone qualification before any
    stable tag or release.
 
 No live PocketRisu source, PM2 process, user data, provider, Archive Center

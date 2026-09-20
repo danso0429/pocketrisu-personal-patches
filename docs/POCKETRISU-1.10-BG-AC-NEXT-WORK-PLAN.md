@@ -1,10 +1,11 @@
 # PocketRisu 1.10 BG server chat save × Archive Center next-work plan
 
 - Plan date: 2026-09-20 KST
-- Starting implementation/evidence checkpoint: `df7fed77700a9695f0a78cb406ee8996c0920349`
+- Current implementation/evidence checkpoint: `7ce4259`
 - Product capability at start: `inputCommandVersion=0`
 - Live application at start: none
 - Stable-release authority: not granted by this plan
+- H1 status: complete; next dependency: H2
 
 ## 1. Outcome
 
@@ -36,8 +37,8 @@ The continuation does not add:
 ## 3. Dependency graph
 
 ```text
-H0 checkpoint revalidation
-  -> H1 AC-off composed process boundary
+H0 checkpoint revalidation [complete]
+  -> H1 AC-off composed process boundary [complete]
       -> H2 C4 production context transport and consumers
           -> H3 C5 host adapter and output parity
               -> H4 C6 unified lifecycle and retention
@@ -97,6 +98,14 @@ boundaries are mutually consistent. If a mismatch exists, resolve the
 authority conflict first; do not continue from a guessed state.
 
 ## 6. H1 — AC-off composed Node process boundary
+
+Status: **complete at test-only commit `7ce4259`**. The detailed evidence is
+`docs/POCKETRISU-1.10-BG-AC-H1-COMPOSED-PROCESS-VALIDATION.md`. H1 observed
+the generated server process, actual SQLite and normal-chat API, request-child
+exit, blank storage adoption before and after short-lived result/state removal,
+six transaction failures, and named restart/causal boundaries. Capability remains
+0 and no production runtime unit changed. Re-run this gate only when its
+relevant source or environment changes or contradictory evidence appears.
 
 ### 6.1 Why this comes first
 
