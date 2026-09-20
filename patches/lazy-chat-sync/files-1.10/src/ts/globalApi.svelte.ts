@@ -421,7 +421,7 @@ export async function saveDb() {
                 new Set((character.chats ?? []).map(chat => chat?.id).filter(Boolean)),
             ])
     )
-    const missingPayloadRecoveryKeys = new Set<string>()
+    let missingPayloadRecoveryKey: string | null = null
     let channel: BroadcastChannel
     if (window.BroadcastChannel) {
         channel = new BroadcastChannel('risu-db')
@@ -889,7 +889,9 @@ export async function saveDb() {
             const knownChatIds = knownChatIdsByCharacter.get(chaId) ?? new Set<string>()
             knownChatIds.add(chatId)
             knownChatIdsByCharacter.set(chaId, knownChatIds)
-            missingPayloadRecoveryKeys.delete(`${chaId}|${chatId}`)
+            if (missingPayloadRecoveryKey === `${chaId}|${chatId}`) {
+                missingPayloadRecoveryKey = null
+            }
         }
     }
 
@@ -1282,8 +1284,8 @@ export async function saveDb() {
                     const recoverable = findRecoverableChatPayload(db, patchResult.missingFullChat)
                     if (recoverable) {
                         const recoveryKey = `${recoverable.chaId}|${recoverable.chatId}`
-                        if (!missingPayloadRecoveryKeys.has(recoveryKey)) {
-                            missingPayloadRecoveryKeys.add(recoveryKey)
+                        if (missingPayloadRecoveryKey !== recoveryKey) {
+                            missingPayloadRecoveryKey = recoveryKey
                             requeueTrackedChanges(toSave)
                             queueTrackedChat(recoverable.chaId, recoverable.chatId)
                             console.warn(
