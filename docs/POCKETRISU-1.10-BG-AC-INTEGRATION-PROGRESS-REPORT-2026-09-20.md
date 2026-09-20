@@ -693,8 +693,11 @@ local commit `9e23861`은 captured material만 사용하여 다음 최종 config
 - worktree: clean
 - upstream push: 수행하지 않음
 - 사용자 소유 private mirror/fork: 아직 없음
+- full-index source patch: `artifacts/archive-center/pocketrisu-bg-ac-026dcbf-to-9e23861.patch`
+- patch: 428,942 bytes, SHA-256 `d70dac9ef7386464ef8bc5bf9fd0259b7b4c821af321325445abc92a5e6d574d`
+- isolated restore: public base `026dcbf` + patch → 28 staged paths, candidate tree `7806dd39f4acfa294ee67f9d7834bc6fed448730` 일치
 
-따라서 AC source commit은 현재 local Git에만 보존되어 있다. patcher 중앙 ledger에는 commit ID와 report hash가 남지만 source 자체의 원격 백업을 대체하지 않는다.
+AC upstream에는 candidate commit이 없지만 exact final source tree는 private patcher 작업선의 full-index patch로도 보존된다. 이는 original 15 commit object나 일반 AC fork를 대체하지 않으며, base commit·patch hash·restored tree를 함께 검증해야 한다.
 
 ### 14.4 live 및 disposable target
 
@@ -723,7 +726,7 @@ context owner는 fail-closed capacity를 제공하지만 release/tombstone/reten
 
 ### 15.5 remote persistence
 
-AC local commits는 upstream 권한을 추정하여 push하지 않았다. 장기 작업의 원격 보존을 위해 사용자 소유 private fork/mirror가 필요하다.
+AC local commits는 upstream 권한을 추정하여 push하지 않았다. Exact final source tree는 author metadata가 없는 private full-index patch로 추가 보존했지만, original commit history와 일반적인 review·branch navigation을 위해서는 장기적으로 사용자 소유 private fork/mirror가 더 적합하다.
 
 ### 15.6 live baseline 문서 불일치
 
@@ -750,9 +753,9 @@ record v4는 v3를 fail-closed한다. 후보가 live에 없으므로 현재 사�
 
 이는 capability를 일반 사용자에게 공개하는 단계가 아니라 C1~C3 연결을 process 경계에서 증명하는 단계다.
 
-### 16.2 AC source 보존과 resolver checkpoint 마감
+### 16.2 AC resolver checkpoint 마감
 
-1. local `9e23861`을 재현 가능한 사용자 소유 private mirror 또는 prerequisite-bound bundle로 보존
+1. verified full-index patch에서 복원한 independent checkout으로 source parity 재확인
 2. resolver 이후 full repository race 재실행
 3. resolver 포함 Linux ARM64 build와 SHA-256 기록
 4. runtime audit v2 보강
@@ -820,12 +823,12 @@ record v4는 v3를 fail-closed한다. 후보가 live에 없으므로 현재 사�
 | PocketRisu 구현 정본 | 이 보고서와 같은 private patcher 저장소, branch `codex/pocketrisu-bg-ac-server-chat-save`, 현재 구현 checkpoint `3315e4d` | 아래 34개 초기 implementation/evidence 파일, 이 보고서, connection-hardening validation | 구현 checkpoint는 원격 branch에 보존됨 |
 | 공식 PocketRisu 기준선 | [`PocketRisu/PocketRisu` `98e968339d1b3f91b9dac85bb3f2ebb5f90f9d14`](https://github.com/PocketRisu/PocketRisu/tree/98e968339d1b3f91b9dac85bb3f2ebb5f90f9d14) | installer 적용 전 v1.10.0 source | public GitHub에 보존됨. 이 프로젝트는 공식 저장소를 직접 수정하지 않음 |
 | Archive Center 기준선 | [`Flazer31/archive-center` `026dcbf3b45adcf69b254673d439b24e943115b3`](https://github.com/Flazer31/archive-center/tree/026dcbf3b45adcf69b254673d439b24e943115b3) | AC 4.3.1 source | public GitHub에 보존됨 |
-| Archive Center 후보 | local branch `codex/pocketrisu-bg-ac-server-chat-save`, `9e23861901f15cae46817158a21ea873bbde6fe1` | 아래 28개 local diff 파일 | **GitHub에 없음.** upstream에 push하지 않았고 사용자 소유 mirror/fork도 없음 |
+| Archive Center 후보 | local branch `codex/pocketrisu-bg-ac-server-chat-save`, `9e23861901f15cae46817158a21ea873bbde6fe1` | 아래 28개 local diff 파일과 full-index source patch | upstream branch에는 없음. Exact final tree patch는 private patcher 작업선에 보존됨 |
 | 생성·실행 대상 | disposable PocketRisu target, isolated AC runtime, live PocketRisu | installer 합성 결과와 runtime readback | source authority가 아니며 별도 GitHub 저장소로 취급하지 않음 |
 
 private patcher 파일 링크는 이 보고서에서 같은 저장소의 상대 경로로 작성했다. GitHub에서 이 branch의 보고서를 열면 해당 branch의 파일로 이동한다. 최초 N+1 구현은 `265b8e9`, 외부 검수 연결부 수정은 `3315e4d`를 checkout해 비교한다.
 
-Archive Center `9e23861`의 경로는 정확한 local Git 경로이지만 현재 클릭 가능한 GitHub blob URL이 없다. 아래 경로를 upstream `main`에서 찾지 못하거나 내용이 다르더라도 누락으로 판정하면 안 된다. upstream은 `026dcbf`, 후보는 그 위의 local 15 commits이기 때문이다.
+Archive Center `9e23861`의 파일에는 현재 클릭 가능한 upstream GitHub blob URL이 없다. 아래 경로를 upstream `main`에서 찾지 못하거나 내용이 다르더라도 누락으로 판정하면 안 된다. upstream은 `026dcbf`, 후보는 그 위의 15 commits이며 exact final tree는 별도 patch에서 복원한다.
 
 ### 17.2 정본 소스와 설치 후 파일의 관계
 
@@ -1024,7 +1027,7 @@ docs/pocketrisu-execution-context-c4-validation.md
 2. private patcher는 최초 구현 `265b8e9`와 connection hardening `3315e4d`를 나누어 확인한다.
 3. `manifest.cjs`의 unit을 읽고 exact PocketRisu `98e9683` disposable target에 installer를 적용한다.
 4. 17.4의 target 경로를 정본 source/manifest와 비교하고, `dist` 자체보다 합성 결과·re-plan 0·exact revert를 확인한다.
-5. Archive Center는 public `026dcbf`를 기준으로 local `9e23861`의 28개 경로를 `git diff`한다. GitHub upstream 파일만 보고 local 후보를 검증했다고 기록하지 않는다.
+5. Archive Center는 public `026dcbf`를 먼저 확보하고 verified full-index patch를 index에 적용해 28개 경로와 expected tree를 대조한다. GitHub upstream 파일만 보고 후보를 검증했다고 기록하지 않는다.
 6. C4는 context/resolver unit test와 실제 caller 연결을 구분한다. 현재 후자는 존재하지 않는다.
 7. live PocketRisu와 isolated AC는 이번 후보가 배포되지 않았으므로 source diff와 live 기능을 동일시하지 않는다.
 
@@ -1070,6 +1073,8 @@ docs/pocketrisu-execution-context-c4-validation.md
 - `docs/POCKETRISU-1.10-BG-AC-C3-SETTINGS-CONTEXT-VALIDATION.md`
 - `docs/POCKETRISU-1.10-BG-AC-C3-NPLUS1-FOUNDATION-VALIDATION.md`
 - `docs/POCKETRISU-1.10-BG-AC-C3-CONNECTION-HARDENING-VALIDATION.md`
+- `docs/POCKETRISU-1.10-BG-AC-ARCHIVE-CENTER-SOURCE-SNAPSHOT.md`
+- `artifacts/archive-center/pocketrisu-bg-ac-026dcbf-to-9e23861.patch`
 - AC `docs/pocketrisu-host-session-execution-c0-validation.md`
 - AC `docs/pocketrisu-host-change-stream-c0-validation.md`
 - AC `docs/pocketrisu-host-prepare-registry-c0-validation.md`

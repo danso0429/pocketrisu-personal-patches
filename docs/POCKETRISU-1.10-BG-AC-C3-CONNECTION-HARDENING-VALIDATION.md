@@ -304,8 +304,8 @@ diagnostics, production build, composition lifecycle, and exact revert.
 2. Run the actual browserless AC-off one-turn process boundary: early admission,
    fixed provider, server commit, normal chat API readback, blank-client
    adoption, commit failure, and response loss.
-3. Make the Archive Center candidate independently reproducible before relying
-   on its 28 local source files as review evidence.
+3. Restore the verified Archive Center full-index source patch into an
+   independent public-base checkout and rerun C4 source/race/build audit there.
 4. Connect C4 immutable context to actual prepare/complete/provider consumers
    and strict authenticated transport.
 5. Implement C5 output-stage parity.

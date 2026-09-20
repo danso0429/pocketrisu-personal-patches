@@ -654,7 +654,7 @@ exit, joined retention, and AC lifecycle. Detailed runtime audit and evidence
 are in
 `docs/POCKETRISU-1.10-BG-AC-C3-CONNECTION-HARDENING-VALIDATION.md`.
 Its SHA-256 is
-`584719eeb11f1a74d8d29491ddc56d7dcfbada9d14b08e5421822e4091a86827`.
+`4126d519afae92433669c68a2eb95693f17d955c8d580600fc0505e1647a3c38`.
 
 ### C4 process-memory immutable execution context foundation
 
@@ -687,8 +687,13 @@ resolver with device→backend/config fallback and existing-accessor parity. Thi
 is not C4 product completion. There is no external DTO decoder, authenticated
 route, execution-claim/HostPrepare join, production provider/complete accessor,
 prompt-file snapshot, startup scan, or terminal context release. Full-repository
-race, ARM64 rebuild, and L2.5 after the resolver remain open. The source commits
-remain local on the AC worktree; no upstream AC push was attempted.
+race, ARM64 rebuild, and L2.5 after the resolver remain open. No upstream AC
+push was attempted. The exact final source tree is additionally preserved as
+the 428,942-byte full-index patch
+`artifacts/archive-center/pocketrisu-bg-ac-026dcbf-to-9e23861.patch` with
+SHA-256 `d70dac9ef7386464ef8bc5bf9fd0259b7b4c821af321325445abc92a5e6d574d`.
+An isolated public-base restore staged 28 paths and reproduced candidate tree
+`7806dd39f4acfa294ee67f9d7834bc6fed448730`.
 
 The detailed discovery → external-anchor → triage report is AC
 `docs/pocketrisu-execution-context-c4-validation.md`; its SHA-256 is
