@@ -42,6 +42,12 @@
   `f11948e18726068022bafddd87440fcd6a4762b9288bba4622b32e9543f78a17`.
 - Add the maintenance branch to push CI while retaining pull-request CI. Keep
   the candidate experimental and preserve the existing physical iPhone L3 gate.
+- Apply the follow-up live with native/BG work at zero. Change only the
+  production-source comments, exact-1.10 test file, and patch state; do not
+  rebuild or restart unchanged runtime code. Verify 41/937/342 current with a
+  zero-change plan, PM2 restart counters unchanged, served/local asset identity,
+  five SQLite quick checks, and FastImport still `already-applied` by read-only
+  inspection.
 
 ## 0.2.2-experimental.1
 

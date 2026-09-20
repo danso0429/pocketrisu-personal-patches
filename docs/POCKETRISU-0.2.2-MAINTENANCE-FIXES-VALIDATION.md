@@ -519,6 +519,34 @@ outside manifests, installers, postinstall, and server startup.
   source paths byte/mode-exactly.
 
 The CI push trigger now includes `codex/pocketrisu-maintenance-fixes` while
-retaining `pull_request`. Remote CI evidence, reproducible installer size/hash,
-candidate branch SHA, and non-runtime live delivery are recorded after the
-final push. Physical L3 remains the stable-release gate.
+retaining `pull_request`. GitHub Actions run `35520274256` passed for
+source/artifact SHA
+`9bb09710348d7ea19a45271aa18f2127c82f1e75`: patcher tests, reproducible
+installer build, exact-1.10 apply, frozen dependency install, embedded target
+checks/build/BG bundle, and byte/mode round trip all completed successfully.
+
+### Follow-up live delivery
+
+Immediately before delivery, read-only stores reported native model jobs
+running zero, pending sends zero, BG active states zero, and BG operation result
+keys zero. The generated installer plan was exact-1.10 `verified` and named
+only three changes: clarification comments in `globalApi.svelte.ts`, the new
+exact-1.10 save test, and patch state. It applied those same three paths.
+
+Because the executable runtime behavior and built assets were unchanged, the
+server was neither rebuilt nor restarted. PM2 remained PocketRisu 1.10.0 at PID
+105138 with restart count zero, unstable restarts zero, and active requests
+zero. Final patch status was current at 41 packs and 342/342 managed paths with
+drift zero; the 937-unit, 13-collision next plan had zero changed files. The new
+test file's installed bytes and mode matched its manifest owner.
+
+The existing served and local main asset remained 2,047,743 bytes with SHA-256
+`82d61e1cfefee13e117892e54b211ee4e8a5e7301173a302efc6030e83124d52`.
+The unchanged served build stamp was
+`1.10.0-24952ea5c604431d89a7a1dc642b2f8cebb10674c58b3c1292baad7deaaedaad`.
+All five current SQLite databases returned `quick_check=ok`. A final read-only
+work check again found native running/pending zero and BG active/result zero.
+FastImport remained at the known patched script and database blob hashes; no
+plugin or database migration write was repeated.
+
+Physical L3 remains the stable-release gate.
