@@ -4,6 +4,7 @@
 - PocketRisu implementation/evidence checkpoint: `7ce42595564258c598f5ecd4a04c9962e17521bd`
 - Archive Center H2 implementation checkpoint: `6968ac6044bf9fde059d2532a28f37bf00fe9912`
 - Archive Center H2 validation checkpoint: `b9a50611fb82748cda40a6b5019f866bed75701d`
+- Private H2 source-snapshot preservation checkpoint: `499cdf4`
 - Private patcher branch: `codex/pocketrisu-bg-ac-server-chat-save`
 - Public plan commit: `e09a3b640e2a928f046b1145a6e8565c026f53fc`
 - Official PocketRisu target: `98e968339d1b3f91b9dac85bb3f2ebb5f90f9d14` (`v1.10.0`)

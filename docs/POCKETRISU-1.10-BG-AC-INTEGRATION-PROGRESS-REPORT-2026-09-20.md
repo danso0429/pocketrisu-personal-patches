@@ -1170,6 +1170,7 @@ docs/pocketrisu-execution-context-c4-validation.md
 | AC full-index source snapshot | `a5ee89a` |
 | C4 independent snapshot validation | `03cef81` |
 | Connection receipt consolidation | `5d4b132`, `df7fed7` |
+| H2 AC source snapshot and handoff | `499cdf4` |
 
 ## 19. 상세 증거 문서
 
