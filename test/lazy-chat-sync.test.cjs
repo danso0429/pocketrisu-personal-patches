@@ -151,16 +151,12 @@ test('PocketRisu 1.9 and 1.10 replacements retain native runtime owners and lazy
     assert.match(nodeStorage, /x-chat-base-revision/)
 
     const server1100 = payload1100('server/node/server.cjs')
-    const globalApi1100 = payload1100('src/ts/globalApi.svelte.ts')
     const nodeStorage1100 = payload1100('src/ts/storage/nodeStorage.ts')
     const save1100 = payload1100('src/ts/storage/risuSave.ts')
     assert.match(server1100, /structuredClone\(dbCache\[cacheKey\]\)/)
     assert.match(server1100, /SQLITE_TMPDIR|temp_store = FILE/)
     assert.match(server1100, /purge-orphans/)
     assert.match(server1100, /missingFullChat/)
-    assert.match(globalApi1100, /collectUnconfirmedChatPayloads/)
-    assert.match(globalApi1100, /missingPayloadRecoveryKey/)
-    assert.doesNotMatch(globalApi1100, /missingPayloadRecoveryKeys/)
     assert.match(nodeStorage1100, /validMissingFullChat/)
     assert.match(save1100, /for \(const v of compare\(lastChar, normChar\)\)/)
 

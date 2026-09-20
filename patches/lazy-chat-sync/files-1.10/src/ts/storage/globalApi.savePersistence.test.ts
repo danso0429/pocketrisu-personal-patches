@@ -160,7 +160,7 @@ function fullChat(id: string, data = '') {
 }
 
 async function createHarness(options: HarnessOptions = {}) {
-    const baseline = {
+    const baseline: any = {
         characters: [{ chaId: 'character', chats: structuredClone(options.baselineChats ?? []) }],
         botPresets: [],
         modules: [],
