@@ -13,7 +13,7 @@ exact PocketRisu 1.10 target:
 - the installed `fast-character-import` 1.5.5 plugin losing the iOS user
   activation before it opens its file picker.
 
-The distributed candidate is `0.2.2-experimental.1`. The third-party plugin
+The distributed candidate is `0.2.2-experimental.2`. The third-party plugin
 correction is a live data migration with an exact precondition and rollback
 backup; it is not embedded in the distributed patch catalog. System Logs have
 no server-side code change because their measured server path was not the
@@ -52,12 +52,17 @@ bottleneck. No stable tag or release is authorized before physical L3.
   be a placeholder.
 - The original tracked changes and the exact chat payload are re-enlisted
   before retry.
-- One in-memory recovery key permits one automatic retry for the same identity.
-- A repeated rejection for the same identity remains a visible hard failure.
-- Successful chat persistence clears the pending recovery key.
+- One in-memory recovery key prevents the same pending identity from re-entering
+  the dedicated typed-recovery branch.
+- A repeated rejection for the same pending identity becomes an ordinary save
+  failure; dirty-state preservation and delayed autosave remain in effect.
+- A different identity replaces the slot, so A→B→A can use the dedicated
+  branch three times. This is not a lifetime identity set.
+- Successful metadata approval clears the pending recovery key. Payload upload
+  success alone does not clear it.
 - The recovery key cannot grow with the number of historical failures.
-- The all-or-nothing catalog gains one exact-1.10 root owner and one target
-  test file.
+- The all-or-nothing catalog gains one exact-1.10 root owner and two target test
+  files, including the final-composition save regression test.
 - Pack ETAGs, state encoding, generated installers, apply, status, re-plan,
   revert, and clean re-apply all include the new owner.
 - The FastImport button currently asks for clipboard text before constructing
@@ -145,9 +150,21 @@ The write and patch routes emit that identity only for this code
 
 If the proactive planner loses a race, one pending key re-enlists the original
 metadata changes and exact payload (`globalApi.svelte.ts:1283-1299`). The same
-identity cannot auto-retry twice; a successful chat save clears the key
-(`globalApi.svelte.ts:887-895`). No error branch deletes a chat, edits a
-payload, or marks the rejected metadata as confirmed.
+pending identity cannot re-enter that dedicated branch, but the resulting
+ordinary error is requeued by `triggerSave` and remains subject to its existing
+short burst and delayed autosave policy. Metadata approval clears the key
+(`globalApi.svelte.ts:887-895`); payload upload alone does not. A different
+identity replaces the slot, so A→B→A is admitted three times rather than being
+treated as a lifetime per-chat limit. No error branch deletes a chat, edits a
+payload, or marks rejected metadata as confirmed.
+
+PATCH and full-write paths share proactive payload ordering but not typed
+recovery. `patchItem` maps the structured missing identity into the dedicated
+branch. A full-write invariant rejection remains a generic write error; the
+outer handler requeues the original tracker, and the next attempt proactively
+saves any newly observed full chat before retrying metadata. The final-source
+test exercises both results and does not describe the full-write path as typed
+recovery.
 
 The observed production timeline anchors the scenario: the prior backup lacked
 the new chat ID, ten invariant rejections occurred over about 45 seconds, the
@@ -173,7 +190,7 @@ inside the original click turn. A small execution harness observed
 `picker-sync` before the async function returned. The original and patched
 scripts are syntax-valid and have distinct recorded SHA-256 values.
 
-The live migration will run only while PocketRisu is stopped, after an exact
+The original live migration ran only while PocketRisu was stopped, after an exact
 script-hash precondition and a verified database-blob backup. It will refuse
 zero or multiple matching plugins or source occurrences. Post-write decoding
 must preserve plugin count, plugin identities, every unrelated plugin script,
@@ -355,3 +372,153 @@ or credential terms; a five-second post-restart window added zero stderr and
 zero stdout bytes.
 
 Physical L3 remains open. No stable tag or release has been created.
+
+## Follow-up qualification — experimental.2
+
+### Follow-up L2.5 — discovery, anchors, and triage
+
+Flat discovery added these leaves without severity: final-source AST loading,
+required-node uniqueness, normal target dependency resolution, payload and
+metadata await ordering, recovery-slot replacement/clear events, outer burst
+and deferred timers, online/visibility wake-up, in-flight chaining, BG durable
+failure delivery, exact-1.10 test ownership, complete-graph install/revert,
+FastImport readonly inspection, script/hash admission, inspect/write race,
+chunk-aware backup/write, reopen/readback, conditional rollback, and decoded
+non-target preservation.
+
+The save-recovery → outer-scheduler → BG-durable chain is structurally anchored
+by executing the final composed declarations and exact scheduler statement.
+Its failure leaves are empirically anchored by S01-S14 and both failing
+mutants. The unexecuted browser/Svelte reactive cadence remains the existing
+physical empty-chat L3 surface; the test executes the extracted wake callbacks
+and scheduler but does not claim to run Mobile Safari's event loop.
+
+The test-ownership → graph → installer/revert chain is structurally anchored by
+the exact-1.10 target-scoped owned unit, 937-unit plan, current/zero-plan state,
+and two byte/mode-exact 342-path reverts. A historical 1.8.1 or 1.9 target does
+not receive this test. The installer does not acquire FastImport ownership.
+
+The FastImport inspect → backup/write → readback chain is structurally anchored
+by exact hashes, target/source multiplicity checks, a pre-write blob recheck,
+one SQLite transaction, reopened decode, masked deep comparison, and
+current-bytes precondition before rollback. Synthetic failure injection anchors
+backup/write/post-write failures; live evidence is read-only
+`already-applied`. Actual replay on the already-patched live database is
+intentionally absent because it would add a needless user-data write.
+
+Triage: the misleading one-retry claim, missing orchestration coverage, stale
+string assertions, absent CI branch trigger, and missing reproducible plugin
+tool are Q3 fixes. Existing PATCH/full-write asymmetry, CAS, remote deletion,
+concurrent creation, outer autosave policy, and installer/plugin ownership split
+are Q2 retained contracts. Mobile picker presentation, empty-chat reactive
+timing, native CharX commit, and perceived log rendering remain Q4 physical L3
+surfaces. No stable tag or release follows from these automatic gates.
+
+### Retry contract and final-source coverage
+
+The exact-1.10 owner now installs
+`src/ts/storage/globalApi.savePersistence.test.ts`. The test reads the final
+composed `globalApi.svelte.ts`, requires one `saveDb` and every expected nested
+function, extracts those AST nodes with the target's normal TypeScript 5.9.3
+dependency, and transpiles the current source. There is no fallback copy of an
+older save routine. The same extraction requires the BG durable-save assignment
+and the client visibility/online wake callbacks, so missing or duplicated
+composition fails before a scenario runs.
+
+The harness executes the real `RisuSaveEncoder`, `RisuSavePatcher`, chat-stub
+conversion, `chatSaveIntent` helpers, composed `persistTrackedChanges`, composed
+`triggerSave`, exact autosave `while` statement, and server
+`validateStrippedDatabaseTransition`. Controlled boundaries are payload
+storage, HTTP patch/full-write responses, notifications, `tick`, promises, and
+time. Fake timers drive the production deferred timer; a controlled 200 ms
+sleep advances the extracted scheduler rather than manually counting arbitrary
+save calls.
+
+Observed scenario mapping:
+
+- S01-S08 execute payload ordering, mixed shapes, await races, same-identity
+  suppression, A→B→A slot replacement, dirty preservation, confirmed-baseline
+  advancement, and invalid-identity refusal.
+- S09-S10 remain covered by `nodeStorage.chatDelta.test.ts` create-only/CAS and
+  absent-stable-ID tests plus `conflictRebase.test.ts` remote-delete tests.
+- S11 executes both an untracked full-write and a chat added during the payload
+  await. The first metadata write is rejected, the tracker remains dirty, and
+  the next outer retry saves the new payload before accepting metadata.
+- S12 executes the production timer replacement, online/visible callbacks, and
+  in-flight save chaining without concurrent transactions.
+- S13 mutates another chat while a payload save is awaiting failure and observes
+  both the original root tracker and the new chat tracker after requeue.
+- S14 executes the final BG adapter's `rejectOnError`/`onResult` assignment and
+  confirms a deferred metadata result cannot reach the flush/ACK boundary.
+
+The final composed file passed all 15 tests. Removing the call that merges
+`collectUnconfirmedChatPayloads` into the save loop made S01 fail with `retry`
+instead of `saved`. Separately disabling the recovery-key admission made S03
+throw the missing-payload error. Both disposable mutations were reverted and
+15/15 passed again.
+
+### FastImport maintenance tool
+
+No original migration script was found in the repository, work records, or the
+retained review evidence. `scripts/fastimport-ios-migration.cjs` is therefore a
+new reconstruction, not a claim that the prior live command was preserved. It
+uses the recorded original and patched full-script SHA-256 values, exact plugin
+identity, and exact one-line replacement. The normal mode opens only the
+explicit database path read-only. Apply additionally requires an explicit
+target root, `--confirm-stopped`, and an unused `database/dbbackup-*` key.
+
+The script reads raw or chunked values, decodes supported RisuSave formats with
+the target's installed `msgpackr`/`fflate`, verifies one target and one source
+occurrence, rechecks the inspected blob inside the write transaction, creates a
+chunk-aware backup, writes through the target chunk store, reopens and decodes
+the result, checks SQLite integrity, and compares the entire decoded database
+with only the target script masked. Post-commit validation failure restores only
+when the current blob still equals the planned patched bytes; an intervening
+writer causes fail-closed refusal instead of an automatic overwrite. It never
+calls `setDatabase({plugins})` or `setDatabaseLite({plugins})`.
+
+Synthetic fixtures cover normal apply, already-applied no-op, unknown hash,
+zero/multiple target plugins, backup failure, write failure, post-write
+verification rollback, non-target preservation, iOS clipboard non-invocation
+with synchronous picker call, and retained desktop clipboard behavior. A
+read-only check of the installed database observed 12 plugins, the known
+patched script SHA-256
+`5777e74585a3dfc7993cd53fef58c7ad2e649d1d6d167aaf8457355eb1885e94`,
+and database blob SHA-256
+`4e83c97ee316ea44524e514dc1559804edff236f1a37640cabf2d2348f05131e`.
+It returned `already-applied` and performed no write or backup. The tool remains
+outside manifests, installers, postinstall, and server startup.
+
+### Follow-up gates
+
+- Patcher: 49/49 test files passed.
+- Final-composition save: 15/15 passed; focused client storage/BG set 127/127.
+- Focused server invariant/log set: 17/17 passed.
+- Full frontend: 152 files, 1,754 tests passed.
+- Full server: 23 files, 233 passed, 12 provider-gated skips. The initial
+  sandbox run failed only on loopback `EPERM`; the exact suite passed with local
+  listener permission.
+- Compatibility: 74 passed, five provider/environment skips. The initial
+  sandbox run failed only on loopback `EPERM`; the exact suite passed with local
+  listener permission.
+- Svelte diagnostics: 0 errors, 0 warnings; help keys 439/439 in both languages
+  with no missing references.
+- Production build: 7,940 modules transformed.
+- BG bundle: 8,848,439 bytes; the builder's load check resolved
+  `sendChat=function`.
+- Complete graph: 41 packs, 937 units, 342 managed source paths, 13 ordered
+  collisions, current status, drift zero, and zero-change re-plan.
+- Fresh apply/revert and stable-v0.2.1 upgrade/revert each restored all 342
+  managed source paths byte-for-byte with their original POSIX modes. Newly
+  owned tests were absent after revert.
+- Two normal installer builds produced byte-identical mode-0755 primary/all
+  artifacts at 7,889,389 bytes with SHA-256
+  `f11948e18726068022bafddd87440fcd6a4762b9288bba4622b32e9543f78a17`.
+  Both passed `node --check`. The generated installer applied the same 41-pack,
+  937-unit, 342-path graph, re-planned with zero changes, and reverted all 342
+  source paths byte/mode-exactly.
+
+The CI push trigger now includes `codex/pocketrisu-maintenance-fixes` while
+retaining `pull_request`. Remote CI evidence, reproducible installer size/hash,
+candidate branch SHA, and non-runtime live delivery are recorded after the
+final push. Physical L3 remains the stable-release gate.

@@ -1,5 +1,48 @@
 # Changelog
 
+## 0.2.2-experimental.2
+
+- Add an exact-1.10 final-composition save test that extracts the production
+  `saveDb` closure from the composed source with the target's TypeScript 5.9.3
+  dependency. Execute the real encoder, patcher, server invariant, outer
+  scheduler, browser wake callbacks, and BG durable-save adapter while mocking
+  only transport, payload storage, time, and notification boundaries.
+- Cover untracked empty chats, mixed payload shapes, payload-await races,
+  repeated and A→B→A missing identities, payload failure, baseline advancement,
+  malformed recovery identities, full-write recovery, timer/wake/in-flight
+  behavior, concurrent edits, and durable BG failure propagation. Retain the
+  existing remote-delete and concurrent-create tests as their CAS authorities.
+- Clarify that the single recovery key limits only the dedicated typed-recovery
+  branch. Failed saves remain dirty and follow the existing five-attempt burst,
+  two 30-second deferrals, and later five-minute autosave policy; metadata
+  approval, not payload upload alone, clears the pending key.
+- Confirm test sensitivity by temporarily removing proactive payload collection
+  and separately disabling typed recovery admission in an isolated target.
+  S01 and S03 failed respectively, and 15/15 passed after each mutation was
+  reverted.
+- Add a dry-run-first FastImport maintenance tool reconstructed from the
+  recorded exact original/patched script hashes and one-line change. Require an
+  explicit database, target root, stopped-process acknowledgement, and backup
+  key for writes; preserve chunk-aware backup/write/readback/rollback and reject
+  unknown hashes, target multiplicity, or inspect/write races.
+- Validate the migration with synthetic fixtures for apply, already-applied,
+  unknown/multiple targets, backup/write/post-write failures, non-target
+  preservation, synchronous iOS picker behavior, and desktop clipboard
+  behavior. A live read-only inspection reports the known patched hash and no
+  write; the tool is not part of the generated installer or startup path.
+- Run 49/49 patcher files, 152 frontend files / 1,754 tests, 23 server files /
+  233 pass with 12 provider skips, compatibility 74 pass / five skips, Svelte
+  0/0, help-key audit, the 7,940-module build, and BG bundle build/load.
+- Exercise fresh apply/current/zero-plan/revert and stable-v0.2.1
+  upgrade/current/zero-plan/revert. The final graph resolves 41 packs, 937
+  units, 342 managed paths, and 13 ordered collisions with exact byte/mode
+  restoration of all managed source paths.
+- Generate both mode-0755 installers twice at 7,889,389 bytes with byte identity,
+  CJS syntax validity, source/artifact apply parity, and SHA-256
+  `f11948e18726068022bafddd87440fcd6a4762b9288bba4622b32e9543f78a17`.
+- Add the maintenance branch to push CI while retaining pull-request CI. Keep
+  the candidate experimental and preserve the existing physical iPhone L3 gate.
+
 ## 0.2.2-experimental.1
 
 - Detect JPEG-wrapped CharX from its byte signature even when the filename ends

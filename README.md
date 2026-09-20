@@ -2,7 +2,7 @@
 
 Private, all-or-nothing patch delivery for PocketRisu NodeOnly. The current
 stable release is `v0.2.1`, and its complete manifest graph targets exact
-PocketRisu `v1.10.0`. The newer `0.2.0-experimental.26` PageFold graph is an
+PocketRisu `v1.10.0`. The newer `0.2.2-experimental.2` maintenance graph is an
 exact-target candidate, not a stable replacement.
 
 ## Complete installer
@@ -109,6 +109,7 @@ retains the detailed source and path review.
 
 | Release | What changed |
 | --- | --- |
+| `v0.2.2-experimental.2` | Adds final-composition save orchestration coverage, records the dedicated missing-payload recovery versus outer autosave boundary, and preserves a dry-run-first exact-hash FastImport iOS migration tool without putting plugin DB mutation in the installer. Physical iPhone L3 remains required before stable publication. |
 | `v0.2.1` | Promotes the exact-1.10 PageFold ModelPreset transform and hidden BG adapter after automatic qualification, repeated live Vertex PDF requests, and physical iPhone L3. The stable all-or-nothing graph is 40 packs / 934 units / 340 paths; OpenRouter and unsafe image/tool/cache inputs remain excluded. |
 | `v0.2.0-experimental.26` | Renames the PageFold signed token delta to Saved tokens / `절약 토큰`, removes the redundant positive `+`, and removes the pricing-evidence row while preserving cost and negative values. |
 | `v0.2.0-experimental.25` | Places neutral `PF ON 1p` progress beside elapsed seconds, keeps the chat model badge, and moves detailed PageFold metadata from Tokens into its own conditional generation-info tab beside Log and Prompt. |
