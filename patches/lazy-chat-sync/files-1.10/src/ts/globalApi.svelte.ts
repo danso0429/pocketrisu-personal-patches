@@ -13,7 +13,11 @@ import { characterURLImport, hubURL } from "./characterCards";
 import { defaultJailbreak, defaultMainPrompt, oldJailbreak, oldMainPrompt } from "./storage/defaultPrompts";
 import { decodeRisuSave, encodeRisuSaveLegacy, findDangerousChatOps, normalizeJSON, RisuSaveEncoder, RisuSavePatcher, type toSaveType } from "./storage/risuSave";
 import { isHydrating, saveChatToServer, ensureChatHydrated, chatToStub, classifyChat, convertStubsToPlaceholders } from "./storage/chatStorage";
-import { classifyChatSaveIntent } from "./storage/chatSaveIntent";
+import {
+    classifyChatSaveIntent,
+    collectUnconfirmedChatPayloads,
+    findRecoverableChatPayload,
+} from "./storage/chatSaveIntent";
 import { assignMissingChatIdsToNewCharacters } from "./storage/chatIdentityRepair";
 import { AutoStorage } from "./storage/autoStorage";
 import { ConflictError, type PatchItemResult, type PersistWarning } from "./storage/nodeStorage";
@@ -417,6 +421,7 @@ export async function saveDb() {
                 new Set((character.chats ?? []).map(chat => chat?.id).filter(Boolean)),
             ])
     )
+    const missingPayloadRecoveryKeys = new Set<string>()
     let channel: BroadcastChannel
     if (window.BroadcastChannel) {
         channel = new BroadcastChannel('risu-db')
@@ -855,6 +860,14 @@ export async function saveDb() {
             }
         }
 
+        // A caller can publish chat metadata through a root/plugin mutation
+        // without the reactive character tracker naming that character. Always
+        // enlist full client payloads whose IDs are absent from the last
+        // server-confirmed database before encoding any new stub.
+        for (const { chaId, chatId } of collectUnconfirmedChatPayloads(lastConfirmedServerDb, db)) {
+            pushChat(chaId, chatId)
+        }
+
         return chatsToPersist
     }
 
@@ -876,6 +889,7 @@ export async function saveDb() {
             const knownChatIds = knownChatIdsByCharacter.get(chaId) ?? new Set<string>()
             knownChatIds.add(chatId)
             knownChatIdsByCharacter.set(chaId, knownChatIds)
+            missingPayloadRecoveryKeys.delete(`${chaId}|${chatId}`)
         }
     }
 
@@ -1265,6 +1279,19 @@ export async function saveDb() {
                     showChatGuardToastThrottled('server')
                 }
                 else if (patchResult.validationRejected) {
+                    const recoverable = findRecoverableChatPayload(db, patchResult.missingFullChat)
+                    if (recoverable) {
+                        const recoveryKey = `${recoverable.chaId}|${recoverable.chatId}`
+                        if (!missingPayloadRecoveryKeys.has(recoveryKey)) {
+                            missingPayloadRecoveryKeys.add(recoveryKey)
+                            requeueTrackedChanges(toSave)
+                            queueTrackedChat(recoverable.chaId, recoverable.chatId)
+                            console.warn(
+                                '[Save] Retrying database metadata after enlisting its missing chat payload',
+                            )
+                            return 'retry'
+                        }
+                    }
                     throw new Error(
                         `Server rejected an invalid database update: ${patchResult.error ?? 'unknown invariant failure'}`
                     )

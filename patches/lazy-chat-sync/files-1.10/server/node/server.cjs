@@ -3751,6 +3751,9 @@ app.post('/api/write', async (req, res, next) => {
                             error: 'Write rejected: stripped database invariant failed',
                             code: 'DB_INVARIANT_REJECTED',
                             detail: String(invariantError?.message || invariantError),
+                            missingFullChat: invariantError?.code === 'MISSING_FULL_CHAT_PAYLOAD'
+                                ? { chaId: invariantError.chaId, chatId: invariantError.chatId }
+                                : undefined,
                             currentEtag: dbEtag,
                         });
                         return;
@@ -3981,6 +3984,9 @@ app.post('/api/patch', async (req, res, next) => {
                         error: 'Patch rejected: stripped database invariant failed',
                         code: 'DB_INVARIANT_REJECTED',
                         detail: String(invariantError?.message || invariantError),
+                        missingFullChat: invariantError?.code === 'MISSING_FULL_CHAT_PAYLOAD'
+                            ? { chaId: invariantError.chaId, chatId: invariantError.chatId }
+                            : undefined,
                         currentEtag: dbEtag,
                     });
                     return;
