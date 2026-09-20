@@ -1,5 +1,33 @@
 # Changelog
 
+## 0.2.2-experimental.1
+
+- Detect JPEG-wrapped CharX from its byte signature even when the filename ends
+  in `.charx`. Slice only the validated JPEG prefix and retain strict ZIP
+  directory, filename, local-header, CRC, overlap, and size enforcement. Keep
+  the low-level ambiguity reason in the typed error for future diagnosis.
+- Add an exact-1.10 log-loading owner whose `size_bytes` covering index keeps
+  request-log storage totals off body-heavy SQLite rows. Preserve SQL as the
+  sole byte-count authority and leave System Logs unchanged after direct
+  measurements found no server-side query bottleneck.
+- Persist every full, non-placeholder chat ID absent from the last
+  server-confirmed metadata before publishing its stub. Return a structured
+  missing-payload identity from the server and allow one bounded exact-payload
+  retry without weakening remote-delete, concurrent-create, legacy-shell, or
+  malformed-payload guards.
+- Pass 48/48 patcher files, 151 frontend files / 1,739 tests, 23 server files /
+  233 tests with 12 provider skips, compatibility 74 pass / five skips, Svelte
+  0/0, the 7,940-module production build, and the 8,641 KB BG load check.
+- Exercise upgrade apply/current/zero-plan, complete clean revert, fresh apply,
+  current status, and generated-installer zero-plan for the 41-pack / 936-unit /
+  341-path graph with 13 ordered collisions.
+- Generate the primary installer and byte-identical all alias twice at mode
+  0755. Both are 7,863,377 bytes and SHA-256
+  `c0a000f93cb2ce8aa6ae1c4275c90a3292338cd7f04d644ff43b58fa9e0f3d73`.
+- Keep the candidate experimental. Native CharX commit, FastImport iOS picker,
+  empty-chat persistence, and log-view latency require physical iPhone L3
+  before stable publication.
+
 ## 0.2.1
 
 - Promote `pagefold-model-preset` and its hidden `pagefold-bg-adapter` from
