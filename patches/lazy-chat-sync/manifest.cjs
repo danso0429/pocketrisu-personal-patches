@@ -49,6 +49,10 @@ const ownedFiles = [
     'src/ts/storage/startupDatabaseCache.ts',
 ]
 
+const owned1100Files = [
+    'src/ts/storage/globalApi.savePersistence.test.ts',
+]
+
 function unitId(relative) {
     return relative.replaceAll('/', ':').replaceAll('.', '-')
 }
@@ -56,7 +60,7 @@ function unitId(relative) {
 module.exports = {
     id: 'lazy-chat-sync',
     title: 'Lazy chat synchronization and startup cache',
-    version: '0.3.1',
+    version: '0.3.2',
     targets: {
         pocketrisu: {
             verified: ['1.8.1', '1.9.0', '1.10.0'],
@@ -104,6 +108,13 @@ module.exports = {
             file: relative,
             type: 'owned',
             content: read(filesRoot, relative),
+        })),
+        ...owned1100Files.map((relative) => ({
+            id: `lazy-chat-sync:owned:${unitId(relative)}:1.10`,
+            file: relative,
+            type: 'owned',
+            content: read(files1100Root, relative),
+            targetVersions: pocketRisu1100,
         })),
         {
             id: 'lazy-chat-sync:chat-missing-payload-notice',

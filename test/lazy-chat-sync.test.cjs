@@ -32,7 +32,7 @@ function payload1100(relative) {
 
 test('lazy chat pack includes CAS, WAL, reconciliation, and safe hydration boundaries', () => {
     assert.equal(lazyManifest.id, 'lazy-chat-sync')
-    assert.equal(lazyManifest.version, '0.3.1')
+    assert.equal(lazyManifest.version, '0.3.2')
     assert.deepEqual(lazyManifest.targets, {
         pocketrisu: {
             verified: ['1.8.1', '1.9.0', '1.10.0'],
@@ -97,6 +97,14 @@ test('lazy chat pack includes CAS, WAL, reconciliation, and safe hydration bound
     )
     assert.ok(missingPayloadNotice)
     assert.match(missingPayloadNotice.content, /Your draft was kept/)
+
+    const composedSaveTest = lazyManifest.units.find((unit) =>
+        unit.file === 'src/ts/storage/globalApi.savePersistence.test.ts'
+    )
+    assert.ok(composedSaveTest)
+    assert.deepEqual(composedSaveTest.targetVersions, { pocketrisu: ['1.10.0'] })
+    assert.match(composedSaveTest.content, /runAutosaveScheduler/)
+    assert.match(composedSaveTest.content, /requestDurableSaveImpl = async/)
 })
 
 test('PocketRisu 1.9 and 1.10 replacements retain native runtime owners and lazy-chat contracts', () => {
