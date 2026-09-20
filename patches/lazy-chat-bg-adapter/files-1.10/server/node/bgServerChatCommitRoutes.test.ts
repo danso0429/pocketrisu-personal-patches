@@ -1,5 +1,8 @@
 import { createHash } from 'node:crypto'
+import { once } from 'node:events'
+import { createServer } from 'node:http'
 import { createRequire } from 'node:module'
+import type { AddressInfo } from 'node:net'
 import Database from 'better-sqlite3'
 import { afterEach, describe, expect, it } from 'vitest'
 import { hydrateServerCommittedOrchestration } from '../../src/ts/bgServerCommitHydration'
@@ -23,9 +26,9 @@ const { operationStateKey, writeOperationState } = require('./bgOrchestrationOpe
     ) => { written: boolean }
 }
 
-const cleanup: Array<() => void> = []
-afterEach(() => {
-    while (cleanup.length > 0) cleanup.pop()?.()
+const cleanup: Array<() => void | Promise<void>> = []
+afterEach(async () => {
+    while (cleanup.length > 0) await cleanup.pop()?.()
 })
 
 function routeHarness() {
@@ -198,7 +201,10 @@ function queuedRetryHarness(
     }
 }
 
-function detachedCommitHarness({ commitFailure = false } = {}) {
+function detachedCommitHarness({
+    commitFailure = false,
+    previewGate = null as Promise<void> | null,
+} = {}) {
     const operationId = 'operation-c2-detached-1'
     const sqliteDb = new Database(':memory:')
     sqliteDb.exec('CREATE TABLE kv (key TEXT PRIMARY KEY, value BLOB NOT NULL, updated_at INTEGER NOT NULL)')
@@ -299,6 +305,7 @@ function detachedCommitHarness({ commitFailure = false } = {}) {
     })
     const commitCalls: any[] = []
     const inputSettingsSnapshots: any[] = []
+    let previewCalls = 0
     let receipt: any = null
     let finished = false
     registerBgOrchestrator(app, {
@@ -344,6 +351,8 @@ function detachedCommitHarness({ commitFailure = false } = {}) {
             _mode: string,
             control: any,
         ) => {
+            previewCalls += 1
+            if (previewGate) await previewGate
             let resultChat = finalChat
             let settingsDigest = 'a'.repeat(64)
             if (control.inputCommandVersion === 1) {
@@ -420,6 +429,29 @@ function detachedCommitHarness({ commitFailure = false } = {}) {
         }
         return response
     }
+    const inputBody = () => ({
+        detached: true,
+        selectedCharId: 'char-1',
+        selectedChatId: 'chat-1',
+        currentChat: {
+            ...baseChat,
+            message: [{ role: 'user', data: 'spoofed', chatId: 'user-spoofed' }],
+        },
+        operationId,
+        baseChatRevision: chatRevision(baseChat),
+        resultKeyVersion: 1,
+        resultOrderVersion: 1,
+        startAckVersion: 1,
+        serverChatCommitVersion: 1,
+        inputCommandVersion: 1,
+        inputCommand: {
+            inputCommandId: `input-${operationId}`,
+            userMessageId: `user-${operationId}`,
+            rawText: 'next input',
+            settingsSnapshotRef: 'client-spoofed-settings-ref',
+            submittedAt: 1_700_000_000_000,
+        },
+    })
     const startInput = async () => {
         const handler = routes.get('POST /api/bg-orchestrate')
         if (!handler) throw new Error('missing detached input start route')
@@ -428,31 +460,7 @@ function detachedCommitHarness({ commitFailure = false } = {}) {
             status(code: number) { response.status = code; return this },
             json(body: unknown) { response.body = body; return this },
         }
-        await handler({
-            body: {
-                detached: true,
-                selectedCharId: 'char-1',
-                selectedChatId: 'chat-1',
-                currentChat: {
-                    ...baseChat,
-                    message: [{ role: 'user', data: 'spoofed', chatId: 'user-spoofed' }],
-                },
-                operationId,
-                baseChatRevision: chatRevision(baseChat),
-                resultKeyVersion: 1,
-                resultOrderVersion: 1,
-                startAckVersion: 1,
-                serverChatCommitVersion: 1,
-                inputCommandVersion: 1,
-                inputCommand: {
-                    inputCommandId: `input-${operationId}`,
-                    userMessageId: `user-${operationId}`,
-                    rawText: 'next input',
-                    settingsSnapshotRef: 'client-spoofed-settings-ref',
-                    submittedAt: 1_700_000_000_000,
-                },
-            },
-        }, res)
+        await handler({ body: inputBody() }, res)
         for (let attempt = 0; attempt < 20
             && (commitCalls.length === 0 || !finished); attempt += 1) {
             await new Promise(resolve => setTimeout(resolve, 0))
@@ -497,14 +505,94 @@ function detachedCommitHarness({ commitFailure = false } = {}) {
         runtime,
         values,
         commitCalls,
+        inputBody,
         inputSettingsSnapshots,
         inputOwner,
         project,
         readResult,
+        routes,
         start,
         startInput,
         finished: () => finished,
+        previewCalls: () => previewCalls,
     }
+}
+
+async function startHTTPBridge(harness: ReturnType<typeof detachedCommitHarness>) {
+    const server = createServer(async (incoming, outgoing) => {
+        const url = new URL(incoming.url || '/', 'http://127.0.0.1')
+        if (incoming.method === 'GET' && url.pathname === '/test/chat/char-1/chat-1') {
+            const chat = harness.runtime.fullStore.get('char-1')?.get('chat-1') || null
+            outgoing.statusCode = chat ? 200 : 404
+            outgoing.setHeader('content-type', 'application/json')
+            outgoing.end(JSON.stringify({ found: !!chat, chat }))
+            return
+        }
+
+        let key = ''
+        let params: Record<string, string> = {}
+        if (incoming.method === 'POST' && url.pathname === '/api/bg-orchestrate') {
+            key = 'POST /api/bg-orchestrate'
+        } else {
+            const projection = url.pathname.match(
+                /^\/api\/bg-orchestrate-chat-state\/([^/]+)\/([^/]+)$/,
+            )
+            const result = url.pathname.match(/^\/api\/bg-orchestrate-result\/([^/]+)$/)
+            if (incoming.method === 'GET' && projection) {
+                key = 'GET /api/bg-orchestrate-chat-state/:charId/:chatId'
+                params = {
+                    charId: decodeURIComponent(projection[1]),
+                    chatId: decodeURIComponent(projection[2]),
+                }
+            } else if (incoming.method === 'GET' && result) {
+                key = 'GET /api/bg-orchestrate-result/:operationId'
+                params = { operationId: decodeURIComponent(result[1]) }
+            }
+        }
+        const handler = harness.routes.get(key)
+        if (!handler) {
+            outgoing.statusCode = 404
+            outgoing.end()
+            return
+        }
+
+        let body: unknown = null
+        if (incoming.method === 'POST') {
+            const chunks: Buffer[] = []
+            for await (const chunk of incoming) chunks.push(Buffer.from(chunk))
+            body = JSON.parse(Buffer.concat(chunks).toString('utf8'))
+        }
+        const response = {
+            status(code: number) { outgoing.statusCode = code; return this },
+            json(value: unknown) {
+                outgoing.setHeader('content-type', 'application/json')
+                outgoing.end(JSON.stringify(value))
+                return this
+            },
+        }
+        try {
+            await handler({
+                body,
+                params,
+                query: Object.fromEntries(url.searchParams.entries()),
+            }, response)
+        } catch (error) {
+            if (!outgoing.writableEnded) {
+                outgoing.statusCode = 500
+                outgoing.end(JSON.stringify({ error: String(error) }))
+            }
+        }
+    })
+    server.listen(0, '127.0.0.1')
+    await once(server, 'listening')
+    cleanup.push(async () => {
+        server.closeAllConnections()
+        if (server.listening) {
+            await new Promise<void>((resolve) => server.close(() => resolve()))
+        }
+    })
+    const address = server.address() as AddressInfo
+    return `http://127.0.0.1:${address.port}`
 }
 
 describe('server chat commit route precedence', () => {
@@ -648,6 +736,91 @@ describe('server chat commit route precedence', () => {
                 owners: [{ messageId: 'assistant-input-1' }],
             },
         })
+    })
+
+    it('continues one AC-off turn after the HTTP start client has gone away', async () => {
+        let releasePreview!: () => void
+        const previewGate = new Promise<void>((resolve) => { releasePreview = resolve })
+        const harness = detachedCommitHarness({ previewGate })
+        const baseURL = await startHTTPBridge(harness)
+
+        const startResponse = await fetch(`${baseURL}/api/bg-orchestrate`, {
+            method: 'POST',
+            headers: { 'content-type': 'application/json' },
+            body: JSON.stringify(harness.inputBody()),
+        })
+        expect(startResponse.status).toBe(200)
+        await expect(startResponse.json()).resolves.toMatchObject({
+            handled: true,
+            started: true,
+            operationId: harness.operationId,
+            serverChatCommitVersion: 1,
+            inputCommandVersion: 1,
+        })
+        for (let attempt = 0; attempt < 20 && harness.previewCalls() === 0; attempt += 1) {
+            await new Promise(resolve => setTimeout(resolve, 0))
+        }
+        expect(harness.previewCalls()).toBe(1)
+        expect(harness.commitCalls).toHaveLength(0)
+        expect(harness.finished()).toBe(false)
+
+        releasePreview()
+        for (let attempt = 0; attempt < 40 && !harness.finished(); attempt += 1) {
+            await new Promise(resolve => setTimeout(resolve, 0))
+        }
+        expect(harness.finished()).toBe(true)
+        expect(harness.previewCalls()).toBe(1)
+        expect(harness.commitCalls).toHaveLength(1)
+
+        const resultResponse = await fetch(
+            `${baseURL}/api/bg-orchestrate-result/${harness.operationId}`
+            + '?charId=char-1&chatId=chat-1&consumerId=consumer-process-boundary-1',
+        )
+        expect(resultResponse.status).toBe(200)
+        const resultData = await resultResponse.json() as any
+        expect(resultData).toMatchObject({
+            found: true,
+            operationId: harness.operationId,
+            serverChatCommitVersion: 1,
+            serverChatCommit: { status: 'committed' },
+        })
+
+        const storedRevision = resultData.serverChatCommit.receipt.storedRevision
+        const projectionResponse = await fetch(
+            `${baseURL}/api/bg-orchestrate-chat-state/char-1/chat-1`
+            + `?revision=${encodeURIComponent(storedRevision)}`,
+        )
+        expect(projectionResponse.status).toBe(200)
+        const projection = await projectionResponse.json()
+        expect(projection).toMatchObject({
+            found: true,
+            coverage: 'authoritative',
+            owners: [{ operationId: harness.operationId }],
+        })
+
+        const chatResponse = await fetch(`${baseURL}/test/chat/char-1/chat-1`)
+        expect(chatResponse.status).toBe(200)
+        const storedChat = (await chatResponse.json() as any).chat
+        expect(storedChat.message).toMatchObject([
+            { chatId: 'user-1' },
+            { chatId: `user-${harness.operationId}` },
+            { chatId: 'assistant-input-1' },
+        ])
+        await expect(hydrateServerCommittedOrchestration({
+            data: resultData,
+            operationId: harness.operationId,
+            charId: 'char-1',
+            chatId: 'chat-1',
+            allowedCurrentRevisions: [],
+            readProjection: async () => projection,
+            adoptChat: async () => ({ adopted: true, chat: storedChat }),
+        })).resolves.toMatchObject({
+            hydrated: true,
+            chat: storedChat,
+            projection,
+        })
+        expect(harness.values.get(`bg-orch-result-op:${harness.operationId}`))
+            .not.toBeNull()
     })
 
     it('routes a synthetic detached final result through the server commit owner', async () => {
