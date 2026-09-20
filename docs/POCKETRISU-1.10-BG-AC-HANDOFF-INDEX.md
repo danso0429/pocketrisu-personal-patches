@@ -2,11 +2,13 @@
 
 - Handoff date: 2026-09-20 KST
 - PocketRisu implementation/evidence checkpoint: `7ce42595564258c598f5ecd4a04c9962e17521bd`
+- Archive Center H2 implementation checkpoint: `6968ac6044bf9fde059d2532a28f37bf00fe9912`
+- Archive Center H2 validation checkpoint: `b9a50611fb82748cda40a6b5019f866bed75701d`
 - Private patcher branch: `codex/pocketrisu-bg-ac-server-chat-save`
 - Public plan commit: `e09a3b640e2a928f046b1145a6e8565c026f53fc`
 - Official PocketRisu target: `98e968339d1b3f91b9dac85bb3f2ebb5f90f9d14` (`v1.10.0`)
 - Archive Center public base: `026dcbf3b45adcf69b254673d439b24e943115b3` (`4.3.1`)
-- Archive Center candidate source tip: `9e23861901f15cae46817158a21ea873bbde6fe1`
+- Archive Center candidate source tip: `b9a50611fb82748cda40a6b5019f866bed75701d`
 - Live application: not performed for this candidate
 - Product activation: not approved
 
@@ -53,8 +55,9 @@ git --no-pager log -1 --format='%H %s' -- \
 | 5 | `docs/POCKETRISU-1.10-BG-AC-C0-VALIDATION.md` | Central execution ledger. Its latest sections supersede earlier phase shorthand. |
 | 6 | `docs/POCKETRISU-1.10-BG-AC-C3-CONNECTION-HARDENING-VALIDATION.md` | Current PocketRisu owner, recovery, and R1–R5 boundary. |
 | 7 | `docs/POCKETRISU-1.10-BG-AC-H1-COMPOSED-PROCESS-VALIDATION.md` | Generated Node process, restart, failure, retention, and blank-client evidence. |
-| 8 | `docs/POCKETRISU-1.10-BG-AC-C4-INDEPENDENT-SNAPSHOT-VALIDATION.md` | Current Archive Center source/resolver evidence and remaining C4 gate. |
-| 9 | `docs/PATCHER-V2-DESIGN.md` | Current all-or-nothing delivery and complete-graph rules. |
+| 8 | `docs/POCKETRISU-1.10-BG-AC-C4-INDEPENDENT-SNAPSHOT-VALIDATION.md` | Historical resolver-checkpoint replay evidence; do not use its 28-path patch as current H2 authority. |
+| 9 | `docs/POCKETRISU-1.10-BG-AC-ARCHIVE-CENTER-SOURCE-SNAPSHOT.md` | Current H2 AC source artifact, restore tree, and publication boundary. |
+| 10 | `docs/PATCHER-V2-DESIGN.md` | Current all-or-nothing delivery and complete-graph rules. |
 
 The public plan must match SHA-256
 `ef71282428589d3833a51c68130398bbdd8e6677d6b7bb00c4bc505981711ca6`.
@@ -114,30 +117,33 @@ The exact worktree path is environment-local and must be discovered with
 
 ### 3.2 Archive Center candidate source
 
-The original Archive Center candidate remains a clean local branch at
-`9e23861901f15cae46817158a21ea873bbde6fe1`. It is 15 local commits above the
+The Archive Center H2 candidate remains a clean local branch at
+`b9a50611fb82748cda40a6b5019f866bed75701d`. It is 18 local commits above the
 public base and was not pushed upstream.
 
 The exact final source tree is additionally preserved in this repository as:
 
-`artifacts/archive-center/pocketrisu-bg-ac-026dcbf-to-9e23861.patch`
+`artifacts/archive-center/pocketrisu-bg-ac-026dcbf-to-b9a5061.patch`
 
 The snapshot contract is:
 
 | Field | Required value |
 | --- | --- |
 | Patch format | Git full-index binary diff |
-| Size | 428,942 bytes |
+| Size | 696,849 bytes |
 | Mode | 0644 |
-| SHA-256 | `d70dac9ef7386464ef8bc5bf9fd0259b7b4c821af321325445abc92a5e6d574d` |
+| SHA-256 | `817ea79792c23d728fd05ab760078eb47b80aad670d8612634bcbd31cc061b60` |
 | Public base | `026dcbf3b45adcf69b254673d439b24e943115b3` |
-| Applied path count | 28 unique paths |
-| Restored tree | `7806dd39f4acfa294ee67f9d7834bc6fed448730` |
+| Applied path count | 47 unique paths |
+| Restored tree | `d53b6840b2254617430120a25de85624770cc2f1` |
 
-The patch preserves the final tree, not the 15 original commit objects. It
+The patch preserves the final tree, not the 18 original commit objects. It
 contains no commit author metadata. A restored tree matching the expected tree
 is valid source reconstruction; it is not proof of test or runtime success in
 the restoring environment.
+
+The prior resolver checkpoint patch ending in `9e23861` remains historical
+evidence and is not the current restore authority.
 
 ### 3.3 Generated PocketRisu artifacts
 
@@ -174,14 +180,14 @@ that the five P1 and two P2 product contracts passed.
 | C2 | Explicitly opted-in BG final result reaches the C1 owner | Ordinary client unopted |
 | C3 | Projection, hydration, input owner, immutable settings, N+1 lineage, causal recovery, and R1–R5 hardening implemented | `inputCommandVersion=0`; not active |
 | H1 | Generated AC-off Node process, normal-chat readback, empty-client adoption, named restarts, and transaction failures verified | Evidence complete; capability remains 0 |
-| C4 | AC process-memory context owner and captured-only settings resolver implemented | No production route or caller |
+| H2 / C4 | Authenticated host transport, claim/prepare/context join, prompt snapshot, restart recovery, release/tombstones, captured-only prepare/complete/main/provider consumers, and source acceptance v4 implemented | Source/automatic evidence complete; no PocketRisu caller and capability remains 0 |
 | C5 | Host adapter and output-stage parity | Not implemented |
 | C6 | Unified claim/change/prepare/complete/effect/retention lifecycle | Not implemented |
 | C7 | Combined live/browser/device qualification | Not performed |
 
-The next implementation task is not capability activation. It is H2 Archive
-Center production context transport and consumers described in the next-work
-plan.
+The next implementation task is not capability activation. It is H3/C5: the
+minimum PocketRisu host adapter and foreground/BG output-stage parity described
+in the next-work plan.
 
 ## 5. System ownership model that must be preserved
 
@@ -332,14 +338,19 @@ files. A composed target file is a review output, not the only source of truth.
 
 ### 7.3 Archive Center source owners
 
-The exact 28-path AC diff is listed in section 17.5 of the integration progress
-report. The main responsibilities are:
+The current exact 47-path AC diff is restored by the source-snapshot artifact;
+section 17.5 of the integration progress report retains the earlier 28-path
+resolver catalog as historical evidence. The main responsibilities are:
 
 - durable host execution claim and settle store;
 - ordered host-change/source-generation store and invalidation fences;
 - durable host prepare registry;
 - process-memory PocketRisu execution-context registry;
 - captured-only effective settings resolver;
+- mandatory-auth host transport, durable-key recovery, startup reconciliation,
+  typed prepare/complete contracts, and release/tombstones;
+- captured-only main/supervisor/critic/source-search/embedding/prepare/complete
+  consumers and prompt snapshots;
 - migrations, HTTP contract probes, and focused/full/race tests.
 
 Use the restored tree or the original clean local candidate. Do not infer the
@@ -378,21 +389,26 @@ process or device qualification.
 
 ### 8.2 Archive Center independent evidence
 
-The public base plus tracked patch reconstructed the exact 28-path candidate
-tree. On that independently restored tree:
+The public base plus current tracked patch reconstructed the exact 47-path H2
+candidate tree. On the candidate and exact-tree replay evidence:
 
-- focused context/resolver tests passed;
-- focused race tests passed;
+- focused context/resolver/transport/consumer tests passed;
+- captured-value mutation and secret-output tests passed at every final role;
 - complete Go repository tests passed;
 - complete repository race tests passed;
 - `go vet ./...` passed;
 - `node --check "Archive Center.js"` passed;
 - a `CGO_ENABLED=0`, Linux ARM64, `-trimpath` build passed.
 
-The ARM64 artifact was 36,486,347 bytes with SHA-256
-`fd70b2ca9b2ba998ce2cfa14942583a7eaedf7d6734e1c0bc87a9aaa15cae8a6`.
-No disposable MariaDB or Chroma runtime was started for that independent
-replay; earlier C0 MariaDB evidence remains a separate receipt.
+The full race completed `internal/httpapi` in 239.753 seconds. A fresh
+disposable MariaDB applied 16 migrations, 147/147 statements and 103
+compatibility statements; the five execution/change/prepare/restart race tests
+passed.
+
+The clean H2 ARM64 artifact was 36,927,910 bytes with SHA-256
+`edb15263a1e4a42246599272ec99cc5e6946014119b2c35155e4b1c19842b1f2`.
+No Chroma runtime was started for H2. The disposable H2 MariaDB was isolated
+under `/tmp`, stopped, and removed after the tests.
 
 ## 9. Explicitly unverified or inactive claims
 
@@ -408,8 +424,11 @@ The following must not be described as completed:
 - joined result/state/input/owner TTL behavior;
 - non-input C2 ownership after all short-lived payloads expire;
 - receipt-scoped predecessor effect lineage;
-- AC authenticated transport, production route, or provider caller;
-- AC context release, tombstone, retention, and compaction;
+- PocketRisu host bridge use of the H2 authenticated transport and provider
+  consumers;
+- actual application of the H2 typed prepared payload to the final main
+  request;
+- cross-process complete-response recovery and measured active-context drain;
 - C5 output-transform parity;
 - complete C6 lifecycle and conflict policy;
 - controlled live application;
@@ -493,10 +512,10 @@ with repository evidence:
 3. why C0 is not product completion;
 4. why capability remains 0;
 5. what R1–R5 changed and what remains unverified;
-6. why H1 is closed and the next task is H2 context transport/consumers;
-7. why C4/C5/C6 must precede activation;
-8. which live systems and user data must remain untouched during the first
-   continuation slice.
+6. why H1 and H2 are closed and the next task is H3/C5 host adapter/output parity;
+7. why C5/C6 must precede activation;
+8. which live systems and user data must remain untouched during the H3 source
+   slice.
 
 The accompanying fresh-start instructions turn these statements into a
 reproducible startup procedure.

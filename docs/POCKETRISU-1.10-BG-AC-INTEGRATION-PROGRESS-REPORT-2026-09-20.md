@@ -631,7 +631,7 @@ local commit `9e23861`은 captured material만 사용하여 다음 최종 config
 | ARM64 build after resolver | 36,486,347 bytes, SHA-256 `fd70b2ca9b2ba998ce2cfa14942583a7eaedf7d6734e1c0bc87a9aaa15cae8a6` |
 | resolver L2.5/update report | independent snapshot validation 완료 |
 
-### 10.4 C4 현재 limitation
+### 10.4 C4 resolver checkpoint limitation — H2에서 해소됨
 
 - external strict DTO decoder 없음
 - authenticated host route/capability 없음
@@ -643,16 +643,52 @@ local commit `9e23861`은 captured material만 사용하여 다음 최종 config
 - context release, terminal tombstone, TTL, compaction 없음
 - context-aware accessors가 production caller에 주입되지 않음
 
-주요 commit: `694c6e8`, validation `c6ec332`, resolver `9e23861`.
+위 목록은 `9e23861` 시점의 limitation이다. H2 `fbe5162`와 `6968ac6`이
+strict transport/auth, claim/prepare/context join, captured-only final callers,
+prompt snapshot, startup reconciliation, typed prepare/source contracts,
+release/tombstone을 구현했고 `b9a5061`이 상세 validation을 기록했다.
+
+### 10.5 H2 최종 검증
+
+H2의 current Archive Center tip은 `b9a5061`, tree는
+`d53b6840b2254617430120a25de85624770cc2f1`이다. 구현은 capability를 0으로
+유지한 채 다음을 연결했다.
+
+- mandatory bearer auth와 strict/bounded host DTO;
+- durable execution claim, HostPrepare, context ID/digest, host-change safe
+  prefix의 exact join;
+- response loss 시 durable prepare-key recovery와 restart
+  `settings_context_unavailable`;
+- prepare/complete/main/supervisor/critic/embedding/source-search/preprocessing
+  captured-only final caller;
+- immutable supervisor/critic prompt snapshot;
+- typed prepared payload hash/private-material fence와 complete source
+  acceptance v4;
+- startup `running`→`outcome_unknown`, unavailable skip, terminal release,
+  bounded tombstone와 late status/settle/complete replay.
+
+최종 gate는 full Go, full repository race(`internal/httpapi` 239.753초), vet,
+JS syntax, ARM64 build 36,927,910 bytes/SHA-256 `edb15263…42b1f2`, 민감정보
+sweep, production migration 147/147+compatibility 103, real MariaDB 5-test race
+batch를 통과했다. 상세는 restored AC
+`docs/pocketrisu-host-context-h2-validation.md`이다.
+
+현재 source restore authority는 private patcher의
+`artifacts/archive-center/pocketrisu-bg-ac-026dcbf-to-b9a5061.patch`이다.
+크기 696,849 bytes, mode 0644, SHA-256 `817ea797…1b60`, 47 paths이며 public
+base isolated replay tree가 위 H2 tree와 일치했다.
+
+주요 commit: capture `694c6e8`, resolver `9e23861`, transport `fbe5162`,
+consumer/lifecycle `6968ac6`, validation `b9a5061`.
 
 ## 11. P1/P2 현재 충족도
 
 | 계약 | 완료된 기반 | 남은 제품 게이트 |
 | --- | --- | --- |
-| P1-1 실행권 | MariaDB claim/settle store, claim epoch, route fence | authenticated route, nonterminal phase, Node caller, restart/late settle E2E |
+| P1-1 실행권 | MariaDB claim/settle store, claim epoch, route fence, authenticated H2 route, stage/watermark fence, restart/late settle replay | Node caller and combined foreground/server acquire E2E |
 | P1-2 변경 전달 | host stream, ingested/safe, source invalidation, stale worker/vector fence | Node durable intent writer, transport, multi-stream aggregation, complete-time supersession |
-| P1-3 prepare 관측 | current contract gap characterization | typed server prepare observation, assembled payload verification, positive/negative handler integration |
-| P1-4 prepare 유실 | durable registry, one start authority, ready replay, unknown/skip | HTTP/provider/startup owner, Node prepared/skipped CAS, retention/status join |
+| P1-3 prepare 관측 | typed server prepare observation, assembled payload SHA/private fence, positive/negative handler integration | actual PocketRisu payload application observation |
+| P1-4 prepare 유실 | durable registry, one start authority, ready replay, unknown/skip, authenticated HTTP/startup/status/release join | Node prepared/skipped CAS and cross-process complete-result ownership |
 | P1-5 대기 입력 | pre-canonical owner, record v4 admission/execution lineage, 취소·편집·인과 복구 fixture | early-send client, automatic drain, admission ACK loss, pending UI, effect lineage |
 | P2-1 출력 변환 | 현재 stage gap characterization | AC pure transform export, server stage integration, foreground/BG parity |
 | P2-2 소유권 발견 | revision-bound projection/hydration, server-owned failure client fence | 실제 blank-browser chat-open, non-input mode와 joined TTL/tombstone retention, backfill policy |
@@ -666,7 +702,7 @@ local commit `9e23861`은 captured material만 사용하여 다음 최종 config
 | C2 | internal opt-in BG result commit과 server-owned failure 보존 | current client activation과 non-input TTL owner 없음 |
 | C3 | projection/hydration/input/settings/record-v4 lineage/causal recovery | auto drain, early-send, ACK recovery, UI, effect provenance, activation |
 | H1 | generated AC-off process, actual SQLite/normal chat, blank-client adoption, named restart/failure/retention evidence | actual browser process와 AC 연결은 후속 단계 소유 |
-| C4 | context capture + resolver | production accessors, DTO/route, claim/prepare join, v4 complete, v1~v3 regression |
+| H2 / C4 | authenticated DTO/route, claim/prepare/context join, captured-only accessors/prompts, prepare observation/result, complete v4, startup recovery, release/tombstones | no PocketRisu caller; capability 0; external prompt writer/process-memory erasure/cross-restart complete response remain bounded limitations |
 | C5 | 없음 | JS host export, PocketRisu adapter, injection/prefill/output parity |
 | C6 | 없음 | full lifecycle, next-input finalization, skip, conflict, response-loss, retention |
 | C7 | 없음 | combined package, live apply, browser-exit evidence, iPhone L3, release |
@@ -678,7 +714,7 @@ local commit `9e23861`은 captured material만 사용하여 다음 최종 config
 | ID | 현재 상태 | 현재 증거와 남은 차이 |
 | --- | --- | --- |
 | T01 | H1 process 기반 | AC-off internal admission은 request process 종료 뒤 normal chat commit까지 통과; ordinary/live early admission은 capability 0으로 미실행 |
-| T02 | 미실행 | AC transport/prepare caller 없음 |
+| T02 | H2 AC 기반 | authenticated AC transport/prepare contract 통과; PocketRisu caller 미구현 |
 | T03 | 부분 기반 | 기존 BG stream은 검증되어 있으나 새 commit+AC 조합 미실행 |
 | T04 | characterization만 완료 | stage gap 확인, AC pure output transform 미구현 |
 | T05 | 부분 기반 | durable prepare registry 검증, 실제 provider fallback/response drop 미연결 |
@@ -691,14 +727,14 @@ local commit `9e23861`은 captured material만 사용하여 다음 최종 config
 | T12 | H1 process 기반 | request process 종료와 반복 조회에서 provider 1/commit 1/client save 0/ACK 0; AC raw 포함 ACK loss는 미실행 |
 | T13 | H1 process 기반 | separate frontend process의 actual NodeStorage/chatStorage가 empty storage 두 번과 result/state 제거 뒤 다시 채택; 실제 browser는 미실행 |
 | T14 | 기존 BG 기반 | publish ordering tests 존재, 새 combined path 미실행 |
-| T15 | 부분 자동화 | C4 device/backend context unit coverage, 두 실제 기기/provider call 미실행 |
-| T16 | 부분 자동화 | captured config/global mutation 불변 fixture, actual prepare/complete consumers 미연결 |
-| T17 | gap characterization | prepare server variant와 complete v4 미구현 |
+| T15 | H2 자동화 | device/backend context와 모든 final role captured-value mutation 통과; 두 실제 기기/provider call 미실행 |
+| T16 | H2 자동화 | prepare/complete/main/provider consumers가 current global/file mutation 뒤 captured 값 사용; PocketRisu bridge 미연결 |
+| T17 | H2 자동화 | prepare server observation, typed payload identity, complete v4, v1~v3 legacy fence 통과 |
 | T18 | 미실행 | actual payload application observation adapter 미구현 |
 | T19 | H1 process 기반 | N active→N+1 202 waiting→third 409→N publish→N+1 attach→restart 복원 통과; autosave/ACK/UI/auto drain은 미실행 |
 | T20 | store/owner 기반 일부 | current/previous Node recovery는 보강, AC finalization integrated path 미구현 |
-| T21 | AC store 기반 완료 | concurrent claim store fixture, authenticated foreground/server route 미구현 |
-| T22 | AC store 기반 부분 완료 | prepare/change/skip replay, actual HTTP/provider/startup path 미구현 |
+| T21 | H2 AC 기반 | concurrent claim store와 authenticated owner/stage/watermark route 통과; combined PocketRisu acquire 미구현 |
+| T22 | H2 AC 기반 | prepare/change/skip/status/startup/restart replay와 real-MariaDB path 통과; Node provider caller 미구현 |
 | T23 | 부분 기반 | raw/derived distinction은 기존 AC에 있으나 new server complete path 미구현 |
 | T24 | 미실행 | 네 설정 조합과 explicit skip integrated fixture 없음 |
 | T25 | 미실행 | PageFold adapter는 존재하나 AC memory PDF combined path 미검증 |
@@ -720,30 +756,31 @@ local commit `9e23861`은 captured material만 사용하여 다음 최종 config
 - PocketRisu production 구현 checkpoint: `3315e4d`
 - test-only AC-off HTTP boundary: `a286b96`
 - test-only H1 composed-process boundary: `7ce4259`
+- Archive Center H2 implementation/validation: `6968ac6` / `b9a5061`
 - 포함 범위: C0 ledger, C1~C3 source/installer/docs, R1~R5 hardening,
-  handler-level 및 generated-process AC-off evidence, C4 capture/resolver
-  source snapshot과 independent validation
-- 미포함: AC original 15 commit object와 production caller 연결
+  handler-level 및 generated-process AC-off evidence, H2 AC transport/consumer
+  source snapshot과 validation
+- 미포함: AC original 18 commit object와 PocketRisu host caller 연결
 
 이 보고서는 같은 private GitHub branch에 보존한다. 최초 보고서 이후 구현 변경과 검증은 별도 commit으로 분리한다.
 
 ### 14.3 Archive Center source
 
-- local branch HEAD: `9e23861`
-- upstream `main` 대비: 15 local commits ahead
+- local branch HEAD: `b9a5061`
+- upstream `main` 대비: 18 local commits ahead
 - worktree: clean
 - upstream push: 수행하지 않음
 - 사용자 소유 private mirror/fork: 아직 없음
-- full-index source patch: `artifacts/archive-center/pocketrisu-bg-ac-026dcbf-to-9e23861.patch`
-- patch: 428,942 bytes, SHA-256 `d70dac9ef7386464ef8bc5bf9fd0259b7b4c821af321325445abc92a5e6d574d`
-- isolated restore: public base `026dcbf` + patch → 28 staged paths, candidate tree `7806dd39f4acfa294ee67f9d7834bc6fed448730` 일치
+- full-index source patch: `artifacts/archive-center/pocketrisu-bg-ac-026dcbf-to-b9a5061.patch`
+- patch: 696,849 bytes, SHA-256 `817ea79792c23d728fd05ab760078eb47b80aad670d8612634bcbd31cc061b60`
+- isolated restore: public base `026dcbf` + patch → 47 staged paths, candidate tree `d53b6840b2254617430120a25de85624770cc2f1` 일치
 
-AC upstream에는 candidate commit이 없지만 exact final source tree는 private patcher 작업선의 full-index patch로도 보존된다. 이는 original 15 commit object나 일반 AC fork를 대체하지 않으며, base commit·patch hash·restored tree를 함께 검증해야 한다.
+AC upstream에는 candidate commit이 없지만 exact final source tree는 private patcher 작업선의 full-index patch로도 보존된다. 이는 original 18 commit object나 일반 AC fork를 대체하지 않으며, base commit·patch hash·restored tree를 함께 검증해야 한다. 이전 `9e23861` patch는 resolver checkpoint의 역사 증거이며 current restore authority가 아니다.
 
 ### 14.4 live 및 disposable target
 
-- live PocketRisu: 기존 40-pack/340-file all graph, 이번 C1~C4 후보 미적용
-- isolated AC: unmodified 4.3.1 package와 data 보존, C0~C4 candidate binary 미적용, 현재 listener 중지
+- live PocketRisu: 기존 40-pack/340-file all graph, 이번 C1~H2 후보 미적용
+- isolated AC: unmodified 4.3.1 package와 data 보존, C0~H2 candidate binary 미적용, 현재 listener 중지
 - disposable PocketRisu target: clean, empty custom intent
 - root workspace의 기존 untracked worktree/ZIP/save 항목은 변경하지 않음
 
@@ -757,13 +794,24 @@ N+1 waiting 요청에서 HTTP 202를 보낸 뒤 같은 Express handler를 계속
 
 현재 N+1은 exact predecessor와 target chat revision을 검증하지만, resolved 이후 overlay하는 globals/statics/owner roots가 predecessor effect만으로 만들어졌다는 per-effect receipt 증명이 없다. capability 1 이전에 C6의 receipt-scoped transition으로 교체해야 한다.
 
-### 15.3 C4 context lifecycle
+### 15.3 H2 context lifecycle의 남은 activation 경계
 
-context owner는 fail-closed capacity를 제공하지만 release/tombstone/retention이 없다. production route를 열면 64개 이후 정상 작업이 계속 capacity에 걸린다. terminal, previous-turn wait, late status, HostPrepare result retention과 함께 exact release 정책을 정해야 한다.
+H2는 terminal release, unavailable skip, missing/released status, late settle,
+bounded tombstone, startup running→unknown, in-process complete replay를
+연결했다. 남은 위험은 host가 settle/skip하지 않는 active owner와 AC process
+restart 뒤 complete-response cache이다. 자동 TTL은 아직 참조 가능한 owner를
+지울 수 있으므로 추가하지 않았고, H3/C6가 모든 host exit의 drain과
+cross-process result ownership을 증명해야 한다.
 
-### 15.4 C4 context 범위
+### 15.4 H2 prompt/private-memory 범위
 
-현재 context는 device allowlist, RuntimeConfig, preprocessing file, embedding config/env fallback을 고정한다. 관련 prompt directory/file content는 아직 snapshot하지 않는다. 실제 prepare/complete/provider consumer가 mutable prompt 파일을 다시 읽지 않는지도 C4 후속 audit에서 닫아야 한다.
+H2 context는 device allowlist, RuntimeConfig, preprocessing, embedding
+fallback, supervisor/critic prompt bytes를 고정하고 final caller mutation
+tests를 통과했다. API-driven prompt writer는 같은 lock을 사용한다. 다만
+외부 process의 직접 prompt-file rewrite는 cross-process transaction이 아니며,
+Go string/in-flight copy의 secure erasure도 보장하지 않는다. 위협 모델이
+그 범위를 요구할 때 atomic prompt generation manifest 또는 별도
+short-lived secret process를 검토한다.
 
 ### 15.5 remote persistence
 
@@ -794,9 +842,9 @@ record v4는 v3를 fail-closed한다. 후보가 live에 없으므로 현재 사�
 
 commit `7ce4259`와 H1 receipt가 위 단계를 generated process, production
 normal-chat, actual NodeStorage/chatStorage, named restart/failure/retention
-경계로 올렸다. Capability는 계속 0이며 다음 순서는 16.2이다.
+경계로 올렸다. H2까지 닫힌 현재 다음 순서는 16.3이다.
 
-### 16.2 C4 product 연결
+### 16.2 C4 product 연결 — H2 완료
 
 1. context-aware prepare/complete/provider accessor 연결
 2. current global runtime 재조회가 없는지 final caller별 검증
@@ -805,6 +853,9 @@ normal-chat, actual NodeStorage/chatStorage, named restart/failure/retention
 5. running/ready/unknown/skip/startup reconciliation
 6. complete source acceptance v4와 prepare host observation variant
 7. v1~v3 회귀 및 legacy bypass fence
+
+AC `6968ac6`/`b9a5061`과 H2 validation이 위 일곱 항목을 닫았다. Capability는
+계속 0이며 다음 실행 순서는 16.3 C5 host adapter이다.
 
 ### 16.3 C5 host adapter
 
@@ -857,12 +908,12 @@ normal-chat, actual NodeStorage/chatStorage, named restart/failure/retention
 | PocketRisu 구현 정본 | 이 보고서와 같은 private patcher 저장소, branch `codex/pocketrisu-bg-ac-server-chat-save`, 현재 구현/test checkpoint `7ce4259` | 아래 초기 implementation/evidence 파일, H1 owned harness 4개, 이 보고서와 validation receipts | checkpoint는 private branch에 보존 |
 | 공식 PocketRisu 기준선 | [`PocketRisu/PocketRisu` `98e968339d1b3f91b9dac85bb3f2ebb5f90f9d14`](https://github.com/PocketRisu/PocketRisu/tree/98e968339d1b3f91b9dac85bb3f2ebb5f90f9d14) | installer 적용 전 v1.10.0 source | public GitHub에 보존됨. 이 프로젝트는 공식 저장소를 직접 수정하지 않음 |
 | Archive Center 기준선 | [`Flazer31/archive-center` `026dcbf3b45adcf69b254673d439b24e943115b3`](https://github.com/Flazer31/archive-center/tree/026dcbf3b45adcf69b254673d439b24e943115b3) | AC 4.3.1 source | public GitHub에 보존됨 |
-| Archive Center 후보 | local branch `codex/pocketrisu-bg-ac-server-chat-save`, `9e23861901f15cae46817158a21ea873bbde6fe1` | 아래 28개 local diff 파일과 full-index source patch | upstream branch에는 없음. Exact final tree patch는 private patcher 작업선에 보존됨 |
+| Archive Center 후보 | local branch `codex/pocketrisu-bg-ac-server-chat-save`, `b9a50611fb82748cda40a6b5019f866bed75701d` | H2 47-path local diff와 current full-index source patch | upstream branch에는 없음. Exact final tree patch는 private patcher 작업선에 보존됨 |
 | 생성·실행 대상 | disposable PocketRisu target, isolated AC runtime, live PocketRisu | installer 합성 결과와 runtime readback | source authority가 아니며 별도 GitHub 저장소로 취급하지 않음 |
 
 private patcher 파일 링크는 이 보고서에서 같은 저장소의 상대 경로로 작성했다. GitHub에서 이 branch의 보고서를 열면 해당 branch의 파일로 이동한다. 최초 N+1 구현은 `265b8e9`, 외부 검수 연결부 수정은 `3315e4d`, H1 process evidence는 `7ce4259`를 checkout해 비교한다.
 
-Archive Center `9e23861`의 파일에는 현재 클릭 가능한 upstream GitHub blob URL이 없다. 아래 경로를 upstream `main`에서 찾지 못하거나 내용이 다르더라도 누락으로 판정하면 안 된다. upstream은 `026dcbf`, 후보는 그 위의 15 commits이며 exact final tree는 별도 patch에서 복원한다.
+Archive Center `b9a5061`의 파일에는 현재 클릭 가능한 upstream GitHub blob URL이 없다. 아래 역사적 resolver 목록 또는 새 H2 경로를 upstream `main`에서 찾지 못하거나 내용이 다르더라도 누락으로 판정하면 안 된다. upstream은 `026dcbf`, 후보는 그 위의 18 commits이며 exact final tree는 current patch에서 복원한다.
 
 ### 17.2 정본 소스와 설치 후 파일의 관계
 
@@ -874,7 +925,11 @@ PocketRisu 쪽은 다음 세 층을 구분해야 한다.
 
 따라서 target의 `server/node/bgOrchestrator.cjs`만 읽으면 어떤 부분이 이번 통합 소유인지 분리하기 어렵다. 먼저 manifest unit과 `files-1.10` owned source를 확인하고, 그다음 disposable target의 합성 결과를 비교해야 한다. `server/node/bgOrchBundle.mjs`는 `bgOrchBundle.build.cjs`에서 생성되는 산출물이므로 직접 수정하거나 정본으로 검토하지 않는다.
 
-Archive Center 쪽은 별도 installer 합성 구조가 아니다. `026dcbf..9e23861`의 28개 파일이 local 후보의 직접 source diff이며, migration·store·HTTP owner와 test가 같은 Git history에 있다.
+Archive Center 쪽은 별도 installer 합성 구조가 아니다. Current
+`026dcbf..b9a5061`의 47개 파일이 local 후보의 직접 source diff이며,
+migration·store·HTTP owner와 test가 같은 Git history에 있다. 아래 28개
+목록은 `9e23861` resolver checkpoint의 역사적 catalog이고 current 47-path
+authority는 source-snapshot 문서와 patch path list이다.
 
 ### 17.3 private patcher의 초기 branch-diff 34개와 H1 추가 4개
 
@@ -985,7 +1040,7 @@ src/ts/storage/serverCommittedChatAdoption.test.ts
 
 ### 17.5 Archive Center local 후보의 exact diff 파일 28개
 
-아래 목록은 public 4.3.1 기준 `026dcbf3b45adcf69b254673d439b24e943115b3`부터 local 후보 `9e23861901f15cae46817158a21ea873bbde6fe1`까지 `git diff --name-only`로 전수 산출했다. 이 28개 파일의 **후보 내용은 아직 GitHub에 없다.**
+아래 목록은 public 4.3.1 기준 `026dcbf3b45adcf69b254673d439b24e943115b3`부터 resolver checkpoint `9e23861901f15cae46817158a21ea873bbde6fe1`까지 `git diff --name-only`로 전수 산출한 역사적 28-path catalog이다. Current H2 tip은 `b9a5061`/47 paths이며 source-snapshot 정본에서 검증한다. 두 checkpoint의 **후보 내용은 아직 GitHub upstream에 없다.**
 
 #### C0-A contract probe
 
@@ -1073,8 +1128,8 @@ docs/pocketrisu-execution-context-c4-validation.md
 2. private patcher는 최초 구현 `265b8e9`와 connection hardening `3315e4d`를 나누어 확인한다.
 3. `manifest.cjs`의 unit을 읽고 exact PocketRisu `98e9683` disposable target에 installer를 적용한다.
 4. 17.4의 target 경로를 정본 source/manifest와 비교하고, `dist` 자체보다 합성 결과·re-plan 0·exact revert를 확인한다.
-5. Archive Center는 public `026dcbf`를 먼저 확보하고 verified full-index patch를 index에 적용해 28개 경로와 expected tree를 대조한다. GitHub upstream 파일만 보고 후보를 검증했다고 기록하지 않는다.
-6. C4는 context/resolver unit test와 실제 caller 연결을 구분한다. 현재 후자는 존재하지 않는다.
+5. Archive Center는 public `026dcbf`를 먼저 확보하고 current verified full-index patch를 index에 적용해 47개 경로와 expected tree를 대조한다. GitHub upstream 파일만 보고 후보를 검증했다고 기록하지 않는다.
+6. H2 AC final caller 연결은 구현됐지만 PocketRisu host caller는 존재하지 않는다. AC source caller와 실제 combined product 연결을 구분한다.
 7. live PocketRisu와 isolated AC는 이번 후보가 배포되지 않았으므로 source diff와 live 기능을 동일시하지 않는다.
 
 ## 18. 주요 commit 인덱스
@@ -1090,6 +1145,9 @@ docs/pocketrisu-execution-context-c4-validation.md
 | C4 context owner | `694c6e8` |
 | C4 first validation | `c6ec332` |
 | C4 effective resolver | `9e23861` |
+| H2 authenticated transport/lifecycle | `fbe5162` |
+| H2 captured-only consumers and contracts | `6968ac6` |
+| H2 validation | `b9a5061` |
 
 ### 18.2 private patcher
 
@@ -1130,11 +1188,14 @@ docs/pocketrisu-execution-context-c4-validation.md
 - `docs/POCKETRISU-1.10-BG-AC-H1-COMPOSED-PROCESS-VALIDATION.md`
 - `docs/POCKETRISU-1.10-BG-AC-ARCHIVE-CENTER-SOURCE-SNAPSHOT.md`
 - `docs/POCKETRISU-1.10-BG-AC-C4-INDEPENDENT-SNAPSHOT-VALIDATION.md`
-- `artifacts/archive-center/pocketrisu-bg-ac-026dcbf-to-9e23861.patch`
+- `artifacts/archive-center/pocketrisu-bg-ac-026dcbf-to-b9a5061.patch`
+- historical resolver snapshot:
+  `artifacts/archive-center/pocketrisu-bg-ac-026dcbf-to-9e23861.patch`
 - AC `docs/pocketrisu-host-session-execution-c0-validation.md`
 - AC `docs/pocketrisu-host-change-stream-c0-validation.md`
 - AC `docs/pocketrisu-host-prepare-registry-c0-validation.md`
 - AC `docs/pocketrisu-execution-context-c4-validation.md`
+- AC `docs/pocketrisu-host-context-h2-validation.md`
 
 ## 20. 최종 판정
 
@@ -1159,6 +1220,14 @@ docs/pocketrisu-execution-context-c4-validation.md
   restart가 partial commit이나 provider/commit replay를 만들지 않는다.
 - AC가 session claim, ordered host change, durable prepare state를 MariaDB에 보존할 수 있다.
 - AC가 device/backend settings와 private provider material을 process-memory context로 고정하고, mutable global을 다시 읽지 않는 resolver를 만들 수 있다.
+- AC가 mandatory-auth strict transport로 claim/prepare/context owner를
+  결합하고 response loss/restart에 기존 durable reference를 복구할 수 있다.
+- prepare/complete/main/supervisor/critic/embedding/source-search/preprocessing
+  final caller가 captured context만 사용하며 prompt/private setting을
+  response나 durable prepared payload에 노출하지 않을 수 있다.
+- typed server prepare observation, assembled payload identity, complete source
+  acceptance v4, unavailable skip, startup unknown, release/tombstone와 late
+  replay가 AC source boundary에서 동작한다.
 
 현재 구현은 다음을 아직 입증하지 않았다.
 
@@ -1167,12 +1236,15 @@ docs/pocketrisu-execution-context-c4-validation.md
 - 실제 browser process에서 server-owned failure 뒤 client save·ACK·provider 재호출이 0회다.
 - record v3 production row가 0이거나 v4로 안전하게 migration된다.
 - 긴 input history에서 admission/dependency scan 비용이 허용 범위다.
-- PocketRisu와 AC가 authenticated host transport로 연결된다.
-- actual prepare/complete/provider가 captured context를 사용한다.
+- PocketRisu가 H2 authenticated host transport를 실제 API v3 bridge에서
+  호출하고 ready/skip/result를 provider owner와 결합한다.
+- PocketRisu actual main payload가 H2 typed prepared payload를 적용했다는
+  observation을 AC에 되돌린다.
 - AC output transform과 server canonical output이 foreground와 동일하다.
 - 양쪽 lifecycle이 response loss, restart, skip, conflict, retention에서 하나로 수렴한다.
 - 실제 browser process exit 뒤 새 브라우저에서 통합 결과가 복원된다.
 
-따라서 현재 결과는 C1~C3, H1 process boundary, C4 owner/resolver의 명시된
-자동검증 범위 안 기반 구현이며, 배포 가능한 최종 통합 제품이나
-release-qualified 상태가 아니다.
+따라서 현재 결과는 C1~C3, H1 process boundary, H2/C4
+transport/consumer의 명시된 자동검증 범위 안 기반 구현이며, 배포 가능한
+최종 통합 제품이나 release-qualified 상태가 아니다. 다음 단계는 H3/C5
+host adapter와 foreground/BG output parity이다.

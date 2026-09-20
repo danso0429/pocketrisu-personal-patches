@@ -6,10 +6,10 @@ Status: **C0 contract experiments, C1 server commit primitive, and C2 opt-in
 BG result commit complete; C3 projection/hydration/input, same-process settings,
 owner-level N+1, external-audit connection hardening, and the AC-off HTTP
 boundary fixture plus the C4 process-memory execution-context foundations are
-implemented; H1 now validates the generated AC-off Node process, normal chat
-readback, blank-client adoption, named restart boundaries, and transaction
-failures, but product H2–H7 integration, live application, and release are not
-complete**
+implemented; H1 validates the generated AC-off Node process and H2 validates
+authenticated AC transport, captured-only consumers, restart recovery,
+typed prepare/complete contracts, and release/tombstones; product H3–H7
+integration, live application, and release are not complete**
 
 ## Fresh-session continuation
 
@@ -21,8 +21,8 @@ depending on prior conversation:
 3. `docs/POCKETRISU-1.10-BG-AC-FRESH-START-INSTRUCTIONS.md` — reproducible
    startup and first slice.
 
-The first incomplete dependency is H2 Archive Center production context
-transport and consumers. Client capability activation remains after the H3/H4
+The first incomplete dependency is H3/C5 PocketRisu host adapter and
+output-stage parity. Client capability activation remains after the H3/H4
 gates in the next-work plan.
 
 ## Authority and frozen inputs
@@ -70,15 +70,15 @@ exit criteria.
 | --- | --- | --- | --- |
 | C0-ENV | Can the fixed AC baseline and candidates run against disposable MariaDB/Chroma data without touching the future production install? | verified release staging, alternate loopback ports, readiness/schema smoke, process/readback receipt | **complete for the unmodified 4.3.1 baseline** |
 | C0-A | Can existing prepare/complete source contracts honestly represent the server host? | positive/negative Go characterization probes | **complete: new typed contracts are required** |
-| C0-B | Can one owner atomically claim a current route binding and can every terminal outcome release only its own epoch? | store-level concurrent acquire/status/settle tests plus route-remap fence | **store primitive complete; authenticated product route remains C4** |
+| C0-B | Can one owner atomically claim a current route binding and can every terminal outcome release only its own epoch? | store-level concurrent acquire/status/settle tests plus route-remap fence | **store primitive and authenticated H2 route complete; PocketRisu caller/C6 combined lifecycle remain** |
 | C0-C | Can ordered host mutations survive gaps, retries, restart, and stale workers? | durable intent/`ingestedSeq`/`safeSeq` state-machine tests | **store primitive complete; Node writer and product route remain C1/C4/C6** |
-| C0-D | Can prepare registration prevent a second paid execution after response loss or restart, and can skip fence a late result? | durable prepare registry and timeout/ready CAS tests | **store primitive complete; HTTP/provider/startup integration remains C4/C6** |
+| C0-D | Can prepare registration prevent a second paid execution after response loss or restart, and can skip fence a late result? | durable prepare registry and timeout/ready CAS tests | **store plus H2 HTTP/provider/startup/recovery integration complete; Node caller and C6 cross-owner retention remain** |
 | C0-E | Can N+1 remain outside canonical chat until its turn, and can Node commit a result with chat, metadata, effects, intent, and owner in one replay boundary? | queued-input and server-commit failure-injection harness | **complete: current owners fail; C1/C3 split primitives are required** |
 | C0-F | Do output stages remain foreground/BG-equivalent, and can a blank browser discover ownership after result TTL cleanup? | stage parity fixture and revision-bound projection fixture | **complete: current result/projection are insufficient; C2/C5/C6 contracts required** |
 | C1 | Can Node commit chat, metadata, effects, intent, owner, operation state, and receipt in one replay boundary? | split journal plus WAL-mode SQLite failure injection and recovery | **primitive implemented and called by the opted-in C2 server path; product lifecycle remains open** |
 | C2 | Can an opted-in detached BG final result reach the C1 owner and normal chat storage without a browser save? | exact route-to-owner fixture, recovery/route failure cases, complete graph lifecycle and server smoke | **internal opt-in server path implemented; current client remains unopted and C3/C6 own hydration, projection, retention, and reconciliation** |
-| C3 foundation | Can the server own pre-canonical input state, expose revision-bound message ownership, let a client adopt a committed normal chat without replaying legacy effects, and preserve one successor's exact predecessor lineage? | input/commit/projection owners, immutable same-process settings context, N+1 terminal/revision fixtures, foreground/cold-boot hydration fixtures, publication/slot race injection, complete target and graph gates | **foundation implemented; capability remains 0 until automatic drain, receipt-scoped dynamic effects, pending/chat-open reconciliation, client opt-in, and the separate C4 AC settings contract close** |
-| C4 context foundation | Can AC freeze one explicit device/backend settings snapshot without persisting or publicly hashing secret values? | typed allowlist, process-memory owner, exact replay/conflict, configuration-lock, secret-independence, captured-only resolver, capacity/restart and full race fixtures | **capture owner and resolver implemented; no HTTP/HostPrepare/provider caller, release, or product capability exists** |
+| C3 foundation | Can the server own pre-canonical input state, expose revision-bound message ownership, let a client adopt a committed normal chat without replaying legacy effects, and preserve one successor's exact predecessor lineage? | input/commit/projection owners, immutable same-process settings context, N+1 terminal/revision fixtures, foreground/cold-boot hydration fixtures, publication/slot race injection, complete target and graph gates | **foundation implemented; capability remains 0 until H3 host parity plus C6 automatic drain, receipt-scoped dynamic effects, pending/chat-open reconciliation, and client opt-in close** |
+| H2 / C4 transport and consumers | Can AC freeze one explicit device/backend snapshot, authenticate the host, join the durable claim/prepare owner, feed every final caller from captured values, recover response/restart loss, and release without resurrection? | strict transport/auth negatives, claim/prepare/context joins, typed prepare result and source acceptance v4, final-caller mutation tests, startup recovery, tombstone replay, full Go/race/MariaDB/build gates | **source and automatic evidence complete at AC `b9a5061`; no PocketRisu caller or product capability exists** |
 | H1 composed process | Does the AC-off ownership contract survive the generated `server.cjs`, request-process exit, production chat readback, blank storage, named child restart, and commit failures? | isolated child-process harness, actual SQLite and routes, real NodeStorage/chatStorage adoption, failpoints, complete server and graph lifecycle | **complete: process evidence recorded; capability remains 0 and no production implementation unit changed** |
 
 C0-B precedes the other AC write experiments because claim/binding epochs are
@@ -705,11 +705,12 @@ The isolated 4.3.1 runtime remained ready/non-degraded and was not replaced.
 
 Local AC commit `9e23861` subsequently added a captured-only effective settings
 resolver with device→backend/config fallback and existing-accessor parity. This
-is not C4 product completion. There is no external DTO decoder, authenticated
-route, execution-claim/HostPrepare join, production provider/complete accessor,
-prompt-file snapshot, startup scan, or terminal context release. Full-repository
-race, ARM64 rebuild, and L2.5 after the resolver remain open. No upstream AC
-push was attempted. The exact final source tree is additionally preserved as
+was not C4 product completion at the resolver checkpoint. At that point there
+was no external DTO decoder, authenticated route, execution-claim/HostPrepare
+join, production provider/complete accessor, prompt-file snapshot, startup
+scan, or terminal context release. The later H2 closure below supersedes those
+open items. No upstream AC push was attempted. The resolver checkpoint tree is
+additionally preserved as
 the 428,942-byte full-index patch
 `artifacts/archive-center/pocketrisu-bg-ac-026dcbf-to-9e23861.patch` with
 SHA-256 `d70dac9ef7386464ef8bc5bf9fd0259b7b4c821af321325445abc92a5e6d574d`.
@@ -762,6 +763,33 @@ process 61/61; complete server 313 pass/12 skip; patcher 52/52; reproducible
 clean exact revert. The detailed receipt is
 `docs/POCKETRISU-1.10-BG-AC-H1-COMPOSED-PROCESS-VALIDATION.md`.
 
+## H2 Archive Center transport/consumer closure
+
+Archive Center implementation commit `6968ac6` and validation commit
+`b9a5061` add the strict authenticated host transport, durable-key capture
+recovery, startup `running` to `outcome_unknown` reconciliation, captured-only
+prepare/complete/main/provider accessors, immutable prompt snapshots, typed
+prepared-payload identity, server-host prepare observation, complete source
+acceptance v4, release/tombstone replay, and private-value output fences.
+
+Observed gates include focused auth/DTO/owner/mutation tests, full Go and full
+repository race, vet, unchanged JS syntax, a clean ARM64 build, output sweep,
+and five execution/change/prepare/restart tests against a fresh disposable
+MariaDB with all 16 production migrations. The clean implementation binary was
+36,927,910 bytes with SHA-256
+`edb15263a1e4a42246599272ec99cc5e6946014119b2c35155e4b1c19842b1f2`.
+
+The current restore authority is
+`artifacts/archive-center/pocketrisu-bg-ac-026dcbf-to-b9a5061.patch`: 696,849
+bytes, mode 0644, SHA-256
+`817ea79792c23d728fd05ab760078eb47b80aad670d8612634bcbd31cc061b60`.
+An isolated public-base replay staged 47 paths and produced exact tree
+`d53b6840b2254617430120a25de85624770cc2f1`.
+
+H2 did not change PocketRisu client/server callers or capability, did not make
+a paid request, and did not touch live services or data. H3/C5 host bridge and
+actual foreground/BG payload/output parity are the next dependency.
+
 ## Existing owners to extend
 
 | Need | Existing owner | Confirmed gap |
@@ -770,9 +798,9 @@ clean exact revert. The detailed receipt is
 | Chat payload WAL | split `chatWriteJournal` prepare/write/publish/recovery phases plus C2 commit and C3 input operation rows | bounded input↔response causal reconciliation, rollback-safe settings release, and named process-kill boundaries are verified; arbitrary in-flight model resumption remains out of scope and bounded retirement/late-reference safety remain open |
 | BG lifecycle/output | generated exact-1.10 `bgOrchestrator.cjs` and `bgOrchestrate.ts` | internal flag 1 can exercise input→commit→hydrate, but capability remains 0/current client unopted; pending UI and C5 output transform remain absent |
 | BG delivery ownership | chat/root `bgOrchestrationDelivery` markers, bounded result retention, and `serverChatExecutionState` | char/chat/revision projection exists and reconciles exact owners; ordinary chat-open consumption, AC state, and owner/tombstone lifetime remain absent |
-| AC route identity | `SessionRouteBindingStore`, `HostSessionExecutionStore`, and serializable route/claim transactions | store acquire/status/settle and exact-stream watermarks exist; authenticated route, nonterminal phases, and receipt/context links remain absent |
+| AC route identity | `SessionRouteBindingStore`, `HostSessionExecutionStore`, authenticated H2 host routes, and serializable route/claim transactions | exact owner/context/prepare links and restart recovery exist; Node transport caller, durable host-change writer, and C6 multi-owner lifecycle remain absent |
 | AC source invalidation | durable source revisions, transactional invalidation/outbox fences, and the C0-C ordered host stream | store primitive is connected; Node durable writer, host transport, input/response completion, and multi-stream aggregation remain absent |
-| AC prepare/complete idempotency | durable `HostPrepareRegistryStore`, in-process complete request ledger, durable source records, and C4 process-memory execution context | typed device/backend capture and captured-only effective resolver exist; authenticated HTTP, claim/prepare join, production provider accessors, startup recovery, typed result semantics, and server-host complete receipt remain absent |
+| AC prepare/complete idempotency | durable `HostPrepareRegistryStore`, in-process complete request ledger, durable source records, and H2 process-memory execution context | authenticated HTTP, claim/prepare join, captured-only final callers, startup recovery, typed payload identity, source acceptance v4, and release replay exist; actual PocketRisu payload application and cross-process complete-response ownership remain C5/C6 |
 
 No generated `bgOrchBundle.mjs` output will be edited directly. New storage is
 additive and remains inside the existing SQLite/MariaDB owners; C0 does not add
@@ -799,8 +827,9 @@ revertible. A passing source test does not advance a later state automatically.
 8. H1 generated AC-off Node process, normal chat, blank-client, restart, and
    transaction-failure boundary (**completed at `7ce4259`; capability remains
    0**).
-9. AC C4 typed execution-context resolver/transport, then C5 JS/PocketRisu
-   host adapter and output-transform parity.
+9. AC H2/C4 execution-context transport and captured-only consumers
+   (**completed at AC `b9a5061`; capability remains 0**), then C5
+   JS/PocketRisu host adapter and output-transform parity.
 10. Integrated C6/C7 gates, runtime audit, controlled live candidate, and
    concrete device scenarios.
 
@@ -818,21 +847,22 @@ contracts are required. C1 supplies the atomic Node commit primitive, C2
 connects an explicitly negotiated detached result to it, and C3 now supplies
 owner projection, receipt hydration, an unadvertised input foundation, a
 same-process immutable PocketRisu settings context, and owner-level N+1
-predecessor advancement. C4 now also has an unmounted process-memory owner for
-one typed device/backend settings snapshot.
-C3–C6 remain responsible for completing and integrating the following product
+predecessor advancement. C4/H2 now also has authenticated transport, one typed
+device/backend context, captured-only provider/prepare/complete consumers,
+typed server-host observations, restart recovery, and explicit
+release/tombstones.
+C3/C5/C6 remain responsible for completing and integrating the following product
 evidence:
 
 - one fenced execution owner across concurrent foreground/server acquire,
   route remap, late settle, and every terminal outcome;
 - contiguous durable host mutation ingestion and a separately established safe
   read boundary, including stale worker writes;
-- canonical/payload prepare meaning checks, HTTP-200 suppression distinction,
-  and v1–v3 complete regression coverage;
-- durable prepare ready/running/unknown/skip behavior without automatic paid
-  replay;
-- effective resolution/transport/provider reuse of the captured AC
-  device/backend context plus automatic pre-canonical N+1 drain,
+- actual PocketRisu application of the typed prepared payload and the HTTP-200
+  suppression distinction at the host bridge;
+- host-side use of durable prepare ready/running/unknown/skip behavior without
+  automatic paid replay;
+- automatic pre-canonical N+1 drain,
   receipt-scoped dynamic-effect lineage, pending UI, one input transform, and
   explicit blocked-edit recovery;
 - chat/metadata/effect/intent/owner commit recovery across injected process and

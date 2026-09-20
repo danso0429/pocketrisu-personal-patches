@@ -2,21 +2,21 @@
 
 - Instruction date: 2026-09-20 KST
 - Starting implementation/evidence checkpoint: `7ce4259`
-- First implementation objective: H2 C4 production context transport and consumers
+- Starting Archive Center H2 checkpoint: `b9a5061`
+- First implementation objective: H3 C5 host adapter and output-stage parity
 - Capability at start: disabled (`inputCommandVersion=0`)
-- Live deployment at start: prohibited by the H2 source slice
+- Live deployment at start: prohibited by the H3 source slice
 
 ## 1. Session objective
 
 Reconstruct the current source and evidence state without relying on prior
-conversation, accept the completed H1 process boundary unless source or
-evidence contradicts it, then continue with the first incomplete dependency:
-strict authenticated Archive Center context transport, claim/prepare/context
-joining, captured-only production consumers, prompt snapshotting, and context
-release/retention.
+conversation, accept the completed H1 process boundary and H2 Archive Center
+transport/consumer boundary unless source or evidence contradicts them, then
+continue with the first incomplete dependency: the minimum PocketRisu host
+adapter and foreground/BG output-stage parity.
 
-Do not begin by rerunning H1, redesigning the integration, applying to live, or
-raising the capability version.
+Do not begin by rerunning H1/H2, redesigning the integration, applying to live,
+or raising the capability version.
 
 ## 2. Initial repository discovery
 
@@ -52,7 +52,10 @@ Read these files in full:
 6. `docs/POCKETRISU-1.10-BG-AC-C3-CONNECTION-HARDENING-VALIDATION.md`;
 7. `docs/POCKETRISU-1.10-BG-AC-H1-COMPOSED-PROCESS-VALIDATION.md`;
 8. `docs/POCKETRISU-1.10-BG-AC-C4-INDEPENDENT-SNAPSHOT-VALIDATION.md`;
-9. `docs/PATCHER-V2-DESIGN.md`.
+9. `docs/POCKETRISU-1.10-BG-AC-ARCHIVE-CENTER-SOURCE-SNAPSHOT.md`;
+10. the local/restored AC `docs/pocketrisu-host-context-h2-validation.md` (if
+    no candidate exists yet, read it immediately after section 5 restore);
+11. `docs/PATCHER-V2-DESIGN.md`.
 
 Use the integration progress report as a detailed map when a file, commit, test
 count, environment fact, or earlier decision must be traced. Do not reread all
@@ -103,15 +106,15 @@ Always verify the tracked patch before using it:
 
 ```bash
 sha256sum \
-  artifacts/archive-center/pocketrisu-bg-ac-026dcbf-to-9e23861.patch
+  artifacts/archive-center/pocketrisu-bg-ac-026dcbf-to-b9a5061.patch
 stat -c '%s %a %n' \
-  artifacts/archive-center/pocketrisu-bg-ac-026dcbf-to-9e23861.patch
+  artifacts/archive-center/pocketrisu-bg-ac-026dcbf-to-b9a5061.patch
 ```
 
 Expected values:
 
-- SHA-256: `d70dac9ef7386464ef8bc5bf9fd0259b7b4c821af321325445abc92a5e6d574d`;
-- size: 428,942 bytes;
+- SHA-256: `817ea79792c23d728fd05ab760078eb47b80aad670d8612634bcbd31cc061b60`;
+- size: 696,849 bytes;
 - mode: 644.
 
 When AC source work becomes necessary, create a new disposable checkout from
@@ -120,18 +123,18 @@ worktree. In the disposable checkout:
 
 ```bash
 git switch --detach 026dcbf3b45adcf69b254673d439b24e943115b3
-git apply --check /path/to/pocketrisu-bg-ac-026dcbf-to-9e23861.patch
-git apply --index /path/to/pocketrisu-bg-ac-026dcbf-to-9e23861.patch
+git apply --check /path/to/pocketrisu-bg-ac-026dcbf-to-b9a5061.patch
+git apply --index /path/to/pocketrisu-bg-ac-026dcbf-to-b9a5061.patch
 git diff --cached --name-only
 git write-tree
 ```
 
-Require 28 unique staged paths and tree
-`7806dd39f4acfa294ee67f9d7834bc6fed448730`.
+Require 47 unique staged paths and tree
+`d53b6840b2254617430120a25de85624770cc2f1`.
 
-H2 changes Archive Center source, so reconstruct the candidate before editing
-and require the exact path count and tree ID. Do not replace or reset the
-existing local candidate to perform this check.
+H3 changes PocketRisu and depends on the Archive Center contract, so restore or
+verify the exact H2 candidate before editing the bridge. Do not replace or
+reset an existing local candidate to perform this check.
 
 ## 6. Establish the fact baseline
 
@@ -142,28 +145,29 @@ these facts:
   contracts;
 - C1 and C2 are implemented internal owners;
 - C3 foundations and R1–R5 fixes exist, but ordinary clients are unopted;
-- C4 has an unmounted context owner/resolver only;
+- H2/C4 authenticated transport, captured-only consumers, prompt snapshots,
+  restart recovery, and release/tombstones are complete at `b9a5061`;
 - H1 composed-process evidence is complete at `7ce4259`;
 - C5 and C6 are not implemented;
 - C7 has not been performed;
 - `inputCommandVersion=0` and `inputCommandFoundationVersion=4`;
-- the first task is H2 strict transport/context consumers;
+- the first task is H3/C5 host adapter and output parity;
 - C6 gates precede capability promotion;
 - live PocketRisu, PM2, user data, provider traffic, AC runtime, tags, and
-  releases are outside the first slice.
+  releases are outside the H3 source slice.
 
 If any inspected source contradicts this list, investigate and update the
 handoff documents before implementation.
 
-## 7. Closed H1 reference and H2 source surface
+## 7. Closed H1/H2 reference and H3 source surface
 
 Sections 8, 9, and 12 below preserve the exact H1 procedure and report shape
-as closed historical instructions. Do not repeat them at session start. Re-run
-H1 only when relevant PocketRisu source changes, the environment is no longer
-equivalent, or contradictory evidence appears.
+as closed historical instructions. Do not repeat H1 or H2 at session start.
+Re-run a closed gate only when relevant source changes, the environment is no
+longer equivalent, or contradictory evidence appears.
 
-For H2, inspect the restored Archive Center candidate and the current public
-callers before editing:
+For H3, inspect the restored H2 Archive Center contract and the current
+PocketRisu call sites before editing:
 
 ```text
 go-service/internal/httpapi/pocketrisu_execution_context.go
@@ -179,11 +183,14 @@ go-service/internal/httpapi/prepare_turn_multi_agent.go
 go-service/internal/httpapi/turn_extraction.go
 go-service/internal/httpapi/turn_extraction_critic.go
 go-service/internal/httpapi/runtime_config.go
+go-service/internal/httpapi/group_pocketrisu_host.go
+go-service/internal/httpapi/pocketrisu_execution_context_consumer.go
+docs/pocketrisu-host-context-h2-validation.md
 ```
 
-Also inspect the H1 PocketRisu owners and generated target only to define the
-future transport caller. Do not modify PocketRisu capability or client wiring
-during the first H2 source slice.
+Then inspect the H1 PocketRisu owners and generated target to implement the
+minimum transport caller. H3 may add bridge wiring and pure parity helpers, but
+must not raise the capability or live-apply the candidate.
 
 ### Closed H1 source list
 
@@ -349,9 +356,9 @@ For each completed slice:
 9. push the private candidate branch;
 10. verify local and upstream commit IDs and a clean worktree.
 
-Do not create a stable tag or release during H2.
+Do not create a stable tag or release during H3.
 
-## 11. Actions prohibited in the H2 source slice
+## 11. Actions prohibited in the H3 source slice
 
 - do not modify or delete live user data;
 - do not cancel queued or active generation;
@@ -388,23 +395,22 @@ When H1 closes, record:
 12. confirmation that live services, data, provider, tag, and release were not
     changed.
 
-## 13. Continue with H2
+## 13. Continue with H3
 
-H1 passed at `7ce4259`. Begin H2 in
+H1 passed at `7ce4259` and H2 passed at AC validation tip `b9a5061`. Begin H3 in
 `POCKETRISU-1.10-BG-AC-NEXT-WORK-PLAN.md` unless a real blocker or a new
-user-visible design decision appears. The first H2 commit defines strict DTO,
-body-size, unknown-field, mandatory-auth, version, and typed-error contracts
-without advertising capability. Follow with claim/HostPrepare/context joining,
-context lifecycle, then captured-only prepare/complete/provider consumers and
-prompt snapshots. Preserve v1–v3 behavior and add the v4 server-host contracts
-only behind their exact host/version fence.
+user-visible design decision appears. Export only the minimum device/host
+observation contract, add the PocketRisu API v3 bridge behind capability 0,
+observe actual payload application, and share one pure output
+sanitize/prefill contract between foreground and BG paths. Preserve AC-off
+behavior and keep stable publication blocked.
 
 The complete continuation order is:
 
 ```text
 H1 composed AC-off process [complete]
-  -> H2 C4 context transport/consumers [next]
-  -> H3 C5 output parity
+  -> H2 C4 context transport/consumers [complete]
+  -> H3 C5 host adapter/output parity [next]
   -> H4 C6 lifecycle/retention
   -> H5 client activation
   -> H6 live/browser/iPhone qualification

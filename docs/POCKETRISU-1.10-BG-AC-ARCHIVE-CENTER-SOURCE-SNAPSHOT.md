@@ -1,15 +1,15 @@
 # Archive Center PocketRisu BG×AC candidate source snapshot
 
-- Patch: `artifacts/archive-center/pocketrisu-bg-ac-026dcbf-to-9e23861.patch`
+- Patch: `artifacts/archive-center/pocketrisu-bg-ac-026dcbf-to-b9a5061.patch`
 - Patch format: Git full-index binary diff
-- Patch size: 428,942 bytes
+- Patch size: 696,849 bytes
 - Patch mode: 0644
-- Patch SHA-256: `d70dac9ef7386464ef8bc5bf9fd0259b7b4c821af321325445abc92a5e6d574d`
+- Patch SHA-256: `817ea79792c23d728fd05ab760078eb47b80aad670d8612634bcbd31cc061b60`
 - Required public base: `026dcbf3b45adcf69b254673d439b24e943115b3`
-- Candidate source tip: `9e23861901f15cae46817158a21ea873bbde6fe1`
-- Expected candidate tree: `7806dd39f4acfa294ee67f9d7834bc6fed448730`
-- Candidate history: 15 local commits
-- Candidate changed paths: 28
+- Candidate source tip: `b9a50611fb82748cda40a6b5019f866bed75701d`
+- Expected candidate tree: `d53b6840b2254617430120a25de85624770cc2f1`
+- Candidate history: 18 local commits
+- Candidate changed paths: 47
 
 ## Purpose
 
@@ -29,9 +29,9 @@ the expected tree ID is the exact restored-source authority.
 From this repository root:
 
 ```bash
-sha256sum artifacts/archive-center/pocketrisu-bg-ac-026dcbf-to-9e23861.patch
+sha256sum artifacts/archive-center/pocketrisu-bg-ac-026dcbf-to-b9a5061.patch
 git -C /path/to/archive-center-at-026dcbf apply --check \
-  /path/to/pocketrisu-bg-ac-026dcbf-to-9e23861.patch
+  /path/to/pocketrisu-bg-ac-026dcbf-to-b9a5061.patch
 ```
 
 ## Restore into a public-base checkout
@@ -41,25 +41,29 @@ new worktree; do not replace an unrelated worktree or discard local changes.
 
 ```bash
 git switch --detach 026dcbf3b45adcf69b254673d439b24e943115b3
-git apply --index /path/to/pocketrisu-bg-ac-026dcbf-to-9e23861.patch
+git apply --index /path/to/pocketrisu-bg-ac-026dcbf-to-b9a5061.patch
 git diff --cached --name-only
 git write-tree
 ```
 
-The path list must contain 28 unique paths and `git write-tree` must print:
+The path list must contain 47 unique paths and `git write-tree` must print:
 
 ```text
-7806dd39f4acfa294ee67f9d7834bc6fed448730
+d53b6840b2254617430120a25de85624770cc2f1
 ```
 
 This is source recovery evidence, not proof that tests, MariaDB migrations,
 race detection, ARM64 builds, or runtime integration passed in the restoring
 environment.
 
-On 2026-09-20, an empty temporary repository fetched the exact public base from
-the public remote and applied this patch with `git apply --index`. The staged
-diff contained 28 paths and `git write-tree` exactly matched the candidate
-source tree above.
+On 2026-09-20, an independent temporary clone checked out the exact public
+base and applied this patch with `git apply --index`. The staged diff contained
+47 paths and `git write-tree` exactly matched the candidate source tree above.
+The temporary clone was removed after verification.
+
+The earlier C4 resolver checkpoint patch
+`pocketrisu-bg-ac-026dcbf-to-9e23861.patch` remains retained as historical
+evidence. It is not the current H2 restore authority.
 
 ## Source commit provenance
 
@@ -81,6 +85,9 @@ d15acbd fix(store): fence prepare on pending host changes
 694c6e8 feat(host): freeze PocketRisu execution context
 c6ec332 docs(host): record C4 execution context validation
 9e23861 feat(host): resolve captured execution settings
+fbe5162 feat(host): add PocketRisu transport lifecycle
+6968ac6 feat(host): bind captured PocketRisu consumers
+b9a5061 docs(host): record H2 context validation
 ```
 
 ## Publication boundary

@@ -1,5 +1,9 @@
 # Archive Center C4 independent source-snapshot validation
 
+Status: **historical resolver checkpoint; current H2 source authority is
+`POCKETRISU-1.10-BG-AC-ARCHIVE-CENTER-SOURCE-SNAPSHOT.md` and restored AC
+`docs/pocketrisu-host-context-h2-validation.md`**
+
 - Validation date: 2026-09-20 KST
 - Public base: `026dcbf3b45adcf69b254673d439b24e943115b3`
 - Source candidate: `9e23861901f15cae46817158a21ea873bbde6fe1`

@@ -2,10 +2,12 @@
 
 - Plan date: 2026-09-20 KST
 - Current implementation/evidence checkpoint: `7ce4259`
+- Current Archive Center H2 checkpoint: `b9a5061`
 - Product capability at start: `inputCommandVersion=0`
 - Live application at start: none
 - Stable-release authority: not granted by this plan
-- H1 status: complete; next dependency: H2
+- H1 status: complete
+- H2 status: complete; next dependency: H3/C5
 
 ## 1. Outcome
 
@@ -39,7 +41,7 @@ The continuation does not add:
 ```text
 H0 checkpoint revalidation [complete]
   -> H1 AC-off composed process boundary [complete]
-      -> H2 C4 production context transport and consumers
+      -> H2 C4 production context transport and consumers [complete]
           -> H3 C5 host adapter and output parity
               -> H4 C6 unified lifecycle and retention
                   -> H5 C3 client activation and automatic drain
@@ -87,7 +89,7 @@ unverified AC tree.
    zero.
 3. Confirm the public plan commit and SHA-256.
 4. Confirm the AC source patch hash and, if AC work is imminent, restore it in
-   a disposable checkout and verify the 28-path tree ID.
+   a disposable checkout and verify the 47-path tree ID.
 5. Read current live state only; do not mutate it.
 6. Record any contradiction before changing source.
 
@@ -330,6 +332,23 @@ restart loss has a typed outcome, and lifecycle release cannot invalidate a
 still-referenced owner.
 
 No PocketRisu client capability is raised at this gate.
+
+### 7.9 Observed closure
+
+H2 closed at Archive Center implementation commit `6968ac6` and validation
+commit `b9a5061`. The exact public-base replay is preserved as
+`artifacts/archive-center/pocketrisu-bg-ac-026dcbf-to-b9a5061.patch` and
+restores tree `d53b6840b2254617430120a25de85624770cc2f1` across 47 paths.
+
+Observed gates include strict auth/DTO negatives, captured-value mutation at
+all final roles, typed prepare payload identity, source acceptance v4,
+response-loss/restart recovery, release/tombstone replay, full Go and full race,
+vet, JS syntax, ARM64 build, sensitive-output sweep, and five real-MariaDB
+execution/change/prepare/restart tests. The detailed receipt is restored with
+the AC tree at `docs/pocketrisu-host-context-h2-validation.md`.
+
+Capability remains 0. H2 did not add a PocketRisu caller, live apply, provider
+call, tag, release, or upstream Archive Center push.
 
 ## 8. H3 — C5 host adapter and output-stage parity
 
