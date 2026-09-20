@@ -21,7 +21,7 @@ const bgGlobalApiUnits = [
 module.exports = {
     id: 'lazy-chat-bg-adapter',
     title: 'BG preserve integration for lazy chat storage',
-    version: '0.7.0',
+    version: '0.7.1',
     targets: {
         pocketrisu: {
             verified: ['1.8.1', '1.9.0', '1.10.0'],
@@ -799,6 +799,51 @@ function retainUncommittedServerChat(
             requires: [
                 'lazy-chat-bg-adapter:server-chat-commit-missing-result:1.10',
                 'lazy-chat-bg-adapter:owned:server-chat-commit-owner:1.10',
+            ],
+            targetVersions: pocketRisu1100,
+        },
+        {
+            id: 'lazy-chat-bg-adapter:owned:server-chat-process-preload:1.10',
+            file: 'server/node/bgServerChatProcessPreload.cjs',
+            type: 'owned',
+            content: owned1100('server/node/bgServerChatProcessPreload.cjs'),
+            requires: [
+                'lazy-chat-bg-adapter:owned:server-chat-commit-owner:1.10',
+                'lazy-chat-bg-adapter:owned:server-chat-input-owner:1.10',
+            ],
+            targetVersions: pocketRisu1100,
+        },
+        {
+            id: 'lazy-chat-bg-adapter:owned:server-chat-process-client:1.10',
+            file: 'server/node/bgServerChatProcessClient.cjs',
+            type: 'owned',
+            content: owned1100('server/node/bgServerChatProcessClient.cjs'),
+            requires: [
+                'lazy-chat-bg-adapter:owned:server-chat-process-preload:1.10',
+                'lazy-chat-sync:replace:server:node:server-cjs:1.10',
+            ],
+            targetVersions: pocketRisu1100,
+        },
+        {
+            id: 'lazy-chat-bg-adapter:owned:server-chat-process-adoption-test:1.10',
+            file: 'src/ts/storage/bgServerChatProcessAdoption.test.ts',
+            type: 'owned',
+            content: owned1100('src/ts/storage/bgServerChatProcessAdoption.test.ts'),
+            requires: [
+                'lazy-chat-bg-adapter:owned:server-chat-process-client:1.10',
+                'lazy-chat-bg-adapter:server-committed-chat-adoption:1.10',
+            ],
+            targetVersions: pocketRisu1100,
+        },
+        {
+            id: 'lazy-chat-bg-adapter:owned:server-chat-process-boundary-test:1.10',
+            file: 'server/node/bgServerChatProcessBoundary.test.ts',
+            type: 'owned',
+            content: owned1100('server/node/bgServerChatProcessBoundary.test.ts'),
+            requires: [
+                'lazy-chat-bg-adapter:owned:server-chat-commit-routes-test:1.10',
+                'lazy-chat-bg-adapter:owned:server-chat-process-client:1.10',
+                'lazy-chat-bg-adapter:owned:server-chat-process-adoption-test:1.10',
             ],
             targetVersions: pocketRisu1100,
         },
