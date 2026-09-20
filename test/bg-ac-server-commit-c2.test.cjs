@@ -18,7 +18,7 @@ function unit(id) {
 }
 
 test('C2: exact-1.10 lazy BG graph owns the server commit adapter and route precedence', () => {
-    assert.equal(adapter.version, '0.6.0')
+    assert.equal(adapter.version, '0.7.0')
     const resolution = resolveSelection(loadCatalog(), ['lazy-chat-sync', 'bg-preserve'])
     assert.ok(resolution.resolvedIds.includes('lazy-chat-bg-adapter'))
     const units1100 = flattenUnits(resolution.packs, target1100)

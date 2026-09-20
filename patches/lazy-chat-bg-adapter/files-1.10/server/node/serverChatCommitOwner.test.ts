@@ -5,18 +5,21 @@ import path from 'node:path'
 import Database from 'better-sqlite3'
 import { afterEach, describe, expect, it } from 'vitest'
 import commitPackage from './serverChatCommit.cjs'
+import inputPackage from './serverChatInputOwner.cjs'
 import journalPackage from './chatWriteJournal.cjs'
 import operationPackage from './bgOrchestrationOperationStore.cjs'
 import ownerPackage from './serverChatCommitOwner.cjs'
 import utilsPackage from './utils.cjs'
 
 const { commitStorageKey, stableJSON } = commitPackage as any
+const { createServerChatInputOwner } = inputPackage as any
 const { createChatWriteJournal } = journalPackage as any
 const { operationResultKey, operationStateKey } = operationPackage as any
 const {
     SERVER_CHAT_COMMIT_APPLIED_FIELD,
     SERVER_CHAT_COMMIT_SEQUENCE_KEY,
     createServerChatCommitOwner,
+    reconcileServerChatRecovery,
 } = ownerPackage as any
 const { decodeRisuSave, encodeRisuSaveLegacy } = utilsPackage as any
 
@@ -67,6 +70,38 @@ function result(chat: any, from: string, to: string) {
     }
 }
 
+function inputAdmission(operationId: string, chat: any, rawText: string) {
+    return {
+        operationId,
+        inputCommandId: `input-${operationId}`,
+        userMessageId: `user-${operationId}`,
+        charId: 'char-1',
+        chatId: 'chat-1',
+        rawText,
+        submittedBaseRevision: revision(chat),
+        submittedAt: 1_700_000_000_000,
+    }
+}
+
+function inputTransform(operationId: string, chat: any, rawText: string) {
+    return {
+        chat: {
+            ...structuredClone(chat),
+            message: [
+                ...structuredClone(chat.message),
+                {
+                    role: 'user',
+                    data: rawText,
+                    chatId: `user-${operationId}`,
+                    time: 1_700_000_000_000,
+                    name: null,
+                },
+            ],
+        },
+        globalIntent: { changed: {}, deleted: [], expected: {} },
+    }
+}
+
 function makeHarness() {
     const root = fs.mkdtempSync(path.join(os.tmpdir(), 'server-chat-owner-c2-'))
     const db = new Database(path.join(root, 'owner.sqlite'))
@@ -83,7 +118,12 @@ function makeHarness() {
     const kvGet = (key: string) => (
         get.get(key) as { value?: string | Buffer } | undefined
     )?.value ?? null
+    let failNextKey: string | null = null
     const kvSet = (key: string, value: string | Buffer | Uint8Array) => {
+        if (failNextKey === key) {
+            failNextKey = null
+            throw new Error('injected-owner-write-failure')
+        }
         set.run(key, typeof value === 'string' ? value : Buffer.from(value), Date.now())
     }
     const kvDel = (key: string) => del.run(key)
@@ -121,8 +161,7 @@ function makeHarness() {
         encode: encodeRisuSaveLegacy,
         decode: decodeRisuSave,
     })
-    const makeOwner = (journal = makeJournal()) => createServerChatCommitOwner({
-        chatWriteJournal: journal,
+    const ownerDependencies = {
         kvGet,
         kvSet,
         kvDel,
@@ -143,6 +182,19 @@ function makeHarness() {
             runtime.database = database
         },
         scheduleChatStorePersist: () => { runtime.schedules += 1 },
+    }
+    const makeInputOwner = (journal = makeJournal()) => createServerChatInputOwner({
+        ...ownerDependencies,
+        chatWriteJournal: journal,
+        encodeSettingsSnapshot: encodeRisuSaveLegacy,
+    })
+    const makeOwner = (
+        journal = makeJournal(),
+        serverChatInputOwner: any = null,
+    ) => createServerChatCommitOwner({
+        ...ownerDependencies,
+        chatWriteJournal: journal,
+        serverChatInputOwner,
     })
     const primeOperation = (
         operationId: string,
@@ -184,13 +236,51 @@ function makeHarness() {
         kvSet,
         kvList,
         makeJournal,
+        makeInputOwner,
         makeOwner,
         primeOperation,
         commitInput,
+        failNextWriteTo(key: string) { failNextKey = key },
     }
 }
 
 describe('server-owned BG chat commit', () => {
+    it('stops startup reconciliation after the same pending signature repeats', async () => {
+        let inputPasses = 0
+        let commitPasses = 0
+        const recovered = await reconcileServerChatRecovery({
+            serverChatInputOwner: {
+                recoverAll: async () => {
+                    inputPasses += 1
+                    return [{
+                        operationId: 'operation-c3-recovery-stalled-1',
+                        status: 'blocked',
+                        reason: 'settings_context_unavailable',
+                    }]
+                },
+            },
+            serverChatCommitOwner: {
+                recoverAll: async () => {
+                    commitPasses += 1
+                    return []
+                },
+            },
+        })
+
+        expect(recovered).toMatchObject({
+            passes: 2,
+            stalled: true,
+            pendingInputs: [{
+                operationId: 'operation-c3-recovery-stalled-1',
+                status: 'blocked',
+                reason: 'settings_context_unavailable',
+            }],
+            pendingCommits: [],
+        })
+        expect(inputPasses).toBe(2)
+        expect(commitPasses).toBe(2)
+    })
+
     it('keeps ordinary startup lazy when no commit recovery row exists', async () => {
         const harness = makeHarness()
         await expect(harness.makeOwner().recoverAll()).resolves.toEqual([])
@@ -538,5 +628,130 @@ describe('server-owned BG chat commit', () => {
         expect(harness.kvGet(operationStateKey(unrelatedOperation))).not.toBeNull()
         expect(harness.kvGet(operationResultKey(unrelatedOperation))).not.toBeNull()
         expect(harness.kvList('internal/chat-write/v1/')).toHaveLength(1)
+    })
+
+    it('retains the volatile settings context when a later commit write rolls back', async () => {
+        const harness = makeHarness()
+        const journal = harness.makeJournal()
+        const inputOwner = harness.makeInputOwner(journal)
+        const commitOwner = harness.makeOwner(journal, inputOwner)
+        const operationId = 'operation-c3-rollback-settings-1'
+        const initial = baseChat()
+
+        await inputOwner.admit(inputAdmission(operationId, initial, 'next input'))
+        await inputOwner.beginTransform(operationId)
+        const attached = await inputOwner.attachTransformed(
+            operationId,
+            inputTransform(operationId, initial, 'next input'),
+        )
+        const inputChat = attached.record
+            ? harness.runtime.fullStore.get('char-1')?.get('chat-1')
+            : null
+        const finalChat = withAnswer(inputChat, 'answer after input', 'assistant-rollback-1')
+        harness.primeOperation(operationId, 'chat-1', 'running-result-consumed')
+        harness.failNextWriteTo(SERVER_CHAT_COMMIT_SEQUENCE_KEY)
+
+        await expect(commitOwner.commitGenerationResult({
+            ...harness.commitInput(
+                operationId,
+                result(finalChat, 'old', 'new'),
+                inputChat.message.length,
+                attached.record.executionBaseRevision,
+            ),
+            settingsDigest: attached.record.admission.settingsContextDigest,
+            inputReceipt: attached.record.inputReceipt,
+        })).rejects.toThrow('Server chat commit transaction failed')
+
+        expect(inputOwner.read(operationId)).toMatchObject({
+            inputState: 'attached',
+            terminal: null,
+        })
+        expect(inputOwner.loadSettingsSnapshot(operationId)).toMatchObject({
+            status: 'ready',
+            contextDigest: attached.record.admission.settingsContextDigest,
+        })
+        expect(inputOwner.settingsSnapshotStats()).toMatchObject({ contexts: 1 })
+        expect(harness.kvGet(commitStorageKey(operationId))).toBeNull()
+    })
+
+    it('reconciles input and response journals in causal passes after restart', async () => {
+        const harness = makeHarness()
+        const journal = harness.makeJournal()
+        const inputOwner = harness.makeInputOwner(journal)
+        const commitOwner = harness.makeOwner(journal, inputOwner)
+        const firstOperation = 'operation-c3-recovery-chain-1'
+        const secondOperation = 'operation-c3-recovery-chain-2'
+        const initial = baseChat()
+
+        await inputOwner.admit(inputAdmission(firstOperation, initial, 'first input'))
+        await inputOwner.beginTransform(firstOperation)
+        const firstAttached = await inputOwner.attachTransformed(
+            firstOperation,
+            inputTransform(firstOperation, initial, 'first input'),
+        )
+        const firstInputChat = structuredClone(
+            harness.runtime.fullStore.get('char-1')?.get('chat-1'),
+        )
+        const firstResultChat = withAnswer(
+            firstInputChat,
+            'first answer',
+            'assistant-recovery-chain-1',
+        )
+        harness.primeOperation(firstOperation, 'chat-1', 'running-result-consumed')
+        await commitOwner.commitGenerationResult({
+            ...harness.commitInput(
+                firstOperation,
+                result(firstResultChat, 'old', 'new'),
+                firstInputChat.message.length,
+                firstAttached.record.executionBaseRevision,
+            ),
+            settingsDigest: firstAttached.record.admission.settingsContextDigest,
+            inputReceipt: firstAttached.record.inputReceipt,
+        })
+
+        await inputOwner.admit(inputAdmission(secondOperation, firstResultChat, 'second input'))
+        await inputOwner.beginTransform(secondOperation)
+        await inputOwner.attachTransformed(
+            secondOperation,
+            inputTransform(secondOperation, firstResultChat, 'second input'),
+        )
+
+        harness.runtime.database = {
+            characters: [{
+                chaId: 'char-1',
+                chats: [{ id: 'chat-1', name: 'Synthetic chat', _stub: true, modules: [] }],
+            }],
+            globalChatVariables: { mood: 'old' },
+            statics: { messages: 10 },
+        }
+        harness.runtime.fullStore = new Map([
+            ['char-1', new Map([['chat-1', initial]])],
+        ])
+
+        const restartedJournal = harness.makeJournal()
+        const restartedInputOwner = harness.makeInputOwner(restartedJournal)
+        const restartedCommitOwner = harness.makeOwner(
+            restartedJournal,
+            restartedInputOwner,
+        )
+        const recovered = await reconcileServerChatRecovery({
+            serverChatInputOwner: restartedInputOwner,
+            serverChatCommitOwner: restartedCommitOwner,
+        })
+
+        expect(recovered).toMatchObject({ stalled: false })
+        expect(recovered.passes).toBeGreaterThanOrEqual(2)
+        expect(recovered.pendingInputs).toEqual([])
+        expect(recovered.pendingCommits).toEqual([])
+        expect(harness.runtime.fullStore.get('char-1')?.get('chat-1')?.message
+            .map((message: any) => message.chatId)).toEqual([
+            'user-1',
+            `user-${firstOperation}`,
+            'assistant-recovery-chain-1',
+            `user-${secondOperation}`,
+        ])
+        expect(restartedInputOwner.read(secondOperation)).toMatchObject({
+            inputState: 'attached',
+        })
     })
 })

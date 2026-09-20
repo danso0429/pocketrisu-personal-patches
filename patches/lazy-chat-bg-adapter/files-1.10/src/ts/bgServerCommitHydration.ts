@@ -58,6 +58,23 @@ export function serverChatCommitReceipt(data: unknown): ServerChatCommitReceiptV
     return receipt as ServerChatCommitReceiptV1
 }
 
+export type ServerChatDeliveryDisposition =
+    | 'legacy-client-owned'
+    | 'server-committed'
+    | 'server-owned-uncommitted'
+
+export function serverChatDeliveryDisposition(
+    data: unknown,
+): ServerChatDeliveryDisposition {
+    if (serverChatCommitReceipt(data)) return 'server-committed'
+    if (!data || typeof data !== 'object') return 'legacy-client-owned'
+    const source = (data as any).serverChatCommit
+    return (data as any).serverChatCommitVersion === 1
+        || (!!source && typeof source === 'object')
+        ? 'server-owned-uncommitted'
+        : 'legacy-client-owned'
+}
+
 function validProjection(
     value: unknown,
     receipt: ServerChatCommitReceiptV1,

@@ -292,6 +292,90 @@ function publishMetadata(database, charId, metadata) {
     database.characters = characters;
 }
 
+function pendingInputRecovery(results) {
+    return results.filter((entry) => (
+        entry.status === 'pending_recovery' || entry.status === 'blocked'
+    ));
+}
+
+function pendingCommitRecovery(results) {
+    return results.filter((entry) => (
+        entry.status !== 'committed' || entry.publication === 'pending_recovery'
+    ));
+}
+
+function recoveryPendingSignature(inputs, commits) {
+    return stableJSON({
+        inputs: inputs.map((entry) => ({
+            operationId: entry.operationId || null,
+            status: entry.status || null,
+            reason: entry.reason || null,
+        })),
+        commits: commits.map((entry) => ({
+            key: entry.key || null,
+            operationId: entry.receipt?.operationId || null,
+            status: entry.status || null,
+            reason: entry.reason || null,
+            publication: entry.publication || null,
+        })),
+    });
+}
+
+async function reconcileServerChatRecovery({
+    serverChatInputOwner,
+    serverChatCommitOwner,
+}) {
+    if (!serverChatInputOwner || typeof serverChatInputOwner.recoverAll !== 'function'
+        || !serverChatCommitOwner || typeof serverChatCommitOwner.recoverAll !== 'function') {
+        throw new Error('server chat recovery owners are unavailable');
+    }
+    let previousPendingSignature = null;
+    let passLimit = 2;
+    let inputResults = [];
+    let commitResults = [];
+    let pendingInputs = [];
+    let pendingCommits = [];
+    for (let pass = 1; pass <= passLimit; pass += 1) {
+        inputResults = await serverChatInputOwner.recoverAll();
+        commitResults = await serverChatCommitOwner.recoverAll();
+        if (pass === 1) {
+            passLimit = Math.max(2, inputResults.length + commitResults.length + 1);
+        }
+        pendingInputs = pendingInputRecovery(inputResults);
+        pendingCommits = pendingCommitRecovery(commitResults);
+        if (pendingInputs.length === 0 && pendingCommits.length === 0) {
+            return {
+                passes: pass,
+                stalled: false,
+                inputResults,
+                commitResults,
+                pendingInputs,
+                pendingCommits,
+            };
+        }
+        const signature = recoveryPendingSignature(pendingInputs, pendingCommits);
+        if (signature === previousPendingSignature) {
+            return {
+                passes: pass,
+                stalled: true,
+                inputResults,
+                commitResults,
+                pendingInputs,
+                pendingCommits,
+            };
+        }
+        previousPendingSignature = signature;
+    }
+    return {
+        passes: passLimit,
+        stalled: true,
+        inputResults,
+        commitResults,
+        pendingInputs,
+        pendingCommits,
+    };
+}
+
 function createServerChatCommitOwner({
     chatWriteJournal,
     kvGet,
@@ -332,6 +416,14 @@ function createServerChatCommitOwner({
             throw new Error(`server chat commit owner dependency is missing: ${name}`);
         }
     }
+    if (serverChatInputOwner && (
+        typeof serverChatInputOwner.read !== 'function'
+        || typeof serverChatInputOwner.settleDurablySynchronously !== 'function'
+        || typeof serverChatInputOwner.releaseSettingsContext !== 'function'
+        || typeof serverChatInputOwner.markResultPublishedSynchronously !== 'function'
+    )) {
+        throw new Error('server chat input owner lifecycle dependency is incomplete');
+    }
 
     const committer = createServerChatCommitter({
         journal: chatWriteJournal,
@@ -367,7 +459,8 @@ function createServerChatCommitOwner({
             if (inputCommand) {
                 if (inputCommand.inputReceipt?.receiptId !== request.inputReceipt.receiptId
                     || inputCommand.executionBaseRevision !== request.baseChatRevision
-                    || !serverChatInputOwner.settleSynchronously(
+                    || typeof serverChatInputOwner.settleDurablySynchronously !== 'function'
+                    || !serverChatInputOwner.settleDurablySynchronously(
                         request.operationId,
                         'completed',
                         request.storedRevision,
@@ -459,6 +552,24 @@ function createServerChatCommitOwner({
             scheduleChatStorePersist();
         },
     });
+
+    function finalizeInputCommit(outcome) {
+        if (!serverChatInputOwner || outcome?.status !== 'committed'
+            || !outcome.receipt || typeof outcome.receipt.operationId !== 'string'
+            || outcome.receipt.operationId.length === 0) {
+            return;
+        }
+        serverChatInputOwner.releaseSettingsContext(outcome.receipt.operationId);
+        if (outcome.publication !== 'published') return;
+        try {
+            serverChatInputOwner.markResultPublishedSynchronously(
+                outcome.receipt.operationId,
+                outcome.receipt.storedRevision,
+            );
+        } catch {
+            // The durable commit remains authoritative. Startup reconciliation retries the marker.
+        }
+    }
 
     async function currentRevision(charId, chatId) {
         await ensureCanonicalState();
@@ -562,7 +673,7 @@ function createServerChatCommitOwner({
             payloadRef: commitStorageKey(operationId),
             delivery: 'settled',
         };
-        return committer.commit({
+        const outcome = await committer.commit({
             contractVersion: SERVER_CHAT_COMMIT_CONTRACT,
             operationId,
             resultId,
@@ -595,19 +706,29 @@ function createServerChatCommitOwner({
             awaitingMetadata: false,
             committedAt,
         });
+        if (inputReceipt) {
+            await queueStorageOperation(() => finalizeInputCommit(outcome));
+        }
+        return outcome;
     }
 
     async function recover(operationId) {
         const status = committer.status(operationId);
         if (status.status !== 'committed') return status;
         await ensureCanonicalState();
-        return committer.recover(operationId);
+        const outcome = await committer.recover(operationId);
+        await queueStorageOperation(() => finalizeInputCommit(outcome));
+        return outcome;
     }
 
     async function recoverAll() {
         if (kvList(SERVER_CHAT_COMMIT_PREFIX).length === 0) return [];
         await ensureCanonicalState();
-        return committer.recoverAll();
+        const outcomes = await committer.recoverAll();
+        await queueStorageOperation(() => {
+            for (const outcome of outcomes) finalizeInputCommit(outcome);
+        });
+        return outcomes;
     }
 
     async function readChatProjection(charId, chatId, requestedRevision) {
@@ -681,4 +802,5 @@ module.exports = {
     SERVER_CHAT_COMMIT_APPLIED_FIELD,
     SERVER_CHAT_COMMIT_SEQUENCE_KEY,
     createServerChatCommitOwner,
+    reconcileServerChatRecovery,
 };

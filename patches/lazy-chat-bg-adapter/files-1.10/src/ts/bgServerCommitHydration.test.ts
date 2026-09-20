@@ -1,6 +1,7 @@
 import { describe, expect, it, vi } from 'vitest'
 import {
     hydrateServerCommittedOrchestration,
+    serverChatDeliveryDisposition,
     serverChatCommitReceipt,
 } from './bgServerCommitHydration'
 
@@ -44,6 +45,33 @@ describe('server-committed result hydration', () => {
             serverChatCommit: { status: 'committed', receipt: receipt() },
         })).toEqual(receipt())
         expect(serverChatCommitReceipt({ serverChatCommit: receipt() })).toEqual(receipt())
+    })
+
+    it('keeps server ownership for commit failures and invalid receipts', () => {
+        expect(serverChatDeliveryDisposition({
+            serverChatCommitVersion: 1,
+            serverChatCommit: { status: 'committed', receipt: receipt() },
+        })).toBe('server-committed')
+        expect(serverChatDeliveryDisposition({
+            serverChatCommitVersion: 1,
+            serverChatCommit: { status: 'failed', reason: 'commit_failed' },
+        })).toBe('server-owned-uncommitted')
+        expect(serverChatDeliveryDisposition({
+            serverChatCommitVersion: 1,
+            serverChatCommit: { status: 'conflict', reason: 'base_revision_changed' },
+        })).toBe('server-owned-uncommitted')
+        expect(serverChatDeliveryDisposition({
+            serverChatCommitVersion: 1,
+            serverChatCommit: { status: 'committed', receipt: { ...receipt(), storedRevision: '' } },
+        })).toBe('server-owned-uncommitted')
+        expect(serverChatDeliveryDisposition({
+            serverChatCommitVersion: 1,
+            serverChatCommit: null,
+        })).toBe('server-owned-uncommitted')
+        expect(serverChatDeliveryDisposition({ serverChatCommit: null }))
+            .toBe('legacy-client-owned')
+        expect(serverChatDeliveryDisposition({ chat: { id: 'chat-1' } }))
+            .toBe('legacy-client-owned')
     })
 
     it('reads matching authoritative projection before adopting canonical chat', async () => {

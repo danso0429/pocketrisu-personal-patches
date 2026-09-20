@@ -18,7 +18,7 @@ function unit(id) {
 }
 
 test('C3: exact-1.10 graph owns revision-bound chat execution projection', () => {
-    assert.equal(adapter.version, '0.6.0')
+    assert.equal(adapter.version, '0.7.0')
     const resolution = resolveSelection(loadCatalog(), ['lazy-chat-sync', 'bg-preserve'])
     const units1100 = flattenUnits(resolution.packs, target1100)
     const units190 = flattenUnits(resolution.packs, target190)
@@ -53,7 +53,7 @@ test('C3: pre-canonical server input remains an explicit dormant contract', () =
     const terminal = unit('lazy-chat-bg-adapter:server-chat-commit-terminal:1.10')
     const intermediate = unit('lazy-chat-bg-adapter:server-input-intermediate-policy:1.10')
     assert.match(capability.content, /inputCommandVersion: 0/)
-    assert.match(capability.content, /inputCommandFoundationVersion: serverChatInputOwner \? 3 : 0/)
+    assert.match(capability.content, /inputCommandFoundationVersion: serverChatInputOwner \? 4 : 0/)
     assert.match(start.content, /serverChatInputOwner\.admit/)
     assert.match(start.content, /serverRunChat/)
     assert.match(start.content, /serverRunChat = serverInputExecution\.chat/)
@@ -96,6 +96,10 @@ test('C3: pre-canonical server input remains an explicit dormant contract', () =
         /input-transform-unknown/,
     )
     assert.match(
+        unit('lazy-chat-bg-adapter:server-chat-commit-startup-recovery:1.10').content,
+        /reconcileServerChatRecovery/,
+    )
+    assert.match(
         unit('lazy-chat-bg-adapter:server-chat-commit-missing-result:1.10').content,
         /input-transform-unknown/,
     )
@@ -121,6 +125,7 @@ test('C3: committed-result client path hydrates canonical chat and skips legacy 
     const foreground = unit('lazy-chat-bg-adapter:server-commit-client-found-result:1.10')
     const boot = unit('lazy-chat-bg-adapter:server-commit-boot-found-result:1.10')
     assert.match(imports.content, /hydrateServerCommittedOrchestration/)
+    assert.match(imports.content, /serverChatDeliveryDisposition/)
     assert.match(imports.content, /adoptServerCommittedChat/)
     assert.match(hydration.content, /fetchOrchestrationControl/)
     assert.match(hydration.content, /state === 'revision_mismatch'/)
@@ -145,6 +150,59 @@ test('C3: committed-result client path hydrates canonical chat and skips legacy 
     assert.match(adoption.content, /hydrationJustApplied/)
     assert.match(adoption.content, /local-revision-conflict/)
     assert.match(adoption.content, /server-revision-mismatch/)
+})
+
+test('C3: server-owned commit failures cannot fall through to legacy client persistence', () => {
+    const foregroundFence = unit(
+        'lazy-chat-bg-adapter:server-commit-client-ownership-fence:1.10',
+    )
+    const bootFence = unit(
+        'lazy-chat-bg-adapter:server-commit-boot-ownership-fence:1.10',
+    )
+    for (const candidate of [foregroundFence, bootFence]) {
+        assert.match(candidate.content, /server-owned-uncommitted/)
+        assert.doesNotMatch(candidate.content, /acknowledgeResultRevision/)
+        assert.doesNotMatch(candidate.content, /persistMergedOrchestrationResult/)
+    }
+    assert.match(
+        foregroundFence.content,
+        /retainUncommittedServerChat\(operationId, data, 'watch'\)/,
+    )
+    assert.match(
+        bootFence.content,
+        /retainUncommittedServerChat\(operationId, data, 'boot'\)/,
+    )
+
+    const foreground = unit('lazy-chat-bg-adapter:server-commit-client-found-result:1.10')
+    const boot = unit('lazy-chat-bg-adapter:server-commit-boot-found-result:1.10')
+    for (const candidate of [foreground, boot]) {
+        const ownershipGuard = candidate.content.indexOf(
+            "serverChatDisposition !== 'legacy-client-owned'",
+        )
+        const legacyBranch = candidate.content.indexOf('const newMsgs = data.chat')
+        assert.notEqual(ownershipGuard, -1)
+        assert.notEqual(legacyBranch, -1)
+        assert.ok(ownershipGuard < legacyBranch)
+    }
+    assert.match(foreground.content, /retainUncommittedServerChat/)
+    assert.match(boot.content, /retainUncommittedServerChat/)
+
+    const hydration = unit('lazy-chat-bg-adapter:server-commit-client-hydration:1.10')
+    assert.match(hydration.content, /function retainUncommittedServerChat/)
+    assert.match(hydration.content, /commit-receipt-invalid/)
+    assert.match(hydration.content, /stopWatch\(\{ preservePendingMarker: true \}\)/)
+    assert.match(hydration.content, /deferBootRecovery\(operationId\)/)
+
+    const resultResponse = unit('lazy-chat-bg-adapter:server-chat-commit-result-response:1.10')
+    const resultRecord = unit('lazy-chat-bg-adapter:server-chat-commit-result-record:1.10')
+    const terminal = unit('lazy-chat-bg-adapter:server-chat-commit-terminal:1.10')
+    const missing = unit('lazy-chat-bg-adapter:server-chat-commit-missing-result:1.10')
+    const intermediate = unit('lazy-chat-bg-adapter:server-input-intermediate-policy:1.10')
+    assert.match(resultResponse.content, /serverChatCommitVersion/)
+    assert.match(resultRecord.content, /serverChatCommitVersion/)
+    assert.match(terminal.content, /serverChatCommitVersion,/)
+    assert.match(missing.content, /serverChatCommitVersion/)
+    assert.match(intermediate.content, /serverChatCommitVersion !== 1/)
 })
 
 test('C3: server-owned root state survives both full and patch database writers', () => {

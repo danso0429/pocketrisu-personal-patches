@@ -21,7 +21,7 @@ const bgGlobalApiUnits = [
 module.exports = {
     id: 'lazy-chat-bg-adapter',
     title: 'BG preserve integration for lazy chat storage',
-    version: '0.6.0',
+    version: '0.7.0',
     targets: {
         pocketrisu: {
             verified: ['1.8.1', '1.9.0', '1.10.0'],
@@ -360,6 +360,7 @@ export async function adoptServerCommittedChat(
 } from './storage/chatStorage'
 import {
     hydrateServerCommittedOrchestration,
+    serverChatDeliveryDisposition,
     serverChatCommitReceipt,
 } from './bgServerCommitHydration'
 `,
@@ -470,6 +471,35 @@ function rememberServerCommittedTarget(operationId: string, hydration: any): voi
     } catch { /* canonical chat and in-memory watch remain authoritative */ }
 }
 
+function serverOwnedChatStillActive(data: any): boolean {
+    return [
+        'queued',
+        'running',
+        'running-result-ready',
+        'running-result-consumed',
+        'input-queued',
+        'input-attached',
+        'input-waiting-predecessor',
+    ].includes(data?.operationState)
+}
+
+function retainUncommittedServerChat(
+    operationId: string | null,
+    data: any,
+    mode: 'watch' | 'boot',
+): void {
+    console.error('[bg-orch] server-owned chat commit is unresolved; retaining result', {
+        operationId,
+        state: data?.serverChatCommit?.status || data?.operationState || 'uncommitted',
+        reason: data?.serverChatCommit?.reason || 'commit-receipt-invalid',
+    })
+    if (mode === 'boot') deferBootRecovery(operationId)
+    else stopWatch({ preservePendingMarker: true })
+    try {
+        alertError('서버 소유 답변의 채팅 저장을 확인하지 못했어요. 결과와 작업 표식을 보존하고 다음 실행에서 다시 확인해요.')
+    } catch { /* best-effort */ }
+}
+
 `,
             requires: ['lazy-chat-bg-adapter:server-commit-client-import:1.10'],
             targetVersions: pocketRisu1100,
@@ -497,9 +527,33 @@ function rememberServerCommittedTarget(operationId: string, hydration: any): voi
                 stopWatch()
                 return
             }
+            const serverChatDisposition = serverChatDeliveryDisposition(data)
+            if (serverChatDisposition === 'server-owned-uncommitted'
+                && !serverOwnedChatStillActive(data)) {
+                retainUncommittedServerChat(operationId, data, 'watch')
+                return
+            }
             if (data?.operationState === 'start-retry-required') {
 `,
             requires: ['lazy-chat-bg-adapter:server-commit-client-hydration:1.10'],
+            targetVersions: pocketRisu1100,
+        },
+        {
+            id: 'lazy-chat-bg-adapter:server-commit-client-ownership-fence:1.10',
+            file: 'src/ts/bgOrchestrate.ts',
+            type: 'replace',
+            anchor: `        if (operationId && data.operationId !== operationId) return
+        const orderDecision = classifyOrchestrationResultOrder(data, appliedResultOrderByOperation)
+`,
+            content: `        if (operationId && data.operationId !== operationId) return
+        const serverOwnedDisposition = serverChatDeliveryDisposition(data)
+        if (serverOwnedDisposition === 'server-owned-uncommitted') {
+            retainUncommittedServerChat(operationId, data, 'watch')
+            return
+        }
+        const orderDecision = classifyOrchestrationResultOrder(data, appliedResultOrderByOperation)
+`,
+            requires: ['lazy-chat-bg-adapter:server-commit-client-missing-result:1.10'],
             targetVersions: pocketRisu1100,
         },
         {
@@ -510,8 +564,10 @@ function rememberServerCommittedTarget(operationId: string, hydration: any): voi
             const newMsgs = data.chat && Array.isArray(data.chat.message) ? data.chat.message.length : -1
 `,
             content: `        try {
+            const serverChatDisposition = serverChatDeliveryDisposition(data)
             const committedReceipt = serverChatCommitReceipt(data)
-            if (committedReceipt && operationId) {
+            if (serverChatDisposition === 'server-committed'
+                && committedReceipt && operationId) {
                 const hydration = await hydrateServerCommittedResult(
                     charId, chatId, operationId, data,
                 )
@@ -533,9 +589,13 @@ function rememberServerCommittedTarget(operationId: string, hydration: any): voi
                 else stopWatch({ preservePendingMarker: true })
                 return
             }
+            if (serverChatDisposition !== 'legacy-client-owned') {
+                retainUncommittedServerChat(operationId, data, 'watch')
+                return
+            }
             const newMsgs = data.chat && Array.isArray(data.chat.message) ? data.chat.message.length : -1
 `,
-            requires: ['lazy-chat-bg-adapter:server-commit-client-missing-result:1.10'],
+            requires: ['lazy-chat-bg-adapter:server-commit-client-ownership-fence:1.10'],
             targetVersions: pocketRisu1100,
         },
         {
@@ -564,9 +624,35 @@ function rememberServerCommittedTarget(operationId: string, hydration: any): voi
                     finishBootRecovery(operationId)
                     return
                 }
+                const serverChatDisposition = serverChatDeliveryDisposition(data)
+                if (serverChatDisposition === 'server-owned-uncommitted'
+                    && !serverOwnedChatStillActive(data)) {
+                    retainUncommittedServerChat(operationId, data, 'boot')
+                    return
+                }
                 const stage = data && typeof data.stage === 'number' ? data.stage : 0
 `,
             requires: ['lazy-chat-bg-adapter:server-commit-client-found-result:1.10'],
+            targetVersions: pocketRisu1100,
+        },
+        {
+            id: 'lazy-chat-bg-adapter:server-commit-boot-ownership-fence:1.10',
+            file: 'src/ts/bgOrchestrate.ts',
+            type: 'replace',
+            anchor: `            setServerGenerationBusy(true)
+            chatProcessStage.set(4)
+            const orderDecision = classifyOrchestrationResultOrder(data, appliedResultOrderByOperation)
+`,
+            content: `            setServerGenerationBusy(true)
+            chatProcessStage.set(4)
+            const serverOwnedDisposition = serverChatDeliveryDisposition(data)
+            if (serverOwnedDisposition === 'server-owned-uncommitted') {
+                retainUncommittedServerChat(operationId, data, 'boot')
+                return
+            }
+            const orderDecision = classifyOrchestrationResultOrder(data, appliedResultOrderByOperation)
+`,
+            requires: ['lazy-chat-bg-adapter:server-commit-boot-missing-result:1.10'],
             targetVersions: pocketRisu1100,
         },
         {
@@ -576,8 +662,10 @@ function rememberServerCommittedTarget(operationId: string, hydration: any): voi
             anchor: `            const newMsgs = data.chat && Array.isArray(data.chat.message) ? data.chat.message.length : -1
             if (data.chat && newMsgs > baselineMsgs) {
 `,
-            content: `            const committedReceipt = serverChatCommitReceipt(data)
-            if (committedReceipt && operationId) {
+            content: `            const serverChatDisposition = serverChatDeliveryDisposition(data)
+            const committedReceipt = serverChatCommitReceipt(data)
+            if (serverChatDisposition === 'server-committed'
+                && committedReceipt && operationId) {
                 const hydration = await hydrateServerCommittedResult(
                     charId, chatId, operationId, data,
                 )
@@ -613,10 +701,14 @@ function rememberServerCommittedTarget(operationId: string, hydration: any): voi
                 }
                 return
             }
+            if (serverChatDisposition !== 'legacy-client-owned') {
+                retainUncommittedServerChat(operationId, data, 'boot')
+                return
+            }
             const newMsgs = data.chat && Array.isArray(data.chat.message) ? data.chat.message.length : -1
             if (data.chat && newMsgs > baselineMsgs) {
 `,
-            requires: ['lazy-chat-bg-adapter:server-commit-boot-missing-result:1.10'],
+            requires: ['lazy-chat-bg-adapter:server-commit-boot-ownership-fence:1.10'],
             targetVersions: pocketRisu1100,
         },
         {
@@ -716,7 +808,10 @@ function rememberServerCommittedTarget(operationId: string, hydration: any): voi
             type: 'insert',
             where: 'before',
             anchor: '// ─── Express error middleware — must be registered after all routes ─────────\n',
-            content: `const { createServerChatCommitOwner } = require('./serverChatCommitOwner.cjs');
+            content: `const {
+    createServerChatCommitOwner,
+    reconcileServerChatRecovery,
+} = require('./serverChatCommitOwner.cjs');
 const { createServerChatInputOwner } = require('./serverChatInputOwner.cjs');
 
 async function ensureServerChatCommitCanonicalState() {
@@ -834,29 +929,22 @@ const serverChatCommitOwner = createServerChatCommitOwner({
             file: 'server/node/server.cjs',
             type: 'replace',
             anchor: '    await startServer();\n',
-            content: `    const recoveredServerChatInputs = await serverChatInputOwner.recoverAll();
-    const pendingServerChatInputs = recoveredServerChatInputs.filter((entry) => (
-        entry.status === 'pending_recovery' || entry.status === 'blocked'
-    ));
-    if (pendingServerChatInputs.length > 0) {
+            content: `    const serverChatRecovery = await reconcileServerChatRecovery({
+        serverChatInputOwner,
+        serverChatCommitOwner,
+    });
+    if (serverChatRecovery.stalled) {
         logger.error(
-            '[ServerChatInput] Recovery remains blocked for '
-            + pendingServerChatInputs.length + ' operation(s)'
+            '[ServerChatRecovery] Recovery stalled after '
+            + serverChatRecovery.passes + ' pass(es): '
+            + serverChatRecovery.pendingInputs.length + ' input(s), '
+            + serverChatRecovery.pendingCommits.length + ' commit(s)'
         );
-    }
-    const recoveredServerChatCommits = await serverChatCommitOwner.recoverAll();
-    const pendingServerChatCommits = recoveredServerChatCommits.filter((entry) => (
-        entry.status !== 'committed' || entry.publication === 'pending_recovery'
-    ));
-    if (pendingServerChatCommits.length > 0) {
-        logger.error(
-            '[ServerChatCommit] Recovery remains pending for '
-            + pendingServerChatCommits.length + ' operation(s)'
-        );
-    } else if (recoveredServerChatCommits.length > 0) {
+    } else if (serverChatRecovery.inputResults.length > 0
+        || serverChatRecovery.commitResults.length > 0) {
         logger.info(
-            '[ServerChatCommit] Recovered '
-            + recoveredServerChatCommits.length + ' operation(s) before listen'
+            '[ServerChatRecovery] Reconciled server chat journals in '
+            + serverChatRecovery.passes + ' pass(es) before listen'
         );
     }
     await startServer();
@@ -1200,6 +1288,7 @@ const serverChatCommitOwner = createServerChatCommitOwner({
             type: 'replace',
             anchor: '    error: record.error, postError: record.postError,\n',
             content: `    error: record.error, postError: record.postError,
+    ...(record.serverChatCommitVersion === 1 ? { serverChatCommitVersion: 1 } : {}),
     serverChatCommit: record.serverChatCommit || null,
 `,
             requires: ['lazy-chat-bg-adapter:server-chat-commit-result-context:1.10'],
@@ -1224,6 +1313,7 @@ const serverChatCommitOwner = createServerChatCommitOwner({
     time: Date.now(),
 `,
             content: `    postError: kind === 'terminal-partial' ? (result.threw || undefined) : undefined,
+    serverChatCommitVersion: opts && opts.serverChatCommitVersion === 1 ? 1 : undefined,
     serverChatCommit: opts && opts.serverChatCommit ? opts.serverChatCommit : undefined,
     time: Date.now(),
 `,
@@ -1423,7 +1513,7 @@ const serverChatCommitOwner = createServerChatCommitOwner({
     res.json({
       contract: 'bg_orchestration_capabilities.v1',
       inputCommandVersion: 0,
-      inputCommandFoundationVersion: serverChatInputOwner ? 3 : 0,
+      inputCommandFoundationVersion: serverChatInputOwner ? 4 : 0,
       serverChatCommitVersion: serverChatCommitOwner ? 1 : 0,
       chatExecutionProjectionVersion: serverChatCommitOwner ? 1 : 0,
     })
@@ -1528,7 +1618,8 @@ const serverChatCommitOwner = createServerChatCommitOwner({
             type: 'replace',
             anchor: `                allowIntermediate: req.body && req.body.resultOrderVersion === 1,
 `,
-            content: `                allowIntermediate: inputCommandVersion !== 1
+            content: `                allowIntermediate: serverChatCommitVersion !== 1
+                  && inputCommandVersion !== 1
                   && req.body && req.body.resultOrderVersion === 1,
 `,
             requires: ['lazy-chat-bg-adapter:server-input-global-snapshot-policy:1.10'],
@@ -1622,6 +1713,7 @@ const serverChatCommitOwner = createServerChatCommitOwner({
               kvGet,
               resultId,
               publishSeq,
+              serverChatCommitVersion,
               serverChatCommit,
             })
             if (inputCommandVersion === 1
@@ -1665,6 +1757,7 @@ const serverChatCommitOwner = createServerChatCommitOwner({
                 }
               }
               const persisted = persistOrchResult(kvSet, selectedCharId, selectedChatId, { chat: null, statics: null, staticsMessagesDelta: 0, globalChatVariables: {}, threw: String((e && e.message) || e) }, {
+                serverChatCommitVersion,
 `,
             requires: ['lazy-chat-bg-adapter:server-chat-commit-terminal:1.10'],
             targetVersions: pocketRisu1100,
@@ -1745,7 +1838,7 @@ const serverChatCommitOwner = createServerChatCommitOwner({
         inputCommandVersion: 1,
         inputCommandId: inputCommand.admission.inputCommandId,
         admissionSeq: inputCommand.admissionSeq,
-        predecessorOperationId: inputCommand.queuePredecessorId,
+        predecessorOperationId: inputCommand.executionPredecessorId,
       })
     }
     const run = orchestrationRuns.get(operationId)
@@ -1942,15 +2035,31 @@ const serverChatCommitOwner = createServerChatCommitOwner({
         const inputCommand = serverChatInputOwner
           ? serverChatInputOwner.read(operationId)
           : null
-        const operationState = inputCommand && inputCommand.transformState === 'unknown'
-          ? 'input-transform-unknown'
-          : committed && committed.status === 'committed'
+        const pendingInput = inputCommand
+          && typeof serverChatInputOwner.pendingProjection === 'function'
+          ? serverChatInputOwner.pendingProjection(charId, chatId)
+            .find((entry) => entry.operationId === operationId)
+          : null
+        const inputOperationState = !inputCommand
+          ? null
+          : inputCommand.transformState === 'unknown'
+            ? 'input-transform-unknown'
+            : inputCommand.inputState === 'attached'
+              ? 'input-attached'
+              : pendingInput && pendingInput.state === 'waiting_predecessor'
+                ? 'input-waiting-predecessor'
+                : 'input-' + inputCommand.inputState
+        const operationState = inputOperationState
+          || (committed && committed.status === 'committed'
             ? 'chat-committed'
             : run
             ? (run.state === 'running' && run.cancelled ? 'cancelled' : run.state)
-            : orphanedOperationState(state)
+            : orphanedOperationState(state))
         return res.json({
           found: false, operationId, operationState,
+          ...((state && state.serverChatCommitVersion === 1) || inputCommand
+            ? { serverChatCommitVersion: 1 }
+            : {}),
           ...(committed && committed.status === 'committed'
             ? { serverChatCommit: committed.receipt }
             : {}),

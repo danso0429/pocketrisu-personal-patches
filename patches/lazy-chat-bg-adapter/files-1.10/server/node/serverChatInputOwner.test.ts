@@ -182,9 +182,10 @@ describe('pre-canonical server chat input owner', () => {
             status: 'admitted',
             reused: false,
             record: {
-                recordVersion: 3,
+                recordVersion: 4,
                 admissionSeq: 1,
                 queuePredecessorId: null,
+                executionPredecessorId: null,
                 transformState: 'not_run',
                 inputState: 'queued',
                 admission: {
@@ -219,8 +220,26 @@ describe('pre-canonical server chat input owner', () => {
         })
         await expect(owner.admit(admission('operation-input-admit-2'))).resolves.toMatchObject({
             status: 'admitted',
-            record: { admissionSeq: 2, queuePredecessorId: operationId },
+            record: {
+                admissionSeq: 2,
+                queuePredecessorId: operationId,
+                executionPredecessorId: operationId,
+            },
         })
+    })
+
+    it('fails closed on the pre-fix record v3 schema before product activation', async () => {
+        const harness = makeHarness()
+        const owner = harness.makeOwner()
+        const operationId = 'operation-input-record-v3-1'
+        await owner.admit(admission(operationId))
+        const legacy = JSON.parse(harness.kvGet(commandKey(operationId)).toString('utf8'))
+        legacy.recordVersion = 3
+        delete legacy.executionPredecessorId
+        harness.kvSet(commandKey(operationId), JSON.stringify(legacy))
+
+        expect(owner.read(operationId)).toBeNull()
+        await expect(owner.loadExecution(operationId)).resolves.toEqual({ status: 'missing' })
     })
 
     it('reuses one immutable server settings snapshot and rejects missing snapshot recovery', async () => {
@@ -377,7 +396,11 @@ describe('pre-canonical server chat input owner', () => {
         })
         await expect(owner.admit(secondAdmission)).resolves.toMatchObject({
             status: 'admitted',
-            record: { admissionSeq: 2, queuePredecessorId: firstOperation },
+            record: {
+                admissionSeq: 2,
+                queuePredecessorId: firstOperation,
+                executionPredecessorId: firstOperation,
+            },
         })
         expect(harness.runtime.fullStore.get('char-1')?.get('chat-1')).toEqual(attachedChat)
         expect(owner.pendingProjection('char-1', 'chat-1')).toMatchObject([{
@@ -499,6 +522,233 @@ describe('pre-canonical server chat input owner', () => {
         })
     })
 
+    it('keeps the oldest unresolved execution dependency after a waiting admission is cancelled', async () => {
+        const harness = makeHarness()
+        const owner = harness.makeOwner()
+        const firstOperation = 'operation-input-cancel-skip-1'
+        const cancelledOperation = 'operation-input-cancel-skip-2'
+        const thirdOperation = 'operation-input-cancel-skip-3'
+
+        await owner.admit(admission(firstOperation))
+        await owner.beginTransform(firstOperation)
+        const attached = await owner.attachTransformed(
+            firstOperation,
+            harness.transformed(firstOperation),
+        )
+        await owner.admit({
+            ...admission(cancelledOperation),
+            submittedBaseRevision: attached.record.executionBaseRevision,
+        })
+        expect(owner.settleSynchronously(cancelledOperation, 'cancelled')).toBe(true)
+
+        await expect(owner.admit({
+            ...admission(thirdOperation),
+            submittedBaseRevision: attached.record.executionBaseRevision,
+        })).resolves.toMatchObject({
+            status: 'admitted',
+            record: {
+                admissionSeq: 3,
+                queuePredecessorId: cancelledOperation,
+                executionPredecessorId: firstOperation,
+            },
+        })
+        await expect(owner.loadExecution(thirdOperation)).resolves.toMatchObject({
+            status: 'waiting',
+            reason: 'predecessor_active',
+            predecessorOperationId: firstOperation,
+        })
+        await expect(owner.beginTransform(thirdOperation)).resolves.toMatchObject({
+            status: 'waiting',
+            predecessorOperationId: firstOperation,
+        })
+    })
+
+    it('starts a fresh head from a current user-edited revision after the prior operation completed', async () => {
+        const harness = makeHarness()
+        const owner = harness.makeOwner()
+        const firstOperation = 'operation-input-completed-edit-1'
+        const secondOperation = 'operation-input-completed-edit-2'
+
+        await owner.admit(admission(firstOperation))
+        await owner.beginTransform(firstOperation)
+        const attached = await owner.attachTransformed(
+            firstOperation,
+            harness.transformed(firstOperation),
+        )
+        const attachedChat = harness.runtime.fullStore.get('char-1')?.get('chat-1') as any
+        const resultChat = {
+            ...attachedChat,
+            message: [
+                ...attachedChat.message,
+                { role: 'char', data: 'first answer', chatId: 'assistant-completed-edit-1' },
+            ],
+        }
+        const resultRevision = revision(resultChat)
+        expect(owner.settleSynchronously(firstOperation, 'completed', resultRevision)).toBe(true)
+        expect(owner.markResultPublishedSynchronously(firstOperation, resultRevision)).toBe(true)
+        const editedChat = {
+            ...resultChat,
+            message: resultChat.message.map((message: any) => (
+                message.chatId === 'assistant-completed-edit-1'
+                    ? { ...message, data: 'user edited answer' }
+                    : message
+            )),
+        }
+        harness.runtime.fullStore.get('char-1')?.set('chat-1', editedChat)
+
+        await expect(owner.admit({
+            ...admission(secondOperation),
+            submittedBaseRevision: revision(editedChat),
+        })).resolves.toMatchObject({
+            status: 'admitted',
+            record: {
+                queuePredecessorId: firstOperation,
+                executionPredecessorId: null,
+                effectiveBaseRevision: revision(editedChat),
+            },
+        })
+        await expect(owner.loadExecution(secondOperation)).resolves.toMatchObject({
+            status: 'transform-required',
+            chat: editedChat,
+            record: {
+                predecessorResolution: null,
+                effectiveBaseRevision: revision(editedChat),
+            },
+        })
+    })
+
+    it('starts a fresh head after a published answer is deleted back to the input revision', async () => {
+        const harness = makeHarness()
+        const owner = harness.makeOwner()
+        const firstOperation = 'operation-input-published-delete-1'
+        const secondOperation = 'operation-input-published-delete-2'
+
+        await owner.admit(admission(firstOperation))
+        await owner.beginTransform(firstOperation)
+        const attached = await owner.attachTransformed(
+            firstOperation,
+            harness.transformed(firstOperation),
+        )
+        const attachedChat = structuredClone(
+            harness.runtime.fullStore.get('char-1')?.get('chat-1'),
+        )
+        const resultChat = {
+            ...attachedChat,
+            message: [
+                ...attachedChat.message,
+                { role: 'char', data: 'deletable answer', chatId: 'assistant-published-delete-1' },
+            ],
+        }
+        const resultRevision = revision(resultChat)
+        expect(owner.settleSynchronously(firstOperation, 'completed', resultRevision)).toBe(true)
+        expect(owner.markResultPublishedSynchronously(firstOperation, resultRevision)).toBe(true)
+        harness.runtime.fullStore.get('char-1')?.set('chat-1', attachedChat)
+
+        await expect(owner.admit({
+            ...admission(secondOperation),
+            submittedBaseRevision: attached.record.executionBaseRevision,
+        })).resolves.toMatchObject({
+            status: 'admitted',
+            record: {
+                executionPredecessorId: null,
+                effectiveBaseRevision: attached.record.executionBaseRevision,
+            },
+        })
+        await expect(owner.loadExecution(secondOperation)).resolves.toMatchObject({
+            status: 'transform-required',
+            chat: attachedChat,
+        })
+    })
+
+    it('keeps a durably completed but unpublished result as an execution dependency', async () => {
+        const harness = makeHarness()
+        const owner = harness.makeOwner()
+        const firstOperation = 'operation-input-unpublished-result-1'
+        const secondOperation = 'operation-input-unpublished-result-2'
+
+        await owner.admit(admission(firstOperation))
+        await owner.beginTransform(firstOperation)
+        const attached = await owner.attachTransformed(
+            firstOperation,
+            harness.transformed(firstOperation),
+        )
+        const attachedChat = harness.runtime.fullStore.get('char-1')?.get('chat-1') as any
+        const resultChat = {
+            ...attachedChat,
+            message: [
+                ...attachedChat.message,
+                { role: 'char', data: 'pending answer', chatId: 'assistant-unpublished-result-1' },
+            ],
+        }
+        expect(owner.settleSynchronously(
+            firstOperation,
+            'completed',
+            revision(resultChat),
+        )).toBe(true)
+
+        await expect(owner.admit({
+            ...admission(secondOperation),
+            submittedBaseRevision: attached.record.executionBaseRevision,
+        })).resolves.toMatchObject({
+            status: 'admitted',
+            record: { executionPredecessorId: firstOperation },
+        })
+        await expect(owner.loadExecution(secondOperation)).resolves.toMatchObject({
+            status: 'waiting',
+            reason: 'predecessor_publication_pending',
+            predecessorOperationId: firstOperation,
+        })
+    })
+
+    it('blocks an already waiting successor when the completed predecessor revision was edited', async () => {
+        const harness = makeHarness()
+        const owner = harness.makeOwner()
+        const firstOperation = 'operation-input-waiting-edit-1'
+        const secondOperation = 'operation-input-waiting-edit-2'
+
+        await owner.admit(admission(firstOperation))
+        await owner.beginTransform(firstOperation)
+        const attached = await owner.attachTransformed(
+            firstOperation,
+            harness.transformed(firstOperation),
+        )
+        await owner.admit({
+            ...admission(secondOperation),
+            submittedBaseRevision: attached.record.executionBaseRevision,
+        })
+        const attachedChat = harness.runtime.fullStore.get('char-1')?.get('chat-1') as any
+        const resultChat = {
+            ...attachedChat,
+            message: [
+                ...attachedChat.message,
+                { role: 'char', data: 'first answer', chatId: 'assistant-waiting-edit-1' },
+            ],
+        }
+        expect(owner.settleSynchronously(
+            firstOperation,
+            'completed',
+            revision(resultChat),
+        )).toBe(true)
+        expect(owner.markResultPublishedSynchronously(
+            firstOperation,
+            revision(resultChat),
+        )).toBe(true)
+        harness.runtime.fullStore.get('char-1')?.set('chat-1', {
+            ...resultChat,
+            message: resultChat.message.map((message: any) => (
+                message.chatId === 'assistant-waiting-edit-1'
+                    ? { ...message, data: 'edited before successor start' }
+                    : message
+            )),
+        })
+
+        await expect(owner.loadExecution(secondOperation)).resolves.toMatchObject({
+            status: 'blocked',
+            reason: 'predecessor_revision_changed',
+            predecessorOperationId: firstOperation,
+        })
+    })
+
     it('blocks N+1 when its predecessor input outcome is unknown', async () => {
         const harness = makeHarness()
         const owner = harness.makeOwner()
@@ -543,6 +793,39 @@ describe('pre-canonical server chat input owner', () => {
         await expect(owner.loadExecution(thirdOperation)).resolves.toMatchObject({
             status: 'blocked',
             reason: 'predecessor_identity_unavailable',
+        })
+    })
+
+    it('blocks a tampered execution predecessor from bypassing a newer active command', async () => {
+        const harness = makeHarness()
+        const owner = harness.makeOwner()
+        const firstOperation = 'operation-input-execution-tamper-1'
+        const secondOperation = 'operation-input-execution-tamper-2'
+        const thirdOperation = 'operation-input-execution-tamper-3'
+
+        await owner.admit(admission(firstOperation))
+        expect(owner.settleSynchronously(firstOperation, 'cancelled')).toBe(true)
+        await owner.admit(admission(secondOperation))
+        await owner.beginTransform(secondOperation)
+        const attached = await owner.attachTransformed(
+            secondOperation,
+            harness.transformed(secondOperation),
+        )
+        await owner.admit({
+            ...admission(thirdOperation),
+            submittedBaseRevision: attached.record.executionBaseRevision,
+        })
+
+        const thirdRecord = JSON.parse(
+            harness.kvGet(commandKey(thirdOperation)).toString('utf8'),
+        )
+        thirdRecord.executionPredecessorId = firstOperation
+        harness.kvSet(commandKey(thirdOperation), JSON.stringify(thirdRecord))
+
+        await expect(owner.loadExecution(thirdOperation)).resolves.toMatchObject({
+            status: 'blocked',
+            reason: 'predecessor_identity_unavailable',
+            predecessorOperationId: secondOperation,
         })
     })
 
@@ -618,6 +901,37 @@ describe('pre-canonical server chat input owner', () => {
         }])
         expect(harness.runtime.fullStore.get('char-1')?.get('chat-1')?.message.at(-1))
             .toMatchObject({ chatId: `user-${operationId}` })
+    })
+
+    it('republishes a durable attached input before reporting restart settings loss', async () => {
+        const harness = makeHarness()
+        const owner = harness.makeOwner()
+        const operationId = 'operation-input-republish-before-settings-1'
+        await owner.admit(admission(operationId))
+        await owner.beginTransform(operationId)
+        await owner.attachTransformed(
+            operationId,
+            harness.transformed(operationId),
+        )
+
+        harness.runtime.database = {
+            characters: [{
+                chaId: 'char-1',
+                chats: [{ id: 'chat-1', name: 'Chat', _stub: true }],
+            }],
+            globalChatVariables: { mood: 'old' },
+        }
+        harness.runtime.fullStore = new Map([
+            ['char-1', new Map([['chat-1', baseChat()]])],
+        ])
+        const restarted = harness.makeOwner(harness.makeJournal())
+
+        await expect(restarted.loadExecution(operationId)).resolves.toMatchObject({
+            status: 'blocked',
+            reason: 'settings_context_unavailable',
+        })
+        expect(harness.runtime.fullStore.get('char-1')?.get('chat-1')?.message.at(-1))
+            .toMatchObject({ chatId: `user-${operationId}`, data: 'hello' })
     })
 
     it.each(['failed', 'cancelled'] as const)(

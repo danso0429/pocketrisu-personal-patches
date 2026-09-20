@@ -121,7 +121,7 @@ function parseRecord(value, expectedOperationId = null) {
     if (!value || Buffer.byteLength(value) > SERVER_CHAT_INPUT_MAX_RECORD_BYTES) return null;
     try {
         const parsed = JSON.parse(Buffer.isBuffer(value) ? value.toString('utf8') : String(value));
-        if (!parsed || parsed.recordVersion !== 3
+        if (!parsed || parsed.recordVersion !== 4
             || parsed.contractVersion !== SERVER_CHAT_INPUT_COMMAND_CONTRACT
             || !Number.isSafeInteger(parsed.admissionSeq) || parsed.admissionSeq <= 0
             || !['not_run', 'running', 'completed', 'unknown'].includes(parsed.transformState)
@@ -137,13 +137,16 @@ function parseRecord(value, expectedOperationId = null) {
             || typeof parsed.effectiveBaseRevision !== 'string'
             || !/^[a-f0-9]{64}$/.test(parsed.effectiveBaseRevision)
             || (parsed.queuePredecessorId !== null
-                && !validOperationId(parsed.queuePredecessorId))) {
+                && !validOperationId(parsed.queuePredecessorId))
+            || (parsed.executionPredecessorId !== null
+                && !validOperationId(parsed.executionPredecessorId))) {
             return null;
         }
         if (parsed.predecessorResolution !== null) {
             const resolution = parsed.predecessorResolution;
             if (!resolution || typeof resolution !== 'object' || Array.isArray(resolution)
-                || resolution.operationId !== parsed.queuePredecessorId
+                || parsed.executionPredecessorId === null
+                || resolution.operationId !== parsed.executionPredecessorId
                 || !['completed', 'failed', 'cancelled'].includes(resolution.state)
                 || typeof resolution.revision !== 'string'
                 || !/^[a-f0-9]{64}$/.test(resolution.revision)
@@ -153,6 +156,34 @@ function parseRecord(value, expectedOperationId = null) {
                 return null;
             }
         } else if (parsed.effectiveBaseRevision !== admission.submittedBaseRevision) {
+            return null;
+        }
+        if (parsed.inputState === 'completed') {
+            if (parsed.terminal?.state !== 'completed'
+                || typeof parsed.terminal.resultRevision !== 'string'
+                || !/^[a-f0-9]{64}$/.test(parsed.terminal.resultRevision)
+                || !['pending', 'published'].includes(parsed.terminal.publication)
+                || !Number.isSafeInteger(parsed.terminal.at)
+                || parsed.terminal.at <= 0
+                || (parsed.terminal.publication === 'published'
+                    && (!Number.isSafeInteger(parsed.terminal.publishedAt)
+                        || parsed.terminal.publishedAt <= 0))) {
+                return null;
+            }
+        } else if (parsed.inputState === 'failed' || parsed.inputState === 'cancelled') {
+            if (parsed.terminal?.state !== parsed.inputState
+                || parsed.terminal.publication !== 'not_applicable'
+                || !Number.isSafeInteger(parsed.terminal.at)
+                || parsed.terminal.at <= 0) {
+                return null;
+            }
+        } else if (parsed.inputState === 'blocked_edit') {
+            if (parsed.terminal?.state !== 'blocked_edit'
+                || !Number.isSafeInteger(parsed.terminal.at)
+                || parsed.terminal.at <= 0) {
+                return null;
+            }
+        } else if (parsed.terminal !== null) {
             return null;
         }
         if ((parsed.inputState === 'attached' && parsed.inputReceipt === null)
@@ -317,6 +348,32 @@ function createServerChatInputOwner({
         return chat ? chatRevision(chat) : null;
     };
 
+    function containsOwnedInput(record, chat) {
+        if (!record.inputMessageRevision || !Array.isArray(chat?.message)) return false;
+        const matches = chat.message.filter((message) => (
+            message?.chatId === record.admission.userMessageId
+            && message?.role === 'user'
+            && sha256(stableJSON(message)) === record.inputMessageRevision
+        ));
+        return matches.length === 1;
+    }
+
+    function requiresExecutionPredecessor(record, chat) {
+        if (record.inputState === 'blocked_edit') return true;
+        if (!TERMINAL_INPUT_STATES.has(record.inputState)) return true;
+        if (record.inputState === 'completed') {
+            const resultRevision = record.terminal?.resultRevision;
+            const liveRevision = chat ? chatRevision(chat) : null;
+            if (liveRevision === resultRevision) return false;
+            return record.terminal?.publication !== 'published';
+        }
+        if ((record.inputState === 'failed' || record.inputState === 'cancelled')
+            && record.inputReceipt) {
+            return !containsOwnedInput(record, chat);
+        }
+        return false;
+    }
+
     function allRecords() {
         const records = [];
         for (const key of kvList(SERVER_CHAT_INPUT_COMMAND_PREFIX)) {
@@ -379,15 +436,53 @@ function createServerChatInputOwner({
         return queueStorageOperation(() => sqliteDb.transaction(() => {
             const record = read(operationId);
             if (!record) return { status: 'missing' };
-            if (record.queuePredecessorId === null || record.predecessorResolution !== null
-                || record.inputState !== 'queued') {
+            if (record.predecessorResolution !== null || record.inputState !== 'queued') {
                 return { status: 'ready', record: clone(record) };
             }
-            const predecessor = read(record.queuePredecessorId);
+            const previousAdmission = record.admissionSeq > 1
+                && validOperationId(record.queuePredecessorId)
+                ? read(record.queuePredecessorId)
+                : null;
+            if ((record.admissionSeq === 1 && record.queuePredecessorId !== null)
+                || (record.admissionSeq > 1 && (
+                    !previousAdmission
+                    || previousAdmission.admission.charId !== record.admission.charId
+                    || previousAdmission.admission.chatId !== record.admission.chatId
+                    || previousAdmission.admissionSeq !== record.admissionSeq - 1
+                ))) {
+                return {
+                    status: 'blocked',
+                    reason: 'predecessor_identity_unavailable',
+                    record: clone(record),
+                };
+            }
+            const liveChat = currentChat(
+                record.admission.charId,
+                record.admission.chatId,
+            );
+            const unresolvedPredecessor = allRecords().filter((candidate) => (
+                candidate.admission.charId === record.admission.charId
+                && candidate.admission.chatId === record.admission.chatId
+                && candidate.admissionSeq < record.admissionSeq
+                && requiresExecutionPredecessor(candidate, liveChat)
+            )).sort((left, right) => left.admissionSeq - right.admissionSeq).at(-1) || null;
+            if (unresolvedPredecessor
+                && unresolvedPredecessor.operationId !== record.executionPredecessorId) {
+                return {
+                    status: 'blocked',
+                    reason: 'predecessor_identity_unavailable',
+                    predecessorOperationId: unresolvedPredecessor.operationId,
+                    record: clone(record),
+                };
+            }
+            if (record.executionPredecessorId === null) {
+                return { status: 'ready', record: clone(record) };
+            }
+            const predecessor = read(record.executionPredecessorId);
             if (!predecessor
                 || predecessor.admission.charId !== record.admission.charId
                 || predecessor.admission.chatId !== record.admission.chatId
-                || predecessor.admissionSeq !== record.admissionSeq - 1) {
+                || predecessor.admissionSeq >= record.admissionSeq) {
                 return {
                     status: 'blocked',
                     reason: 'predecessor_identity_unavailable',
@@ -431,11 +526,16 @@ function createServerChatInputOwner({
                     record: clone(record),
                 };
             }
-            if (currentRevision(record.admission.charId, record.admission.chatId)
-                !== resolvedRevision) {
+            const liveRevision = currentRevision(
+                record.admission.charId,
+                record.admission.chatId,
+            );
+            if (liveRevision !== resolvedRevision) {
+                const publicationPending = predecessor.inputState === 'completed'
+                    && liveRevision === predecessor.executionBaseRevision;
                 return {
-                    status: predecessor.inputState === 'completed' ? 'waiting' : 'blocked',
-                    reason: predecessor.inputState === 'completed'
+                    status: publicationPending ? 'waiting' : 'blocked',
+                    reason: publicationPending
                         ? 'predecessor_publication_pending'
                         : 'predecessor_revision_changed',
                     predecessorOperationId: predecessor.operationId,
@@ -505,11 +605,13 @@ function createServerChatInputOwner({
                     existingOperationId: duplicateCommand.operationId,
                 };
             }
-            const active = records.filter((record) => (
+            const matching = records.filter((record) => (
                 record.admission.charId === command.charId
                 && record.admission.chatId === command.chatId
-                && !TERMINAL_INPUT_STATES.has(record.inputState)
             )).sort((left, right) => left.admissionSeq - right.admissionSeq);
+            const active = matching.filter((record) => (
+                !TERMINAL_INPUT_STATES.has(record.inputState)
+            ));
             if (active.length >= SERVER_CHAT_INPUT_MAX_NONTERMINAL_PER_CHAT) {
                 return {
                     status: 'conflict',
@@ -556,8 +658,12 @@ function createServerChatInputOwner({
                 integrity: sha256(settingsSnapshot),
                 bytes: settingsSnapshot,
             };
+            const canonicalChat = currentChat(command.charId, command.chatId);
+            const executionPredecessor = matching.filter((record) => (
+                requiresExecutionPredecessor(record, canonicalChat)
+            )).at(-1) || null;
             const record = {
-                recordVersion: 3,
+                recordVersion: 4,
                 contractVersion: SERVER_CHAT_INPUT_COMMAND_CONTRACT,
                 operationId: admission.operationId,
                 requestFingerprint: fingerprint,
@@ -565,6 +671,7 @@ function createServerChatInputOwner({
                 admission,
                 admissionSeq: counter.value + 1,
                 queuePredecessorId: counter.lastOperationId,
+                executionPredecessorId: executionPredecessor?.operationId || null,
                 effectiveBaseRevision: admission.submittedBaseRevision,
                 predecessorResolution: null,
                 transformState: 'not_run',
@@ -853,13 +960,6 @@ function createServerChatInputOwner({
             return { status: 'transform-required', record: clone(record), chat: clone(chat) };
         }
         if (record.inputState === 'attached') {
-            if (!readSettingsSnapshotRecord(record)) {
-                return {
-                    status: 'blocked',
-                    reason: 'settings_context_unavailable',
-                    record: clone(record),
-                };
-            }
             await ensureCanonicalState();
             let chat = currentChat(record.admission.charId, record.admission.chatId);
             if (!chat || chatRevision(chat) !== record.executionBaseRevision) {
@@ -867,6 +967,13 @@ function createServerChatInputOwner({
             }
             if (!chat || chatRevision(chat) !== record.executionBaseRevision) {
                 return { status: 'blocked', reason: 'attached_chat_changed', record: clone(record) };
+            }
+            if (!readSettingsSnapshotRecord(record)) {
+                return {
+                    status: 'blocked',
+                    reason: 'settings_context_unavailable',
+                    record: clone(record),
+                };
             }
             return { status: 'attached', record: clone(record), chat: clone(chat) };
         }
@@ -879,7 +986,7 @@ function createServerChatInputOwner({
         };
     }
 
-    function settleSynchronously(operationId, state, resultRevision = null) {
+    function settleDurablySynchronously(operationId, state, resultRevision = null) {
         if (!['completed', 'failed', 'cancelled'].includes(state)) return false;
         if ((state === 'completed' && (typeof resultRevision !== 'string'
             || !/^[a-f0-9]{64}$/.test(resultRevision)))
@@ -888,16 +995,52 @@ function createServerChatInputOwner({
         const record = read(operationId);
         if (!record) return false;
         if (TERMINAL_INPUT_STATES.has(record.inputState)) {
-            settingsSnapshots.delete(operationId);
-            return true;
+            return record.inputState === state
+                && (state !== 'completed' || record.terminal?.resultRevision === resultRevision);
         }
         write({
             ...record,
             inputState: state,
-            terminal: { state, resultRevision, at: Date.now() },
+            terminal: {
+                state,
+                resultRevision,
+                publication: state === 'completed' ? 'pending' : 'not_applicable',
+                at: Date.now(),
+            },
         });
-        settingsSnapshots.delete(operationId);
         return true;
+    }
+
+    function markResultPublishedSynchronously(operationId, resultRevision) {
+        if (typeof resultRevision !== 'string' || !/^[a-f0-9]{64}$/.test(resultRevision)) {
+            return false;
+        }
+        const record = read(operationId);
+        if (!record || record.inputState !== 'completed'
+            || record.terminal?.state !== 'completed'
+            || record.terminal.resultRevision !== resultRevision) {
+            return false;
+        }
+        if (record.terminal.publication === 'published') return true;
+        write({
+            ...record,
+            terminal: {
+                ...record.terminal,
+                publication: 'published',
+                publishedAt: Date.now(),
+            },
+        });
+        return true;
+    }
+
+    function releaseSettingsContext(operationId) {
+        return settingsSnapshots.delete(operationId);
+    }
+
+    function settleSynchronously(operationId, state, resultRevision = null) {
+        const settled = settleDurablySynchronously(operationId, state, resultRevision);
+        if (settled) releaseSettingsContext(operationId);
+        return settled;
     }
 
     function markRunFailureSynchronously(operationId, providerStarted = false) {
@@ -925,8 +1068,8 @@ function createServerChatInputOwner({
             if (record.inputState === 'blocked_edit' || record.transformState === 'unknown'
                 || !readSettingsSnapshotRecord(record)) {
                 state = 'blocked_edit';
-            } else if (record.queuePredecessorId && !record.predecessorResolution) {
-                const predecessor = read(record.queuePredecessorId);
+            } else if (record.executionPredecessorId && !record.predecessorResolution) {
+                const predecessor = read(record.executionPredecessorId);
                 state = !predecessor || predecessor.inputState === 'blocked_edit'
                     || predecessor.transformState === 'unknown'
                     ? 'blocked_edit'
@@ -936,7 +1079,7 @@ function createServerChatInputOwner({
                 operationId: record.operationId,
                 inputCommandId: record.admission.inputCommandId,
                 admissionSeq: record.admissionSeq,
-                predecessorOperationId: record.queuePredecessorId,
+                predecessorOperationId: record.executionPredecessorId,
                 rawText: record.admission.rawText,
                 cancelAllowed: record.inputState === 'queued',
                 state,
@@ -945,7 +1088,12 @@ function createServerChatInputOwner({
     }
 
     async function recoverAll() {
-        const records = allRecords();
+        const records = allRecords().sort((left, right) => (
+            left.admission.charId.localeCompare(right.admission.charId)
+            || left.admission.chatId.localeCompare(right.admission.chatId)
+            || left.admissionSeq - right.admissionSeq
+            || left.operationId.localeCompare(right.operationId)
+        ));
         const attached = records.filter((record) => (
             record.inputReceipt && record.executionBaseRevision && record.journal
         ));
@@ -995,11 +1143,14 @@ function createServerChatInputOwner({
         discardRecovery,
         loadExecution,
         loadSettingsSnapshot,
+        markResultPublishedSynchronously,
         markRunFailureSynchronously,
         pendingProjection,
         read: (operationId) => clone(read(operationId)),
         recoverAll,
+        releaseSettingsContext,
         settingsSnapshotStats,
+        settleDurablySynchronously,
         settleSynchronously,
     };
 }
