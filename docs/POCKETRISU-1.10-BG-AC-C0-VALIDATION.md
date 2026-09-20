@@ -58,8 +58,8 @@ exit criteria.
 | C0-D | Can prepare registration prevent a second paid execution after response loss or restart, and can skip fence a late result? | durable prepare registry and timeout/ready CAS tests | **store primitive complete; HTTP/provider/startup integration remains C4/C6** |
 | C0-E | Can N+1 remain outside canonical chat until its turn, and can Node commit a result with chat, metadata, effects, intent, and owner in one replay boundary? | queued-input and server-commit failure-injection harness | **complete: current owners fail; C1/C3 split primitives are required** |
 | C0-F | Do output stages remain foreground/BG-equivalent, and can a blank browser discover ownership after result TTL cleanup? | stage parity fixture and revision-bound projection fixture | **complete: current result/projection are insufficient; C2/C5/C6 contracts required** |
-| C1 | Can Node commit chat, metadata, effects, intent, owner, operation state, and receipt in one replay boundary? | split journal plus WAL-mode SQLite failure injection and recovery | **primitive complete and called by the opted-in C2 server path** |
-| C2 | Can an opted-in detached BG final result reach the C1 owner and normal chat storage without a browser save? | exact route-to-owner fixture, recovery/route failure cases, complete graph lifecycle and server smoke | **opt-in server path complete; current client remains unopted and C3/C6 own hydration, projection, retention, and reconciliation** |
+| C1 | Can Node commit chat, metadata, effects, intent, owner, operation state, and receipt in one replay boundary? | split journal plus WAL-mode SQLite failure injection and recovery | **primitive implemented and called by the opted-in C2 server path; product lifecycle remains open** |
+| C2 | Can an opted-in detached BG final result reach the C1 owner and normal chat storage without a browser save? | exact route-to-owner fixture, recovery/route failure cases, complete graph lifecycle and server smoke | **internal opt-in server path implemented; current client remains unopted and C3/C6 own hydration, projection, retention, and reconciliation** |
 | C3 foundation | Can the server own pre-canonical input state, expose revision-bound message ownership, let a client adopt a committed normal chat without replaying legacy effects, and preserve one successor's exact predecessor lineage? | input/commit/projection owners, immutable same-process settings context, N+1 terminal/revision fixtures, foreground/cold-boot hydration fixtures, publication/slot race injection, complete target and graph gates | **foundation implemented; capability remains 0 until automatic drain, receipt-scoped dynamic effects, pending/chat-open reconciliation, client opt-in, and the separate C4 AC settings contract close** |
 | C4 context foundation | Can AC freeze one explicit device/backend settings snapshot without persisting or publicly hashing secret values? | typed allowlist, process-memory owner, exact replay/conflict, configuration-lock, secret-independence, capacity/restart and full race fixtures | **capture owner implemented; no HTTP/HostPrepare/provider caller, resolver, release, or product capability exists** |
 
@@ -609,12 +609,52 @@ bundle is 8,861,860 bytes and loads `sendChat`, `runTrigger`, and
 collisions, zero-change re-plan, and zero exact-revert existence/byte/mode
 mismatches. Final installers are 8,228,941 bytes, mode 0755, and SHA-256
 `7cfb3dd419915ac8b3fbce32dc08d4c7b14a48e1ca5b5d69d67c9c04aa2a9e0f`.
-Capability remains input 0/foundation 3. There is no automatic drain, ordinary
+The N+1 checkpoint kept capability at input 0/foundation 3. Connection
+hardening commit `3315e4d` advances only the diagnostic foundation to 4;
+capability remains input 0. There is no automatic drain, ordinary
 client opt-in/pending UI, AC execution, live apply, tag, or release.
 
 The detailed discovery → external-anchor → triage report is
 `docs/POCKETRISU-1.10-BG-AC-C3-NPLUS1-FOUNDATION-VALIDATION.md`; its SHA-256 is
 `6e261c490a25fff62924b205dc4a6eb4e8c21a0270ca29903b57d4a848ef91f8`.
+
+### C3 external-audit connection hardening
+
+An independent audit against `3c27c4b` reproduced cancellation bypass,
+completed/edit revision deadlock, interleaved input/response recovery omission,
+and transaction-rollback settings loss, and identified a server-owned failure
+fallthrough into legacy client persistence. Implementation commit `3315e4d`
+addresses those R1–R5 findings without raising product capability.
+
+The input record is now v4. It preserves exact adjacent admission identity and
+a separate execution dependency, records completed-result publication, rejects
+tampered dependency bypass, and treats current edited/deleted chat as a new
+head only when no unresolved execution work remains. Startup performs bounded
+input→commit causal passes; attached input publication precedes restart settings
+loss. Commit transactions write only durable terminal state, while settings
+release and publication marking occur afterward on the storage queue.
+
+Server result/status records preserve `serverChatCommitVersion: 1` for the
+candidate path. Foreground and boot clients classify server ownership before
+result-order ACK or legacy persistence, retain unresolved results/markers, and
+do not convert commit failure into client save. The route fixture now uses an
+actual SQLite transaction and connects the resulting receipt/projection to the
+client hydration helper.
+
+Observed gates are patcher 52/52, focused frontend 39/39, focused owner/route
+49/49, complete frontend 1,743/1,743, complete server 301 pass/12 skip,
+compatibility 74 pass/5 skip, Svelte 0/0, 7,941-module build, 40 packs/1,003
+units/354 paths/13 collisions, zero-change re-plan, and zero-mismatch exact
+revert. The two 8,274,867-byte installers are byte-identical, mode 0755, with
+SHA-256 `f750979d2bf1053d01f0c00a3e77f5eba77be3bfc8921765fdd7b4ec390a0215`.
+
+The remaining activation gates are v3 zero-legacy or migration, automatic
+drain, admission ACK/pending UI, effect-scoped lineage, actual browser/process
+exit, joined retention, and AC lifecycle. Detailed runtime audit and evidence
+are in
+`docs/POCKETRISU-1.10-BG-AC-C3-CONNECTION-HARDENING-VALIDATION.md`.
+Its SHA-256 is
+`584719eeb11f1a74d8d29491ddc56d7dcfbada9d14b08e5421822e4091a86827`.
 
 ### C4 process-memory immutable execution context foundation
 
@@ -642,11 +682,13 @@ SHA-256
 `ac9310927f69ebc50ba3b47551b053a4f644a94d975058b33f3c874ee672822c`.
 The isolated 4.3.1 runtime remained ready/non-degraded and was not replaced.
 
-This is not C4 product completion. There is no external DTO decoder,
-authenticated route, execution-claim/HostPrepare join, effective precedence
-resolver, provider/complete accessor, startup scan, or terminal context
-release. The source commits remain local on the AC worktree; no upstream AC
-push was attempted.
+Local AC commit `9e23861` subsequently added a captured-only effective settings
+resolver with device→backend/config fallback and existing-accessor parity. This
+is not C4 product completion. There is no external DTO decoder, authenticated
+route, execution-claim/HostPrepare join, production provider/complete accessor,
+prompt-file snapshot, startup scan, or terminal context release. Full-repository
+race, ARM64 rebuild, and L2.5 after the resolver remain open. The source commits
+remain local on the AC worktree; no upstream AC push was attempted.
 
 The detailed discovery → external-anchor → triage report is AC
 `docs/pocketrisu-execution-context-c4-validation.md`; its SHA-256 is
@@ -656,13 +698,13 @@ The detailed discovery → external-anchor → triage report is AC
 
 | Need | Existing owner | Confirmed gap |
 | --- | --- | --- |
-| Node serialization | `queueStorageOperation`, `fullChatStore`, C1/C2 commit owner, and C3 input/settings owner | One successor has exact predecessor/revision lineage, but automatic drain, receipt-scoped dynamic effects, client pending recovery, and transport to the unmounted AC context owner are absent; C6 retention remains undefined |
-| Chat payload WAL | split `chatWriteJournal` prepare/write/publish/recovery phases plus C2 commit and C3 input operation rows | terminal input and result recovery are wired through current replacement owners; C6 must define bounded retirement and late-reference safety |
+| Node serialization | `queueStorageOperation`, `fullChatStore`, C1/C2 commit owner, and C3 input/settings owner | admission order and execution dependency are separated in record v4; automatic drain, receipt-scoped dynamic effects, client pending UI, and transport to the unmounted AC context owner are absent; C6 retention remains undefined |
+| Chat payload WAL | split `chatWriteJournal` prepare/write/publish/recovery phases plus C2 commit and C3 input operation rows | bounded input↔response causal reconciliation and rollback-safe settings release are wired; actual process-kill timing, bounded retirement, and late-reference safety remain open |
 | BG lifecycle/output | generated exact-1.10 `bgOrchestrator.cjs` and `bgOrchestrate.ts` | internal flag 1 can exercise input→commit→hydrate, but capability remains 0/current client unopted; pending UI and C5 output transform remain absent |
 | BG delivery ownership | chat/root `bgOrchestrationDelivery` markers, bounded result retention, and `serverChatExecutionState` | char/chat/revision projection exists and reconciles exact owners; ordinary chat-open consumption, AC state, and owner/tombstone lifetime remain absent |
 | AC route identity | `SessionRouteBindingStore`, `HostSessionExecutionStore`, and serializable route/claim transactions | store acquire/status/settle and exact-stream watermarks exist; authenticated route, nonterminal phases, and receipt/context links remain absent |
 | AC source invalidation | durable source revisions, transactional invalidation/outbox fences, and the C0-C ordered host stream | store primitive is connected; Node durable writer, host transport, input/response completion, and multi-stream aggregation remain absent |
-| AC prepare/complete idempotency | durable `HostPrepareRegistryStore`, in-process complete request ledger, durable source records, and C4 process-memory execution context | typed device/backend capture exists; authenticated HTTP, claim/prepare join, effective resolver/provider accessors, startup recovery, typed result semantics, and server-host complete receipt remain absent |
+| AC prepare/complete idempotency | durable `HostPrepareRegistryStore`, in-process complete request ledger, durable source records, and C4 process-memory execution context | typed device/backend capture and captured-only effective resolver exist; authenticated HTTP, claim/prepare join, production provider accessors, startup recovery, typed result semantics, and server-host complete receipt remain absent |
 
 No generated `bgOrchBundle.mjs` output will be edited directly. New storage is
 additive and remains inside the existing SQLite/MariaDB owners; C0 does not add
@@ -677,11 +719,13 @@ revertible. A passing source test does not advance a later state automatically.
 2. AC durable binding claim and terminal settle primitive.
 3. AC ordered host-change ingestion and source-generation fence.
 4. AC durable prepare registry, immutable execution context, and explicit skip.
-5. PocketRisu server chat/effect commit primitive (**C1 complete**).
-6. PocketRisu opted-in BG final-result/cancel/status connection (**C2
-   complete; current client intentionally unopted**).
+5. PocketRisu server chat/effect commit primitive (**C1 implementation slice;
+   product lifecycle remains open**).
+6. PocketRisu opted-in BG final-result/cancel/status connection (**C2 internal
+   implementation slice; current client intentionally unopted**).
 7. PocketRisu C3 projection/hydration/input foundation (**implemented through
-   same-process settings and owner-level N+1 lineage; capability 0 until
+   same-process settings, record-v4 lineage, causal recovery, and
+   server-owned failure fences; capability 0 until
    automatic drain, receipt-scoped effects, chat-open UI, client opt-in, and
    C4 AC settings close**).
 8. AC C4 typed execution-context resolver/transport, then C5 JS/PocketRisu
