@@ -591,10 +591,10 @@ local commit `9e23861`은 captured material만 사용하여 다음 최종 config
 | full Go repository after resolver | passed |
 | `go vet ./...` after resolver | passed |
 | full repository race after capture owner | passed |
-| full repository race after resolver | 미실행 |
+| full repository race after resolver | independent source snapshot에서 passed |
 | ARM64 build after capture owner | 36,486,259 bytes, SHA-256 `ac9310927f69ebc50ba3b47551b053a4f644a94d975058b33f3c874ee672822c` |
-| ARM64 build after resolver | 미실행 |
-| resolver L2.5/update report | 미완료 |
+| ARM64 build after resolver | 36,486,347 bytes, SHA-256 `fd70b2ca9b2ba998ce2cfa14942583a7eaedf7d6734e1c0bc87a9aaa15cae8a6` |
+| resolver L2.5/update report | independent snapshot validation 완료 |
 
 ### 10.4 C4 현재 limitation
 
@@ -753,16 +753,7 @@ record v4는 v3를 fail-closed한다. 후보가 live에 없으므로 현재 사�
 
 이는 capability를 일반 사용자에게 공개하는 단계가 아니라 C1~C3 연결을 process 경계에서 증명하는 단계다.
 
-### 16.2 AC resolver checkpoint 마감
-
-1. verified full-index patch에서 복원한 independent checkout으로 source parity 재확인
-2. resolver 이후 full repository race 재실행
-3. resolver 포함 Linux ARM64 build와 SHA-256 기록
-4. runtime audit v2 보강
-5. AC C4 validation report와 central ledger 갱신
-6. tracked sensitive-information sweep
-
-### 16.3 C4 product 연결
+### 16.2 C4 product 연결
 
 1. context-aware prepare/complete/provider accessor 연결
 2. current global runtime 재조회가 없는지 final caller별 검증
@@ -772,7 +763,7 @@ record v4는 v3를 fail-closed한다. 후보가 live에 없으므로 현재 사�
 6. complete source acceptance v4와 prepare host observation variant
 7. v1~v3 회귀 및 legacy bypass fence
 
-### 16.4 C5 host adapter
+### 16.3 C5 host adapter
 
 1. AC JS device snapshot/host observation 최소 export
 2. PocketRisu API v3 host bridge
@@ -781,7 +772,7 @@ record v4는 v3를 fail-closed한다. 후보가 live에 없으므로 현재 사�
 5. foreground/BG canonical·display·AC candidate parity
 6. browser hook/backfill/delivery 중복 제거
 
-### 16.5 C6 activation-critical lifecycle
+### 16.4 C6 activation-critical lifecycle
 
 1. Node queue head와 AC claim 결합
 2. durable hostChange intent writer와 transport
@@ -793,7 +784,7 @@ record v4는 v3를 fail-closed한다. 후보가 live에 없으므로 현재 사�
 8. context/prepare/owner/result/tombstone retention
 9. conflict copy, delete, edit, reroll, branch policy
 
-### 16.6 C3 product activation
+### 16.5 C3 product activation
 
 1. operation-keyed response-free automatic drain coordinator
 2. input append/script/autosave 이전 early-send branch
@@ -802,7 +793,7 @@ record v4는 v3를 fail-closed한다. 후보가 live에 없으므로 현재 사�
 5. build-fence new/old client-server matrix
 6. C6 필수 gate 통과 뒤 capability 1 승격
 
-### 16.7 C7 qualification
+### 16.6 C7 qualification
 
 1. complete patch graph lifecycle와 exact revert
 2. AC JS/Go/PocketRisu build manifest 고정
@@ -1019,7 +1010,7 @@ docs/pocketrisu-execution-context-c4-validation.md
 | range/finalization decision | [`group_turn_range_decision.go`](https://github.com/Flazer31/archive-center/blob/026dcbf3b45adcf69b254673d439b24e943115b3/go-service/internal/httpapi/group_turn_range_decision.go) |
 | DTO와 prepare source contract | [`types_gen.go`](https://github.com/Flazer31/archive-center/blob/026dcbf3b45adcf69b254673d439b24e943115b3/go-service/internal/dto/types_gen.go), [`prepare_source_contract.go`](https://github.com/Flazer31/archive-center/blob/026dcbf3b45adcf69b254673d439b24e943115b3/go-service/internal/dto/prepare_source_contract.go) |
 
-현재 C4 context/resolver는 이 기존 caller를 아직 교체하거나 주입받지 않는다. 따라서 새 resolver 파일의 존재와 실제 prepare/complete/provider 사용은 별개이며, production caller 연결은 10.4와 16.3의 미완료 항목으로 남는다.
+현재 C4 context/resolver는 이 기존 caller를 아직 교체하거나 주입받지 않는다. 따라서 새 resolver 파일의 존재와 실제 prepare/complete/provider 사용은 별개이며, production caller 연결은 10.4와 16.2의 미완료 항목으로 남는다.
 
 ### 17.7 재현 가능한 대조 순서
 
@@ -1074,6 +1065,7 @@ docs/pocketrisu-execution-context-c4-validation.md
 - `docs/POCKETRISU-1.10-BG-AC-C3-NPLUS1-FOUNDATION-VALIDATION.md`
 - `docs/POCKETRISU-1.10-BG-AC-C3-CONNECTION-HARDENING-VALIDATION.md`
 - `docs/POCKETRISU-1.10-BG-AC-ARCHIVE-CENTER-SOURCE-SNAPSHOT.md`
+- `docs/POCKETRISU-1.10-BG-AC-C4-INDEPENDENT-SNAPSHOT-VALIDATION.md`
 - `artifacts/archive-center/pocketrisu-bg-ac-026dcbf-to-9e23861.patch`
 - AC `docs/pocketrisu-host-session-execution-c0-validation.md`
 - AC `docs/pocketrisu-host-change-stream-c0-validation.md`

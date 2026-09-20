@@ -695,6 +695,21 @@ SHA-256 `d70dac9ef7386464ef8bc5bf9fd0259b7b4c821af321325445abc92a5e6d574d`.
 An isolated public-base restore staged 28 paths and reproduced candidate tree
 `7806dd39f4acfa294ee67f9d7834bc6fed448730`.
 
+The independently restored tree passed focused context/resolver tests and
+focused race, the complete Go repository and complete repository race,
+`go vet ./...`, and unchanged JavaScript syntax. A clean `CGO_ENABLED=0`
+Linux ARM64 build produced 36,486,347 bytes, mode 0775, and SHA-256
+`fd70b2ca9b2ba998ce2cfa14942583a7eaedf7d6734e1c0bc87a9aaa15cae8a6`.
+Build metadata reports public base revision `026dcbf` with
+`vcs.modified=true`, matching the staged source-snapshot representation. This
+independent replay did not start MariaDB or ChromaDB and does not make the
+resolver production-reachable.
+
+The independent discovery → external-anchor → triage report is
+`docs/POCKETRISU-1.10-BG-AC-C4-INDEPENDENT-SNAPSHOT-VALIDATION.md`.
+Its SHA-256 is
+`1c04a7b2fe27af0cfadee84705019064c8153ccd0843f8f327be881a07f1b40d`.
+
 The detailed discovery → external-anchor → triage report is AC
 `docs/pocketrisu-execution-context-c4-validation.md`; its SHA-256 is
 `a3ee48bccf949280bd942d3ba9828675535c4ecbd4966296463d3ce0dff34a05`.
