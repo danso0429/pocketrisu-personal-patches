@@ -4,9 +4,24 @@ Date: 2026-09-14 KST
 
 Status: **C0 contract experiments, C1 server commit primitive, and C2 opt-in
 BG result commit complete; C3 projection/hydration/input, same-process settings,
-and owner-level N+1 plus the C4 process-memory execution-context foundations
-are implemented, but product C3–C7 integration, live application, and release
-are not complete**
+owner-level N+1, external-audit connection hardening, and the AC-off HTTP
+boundary fixture plus the C4 process-memory execution-context foundations are
+implemented, but product C3–C7 integration, live application, and release are
+not complete**
+
+## Fresh-session continuation
+
+Use the following documents to continue from the current checkpoint without
+depending on prior conversation:
+
+1. `docs/POCKETRISU-1.10-BG-AC-HANDOFF-INDEX.md` — source and evidence map;
+2. `docs/POCKETRISU-1.10-BG-AC-NEXT-WORK-PLAN.md` — dependency-ordered work;
+3. `docs/POCKETRISU-1.10-BG-AC-FRESH-START-INSTRUCTIONS.md` — reproducible
+   startup and first slice.
+
+The first incomplete dependency is the AC-off composed Node process boundary.
+Archive Center production caller wiring and client capability activation occur
+only after their preceding gates in the next-work plan.
 
 ## Authority and frozen inputs
 

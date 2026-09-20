@@ -682,9 +682,13 @@ local commit `9e23861`은 captured material만 사용하여 다음 최종 config
 
 - branch: `codex/pocketrisu-bg-ac-server-chat-save`
 - 최초 종합 보고서 commit: `3c27c4b`
-- 현재 PocketRisu 구현 checkpoint: `3315e4d`
-- 포함 범위: C0 ledger, C1~C3 source/installer/docs, R1~R5 hardening, C4 capture-owner ledger
-- 미포함: AC resolver commit `9e23861`의 최신 상태
+- 현재 구현·증거 checkpoint: `df7fed7`
+- PocketRisu production 구현 checkpoint: `3315e4d`
+- test-only AC-off HTTP boundary: `a286b96`
+- 포함 범위: C0 ledger, C1~C3 source/installer/docs, R1~R5 hardening,
+  handler-level AC-off HTTP evidence, C4 capture/resolver source snapshot과
+  independent validation
+- 미포함: AC original 15 commit object와 production caller 연결
 
 이 보고서는 같은 private GitHub branch에 보존한다. 최초 보고서 이후 구현 변경과 검증은 별도 commit으로 분리한다.
 
@@ -1055,9 +1059,15 @@ docs/pocketrisu-execution-context-c4-validation.md
 | C4 central ledger | `265b8e9` |
 | C3 external-audit connection hardening | `3315e4d` |
 | C3 AC-off HTTP boundary fixture | `a286b96` |
+| AC full-index source snapshot | `a5ee89a` |
+| C4 independent snapshot validation | `03cef81` |
+| Connection receipt consolidation | `5d4b132`, `df7fed7` |
 
 ## 19. 상세 증거 문서
 
+- `docs/POCKETRISU-1.10-BG-AC-HANDOFF-INDEX.md`
+- `docs/POCKETRISU-1.10-BG-AC-NEXT-WORK-PLAN.md`
+- `docs/POCKETRISU-1.10-BG-AC-FRESH-START-INSTRUCTIONS.md`
 - `docs/POCKETRISU-1.10-BG-AC-C0-VALIDATION.md`
 - `docs/POCKETRISU-1.10-BG-AC-C0-E-NODE-STORAGE-CHARACTERIZATION.md`
 - `docs/POCKETRISU-1.10-BG-AC-C0-F-OUTPUT-OWNER-CHARACTERIZATION.md`
