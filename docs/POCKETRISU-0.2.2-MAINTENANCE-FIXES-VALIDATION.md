@@ -290,4 +290,68 @@ iPhone-side navigation/render path, not server selection.
   bytes, mode 0755, CJS syntax-valid, SHA-256
   `c0a000f93cb2ce8aa6ae1c4275c90a3292338cd7f04d644ff43b58fa9e0f3d73`.
 
+## Live candidate delivery
+
+The first live preflight found native running/pending zero but one BG operation
+running. It was not cancelled, claimed, or acknowledged by deployment. It
+naturally reached delivered. A later preflight found a second operation at
+`result-ready`; that also reached delivered before stop. The final boundary was
+native active/pending zero, BG active/result zero, 375 delivered states, and
+three historical cancelled states.
+
+The generated installer plan was exact-1.10 `verified` and named 12 runtime/test
+source files plus private patch state. PM2 was stopped before source writes.
+The transaction applied those exact files, then stopped-tree checks passed:
+
+- focused client 42/42;
+- focused server 52/52;
+- Svelte diagnostics 0/0;
+- production build 7,940 modules;
+- BG bundle 8,847,647 bytes with `sendChat=function`;
+- production prune removed 109 development packages; and
+- `express`, `better-sqlite3`, `msgpackr`, `compression`, and the BG bundle
+  loaded after prune.
+
+The FastImport migration first encountered an index-label bug in its local
+verification harness. That invocation stopped before backup creation or DB
+write. The original script hash and database `quick_check` were re-read before
+the corrected fail-closed migration ran. The successful migration:
+
+- matched exactly one plugin and one clipboard statement;
+- created and byte-hash-verified one chunk-aware database backup, retained for
+  rollback;
+- changed the target script from SHA-256
+  `203678e882cee9d2e2c66123820e26ede8d6cc085ac5feb0072ed2b5a2cee908`
+  to
+  `5777e74585a3dfc7993cd53fef58c7ad2e649d1d6d167aaf8457355eb1885e94`;
+- preserved 12 plugin identities, every unrelated plugin script, and the
+  non-target database canonical digest; and
+- passed encoded round-trip, live readback, and `quick_check`.
+
+After restart, PM2 reported PocketRisu 1.10.0 online at PID 105138, restart
+count zero, unstable restarts zero, and active requests zero. Root, main asset,
+and build stamp returned HTTP 200. Served and local
+`index-4BjhmIo-.js` were both 2,047,743 bytes with SHA-256
+`82d61e1cfefee13e117892e54b211ee4e8a5e7301173a302efc6030e83124d52`.
+The served build stamp was
+`1.10.0-24952ea5c604431d89a7a1dc642b2f8cebb10674c58b3c1292baad7deaaedaad`.
+
+The live request-log DB contains `idx_requests_size_bytes`, and SQLite reports
+`SCAN requests USING COVERING INDEX idx_requests_size_bytes`. Eight direct
+aggregate samples measured 0.139-0.199 ms. Authenticated HTTP `/stats` measured
+51.191 ms first and 7.788 ms warm. During the delivery window one new usage row
+arrived and the normal 256 MiB body-retention rotation reduced request rows
+from 3,237 to 3,223 while the maximum ID advanced by one; this is disclosed as
+concurrent bounded-log activity rather than claimed as deployment immutability.
+
+All four SQLite databases returned `quick_check=ok` after restart. The main DB
+kept its inode and file size; the patch state changed as expected, while intent
+kept its inode and 57-byte size. Final patch status was 41 packs and 341/341
+managed paths current with drift zero; the next generated-installer plan had
+936 units, 13 ordered collisions, and zero changed files. Native/BG active and
+result work remained zero. The error log grew during the pre-stop user BG
+operations, with no patch/version, missing-payload, ambiguous-archive, PageFold,
+or credential terms; a five-second post-restart window added zero stderr and
+zero stdout bytes.
+
 Physical L3 remains open. No stable tag or release has been created.

@@ -27,6 +27,13 @@
 - Keep the candidate experimental. Native CharX commit, FastImport iOS picker,
   empty-chat persistence, and log-view latency require physical iPhone L3
   before stable publication.
+- Apply the candidate live only after two newly observed BG operations naturally
+  reach delivered with active/result zero. Pass stopped-tree focused tests,
+  Svelte 0/0, production build, BG load, production prune/runtime load, four
+  SQLite quick checks, served/local asset identity, 341/341 current status, and
+  a zero-change 936-unit plan. Migrate the installed FastImport plugin under an
+  exact script hash and a retained chunk-aware DB backup without replacing the
+  plugin array.
 
 ## 0.2.1
 
