@@ -3,6 +3,7 @@
 - Validation date: 2026-09-20 KST
 - Reviewed checkpoint: `3c27c4bc5a9caf270ad3ed594543913be72aaf17`
 - Implementation commit: `3315e4d`
+- AC-off HTTP boundary test commit: `a286b96`
 - Target: PocketRisu 1.10.0 (`98e968339d1b3f91b9dac85bb3f2ebb5f90f9d14`)
 - Adapter: `lazy-chat-bg-adapter` 0.7.0
 - Client capability: `inputCommandVersion: 0`
@@ -195,6 +196,7 @@ advertises server ownership for this candidate path.
 | Server-owned failure does not enter legacy client save | Structural | commit throws, conflicts, or yields invalid receipt | classifier unit tests plus composed manifest order place the ownership fence before ACK and `persistMergedOrchestrationResult()` |
 | Generated result remains available after commit failure | Structural | injected server commit exception | actual SQLite route persists result chat with `serverChatCommitVersion: 1`, `status: failed`, and `result-ready` state |
 | Result/status cleanup does not immediately erase input-path ownership | Structural | delete result and operation-state fixture rows | result route returns `input-failed` and `serverChatCommitVersion: 1` from durable input owner |
+| Start ACK does not own server completion | Empirical | hold the fixed provider after HTTP start response, then drop client activity | ACK returned with commit 0/finished false; gate release produced provider 1, commit 1, normal owner chat, result, projection, and hydration without result ACK |
 | Legacy result behavior is preserved | Structural | queued legacy result with no server owner | complete frontend suite caught the added zero field; conditional emission fixed it and the complete suite then passed |
 | Source/manifest/installers are consistent | Empirical | stale generated installer | two consecutive builds and both standalone files are byte-identical |
 | Full target remains composable and reversible | Empirical | new units collide or revert incompletely | complete graph applies, reports current, replans with zero changed files, and reverts 354 path existence/bytes/modes with zero mismatch |
@@ -279,9 +281,9 @@ advertises server ownership for this candidate path.
 | --- | --- |
 | Patcher source tests | 52/52 files passed |
 | Focused frontend | 2/2 files, 39/39 tests passed |
-| Focused owner/route | 3/3 files, 49/49 tests passed |
+| Focused owner/route | 3/3 files, 50/50 tests passed |
 | Complete frontend | 153/153 files, 1,743/1,743 tests passed |
-| Complete server | 28/28 files, 301 passed, 12 skipped |
+| Complete server | 28/28 files, 302 passed, 12 skipped |
 | Restricted server control | listener-dependent tests failed with `listen EPERM`; the same target passed with loopback allowed |
 | Compatibility | 10 files passed, 1 skipped; 74 passed, 5 skipped |
 | Svelte diagnostics | 0 errors, 0 warnings |
@@ -291,19 +293,22 @@ advertises server ownership for this candidate path.
 | Re-plan | 0 changed files |
 | Exact revert | 354 path existence/bytes/modes, 0 mismatches |
 | Final disposable target | clean, empty custom intent |
-| Installers | both files byte-identical, 8,274,867 bytes, mode 0755, SHA-256 `f750979d2bf1053d01f0c00a3e77f5eba77be3bfc8921765fdd7b4ec390a0215` |
+| AC-off HTTP boundary | start ACK observed while provider gate remained blocked; after request completion, provider 1, commit 1, result/projection/chat/hydration complete, ACK 0 |
+| Installers | both files byte-identical, 8,281,994 bytes, mode 0755, SHA-256 `146a892fde7b8a3bb9fe01926093d3a9e275660aaf00aae5e24d57dbc03b47e6` |
 
-The complete frontend run preceded a test-only route-fixture refinement; that
-refinement changed only a server test source. The exact final installer then
-passed the focused route test, complete server suite, compatibility suite,
-diagnostics, production build, composition lifecycle, and exact revert.
+The complete frontend run preceded the test-only HTTP boundary refinement;
+that refinement changed only a server test source. The exact final installer
+then passed the focused route test, complete server suite, patcher suite,
+composition lifecycle, and exact revert. Compatibility, diagnostics,
+production build, and BG bundle evidence remain from the same runtime source;
+the later installer change contains only the owned server test.
 
 ## 8. Next dependency order
 
 1. Keep capability 0 and preserve the implementation checkpoint.
-2. Run the actual browserless AC-off one-turn process boundary: early admission,
-   fixed provider, server commit, normal chat API readback, blank-client
-   adoption, commit failure, and response loss.
+2. Promote the AC-off HTTP handler fixture to the composed Node server process,
+   normal chat API readback, blank-client storage adoption, and explicit
+   response-loss counters.
 3. Restore the verified Archive Center full-index source patch into an
    independent public-base checkout and rerun C4 source/race/build audit there.
 4. Connect C4 immutable context to actual prepare/complete/provider consumers

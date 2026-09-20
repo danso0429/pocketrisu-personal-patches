@@ -138,11 +138,12 @@ live PocketRisu는 현재 pristine이 아니라 기존 all-preset patch graph가
 | 항목 | C3 connection-hardening checkpoint |
 | --- | --- |
 | implementation commit | `3315e4d` |
+| AC-off HTTP boundary test | `a286b96` |
 | adapter | `lazy-chat-bg-adapter` 0.7.0 |
 | capability | input 0, diagnostic foundation 4 |
 | complete graph | 40 packs, 1,003 units, 354 managed paths, 13 ordered collisions |
-| installer | 8,274,867 bytes, mode 0755 |
-| installer SHA-256 | `f750979d2bf1053d01f0c00a3e77f5eba77be3bfc8921765fdd7b4ec390a0215` |
+| installer | 8,281,994 bytes, mode 0755 |
+| installer SHA-256 | `146a892fde7b8a3bb9fe01926093d3a9e275660aaf00aae5e24d57dbc03b47e6` |
 | disposable target final state | clean, empty custom intent |
 
 ### 4.4 격리 Archive Center 설치
@@ -504,6 +505,7 @@ audit에서 predecessor sequence를 단순히 더 작은 값으로만 검사하�
 - admission-time server ownership을 result/status에 보존
 - foreground/boot에서 order ACK와 legacy client save 전에 server-owned failure 차단
 - 실제 SQLite route 결과와 authoritative projection을 client hydration helper에 연결한 AC-off fixture
+- HTTP start ACK 뒤 fixed provider gate를 유지하고 client 추가 동작 없이 server provider 1회·commit 1회·ACK 0으로 result/projection/chat/hydration을 완성한 boundary fixture
 
 상세한 재현, 코드 경계, runtime audit와 잔여 surface는
 `docs/POCKETRISU-1.10-BG-AC-C3-CONNECTION-HARDENING-VALIDATION.md`에 있다.
@@ -514,9 +516,9 @@ audit에서 predecessor sequence를 단순히 더 작은 값으로만 검사하�
 | --- | --- |
 | patcher source tests | 52/52 files |
 | focused frontend | 2 files, 39/39 tests |
-| focused owner/route | 3 files, 49/49 tests |
+| focused owner/route | 3 files, 50/50 tests |
 | frontend | 153 files, 1,743/1,743 tests |
-| server | 28 files, 301 passed, 12 skipped |
+| server | 28 files, 302 passed, 12 skipped |
 | compatibility | 10 passed files, 1 skipped file; 74 passed, 5 skipped tests |
 | Svelte | 0 errors, 0 warnings |
 | production build | 7,941 modules |
@@ -742,16 +744,16 @@ record v4는 v3를 fail-closed한다. 후보가 live에 없으므로 현재 사�
 
 ## 16. 다음 권장 실행 순서
 
-### 16.1 AC-off 실제 한 턴 process boundary
+### 16.1 AC-off composed Node process boundary
 
-1. input append/script/autosave 전 internal admission
-2. fixed provider fixture의 한 번 실행
-3. 실제 Node process의 정상 chat commit과 일반 chat API readback
-4. 결과 ACK 유실과 commit failure에서 provider/client save 0회
-5. 빈 local state client의 projection→normal chat adoption
-6. input→response→input durable boundary별 process restart
+1. composed `server.cjs` child process에서 internal admission과 fixed provider 주입
+2. production normal chat API로 commit 본문/revision readback
+3. 실제 client process 종료 또는 socket loss 뒤 provider 1회·client save/ACK 0회
+4. 빈 local state client의 실제 chatStorage adoption
+5. input→response→input durable boundary별 child process restart
+6. commit failure와 result/status TTL 뒤 최소 owner readback
 
-이는 capability를 일반 사용자에게 공개하는 단계가 아니라 C1~C3 연결을 process 경계에서 증명하는 단계다.
+현재 actual SQLite+HTTP handler fixture는 start ACK 이후 server 지속 실행과 result/projection/chat/helper hydration을 증명했다. 위 단계는 이를 composed process와 production normal-chat/client storage 경계로 올리는 작업이며 capability를 일반 사용자에게 공개하는 단계가 아니다.
 
 ### 16.2 C4 product 연결
 
@@ -1052,6 +1054,7 @@ docs/pocketrisu-execution-context-c4-validation.md
 | C3 final installer/docs | `7c5b7c1`, `25d6a76` |
 | C4 central ledger | `265b8e9` |
 | C3 external-audit connection hardening | `3315e4d` |
+| C3 AC-off HTTP boundary fixture | `a286b96` |
 
 ## 19. 상세 증거 문서
 
@@ -1086,6 +1089,7 @@ docs/pocketrisu-execution-context-c4-validation.md
 - response transaction rollback은 durable input 상태와 volatile settings context를 함께 기존 상태로 유지한다.
 - server-owned commit failure는 합성 foreground/boot 경로에서 legacy client save·ACK보다 먼저 차단된다.
 - actual SQLite route의 server receipt/projection이 client hydration helper 계약과 연결된다.
+- HTTP start ACK가 끝난 뒤에도 fixed provider 작업이 server에서 한 번만 계속되어 commit/result/projection/chat/hydration을 완성한다.
 - AC가 session claim, ordered host change, durable prepare state를 MariaDB에 보존할 수 있다.
 - AC가 device/backend settings와 private provider material을 process-memory context로 고정하고, mutable global을 다시 읽지 않는 resolver를 만들 수 있다.
 

@@ -624,7 +624,8 @@ An independent audit against `3c27c4b` reproduced cancellation bypass,
 completed/edit revision deadlock, interleaved input/response recovery omission,
 and transaction-rollback settings loss, and identified a server-owned failure
 fallthrough into legacy client persistence. Implementation commit `3315e4d`
-addresses those R1–R5 findings without raising product capability.
+addresses those R1–R5 findings without raising product capability. Test commit
+`a286b96` adds the AC-off HTTP start/continue/readback boundary.
 
 The input record is now v4. It preserves exact adjacent admission identity and
 a separate execution dependency, records completed-result publication, rejects
@@ -639,14 +640,16 @@ candidate path. Foreground and boot clients classify server ownership before
 result-order ACK or legacy persistence, retain unresolved results/markers, and
 do not convert commit failure into client save. The route fixture now uses an
 actual SQLite transaction and connects the resulting receipt/projection to the
-client hydration helper.
+client hydration helper. Its HTTP form returns the start ACK while the fixed
+provider is gated, then completes with provider 1/commit 1 and ACK 0 after the
+request client stops interacting.
 
 Observed gates are patcher 52/52, focused frontend 39/39, focused owner/route
-49/49, complete frontend 1,743/1,743, complete server 301 pass/12 skip,
+50/50, complete frontend 1,743/1,743, complete server 302 pass/12 skip,
 compatibility 74 pass/5 skip, Svelte 0/0, 7,941-module build, 40 packs/1,003
 units/354 paths/13 collisions, zero-change re-plan, and zero-mismatch exact
-revert. The two 8,274,867-byte installers are byte-identical, mode 0755, with
-SHA-256 `f750979d2bf1053d01f0c00a3e77f5eba77be3bfc8921765fdd7b4ec390a0215`.
+revert. The two 8,281,994-byte installers are byte-identical, mode 0755, with
+SHA-256 `146a892fde7b8a3bb9fe01926093d3a9e275660aaf00aae5e24d57dbc03b47e6`.
 
 The remaining activation gates are v3 zero-legacy or migration, automatic
 drain, admission ACK/pending UI, effect-scoped lineage, actual browser/process
@@ -654,7 +657,7 @@ exit, joined retention, and AC lifecycle. Detailed runtime audit and evidence
 are in
 `docs/POCKETRISU-1.10-BG-AC-C3-CONNECTION-HARDENING-VALIDATION.md`.
 Its SHA-256 is
-`4126d519afae92433669c68a2eb95693f17d955c8d580600fc0505e1647a3c38`.
+`97e46b16cdfb2733b98ab5bf1f573bdf56ba7b0cd8bef4a6c3a9756b06acaaa0`.
 
 ### C4 process-memory immutable execution context foundation
 
