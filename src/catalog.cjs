@@ -55,6 +55,7 @@ function loadCatalog(repositoryRoot = path.resolve(__dirname, '..')) {
         require(path.join(repositoryRoot, 'patches/toolchain-hardening/manifest.cjs')),
         require(path.join(repositoryRoot, 'patches/charx-archive-integrity/manifest.cjs')),
         require(path.join(repositoryRoot, 'patches/log-load-performance/manifest.cjs')),
+        require(path.join(repositoryRoot, 'patches/fastimport-ios-picker/manifest.cjs')),
         require(path.join(repositoryRoot, 'patches/kei-stream-parser-core/manifest.cjs')),
         require(path.join(repositoryRoot, 'patches/kei-stream-parser-base-adapter/manifest.cjs')),
         require(path.join(repositoryRoot, 'patches/kei-stream-parser-bg-adapter/manifest.cjs')),

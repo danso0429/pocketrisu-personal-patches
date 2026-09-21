@@ -108,6 +108,7 @@ test('packs qualified on PocketRisu 1.9.0 remain explicitly verified', () =>
             [
                 'charx-archive-integrity',
                 'log-load-performance',
+                'fastimport-ios-picker',
                 'pagefold-model-preset',
                 'pagefold-bg-adapter',
             ],
@@ -126,10 +127,10 @@ test('the PageFold release verifies the complete exact-1.10 graph', () =>
         const inactive = catalog.filter((entry) => !resolvedIds.has(entry.id))
         const result = evaluateTargetCompatibility(root, resolved)
 
-        assert.equal(resolution.resolvedIds.length, 41)
+        assert.equal(resolution.resolvedIds.length, 42)
         assert.equal(inactive.length, 13)
         assert.equal(result.status, 'verified')
-        assert.equal(result.verifiedPacks.length, 41)
+        assert.equal(result.verifiedPacks.length, 42)
         assert.deepEqual(result.underReviewPacks, [])
         assert.deepEqual(result.reviewRequiredPacks, [])
         assert.doesNotThrow(() => assertTargetVerified(result))
