@@ -1,0 +1,62 @@
+[
+  {
+    "name": "standalone",
+    "packs": 1,
+    "units": 103,
+    "managedPaths": 57,
+    "collisions": 0,
+    "reapplyChanges": 0,
+    "runtimeTests": "passed",
+    "compatibilityUiRollback": "passed",
+    "rollbackReaderPreservation": "passed",
+    "exactByteModeRevert": "passed"
+  },
+  {
+    "name": "startup",
+    "packs": 2,
+    "units": 122,
+    "managedPaths": 60,
+    "collisions": 0,
+    "reapplyChanges": 0,
+    "runtimeTests": "passed",
+    "compatibilityUiRollback": "passed",
+    "rollbackReaderPreservation": "passed",
+    "exactByteModeRevert": "passed"
+  },
+  {
+    "name": "lazy",
+    "packs": 2,
+    "units": 131,
+    "managedPaths": 80,
+    "collisions": 1,
+    "reapplyChanges": 0,
+    "runtimeTests": "passed",
+    "compatibilityUiRollback": "passed",
+    "rollbackReaderPreservation": "passed",
+    "exactByteModeRevert": "passed"
+  },
+  {
+    "name": "bg-lazy",
+    "packs": 4,
+    "units": 325,
+    "managedPaths": 167,
+    "collisions": 5,
+    "reapplyChanges": 0,
+    "runtimeTests": "passed",
+    "compatibilityUiRollback": "passed",
+    "rollbackReaderPreservation": "passed",
+    "exactByteModeRevert": "passed"
+  },
+  {
+    "name": "complete",
+    "packs": 42,
+    "units": 979,
+    "managedPaths": 361,
+    "collisions": 13,
+    "reapplyChanges": 0,
+    "runtimeTests": "passed",
+    "compatibilityUiRollback": "passed",
+    "rollbackReaderPreservation": "passed",
+    "exactByteModeRevert": "passed"
+  }
+]

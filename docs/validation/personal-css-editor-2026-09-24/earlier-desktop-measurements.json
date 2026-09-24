@@ -1,0 +1,47 @@
+{
+  "provenance": "Observed earlier in the same implementation session; the original temporary harness logs were lost during a connection reset. These aggregate observations are historical, not a final-device qualification.",
+  "matrixRows": 36,
+  "matrixCounts": [
+    10,
+    100,
+    500
+  ],
+  "matrixCssBytes": [
+    100000,
+    1000000,
+    5000000
+  ],
+  "distributions": [
+    "none",
+    "one",
+    "half",
+    "all"
+  ],
+  "within100NodesAnd1MB": {
+    "maxEncodeMs": 7,
+    "maxReconcileLayoutMs": 4.8,
+    "maxReorderLayoutMs": 5.3
+  },
+  "max500NodeReorderLayoutMs": 175.4,
+  "cjkFont": {
+    "bytes": 10414588,
+    "digestMs": 13.5,
+    "verifyAndFontFaceMs": 49.2
+  },
+  "formatsLoaded": [
+    "woff2",
+    "woff",
+    "truetype",
+    "opentype"
+  ],
+  "paddedCjkBytes": 23000000,
+  "corsRejection": "observed",
+  "streamingOverflow": "observed",
+  "credentialOrReferrerHeaders": 0,
+  "limitations": [
+    "Desktop Chromium; physical iPhone pending",
+    "Simple CSS rules plus padding",
+    "Padded CJK increases file size, not glyph complexity",
+    "RSS/heap samples included harness and transport overhead"
+  ]
+}

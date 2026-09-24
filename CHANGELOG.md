@@ -1,5 +1,22 @@
 # Changelog
 
+## 0.2.3-experimental.1
+
+- Add exact-1.10 Personal CSS editing for shipped defaults and user toggles:
+  field-level overrides, reset, local search, ordering, draft cancellation,
+  complete-snapshot trials, rollback, and tab-scoped recovery.
+- Add standalone strict root-save acknowledgement and flush, target conflict
+  checks, conditional target restoration, and explicit ambiguous-save status.
+- Add local-file and direct HTTPS font imports with bounded acquisition,
+  binary/integrity validation, preview, asset-first persistence, selection,
+  replacement, and metadata-only removal. Keep built-in font loading separate.
+- Preserve Personal asset references in client cleanup, server backup/report/
+  purge, and exact restore remapping, including malformed or future data.
+- Keep earlier-target appearance payloads unchanged. Provide a source-only UI
+  rollback that retains passive asset compatibility and stored selections.
+- Treat this as a candidate; physical iPhone recovery, interaction, and scale
+  validation remain required before stable promotion.
+
 ## 0.2.2
 
 - Promote the maintenance fixes to stable after the user reported the

@@ -1,0 +1,65 @@
+{
+  "observations": [
+    "CSS trial cancellation, strict save and reload",
+    "Font asset-first save, explicit selection, reload, preview cancellation ownership",
+    "Recovery query/sentinel reload and exact font-token trial cancel/exit",
+    "Full/settings backup, referenced-font purge preservation, restore and runtime load"
+  ],
+  "archives": [
+    {
+      "mode": "full",
+      "bytes": 30824,
+      "entries": 2,
+      "fontIntegrity": "passed"
+    },
+    {
+      "mode": "settings",
+      "bytes": 23602,
+      "entries": 2,
+      "fontIntegrity": "passed"
+    }
+  ],
+  "orphanPurge": {
+    "scanned": 1,
+    "deleted": 0
+  },
+  "writes": [
+    {
+      "path": "/api/patch",
+      "status": 200
+    },
+    {
+      "path": "/api/db/flush",
+      "status": 200
+    },
+    {
+      "path": "/api/patch",
+      "status": 200
+    },
+    {
+      "path": "/api/db/flush",
+      "status": 200
+    },
+    {
+      "path": "/api/write",
+      "status": 200
+    },
+    {
+      "path": "/api/patch",
+      "status": 200
+    },
+    {
+      "path": "/api/db/flush",
+      "status": 200
+    },
+    {
+      "path": "/api/patch",
+      "status": 200
+    },
+    {
+      "path": "/api/db/flush",
+      "status": 200
+    }
+  ],
+  "pageErrors": []
+}

@@ -4,6 +4,11 @@ Private, all-or-nothing patch delivery for PocketRisu NodeOnly. The current
 stable release is `v0.2.2`, and its complete manifest graph targets exact
 PocketRisu `v1.10.0`.
 
+The `0.2.3-experimental.1` source candidate adds an editable Personal CSS
+manager and imported chat fonts. Stable `v0.2.2` remains the published stable
+baseline while the physical iPhone gate is pending. See the
+[candidate validation and recovery guide](docs/POCKETRISU-PERSONAL-CSS-TOGGLE-EDITOR-VALIDATION.md).
+
 ## Complete installer
 
 `pocketrisu-patcher.cjs` applies one complete admitted set or reverts it in
@@ -15,6 +20,12 @@ all matching integration adapters. The complete graph also includes the admitted
 Korean-search, and Small-width adapters. `configure`, `--packs`, `--preset`, and the
 features/hardening installers are retired. `--all` and
 `pocketrisu-all.cjs` remain compatibility aliases for one transition.
+
+After importing custom fonts, do not use a full revert or an older installer
+that removes Personal asset-reference compatibility. A source-only
+`scripts/rollback-personal-css-ui.cjs` recovery path restores the earlier UI
+while retaining the reference and restore-remap hooks. The validation guide
+describes its plan/apply boundary and the required stopped-server workflow.
 
 The internal resolver is retained for dependency, supersede, adapter,
 collision, target, and exact-revert ownership. Those pack boundaries are
