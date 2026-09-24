@@ -1,5 +1,114 @@
 # Changelog
 
+## 0.2.2
+
+- Promote the maintenance fixes to stable after the user reported the
+  presented iPhone L3 scenarios normal: JPEG-wrapped CharX import, FastImport
+  first-tap picker, empty new-chat persistence, and initial log views.
+- Add `fastimport-ios-picker` as an exact-PocketRisu-1.10 runtime pack. The
+  plugin loader transforms only a matching execution copy of the known
+  FastImport API 2.1 script, preserving the installed plugin array and desktop
+  Realm clipboard behavior. An unknown script revision retains its original
+  bytes and emits a warning.
+- Pass 50/50 patcher files, 153 frontend files / 1,758 tests, 23 server files /
+  233 pass with 12 skips, compatibility 74 pass / five skips, Svelte 0/0, the
+  help-key audit, the 7,941-module build, and BG bundle load.
+- Verify fresh and previous-candidate upgrade apply/current/zero-plan, and
+  exact byte/mode revert of all 344 managed paths. The complete exact-1.10
+  graph resolves 42 packs, 941 units, and 13 ordered collisions.
+- Build two byte-identical mode-0755 installers twice. Each is 7,902,434
+  bytes with SHA-256
+  `88ae0e251694b705abcc9450c264ef2fa468edfb6ac8a287d550a07fe7b2ea66`.
+- Apply the new loader owner live after native/BG active work reached zero,
+  build 7,941 production modules, and restart PocketRisu. Verify 42/941/344
+  current with zero next-plan changes, served/local main asset identity, five
+  SQLite quick checks, and the installed FastImport script still at the known
+  corrected SHA-256 without another plugin DB write.
+
+## 0.2.2-experimental.2
+
+- Add an exact-1.10 final-composition save test that extracts the production
+  `saveDb` closure from the composed source with the target's TypeScript 5.9.3
+  dependency. Execute the real encoder, patcher, server invariant, outer
+  scheduler, browser wake callbacks, and BG durable-save adapter while mocking
+  only transport, payload storage, time, and notification boundaries.
+- Cover untracked empty chats, mixed payload shapes, payload-await races,
+  repeated and A→B→A missing identities, payload failure, baseline advancement,
+  malformed recovery identities, full-write recovery, timer/wake/in-flight
+  behavior, concurrent edits, and durable BG failure propagation. Retain the
+  existing remote-delete and concurrent-create tests as their CAS authorities.
+- Clarify that the single recovery key limits only the dedicated typed-recovery
+  branch. Failed saves remain dirty and follow the existing five-attempt burst,
+  two 30-second deferrals, and later five-minute autosave policy; metadata
+  approval, not payload upload alone, clears the pending key.
+- Confirm test sensitivity by temporarily removing proactive payload collection
+  and separately disabling typed recovery admission in an isolated target.
+  S01 and S03 failed respectively, and 15/15 passed after each mutation was
+  reverted.
+- Add a dry-run-first FastImport maintenance tool reconstructed from the
+  recorded exact original/patched script hashes and one-line change. Require an
+  explicit database, target root, stopped-process acknowledgement, and backup
+  key for writes; preserve chunk-aware backup/write/readback/rollback and reject
+  unknown hashes, target multiplicity, or inspect/write races.
+- Validate the migration with synthetic fixtures for apply, already-applied,
+  unknown/multiple targets, backup/write/post-write failures, non-target
+  preservation, synchronous iOS picker behavior, and desktop clipboard
+  behavior. A live read-only inspection reports the known patched hash and no
+  write; the tool is not part of the generated installer or startup path.
+- Run 49/49 patcher files, 152 frontend files / 1,754 tests, 23 server files /
+  233 pass with 12 provider skips, compatibility 74 pass / five skips, Svelte
+  0/0, help-key audit, the 7,940-module build, and BG bundle build/load.
+- Exercise fresh apply/current/zero-plan/revert and stable-v0.2.1
+  upgrade/current/zero-plan/revert. The final graph resolves 41 packs, 937
+  units, 342 managed paths, and 13 ordered collisions with exact byte/mode
+  restoration of all managed source paths.
+- Generate both mode-0755 installers twice at 7,889,389 bytes with byte identity,
+  CJS syntax validity, source/artifact apply parity, and SHA-256
+  `f11948e18726068022bafddd87440fcd6a4762b9288bba4622b32e9543f78a17`.
+- Add the maintenance branch to push CI while retaining pull-request CI. Keep
+  the candidate experimental and preserve the existing physical iPhone L3 gate.
+- Apply the follow-up live with native/BG work at zero. Change only the
+  production-source comments, exact-1.10 test file, and patch state; do not
+  rebuild or restart unchanged runtime code. Verify 41/937/342 current with a
+  zero-change plan, PM2 restart counters unchanged, served/local asset identity,
+  five SQLite quick checks, and FastImport still `already-applied` by read-only
+  inspection.
+
+## 0.2.2-experimental.1
+
+- Detect JPEG-wrapped CharX from its byte signature even when the filename ends
+  in `.charx`. Slice only the validated JPEG prefix and retain strict ZIP
+  directory, filename, local-header, CRC, overlap, and size enforcement. Keep
+  the low-level ambiguity reason in the typed error for future diagnosis.
+- Add an exact-1.10 log-loading owner whose `size_bytes` covering index keeps
+  request-log storage totals off body-heavy SQLite rows. Preserve SQL as the
+  sole byte-count authority and leave System Logs unchanged after direct
+  measurements found no server-side query bottleneck.
+- Persist every full, non-placeholder chat ID absent from the last
+  server-confirmed metadata before publishing its stub. Return a structured
+  missing-payload identity from the server and allow one bounded exact-payload
+  retry without weakening remote-delete, concurrent-create, legacy-shell, or
+  malformed-payload guards.
+- Pass 48/48 patcher files, 151 frontend files / 1,739 tests, 23 server files /
+  233 tests with 12 provider skips, compatibility 74 pass / five skips, Svelte
+  0/0, the 7,940-module production build, and the 8,641 KB BG load check.
+- Exercise upgrade apply/current/zero-plan, complete clean revert, fresh apply,
+  current status, and generated-installer zero-plan for the 41-pack / 936-unit /
+  341-path graph with 13 ordered collisions.
+- Generate the primary installer and byte-identical all alias twice at mode
+  0755. Both are 7,863,377 bytes and SHA-256
+  `c0a000f93cb2ce8aa6ae1c4275c90a3292338cd7f04d644ff43b58fa9e0f3d73`.
+- Keep the candidate experimental. Native CharX commit, FastImport iOS picker,
+  empty-chat persistence, and log-view latency require physical iPhone L3
+  before stable publication.
+- Apply the candidate live only after two newly observed BG operations naturally
+  reach delivered with active/result zero. Pass stopped-tree focused tests,
+  Svelte 0/0, production build, BG load, production prune/runtime load, four
+  SQLite quick checks, served/local asset identity, 341/341 current status, and
+  a zero-change 936-unit plan. Migrate the installed FastImport plugin under an
+  exact script hash and a retained chunk-aware DB backup without replacing the
+  plugin array.
+
 ## 0.2.1
 
 - Promote `pagefold-model-preset` and its hidden `pagefold-bg-adapter` from

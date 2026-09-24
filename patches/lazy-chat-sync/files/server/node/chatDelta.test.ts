@@ -10,6 +10,7 @@ const {
     canonicalizeStrippedDatabase,
     resolveChatReadTarget,
     chatIdentityKey,
+    MissingFullChatPayloadError,
     collectMissingFullChatKeys,
     validateStrippedDatabase,
     validateStrippedDatabaseTransition,
@@ -37,6 +38,11 @@ const {
         expectedChatId?: string,
     ) => any | null
     chatIdentityKey: (chaId: string, chatId: string) => string
+    MissingFullChatPayloadError: new (chaId: string, chatId: string) => Error & {
+        code: string
+        chaId: string
+        chatId: string
+    }
     collectMissingFullChatKeys: (
         database: any,
         hasFullChat: (chaId: string, chatId: string) => boolean,
@@ -268,6 +274,17 @@ describe('stripped database invariant', () => {
         expect(() => validateStrippedDatabase(leakedField, hasFullChat)).toThrow(/non-stub fields/i)
 
         expect(() => validateStrippedDatabase(strippedDatabase(), () => false)).toThrow(/no full-chat payload/i)
+        try {
+            validateStrippedDatabase(strippedDatabase(), () => false)
+            throw new Error('expected missing payload rejection')
+        } catch (error) {
+            expect(error).toBeInstanceOf(MissingFullChatPayloadError)
+            expect(error).toMatchObject({
+                code: 'MISSING_FULL_CHAT_PAYLOAD',
+                chaId: 'char-1',
+                chatId: 'chat-1',
+            })
+        }
     })
 
     it('grandfathers only baseline orphan identities while rejecting new ones', () => {

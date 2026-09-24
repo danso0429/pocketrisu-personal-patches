@@ -67,6 +67,46 @@ function serverChatResponse(value: unknown, revision: string, status = 200) {
     })
 }
 
+describe('NodeStorage database invariant metadata', () => {
+    test('preserves an exact missing full-chat identity from a validation rejection', async () => {
+        const { storage } = makeStorage([
+            new Response(JSON.stringify({
+                code: 'DB_INVARIANT_REJECTED',
+                detail: 'missing payload',
+                currentEtag: 'etag-current',
+                missingFullChat: { chaId: 'char-1', chatId: 'chat-new' },
+            }), { status: 409, headers: { 'content-type': 'application/json' } }),
+        ])
+
+        await expect(storage.patchItem('database/database.bin', {
+            patch: [],
+            expectedHash: 'etag-old',
+        })).resolves.toMatchObject({
+            success: false,
+            validationRejected: true,
+            conflict: false,
+            missingFullChat: { chaId: 'char-1', chatId: 'chat-new' },
+        })
+    })
+
+    test('drops malformed missing payload metadata while preserving the rejection', async () => {
+        const { storage } = makeStorage([
+            new Response(JSON.stringify({
+                code: 'DB_INVARIANT_REJECTED',
+                detail: 'missing payload',
+                missingFullChat: { chaId: 1, chatId: null },
+            }), { status: 409, headers: { 'content-type': 'application/json' } }),
+        ])
+
+        const result = await storage.patchItem('database/database.bin', {
+            patch: [],
+            expectedHash: 'etag-old',
+        })
+        expect(result.validationRejected).toBe(true)
+        expect(result.missingFullChat).toBeUndefined()
+    })
+})
+
 describe('NodeStorage chat revision safety', () => {
     beforeEach(() => vi.clearAllMocks())
 

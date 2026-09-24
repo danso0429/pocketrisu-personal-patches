@@ -22,6 +22,8 @@ test('catalog exposes the expected user packs and keeps integration packs intern
             'parser-hardening',
             'toolchain-hardening',
             'charx-archive-integrity',
+            'log-load-performance',
+            'fastimport-ios-picker',
             'pocketrisu-kei',
             'pagefold-model-preset',
         ],

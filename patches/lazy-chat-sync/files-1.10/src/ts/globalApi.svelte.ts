@@ -13,7 +13,11 @@ import { characterURLImport, hubURL } from "./characterCards";
 import { defaultJailbreak, defaultMainPrompt, oldJailbreak, oldMainPrompt } from "./storage/defaultPrompts";
 import { decodeRisuSave, encodeRisuSaveLegacy, findDangerousChatOps, normalizeJSON, RisuSaveEncoder, RisuSavePatcher, type toSaveType } from "./storage/risuSave";
 import { isHydrating, saveChatToServer, ensureChatHydrated, chatToStub, classifyChat, convertStubsToPlaceholders } from "./storage/chatStorage";
-import { classifyChatSaveIntent } from "./storage/chatSaveIntent";
+import {
+    classifyChatSaveIntent,
+    collectUnconfirmedChatPayloads,
+    findRecoverableChatPayload,
+} from "./storage/chatSaveIntent";
 import { assignMissingChatIdsToNewCharacters } from "./storage/chatIdentityRepair";
 import { AutoStorage } from "./storage/autoStorage";
 import { ConflictError, type PatchItemResult, type PersistWarning } from "./storage/nodeStorage";
@@ -417,6 +421,10 @@ export async function saveDb() {
                 new Set((character.chats ?? []).map(chat => chat?.id).filter(Boolean)),
             ])
     )
+    // One pending identity suppresses repeated entry into the dedicated
+    // missing-payload recovery branch. It is not a lifetime identity set and
+    // does not cap the existing outer autosave retry policy.
+    let missingPayloadRecoveryKey: string | null = null
     let channel: BroadcastChannel
     if (window.BroadcastChannel) {
         channel = new BroadcastChannel('risu-db')
@@ -855,6 +863,14 @@ export async function saveDb() {
             }
         }
 
+        // A caller can publish chat metadata through a root/plugin mutation
+        // without the reactive character tracker naming that character. Always
+        // enlist full client payloads whose IDs are absent from the last
+        // server-confirmed database before encoding any new stub.
+        for (const { chaId, chatId } of collectUnconfirmedChatPayloads(lastConfirmedServerDb, db)) {
+            pushChat(chaId, chatId)
+        }
+
         return chatsToPersist
     }
 
@@ -876,6 +892,11 @@ export async function saveDb() {
             const knownChatIds = knownChatIdsByCharacter.get(chaId) ?? new Set<string>()
             knownChatIds.add(chatId)
             knownChatIdsByCharacter.set(chaId, knownChatIds)
+            if (missingPayloadRecoveryKey === `${chaId}|${chatId}`) {
+                // Clear only after database metadata has also been accepted;
+                // a successful payload upload alone is not the commit point.
+                missingPayloadRecoveryKey = null
+            }
         }
     }
 
@@ -1265,6 +1286,23 @@ export async function saveDb() {
                     showChatGuardToastThrottled('server')
                 }
                 else if (patchResult.validationRejected) {
+                    const recoverable = findRecoverableChatPayload(db, patchResult.missingFullChat)
+                    if (recoverable) {
+                        const recoveryKey = `${recoverable.chaId}|${recoverable.chatId}`
+                        // Re-enlist once while this exact identity is pending.
+                        // Repeated rejection becomes an ordinary save failure;
+                        // triggerSave still preserves dirty state and applies
+                        // its independent burst/deferred autosave policy.
+                        if (missingPayloadRecoveryKey !== recoveryKey) {
+                            missingPayloadRecoveryKey = recoveryKey
+                            requeueTrackedChanges(toSave)
+                            queueTrackedChat(recoverable.chaId, recoverable.chatId)
+                            console.warn(
+                                '[Save] Retrying database metadata after enlisting its missing chat payload',
+                            )
+                            return 'retry'
+                        }
+                    }
                     throw new Error(
                         `Server rejected an invalid database update: ${patchResult.error ?? 'unknown invariant failure'}`
                     )
@@ -1379,9 +1417,8 @@ export async function saveDb() {
                 if (savetrys > 4) {
                     alertError(error)
                     savetrys = 0
-                    // Keep the dirty tracker and allow a couple of low-rate
-                    // recovery cycles for transient outages without creating
-                    // an unbounded upload loop on a persistent failure.
+                    // End the short retry burst after five attempts, retain the
+                    // dirty tracker, and allow two 30-second recovery cycles.
                     if (deferredFailureRetries < 2) {
                         deferredFailureRetries += 1
                         scheduleDeferredRecovery(30_000)
@@ -1389,8 +1426,8 @@ export async function saveDb() {
                     else {
                         // Persistent server/network outages must not turn a
                         // dirty in-memory tracker into a permanent silent stop.
-                        // Retry at a low rate to avoid repeated large uploads;
-                        // `online`/visibility events above wake it sooner.
+                        // Persistent failures remain dirty and retry every five
+                        // minutes; `online`/visibility events wake them sooner.
                         scheduleDeferredRecovery(5 * 60_000)
                     }
                 }

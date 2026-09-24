@@ -130,6 +130,16 @@ function chatIdentityKey(chaId, chatId) {
     return JSON.stringify([chaId, chatId]);
 }
 
+class MissingFullChatPayloadError extends Error {
+    constructor(chaId, chatId) {
+        super(`Character ${chaId} chat ${chatId} has no full-chat payload`);
+        this.name = 'MissingFullChatPayloadError';
+        this.code = 'MISSING_FULL_CHAT_PAYLOAD';
+        this.chaId = chaId;
+        this.chatId = chatId;
+    }
+}
+
 /**
  * Identify canonical stubs that are already missing their full payload.
  *
@@ -224,7 +234,7 @@ function validateStrippedDatabase(database, hasFullChat, allowMissingFullChat = 
                 );
             }
             if (!hasFullChat(chaId, chatId) && !allowMissingFullChat(chaId, chatId)) {
-                throw new Error(`Character ${chaId} chat ${chatId} has no full-chat payload`);
+                throw new MissingFullChatPayloadError(chaId, chatId);
             }
         }
     }
@@ -258,6 +268,7 @@ module.exports = {
     applyChatDelta,
     canonicalizeStrippedDatabase,
     chatIdentityKey,
+    MissingFullChatPayloadError,
     collectMissingFullChatKeys,
     validateStrippedDatabase,
     validateStrippedDatabaseTransition,

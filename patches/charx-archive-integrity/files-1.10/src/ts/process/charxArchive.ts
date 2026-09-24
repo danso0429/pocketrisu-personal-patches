@@ -188,7 +188,14 @@ async function asArchiveBlob(source: CharXSource): Promise<Blob> {
         blob = new Blob([source.value as unknown as BlobPart])
     }
 
-    if (source.container === 'jpeg') {
+    // Some exporters keep the JPEG-wrapped CharX container but give it a
+    // `.charx` filename. Treat the extension-derived container as a hint and
+    // trust the byte signature for the one unambiguous wrapper we support.
+    // The sliced ZIP still goes through strict directory, CRC, and overlap
+    // validation below; this does not relax the archive policy.
+    const prefix = new Uint8Array(await blob.slice(0, 2).arrayBuffer())
+    const hasJpegPrefix = prefix.byteLength === 2 && prefix[0] === 0xff && prefix[1] === 0xd8
+    if (source.container === 'jpeg' || hasJpegPrefix) {
         const offset = await jpegArchiveOffset(blob)
         const signature = new Uint8Array(await blob.slice(offset, offset + 4).arrayBuffer())
         if (signature.byteLength !== 4 || !signature.every((value, index) => value === ZIP_LOCAL_SIGNATURE[index])) {
@@ -214,12 +221,16 @@ function exactSafeNumber(value: number): boolean {
 function normalizeArchiveError(error: unknown): CharXArchiveError {
     if (error instanceof CharXArchiveError) return error
     const message = error instanceof Error ? error.message : String(error)
+    const reason = error && typeof error === 'object' && typeof (error as { reason?: unknown }).reason === 'string'
+        ? (error as { reason: string }).reason
+        : ''
+    const detailedMessage = reason ? `${message}: ${reason}` : message
     if (/abort/i.test(message)) return new CharXArchiveError('CHARX_ABORTED', message, { cause: error })
     if (message === 'Invalid signature') {
         return new CharXArchiveError('CHARX_CRC_MISMATCH', message, { cause: error })
     }
     if (/ambiguous|overlap|unsafe filename|duplicate/i.test(message)) {
-        return new CharXArchiveError('CHARX_AMBIGUOUS_ENTRY', message, { cause: error })
+        return new CharXArchiveError('CHARX_AMBIGUOUS_ENTRY', detailedMessage, { cause: error })
     }
     if (/encrypt|split zip|unsupported compression|reserved compression/i.test(message)) {
         return new CharXArchiveError('CHARX_UNSUPPORTED_ARCHIVE', message, { cause: error })

@@ -70,6 +70,8 @@ export interface PatchItemResult {
     conflict?: boolean
     /** The proposed database shape is invalid and must not be retried as full. */
     validationRejected?: boolean
+    /** Exact missing payload identity supplied by a compatible server. */
+    missingFullChat?: { chaId: string, chatId: string }
     error?: string
 }
 
@@ -632,11 +634,18 @@ export class NodeStorage{
                 || data.code === 'CHAT_GUARD_REJECTED'
                 || (typeof data.error === 'string' && data.error.includes('chat-internal field ops'))
             const rejectedByValidation = data.code === 'DB_INVARIANT_REJECTED'
+            const missingFullChat = data?.missingFullChat
+            const validMissingFullChat = missingFullChat
+                && typeof missingFullChat.chaId === 'string'
+                && typeof missingFullChat.chatId === 'string'
+                ? { chaId: missingFullChat.chaId, chatId: missingFullChat.chatId }
+                : undefined
             return {
                 success: false,
                 etag: currentEtag,
                 chatGuardRejected: rejectedByChatGuard,
                 validationRejected: rejectedByValidation,
+                missingFullChat: validMissingFullChat,
                 conflict: !rejectedByChatGuard && !rejectedByValidation,
                 error: typeof data.detail === 'string' ? data.detail : data.error,
             }

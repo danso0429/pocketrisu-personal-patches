@@ -73,6 +73,20 @@ describe('independent CharX fixture oracle', () => {
         }
     })
 
+    test('JPEG-wrapped CharX is detected from bytes even with a zip container hint', async () => {
+        const fixture = buildFixtureArchive(
+            validEntries([{ name: 'assets/a.bin', data: 'jpeg-wrapped-charx-extension' }]),
+            jpegPrefixWithFalseZipSignature(),
+        )
+        const archive = await openCharXArchive({ kind: 'bytes', value: fixture.bytes, container: 'zip' })
+        try {
+            expect(new TextDecoder().decode(await archive.extract(archive.assets[0])))
+                .toBe('jpeg-wrapped-charx-extension')
+        } finally {
+            await archive.close()
+        }
+    })
+
     test('File random access never calls whole-file arrayBuffer', async () => {
         class SliceOnlyFile extends File {
             override arrayBuffer(): Promise<ArrayBuffer> {
@@ -173,6 +187,20 @@ describe('CharX structural, semantic, and resource policy', () => {
             openCharXArchive({ kind: 'bytes', value: fixture.bytes, container: 'zip' }),
             'CHARX_AMBIGUOUS_ENTRY',
         )
+    })
+
+    test('ambiguous archive errors preserve the zip reader reason', async () => {
+        const fixture = buildFixtureArchive(validEntries())
+        const appended = new Uint8Array(fixture.bytes.byteLength + 1)
+        appended.set(fixture.bytes)
+        appended[appended.length - 1] = 1
+
+        await expect(openCharXArchive({ kind: 'bytes', value: appended, container: 'zip' }))
+            .rejects.toMatchObject({
+                name: 'CharXArchiveError',
+                code: 'CHARX_AMBIGUOUS_ENTRY',
+                message: expect.stringContaining('appended data'),
+            })
     })
 
     test('declared per-entry and aggregate selected limits reject without expanding payloads', async () => {

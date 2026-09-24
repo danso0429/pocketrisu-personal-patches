@@ -74,6 +74,8 @@ test('CharX production sources pin indexed no-worker integrity and terminal sett
     const session = read('patches/charx-archive-integrity/files-1.10/src/ts/process/charxImportSession.ts')
     assert.match(archive, /useWebWorkers: false/)
     assert.match(archive, /strictness: 'strict'/)
+    assert.match(archive, /hasJpegPrefix/)
+    assert.match(archive, /detailedMessage/)
     assert.match(archive, /checkLocalDirectory: true/)
     assert.match(archive, /checkCrc32: true/)
     assert.match(archive, /checkOverlappingEntryOnly: true/)
