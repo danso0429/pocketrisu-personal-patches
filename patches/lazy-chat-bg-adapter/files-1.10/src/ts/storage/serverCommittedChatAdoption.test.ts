@@ -10,7 +10,7 @@ vi.mock('./database.svelte', () => ({
     isChatStub: (value: any) => value?._stub === true && !Array.isArray(value?.message),
 }))
 
-const { adoptServerCommittedChat, isHydrating } = await import('./chatStorage')
+const { adoptServerCommittedChat, isHydrating, peekServerChatSnapshot } = await import('./chatStorage')
 
 function chat(data: string) {
     return {
@@ -24,6 +24,18 @@ describe('server-committed chat adoption', () => {
     beforeEach(() => {
         tickMock.mockClear()
         rememberSnapshotMock.mockClear()
+    })
+
+    it('peeks at the canonical chat without advancing the client save baseline', async () => {
+        const snapshot = { chat: chat('server'), revision: 'server-revision', encodedBytes: 123 }
+        const peekChatContentSnapshot = vi.fn().mockResolvedValue(snapshot)
+        storageMock.realStorage = {
+            peekChatContentSnapshot,
+            rememberChatContentSnapshot: rememberSnapshotMock,
+        }
+        await expect(peekServerChatSnapshot('char-1', 0, 'chat-1')).resolves.toBe(snapshot)
+        expect(peekChatContentSnapshot).toHaveBeenCalledWith('char-1', 0, 'chat-1')
+        expect(rememberSnapshotMock).not.toHaveBeenCalled()
     })
 
     it('replaces an unchanged full slot and adopts the server revision baseline', async () => {

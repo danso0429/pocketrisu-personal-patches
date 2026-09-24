@@ -21,7 +21,7 @@ const bgGlobalApiUnits = [
 module.exports = {
     id: 'lazy-chat-bg-adapter',
     title: 'BG preserve integration for lazy chat storage',
-    version: '0.7.2',
+    version: '0.7.3',
     targets: {
         pocketrisu: {
             verified: ['1.8.1', '1.9.0', '1.10.0'],
@@ -190,6 +190,14 @@ module.exports = {
 }
 `,
             content: `
+export async function peekServerChatSnapshot(
+    chaId: string,
+    chatIndex: number,
+    chatId: string,
+) {
+    return forageStorage.realStorage.peekChatContentSnapshot(chaId, chatIndex, chatId)
+}
+
 export async function adoptServerCommittedChat(
     chats: Chat[],
     chaId: string,
@@ -302,6 +310,60 @@ export async function adoptServerCommittedChat(
             targetVersions: pocketRisu1100,
         },
         {
+            id: 'lazy-chat-bg-adapter:owned:bg-server-pending-projection:1.10',
+            file: 'src/ts/bgServerPendingProjection.ts',
+            type: 'owned',
+            content: owned1100('src/ts/bgServerPendingProjection.ts'),
+            targetVersions: pocketRisu1100,
+        },
+        {
+            id: 'lazy-chat-bg-adapter:owned:bg-server-pending-projection-test:1.10',
+            file: 'src/ts/bgServerPendingProjection.test.ts',
+            type: 'owned',
+            content: owned1100('src/ts/bgServerPendingProjection.test.ts'),
+            requires: ['lazy-chat-bg-adapter:owned:bg-server-pending-projection:1.10'],
+            targetVersions: pocketRisu1100,
+        },
+        {
+            id: 'lazy-chat-bg-adapter:owned:bg-server-input-admission:1.10',
+            file: 'src/ts/bgServerInputAdmission.ts',
+            type: 'owned',
+            content: owned1100('src/ts/bgServerInputAdmission.ts'),
+            requires: ['lazy-chat-bg-adapter:owned:bg-server-pending-projection:1.10'],
+            targetVersions: pocketRisu1100,
+        },
+        {
+            id: 'lazy-chat-bg-adapter:owned:bg-server-input-admission-test:1.10',
+            file: 'src/ts/bgServerInputAdmission.test.ts',
+            type: 'owned',
+            content: owned1100('src/ts/bgServerInputAdmission.test.ts'),
+            requires: ['lazy-chat-bg-adapter:owned:bg-server-input-admission:1.10'],
+            targetVersions: pocketRisu1100,
+        },
+        {
+            id: 'lazy-chat-bg-adapter:owned:bg-server-input-start:1.10',
+            file: 'src/ts/bgServerInputStart.ts',
+            type: 'owned',
+            content: owned1100('src/ts/bgServerInputStart.ts'),
+            targetVersions: pocketRisu1100,
+        },
+        {
+            id: 'lazy-chat-bg-adapter:owned:bg-server-input-start-test:1.10',
+            file: 'src/ts/bgServerInputStart.test.ts',
+            type: 'owned',
+            content: owned1100('src/ts/bgServerInputStart.test.ts'),
+            requires: ['lazy-chat-bg-adapter:owned:bg-server-input-start:1.10'],
+            targetVersions: pocketRisu1100,
+        },
+        {
+            id: 'lazy-chat-bg-adapter:owned:server-pending-inputs-ui:1.10',
+            file: 'src/lib/ChatScreens/ServerPendingInputs.svelte',
+            type: 'owned',
+            content: owned1100('src/lib/ChatScreens/ServerPendingInputs.svelte'),
+            requires: ['lazy-chat-bg-adapter:owned:bg-server-pending-projection-test:1.10'],
+            targetVersions: pocketRisu1100,
+        },
+        {
             id: 'lazy-chat-bg-adapter:owned:server-committed-chat-adoption-test:1.10',
             file: 'src/ts/storage/serverCommittedChatAdoption.test.ts',
             type: 'owned',
@@ -363,10 +425,12 @@ import {
     serverChatDeliveryDisposition,
     serverChatCommitReceipt,
 } from './bgServerCommitHydration'
+import { parseServerPendingInputs, type ServerPendingInput } from './bgServerPendingProjection'
 `,
             requires: [
                 'client-build-fence-bg-adapter:orchestration-control:1.9',
                 'lazy-chat-bg-adapter:owned:server-committed-chat-adoption-test:1.10',
+                'lazy-chat-bg-adapter:owned:bg-server-pending-projection-test:1.10',
             ],
             targetVersions: pocketRisu1100,
         },
@@ -380,6 +444,7 @@ import {
     charId: string,
     chatId: string,
     revision: string,
+    allowMissing = false,
 ): Promise<unknown> {
     let requestedRevision = revision
     for (let attempt = 0; attempt < 2; attempt += 1) {
@@ -393,6 +458,7 @@ import {
         })
         const projection = await response.json()
         if (response.ok && projection?.found === true) return projection
+        if (allowMissing && response.status === 404) return null
         if (attempt === 0 && response.status === 409
             && projection?.state === 'revision_mismatch'
             && typeof projection.currentRevision === 'string'
@@ -407,6 +473,21 @@ import {
             : 'chat execution projection unavailable')
     }
     throw new Error('chat execution projection unavailable')
+}
+
+export async function readServerPendingInputCommands(
+    charId: string,
+    chatId: string,
+    chat: unknown,
+): Promise<ServerPendingInput[]> {
+    if (!chat || typeof chat !== 'object' || !Array.isArray((chat as { message?: unknown }).message)) {
+        return []
+    }
+    const revision = orchestrationChatRevision(chat)
+    const projection = await readServerChatExecutionProjection(
+        charId, chatId, revision, true,
+    )
+    return parseServerPendingInputs(projection)
 }
 
 async function hydrateServerCommittedResult(
@@ -756,6 +837,86 @@ function retainUncommittedServerChat(
             ...(serverChatCommitVersion === 1 ? { serverChatCommitVersion: 1 } : {}),
 `,
             requires: ['lazy-chat-bg-adapter:server-chat-commit-client-negotiate:1.10'],
+            targetVersions: pocketRisu1100,
+        },
+        {
+            id: 'lazy-chat-bg-adapter:server-pending-ui-import:1.10',
+            file: 'src/lib/ChatScreens/DefaultChatScreen.svelte',
+            type: 'insert',
+            where: 'after',
+            anchor: '    import { sleep } from "../../ts/util";\n',
+            content: `    import ServerPendingInputs from './ServerPendingInputs.svelte';
+`,
+            requires: ['lazy-chat-bg-adapter:owned:server-pending-inputs-ui:1.10'],
+            after: [
+                'bg-preserve:hook:defaultchatscreen-import-orchestrating',
+                'bg-preserve:hook:defaultchatscreen-sendmain-orchestrating-gate',
+                'bg-preserve:hook:defaultchatscreen-reroll-orchestrating-gate',
+                'bg-preserve:hook:defaultchatscreen-unreroll-orchestrating-gate',
+                'bg-preserve:hook:defaultchatscreen-suppress-abort-alert',
+                'bg-preserve:hook:defaultchatscreen-terminal-completion-sound',
+                'bg-preserve:hook:defaultchatscreen-cancel-server-orchestration',
+                'bg-preserve:hook:defaultchatscreen-blank-message-a11y-button',
+                'bg-preserve:hook:defaultchatscreen-sticker-a11y-button',
+                'bg-preserve:hook:defaultchatscreen-composer-orchestrating-gate:1.9',
+                'bg-preserve:hook:defaultchatscreen-reroll-blocking-call',
+                'bg-preserve:hook:defaultchatscreen-sendchatmain-nobgorch-arg',
+                'bg-preserve:hook:defaultchatscreen-forward-nobgorch',
+                'client-build-fence:composer-import:1.9',
+                'client-build-fence:composer-dirty-state:1.9',
+                'haejeok-chat-width-adapter:default-chat-import:1.10',
+                'haejeok-chat-width-adapter:composer-class:1.10',
+                'haejeok-chat-width-adapter:default-chat-root-class:1.10',
+                'haejeok-persistence-safety-adapter:chat-helper-import',
+                'haejeok-persistence-safety-adapter:chat-durable-save-import',
+                'haejeok-persistence-safety-adapter:chat-append-state',
+                'haejeok-persistence-safety-adapter:chat-say-nothing-append',
+                'haejeok-persistence-safety-adapter:chat-character-append',
+                'haejeok-persistence-safety-adapter:chat-group-append',
+                'haejeok-persistence-safety-adapter:chat-save-before-generation',
+                'kei-chat-render-bg-adapter:default-chat-generation-state:1.9',
+                'kei-partial-edit-bg-adapter:default-chat-import:1.9',
+                'kei-partial-edit-bg-adapter:default-chat-root-state:1.9',
+                'kei-partial-edit-bg-adapter:default-chat-root-binding:1.9',
+                'kei-partial-edit-bg-adapter:default-chat-manager:1.9',
+                'lazy-chat-sync:chat-missing-payload-notice',
+                'personal-settings:appearance-composer-hook-1.9',
+                'personal-settings:appearance-chat-render-imports-1.9',
+                'personal-settings:appearance-send-icon-render-1.9',
+            ],
+            targetVersions: pocketRisu1100,
+        },
+        {
+            id: 'lazy-chat-bg-adapter:server-pending-ui-selection:1.10',
+            file: 'src/lib/ChatScreens/DefaultChatScreen.svelte',
+            type: 'insert',
+            where: 'after',
+            anchor: "    let messageInput:string = $state('')\n",
+            content: `    let pendingCharacter = $derived(DBState.db.characters[$selectedCharID])
+    let pendingChat = $derived(pendingCharacter?.chats?.[pendingCharacter.chatPage])
+`,
+            requires: ['lazy-chat-bg-adapter:server-pending-ui-import:1.10'],
+            targetVersions: pocketRisu1100,
+        },
+        {
+            id: 'lazy-chat-bg-adapter:server-pending-ui-render:1.10',
+            file: 'src/lib/ChatScreens/DefaultChatScreen.svelte',
+            type: 'insert',
+            where: 'after',
+            anchor: '              <div class="mx-auto w-full {composerWidthClass} px-2">\n',
+            managed: `                <!-- POCKETRISU-PATCH:lazy-chat-bg-adapter:server-pending-ui:START -->
+                {#if pendingCharacter?.chaId && pendingChat?.id}
+                    <ServerPendingInputs
+                        charId={pendingCharacter.chaId}
+                        chatId={pendingChat.id}
+                        chat={pendingChat}
+                    />
+                {/if}
+                <!-- POCKETRISU-PATCH:lazy-chat-bg-adapter:server-pending-ui:END -->
+`,
+            markerNeedle: 'POCKETRISU-PATCH:lazy-chat-bg-adapter:server-pending-ui:START',
+            requires: ['lazy-chat-bg-adapter:server-pending-ui-selection:1.10'],
+            after: ['personal-settings:appearance-composer-hook-1.9'],
             targetVersions: pocketRisu1100,
         },
         {
