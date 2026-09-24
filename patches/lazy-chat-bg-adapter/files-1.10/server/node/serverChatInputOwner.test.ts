@@ -228,6 +228,56 @@ describe('pre-canonical server chat input owner', () => {
         })
     })
 
+    it('records an edited head as blocked instead of leaving a queued pending command', async () => {
+        const harness = makeHarness()
+        const owner = harness.makeOwner()
+        const operationId = 'operation-input-edited-head-1'
+        await owner.admit(admission(operationId))
+        const original = harness.runtime.fullStore.get('char-1')?.get('chat-1') as any
+        harness.runtime.fullStore.get('char-1')?.set('chat-1', {
+            ...original,
+            message: [...original.message, { role: 'user', data: 'new edit', chatId: 'user-edit' }],
+        })
+        await expect(owner.loadExecution(operationId)).resolves.toMatchObject({
+            status: 'blocked',
+            reason: 'base_revision_changed',
+        })
+        expect(owner.pendingProjection('char-1', 'chat-1')).toMatchObject([{
+            operationId,
+            state: 'blocked_edit',
+        }])
+        expect(owner.settingsSnapshotStats().contexts).toBe(0)
+        await expect(owner.loadExecution(operationId)).resolves.toMatchObject({
+            status: 'blocked',
+            reason: 'base_revision_changed',
+        })
+    })
+
+    it('propagates a blocked head to its waiting successor without starting either', async () => {
+        const harness = makeHarness()
+        const owner = harness.makeOwner()
+        const first = 'operation-input-blocked-chain-1'
+        const second = 'operation-input-blocked-chain-2'
+        await owner.admit(admission(first))
+        await owner.admit(admission(second))
+        const original = harness.runtime.fullStore.get('char-1')?.get('chat-1') as any
+        harness.runtime.fullStore.get('char-1')?.set('chat-1', {
+            ...original,
+            message: [...original.message, { role: 'user', data: 'concurrent edit', chatId: 'user-edit' }],
+        })
+        await expect(owner.loadExecution(first)).resolves.toMatchObject({
+            status: 'blocked', reason: 'base_revision_changed',
+        })
+        await expect(owner.loadExecution(second)).resolves.toMatchObject({
+            status: 'blocked', reason: 'predecessor_blocked_edit',
+        })
+        expect(owner.pendingProjection('char-1', 'chat-1')).toMatchObject([
+            { operationId: first, state: 'blocked_edit' },
+            { operationId: second, state: 'blocked_edit' },
+        ])
+        expect(owner.settingsSnapshotStats().contexts).toBe(0)
+    })
+
     it('fails closed on the pre-fix record v3 schema before product activation', async () => {
         const harness = makeHarness()
         const owner = harness.makeOwner()
@@ -746,6 +796,15 @@ describe('pre-canonical server chat input owner', () => {
             status: 'blocked',
             reason: 'predecessor_revision_changed',
             predecessorOperationId: firstOperation,
+        })
+        expect(owner.pendingProjection('char-1', 'chat-1')).toMatchObject([{
+            operationId: secondOperation,
+            state: 'blocked_edit',
+        }])
+        expect(owner.settingsSnapshotStats().contexts).toBe(0)
+        await expect(owner.loadExecution(secondOperation)).resolves.toMatchObject({
+            status: 'blocked',
+            reason: 'predecessor_revision_changed',
         })
     })
 

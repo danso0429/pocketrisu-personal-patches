@@ -433,7 +433,7 @@ function createServerChatInputOwner({
 
     async function advancePredecessor(operationId) {
         await ensureCanonicalState();
-        return queueStorageOperation(() => sqliteDb.transaction(() => {
+        const outcome = await queueStorageOperation(() => sqliteDb.transaction(() => {
             const record = read(operationId);
             if (!record) return { status: 'missing' };
             if (record.predecessorResolution !== null || record.inputState !== 'queued') {
@@ -506,11 +506,21 @@ function createServerChatInputOwner({
                 };
             }
             if (predecessor.inputState === 'blocked_edit') {
+                const blocked = {
+                    ...record,
+                    inputState: 'blocked_edit',
+                    terminal: {
+                        state: 'blocked_edit',
+                        reason: 'predecessor_blocked_edit',
+                        at: Date.now(),
+                    },
+                };
+                write(blocked);
                 return {
                     status: 'blocked',
                     reason: 'predecessor_blocked_edit',
                     predecessorOperationId: predecessor.operationId,
-                    record: clone(record),
+                    record: clone(blocked),
                 };
             }
             const resolvedRevision = predecessor.inputState === 'completed'
@@ -533,11 +543,27 @@ function createServerChatInputOwner({
             if (liveRevision !== resolvedRevision) {
                 const publicationPending = predecessor.inputState === 'completed'
                     && liveRevision === predecessor.executionBaseRevision;
+                if (!publicationPending) {
+                    const blocked = {
+                        ...record,
+                        inputState: 'blocked_edit',
+                        terminal: {
+                            state: 'blocked_edit',
+                            reason: 'predecessor_revision_changed',
+                            at: Date.now(),
+                        },
+                    };
+                    write(blocked);
+                    return {
+                        status: 'blocked',
+                        reason: 'predecessor_revision_changed',
+                        predecessorOperationId: predecessor.operationId,
+                        record: clone(blocked),
+                    };
+                }
                 return {
-                    status: publicationPending ? 'waiting' : 'blocked',
-                    reason: publicationPending
-                        ? 'predecessor_publication_pending'
-                        : 'predecessor_revision_changed',
+                    status: 'waiting',
+                    reason: 'predecessor_publication_pending',
                     predecessorOperationId: predecessor.operationId,
                     record: clone(record),
                 };
@@ -566,6 +592,10 @@ function createServerChatInputOwner({
             if (!operation.written) throw operation.error || new Error('operation state write failed');
             return { status: 'ready', record: clone(next) };
         })());
+        if (outcome.record?.inputState === 'blocked_edit') {
+            settingsSnapshots.delete(operationId);
+        }
+        return outcome;
     }
 
     async function admit(value) {
@@ -951,11 +981,28 @@ function createServerChatInputOwner({
             await ensureCanonicalState();
             const chat = currentChat(record.admission.charId, record.admission.chatId);
             if (!chat || chatRevision(chat) !== record.effectiveBaseRevision) {
-                return {
-                    status: 'blocked',
-                    reason: 'base_revision_changed',
-                    record: clone(record),
-                };
+                const blocked = await queueStorageOperation(() => sqliteDb.transaction(() => {
+                    const latest = read(operationId);
+                    if (!latest || latest.inputState !== 'queued'
+                        || latest.transformState !== 'not_run') {
+                        return { status: 'blocked', reason: 'input_state_changed', record: latest };
+                    }
+                    const next = {
+                        ...latest,
+                        inputState: 'blocked_edit',
+                        terminal: {
+                            state: 'blocked_edit',
+                            reason: 'base_revision_changed',
+                            at: Date.now(),
+                        },
+                    };
+                    write(next);
+                    return { status: 'blocked', reason: 'base_revision_changed', record: clone(next) };
+                })());
+                if (blocked.record?.inputState === 'blocked_edit') {
+                    settingsSnapshots.delete(operationId);
+                }
+                return blocked;
             }
             return { status: 'transform-required', record: clone(record), chat: clone(chat) };
         }
@@ -981,7 +1028,9 @@ function createServerChatInputOwner({
             status: 'blocked',
             reason: record.transformState === 'running' || record.transformState === 'unknown'
                 ? 'transform_outcome_unknown'
-                : record.inputState,
+                : record.inputState === 'blocked_edit'
+                    ? record.terminal?.reason || 'blocked_edit'
+                    : record.inputState,
             record: clone(record),
         };
     }
