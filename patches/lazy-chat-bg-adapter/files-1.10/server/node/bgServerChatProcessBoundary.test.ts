@@ -635,4 +635,44 @@ describe('server chat composed process boundary', () => {
             resultAcks: 0,
         })
     }, 30_000)
+
+    it('retains a predecessor-effect mismatch as blocked without paying for N+1', async () => {
+        const runtimeRoot = makeRuntimeRoot()
+        await seedRuntime(runtimeRoot)
+        const server = await startServer(runtimeRoot, { fault: 'effect-lineage' })
+        const initial = await readChat(server)
+        const operationN = 'operation-h1-effect-n-1'
+        const operationN1 = 'operation-h1-effect-n1-1'
+        expect(await submitFromDisposableClient(
+            server, inputBody(operationN, initial.revision, 'input N'),
+        )).toMatchObject({ status: 200, body: { started: true } })
+        await server.waitFor('provider-waiting', message => message.operationId === operationN)
+        const inputNRevision = (await readChat(server)).revision
+        expect(await submitFromDisposableClient(
+            server, inputBody(operationN1, inputNRevision, 'input N+1'),
+        )).toMatchObject({ status: 202, body: { accepted: true, started: false } })
+
+        server.child.send({ scope: 'pocketrisu-h1', command: 'release-provider' })
+        await server.waitFor('commit-result', message => (
+            message.status === 'committed' && message.receipt?.operationId === operationN
+        ))
+        let status: Awaited<ReturnType<typeof readStatus>> | null = null
+        for (let attempt = 0; attempt < 100; attempt += 1) {
+            status = await readStatus(server, operationN1)
+            if (status.body?.state === 'input-blocked_edit') break
+            await new Promise(resolve => setTimeout(resolve, 20))
+        }
+        expect(status).toMatchObject({
+            status: 200,
+            body: { accepted: true, state: 'input-blocked_edit' },
+        })
+        expect(await readCounters(server)).toMatchObject({
+            providerCalls: 1,
+            commitCalls: 1,
+            fallbackProviderCalls: 0,
+            clientSaves: 0,
+        })
+        const stored = await readChat(server)
+        expect(stored.chat.message).toHaveLength(3)
+    }, 30_000)
 })

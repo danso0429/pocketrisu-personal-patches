@@ -245,6 +245,11 @@ require.cache[orchestratorPath].exports = function registerInstrumentedOrchestra
         control,
     ) {
         const settingsSnapshot = control.readInputSettingsSnapshot()
+        if (fault === 'effect-lineage'
+            && settingsSnapshot.record?.predecessorResolution) {
+            control.onInputBlocked('predecessor_effect_lineage_changed')
+            throw new Error('injected predecessor effect lineage mismatch')
+        }
         const transform = await control.beginInputTransform()
         const command = transform.record.admission
         const inputChat = {

@@ -1086,6 +1086,22 @@ function createServerChatInputOwner({
         return settingsSnapshots.delete(operationId);
     }
 
+    function blockEditSynchronously(operationId, reason) {
+        if (typeof reason !== 'string' || !/^[a-z][a-z0-9_]{2,63}$/.test(reason)) {
+            return false;
+        }
+        const record = read(operationId);
+        if (!record || record.inputState !== 'queued'
+            || record.transformState !== 'not_run') return false;
+        write({
+            ...record,
+            inputState: 'blocked_edit',
+            terminal: { state: 'blocked_edit', reason, at: Date.now() },
+        });
+        settingsSnapshots.delete(operationId);
+        return true;
+    }
+
     function settleSynchronously(operationId, state, resultRevision = null) {
         const settled = settleDurablySynchronously(operationId, state, resultRevision);
         if (settled) releaseSettingsContext(operationId);
@@ -1198,6 +1214,7 @@ function createServerChatInputOwner({
         read: (operationId) => clone(read(operationId)),
         recoverAll,
         releaseSettingsContext,
+        blockEditSynchronously,
         settingsSnapshotStats,
         settleDurablySynchronously,
         settleSynchronously,

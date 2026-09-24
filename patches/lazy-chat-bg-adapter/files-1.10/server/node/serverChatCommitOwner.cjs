@@ -731,6 +731,20 @@ function createServerChatCommitOwner({
         return outcomes;
     }
 
+    function readEffectLineage(operationId) {
+        const record = committer.readRecovery(operationId);
+        if (!record || record.commitReceipt?.operationId !== operationId) return null;
+        return {
+            operationId,
+            inputReceiptId: record.commitReceipt.inputReceiptId,
+            storedRevision: record.commitReceipt.storedRevision,
+            globalIntent: structuredClone(record.recovery.effectIntents.globalVariables),
+            globalOutcomes: structuredClone(record.canonicalWrite.globalVariableOutcomes),
+            staticsMessagesAppliedDelta: record.canonicalWrite.staticsMessagesAppliedDelta,
+            statsStatus: record.canonicalWrite.effects.stats.status,
+        };
+    }
+
     async function readChatProjection(charId, chatId, requestedRevision) {
         await ensureCanonicalState();
         const chat = getFullChatStore()?.get(charId)?.get(chatId) || null;
@@ -792,6 +806,7 @@ function createServerChatCommitOwner({
         preserveDatabaseState,
         readChatProjection,
         readGenerationCommit: committer.status,
+        readEffectLineage,
         readGenerationRecovery: committer.readRecovery,
         recover,
         recoverAll,

@@ -331,6 +331,15 @@ describe('server-owned BG chat commit', () => {
         expect(JSON.parse(harness.kvGet(SERVER_CHAT_COMMIT_SEQUENCE_KEY).toString('utf8')))
             .toEqual({ version: 1, value: 1 })
         expect(harness.kvGet(commitStorageKey(operationId))).not.toBeNull()
+        expect(owner.readEffectLineage(operationId)).toMatchObject({
+            operationId,
+            inputReceiptId: committed.receipt.inputReceiptId,
+            storedRevision: revision(after),
+            globalIntent: { changed: { mood: 'new' } },
+            globalOutcomes: [{ key: 'mood', status: 'committed' }],
+            staticsMessagesAppliedDelta: 1,
+            statsStatus: 'committed',
+        })
         await expect(owner.readChatProjection(
             'char-1',
             'chat-1',

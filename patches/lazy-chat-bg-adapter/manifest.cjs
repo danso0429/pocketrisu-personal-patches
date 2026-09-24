@@ -1179,7 +1179,21 @@ const serverChatCommitOwner = createServerChatCommitOwner({
       if (settingsSnapshot.record?.predecessorResolution) {
         const currentStripped = dbCache && deps.DB_HEX_KEY ? dbCache[deps.DB_HEX_KEY] : null
         const { overlayServerChatDynamicState } = require('./serverChatSettingsContext.cjs')
-        stripped = overlayServerChatDynamicState(stripped, currentStripped)
+        const resolution = settingsSnapshot.record.predecessorResolution
+        try {
+          if (typeof control.readPredecessorEffectLineage !== 'function') {
+            throw new Error('server input predecessor effect owner unavailable')
+          }
+          stripped = overlayServerChatDynamicState(stripped, currentStripped, {
+            resolution,
+            ...control.readPredecessorEffectLineage(resolution.operationId),
+          })
+        } catch (error) {
+          if (typeof control.onInputBlocked === 'function') {
+            control.onInputBlocked('predecessor_effect_lineage_changed')
+          }
+          throw error
+        }
       }
     }
 `,
@@ -1647,6 +1661,14 @@ const serverChatCommitOwner = createServerChatCommitOwner({
                 inputCommandVersion,
                 readInputSettingsSnapshot: () => serverChatInputOwner.loadSettingsSnapshot(
                   operationId,
+                ),
+                readPredecessorEffectLineage: (predecessorOperationId) => ({
+                  input: serverChatInputOwner.read(predecessorOperationId),
+                  response: serverChatCommitOwner.readEffectLineage(predecessorOperationId),
+                }),
+                onInputBlocked: (reason) => serverChatInputOwner.blockEditSynchronously(
+                  operationId,
+                  reason,
                 ),
                 beginInputTransform: () => serverChatInputOwner.beginTransform(operationId),
                 attachInputTransform: (value) => serverChatInputOwner.attachTransformed(

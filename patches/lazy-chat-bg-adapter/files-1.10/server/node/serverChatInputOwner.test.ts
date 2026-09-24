@@ -278,6 +278,26 @@ describe('pre-canonical server chat input owner', () => {
         expect(owner.settingsSnapshotStats().contexts).toBe(0)
     })
 
+    it('records a predecessor-effect mismatch before transform or provider work', async () => {
+        const harness = makeHarness()
+        const owner = harness.makeOwner()
+        const operationId = 'operation-input-effect-block-1'
+        await owner.admit(admission(operationId))
+        expect(owner.blockEditSynchronously(
+            operationId, 'predecessor_effect_lineage_changed',
+        )).toBe(true)
+        expect(owner.pendingProjection('char-1', 'chat-1')).toMatchObject([{
+            operationId, state: 'blocked_edit',
+        }])
+        expect(owner.settingsSnapshotStats().contexts).toBe(0)
+        await expect(owner.loadExecution(operationId)).resolves.toMatchObject({
+            status: 'blocked', reason: 'predecessor_effect_lineage_changed',
+        })
+        expect(owner.blockEditSynchronously(
+            operationId, 'predecessor_effect_lineage_changed',
+        )).toBe(false)
+    })
+
     it('fails closed on the pre-fix record v3 schema before product activation', async () => {
         const harness = makeHarness()
         const owner = harness.makeOwner()
