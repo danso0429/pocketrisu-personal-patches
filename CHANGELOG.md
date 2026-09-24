@@ -1,5 +1,13 @@
 # Changelog
 
+## 0.2.3-experimental.2
+
+- Keep each CSS item's edit button in a fixed right column beside its name and
+  description. Omit empty secondary action rows to reduce card height while
+  retaining reset and custom-item ordering/removal controls.
+- CSS input remains ordinary stylesheet text; custom items do not require the
+  shipped definitions' `html[data-pocketrisu-css]` activation selectors.
+
 ## 0.2.3-experimental.1
 
 - Add exact-1.10 Personal CSS editing for shipped defaults and user toggles:

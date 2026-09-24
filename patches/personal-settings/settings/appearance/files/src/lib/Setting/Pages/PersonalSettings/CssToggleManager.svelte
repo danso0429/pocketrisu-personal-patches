@@ -93,14 +93,19 @@
         {/if}
         {#each filtered as item (item.id)}
             <article class="rounded border border-darkborderc p-3" data-setting-id={item.settingId}>
-                <label class="flex items-center gap-3 min-h-11">
-                    <input type="checkbox" checked={item.enabled} aria-label={`${item.name} 켜기`} disabled={busy || !!draft} onchange={(e) => { const enabled = e.currentTarget.checked; e.currentTarget.checked = item.enabled; void run({ kind: 'put', item: { ...item, enabled }, shipped: item.shipped }) }} />
-                    <strong class="min-w-0" style:overflow-wrap="anywhere">{item.name}</strong>
-                    {#if item.modified}<span class="text-xs">수정됨{item.newerDefault ? ' · 새 기본값 있음' : ''}</span>{/if}
-                </label>
-                <p class="text-sm text-textcolor2 whitespace-pre-wrap break-words">{item.description}</p>
-                <div class="flex flex-wrap gap-1 mt-2">
+                <div class="item-row">
+                    <div class="item-text">
+                        <label class="flex items-center gap-3 min-h-11">
+                            <input type="checkbox" checked={item.enabled} aria-label={`${item.name} 켜기`} disabled={busy || !!draft} onchange={(e) => { const enabled = e.currentTarget.checked; e.currentTarget.checked = item.enabled; void run({ kind: 'put', item: { ...item, enabled }, shipped: item.shipped }) }} />
+                            <strong class="min-w-0" style:overflow-wrap="anywhere">{item.name}</strong>
+                            {#if item.modified}<span class="text-xs">수정됨{item.newerDefault ? ' · 새 기본값 있음' : ''}</span>{/if}
+                        </label>
+                        <p class="text-sm text-textcolor2 whitespace-pre-wrap break-words">{item.description}</p>
+                    </div>
                     <button class="action" disabled={busy || !!draft} onclick={(e) => open(item, e)}>편집</button>
+                </div>
+                {#if (item.shipped && item.modified) || !item.shipped}
+                <div class="flex flex-wrap gap-1 mt-2">
                     {#if item.shipped && item.modified}
                         <button class="action" disabled={busy || !!draft} onclick={() => void run({ kind: 'reset', id: item.id })}>현재 기본값으로 복원</button>
                     {:else if !item.shipped}
@@ -109,12 +114,15 @@
                         <button class="action" disabled={busy || !!draft} onclick={() => { if (window.confirm(`“${item.name}” CSS를 삭제할까요?`)) void run({ kind: 'delete', id: item.id }) }}>삭제</button>
                     {/if}
                 </div>
+                {/if}
             </article>
         {/each}
     {/if}
 </section>
 
 <style>
+    .item-row { display: grid; grid-template-columns: minmax(0, 1fr) auto; align-items: center; gap: 0.75rem; }
+    .item-text { min-width: 0; }
     .action { min-height: 44px; padding: 0.4rem 0.8rem; border: 1px solid currentColor; border-radius: 0.4rem; }
     .action:disabled { opacity: 0.45; }
 </style>

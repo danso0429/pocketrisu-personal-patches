@@ -4,7 +4,7 @@ Private, all-or-nothing patch delivery for PocketRisu NodeOnly. The current
 stable release is `v0.2.2`, and its complete manifest graph targets exact
 PocketRisu `v1.10.0`.
 
-The `0.2.3-experimental.1` candidate adds an editable Personal CSS
+The `0.2.3-experimental.2` candidate adds an editable Personal CSS
 manager and imported chat fonts. Stable `v0.2.2` remains the published stable
 baseline while the physical iPhone gate is pending. See the
 [candidate validation and recovery guide](docs/POCKETRISU-PERSONAL-CSS-TOGGLE-EDITOR-VALIDATION.md).
@@ -144,6 +144,7 @@ retains the detailed source and path review.
 
 | Release | What changed |
 | --- | --- |
+| `v0.2.3-experimental.2` | Keeps the CSS edit button beside the item text in a fixed right column, reducing card height without changing CSS input or persistence. |
 | `v0.2.3-experimental.1` | Adds editable shipped/custom CSS toggles with full-snapshot trials and recovery, plus local/HTTPS font import and reference-aware asset preservation. Physical iPhone qualification remains pending. |
 | `v0.2.2` | Fixes JPEG-wrapped CharX import, request-log totals, and empty-chat payload ordering; adds final-composition save regression coverage and an exact-hash FastImport iOS execution compatibility pack. The user reported the presented iPhone L3 scenarios normal. |
 | `v0.2.1` | Promotes the exact-1.10 PageFold ModelPreset transform and hidden BG adapter after automatic qualification, repeated live Vertex PDF requests, and physical iPhone L3. The stable all-or-nothing graph is 40 packs / 934 units / 340 paths; OpenRouter and unsafe image/tool/cache inputs remain excluded. |
