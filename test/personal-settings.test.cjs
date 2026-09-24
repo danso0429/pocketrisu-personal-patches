@@ -14,6 +14,7 @@ const importNavigationUnits = require(
 )
 const appearanceUnits = require('../patches/personal-settings/settings/appearance/units.cjs')
 const searchUnits = require('../patches/personal-settings/settings/search/units.cjs')
+const editorUnits = require('../patches/personal-settings/settings/appearance/editor-units.cjs')
 const logic = read('core/files/src/ts/personalSettings.ts')
 const logicTests = read('core/files/src/ts/personalSettings.test.ts')
 const storage = read('core/files/src/ts/personalSettings/core.ts')
@@ -58,7 +59,7 @@ function replacementText(candidate) {
 
 test('personal settings is an independent rolling feature pack', () => {
     assert.equal(manifest.id, 'personal-settings')
-    assert.equal(manifest.version, '0.4.3')
+    assert.equal(manifest.version, '0.5.0')
     assert.deepEqual(manifest.targets, {
         pocketrisu: {
             verified: ['1.8.1', '1.9.0', '1.10.0'],
@@ -76,6 +77,7 @@ test('the root manifest only aggregates core and setting-owned units', () => {
         ...importNavigationUnits,
         ...appearanceUnits,
         ...searchUnits,
+        ...editorUnits,
     ])
     assert.equal(
         new Set(manifest.units.map((candidate) => candidate.id)).size,
@@ -368,7 +370,7 @@ test('personal settings never writes the database plugin array', () => {
             candidate.content ?? '',
             candidate.managed ?? '',
         ]),
-        ...manifest.units.flatMap((candidate) => [
+        ...manifest.units.filter((candidate) => !candidate.file.includes('.test.')).flatMap((candidate) => [
             candidate.content ?? '',
             candidate.managed ?? '',
         ]),

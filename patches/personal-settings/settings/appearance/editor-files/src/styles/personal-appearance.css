@@ -1,0 +1,89 @@
+@import url("https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@100..900&family=Noto+Serif+KR:wght@200..900&display=swap");
+
+/* Personal appearance features are inert unless their exact root token exists.
+ * This sheet is intentionally unlayered. User customCSS is injected later and
+ * has later source order when the other cascade axes are equal. */
+
+@font-face {
+  font-family: "Paperlogy";
+  src: url("https://cdn.jsdelivr.net/gh/projectnoonnu/2408-3@1.0/Paperlogy-4Regular.woff2") format("woff2");
+  font-weight: 400;
+  font-style: normal;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: "Paperlogy";
+  src: url("https://cdn.jsdelivr.net/gh/projectnoonnu/2408-3@1.0/Paperlogy-6SemiBold.woff2") format("woff2");
+  font-weight: 600;
+  font-style: normal;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: "Paperlogy";
+  src: url("https://cdn.jsdelivr.net/gh/projectnoonnu/2408-3@1.0/Paperlogy-7Bold.woff2") format("woff2");
+  font-weight: 700;
+  font-style: normal;
+  font-display: swap;
+}
+
+/* Galmuri14 is also registered here so the existing app-level custom font
+ * remains resolvable after the separately-approved customCSS migration. */
+@font-face {
+  font-family: "Galmuri14";
+  src: url("https://cdn.jsdelivr.net/gh/projectnoonnu/2506-1@1.0/Galmuri14.woff2") format("woff2");
+  font-weight: 400;
+  font-style: normal;
+  font-display: swap;
+}
+
+html[data-pocketrisu-css~="chat-font-paperlogy"] {
+  --personal-chat-font-family: "Paperlogy", sans-serif;
+}
+
+html[data-pocketrisu-css~="chat-font-noto-sans-kr"] {
+  --personal-chat-font-family: "Noto Sans KR", sans-serif;
+}
+
+html[data-pocketrisu-css~="chat-font-noto-serif-kr"] {
+  --personal-chat-font-family: "Noto Serif KR", serif;
+}
+
+html[data-pocketrisu-css~="chat-font-ibm-plex-sans-kr"] {
+  --personal-chat-font-family: "IBM Plex Sans KR", "Noto Sans KR", sans-serif;
+}
+
+html[data-pocketrisu-css~="chat-font-gowun-dodum"] {
+  --personal-chat-font-family: "Gowun Dodum", "Noto Sans KR", sans-serif;
+}
+
+html[data-pocketrisu-css~="chat-font-gowun-batang"] {
+  --personal-chat-font-family: "Gowun Batang", "Noto Serif KR", serif;
+}
+
+html[data-pocketrisu-css~="chat-font-hahmlet"] {
+  --personal-chat-font-family: "Hahmlet", "Noto Serif KR", serif;
+}
+
+html[data-pocketrisu-css*="chat-font-"]
+  .default-chat-screen.nodeonly-standard .risu-chat[data-chat-index] .chattext,
+html[data-pocketrisu-css*="chat-font-"]
+  .default-chat-screen.nodeonly-standard .risu-chat[data-chat-index] .chattext :where(*),
+html[data-pocketrisu-css*="chat-font-"] .personal-font-preview__sample,
+html[data-pocketrisu-css*="chat-font-"] .personal-font-preview__sample :where(*) {
+  font-family: var(--personal-chat-font-family) !important;
+}
+
+html[data-pocketrisu-css*="chat-font-"]
+  .default-chat-screen.nodeonly-standard .risu-chat[data-chat-index] .chattext
+  :is(pre, code, kbd, samp) {
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", monospace !important;
+}
+
+/* Stable hooks are inert until a definition is enabled. */
+[data-personal-send-default] { display: contents; }
+[data-personal-send-text] { display: none; }
+[data-personal-jailbreak] { display: contents; }
+.personal-send-glyph { font-family: ui-sans-serif, system-ui, sans-serif; font-size: 1rem; line-height: 1; }
+html[data-pocketrisu-css~="chat-font-custom"] { --personal-chat-font-family: var(--personal-custom-font-family, sans-serif); }
