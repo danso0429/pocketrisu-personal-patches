@@ -596,8 +596,10 @@ export async function reconcileServerPendingInputCommands(
         if (!response.ok) continue
         let data: any
         try { data = await response.json() } catch { continue }
-        if (!data?.found || data.operationId !== marker.operationId
-            || !serverChatCommitReceipt(data)) continue
+        if (data.operationId !== marker.operationId || !serverChatCommitReceipt(data)) continue
+        const previouslyAcknowledged = data.found === false
+            && data.operationState === 'chat-committed'
+        if (data.found !== true && !previouslyAcknowledged) continue
         const hydration = await hydrateServerCommittedResult(
             charId, chatId, marker.operationId, data,
         )
@@ -606,6 +608,10 @@ export async function reconcileServerPendingInputCommands(
         advanceServerInputMarkerRevisions(
             localStorage, charId, chatId, marker.localRevision, adoptedRevision,
         )
+        if (previouslyAcknowledged) {
+            clearServerInputMarker(localStorage, marker.operationId)
+            continue
+        }
         const resultId = typeof data.resultId === 'string' ? data.resultId : ''
         if (!resultId) continue
         try {

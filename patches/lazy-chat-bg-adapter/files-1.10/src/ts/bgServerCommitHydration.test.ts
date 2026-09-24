@@ -99,6 +99,24 @@ describe('server-committed result hydration', () => {
         })
     })
 
+    it('accepts a committed no-result readback after an exact ACK was lost to page exit', async () => {
+        const data = {
+            found: false,
+            operationId: 'operation-hydration-1',
+            operationState: 'chat-committed',
+            serverChatCommit: receipt(),
+        }
+        await expect(hydrateServerCommittedOrchestration({
+            data,
+            operationId: 'operation-hydration-1',
+            charId: 'char-1',
+            chatId: 'chat-1',
+            allowedCurrentRevisions: ['stored-revision'],
+            readProjection: async () => projection(),
+            adoptChat: async () => ({ adopted: true, chat: { id: 'chat-1' } }),
+        })).resolves.toMatchObject({ hydrated: true, receipt: receipt() })
+    })
+
     it('does not fetch or mutate for a mismatched operation or coordinate', async () => {
         const readProjection = vi.fn()
         const adoptChat = vi.fn()

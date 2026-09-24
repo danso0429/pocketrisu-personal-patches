@@ -2,8 +2,13 @@
 
 Date: 2026-09-24 KST
 
-Status: **Design review before activating `inputCommandVersion=1`. No product
-activation or live apply is authorized by this document.**
+Status: **Approved operation-keyed N+1 design boundary. Candidate client
+implementation is checkpointed separately; input capability remains 0 and
+no product activation or live apply is authorized by this document.**
+
+The control-flow and assumptions below describe the pre-implementation
+review. The later candidate and its observed gates are recorded in
+`POCKETRISU-1.10-BG-INDEPENDENT-G1-REBASE.md`.
 
 ## Observed control and data flow
 
