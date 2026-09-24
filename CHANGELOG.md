@@ -1,5 +1,14 @@
 # Changelog
 
+## 0.2.3-experimental.3
+
+- Hide shipped CSS activation prefixes in the editor. Preserve exact stored
+  bytes on unchanged/metadata-only saves and original selector specificity
+  when editing declarations. Changed/new selectors use ordinary CSS; existing
+  runtime style-node ownership controls their activation.
+- Preserve custom CSS, comments, strings, other selectors, and unsupported or
+  malformed source instead of guessing at textual replacements.
+
 ## 0.2.3-experimental.2
 
 - Keep each CSS item's edit button in a fixed right column beside its name and
