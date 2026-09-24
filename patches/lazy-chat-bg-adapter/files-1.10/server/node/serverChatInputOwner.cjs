@@ -1158,6 +1158,10 @@ function createServerChatInputOwner({
                 rawText: record.admission.rawText,
                 cancelAllowed: record.inputState === 'queued',
                 state,
+                ...(record.inputReceipt && record.executionBaseRevision ? {
+                    attachedRevision: record.executionBaseRevision,
+                    inputReceiptId: record.inputReceipt.receiptId,
+                } : {}),
             };
         });
     }

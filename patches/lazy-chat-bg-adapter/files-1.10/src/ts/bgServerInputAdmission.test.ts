@@ -42,7 +42,7 @@ describe('server input base admission', () => {
             serverRevision: successor,
             pendingInputs: [{ operationId: 'operation-n', admissionSeq: 1, state: 'execution_unknown' }],
             knownInput,
-        })).toEqual({ ready: false, reason: 'local-chat-changed' })
+        })).toEqual({ ready: false, reason: 'unresolved-server-input' })
     })
 
     it('does not admit without a canonical server revision', () => {

@@ -444,6 +444,8 @@ describe('pre-canonical server chat input owner', () => {
         })
         expect(owner.pendingProjection('char-1', 'chat-1')).toMatchObject([{
             operationId, state: 'attached',
+            attachedRevision: attached.record.executionBaseRevision,
+            inputReceiptId: attached.record.inputReceipt.receiptId,
         }])
         const operation = JSON.parse(harness.kvGet(operationStateKey(operationId)).toString('utf8'))
         harness.kvSet(operationStateKey(operationId), JSON.stringify({

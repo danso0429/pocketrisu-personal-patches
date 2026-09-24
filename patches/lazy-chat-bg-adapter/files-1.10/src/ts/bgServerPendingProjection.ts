@@ -3,6 +3,8 @@ export interface ServerPendingInput {
     admissionSeq: number
     state: 'queued' | 'waiting_predecessor' | 'blocked_edit'
         | 'attached' | 'generating' | 'execution_unknown'
+    attachedRevision?: string
+    inputReceiptId?: string
 }
 
 const states = new Set<ServerPendingInput['state']>([
@@ -30,7 +32,12 @@ export function parseServerPendingInputs(projection: unknown): ServerPendingInpu
         if (typeof row.operationId !== 'string' || row.operationId.length === 0
             || row.operationId.length > 128 || seen.has(row.operationId)
             || !Number.isSafeInteger(row.admissionSeq) || Number(row.admissionSeq) <= 0
-            || !states.has(row.state as ServerPendingInput['state'])) {
+            || !states.has(row.state as ServerPendingInput['state'])
+            || ((row.attachedRevision !== undefined || row.inputReceiptId !== undefined)
+                && (typeof row.attachedRevision !== 'string'
+                    || !/^[a-f0-9]{64}$/.test(row.attachedRevision)
+                    || typeof row.inputReceiptId !== 'string'
+                    || !/^[a-f0-9]{64}$/.test(row.inputReceiptId)))) {
             throw new Error('server pending input row is invalid')
         }
         seen.add(row.operationId)
@@ -38,6 +45,10 @@ export function parseServerPendingInputs(projection: unknown): ServerPendingInpu
             operationId: row.operationId,
             admissionSeq: Number(row.admissionSeq),
             state: row.state as ServerPendingInput['state'],
+            ...(typeof row.attachedRevision === 'string' ? {
+                attachedRevision: row.attachedRevision,
+                inputReceiptId: row.inputReceiptId as string,
+            } : {}),
         })
     }
     return result.sort((left, right) => left.admissionSeq - right.admissionSeq)

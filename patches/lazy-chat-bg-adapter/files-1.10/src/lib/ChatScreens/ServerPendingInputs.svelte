@@ -1,5 +1,5 @@
 <script lang="ts">
-    import { readServerPendingInputCommands } from 'src/ts/bgOrchestrate'
+    import { hasServerOwnedInputMarker, reconcileServerPendingInputCommands } from 'src/ts/bgOrchestrate'
     import type { ServerPendingInput } from 'src/ts/bgServerPendingProjection'
 
     let { charId, chatId, chat }: {
@@ -39,7 +39,7 @@
             inFlight = true
             if (timer) { clearTimeout(timer); timer = null }
             try {
-                const result = await readServerPendingInputCommands(
+                const result = await reconcileServerPendingInputCommands(
                     currentCharId, currentChatId, currentChat,
                 )
                 if (!disposed) {
@@ -50,7 +50,8 @@
                 if (!disposed) unavailable = true
             } finally {
                 inFlight = false
-                if (!disposed && pending.length > 0) {
+                if (!disposed && (pending.length > 0
+                    || hasServerOwnedInputMarker(currentCharId, currentChatId))) {
                     timer = setTimeout(refresh, 2000)
                 }
             }
@@ -58,13 +59,16 @@
         const onReturn = () => {
             if (document.visibilityState === 'visible') void refresh()
         }
+        const onInputUpdate = () => { void refresh() }
         void refresh()
         window.addEventListener('focus', onReturn)
+        window.addEventListener('bg-server-input-updated', onInputUpdate)
         document.addEventListener('visibilitychange', onReturn)
         return () => {
             disposed = true
             if (timer) clearTimeout(timer)
             window.removeEventListener('focus', onReturn)
+            window.removeEventListener('bg-server-input-updated', onInputUpdate)
             document.removeEventListener('visibilitychange', onReturn)
         }
     })

@@ -21,7 +21,7 @@ const bgGlobalApiUnits = [
 module.exports = {
     id: 'lazy-chat-bg-adapter',
     title: 'BG preserve integration for lazy chat storage',
-    version: '0.7.3',
+    version: '0.7.4',
     targets: {
         pocketrisu: {
             verified: ['1.8.1', '1.9.0', '1.10.0'],
@@ -356,6 +356,57 @@ export async function adoptServerCommittedChat(
             targetVersions: pocketRisu1100,
         },
         {
+            id: 'lazy-chat-bg-adapter:owned:bg-server-input-ledger:1.10',
+            file: 'src/ts/bgServerInputLedger.ts',
+            type: 'owned',
+            content: owned1100('src/ts/bgServerInputLedger.ts'),
+            targetVersions: pocketRisu1100,
+        },
+        {
+            id: 'lazy-chat-bg-adapter:owned:bg-server-input-ledger-test:1.10',
+            file: 'src/ts/bgServerInputLedger.test.ts',
+            type: 'owned',
+            content: owned1100('src/ts/bgServerInputLedger.test.ts'),
+            requires: ['lazy-chat-bg-adapter:owned:bg-server-input-ledger:1.10'],
+            targetVersions: pocketRisu1100,
+        },
+        {
+            id: 'lazy-chat-bg-adapter:owned:bg-server-input-adoption:1.10',
+            file: 'src/ts/bgServerInputAdoption.ts',
+            type: 'owned',
+            content: owned1100('src/ts/bgServerInputAdoption.ts'),
+            requires: ['lazy-chat-bg-adapter:owned:bg-server-input-ledger:1.10'],
+            targetVersions: pocketRisu1100,
+        },
+        {
+            id: 'lazy-chat-bg-adapter:owned:bg-server-input-adoption-test:1.10',
+            file: 'src/ts/bgServerInputAdoption.test.ts',
+            type: 'owned',
+            content: owned1100('src/ts/bgServerInputAdoption.test.ts'),
+            requires: ['lazy-chat-bg-adapter:owned:bg-server-input-adoption:1.10'],
+            targetVersions: pocketRisu1100,
+        },
+        {
+            id: 'lazy-chat-bg-adapter:owned:bg-server-input-client:1.10',
+            file: 'src/ts/bgServerInputClient.ts',
+            type: 'owned',
+            content: owned1100('src/ts/bgServerInputClient.ts'),
+            requires: [
+                'lazy-chat-bg-adapter:owned:bg-server-input-ledger:1.10',
+                'lazy-chat-bg-adapter:owned:bg-server-input-start:1.10',
+                'lazy-chat-bg-adapter:owned:bg-server-input-admission:1.10',
+            ],
+            targetVersions: pocketRisu1100,
+        },
+        {
+            id: 'lazy-chat-bg-adapter:owned:bg-server-input-client-test:1.10',
+            file: 'src/ts/bgServerInputClient.test.ts',
+            type: 'owned',
+            content: owned1100('src/ts/bgServerInputClient.test.ts'),
+            requires: ['lazy-chat-bg-adapter:owned:bg-server-input-client:1.10'],
+            targetVersions: pocketRisu1100,
+        },
+        {
             id: 'lazy-chat-bg-adapter:owned:server-pending-inputs-ui:1.10',
             file: 'src/lib/ChatScreens/ServerPendingInputs.svelte',
             type: 'owned',
@@ -419,6 +470,7 @@ export async function adoptServerCommittedChat(
     adoptServerCommittedChat,
     ensureChatHydrated,
     fetchChatFromServer,
+    peekServerChatSnapshot,
 } from './storage/chatStorage'
 import {
     hydrateServerCommittedOrchestration,
@@ -426,11 +478,20 @@ import {
     serverChatCommitReceipt,
 } from './bgServerCommitHydration'
 import { parseServerPendingInputs, type ServerPendingInput } from './bgServerPendingProjection'
+import { submitServerInputCommand, type ServerInputClientOutcome } from './bgServerInputClient'
+import { adoptAttachedServerInputs } from './bgServerInputAdoption'
+import {
+    advanceServerInputMarkerRevisions,
+    clearServerInputMarker,
+    readServerInputMarkers,
+} from './bgServerInputLedger'
 `,
             requires: [
                 'client-build-fence-bg-adapter:orchestration-control:1.9',
                 'lazy-chat-bg-adapter:owned:server-committed-chat-adoption-test:1.10',
                 'lazy-chat-bg-adapter:owned:bg-server-pending-projection-test:1.10',
+                'lazy-chat-bg-adapter:owned:bg-server-input-client-test:1.10',
+                'lazy-chat-bg-adapter:owned:bg-server-input-adoption-test:1.10',
             ],
             targetVersions: pocketRisu1100,
         },
@@ -490,6 +551,176 @@ export async function readServerPendingInputCommands(
     return parseServerPendingInputs(projection)
 }
 
+export function hasServerOwnedInputMarker(charId: string, chatId: string): boolean {
+    if (typeof localStorage === 'undefined') return false
+    return readServerInputMarkers(localStorage).some(marker => (
+        marker.charId === charId && marker.chatId === chatId
+    ))
+}
+
+export async function reconcileServerPendingInputCommands(
+    charId: string,
+    chatId: string,
+    chat: unknown,
+): Promise<ServerPendingInput[]> {
+    const pending = await readServerPendingInputCommands(charId, chatId, chat)
+    if (typeof localStorage === 'undefined') return pending
+    const characters: any[] = (DBState as any)?.db?.characters
+    const character = Array.isArray(characters)
+        ? characters.find(candidate => candidate?.chaId === charId) : null
+    if (!character || !Array.isArray(character.chats)) return pending
+    const currentChat = () => character.chats.find((candidate: any) => candidate?.id === chatId)
+    await adoptAttachedServerInputs({
+        storage: localStorage,
+        charId, chatId, pendingInputs: pending,
+        readLocalRevision: () => {
+            const value = currentChat()
+            if (!value || value._placeholder) return null
+            try { return orchestrationChatRevision(value) } catch { return null }
+        },
+        isCurrent: () => Array.isArray(character.chats) && !!currentChat(),
+        adopt: (revision, allowed) => adoptServerCommittedChat(
+            character.chats, charId, chatId, revision, [allowed], orchestrationChatRevision,
+        ),
+    })
+    for (const marker of readServerInputMarkers(localStorage).filter(row => (
+        row.charId === charId && row.chatId === chatId && row.state === 'accepted'
+    ))) {
+        let response: Response
+        try {
+            response = await fetchOrchestrationControl(
+                orchestrationResultUrl(charId, chatId, marker.operationId, 1),
+                { method: 'GET', credentials: 'same-origin' },
+            )
+        } catch { continue }
+        if (!response.ok) continue
+        let data: any
+        try { data = await response.json() } catch { continue }
+        if (!data?.found || data.operationId !== marker.operationId
+            || !serverChatCommitReceipt(data)) continue
+        const hydration = await hydrateServerCommittedResult(
+            charId, chatId, marker.operationId, data,
+        )
+        if (!hydration.hydrated || !Array.isArray(character.chats) || !currentChat()) continue
+        const adoptedRevision = (hydration.projection as { chatRevision: string }).chatRevision
+        advanceServerInputMarkerRevisions(
+            localStorage, charId, chatId, marker.localRevision, adoptedRevision,
+        )
+        const resultId = typeof data.resultId === 'string' ? data.resultId : ''
+        if (!resultId) continue
+        try {
+            const acknowledgement = await acknowledgeResultRevision(
+                charId, chatId, marker.operationId, 1, resultId,
+            )
+            if (isConfirmedOrchestrationAcknowledgement(acknowledgement)) {
+                clearServerInputMarker(localStorage, marker.operationId)
+            }
+        } catch { /* Retain marker and server result for exact retry. */ }
+    }
+    return pending
+}
+
+export async function tryRunServerOwnedInput(
+    selectedIndex: number,
+    rawText: string,
+): Promise<ServerInputClientOutcome> {
+    if (typeof document === 'undefined' || !isServerOrchestrationEnabled()) {
+        return { kind: 'unsupported' }
+    }
+    const character: any = (DBState as any)?.db?.characters?.[selectedIndex]
+    const selectedChat: any = character?.chats?.[character.chatPage]
+    const charId = character?.chaId
+    const chatId = selectedChat?.id
+    if (typeof charId !== 'string' || typeof chatId !== 'string') {
+        return { kind: 'blocked', reason: 'chat-unavailable' }
+    }
+    const currentCharacter = () => {
+        const chars: any[] = (DBState as any)?.db?.characters
+        return Array.isArray(chars)
+            ? chars.find(candidate => candidate?.chaId === charId)
+            : null
+    }
+    const currentChat = () => {
+        const char = currentCharacter()
+        return Array.isArray(char?.chats)
+            ? char.chats.find((candidate: any) => candidate?.id === chatId)
+            : null
+    }
+    const isCurrent = () => {
+        const char = (DBState as any)?.db?.characters?.[get(selectedCharID)]
+        return char?.chaId === charId && char?.chats?.[char.chatPage]?.id === chatId
+    }
+    try {
+        return await submitServerInputCommand({
+            storage: localStorage,
+            readCapability: async () => {
+                const response = await fetchOrchestrationControl(
+                    '/api/bg-orchestrate-capabilities',
+                    { method: 'GET', credentials: 'same-origin' },
+                )
+                if (response.status === 404) return null
+                if (!response.ok) throw new Error('server input capability unavailable')
+                return await response.json()
+            },
+            flushSettings: async () => {
+                const char = currentCharacter()
+                const index = Array.isArray(char?.chats)
+                    ? char.chats.findIndex((candidate: any) => candidate?.id === chatId)
+                    : -1
+                if (index < 0 || !await ensureChatHydrated(char.chats, index, charId)) {
+                    throw new Error('active chat hydration unavailable')
+                }
+                await requestDurableSave({ root: true })
+            },
+            readLocalRevision: () => {
+                const chat = currentChat()
+                if (!chat || chat._placeholder) throw new Error('local chat unavailable')
+                return orchestrationChatRevision(chat)
+            },
+            peekServerChat: async () => {
+                const char = currentCharacter()
+                const index = Array.isArray(char?.chats)
+                    ? char.chats.findIndex((candidate: any) => candidate?.id === chatId)
+                    : -1
+                if (index < 0) return null
+                const snapshot = await peekServerChatSnapshot(charId, index, chatId)
+                return snapshot?.chat?.id === chatId ? { revision: snapshot.revision } : null
+            },
+            readPendingInputs: async revision => parseServerPendingInputs(
+                await readServerChatExecutionProjection(charId, chatId, revision, true),
+            ),
+            start: async (body, signal) => {
+                const response = await clientBuildFetch('/api/bg-orchestrate', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    credentials: 'same-origin',
+                    body: JSON.stringify(body),
+                    signal,
+                })
+                let parsed: unknown = null
+                try { parsed = await response.json() } catch { /* ambiguous response */ }
+                return { status: response.status, body: parsed }
+            },
+            status: async (operationId, signal) => {
+                const query = new URLSearchParams({ charId, chatId })
+                const response = await clientBuildFetch(
+                    '/api/bg-orchestrate-status/' + encodeURIComponent(operationId)
+                    + '?' + query.toString(),
+                    { method: 'GET', credentials: 'same-origin', signal },
+                )
+                let parsed: unknown = null
+                try { parsed = await response.json() } catch { /* ambiguous status */ }
+                return { status: response.status, body: parsed }
+            },
+            newId: v4,
+            isCurrent,
+        }, { charId, chatId, rawText })
+    } catch (error) {
+        console.error('[bg-orch] server input admission unavailable', error)
+        return { kind: 'blocked', reason: 'admission-unavailable' }
+    }
+}
+
 async function hydrateServerCommittedResult(
     charId: string,
     chatId: string,
@@ -500,6 +731,13 @@ async function hydrateServerCommittedResult(
     const allowedCurrentRevisions = target
         ? [target.expectedChatRevision, ...(target.acceptedChatRevisions || [])]
         : []
+    if (typeof localStorage !== 'undefined') {
+        const inputMarker = readServerInputMarkers(localStorage).find(marker => (
+            marker.operationId === operationId && marker.charId === charId
+                && marker.chatId === chatId && marker.state === 'accepted'
+        ))
+        if (inputMarker) allowedCurrentRevisions.push(inputMarker.localRevision)
+    }
     return hydrateServerCommittedOrchestration({
         data,
         operationId,
@@ -846,6 +1084,8 @@ function retainUncommittedServerChat(
             where: 'after',
             anchor: '    import { sleep } from "../../ts/util";\n',
             content: `    import ServerPendingInputs from './ServerPendingInputs.svelte';
+    import { hasServerOwnedInputMarker, tryRunServerOwnedInput } from '../../ts/bgOrchestrate';
+    import { requiresClientGenerationEpilogue } from '../../ts/bgOrchestrationPolicy';
 `,
             requires: ['lazy-chat-bg-adapter:owned:server-pending-inputs-ui:1.10'],
             after: [
@@ -894,6 +1134,7 @@ function retainUncommittedServerChat(
             anchor: "    let messageInput:string = $state('')\n",
             content: `    let pendingCharacter = $derived(DBState.db.characters[$selectedCharID])
     let pendingChat = $derived(pendingCharacter?.chats?.[pendingCharacter.chatPage])
+    let inputAdmissionBusy = $state(false)
 `,
             requires: ['lazy-chat-bg-adapter:server-pending-ui-import:1.10'],
             targetVersions: pocketRisu1100,
@@ -917,6 +1158,100 @@ function retainUncommittedServerChat(
             markerNeedle: 'POCKETRISU-PATCH:lazy-chat-bg-adapter:server-pending-ui:START',
             requires: ['lazy-chat-bg-adapter:server-pending-ui-selection:1.10'],
             after: ['personal-settings:appearance-composer-hook-1.9'],
+            targetVersions: pocketRisu1100,
+        },
+        {
+            id: 'lazy-chat-bg-adapter:server-input-client-send:1.10',
+            file: 'src/lib/ChatScreens/DefaultChatScreen.svelte',
+            type: 'insert',
+            where: 'before',
+            anchor: '        if($doingChat/* BG-PRESERVE:START orch-sendmain */ || $orchestrating/* BG-PRESERVE:END */){\n',
+            managed: `        /* POCKETRISU-PATCH:lazy-chat-bg-adapter:server-input-client-send:START */
+        if (inputAdmissionBusy) return
+        if (!continueResponse && !$doingChat && !$orchestrating
+            && !messageInput.startsWith('/')
+            && (messageInput !== '' || fileInput.length > 0)
+            && !requiresClientGenerationEpilogue(DBState.db, DBState.db.characters[selectedChar])) {
+            const draftText = messageInput
+            const draftTranslation = messageInputTranslate
+            const draftFiles = [...fileInput]
+            const rawText = draftText + draftFiles.map(file => '{{inlayed::' + file + '}}').join('')
+            inputAdmissionBusy = true
+            try {
+                const outcome = await tryRunServerOwnedInput(selectedChar, rawText)
+                if (outcome.kind !== 'unsupported') {
+                    window.dispatchEvent(new Event('bg-server-input-updated'))
+                    if (outcome.kind === 'accepted' && outcome.clearDraft) {
+                        const draftUnchanged = messageInput === draftText
+                            && messageInputTranslate === draftTranslation
+                            && fileInput.length === draftFiles.length
+                            && fileInput.every((file, index) => file === draftFiles[index])
+                        if (draftUnchanged) {
+                            messageInput = ''
+                            messageInputTranslate = ''
+                            fileInput = []
+                            removeChatDraft(draftChaId, draftChatId)
+                            updateInputSizeAll()
+                        } else {
+                            notifySuccess('이전 입력은 서버에 접수됐고 새 초안은 남겼어요.')
+                        }
+                    } else if (outcome.kind === 'unknown') {
+                        notifyError('서버 접수 여부를 확인할 수 없어요', {
+                            description: '같은 입력을 다시 보내지 말고 채팅 상태를 확인해 주세요. 초안은 남겼어요.',
+                            source: 'bg-input',
+                        })
+                    } else {
+                        notifyError('서버 입력을 시작하지 않았어요', {
+                            description: '채팅이나 설정 상태를 확인한 뒤 다시 보내 주세요. 초안은 남겼어요.',
+                            source: 'bg-input',
+                        })
+                    }
+                    return
+                }
+            } catch (error) {
+                console.error('[bg-orch] input admission failed', error)
+                notifyError('서버 입력을 확인할 수 없어요', {
+                    description: '초안은 남겼어요. 채팅 상태를 확인한 뒤 다시 보내 주세요.',
+                    source: 'bg-input',
+                })
+                return
+            } finally {
+                inputAdmissionBusy = false
+            }
+        }
+        if (pendingCharacter?.chaId && pendingChat?.id
+            && hasServerOwnedInputMarker(pendingCharacter.chaId, pendingChat.id)) {
+            notifyError('서버 입력 상태를 확인 중이에요', {
+                description: '진행 중인 서버 입력을 확인한 뒤 다시 시도해 주세요.',
+                source: 'bg-input',
+            })
+            return
+        }
+        /* POCKETRISU-PATCH:lazy-chat-bg-adapter:server-input-client-send:END */
+`,
+            markerNeedle: 'POCKETRISU-PATCH:lazy-chat-bg-adapter:server-input-client-send:START',
+            requires: [
+                'lazy-chat-bg-adapter:server-pending-ui-render:1.10',
+                'lazy-chat-bg-adapter:server-commit-client-hydration:1.10',
+            ],
+            targetVersions: pocketRisu1100,
+        },
+        {
+            id: 'lazy-chat-bg-adapter:server-input-client-busy-ui:1.10',
+            file: 'src/lib/ChatScreens/DefaultChatScreen.svelte',
+            type: 'replace',
+            anchor: '                {#if currentChatGenerating || doingChatInputTranslate/* BG-PRESERVE:START orch-composer */ || $orchestrating/* BG-PRESERVE:END */}\n',
+            managed: `                <!-- POCKETRISU-PATCH:lazy-chat-bg-adapter:server-input-client-busy-ui:START -->
+                {#if inputAdmissionBusy}
+                    <button type="button" disabled aria-label="서버 입력 접수 확인 중"
+                            class="order-2 shrink-0 flex justify-center items-center w-9 h-9 rounded-full text-textcolor">
+                        <div class="loadmove"></div>
+                    </button>
+                {:else if currentChatGenerating || doingChatInputTranslate/* BG-PRESERVE:START orch-composer */ || $orchestrating/* BG-PRESERVE:END */}
+                <!-- POCKETRISU-PATCH:lazy-chat-bg-adapter:server-input-client-busy-ui:END -->
+`,
+            markerNeedle: 'POCKETRISU-PATCH:lazy-chat-bg-adapter:server-input-client-busy-ui:START',
+            requires: ['lazy-chat-bg-adapter:server-input-client-send:1.10'],
             targetVersions: pocketRisu1100,
         },
         {

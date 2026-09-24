@@ -196,14 +196,60 @@ an attached paid run will resume. A read-only composer component now consumes
 the pending rows on chat open and return without copying raw input into UI
 state. It does not adopt the normal chat body or submit input v1.
 
-Pure candidate helpers now classify an exact local/server chat base, permit a
+At the previous checkpoint, pure candidate helpers classified an exact local/server chat base, permitted a
 stale local view only for an unchanged exact still-pending predecessor, peek a
 server chat without advancing the client save baseline, and reconcile 202,
 lost-ACK, exact missing, and ambiguous start states without client model
-fallback. These helpers are not wired to the ordinary Send button. The
+fallback. Those helpers were not yet wired to the ordinary Send button. The
 client-activation control/data-flow and alternative structure are recorded
 in `POCKETRISU-1.10-BG-INDEPENDENT-G1-CLIENT-STRUCTURE-REVIEW.md`; further
-lifecycle changes require the design review decision described there.
+lifecycle changes followed the approved operation-keyed N+1 design boundary.
+
+## 2026-09-24 N+1 client checkpoint (candidate, capability 0)
+
+The exact-1.10 adapter now contains a bounded operation-keyed client marker
+that stores IDs and revisions, never raw input. The ordinary Send caller
+attempts the detached input-v1 route only after capability negotiation,
+durable root save, canonical chat readback, and exact pending-predecessor
+classification. It persists an uncertain marker before POST and reconciles
+lost start ACKs through the exact operation status. Capability 0 leaves the
+legacy v0 send path in place. While an input-v1 marker remains, client-only
+send paths cannot bypass server ownership.
+
+The pending projection now carries the attached input's revision and receipt
+ID. On chat open/return, the client considers attached inputs in admission
+order and adopts a normal server chat snapshot only through the existing
+revision-bound compare-and-swap helper. It advances accepted N and N+1 local
+revision markers after verified adoption. It also claims an exact committed
+result, validates its server commit receipt and execution projection, adopts
+the authoritative chat, and ACKs only afterward. An unconfirmed ACK retains
+the marker for exact retry. No client provider fallback is entered from this
+path.
+
+Observed in the disposable official 1.10 target: focused client tests 27/27,
+server owner tests 30/30, patcher tests 55/55, complete server suite 330 pass
+and 12 skip, Svelte diagnostics 0 errors and 0 warnings, and production
+frontend build success. The first server-suite attempt failed on loopback
+`listen EPERM`; the identical HTTP/process cases passed 23/23 and the complete
+server suite passed when the test process was allowed to bind loopback.
+The first unrestricted-worker frontend run stalled on repeated loopback
+connection refusals and was interrupted without a pass claim. The bounded
+two-worker frontend rerun completed: 161 files passed, 1 skipped; 1,798 tests
+passed, 2 skipped.
+The current complete graph has 42 packs, 1,042 units, 13 ordered collisions,
+and 379 managed paths. Re-plan changed 0 files; normal revert restored
+tracked source to 0 changed paths and reported clean, disabled delivery, and
+empty custom intent. The candidate was then reapplied only to the disposable
+target. These observations do not establish browser/device behavior.
+The two generated installer filenames are byte-identical at 8,496,919 bytes,
+mode 0755, SHA-256
+`ce3f5db3870919744b84782469be200c3de4f885f6f502a50beb2e70276fa8fa`.
+
+The input capability remains 0. Result-ACK crash recovery, receipt-scoped
+root-effect lineage for N+1, retention expiry, actual browser-process return,
+cross-tab admission races, client-only normal-path preservation, and L2.5
+remain open gates. G1 is not
+product-complete; G2/G3 have not started, and no live or AC source was changed.
 
 ## G1.1 rebaseline verification (historical)
 
