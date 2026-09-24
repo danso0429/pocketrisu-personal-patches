@@ -282,6 +282,13 @@ owner/context/projection tests passed 53/53 and client conflict/input/stats
 tests passed 24/24. The patch's forward apply check passed on a second fresh
 official-1.10 tree after installer application. These observations do not
 establish an actual browser/device execution or a production fix.
+The static caller map is
+`POCKETRISU-1.10-BG-INDEPENDENT-G1-ROOT-WRITER-OWNERSHIP-MAP.md`. Applied
+after the observational patch only in a disposable target, the separate
+contract-independent no-ETag acceptance patch was intentionally red: current
+source stored 10 while the invariant required retaining at least N's
+committed 11. Its SHA-256 is
+`fe461fa0a596d633ab1099b15ff618342f408dbb6fdabd3de45cbcec22668edf`.
 
 The defect changes the G1 gate, not the G1→G2→G3 order: C1's internal
 transaction evidence remains, but later browser root writes do not yet

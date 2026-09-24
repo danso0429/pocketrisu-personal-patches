@@ -12,6 +12,10 @@ document is the current private G1 execution plan. The old BG×AC H0–H7
 next-work/fresh-start documents are historical and must not drive G1 work.
 The separate fresh-session entry point is
 `POCKETRISU-1.10-BG-INDEPENDENT-G1-FRESH-START.md`.
+The static caller inventory completed in this session is
+`POCKETRISU-1.10-BG-INDEPENDENT-G1-ROOT-WRITER-OWNERSHIP-MAP.md`; R1 below
+resolves its remaining runtime surfaces rather than rediscovering direct
+writers from scratch.
 
 The required user result is unchanged: after a supported BG request is
 accepted, the server completes and commits chat and effects without a browser,
@@ -51,6 +55,13 @@ before applying it. The five diagnostic H1 tests passed together
 are not actual browser, device, or paid-provider evidence.
 They intentionally assert the observed pre-fix behavior; convert them into
 red acceptance tests for the required results before implementing a fix.
+One contract-independent red invariant already exists as
+`artifacts/pocketrisu-bg-root-race-no-etag-acceptance.patch`, SHA-256
+`fe461fa0a596d633ab1099b15ff618342f408dbb6fdabd3de45cbcec22668edf`.
+Apply it only after the observational patch in a disposable target. The
+single stale no-ETag case intentionally failed on the current candidate:
+count 10 was below the minimum retained count 11. It permits refusal or
+safe reconciliation and does not choose the implementation.
 
 | Deterministic order / protocol | Observed persisted `statics.messages` from base 10 | Required semantic result |
 | --- | ---: | ---: |
@@ -117,6 +128,18 @@ blocking every other chat send during BG work, discarding local edits, copying
 all server root fields over the client, or silently disabling legacy result
 delivery. These change existing normal behavior.
 
+The ownership invariant is already fixed even though the smallest wire/storage
+encoding is not: browser generation owns its **intent** to count an invocation;
+C1 owns its BG operation effect; the server's canonical root writer must
+resolve both without trusting a stale browser absolute counter. Each accepted
+effect must be distinguishable from a retry of itself until the recovery
+horizon closes. A client may retain an optimistic local view but cannot make
+the final count authoritative by replaying a root snapshot. The unknown-ACK
+path must preserve the identity and block guessing; global-variable set/delete
+effects keep their separate conflict policy. R2 chooses whether the existing
+protocol can carry this proof narrowly or a new operation-keyed effect record
+is needed. It does not reopen the ownership result itself.
+
 ## 4. Implementation sequence and exit gates
 
 ### R0 — Rebaseline and reproduce
@@ -130,7 +153,9 @@ above reproduced or each difference explained from newly read source.
 
 ### R1 — Close the writer and intent map before design selection
 
-Trace all `statics.messages` and `globalChatVariables` writers, including
+Start from the completed static writer map. Validate its remaining
+`statics.messages` and `globalChatVariables` callers at their final runtime
+boundaries, including
 foreground/auxiliary/failed sends, legacy BG result merge, C1 commit,
 startup/restore/import, plugins, and dynamic or version-skewed root writes.
 Determine whether the counter represents attempts, completed generations,
@@ -138,8 +163,9 @@ or another existing invariant. Inspect all no-ETag `database.bin` writers,
 lost HTTP responses, client patch baseline handling, same-device tabs and
 cross-device writer-lock behavior. Identify the exact retention/retry window
 for any operation identity used as deduplication evidence.
-Exit: a caller/owner table states the trigger, root intent, durable identity,
-accepted HTTP path, failure/ACK behavior, and existing normal use to preserve.
+Exit: the existing caller/owner table has runtime evidence for paths a new
+contract will change and states the trigger, root intent, durable identity,
+accepted HTTP path, failure/ACK behavior, and normal use to preserve.
 Unresolved dynamic callers remain explicit surfaces, not an assumed absence.
 
 ### R2 — Select the smallest idempotent effect contract

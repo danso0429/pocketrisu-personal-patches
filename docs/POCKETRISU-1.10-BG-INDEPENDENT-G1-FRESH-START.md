@@ -16,9 +16,11 @@ changes, raise capabilities, or change live PocketRisu from those instructions.
 3. `docs/POCKETRISU-1.10-BG-INDEPENDENT-G1-REBASE.md` for pre-existing source,
    ownership, and validation receipts. Historical statements in its G1.2
    table are not the current activation state.
-4. `docs/POCKETRISU-1.10-BG-INDEPENDENT-G1-CLIENT-STRUCTURE-REVIEW.md`
+4. `docs/POCKETRISU-1.10-BG-INDEPENDENT-G1-ROOT-WRITER-OWNERSHIP-MAP.md`
+   for the completed static map and explicitly unclosed runtime paths.
+5. `docs/POCKETRISU-1.10-BG-INDEPENDENT-G1-CLIENT-STRUCTURE-REVIEW.md`
    when changing the operation-keyed client path.
-5. `docs/PATCHER-V2-DESIGN.md`; if changing the manifest/graph, follow the
+6. `docs/PATCHER-V2-DESIGN.md`; if changing the manifest/graph, follow the
    current all-or-nothing graph gate, not the retired raw-mask verifier.
 
 Read the exact source/functions touched by the first change after this
@@ -94,9 +96,31 @@ pnpm exec vitest run --config vitest.config.server.ts \
   -t 'diagnostic only' --reporter dot
 ```
 
+For a contract-independent red acceptance boundary, confirm the five
+observational tests first, then apply
+`artifacts/pocketrisu-bg-root-race-no-etag-acceptance.patch` (SHA-256
+`fe461fa0a596d633ab1099b15ff618342f408dbb6fdabd3de45cbcec22668edf`)
+to the same disposable target. Run only `-t 'unconditional stale full write'`;
+the current source must fail because the count regresses to 10. Keep this
+intentional red case out of an ordinary green regression batch until the
+root-write fix is ready. The two-assertion patch passed forward/reverse apply
+checks on the diagnostic tree.
+
+```bash
+git -C "$CANDIDATE_ROOT" apply --check \
+  "$G1_WORKTREE/artifacts/pocketrisu-bg-root-race-no-etag-acceptance.patch"
+git -C "$CANDIDATE_ROOT" apply \
+  "$G1_WORKTREE/artifacts/pocketrisu-bg-root-race-no-etag-acceptance.patch"
+cd "$CANDIDATE_ROOT"
+pnpm exec vitest run --config vitest.config.server.ts \
+  server/node/bgServerChatProcessBoundary.test.ts \
+  -t 'unconditional stale full write' --reporter dot
+```
+
 ## First implementation unit and stop conditions
 
-Begin with R1 writer/intent mapping, then choose the R2 idempotent contract
+Begin with R1's runtime/dynamic surfaces from the already written static
+owner map, then choose the R2 idempotent contract
 before modifying production code. The diagnostic patch asserts the **current
 bad observations** so that reproduction itself is green; it is not an
 acceptance test for a fix. Convert its relevant cases into invariant tests
