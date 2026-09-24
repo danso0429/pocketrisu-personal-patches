@@ -324,7 +324,7 @@ export function getPersonalChatFontFamily(font: PersonalChatFont): string | null
     return font === 'app' ? null : chatFontFamilies[font] ?? null
 }
 
-/** Loads optional web-font metadata only after that font is selected. */
+/** Loads optional web-font metadata when selected or visibly previewed. */
 export function ensurePersonalChatFontStylesheet(
     font: PersonalChatFont,
     targetDocument: Document | null = typeof document === 'undefined' ? null : document,

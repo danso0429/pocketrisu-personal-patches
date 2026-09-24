@@ -7,11 +7,14 @@
     import { acquireFont, detectFontFormat, FONT_LIMITS, fontDigest, readCustomFonts, sanitizeFontFilename, writeFontEntry, type CustomFont } from 'src/ts/personalSettings/customFonts'
     import { newPersonalId, rawAppearance, utf8Bytes, writeAppearanceGroup } from 'src/ts/personalSettings/cssToggles'
     import { readPersonalAppearance, setPersonalAppearanceValue } from 'src/ts/personalSettings/appearanceValues'
+    import { displaySize } from 'src/ts/personalSettings/displaySize'
+    import FontNamePreview from './FontNamePreview.svelte'
 
-    const builtins = [['app', '앱 폰트 사용'], ['paperlogy', 'Paperlogy'], ['noto-sans-kr', 'Noto Sans KR'], ['noto-serif-kr', 'Noto Serif KR'], ['ibm-plex-sans-kr', 'IBM Plex Sans KR'], ['gowun-dodum', 'Gowun Dodum'], ['gowun-batang', 'Gowun Batang'], ['hahmlet', 'Hahmlet']]
+    const builtins = [['app', '앱 폰트 사용'], ['paperlogy', 'Paperlogy'], ['noto-sans-kr', 'Noto Sans KR'], ['noto-serif-kr', 'Noto Serif KR'], ['ibm-plex-sans-kr', 'IBM Plex Sans KR'], ['gowun-dodum', 'Gowun Dodum'], ['gowun-batang', 'Gowun Batang'], ['hahmlet', 'Hahmlet']] as const
     const fonts = $derived(readCustomFonts(DBState.db))
     const customSupported = typeof window !== 'undefined' && !!window.FontFace && !!document.fonts && !!globalThis.crypto?.subtle
     const selected = $derived(rawAppearance(DBState.db).chat?.font ?? 'app')
+    const selectedLabel = $derived(builtins.find(([value]) => value === selected)?.[1] ?? fonts.value.custom?.find(font => `custom:${font.id}` === selected)?.name ?? '저장된 폰트를 확인할 수 없음 · 앱 폰트 사용')
     const storedBytes = $derived([...new Map((fonts.value.custom ?? []).map(f => [f.assetPath, f.byteLength])).values()].reduce((sum, bytes) => sum + bytes, 0))
     const busy = $derived($personalCssStatus.phase !== 'idle')
     const paused = $derived($SafeModeStore || DBState.db.theme !== '' || !readPersonalAppearance(DBState.db).enabled || $personalCssStatus.recovery || $personalCssStatus.validation)
@@ -30,11 +33,11 @@
     let controller: AbortController | undefined
     let previewOwner: CustomFontRuntime | undefined
     let showRaw = $state(false)
-    let filter = $state('')
+    let expanded = $state(false)
     let generation = 0
     let origin: HTMLElement | null = null
     let returnFocus = $state(false)
-    let fontSelect = $state<HTMLSelectElement>()
+    let fontSummary = $state<HTMLElement>()
     function close(focus = true) {
         ++generation
         controller?.abort()
@@ -72,7 +75,7 @@
         if (!candidate || !bytes) return
         pending = true; status = '폰트 자산 저장 및 무결성 확인 중…'
         try {
-            await persistImportedFont({ ...candidate, name: name.trim() }, bytes, base, () => { close(); status = '폰트 저장 완료 · 채팅 폰트는 별도로 선택하세요.' })
+            await persistImportedFont({ ...candidate, name: name.trim() }, bytes, base, () => { close(); expanded = true; status = '폰트 저장 완료 · 목록에서 채팅 폰트를 선택하세요.' })
         } catch (e) { status = e instanceof Error ? e.message : '폰트 저장 실패' }
         finally { pending = false }
     }
@@ -112,20 +115,41 @@
         if (returnFocus && !editing && !pending && !busy) {
             returnFocus = false
             if (origin?.isConnected && !origin.hasAttribute('disabled')) origin.focus()
-            else fontSelect?.focus()
+            else fontSummary?.focus()
         }
     })
     onDestroy(() => close(false))
 </script>
 
 <section class="mt-3 space-y-3" aria-label="채팅 폰트 관리" data-setting-id="personal.appearance.chatFont">
-    <label class="block">채팅 폰트
-        <select aria-label="채팅 폰트" bind:this={fontSelect} class="w-full min-h-11 p-2 bg-darkbg rounded" value={selected} disabled={busy || pending || editing} onchange={(e) => { const value = e.currentTarget.value; e.currentTarget.value = selected; void choose(value) }}>
-            {#each builtins as [value, label]}<option {value}>{label}</option>{/each}
-            {#each fonts.value.custom ?? [] as entry (entry.id)}<option value={`custom:${entry.id}`} disabled={!customSupported}>{entry.name}</option>{/each}
-            {#if !builtins.some(([value]) => value === selected) && !(fonts.value.custom ?? []).some(f => `custom:${f.id}` === selected)}<option value={selected}>저장된 폰트를 확인할 수 없음 · 앱 폰트 사용</option>{/if}
-        </select>
-    </label>
+    <details class="font-picker rounded border border-darkborderc" bind:open={expanded}>
+        <summary bind:this={fontSummary} class="font-summary" aria-label="채팅 폰트 선택">채팅 폰트 · {selectedLabel}</summary>
+        {#if expanded}
+            <div class="font-options" aria-label="채팅 폰트 목록">
+                {#each builtins as [value, label]}
+                    <div class="font-row" class:selected={selected === value}>
+                        <button type="button" class="font-choice" aria-label={`${label} 선택`} aria-pressed={selected === value} disabled={busy || pending || editing} onclick={() => void choose(value)}>
+                            <FontNamePreview {value} {label} {paused} />
+                        </button>
+                        {#if selected === value}<span class="selected-mark" aria-hidden="true">✓</span>{/if}
+                    </div>
+                {/each}
+                {#each fonts.value.custom ?? [] as entry (entry.id)}
+                    <div class="font-row" class:selected={selected === `custom:${entry.id}`} data-custom-font-row={entry.id}>
+                        <button type="button" class="font-choice" aria-label={`${entry.name} 선택`} aria-pressed={selected === `custom:${entry.id}`} disabled={busy || pending || editing || !customSupported} onclick={() => void choose(`custom:${entry.id}`)}>
+                            <FontNamePreview value={`custom:${entry.id}`} label={entry.name} {entry} paused={paused || !customSupported} />
+                        </button>
+                        {#if selected === `custom:${entry.id}`}<span class="selected-mark" aria-hidden="true">✓</span>{/if}
+                        <div class="font-actions">
+                            <button type="button" disabled={busy || pending || editing} aria-label={`${entry.name} 이름 변경`} onclick={() => void rename(entry)}>이름변경</button>
+                            <button type="button" disabled={busy || pending || editing || paused || !customSupported} aria-label={`${entry.name} 파일 변경`} onclick={(event) => open(entry, event)}>파일변경</button>
+                            <button type="button" disabled={busy || pending || editing} aria-label={`${entry.name} 삭제`} onclick={() => void remove(entry)}>삭제</button>
+                        </div>
+                    </div>
+                {/each}
+            </div>
+        {/if}
+    </details>
     <p role="status" aria-live="polite">{status || $personalCssStatus.message}</p>
     {#if !customSupported}<p role="status">사용자 폰트 미리보기·선택을 사용할 수 없습니다. HTTPS 연결 또는 최신 브라우저를 사용하세요. 기본 폰트와 저장된 목록 관리는 계속 사용할 수 있습니다.</p>{/if}
     {#if String(selected).startsWith('custom:')}
@@ -141,7 +165,7 @@
             <button class="action" disabled={busy} onclick={reset}>폰트 하위 설정 초기화</button>
         {/if}
     {:else}
-        <p class="text-xs">사용자 폰트 {fonts.value.custom?.length ?? 0} / {FONT_LIMITS.count} · 고유 파일 {storedBytes.toLocaleString()} / {FONT_LIMITS.total.toLocaleString()} bytes · 파일당 {FONT_LIMITS.file.toLocaleString()} bytes</p>
+        <p class="text-xs">사용자 폰트 {fonts.value.custom?.length ?? 0} / {FONT_LIMITS.count} · 고유 파일 {displaySize(storedBytes)} / {displaySize(FONT_LIMITS.total)} · 파일당 {displaySize(FONT_LIMITS.file)}</p>
         {#if storedBytes >= FONT_LIMITS.warningTotal || (fonts.value.custom?.length ?? 0) >= FONT_LIMITS.warningCount}<p role="status">폰트가 많습니다. 백업 크기와 모바일 메모리 사용에 주의하세요.</p>{/if}
         <button class="action" disabled={busy || pending || editing || paused || !customSupported} onclick={(event) => open(undefined, event)}>사용자 폰트 추가</button>
         {#if paused}<p class="text-xs">사용자 폰트 미리보기는 Standard 테마에서 전체 사용을 켜고 Safe Mode·복구 모드를 종료한 뒤 사용할 수 있습니다.</p>{/if}
@@ -155,7 +179,7 @@
                     <input class="w-full bg-darkbg p-2" aria-label="직접 HTTPS 폰트 파일 주소" type="url" bind:value={url} disabled={pending || !!candidate} />
                     <p class="text-xs">웹페이지·CSS 주소는 지원하지 않습니다. CORS가 차단되면 파일을 내려받아 업로드하세요. 주소는 저장하지 않으며 성공 후에는 저장된 파일만 읽습니다.</p>
                 {/if}
-                <p role="status">{bytesRead.toLocaleString()} bytes</p>
+                <p role="status">{displaySize(bytesRead)}</p>
                 {#if bytesRead >= FONT_LIMITS.warningFile}<p role="status">큰 폰트입니다. 실제 기기에서 미리보기와 채팅 표시를 확인하세요.</p>{/if}
                 {#if candidate}
                     <p class="text-xl" style:font-family={customFontFamily(candidate)}>가나다라마바사 ABC xyz 日本語の文章 简体中文 繁體中文 Français été cœur</p>
@@ -164,19 +188,19 @@
                 <button type="button" class="action" disabled={busy || (pending && !!candidate)} onclick={() => close()}>취소</button>
             </form>
         {/if}
-        <label class="block">사용자 폰트 검색 <input class="w-full bg-darkbg p-2" bind:value={filter} /></label>
-        {#each (fonts.value.custom ?? []).filter(f => f.name.toLocaleLowerCase().includes(filter.toLocaleLowerCase())) as entry (entry.id)}
-            <div class="rounded border border-darkborderc p-3">
-                <p style:overflow-wrap="anywhere">{entry.name} · {entry.format} · {entry.byteLength.toLocaleString()} bytes</p>
-                <button class="action" disabled={busy || pending || editing} onclick={() => void rename(entry)}>이름 변경</button>
-                <button class="action" disabled={busy || pending || editing || paused || !customSupported} onclick={(event) => open(entry, event)}>파일 교체</button>
-                <button class="action" disabled={busy || pending || editing} onclick={() => void remove(entry)}>제거</button>
-            </div>
-        {/each}
     {/if}
 </section>
 
 <style>
     .action { min-height: 44px; padding: 0.4rem 0.8rem; border: 1px solid currentColor; border-radius: 0.4rem; margin: 0.2rem; }
     .action:disabled { opacity: 0.45; }
+    .font-summary { min-height: 44px; padding: 0.65rem; cursor: pointer; overflow-wrap: anywhere; }
+    .font-options { max-height: 20rem; overflow-y: auto; padding: 0 0.4rem 0.4rem; }
+    .font-row { display: flex; align-items: center; gap: 0.25rem; min-width: 0; border-radius: 0.35rem; border: 1px solid transparent; }
+    .font-row.selected { border-color: var(--risu-theme-selected); background: var(--risu-theme-darkbg); }
+    .font-choice { flex: 1; min-width: 0; min-height: 44px; padding: 0.4rem; text-align: left; }
+    .selected-mark { flex: none; font-size: 0.75rem; }
+    .font-actions { display: flex; flex: none; gap: 0.15rem; }
+    .font-actions button { min-width: 44px; min-height: 44px; padding: 0.25rem; font-size: 0.7rem; white-space: nowrap; border: 1px solid currentColor; border-radius: 0.3rem; }
+    .font-choice:disabled, .font-actions button:disabled { opacity: 0.45; }
 </style>

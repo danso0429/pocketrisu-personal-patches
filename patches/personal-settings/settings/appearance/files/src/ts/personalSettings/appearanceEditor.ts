@@ -18,7 +18,7 @@ export function fontRuntime(doc = document): CustomFontRuntime {
     return owner
 }
 const clone = <T>(value: T): T => value === undefined ? value : JSON.parse(JSON.stringify(value))
-const readFontAsset = (path: string) => forageStorage.realStorage.readPersonalFont(path, FONT_LIMITS.file)
+export const readFontAsset = (path: string) => forageStorage.realStorage.readPersonalFont(path, FONT_LIMITS.file)
 const currentCssSnapshot = (db: Database) => cssSnapshot(db, get(SafeModeStore), document.documentElement.getAttribute('data-personal-custom-font-ready'))
 
 // Restore only values still equal to this operation's write. Newer siblings survive.

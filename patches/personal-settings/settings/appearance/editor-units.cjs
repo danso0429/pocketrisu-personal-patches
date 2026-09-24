@@ -212,7 +212,7 @@ function insert(id, file, anchor, content, after = [], where = 'before') {
     units.push({ id: fullId, file, type: 'insert', anchor, ...payload, where, after, targetVersions })
 }
 for (const file of [
-    'appearanceValues.ts', 'cssToggleDefinitions.ts', 'cssToggles.ts', 'cssToggleRuntime.ts', 'cssEditorText.ts', 'cssEditorText.test.ts',
+    'appearanceValues.ts', 'cssToggleDefinitions.ts', 'cssToggles.ts', 'cssToggleRuntime.ts', 'cssEditorText.ts', 'cssEditorText.test.ts', 'displaySize.ts',
     'customFonts.ts', 'customFontRuntime.ts', 'fontBytes.ts', 'appearancePersistence.ts', 'appearanceEditor.ts',
     'appearancePersistence.test.ts', 'personalAssets.test.ts',
     'cssToggles.test.ts', 'cssToggleRuntime.test.ts', 'customFonts.test.ts', 'customFontRuntime.test.ts',
@@ -220,7 +220,7 @@ for (const file of [
     const relative = `src/ts/personalSettings/${file}`
     units.push({ id: `personal-settings:editor-owned-${file.replaceAll('.', '-')}`, file: relative, type: 'owned', content: owned(__dirname, relative), targetVersions })
 }
-for (const file of ['CssToggleManager.svelte', 'CustomFontManager.svelte']) {
+for (const file of ['CssToggleManager.svelte', 'CustomFontManager.svelte', 'FontNamePreview.svelte']) {
     const relative = `src/lib/Setting/Pages/PersonalSettings/${file}`
     units.push({ id: `personal-settings:editor-owned-${file}`, file: relative, type: 'owned', content: owned(__dirname, relative), targetVersions })
 }

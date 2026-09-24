@@ -5,6 +5,7 @@
     import { appearanceRuntime, submitCssEdit, trialAppearanceActivation } from 'src/ts/personalSettings/appearanceEditor'
     import { CSS_LIMITS, cssEditBase, effectiveCssToggles, newPersonalId, rawAppearance, readCssToggles, storedCssBytes, utf8Bytes, type CssEdit, type EffectiveCssToggle } from 'src/ts/personalSettings/cssToggles'
     import { cssEditorText, storedCssFromEditor, type CssEditorText } from 'src/ts/personalSettings/cssEditorText'
+    import { displaySize } from 'src/ts/personalSettings/displaySize'
 
     let filter = $state('')
     let draft = $state<EffectiveCssToggle | null>(null)
@@ -78,17 +79,17 @@
         <label class="block">이름·설명 검색 <input class="w-full rounded p-2 bg-darkbg" bind:this={filterInput} bind:value={filter} /></label>
         <div class="flex flex-wrap items-center gap-2">
             <button class="action" disabled={busy || !!draft} onclick={(e) => open(undefined, e)}>새 CSS 추가</button>
-            <span class="text-xs">저장된 CSS {totalBytes.toLocaleString()} / {CSS_LIMITS.total.toLocaleString()} bytes · 사용자 항목 {read.value.custom?.length ?? 0} / {CSS_LIMITS.count}</span>
+            <span class="text-xs">저장된 CSS {displaySize(totalBytes)} / {displaySize(CSS_LIMITS.total)} · 사용자 항목 {read.value.custom?.length ?? 0} / {CSS_LIMITS.count}</span>
         </div>
         {#if totalBytes >= CSS_LIMITS.warningTotal || (read.value.custom?.length ?? 0) >= CSS_LIMITS.warningCount}<p role="status">저장된 CSS가 많습니다. 꺼진 항목도 저장·백업 비용에 포함됩니다.</p>{/if}
         {#if draft}
             <form class="rounded border border-primary p-3 space-y-3" onsubmit={(e) => { e.preventDefault(); save() }}>
                 <label class="block">이름 <input class="w-full rounded p-2 bg-darkbg" readonly={busy} bind:value={draft.name} /></label>
-                <p class="text-xs">{utf8Bytes(draft.name)} / {CSS_LIMITS.name} bytes</p>
+                <p class="text-xs">{displaySize(utf8Bytes(draft.name))} / {displaySize(CSS_LIMITS.name)}</p>
                 <label class="block">설명 <textarea class="w-full rounded p-2 bg-darkbg" readonly={busy} bind:value={draft.description}></textarea></label>
-                <p class="text-xs">{utf8Bytes(draft.description)} / {CSS_LIMITS.description} bytes</p>
+                <p class="text-xs">{displaySize(utf8Bytes(draft.description))} / {displaySize(CSS_LIMITS.description)}</p>
                 <label class="block">CSS <textarea class="w-full h-64 rounded p-2 bg-darkbg font-mono text-sm" spellcheck="false" readonly={busy} bind:value={draft.css}></textarea></label>
-                <p class="text-xs">{utf8Bytes(draft.css).toLocaleString()} / {CSS_LIMITS.item.toLocaleString()} bytes</p>
+                <p class="text-xs">{displaySize(utf8Bytes(draft.css))} / {displaySize(CSS_LIMITS.item)}</p>
                 {#if utf8Bytes(draft.css) >= CSS_LIMITS.warningItem}<p role="status">큰 CSS 규칙입니다. 실제 기기에서 스크롤·입력·복구 동작을 확인하세요.</p>{/if}
                 <label class="flex items-center gap-2 min-h-11"><input type="checkbox" disabled={busy} bind:checked={draft.enabled} /> 저장 후 켜기 (적용이 중지된 동안 수정하면 끄세요)</label>
                 <button class="action" type="submit" disabled={busy}>시험 적용 / 저장</button>
