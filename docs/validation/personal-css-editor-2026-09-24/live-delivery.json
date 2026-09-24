@@ -1,0 +1,32 @@
+{
+  "rootHttp": 200,
+  "mainAsset": {
+    "file": "index-Bwk-Ntfs.js",
+    "bytes": 2098975,
+    "sha256": "3659a438a9df6474a2083526c3de67e917159817aa2fc433b97d741bd4f25174",
+    "servedMatchesLocal": true
+  },
+  "buildStamp": {
+    "version": "1.10.0",
+    "stamp": "1.10.0-bf6671a2d02271b9f0fe0c0cf582f8eceeeca240f5a0d0a7cf87118647b57d85"
+  },
+  "sqliteQuickChecks": {
+    "risuai.db": "ok",
+    "logs.db": "ok",
+    "import-jobs.db": "ok",
+    "request-logs.db": "ok",
+    "model-jobs.db": "ok"
+  },
+  "pm2": {
+    "status": "online",
+    "restarts": 0,
+    "unstableRestarts": 0
+  },
+  "patcher": {
+    "status": "current",
+    "files": 361,
+    "packs": 42,
+    "replanChanges": 0
+  },
+  "prunedBgLoad": "passed"
+}

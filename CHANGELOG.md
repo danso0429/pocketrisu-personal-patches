@@ -14,6 +14,8 @@
   purge, and exact restore remapping, including malformed or future data.
 - Keep earlier-target appearance payloads unchanged. Provide a source-only UI
   rollback that retains passive asset compatibility and stored selections.
+- Return focus to the initiating editor control after cancellation and prevent
+  draft edits while a CSS trial or save is in progress.
 - Treat this as a candidate; physical iPhone recovery, interaction, and scale
   validation remain required before stable promotion.
 

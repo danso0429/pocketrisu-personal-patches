@@ -249,6 +249,32 @@ byte/mode revert tests contain no user data and do not grant that authorization.
 
 ## Live delivery closeout
 
-Live source application and final served-asset/CI readback are pending in this
-working receipt. This paragraph is replaced with observed delivery results
-after those steps finish.
+Implementation and initial artifacts were committed as `be7907a` and
+`98b7d67`; the final focus refinement and rebuilt installers are `1f378ae`
+and `22c01bb`. Main CI run `35979737880` passed at `22c01bb`, including exact
+1.10 apply, embedded checks/builds, and full source byte/mode restoration.
+
+Both final installer files are 8,105,504 bytes, mode 0755, SHA-256
+`94d9e9ba07c3692ccb74218d5b8c9c84427766e9c509c58dfd335acf8069ecc9`.
+Repeated generation and remote CI both verified installer parity.
+
+Before deployment, the read-only preflight observed zero native/BG active
+work, zero pending sends, and one already completed BG result awaiting
+delivery. Its status endpoint reported `result-ready`, retention planned no
+removal, and all non-Personal pack identities were unchanged. The server was
+stopped before application, built from the live source, pruned to production
+dependencies, and restarted. The pending result's core remained identical;
+it was neither cancelled nor consumed by deployment.
+
+Final readback observed PM2 online with zero restarts/unstable restarts,
+root HTTP 200, matching served/local build stamp and main JS, five SQLite
+`quick_check=ok` results, and successful BG load using production dependencies.
+The main asset is `index-Bwk-Ntfs.js`, 2,098,975 bytes, SHA-256
+`3659a438a9df6474a2083526c3de67e917159817aa2fc433b97d741bd4f25174`.
+HTML is parsed and receives native runtime flags at the server route; raw
+HTML byte identity is therefore not asserted. Patcher status is `current`
+with 42 packs/361 managed paths and zero changes in the next plan. Structured
+readback is in `validation/personal-css-editor-2026-09-24/live-delivery.json`.
+
+The plan authorizes an experimental candidate after automated gates. Stable
+promotion remains blocked on the physical iPhone scenarios above.
