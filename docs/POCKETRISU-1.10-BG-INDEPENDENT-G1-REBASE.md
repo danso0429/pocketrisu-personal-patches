@@ -73,7 +73,128 @@ requires AC presence or AC-specific fields. A browser-only path remains
 client-owned until an equivalent server contract is explicitly implemented
 and tested.
 
-## Observed verification on the merged source
+## G1.3 reusable commit/failure evidence
+
+The exact H1 source in this branch already exercises the production
+`server.cjs` child, actual SQLite and normal chat API with one explicit
+input/commit opt-in. Its observed transaction injections roll back the chat
+journal, sequence, metadata, effect resolution, operation state and recovery
+record together. Attached input survives an interrupted process without
+claiming provider replay. Post-commit crashes restore the committed response
+and marker without invoking the provider or commit again. The client process
+exits after start ACK; that is a process boundary, not a browser-process
+observation. The full H1 receipt is in the integrated line's
+`POCKETRISU-1.10-BG-AC-H1-COMPOSED-PROCESS-VALIDATION.md` at the shared H1
+source commit.
+
+The G1.1 merged candidate repeated all 11 H1 process cases, the focused
+owner/route group, and the full server suite. These observations support the
+internal opt-in C1/C2 boundary only. They do not prove ordinary-client
+activation, editor conflicts, retention policy, or real-browser exit.
+
+## G1.4 automatic drain candidate
+
+The server route now retains the already-authenticated request envelope for a
+durably admitted waiting input in bounded process memory. It polls the input
+owner's exact operation state and re-enters the same start path only after the
+predecessor becomes executable. A blocked/cancelled command is not started;
+ambiguous re-entry uses the same operation ID and the existing active/durable
+start fences. A process restart drops this in-memory envelope and does not
+claim secret-context or paid-work resumption.
+
+Observed on the candidate generated exact-1.10 target:
+
+- patcher source tests after adapter 0.7.2: 55/55 passed;
+- helper test: 5/5 passed (wait→ready, blocked, ambiguous same-ID re-entry,
+  bounded repeated start and owner-read failures);
+- focused route/process/helper: 27/27 passed, including explicit rejection of
+  an input command sent through a non-detached diagnostic mode before admission;
+- H1 process N→N+1 case: N+1 reached its provider gate without a second
+  client request after N committed; a third nonterminal command remained
+  rejected, and restart restored N's answer plus N+1's attached input without
+  replaying its provider;
+- complete server suite after input-transform and client negotiation: 32 files,
+  330 passed,
+  12 skipped;
+- complete graph installed: 42 packs, 1,024 ordered units, 366 managed
+  files, 13 ordered collisions, `current`, repeated plan with zero changed
+  files. Normal revert changed 368 paths including state/intent and returned
+  `clean`, delivery disabled, empty custom intent
+  on the disposable target. This is a manager-state observation, not an
+  independent complete-tree byte/mode comparison;
+- two installer builds remained byte-identical: 8,422,706 bytes each, mode
+  0755, SHA-256
+  `a46ca6a03d6a9974cc35f1f0698cde2aa94eeaecb00deedd41b7d4db4f2366e3`.
+
+This is not G1.4 completion. The current overlay now limits post-admission
+copies to prompt-facing globals and statics and compares them with the
+predecessor input/response effect records. Four owner/recovery roots remain
+captured at admission rather than copied from unrelated live state. A
+concurrent value-identical mutation cannot be distinguished from the
+predecessor's own effect without a complete writer ledger; this is value
+attestation, not cryptographic writer provenance. Blocked-edit recovery,
+joined retention, ordinary composer early-send/pending/chat-open handling,
+and real browser/device gates remain open. Capability remains input 0.
+Repeated automatic start failures are bounded to three attempts. After that,
+the durable input owner and status routes remain the recovery authority; this
+candidate does not convert the unresolved command into a successful result.
+
+The input owner additionally persists `blocked_edit` when a queued head or a
+waiting successor encounters a changed canonical revision, propagates a
+blocked predecessor to its successor, releases their volatile settings
+contexts, and reports the specific reason on repeat lookup. Focused owner
+tests covered those head, chain, and completed-predecessor edit cases. This
+does not yet define the client-facing resolution choice, attached-input edit
+handling, or the joined retention lifetime.
+
+The effect-lineage candidate reads the C1 validated recovery record and C3
+input record, checks exact predecessor/receipt/revision identity, reconstructs
+committed global-key effects and the statics message ledger, and compares the
+result with live roots before the N+1 input transform. Missing/conflicting
+lineage or an unrelated current value blocks before provider work. A test-only
+process fault confirmed that N commits while N+1 remains
+`input-blocked_edit`, with one provider call total and no client save; this
+fault injects the mismatch at the preview control seam, while unit tests
+exercise the actual overlay comparison. The H1 preview seam does not run the
+production model bundle, so full-bundle prompt/output parity remains open.
+The full server suite observed 330 passes and 12 skips. The first disposable
+target's inherited dependency links reported five Svelte errors in three
+upstream paths. A separate source-only copy with its own offline dependency
+tree reported **0 errors and 0 warnings**, and its frontend build passed with
+7,942 modules. Its complete frontend suite finished with **155 files passed,
+one skipped; 1,770 tests passed, two skipped**. Repeated
+`ECONNREFUSED 127.0.0.1:3000` logs appeared during that suite but did not
+  cause a test failure; a prior interrupted run is not counted as a pass. The
+  BG bundle rebuilt and passed its `sendChat=function` load check (8,869,770
+  bytes; SHA-256
+  `222b30312ea0a4898d6f3eb7d01a64dac4f0b016a504c3d4cbe86b7b4048360d`).
+
+The pre-canonical transform now uses a focused helper that matches the
+ordinary composer distinction: character input executes the input trigger
+and `editinput` once, while group input appends raw text. Focused tests cover
+that split, duplicate input IDs, and publication of the triggered chat before
+`editinput`. Empty-message/continue/reroll and browser-only epilogues remain
+on the existing client path.
+
+For ordinary already-saved input, the client now reads the authenticated BG
+capability route before delegating. It requests server chat commit only when
+both commit and projection versions are 1; absent or failed negotiation keeps
+legacy client ownership. This is a partial G1.5 candidate: the server-commit
+hydration/rolling-start focused tests and complete frontend suite pass, but
+actual browser-process exit, normal chat-open reconciliation, early-send,
+pending UI, and the input-command capability promotion remain unverified or
+unimplemented. The advertised input capability is still 0, and no live
+PocketRisu was changed.
+
+The server projection candidate now lists attached input in addition to
+queued/blocked input. It distinguishes attached-before-provider, active
+`generating`, and restart/lost-settings `execution_unknown`. The operation
+status and missing-result routes use the same distinctions; the process
+restart test now observes `input-execution-unknown` rather than implying that
+an attached paid run will resume. The ordinary browser chat-open caller and
+pending UI have not yet consumed this projection.
+
+## G1.1 rebaseline verification (historical)
 
 - Patcher tests: 55 passed, 0 failed.
 - Generated installers: two consecutive builds byte-identical; both
@@ -102,8 +223,9 @@ and tested.
 The unmodified full frontend `pnpm test` did not complete in the first
 disposable dependency copy: workers repeatedly attempted an unavailable
 loopback port and then stopped reporting progress. The test process was
-terminated without a pass claim. This is an open environment/test-selection
-diagnostic, not a passing full frontend gate.
+terminated without a pass claim. A later complete frontend run in the
+independent dependency copy passed as recorded above; the interrupted run is
+not retrospectively relabeled.
 
 The first disposable copy inherited an external `node_modules` symlink;
 an offline install was found to have written a typography dependency symlink
@@ -122,9 +244,13 @@ unrelated track; this candidate did not apply to or restart it.
 
 ## Next gate
 
-G1.2 must enumerate the actual generated final callers and writers for
-foreground/detached BG, streaming/non-streaming, auxiliary requests,
-postprocessing, legacy delivery, reroll/continue, and browser-only epilogues.
-Then G1.3–G1.6 close automatic drain, effects, conflicts, retention,
-ordinary client activation, and real browser/device qualification. No AC
-candidate test can substitute for those gates.
+G1.2's final-caller map and the current G1.4/G1.5 candidates are recorded
+above. Before any input capability promotion, finish early-send admission
+without browser mutation, protect concurrent local settings/chat edits,
+consume attached/blocked/unknown projection on ordinary chat open, and define
+joined input/result/owner/context retention. Then exercise the production
+bundle with actual input/output effects, complete L2.5 and graph/rollback
+gates, and verify normal chat API **before** actual browser-process reopen.
+The iPhone scenarios and safe delivery are G1.6 gates. G2 implementation
+starts only after G1 completion; G3 starts only after G2 completion. Neither
+AC simulation nor AC source modification closes a G1 gate.
