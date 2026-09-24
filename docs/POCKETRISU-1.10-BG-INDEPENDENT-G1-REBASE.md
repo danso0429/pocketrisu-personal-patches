@@ -2,8 +2,8 @@
 
 Date: 2026-09-24 KST
 
-Status: **G1.1 source separation and maintenance merge complete; G1 product
-qualification is not complete. G1.2 execution/owner mapping is next.**
+Status: **G1.1 source separation and maintenance merge complete; G1.2
+execution/owner mapping recorded. G1 product qualification is not complete.**
 
 ## Authority and source
 
@@ -41,6 +41,37 @@ worktree. G1 has no AC source or runtime dependency.
 The generated server capability remains `inputCommandVersion=0` and
 `inputCommandFoundationVersion=4`. An internal test's explicit version-1
 request is not production admission.
+
+## G1.2 final-caller and writer map
+
+The mapped candidate is the exact-1.10 generated target from the G1.1
+installer. This is a source/caller map, not a browser qualification.
+
+| User path or event | Final execution and write owner today | G1 server-commit boundary |
+| --- | --- | --- |
+| Ordinary composer send | `DefaultChatScreen.svelte` runs input trigger and `editinput`, appends a browser-memory user message, then `persistActiveChatBeforeGeneration`; `sendChat` delegates top-level eligible requests through `runServerOrchestratedChat`. | The current client still strictly saves and rereads a canonical base, and POSTs without `inputCommandVersion=1` or `serverChatCommitVersion=1`. The server's new input/commit owner is not selected. |
+| Detached BG generation | `bgOrchestrator.cjs` runs `runServerPreview` using the bundled `sendChatWithDirectLifecycle`, including native request assembly, `requestChatData`, ax/main/post and output triggers. | Internal opt-in can commit the result through `serverChatCommitOwner.commitGenerationResult` before publishing a result. Ordinary requests still publish a legacy client-owned result, which the browser merges and saves. |
+| Foreground or unsupported send | `sendChat` and `requestChatData` remain browser owners. | Previews, non-top-level calls, `noBgOrch`, fallback, reroll, continue, auto-TTS and character emotion/image generation do not delegate. A server-commit activation must not silently change these paths. |
+| Streaming and non-streaming model response | Both are consumed inside `sendChat`; `requestChatData` owns the actual provider request, model preset, request trigger, escape, replacers and retries. | Server bundle reuses those final callers for eligible BG work; a second output implementation would need parity evidence and is not part of G1. |
+| Recursive or auxiliary model work | `sendChat` performs auto-continue/resend and the emotion request; programmatic multisend, commands and plugin `sendChat` specify `noBgOrch` to retain their blocking contract. | The server bundle owns recursion only after an eligible ordinary request was delegated. Programmatic callers remain client-owned. |
+| Server-owned commit and normal read | `serverChatCommitOwner.cjs` drives the C1 SQLite journal, normal chat writer, metadata/intent/effect/owner receipts and projection; `serverChatInputOwner.cjs` holds input order and settings context. | C1/C2/H1 tests exercise explicit opt-in. The general client must use receipt-based hydration and must not replay legacy merge, save or effects for a committed result. |
+| Browser return, empty local state, legacy result | `bgOrchestrate.ts` polls or boot-recovers; `bgServerCommitHydration.ts` distinguishes server-committed, server-owned-uncommitted and legacy-client-owned results. | A valid server receipt hydrates from normal chat and skips client save; an uncommitted server-owned result is fenced. Legacy result delivery remains a separate client-save path. Chat-open/pending reconciliation without a result marker is not connected. |
+| Notification and browser-only epilogues | `sendChat` owns Notification, TTS and visual/audio channels after model output. | These are not represented in the server result contract; G1's supported server subset excludes them rather than dropping their effects. |
+
+The server's `inputCommandVersion=1` route handles an adjacent admission and
+an execution predecessor, but a waiting predecessor currently yields
+`input-waiting-predecessor` to the caller. There is no automatic drain of that
+durable input when the predecessor settles. The server also lacks a
+receipt-scoped proof that each dynamic global/static/root value applied to
+the successor came from that predecessor. Both are activation blockers, not
+merely missing UI polish.
+
+G1's connection points are the composer admission before any browser-only
+input mutation, the authenticated BG route's input and terminal commit
+boundaries, and receipt/projection-based client reconciliation. None of these
+requires AC presence or AC-specific fields. A browser-only path remains
+client-owned until an equivalent server contract is explicitly implemented
+and tested.
 
 ## Observed verification on the merged source
 
