@@ -1,5 +1,15 @@
 # Changelog
 
+## 0.2.3-experimental.4
+
+- Format Personal CSS and font sizes as one-decimal decimal KB/MB values while
+  retaining exact byte limits internally.
+- Replace the font select and separate management cards with one collapsible
+  list. Render each name in its font and keep custom rename/file-change/delete
+  controls on the same row. Remove the duplicate list and font-search field.
+- Load name previews only for visible rows and release custom preview faces
+  when hidden or closed without changing the selected chat font.
+
 ## 0.2.3-experimental.3
 
 - Hide shipped CSS activation prefixes in the editor. Preserve exact stored
