@@ -13,11 +13,13 @@ exact PocketRisu 1.10 target:
 - the installed `fast-character-import` 1.5.5 plugin losing the iOS user
   activation before it opens its file picker.
 
-The distributed candidate is `0.2.2-experimental.2`. The third-party plugin
-correction is a live data migration with an exact precondition and rollback
-backup; it is not embedded in the distributed patch catalog. System Logs have
+This validation began with candidate `0.2.2-experimental.2`. The initial
+third-party plugin correction was a live data migration with an exact
+precondition and rollback backup; that migration was not embedded in the
+distributed patch catalog. System Logs have
 no server-side code change because their measured server path was not the
-bottleneck. No stable tag or release is authorized before physical L3.
+bottleneck. The later stable FastImport runtime owner and L3 result are recorded
+below and in the stable release receipt.
 
 ## Phase 1 — flat discovery
 
@@ -371,7 +373,8 @@ operations, with no patch/version, missing-payload, ambiguous-archive, PageFold,
 or credential terms; a five-second post-restart window added zero stderr and
 zero stdout bytes.
 
-Physical L3 remains open. No stable tag or release has been created.
+At this initial candidate checkpoint, physical L3 remained open and no stable
+tag or release had been created.
 
 ## Follow-up qualification — experimental.2
 
@@ -412,7 +415,7 @@ tool are Q3 fixes. Existing PATCH/full-write asymmetry, CAS, remote deletion,
 concurrent creation, outer autosave policy, and installer/plugin ownership split
 are Q2 retained contracts. Mobile picker presentation, empty-chat reactive
 timing, native CharX commit, and perceived log rendering remain Q4 physical L3
-surfaces. No stable tag or release follows from these automatic gates.
+surfaces. These automatic gates alone did not authorize a stable tag or release.
 
 ### Retry contract and final-source coverage
 

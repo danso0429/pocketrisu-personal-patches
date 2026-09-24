@@ -112,5 +112,21 @@ corrected script SHA-256
 It returned `already-applied` without another database write. The pre-existing
 chunk-aware rollback backup remains retained.
 
-Final main CI, annotated tag, Latest Release, and downloaded asset readback
-are recorded after publication.
+## Publication readback
+
+- The release commit and `origin/main` were
+  `c03c66449ad01f048bdbb54269c84279bc0fc903` at publication.
+- GitHub `patch-integrity` run `35950111205` completed successfully at that
+  exact main SHA, including generated installer reproducibility, exact-1.10
+  embedded checks, and byte/mode revert. Candidate run `35949231087` also
+  passed at the preceding source/artifact SHA `0071869`.
+- Remote annotated tag `v0.2.2` peels to the release commit.
+- GitHub Release `v0.2.2 — PocketRisu maintenance fixes` is published as
+  non-draft, non-prerelease Latest Release with both installer assets uploaded.
+- Both assets were downloaded into a fresh temporary directory and compared
+  byte-for-byte with the local release artifacts. All four files are 7,902,434
+  bytes with SHA-256
+  `88ae0e251694b705abcc9450c264ef2fa468edfb6ac8a287d550a07fe7b2ea66`.
+
+The annotated release tag remains fixed. This post-release documentation
+readback does not change installer source or the live runtime.

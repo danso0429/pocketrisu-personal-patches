@@ -24,6 +24,10 @@
   current with zero next-plan changes, served/local main asset identity, five
   SQLite quick checks, and the installed FastImport script still at the known
   corrected SHA-256 without another plugin DB write.
+- Fast-forward the release commit to `main`, pass GitHub Actions
+  `patch-integrity` run `35950111205`, and publish annotated `v0.2.2` as the
+  non-draft/non-prerelease Latest Release. Re-download both installer assets
+  and confirm byte identity and the release SHA-256.
 
 ## 0.2.2-experimental.2
 
