@@ -84,5 +84,33 @@ script bytes are identical to the live corrected script; this receipt does not
 claim a second physical iPhone test of the new loader revision. Unknown future
 FastImport source revisions require a new exact-hash review.
 
-Live delivery, final main CI, annotated tag, Latest Release, and downloaded
-asset readback are appended after those steps complete.
+## Live delivery
+
+Immediately before source writes, read-only checks found native running jobs,
+pending sends, BG active states, and BG result keys all at zero. The generated
+installer plan named only `plugins.svelte.ts`, the new FastImport helper and
+test, and patch state. PM2 was stopped first; the installer changed exactly
+those four paths. The stopped tree passed the focused FastImport/save tests
+19/19 and Svelte diagnostics 0/0. A production build transformed 7,941 modules.
+The BG bundle builder's load check resolved `sendChat=function`, production
+prune removed 109 development packages, and a post-prune module/BG load passed.
+
+After restart, PM2 reported PocketRisu 1.10.0 online at PID 1493836 with
+restart count zero and unstable restarts zero. Root, build stamp, and main
+asset returned HTTP 200. Served and local `index-DfTVdTMg.js` were both
+2,047,743 bytes with SHA-256
+`a1a31ff03ae7e04e6f980713d1a5217c3f75c2d30df3e4f4a49615f695e4ec59`.
+The served stamp was
+`1.10.0-ed1190f38145e33960f1bf172b9ef623d6edd29a05820a595b626450b0c7b7b7`.
+The live patch status was 42 packs and 344/344 paths current, drift zero; the
+941-unit, 13-collision next plan changed zero files. All five SQLite databases
+returned `quick_check=ok`, and final native/BG active and result work was zero.
+
+Read-only FastImport inspection found 12 installed plugins and the known
+corrected script SHA-256
+`5777e74585a3dfc7993cd53fef58c7ad2e649d1d6d167aaf8457355eb1885e94`.
+It returned `already-applied` without another database write. The pre-existing
+chunk-aware rollback backup remains retained.
+
+Final main CI, annotated tag, Latest Release, and downloaded asset readback
+are recorded after publication.

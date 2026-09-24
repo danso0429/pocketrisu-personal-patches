@@ -19,6 +19,11 @@
 - Build two byte-identical mode-0755 installers twice. Each is 7,902,434
   bytes with SHA-256
   `88ae0e251694b705abcc9450c264ef2fa468edfb6ac8a287d550a07fe7b2ea66`.
+- Apply the new loader owner live after native/BG active work reached zero,
+  build 7,941 production modules, and restart PocketRisu. Verify 42/941/344
+  current with zero next-plan changes, served/local main asset identity, five
+  SQLite quick checks, and the installed FastImport script still at the known
+  corrected SHA-256 without another plugin DB write.
 
 ## 0.2.2-experimental.2
 
