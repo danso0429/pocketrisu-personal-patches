@@ -1127,10 +1127,20 @@ function createServerChatInputOwner({
         return allRecords().filter((record) => (
             record.admission.charId === charId
             && record.admission.chatId === chatId
-            && (record.inputState === 'queued' || record.inputState === 'blocked_edit')
+            && (record.inputState === 'queued' || record.inputState === 'attached'
+                || record.inputState === 'blocked_edit')
         )).sort((left, right) => left.admissionSeq - right.admissionSeq).map((record) => {
             let state = 'queued';
-            if (record.inputState === 'blocked_edit' || record.transformState === 'unknown'
+            if (record.inputState === 'attached') {
+                const operation = readOperationState(kvGet, record.operationId);
+                state = !readSettingsSnapshotRecord(record)
+                    ? 'execution_unknown'
+                    : operation?.state === 'running'
+                        ? 'generating'
+                        : operation?.state === 'queued'
+                            ? 'attached'
+                            : 'execution_unknown';
+            } else if (record.inputState === 'blocked_edit' || record.transformState === 'unknown'
                 || !readSettingsSnapshotRecord(record)) {
                 state = 'blocked_edit';
             } else if (record.executionPredecessorId && !record.predecessorResolution) {

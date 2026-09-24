@@ -357,6 +357,9 @@ describe('pre-canonical server chat input owner', () => {
             status: 'blocked',
             reason: 'settings_context_unavailable',
         })
+        expect(restarted.pendingProjection('char-1', 'chat-1')).toMatchObject([{
+            operationId, state: 'blocked_edit',
+        }])
         expect(restarted.loadSettingsSnapshot(operationId)).toMatchObject({
             status: 'blocked',
             reason: 'settings_context_unavailable',
@@ -439,7 +442,16 @@ describe('pre-canonical server chat input owner', () => {
             status: 'attached',
             record: { executionBaseRevision: attached.record.executionBaseRevision },
         })
-        expect(owner.pendingProjection('char-1', 'chat-1')).toEqual([])
+        expect(owner.pendingProjection('char-1', 'chat-1')).toMatchObject([{
+            operationId, state: 'attached',
+        }])
+        const operation = JSON.parse(harness.kvGet(operationStateKey(operationId)).toString('utf8'))
+        harness.kvSet(operationStateKey(operationId), JSON.stringify({
+            ...operation, state: 'running',
+        }))
+        expect(owner.pendingProjection('char-1', 'chat-1')).toMatchObject([{
+            operationId, state: 'generating',
+        }])
     })
 
     it('admits N+1 outside canonical chat and advances only after N publishes', async () => {
@@ -473,11 +485,14 @@ describe('pre-canonical server chat input owner', () => {
             },
         })
         expect(harness.runtime.fullStore.get('char-1')?.get('chat-1')).toEqual(attachedChat)
-        expect(owner.pendingProjection('char-1', 'chat-1')).toMatchObject([{
-            operationId: secondOperation,
-            predecessorOperationId: firstOperation,
-            state: 'waiting_predecessor',
-        }])
+        expect(owner.pendingProjection('char-1', 'chat-1')).toMatchObject([
+            { operationId: firstOperation, state: 'attached' },
+            {
+                operationId: secondOperation,
+                predecessorOperationId: firstOperation,
+                state: 'waiting_predecessor',
+            },
+        ])
         await expect(owner.loadExecution(secondOperation)).resolves.toMatchObject({
             status: 'waiting',
             reason: 'predecessor_active',
@@ -1009,6 +1024,9 @@ describe('pre-canonical server chat input owner', () => {
             status: 'blocked',
             reason: 'settings_context_unavailable',
         })
+        expect(restarted.pendingProjection('char-1', 'chat-1')).toMatchObject([{
+            operationId, state: 'execution_unknown',
+        }])
         expect(harness.runtime.fullStore.get('char-1')?.get('chat-1')?.message.at(-1))
             .toMatchObject({ chatId: `user-${operationId}`, data: 'hello' })
     })

@@ -481,7 +481,7 @@ describe('server chat composed process boundary', () => {
             body: {
                 accepted: true,
                 operationId,
-                state: 'input-attached',
+                state: 'input-execution-unknown',
                 serverChatCommitVersion: 1,
             },
         })
@@ -625,7 +625,7 @@ describe('server chat composed process boundary', () => {
         expect(stored.chat.message).toHaveLength(4)
         expect(await readStatus(restarted, operationN1)).toMatchObject({
             status: 200,
-            body: { accepted: true, operationId: operationN1, state: 'input-attached' },
+            body: { accepted: true, operationId: operationN1, state: 'input-execution-unknown' },
         })
         expect(await readCounters(restarted)).toMatchObject({
             providerCalls: 0,

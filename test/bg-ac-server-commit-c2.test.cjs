@@ -97,7 +97,7 @@ test('C2: adapter payload changes invalidate its pack ETag without mutating the 
     assert.equal(packEtag(adapter), original)
 })
 
-test('C2: current client remains unopted until the separate C3 compatibility branch', () => {
+test('C2: ordinary client negotiates response commit while pre-canonical input remains unopted', () => {
     const bgClient = resolveSelection(loadCatalog(), ['lazy-chat-sync', 'bg-preserve'])
         .packs.find(pack => pack.id === 'bg-preserve')
         .units.find(candidate => (
@@ -106,5 +106,10 @@ test('C2: current client remains unopted until the separate C3 compatibility bra
         ))
     assert.ok(bgClient)
     assert.doesNotMatch(bgClient.content, /serverChatCommitVersion/)
+    const negotiate = unit('lazy-chat-bg-adapter:server-chat-commit-client-negotiate:1.10')
+    const request = unit('lazy-chat-bg-adapter:server-chat-commit-client-request:1.10')
+    assert.match(negotiate.content, /chatExecutionProjectionVersion === 1/)
+    assert.match(request.content, /serverChatCommitVersion === 1/)
+    assert.doesNotMatch(request.content, /inputCommandVersion/)
     assert.match(unit('lazy-chat-bg-adapter:server-chat-commit-start-gate:1.10').content, /server-chat-commit-input-stale/)
 })

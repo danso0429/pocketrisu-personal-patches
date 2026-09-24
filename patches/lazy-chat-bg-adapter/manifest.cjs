@@ -712,6 +712,53 @@ function retainUncommittedServerChat(
             targetVersions: pocketRisu1100,
         },
         {
+            id: 'lazy-chat-bg-adapter:server-chat-commit-client-negotiate:1.10',
+            file: 'src/ts/bgOrchestrate.ts',
+            type: 'insert',
+            where: 'before',
+            anchor: `        const baselineMsgs = Array.isArray(delegatedChat.message) ? delegatedChat.message.length : 0
+`,
+            content: `        let serverChatCommitVersion: 0 | 1 = 0
+        try {
+            const capabilityResponse = await fetchOrchestrationControl(
+                '/api/bg-orchestrate-capabilities',
+                { method: 'GET', credentials: 'same-origin' },
+            )
+            if (capabilityResponse.ok) {
+                const capability = await capabilityResponse.json()
+                if (capability?.contract === 'bg_orchestration_capabilities.v1'
+                    && capability.serverChatCommitVersion === 1
+                    && capability.chatExecutionProjectionVersion === 1) {
+                    serverChatCommitVersion = 1
+                }
+            }
+        } catch { /* rolling server or unavailable capability keeps legacy ownership */ }
+        if (arg?.signal?.aborted) {
+            releasePreparationOwner()
+            chatProcessStage.set(0)
+            return { handled: true, result: false }
+        }
+`,
+            requires: ['lazy-chat-bg-adapter:server-commit-boot-found-result:1.10'],
+            targetVersions: pocketRisu1100,
+        },
+        {
+            id: 'lazy-chat-bg-adapter:server-chat-commit-client-request:1.10',
+            file: 'src/ts/bgOrchestrate.ts',
+            type: 'replace',
+            anchor: `            resultOrderVersion: 1,
+            startAckVersion: 1,
+            resultKeyVersion: 1,
+`,
+            content: `            resultOrderVersion: 1,
+            startAckVersion: 1,
+            resultKeyVersion: 1,
+            ...(serverChatCommitVersion === 1 ? { serverChatCommitVersion: 1 } : {}),
+`,
+            requires: ['lazy-chat-bg-adapter:server-chat-commit-client-negotiate:1.10'],
+            targetVersions: pocketRisu1100,
+        },
+        {
             id: 'lazy-chat-bg-adapter:owned:server-chat-input-owner:1.10',
             file: 'server/node/serverChatInputOwner.cjs',
             type: 'owned',
@@ -745,6 +792,22 @@ function retainUncommittedServerChat(
             type: 'owned',
             content: owned1100('server/node/serverChatInputDrain.test.ts'),
             requires: ['lazy-chat-bg-adapter:owned:server-chat-input-drain:1.10'],
+            targetVersions: pocketRisu1100,
+        },
+        {
+            id: 'lazy-chat-bg-adapter:owned:server-chat-input-transform:1.10',
+            file: 'server/node/serverChatInputTransform.cjs',
+            type: 'owned',
+            content: owned1100('server/node/serverChatInputTransform.cjs'),
+            requires: ['lazy-chat-bg-adapter:owned:server-chat-input-owner:1.10'],
+            targetVersions: pocketRisu1100,
+        },
+        {
+            id: 'lazy-chat-bg-adapter:owned:server-chat-input-transform-test:1.10',
+            file: 'server/node/serverChatInputTransform.test.ts',
+            type: 'owned',
+            content: owned1100('server/node/serverChatInputTransform.test.ts'),
+            requires: ['lazy-chat-bg-adapter:owned:server-chat-input-transform:1.10'],
             targetVersions: pocketRisu1100,
         },
         {
@@ -1245,35 +1308,20 @@ const serverChatCommitOwner = createServerChatCommitOwner({
         serverInputAttachment = transform.record
       } else if (transform && transform.status === 'started') {
         const command = transform.record && transform.record.admission
-        if (!command || !bg.triggers || !bg.scripts) {
+        const inputCharacter = db.characters[charIdx]
+        if (!command || !inputCharacter) {
           throw new Error('server input transform command unavailable')
         }
         const inputGlobalsBefore = JSON.stringify(db.globalChatVariables || {})
-        let transformedChat = db.characters[charIdx].chats[chatIdx]
-        const triggerResult = await bg.triggers.runTrigger(
-          db.characters[charIdx],
-          'input',
-          { chat: transformedChat },
+        const { transformServerChatInput } = require('./serverChatInputTransform.cjs')
+        const transformedChat = await transformServerChatInput(
+          inputCharacter,
+          db.characters[charIdx].chats[chatIdx],
+          command,
+          bg.triggers,
+          bg.scripts,
+          (chat) => { db.characters[charIdx].chats[chatIdx] = chat },
         )
-        if (triggerResult && triggerResult.chat) transformedChat = triggerResult.chat
-        if (!transformedChat || !Array.isArray(transformedChat.message)) {
-          throw new Error('server input transform returned an invalid chat')
-        }
-        db.characters[charIdx].chats[chatIdx] = transformedChat
-        if (transformedChat.message.some((message) => message?.chatId === command.userMessageId)) {
-          throw new Error('server input message identity already exists')
-        }
-        transformedChat.message.push({
-          role: 'user',
-          data: await bg.scripts.processScript(
-            db.characters[charIdx],
-            command.rawText,
-            'editinput',
-          ),
-          time: command.submittedAt,
-          name: null,
-          chatId: command.userMessageId,
-        })
         const inputGlobalsAfter = db.globalChatVariables || {}
         let inputGlobalsBeforeObject = {}
         try { inputGlobalsBeforeObject = JSON.parse(inputGlobalsBefore) } catch { /* empty */ }
@@ -1298,6 +1346,7 @@ const serverChatCommitOwner = createServerChatCommitOwner({
             requires: [
                 'lazy-chat-bg-adapter:server-chat-commit-settings-digest:1.10',
                 'lazy-chat-bg-adapter:server-input-bundle-load-check:1.10',
+                'lazy-chat-bg-adapter:owned:server-chat-input-transform-test:1.10',
             ],
             after: ['pagefold-bg-adapter:bundle-stale-sources:1.10'],
             targetVersions: pocketRisu1100,
@@ -1914,7 +1963,11 @@ const serverChatCommitOwner = createServerChatCommitOwner({
       const state = inputCommand.transformState === 'unknown'
         ? 'input-transform-unknown'
         : inputCommand.inputState === 'attached'
-          ? 'input-attached'
+          ? pendingInput?.state === 'execution_unknown'
+            ? 'input-execution-unknown'
+            : pendingInput?.state === 'generating'
+              ? 'input-generating'
+              : 'input-attached'
           : pendingInput && pendingInput.state === 'waiting_predecessor'
             ? 'input-waiting-predecessor'
           : inputCommand.inputState === 'queued'
@@ -2136,7 +2189,11 @@ const serverChatCommitOwner = createServerChatCommitOwner({
           : inputCommand.transformState === 'unknown'
             ? 'input-transform-unknown'
             : inputCommand.inputState === 'attached'
-              ? 'input-attached'
+              ? pendingInput?.state === 'execution_unknown'
+                ? 'input-execution-unknown'
+                : pendingInput?.state === 'generating'
+                  ? 'input-generating'
+                  : 'input-attached'
               : pendingInput && pendingInput.state === 'waiting_predecessor'
                 ? 'input-waiting-predecessor'
                 : 'input-' + inputCommand.inputState
