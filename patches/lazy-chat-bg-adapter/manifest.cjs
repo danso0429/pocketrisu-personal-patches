@@ -21,7 +21,7 @@ const bgGlobalApiUnits = [
 module.exports = {
     id: 'lazy-chat-bg-adapter',
     title: 'BG preserve integration for lazy chat storage',
-    version: '0.7.4',
+    version: '0.7.5',
     targets: {
         pocketrisu: {
             verified: ['1.8.1', '1.9.0', '1.10.0'],
@@ -1656,6 +1656,18 @@ const serverChatCommitOwner = createServerChatCommitOwner({
             content: `                    incomingStrippedDb = canonicalizeStrippedDatabase(
                         normalizeJSON(stripChatsFromDb(incomingDb))
                     );
+                    // A validator-free root snapshot cannot attest to a
+                    // previously committed server-owned effect. The empty
+                    // initial database has no such receipt and stays writable.
+                    if (!req.headers['if-match'] && !req.headers['x-if-match']
+                        && Array.isArray(acceptedStrippedDb.serverChatCommitApplied)
+                        && acceptedStrippedDb.serverChatCommitApplied.length > 0) {
+                        return res.status(428).json({
+                            error: 'Current database revision required after server chat commit',
+                            code: 'BG_SERVER_EFFECT_REVISION_REQUIRED',
+                            currentEtag: dbEtag,
+                        });
+                    }
                     incomingStrippedDb = serverChatCommitOwner.preserveDatabaseState(
                         acceptedStrippedDb,
                         incomingStrippedDb,

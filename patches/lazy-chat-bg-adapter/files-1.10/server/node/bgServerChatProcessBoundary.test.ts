@@ -37,8 +37,9 @@ const currentFile = fileURLToPath(import.meta.url)
 const serverDir = path.dirname(currentFile)
 const targetRoot = path.resolve(serverDir, '../..')
 const require = createRequire(import.meta.url)
-const { decodeRisuSave } = require('./utils.cjs') as {
+const { decodeRisuSave, encodeRisuSaveLegacy } = require('./utils.cjs') as {
     decodeRisuSave: (bytes: Uint8Array) => Promise<any>
+    encodeRisuSaveLegacy: (data: unknown) => Buffer
 }
 const preloadPath = path.join(serverDir, 'bgServerChatProcessPreload.cjs')
 const clientPath = path.join(serverDir, 'bgServerChatProcessClient.cjs')
@@ -674,5 +675,76 @@ describe('server chat composed process boundary', () => {
         })
         const stored = await readChat(server)
         expect(stored.chat.message).toHaveLength(3)
+    }, 30_000)
+
+    it('rejects a validator-free stale database after a server chat commit', async () => {
+        const runtimeRoot = makeRuntimeRoot()
+        await seedRuntime(runtimeRoot)
+        const server = await startServer(runtimeRoot)
+        const databaseKey = Buffer.from('database/database.bin', 'utf8').toString('hex')
+        const beforeResponse = await fetch(`${server.baseURL}/api/read`, {
+            headers: { 'risu-auth': server.token, 'file-path': databaseKey },
+        })
+        expect(beforeResponse.status).toBe(200)
+        const staleDatabase = await decodeRisuSave(
+            new Uint8Array(await beforeResponse.arrayBuffer()),
+        )
+        const initial = await readChat(server)
+        const operationId = 'operation-h1-stale-root-fence-n-1'
+        expect(await submitFromDisposableClient(
+            server, inputBody(operationId, initial.revision, 'input N'),
+        )).toMatchObject({ status: 200, body: { started: true } })
+        await server.waitFor('provider-waiting', message => message.operationId === operationId)
+        server.child.send({ scope: 'pocketrisu-h1', command: 'release-provider' })
+        await server.waitFor('commit-result', message => (
+            message.status === 'committed' && message.receipt?.operationId === operationId
+        ))
+        const write = await fetch(`${server.baseURL}/api/write`, {
+            method: 'POST',
+            headers: {
+                'risu-auth': server.token,
+                cookie: server.cookie,
+                'content-type': 'application/octet-stream',
+                'file-path': databaseKey,
+            },
+            body: encodeRisuSaveLegacy(staleDatabase),
+        })
+        expect(write.status).toBe(428)
+        expect(await write.json()).toMatchObject({
+            code: 'BG_SERVER_EFFECT_REVISION_REQUIRED',
+        })
+        const rootResponse = await fetch(`${server.baseURL}/api/read`, {
+            headers: { 'risu-auth': server.token, 'file-path': databaseKey },
+        })
+        expect(rootResponse.status).toBe(200)
+        const stored = await decodeRisuSave(new Uint8Array(await rootResponse.arrayBuffer()))
+        expect(stored.statics.messages).toBe(11)
+        expect(stored.statics.bgOrchestrationApplied).toEqual([
+            { operationId, cumulative: 1 },
+        ])
+    }, 30_000)
+
+    it('keeps validator-free creation available for a truly absent database', async () => {
+        const runtimeRoot = makeRuntimeRoot()
+        await seedRuntime(runtimeRoot)
+        const server = await startServer(runtimeRoot)
+        const databaseKey = Buffer.from('database/database.bin', 'utf8').toString('hex')
+        const headers = {
+            'risu-auth': server.token,
+            cookie: server.cookie,
+            'file-path': databaseKey,
+        }
+        const removed = await fetch(`${server.baseURL}/api/remove`, { headers })
+        expect(removed.status).toBe(200)
+        const created = await fetch(`${server.baseURL}/api/write`, {
+            method: 'POST',
+            headers: { ...headers, 'content-type': 'application/octet-stream' },
+            body: encodeRisuSaveLegacy({}),
+        })
+        expect(created.status).toBe(200)
+        const read = await fetch(`${server.baseURL}/api/read`, { headers })
+        expect(read.status).toBe(200)
+        expect(await decodeRisuSave(new Uint8Array(await read.arrayBuffer())))
+            .toMatchObject({ characters: [] })
     }, 30_000)
 })
