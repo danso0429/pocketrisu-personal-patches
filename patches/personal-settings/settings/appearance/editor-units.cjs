@@ -212,7 +212,7 @@ function insert(id, file, anchor, content, after = [], where = 'before') {
     units.push({ id: fullId, file, type: 'insert', anchor, ...payload, where, after, targetVersions })
 }
 for (const file of [
-    'appearanceValues.ts', 'cssToggleDefinitions.ts', 'cssToggles.ts', 'cssToggleRuntime.ts',
+    'appearanceValues.ts', 'cssToggleDefinitions.ts', 'cssToggles.ts', 'cssToggleRuntime.ts', 'cssEditorText.ts', 'cssEditorText.test.ts',
     'customFonts.ts', 'customFontRuntime.ts', 'fontBytes.ts', 'appearancePersistence.ts', 'appearanceEditor.ts',
     'appearancePersistence.test.ts', 'personalAssets.test.ts',
     'cssToggles.test.ts', 'cssToggleRuntime.test.ts', 'customFonts.test.ts', 'customFontRuntime.test.ts',

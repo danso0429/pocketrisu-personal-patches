@@ -4,10 +4,12 @@
     import { personalCssStatus } from 'src/ts/personalSettings/cssToggleRuntime'
     import { appearanceRuntime, submitCssEdit, trialAppearanceActivation } from 'src/ts/personalSettings/appearanceEditor'
     import { CSS_LIMITS, cssEditBase, effectiveCssToggles, newPersonalId, rawAppearance, readCssToggles, storedCssBytes, utf8Bytes, type CssEdit, type EffectiveCssToggle } from 'src/ts/personalSettings/cssToggles'
+    import { cssEditorText, storedCssFromEditor, type CssEditorText } from 'src/ts/personalSettings/cssEditorText'
 
     let filter = $state('')
     let draft = $state<EffectiveCssToggle | null>(null)
     let base: unknown
+    let cssProjection: CssEditorText
     let origin: HTMLElement | null = null
     let returnFocus = $state(false)
     let filterInput = $state<HTMLInputElement>()
@@ -32,6 +34,8 @@
         origin = event?.currentTarget as HTMLElement ?? null
         draft = item ? { ...item } : { id: newPersonalId(), name: '새 CSS', description: '', css: '', enabled: false, shipped: false, modified: false, newerDefault: false }
         base = cssEditBase(DBState.db, { kind: 'put', item: draft, shipped: draft.shipped })
+        cssProjection = cssEditorText(draft)
+        draft.css = cssProjection.text
     }
     async function run(edit: CssEdit, expected = cssEditBase(DBState.db, edit), saved = () => {}) {
         error = ''
@@ -39,7 +43,7 @@
     }
     function save() {
         if (!draft) return
-        void run({ kind: 'put', item: { id: draft.id, name: draft.name, description: draft.description, css: draft.css, enabled: draft.enabled }, shipped: draft.shipped }, base, close)
+        void run({ kind: 'put', item: { id: draft.id, name: draft.name, description: draft.description, css: storedCssFromEditor(cssProjection, draft.css), enabled: draft.enabled }, shipped: draft.shipped }, base, close)
     }
     async function activate() {
         try { await trialAppearanceActivation() } catch (e) { error = e instanceof Error ? e.message : '시험 적용을 시작할 수 없습니다.' }
