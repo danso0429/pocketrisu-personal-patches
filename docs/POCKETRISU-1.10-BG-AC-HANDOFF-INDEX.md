@@ -1,5 +1,9 @@
 # PocketRisu 1.10 BG server chat save × Archive Center handoff index
 
+> Historical BG×AC handoff. The current AC-independent G1 entry point is
+> `POCKETRISU-1.10-BG-INDEPENDENT-G1-FRESH-START.md`, under the public
+> G1→G2→G3 ordered goals. Retain this index as earlier source evidence only.
+
 - Handoff date: 2026-09-20 KST
 - PocketRisu implementation/evidence checkpoint: `df7fed77700a9695f0a78cb406ee8996c0920349`
 - Private patcher branch: `codex/pocketrisu-bg-ac-server-chat-save`

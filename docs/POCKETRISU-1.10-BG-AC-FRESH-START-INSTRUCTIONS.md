@@ -1,5 +1,9 @@
 # PocketRisu 1.10 BG server chat save × Archive Center fresh-start instructions
 
+> Historical H0–H7 entry point. For current AC-independent G1 implementation,
+> start at `POCKETRISU-1.10-BG-INDEPENDENT-G1-FRESH-START.md` and the public
+> ordered goals. Do not execute this document's first H1 task as new work.
+
 - Instruction date: 2026-09-20 KST
 - Starting implementation/evidence checkpoint: `df7fed77700a9695f0a78cb406ee8996c0920349`
 - First implementation objective: AC-off composed Node process boundary

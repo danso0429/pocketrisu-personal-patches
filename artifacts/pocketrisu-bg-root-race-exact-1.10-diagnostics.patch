@@ -1,0 +1,294 @@
+--- a/server/node/bgServerChatProcessBoundary.test.ts
++++ b/server/node/bgServerChatProcessBoundary.test.ts
+@@ -9,0 +10,2 @@
++import { compare } from 'fast-json-patch'
++import { mergeThreeWayValue } from '../../src/ts/storage/conflictRebase'
+@@ -40 +42,2 @@
+-const { decodeRisuSave } = require('./utils.cjs') as {
++const { calculateHash, decodeRisuSave, encodeRisuSaveLegacy } = require('./utils.cjs') as {
++    calculateHash: (data: unknown) => number
+@@ -41,0 +45 @@
++    encodeRisuSaveLegacy: (data: unknown) => Buffer
+@@ -676,0 +681,282 @@
++    }, 30_000)
++
++    it('diagnostic only: stale browser root save can collapse two independent message increments', async () => {
++        const runtimeRoot = makeRuntimeRoot()
++        await seedRuntime(runtimeRoot)
++        const server = await startServer(runtimeRoot)
++        const databaseKey = Buffer.from('database/database.bin', 'utf8').toString('hex')
++        const readRoot = async () => {
++            const response = await fetch(`${server.baseURL}/api/read`, {
++                headers: { 'risu-auth': server.token, 'file-path': databaseKey },
++            })
++            expect(response.status).toBe(200)
++            return {
++                etag: response.headers.get('x-db-etag'),
++                database: await decodeRisuSave(new Uint8Array(await response.arrayBuffer())),
++            }
++        }
++        const baseline = await readRoot()
++        expect(baseline.database.statics.messages).toBe(10)
++        const local = structuredClone(baseline.database)
++        local.statics.messages += 1 // A different foreground chat's browser-owned send.
++
++        const initial = await readChat(server)
++        const operationId = 'operation-h1-root-race-n-1'
++        expect(await submitFromDisposableClient(
++            server, inputBody(operationId, initial.revision, 'input N'),
++        )).toMatchObject({ status: 200, body: { started: true } })
++        await server.waitFor('provider-waiting', message => message.operationId === operationId)
++        server.child.send({ scope: 'pocketrisu-h1', command: 'release-provider' })
++        await server.waitFor('commit-result', message => (
++            message.status === 'committed' && message.receipt?.operationId === operationId
++        ))
++        const afterN = await readRoot()
++        expect(afterN.database.statics.messages).toBe(11)
++        expect(afterN.etag).not.toBe(baseline.etag)
++
++        const headers = {
++            'risu-auth': server.token,
++            cookie: server.cookie,
++            'content-type': 'application/octet-stream',
++            'file-path': databaseKey,
++        }
++        const stale = await fetch(`${server.baseURL}/api/write`, {
++            method: 'POST',
++            headers: { ...headers, 'x-if-match': baseline.etag || '' },
++            body: encodeRisuSaveLegacy(local),
++        })
++        expect(stale.status).toBe(409)
++
++        const rebased = mergeThreeWayValue(baseline.database, local, afterN.database)
++        expect(rebased.statics.messages).toBe(11)
++        const accepted = await fetch(`${server.baseURL}/api/write`, {
++            method: 'POST',
++            headers: { ...headers, 'x-if-match': afterN.etag || '' },
++            body: encodeRisuSaveLegacy(rebased),
++        })
++        expect(accepted.status).toBe(200)
++        const stored = await readRoot()
++        expect(stored.database.statics.messages).toBe(11)
++        expect(stored.database.statics.bgOrchestrationApplied).toEqual([
++            { operationId, cumulative: 1 },
++        ])
++        // Browser +1 and N +1 would sum to 12; the persisted value is 11.
++        expect(stored.database.statics.messages).not.toBe(12)
++    }, 30_000)
++
++    it('diagnostic only: default patch-sync hash conflict and rebase also collapse increments', async () => {
++        const runtimeRoot = makeRuntimeRoot()
++        await seedRuntime(runtimeRoot)
++        const server = await startServer(runtimeRoot)
++        const databaseKey = Buffer.from('database/database.bin', 'utf8').toString('hex')
++        const readRoot = async () => {
++            const response = await fetch(`${server.baseURL}/api/read`, {
++                headers: { 'risu-auth': server.token, 'file-path': databaseKey },
++            })
++            expect(response.status).toBe(200)
++            return await decodeRisuSave(new Uint8Array(await response.arrayBuffer()))
++        }
++        const patchRoot = async (expectedHash: string, patch: unknown[]) => {
++            const response = await fetch(`${server.baseURL}/api/patch`, {
++                method: 'POST',
++                headers: {
++                    'risu-auth': server.token,
++                    cookie: server.cookie,
++                    'content-type': 'application/json',
++                    'file-path': databaseKey,
++                },
++                body: JSON.stringify({ expectedHash, patch }),
++            })
++            return { status: response.status, body: await response.json() as any }
++        }
++        const baseline = await readRoot()
++        const local = structuredClone(baseline)
++        local.statics.messages += 1
++        local.localPreference = 'edited'
++        const initial = await readChat(server)
++        const operationId = 'operation-h1-root-patch-race-n-1'
++        expect(await submitFromDisposableClient(
++            server, inputBody(operationId, initial.revision, 'input N'),
++        )).toMatchObject({ status: 200, body: { started: true } })
++        await server.waitFor('provider-waiting', message => message.operationId === operationId)
++        server.child.send({ scope: 'pocketrisu-h1', command: 'release-provider' })
++        await server.waitFor('commit-result', message => (
++            message.status === 'committed' && message.receipt?.operationId === operationId
++        ))
++        const remote = await readRoot()
++        expect(remote.statics.messages).toBe(11)
++        const stale = await patchRoot(
++            calculateHash(baseline).toString(16), compare(baseline, local),
++        )
++        expect(stale.status).toBe(409)
++        const merged = mergeThreeWayValue(baseline, local, remote)
++        expect(merged.statics.messages).toBe(11)
++        const retry = await patchRoot(
++            calculateHash(remote).toString(16), compare(remote, merged),
++        )
++        expect(retry.status).toBe(200)
++        const stored = await readRoot()
++        expect(stored.localPreference).toBe('edited')
++        expect(stored.statics.messages).toBe(11)
++        expect(stored.statics.bgOrchestrationApplied).toEqual([
++            { operationId, cumulative: 1 },
++        ])
++        const afterNChat = await readChat(server)
++        const nextOperationId = 'operation-h1-root-patch-race-n1-1'
++        expect(await submitFromDisposableClient(
++            server, inputBody(nextOperationId, afterNChat.revision, 'input N+1'),
++        )).toMatchObject({ status: 200, body: { started: true } })
++        await server.waitFor('provider-waiting', message => message.operationId === nextOperationId)
++        server.child.send({ scope: 'pocketrisu-h1', command: 'release-provider' })
++        await server.waitFor('provider-finished', message => message.operationId === nextOperationId)
++        expect(await readCounters(server)).toMatchObject({ providerCalls: 2 })
++    }, 30_000)
++
++    it('diagnostic only: a browser increment committed before N stays additive', async () => {
++        const runtimeRoot = makeRuntimeRoot()
++        await seedRuntime(runtimeRoot)
++        const server = await startServer(runtimeRoot)
++        const databaseKey = Buffer.from('database/database.bin', 'utf8').toString('hex')
++        const readRoot = async () => {
++            const response = await fetch(`${server.baseURL}/api/read`, {
++                headers: { 'risu-auth': server.token, 'file-path': databaseKey },
++            })
++            expect(response.status).toBe(200)
++            return await decodeRisuSave(new Uint8Array(await response.arrayBuffer()))
++        }
++        const initial = await readChat(server)
++        const operationId = 'operation-h1-root-before-n-1'
++        expect(await submitFromDisposableClient(
++            server, inputBody(operationId, initial.revision, 'input N'),
++        )).toMatchObject({ status: 200, body: { started: true } })
++        await server.waitFor('provider-waiting', message => message.operationId === operationId)
++        const beforeN = await readRoot()
++        expect(beforeN.statics.messages).toBe(10)
++        const browserPatch = await fetch(`${server.baseURL}/api/patch`, {
++            method: 'POST',
++            headers: {
++                'risu-auth': server.token,
++                cookie: server.cookie,
++                'content-type': 'application/json',
++                'file-path': databaseKey,
++            },
++            body: JSON.stringify({
++                expectedHash: calculateHash(beforeN).toString(16),
++                patch: [{ op: 'replace', path: '/statics/messages', value: 11 }],
++            }),
++        })
++        expect(browserPatch.status).toBe(200)
++        server.child.send({ scope: 'pocketrisu-h1', command: 'release-provider' })
++        await server.waitFor('commit-result', message => (
++            message.status === 'committed' && message.receipt?.operationId === operationId
++        ))
++        const stored = await readRoot()
++        expect(stored.statics.messages).toBe(12)
++        expect(stored.statics.bgOrchestrationApplied).toEqual([
++            { operationId, cumulative: 1 },
++        ])
++    }, 30_000)
++
++    it('diagnostic only: an unconditional stale full write is not a count fence', async () => {
++        const runtimeRoot = makeRuntimeRoot()
++        await seedRuntime(runtimeRoot)
++        const server = await startServer(runtimeRoot)
++        const databaseKey = Buffer.from('database/database.bin', 'utf8').toString('hex')
++        const readRoot = async () => {
++            const response = await fetch(`${server.baseURL}/api/read`, {
++                headers: { 'risu-auth': server.token, 'file-path': databaseKey },
++            })
++            expect(response.status).toBe(200)
++            return await decodeRisuSave(new Uint8Array(await response.arrayBuffer()))
++        }
++        const baseline = await readRoot()
++        const initial = await readChat(server)
++        const operationId = 'operation-h1-unconditional-root-n-1'
++        expect(await submitFromDisposableClient(
++            server, inputBody(operationId, initial.revision, 'input N'),
++        )).toMatchObject({ status: 200, body: { started: true } })
++        await server.waitFor('provider-waiting', message => message.operationId === operationId)
++        server.child.send({ scope: 'pocketrisu-h1', command: 'release-provider' })
++        await server.waitFor('commit-result', message => (
++            message.status === 'committed' && message.receipt?.operationId === operationId
++        ))
++        expect((await readRoot()).statics.messages).toBe(11)
++        const write = await fetch(`${server.baseURL}/api/write`, {
++            method: 'POST',
++            headers: {
++                'risu-auth': server.token,
++                cookie: server.cookie,
++                'content-type': 'application/octet-stream',
++                'file-path': databaseKey,
++            },
++            body: encodeRisuSaveLegacy(baseline),
++        })
++        expect(write.status).toBe(200)
++        const stored = await readRoot()
++        expect(stored.statics.messages).toBe(10)
++        expect(stored.statics.bgOrchestrationApplied).toEqual([
++            { operationId, cumulative: 1 },
++        ])
++    }, 30_000)
++
++    it('diagnostic only: lost browser ACK then N makes naive delta replay unsafe', async () => {
++        const runtimeRoot = makeRuntimeRoot()
++        await seedRuntime(runtimeRoot)
++        const server = await startServer(runtimeRoot)
++        const databaseKey = Buffer.from('database/database.bin', 'utf8').toString('hex')
++        const headers = {
++            'risu-auth': server.token,
++            cookie: server.cookie,
++            'content-type': 'application/json',
++            'file-path': databaseKey,
++        }
++        const readRoot = async () => {
++            const response = await fetch(`${server.baseURL}/api/read`, {
++                headers: { 'risu-auth': server.token, 'file-path': databaseKey },
++            })
++            expect(response.status).toBe(200)
++            return await decodeRisuSave(new Uint8Array(await response.arrayBuffer()))
++        }
++        const patchRoot = async (expectedHash: string, patch: unknown[]) => {
++            const response = await fetch(`${server.baseURL}/api/patch`, {
++                method: 'POST', headers,
++                body: JSON.stringify({ expectedHash, patch }),
++            })
++            return response.status
++        }
++        const baseline = await readRoot()
++        const local = structuredClone(baseline)
++        local.statics.messages += 1
++        expect(await patchRoot(
++            calculateHash(baseline).toString(16), compare(baseline, local),
++        )).toBe(200)
++        // Simulate a committed browser patch whose HTTP response the client did not receive.
++        expect((await readRoot()).statics.messages).toBe(11)
++
++        const initial = await readChat(server)
++        const operationId = 'operation-h1-root-lost-browser-ack-n-1'
++        expect(await submitFromDisposableClient(
++            server, inputBody(operationId, initial.revision, 'input N'),
++        )).toMatchObject({ status: 200, body: { started: true } })
++        await server.waitFor('provider-waiting', message => message.operationId === operationId)
++        server.child.send({ scope: 'pocketrisu-h1', command: 'release-provider' })
++        await server.waitFor('commit-result', message => (
++            message.status === 'committed' && message.receipt?.operationId === operationId
++        ))
++        const remote = await readRoot()
++        expect(remote.statics.messages).toBe(12)
++        expect(await patchRoot(
++            calculateHash(baseline).toString(16), compare(baseline, local),
++        )).toBe(409)
++        const merged = mergeThreeWayValue(baseline, local, remote)
++        expect(merged.statics.messages).toBe(11)
++        // Blind remote + (local - baseline) would be 13, counting the browser write twice.
++        expect(remote.statics.messages + (local.statics.messages - baseline.statics.messages)).toBe(13)
++        expect(await patchRoot(
++            calculateHash(remote).toString(16), compare(remote, merged),
++        )).toBe(200)
++        const stored = await readRoot()
++        expect(stored.statics.messages).toBe(11)
++        expect(stored.statics.bgOrchestrationApplied).toEqual([
++            { operationId, cumulative: 1 },
++        ])

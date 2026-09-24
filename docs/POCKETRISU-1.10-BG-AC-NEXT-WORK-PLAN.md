@@ -1,5 +1,9 @@
 # PocketRisu 1.10 BG server chat save × Archive Center next-work plan
 
+> Historical H0–H7 dependency plan. The current execution order is the public
+> G1→G2→G3 ordered goals; current G1 root-effect work is specified in
+> `POCKETRISU-1.10-BG-INDEPENDENT-G1-ROOT-EFFECT-IMPLEMENTATION-PLAN.md`.
+
 - Plan date: 2026-09-20 KST
 - Starting implementation/evidence checkpoint: `df7fed77700a9695f0a78cb406ee8996c0920349`
 - Product capability at start: `inputCommandVersion=0`
