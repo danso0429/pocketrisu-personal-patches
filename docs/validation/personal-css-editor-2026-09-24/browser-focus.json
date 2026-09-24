@@ -1,0 +1,8 @@
+{
+  "cssCancelFocus": "passed",
+  "trialDraftLock": "passed",
+  "trialCancelFocusAndDraft": "passed",
+  "fontCancelFocus": "passed",
+  "selectedFontPreserved": "passed",
+  "pageErrors": []
+}

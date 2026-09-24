@@ -32,15 +32,20 @@
     let showRaw = $state(false)
     let filter = $state('')
     let generation = 0
-    function close() {
+    let origin: HTMLElement | null = null
+    let returnFocus = $state(false)
+    let fontSelect = $state<HTMLSelectElement>()
+    function close(focus = true) {
         ++generation
         controller?.abort()
         previewOwner?.clear()
         previewOwner = undefined
         editing = false; pending = false; candidate = null; bytes = undefined; file = undefined; url = ''; bytesRead = 0
+        returnFocus = focus
     }
-    function open(entry?: CustomFont) {
-        close()
+    function open(entry?: CustomFont, event?: MouseEvent) {
+        close(false)
+        origin = event?.currentTarget as HTMLElement ?? null
         editing = true; replacing = entry?.id; name = entry?.name ?? ''; base = fontEditBase(); status = ''
     }
     async function preview() {
@@ -100,15 +105,22 @@
     }
     $effect(() => {
         if (paused) {
-            if (editing) close()
+            if (editing) close(false)
         }
     })
-    onDestroy(close)
+    $effect(() => {
+        if (returnFocus && !editing && !pending && !busy) {
+            returnFocus = false
+            if (origin?.isConnected && !origin.hasAttribute('disabled')) origin.focus()
+            else fontSelect?.focus()
+        }
+    })
+    onDestroy(() => close(false))
 </script>
 
 <section class="mt-3 space-y-3" aria-label="채팅 폰트 관리" data-setting-id="personal.appearance.chatFont">
     <label class="block">채팅 폰트
-        <select aria-label="채팅 폰트" class="w-full min-h-11 p-2 bg-darkbg rounded" value={selected} disabled={busy || pending || editing} onchange={(e) => { const value = e.currentTarget.value; e.currentTarget.value = selected; void choose(value) }}>
+        <select aria-label="채팅 폰트" bind:this={fontSelect} class="w-full min-h-11 p-2 bg-darkbg rounded" value={selected} disabled={busy || pending || editing} onchange={(e) => { const value = e.currentTarget.value; e.currentTarget.value = selected; void choose(value) }}>
             {#each builtins as [value, label]}<option {value}>{label}</option>{/each}
             {#each fonts.value.custom ?? [] as entry (entry.id)}<option value={`custom:${entry.id}`} disabled={!customSupported}>{entry.name}</option>{/each}
             {#if !builtins.some(([value]) => value === selected) && !(fonts.value.custom ?? []).some(f => `custom:${f.id}` === selected)}<option value={selected}>저장된 폰트를 확인할 수 없음 · 앱 폰트 사용</option>{/if}
@@ -131,7 +143,7 @@
     {:else}
         <p class="text-xs">사용자 폰트 {fonts.value.custom?.length ?? 0} / {FONT_LIMITS.count} · 고유 파일 {storedBytes.toLocaleString()} / {FONT_LIMITS.total.toLocaleString()} bytes · 파일당 {FONT_LIMITS.file.toLocaleString()} bytes</p>
         {#if storedBytes >= FONT_LIMITS.warningTotal || (fonts.value.custom?.length ?? 0) >= FONT_LIMITS.warningCount}<p role="status">폰트가 많습니다. 백업 크기와 모바일 메모리 사용에 주의하세요.</p>{/if}
-        <button class="action" disabled={busy || pending || editing || paused || !customSupported} onclick={() => open()}>사용자 폰트 추가</button>
+        <button class="action" disabled={busy || pending || editing || paused || !customSupported} onclick={(event) => open(undefined, event)}>사용자 폰트 추가</button>
         {#if paused}<p class="text-xs">사용자 폰트 미리보기는 Standard 테마에서 전체 사용을 켜고 Safe Mode·복구 모드를 종료한 뒤 사용할 수 있습니다.</p>{/if}
         {#if editing}
             <form class="border border-primary rounded p-3 space-y-3" onsubmit={(e) => { e.preventDefault(); void preview() }}>
@@ -149,7 +161,7 @@
                     <p class="text-xl" style:font-family={customFontFamily(candidate)}>가나다라마바사 ABC xyz 日本語の文章 简体中文 繁體中文 Français été cœur</p>
                     <button type="button" class="action" disabled={pending || busy} onclick={save}>폰트 저장</button>
                 {:else}<button type="submit" class="action" disabled={pending || busy}>미리보기</button>{/if}
-                <button type="button" class="action" disabled={busy || (pending && !!candidate)} onclick={close}>취소</button>
+                <button type="button" class="action" disabled={busy || (pending && !!candidate)} onclick={() => close()}>취소</button>
             </form>
         {/if}
         <label class="block">사용자 폰트 검색 <input class="w-full bg-darkbg p-2" bind:value={filter} /></label>
@@ -157,7 +169,7 @@
             <div class="rounded border border-darkborderc p-3">
                 <p style:overflow-wrap="anywhere">{entry.name} · {entry.format} · {entry.byteLength.toLocaleString()} bytes</p>
                 <button class="action" disabled={busy || pending || editing} onclick={() => void rename(entry)}>이름 변경</button>
-                <button class="action" disabled={busy || pending || editing || paused || !customSupported} onclick={() => open(entry)}>파일 교체</button>
+                <button class="action" disabled={busy || pending || editing || paused || !customSupported} onclick={(event) => open(entry, event)}>파일 교체</button>
                 <button class="action" disabled={busy || pending || editing} onclick={() => void remove(entry)}>제거</button>
             </div>
         {/each}

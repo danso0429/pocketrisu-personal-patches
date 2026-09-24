@@ -13,6 +13,7 @@ export class PersonalCssRuntime {
     private anchor: Comment
     private observer: MutationObserver | undefined
     private dialog: HTMLDivElement | undefined
+    private initiatingControl: HTMLElement | null = null
     private timer: ReturnType<typeof setTimeout> | undefined
     private candidate: CssSnapshot | undefined
     private safetyInterrupted = false
@@ -152,6 +153,7 @@ export class PersonalCssRuntime {
         this.reconcile(snapshot)
     }
     private showConfirmation(): void {
+        this.initiatingControl = this.doc.activeElement as HTMLElement | null
         const host = this.doc.createElement('div')
         host.setAttribute('data-personal-css-confirmation', '')
         host.style.cssText = 'position:fixed;inset:16px 12px auto;z-index:2147483647;display:block;'
@@ -174,6 +176,14 @@ export class PersonalCssRuntime {
         this.doc.body.append(host)
         this.dialog = host
         shadow.querySelector('button')?.focus()
+    }
+    private restoreFocus(): void {
+        const control = this.initiatingControl
+        this.initiatingControl = null
+        this.doc.defaultView?.requestAnimationFrame(() => {
+            if (!this.disposed && this.phase === 'idle' && this.doc.activeElement === this.doc.body
+                && control?.isConnected && !control.hasAttribute('disabled')) control.focus()
+        })
     }
     async confirm(): Promise<void> {
         if (this.phase !== 'trial' || !this.confirmAction) return
@@ -201,6 +211,7 @@ export class PersonalCssRuntime {
         this.rollbackResources = undefined
         this.publish()
         this.sync()
+        this.restoreFocus()
     }
     async save(action: () => Promise<void>): Promise<void> {
         if (this.busy) throw new Error('다른 저장이 진행 중입니다.')
@@ -226,6 +237,7 @@ export class PersonalCssRuntime {
         this.message = message
         this.publish()
         this.sync()
+        this.restoreFocus()
     }
     async clearRecovery(expected: CssSnapshot, persistRepairFlag: () => Promise<void>): Promise<void> {
         if (this.safetyInterrupted || !sameValue(this.snapshot(), expected) || !this.active()) throw new Error('시험 적용 후 설정이 바뀌었습니다. 다시 확인하세요.')

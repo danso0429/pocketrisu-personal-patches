@@ -9,6 +9,8 @@
     let draft = $state<EffectiveCssToggle | null>(null)
     let base: unknown
     let origin: HTMLElement | null = null
+    let returnFocus = $state(false)
+    let filterInput = $state<HTMLInputElement>()
     let error = $state('')
     let showRaw = $state(false)
     const read = $derived(readCssToggles(DBState.db))
@@ -17,7 +19,14 @@
     const busy = $derived($personalCssStatus.phase !== 'idle')
     const totalBytes = $derived(storedCssBytes(DBState.db))
     const recoveryUrl = typeof window === 'undefined' ? '' : (() => { const url = new URL(window.location.href); url.searchParams.set('safe-css', '1'); return url.href })()
-    function close() { draft = null; error = ''; origin?.focus() }
+    function close() { draft = null; error = ''; returnFocus = true }
+    $effect(() => {
+        if (returnFocus && !draft && !busy) {
+            returnFocus = false
+            if (origin?.isConnected && !origin.hasAttribute('disabled')) origin.focus()
+            else filterInput?.focus()
+        }
+    })
     function open(item?: EffectiveCssToggle, event?: MouseEvent) {
         if (draft) { error = '열린 초안을 먼저 저장하거나 취소하세요.'; return }
         origin = event?.currentTarget as HTMLElement ?? null
@@ -62,7 +71,7 @@
             <button class="action" disabled={busy} onclick={() => { if (window.confirm('CSS 토글 하위 설정만 초기화할까요? 복사한 원본을 보관하세요.')) void run({ kind: 'reset-group' }) }}>CSS 하위 설정 초기화</button>
         {/if}
     {:else}
-        <label class="block">이름·설명 검색 <input class="w-full rounded p-2 bg-darkbg" bind:value={filter} /></label>
+        <label class="block">이름·설명 검색 <input class="w-full rounded p-2 bg-darkbg" bind:this={filterInput} bind:value={filter} /></label>
         <div class="flex flex-wrap items-center gap-2">
             <button class="action" disabled={busy || !!draft} onclick={(e) => open(undefined, e)}>새 CSS 추가</button>
             <span class="text-xs">저장된 CSS {totalBytes.toLocaleString()} / {CSS_LIMITS.total.toLocaleString()} bytes · 사용자 항목 {read.value.custom?.length ?? 0} / {CSS_LIMITS.count}</span>
@@ -70,14 +79,14 @@
         {#if totalBytes >= CSS_LIMITS.warningTotal || (read.value.custom?.length ?? 0) >= CSS_LIMITS.warningCount}<p role="status">저장된 CSS가 많습니다. 꺼진 항목도 저장·백업 비용에 포함됩니다.</p>{/if}
         {#if draft}
             <form class="rounded border border-primary p-3 space-y-3" onsubmit={(e) => { e.preventDefault(); save() }}>
-                <label class="block">이름 <input class="w-full rounded p-2 bg-darkbg" bind:value={draft.name} /></label>
+                <label class="block">이름 <input class="w-full rounded p-2 bg-darkbg" readonly={busy} bind:value={draft.name} /></label>
                 <p class="text-xs">{utf8Bytes(draft.name)} / {CSS_LIMITS.name} bytes</p>
-                <label class="block">설명 <textarea class="w-full rounded p-2 bg-darkbg" bind:value={draft.description}></textarea></label>
+                <label class="block">설명 <textarea class="w-full rounded p-2 bg-darkbg" readonly={busy} bind:value={draft.description}></textarea></label>
                 <p class="text-xs">{utf8Bytes(draft.description)} / {CSS_LIMITS.description} bytes</p>
-                <label class="block">CSS <textarea class="w-full h-64 rounded p-2 bg-darkbg font-mono text-sm" spellcheck="false" bind:value={draft.css}></textarea></label>
+                <label class="block">CSS <textarea class="w-full h-64 rounded p-2 bg-darkbg font-mono text-sm" spellcheck="false" readonly={busy} bind:value={draft.css}></textarea></label>
                 <p class="text-xs">{utf8Bytes(draft.css).toLocaleString()} / {CSS_LIMITS.item.toLocaleString()} bytes</p>
                 {#if utf8Bytes(draft.css) >= CSS_LIMITS.warningItem}<p role="status">큰 CSS 규칙입니다. 실제 기기에서 스크롤·입력·복구 동작을 확인하세요.</p>{/if}
-                <label class="flex items-center gap-2 min-h-11"><input type="checkbox" bind:checked={draft.enabled} /> 저장 후 켜기 (적용이 중지된 동안 수정하면 끄세요)</label>
+                <label class="flex items-center gap-2 min-h-11"><input type="checkbox" disabled={busy} bind:checked={draft.enabled} /> 저장 후 켜기 (적용이 중지된 동안 수정하면 끄세요)</label>
                 <button class="action" type="submit" disabled={busy}>시험 적용 / 저장</button>
                 <button class="action" type="button" disabled={busy} onclick={close}>취소</button>
             </form>

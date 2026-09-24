@@ -87,6 +87,12 @@ contains 42 packs, 979 units, 361 managed paths, and 13 ordered collisions.
 The repeated native browser run additionally verified selected-font preview
 cancellation and recovery-exit font tokens against the real SQLite APIs.
 
+The final focus refinement passed 78 focused tests, Svelte diagnostics 0/0,
+the production build, all five owner graphs, and the 51-file patcher suite.
+A built-app browser check verified return to the CSS edit and font-add buttons,
+read-only draft fields during trial, and preservation of both the draft and
+the selected font after cancellation. It observed no page errors.
+
 `scripts/verify-personal-css.cjs` runs five focused/complete owner graphs against
 a separate pristine target. Each graph applies transactionally, reports current
 state, re-plans without changes, runs embedded Personal tests, exercises the
