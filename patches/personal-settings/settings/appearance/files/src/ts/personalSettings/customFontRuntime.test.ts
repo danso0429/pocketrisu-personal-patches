@@ -3,6 +3,56 @@ import { CustomFontRuntime, customFontFamily } from './customFontRuntime'
 import { fontDigest } from './customFonts'
 const bytes = new Uint8Array([119, 79, 70, 50, ...Array(12).fill(0)])
 let owner: CustomFontRuntime | undefined
+async function sharedFaceHarness(run: (font: any, read: () => Promise<Uint8Array>, faces: Set<FontFace>, preview: CustomFontRuntime, selected: CustomFontRuntime) => Promise<void>) {
+    const previousConstructor = window.FontFace, previousFonts = document.fonts
+    const faces = new Set<FontFace>()
+    class Face { status = 'loaded'; constructor(readonly family: string) {} async load() { return this } }
+    Object.defineProperty(window, 'FontFace', { configurable: true, value: Face })
+    Object.defineProperty(document, 'fonts', { configurable: true, value: faces })
+    const preview = new CustomFontRuntime(document), selected = new CustomFontRuntime(document)
+    const font = { id: 'shared-face', name: 'sample', originalFileName: '', assetPath: 'assets/sample.woff2', format: 'woff2', byteLength: bytes.length, sha256: await fontDigest(bytes) }
+    try { await run(font, vi.fn(async () => bytes), faces, preview, selected) }
+    finally {
+        preview.clear(); selected.clear()
+        Object.defineProperty(window, 'FontFace', { configurable: true, value: previousConstructor })
+        Object.defineProperty(document, 'fonts', { configurable: true, value: previousFonts })
+    }
+}
+test('selection borrows a verified preview without another read and survives preview teardown', async () => {
+    await sharedFaceHarness(async (font, read, faces, preview, selected) => {
+        const face = await preview.load(font, read)
+        expect(await selected.load(font, read)).toBe(face)
+        expect(read).toHaveBeenCalledTimes(1)
+        selected.activate(font, face)
+        preview.clear()
+        expect(faces.has(face)).toBe(true)
+        expect(selected.matches(font)).toBe(true)
+        selected.clear()
+        expect(faces.size).toBe(0)
+        await preview.load(font, read)
+        expect(read).toHaveBeenCalledTimes(2)
+    })
+})
+test('same-owner preparation retains independent rollback handles', async () => {
+    await sharedFaceHarness(async (font, read, faces, _preview, selected) => {
+        const active = await selected.load(font, read)
+        selected.activate(font, active)
+        const pending = await selected.load(font, read)
+        expect(pending).not.toBe(active)
+        selected.release(pending)
+        expect(faces.has(active)).toBe(true)
+        expect(selected.matches(font)).toBe(true)
+    })
+})
+test('borrow keys include storage path and integrity metadata', async () => {
+    await sharedFaceHarness(async (font, read, _faces, preview, selected) => {
+        const first = await preview.load(font, read)
+        expect(await selected.load({ ...font, assetPath: 'assets/other.woff2' }, read)).not.toBe(first)
+        expect(read).toHaveBeenCalledTimes(2)
+        await expect(selected.load({ ...font, sha256: '0'.repeat(64) }, read)).rejects.toThrow('무결성')
+        expect(read).toHaveBeenCalledTimes(3)
+    })
+})
 afterEach(() => { owner?.clear(); vi.restoreAllMocks() })
 test('waits for load, uses only code-owned family, and deletes only owned faces', async () => {
     const add = vi.fn(); const remove = vi.fn()

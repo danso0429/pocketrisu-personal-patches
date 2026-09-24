@@ -124,7 +124,7 @@ export async function trialAppearanceActivation(): Promise<void> {
     } catch (error) { if (prepared) owner.release(prepared); throw error }
 }
 let fontGeneration = 0
-let selectedFontKey = ''
+let selectedFontKey: string | null = ''
 export function disposePersonalAppearance(): void {
     ++fontGeneration
     selectedFontKey = ''
@@ -175,9 +175,11 @@ export async function commitFont(make: (db: Database) => void, base: unknown, do
             if (!sameValue(fontEditBase(), expected)) throw new Error('저장 중 폰트 목록 또는 선택이 변경되었습니다.')
         })
         done()
-        selectedFontKey = ''
-        syncCustomFont()
     })
+    // Font synchronization deliberately skips the saving lane. Run it only
+    // after that lane closes, including clearing a formerly selected face.
+    selectedFontKey = null
+    syncCustomFont()
 }
 export async function persistImportedFont(entry: CustomFont, bytes: Uint8Array, base: unknown, done: () => void): Promise<void> {
     if (!sameValue(fontEditBase(), base)) throw new Error('미리보기 후 폰트 설정이 변경되었습니다.')

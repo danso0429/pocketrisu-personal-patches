@@ -1,6 +1,6 @@
 <script lang="ts">
-    import { onMount } from 'svelte'
-    import { CustomFontRuntime, customFontFamily } from 'src/ts/personalSettings/customFontRuntime'
+    import { onMount, untrack } from 'svelte'
+    import { CustomFontRuntime, customFontFamily, customFontIdentity } from 'src/ts/personalSettings/customFontRuntime'
     import { readFontAsset } from 'src/ts/personalSettings/appearanceEditor'
     import { ensurePersonalChatFontStylesheet, getPersonalChatFontFamily, type PersonalChatFont } from 'src/ts/personalSettings/appearanceValues'
     import type { CustomFont } from 'src/ts/personalSettings/customFonts'
@@ -10,6 +10,7 @@
     let visible = $state(false)
     let family = $state('inherit')
     let loadStatus = $state('')
+    const previewIdentity = $derived(entry ? customFontIdentity(entry) : value)
 
     onMount(() => {
         if (!window.IntersectionObserver) { visible = true; return }
@@ -20,14 +21,14 @@
         return () => observer.disconnect()
     })
     $effect(() => {
+        previewIdentity
         family = 'inherit'; loadStatus = ''
-        if (!visible || paused || value === 'app') return
+        if (!visible || paused) return
+        const { font, builtinValue, sample } = untrack(() => ({ font: entry ? { ...entry } : undefined, builtinValue: value, sample: label }))
+        if (builtinValue === 'app') return
         let cancelled = false
         const owner = new CustomFontRuntime(document)
-        const font = entry ? { ...entry } : undefined
-        const builtin = getPersonalChatFontFamily(value)
-        const sample = label
-        const builtinValue = value
+        const builtin = getPersonalChatFontFamily(builtinValue)
         loadStatus = '폰트 미리보기 로딩 중'
         void (async () => {
             try {

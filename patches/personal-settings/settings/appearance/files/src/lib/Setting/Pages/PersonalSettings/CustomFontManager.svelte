@@ -80,6 +80,7 @@
         finally { pending = false }
     }
     async function choose(value: string) {
+        if (value === selected) return
         status = ''; pending = true
         try {
             if (value.startsWith('custom:')) await selectCustomFont(value.slice(7), fontEditBase())

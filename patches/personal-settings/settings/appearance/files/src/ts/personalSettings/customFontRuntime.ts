@@ -3,6 +3,9 @@ import { validPersonalId } from './cssToggles'
 import { writable } from 'svelte/store'
 
 export const customFontLoadStatus = writable('')
+const preparedFaces = new WeakMap<Document, Map<string, Set<FontFace>>>()
+const faceOwners = new WeakMap<FontFace, Set<CustomFontRuntime>>()
+export const customFontIdentity = (font: CustomFont) => JSON.stringify([font.id, font.sha256, font.assetPath, font.byteLength, font.format])
 
 export const customFontFamily = (font: CustomFont) => {
     if (!validPersonalId(font.id) || !/^[a-f0-9]{64}$/.test(font.sha256)) throw new Error('폰트 식별자가 올바르지 않습니다.')
@@ -12,11 +15,29 @@ export const customFontFamily = (font: CustomFont) => {
 export class CustomFontRuntime {
     private generation = 0
     private active: { font: CustomFont; face: FontFace } | undefined
-    private owned = new Set<FontFace>()
+    private owned = new Map<FontFace, string>()
     constructor(readonly doc: Document) {}
     get supported(): boolean { return !!this.doc.defaultView?.FontFace && !!this.doc.fonts }
     get hasActive(): boolean { return !!this.active }
+    private claim(face: FontFace, key: string): void {
+        this.owned.set(face, key)
+        const owners = faceOwners.get(face) ?? new Set<CustomFontRuntime>()
+        owners.add(this); faceOwners.set(face, owners)
+        const pool = preparedFaces.get(this.doc) ?? new Map<string, Set<FontFace>>()
+        const faces = pool.get(key) ?? new Set<FontFace>()
+        faces.add(face); pool.set(key, faces); preparedFaces.set(this.doc, pool)
+    }
     async load(font: CustomFont, read: () => Promise<Uint8Array>, register = true): Promise<FontFace> {
+        const key = customFontIdentity(font)
+        for (const face of preparedFaces.get(this.doc)?.get(key) ?? []) {
+            // Borrow only a verified, loaded face owned by another live consumer.
+            // Same-owner calls keep independent handles for existing rollback paths.
+            if (this.supported && !this.owned.has(face) && face.status === 'loaded' && this.doc.fonts.has?.(face)) {
+                this.claim(face, key)
+                if (register) this.doc.fonts.add(face)
+                return face
+            }
+        }
         const generation = this.generation
         const bytes = await read()
         if (generation !== this.generation) throw new Error('폰트 로드가 취소되었습니다.')
@@ -31,7 +52,7 @@ export class CustomFontRuntime {
         await face.load()
         if (generation !== this.generation) throw new Error('폰트 미리보기가 취소되었습니다.')
         if (register) this.doc.fonts.add(face)
-        this.owned.add(face)
+        this.claim(face, customFontIdentity(font))
         return face
     }
     activate(font: CustomFont, face: FontFace): void {
@@ -45,7 +66,19 @@ export class CustomFontRuntime {
     }
     matches(font: CustomFont): boolean { return this.active?.font.id === font.id && this.active.font.sha256 === font.sha256 }
     release(face: FontFace): void {
-        if (this.owned.delete(face)) this.doc.fonts.delete(face)
+        const key = this.owned.get(face)
+        if (key !== undefined) {
+            this.owned.delete(face)
+            const owners = faceOwners.get(face)
+            owners?.delete(this)
+            if (!owners?.size) {
+                this.doc.fonts.delete(face)
+                faceOwners.delete(face)
+                const pool = preparedFaces.get(this.doc), faces = pool?.get(key)
+                faces?.delete(face)
+                if (!faces?.size) pool?.delete(key)
+            }
+        }
         if (this.active?.face === face) {
             const family = `"${customFontFamily(this.active.font)}", sans-serif`
             this.active = undefined
@@ -57,6 +90,6 @@ export class CustomFontRuntime {
     }
     clear(): void {
         ++this.generation
-        for (const face of [...this.owned]) this.release(face)
+        for (const face of [...this.owned.keys()]) this.release(face)
     }
 }
