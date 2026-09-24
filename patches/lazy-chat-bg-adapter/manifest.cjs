@@ -21,7 +21,7 @@ const bgGlobalApiUnits = [
 module.exports = {
     id: 'lazy-chat-bg-adapter',
     title: 'BG preserve integration for lazy chat storage',
-    version: '0.7.1',
+    version: '0.7.2',
     targets: {
         pocketrisu: {
             verified: ['1.8.1', '1.9.0', '1.10.0'],
@@ -732,6 +732,22 @@ function retainUncommittedServerChat(
             targetVersions: pocketRisu1100,
         },
         {
+            id: 'lazy-chat-bg-adapter:owned:server-chat-input-drain:1.10',
+            file: 'server/node/serverChatInputDrain.cjs',
+            type: 'owned',
+            content: owned1100('server/node/serverChatInputDrain.cjs'),
+            requires: ['lazy-chat-bg-adapter:owned:server-chat-input-owner:1.10'],
+            targetVersions: pocketRisu1100,
+        },
+        {
+            id: 'lazy-chat-bg-adapter:owned:server-chat-input-drain-test:1.10',
+            file: 'server/node/serverChatInputDrain.test.ts',
+            type: 'owned',
+            content: owned1100('server/node/serverChatInputDrain.test.ts'),
+            requires: ['lazy-chat-bg-adapter:owned:server-chat-input-drain:1.10'],
+            targetVersions: pocketRisu1100,
+        },
+        {
             id: 'lazy-chat-bg-adapter:owned:server-chat-settings-context:1.10',
             file: 'server/node/serverChatSettingsContext.cjs',
             type: 'owned',
@@ -1405,6 +1421,14 @@ const serverChatCommitOwner = createServerChatCommitOwner({
           return res.status(409).json({
             handled: false, started: false, operationId,
             reason: 'server-input-command-unavailable',
+          })
+        }
+        if (inputCommandVersion === 1
+          && ((chatProcessIndex !== undefined && chatProcessIndex !== -1)
+            || runLLM || runFull || clientFormated !== undefined)) {
+          return res.status(409).json({
+            handled: false, started: false, operationId,
+            reason: 'server-input-command-mode-unsupported',
           })
         }
         let serverInputExecution = null
@@ -2267,6 +2291,87 @@ const serverChatCommitOwner = createServerChatCommitOwner({
         })
 `,
             requires: ['lazy-chat-bg-adapter:server-chat-commit-running-response:1.10'],
+            targetVersions: pocketRisu1100,
+        },
+        {
+            id: 'lazy-chat-bg-adapter:server-input-drain-handler:1.10',
+            file: 'server/node/bgOrchestrator.cjs',
+            type: 'replace',
+            anchor: `  app.post('/api/bg-orchestrate', sessionAuthMiddleware, async (req, res) => {
+`,
+            content: `  let inputDrain = null
+  const handleOrchestrateStart = async (req, res) => {
+`,
+            requires: [
+                'lazy-chat-bg-adapter:server-input-capabilities:1.10',
+                'lazy-chat-bg-adapter:server-chat-commit-start-response:1.10',
+                'lazy-chat-bg-adapter:owned:server-chat-input-drain-test:1.10',
+            ],
+            targetVersions: pocketRisu1100,
+        },
+        {
+            id: 'lazy-chat-bg-adapter:server-input-mode-preflight:1.10',
+            file: 'server/node/bgOrchestrator.cjs',
+            type: 'replace',
+            anchor: `      const { selectedCharId, selectedChatId, chatProcessIndex, currentChat, clientFormated, runLLM, runFull, detached } = req.body || {}
+`,
+            content: `      const { selectedCharId, selectedChatId, chatProcessIndex, currentChat, clientFormated, runLLM, runFull, detached } = req.body || {}
+      if (req.body?.inputCommandVersion === 1
+        && (!detached || !selectedCharId || !selectedChatId || !currentChat)) {
+        return res.status(409).json({
+          handled: false, started: false,
+          operationId: validOperationId(req.body?.operationId) ? req.body.operationId : null,
+          reason: 'server-input-command-mode-unsupported',
+        })
+      }
+`,
+            requires: ['lazy-chat-bg-adapter:server-input-drain-enqueue:1.10'],
+            targetVersions: pocketRisu1100,
+        },
+        {
+            id: 'lazy-chat-bg-adapter:server-input-drain-enqueue:1.10',
+            file: 'server/node/bgOrchestrator.cjs',
+            type: 'replace',
+            anchor: `          if (serverInputExecution && serverInputExecution.status === 'waiting') {
+            return res.status(202).json({
+`,
+            content: `          if (serverInputExecution && serverInputExecution.status === 'waiting') {
+            inputDrain.enqueue(operationId, req.body)
+            return res.status(202).json({
+`,
+            requires: ['lazy-chat-bg-adapter:server-input-drain-handler:1.10'],
+            targetVersions: pocketRisu1100,
+        },
+        {
+            id: 'lazy-chat-bg-adapter:server-input-drain-registration:1.10',
+            file: 'server/node/bgOrchestrator.cjs',
+            type: 'replace',
+            anchor: `  })
+
+  // M8: reconcile a lost detached-start response by exact operation identity. Active/finished
+`,
+            content: `  }
+  app.post('/api/bg-orchestrate', sessionAuthMiddleware, handleOrchestrateStart)
+  if (serverChatInputOwner) {
+    const { createServerChatInputDrain } = require('./serverChatInputDrain.cjs')
+    inputDrain = createServerChatInputDrain({
+      loadExecution: (operationId) => serverChatInputOwner.loadExecution(operationId),
+      start: async (body) => {
+        let status = 200
+        let payload = null
+        const response = {
+          status(value) { status = value; return this },
+          json(value) { payload = value; return value },
+        }
+        await handleOrchestrateStart({ body }, response)
+        return { status, started: payload?.started === true }
+      },
+    })
+  }
+
+  // M8: reconcile a lost detached-start response by exact operation identity. Active/finished
+`,
+            requires: ['lazy-chat-bg-adapter:server-input-mode-preflight:1.10'],
             targetVersions: pocketRisu1100,
         },
     ],

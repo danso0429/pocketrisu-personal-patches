@@ -571,7 +571,7 @@ describe('server chat composed process boundary', () => {
         30_000,
     )
 
-    it('recovers N to response N to input N+1 and keeps a third nonterminal command fail-closed', async () => {
+    it('automatically drains N+1 after N without a second client request and keeps a third command fail-closed', async () => {
         const runtimeRoot = makeRuntimeRoot()
         await seedRuntime(runtimeRoot)
         const first = await startServer(runtimeRoot)
@@ -611,10 +611,6 @@ describe('server chat composed process boundary', () => {
                 && message.receipt?.operationId === operationN,
         )
         await readResult(first, operationN)
-        expect(await submitFromDisposableClient(first, bodyN1)).toMatchObject({
-            status: 200,
-            body: { handled: true, started: true, operationId: operationN1 },
-        })
         await first.waitFor('provider-waiting', message => message.operationId === operationN1)
         await stopChild(first.child, 'SIGKILL')
 

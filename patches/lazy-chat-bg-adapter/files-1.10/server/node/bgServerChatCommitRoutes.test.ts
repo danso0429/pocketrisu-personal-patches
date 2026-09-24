@@ -608,6 +608,7 @@ describe('server chat commit route precedence', () => {
         const operationId = 'operation-input-waiting-route-2'
         const predecessorOperationId = 'operation-input-waiting-route-1'
         let startCalls = 0
+        let admissionCalls = 0
         registerBgOrchestrator(app, {
             sessionAuthMiddleware: () => {},
             ensureChatStore: async () => {},
@@ -628,7 +629,7 @@ describe('server chat commit route precedence', () => {
             },
             serverChatCommitOwner: {},
             serverChatInputOwner: {
-                admit: async () => ({ status: 'admitted', reused: false }),
+                admit: async () => { admissionCalls += 1; return { status: 'admitted', reused: false } },
                 loadExecution: async () => ({
                     status: 'waiting',
                     reason: 'predecessor_active',
@@ -641,26 +642,25 @@ describe('server chat commit route precedence', () => {
             status(code: number) { response.status = code; return this },
             json(body: unknown) { response.body = body; return this },
         }
-        await routes.get('POST /api/bg-orchestrate')!({
-            body: {
-                detached: true,
-                startAckVersion: 1,
-                resultKeyVersion: 1,
-                serverChatCommitVersion: 1,
-                inputCommandVersion: 1,
-                selectedCharId: 'char-1',
-                selectedChatId: 'chat-1',
-                currentChat: { id: 'chat-1', message: [] },
-                baseChatRevision: 'a'.repeat(64),
-                operationId,
-                inputCommand: {
-                    inputCommandId: 'input-waiting-route-2',
-                    userMessageId: 'user-waiting-route-2',
-                    rawText: 'next',
-                    submittedAt: 1_700_000_000_000,
-                },
+        const body = {
+            detached: true,
+            startAckVersion: 1,
+            resultKeyVersion: 1,
+            serverChatCommitVersion: 1,
+            inputCommandVersion: 1,
+            selectedCharId: 'char-1',
+            selectedChatId: 'chat-1',
+            currentChat: { id: 'chat-1', message: [] },
+            baseChatRevision: 'a'.repeat(64),
+            operationId,
+            inputCommand: {
+                inputCommandId: 'input-waiting-route-2',
+                userMessageId: 'user-waiting-route-2',
+                rawText: 'next',
+                submittedAt: 1_700_000_000_000,
             },
-        }, res)
+        }
+        await routes.get('POST /api/bg-orchestrate')!({ body }, res)
 
         expect(response).toEqual({
             status: 202,
@@ -678,6 +678,26 @@ describe('server chat commit route precedence', () => {
             },
         })
         expect(startCalls).toBe(0)
+        expect(admissionCalls).toBe(1)
+
+        const unsupported = { status: 200, body: null as any }
+        const unsupportedResponse = {
+            status(code: number) { unsupported.status = code; return this },
+            json(value: unknown) { unsupported.body = value; return this },
+        }
+        await routes.get('POST /api/bg-orchestrate')!({
+            body: { ...body, detached: false },
+        }, unsupportedResponse)
+        expect(unsupported).toEqual({
+            status: 409,
+            body: {
+                handled: false,
+                started: false,
+                operationId,
+                reason: 'server-input-command-mode-unsupported',
+            },
+        })
+        expect(admissionCalls).toBe(1)
     })
 
     it('admits, attaches, and commits a pre-canonical input through the detached route', async () => {
