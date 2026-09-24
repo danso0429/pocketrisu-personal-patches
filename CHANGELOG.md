@@ -1,5 +1,16 @@
 # Changelog
 
+## 0.2.3-experimental.5
+
+- Reuse already verified and loaded font faces across live preview/selection
+  owners; release them only after the last owner is finished. Keep independent
+  same-owner preparation handles for rollback and preserve integrity/path keys.
+- Keep previews stable when only appearance object identity or metadata changes.
+- Save individual CSS enable/disable switches directly without a visual trial
+  or confirmation dialog; retain strict save acknowledgement and recovery gates.
+- Merge the recovery block into the top Standard-only notice at the same small
+  text size. CSS text editing and explicit recovery exit retain their trials.
+
 ## 0.2.3-experimental.4
 
 - Format Personal CSS and font sizes as one-decimal decimal KB/MB values while

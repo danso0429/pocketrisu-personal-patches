@@ -2,6 +2,12 @@
 
 Date: 2026-09-24 KST
 
+Current behavior amendment (`experimental.5`): individual CSS enable/disable
+switches now save directly without trial confirmation. The historical trial
+expectation for those switches below no longer applies. CSS text/order edits
+and explicit recovery exit retain their trials. See the
+[current follow-up](POCKETRISU-FONT-SAVE-SWITCH-VALIDATION.md).
+
 ## Scope and status
 
 Candidate: `0.2.3-experimental.1`, Personal settings `0.5.0`, exact PocketRisu
