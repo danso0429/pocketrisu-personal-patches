@@ -1,6 +1,7 @@
 <script lang="ts">
     import CssToggleManager from './CssToggleManager.svelte'
     import CustomFontManager from './CustomFontManager.svelte'
+    import CssRecoveryNotice from './CssRecoveryNotice.svelte'
     import SettingRenderer from 'src/lib/Setting/SettingRenderer.svelte'
     import { language } from 'src/lang'
     import { DBState, SafeModeStore } from 'src/ts/stores.svelte'
@@ -72,8 +73,9 @@
     })
 </script>
 
-<div class="mb-3 rounded-md border border-darkborderc/70 bg-darkbg/30 p-3 text-xs text-textcolor2">
-    {language.personalAppearanceStandardOnly}
+<div class="mb-3 rounded-md border border-darkborderc/70 bg-darkbg/30 p-3 text-xs text-textcolor2 space-y-2" aria-label="꾸미기 안내 및 복구">
+    <p>{language.personalAppearanceStandardOnly}</p>
+    {#if appearance.schemaStatus !== 'unsupported'}<CssRecoveryNotice />{/if}
 </div>
 
 {#if appearance.schemaStatus === 'unsupported'}

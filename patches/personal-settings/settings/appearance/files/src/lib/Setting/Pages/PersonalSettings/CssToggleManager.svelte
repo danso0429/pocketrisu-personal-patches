@@ -2,7 +2,7 @@
     import { onDestroy } from 'svelte'
     import { DBState } from 'src/ts/stores.svelte'
     import { personalCssStatus } from 'src/ts/personalSettings/cssToggleRuntime'
-    import { appearanceRuntime, submitCssEdit, trialAppearanceActivation } from 'src/ts/personalSettings/appearanceEditor'
+    import { appearanceRuntime, submitCssEdit } from 'src/ts/personalSettings/appearanceEditor'
     import { CSS_LIMITS, cssEditBase, effectiveCssToggles, newPersonalId, rawAppearance, readCssToggles, storedCssBytes, utf8Bytes, type CssEdit, type EffectiveCssToggle } from 'src/ts/personalSettings/cssToggles'
     import { cssEditorText, storedCssFromEditor, type CssEditorText } from 'src/ts/personalSettings/cssEditorText'
     import { displaySize } from 'src/ts/personalSettings/displaySize'
@@ -21,7 +21,6 @@
     const filtered = $derived(items.filter(item => `${item.name} ${item.description}`.toLocaleLowerCase().includes(filter.toLocaleLowerCase())))
     const busy = $derived($personalCssStatus.phase !== 'idle')
     const totalBytes = $derived(storedCssBytes(DBState.db))
-    const recoveryUrl = typeof window === 'undefined' ? '' : (() => { const url = new URL(window.location.href); url.searchParams.set('safe-css', '1'); return url.href })()
     function close() { draft = null; error = ''; returnFocus = true }
     $effect(() => {
         if (returnFocus && !draft && !busy) {
@@ -46,27 +45,10 @@
         if (!draft) return
         void run({ kind: 'put', item: { id: draft.id, name: draft.name, description: draft.description, css: storedCssFromEditor(cssProjection, draft.css), enabled: draft.enabled }, shipped: draft.shipped }, base, close)
     }
-    async function activate() {
-        try { await trialAppearanceActivation() } catch (e) { error = e instanceof Error ? e.message : '시험 적용을 시작할 수 없습니다.' }
-    }
     onDestroy(() => { appearanceRuntime().cancel() })
 </script>
 
 <section class="space-y-3 mt-4" aria-label="CSS 토글 편집기">
-    <div class="rounded border border-darkborderc p-3 text-sm space-y-2">
-        <p>각 CSS는 전역 선택자·원격 URL·애니메이션을 포함할 수 있습니다. 시험 적용은 현재 로컬 규칙을 확인하며 원격 리소스의 이후 변경을 보장하지 않습니다.</p>
-        <details><summary>화면이 가려졌을 때 복구</summary>
-            <p>iPhone에서 홈화면 앱을 닫고 Safari로 아래 주소를 엽니다. 같은 서버의 개인 설정 → CSS 꾸미기에서 문제 항목을 수정해 끈 뒤, 전체 규칙 시험 적용을 확인합니다. 이후 홈화면 앱을 다시 엽니다. 복구 모드는 현재 탭에서 새로고침해도 유지됩니다.</p>
-            <input class="w-full text-black" aria-label="복구 주소" readonly value={recoveryUrl} onclick={(e) => e.currentTarget.select()} />
-        </details>
-        {#if $personalCssStatus.recovery || $personalCssStatus.validation}
-            <p role="status">CSS 적용이 중지되어 있습니다. 수정한 CSS는 끈 상태로 저장하세요. Safe Mode를 끄고 Standard 테마와 전체 사용을 켠 뒤 전체 규칙을 시험 적용할 수 있습니다.</p>
-            <button class="action" disabled={busy} onclick={activate}>전체 규칙 시험 적용 · 복구 종료</button>
-        {/if}
-        <p role="status" aria-live="polite">{$personalCssStatus.message}</p>
-        {#if $personalCssStatus.phase === 'trial' || $personalCssStatus.phase === 'preparing'}<button class="action" onclick={() => appearanceRuntime().cancel()}>시험 적용 취소</button>{/if}
-        {#if $personalCssStatus.phase === 'unresolved'}<p>저장 여부가 미확정인 동안 추가 변경은 차단됩니다. 초안을 복사해 보관한 뒤 앱을 다시 불러와 저장된 값을 확인하세요.</p>{/if}
-    </div>
     {#if error}<p role="alert" class="text-draculared">{error}</p>{/if}
     {#if !read.valid}
         <p role="alert">{read.error}</p>
@@ -101,7 +83,7 @@
                 <div class="item-row">
                     <div class="item-text">
                         <label class="flex items-center gap-3 min-h-11">
-                            <input type="checkbox" checked={item.enabled} aria-label={`${item.name} 켜기`} disabled={busy || !!draft} onchange={(e) => { const enabled = e.currentTarget.checked; e.currentTarget.checked = item.enabled; void run({ kind: 'put', item: { ...item, enabled }, shipped: item.shipped }) }} />
+                            <input type="checkbox" checked={item.enabled} aria-label={`${item.name} 켜기`} disabled={busy || !!draft} onchange={(e) => { const enabled = e.currentTarget.checked; e.currentTarget.checked = item.enabled; void run({ kind: 'toggle', id: item.id, enabled }) }} />
                             <strong class="min-w-0" style:overflow-wrap="anywhere">{item.name}</strong>
                             {#if item.modified}<span class="text-xs">수정됨{item.newerDefault ? ' · 새 기본값 있음' : ''}</span>{/if}
                         </label>

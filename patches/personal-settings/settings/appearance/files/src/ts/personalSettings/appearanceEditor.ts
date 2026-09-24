@@ -82,7 +82,7 @@ export async function submitCssEdit(edit: CssEdit, base: unknown, saved: () => v
         checkBase()
         const latest = appearanceDraft(DBState.db)
         applyCssEdit(latest, edit, suppressed)
-        if (!sameValue(currentCssSnapshot(latest), snapshot)) throw new Error('시험 적용 후 활성 설정이 바뀌었습니다. 다시 시험 적용하세요.')
+        if (!sameValue(currentCssSnapshot(latest), snapshot)) throw new Error(edit.kind === 'toggle' ? '저장 전에 활성 설정이 바뀌었습니다. 다시 시도하세요.' : '시험 적용 후 활성 설정이 바뀌었습니다. 다시 시험 적용하세요.')
     }
     const commit = async () => {
         await commitAppearance(db => applyCssEdit(db, edit, suppressed), checkProposal, () => {
@@ -91,7 +91,7 @@ export async function submitCssEdit(edit: CssEdit, base: unknown, saved: () => v
         if (suppressed) runtime.requireValidation()
         saved()
     }
-    if (!sameValue(currentCssSnapshot(DBState.db), snapshot) && !suppressed) runtime.trial(snapshot, commit)
+    if (edit.kind !== 'toggle' && !sameValue(currentCssSnapshot(DBState.db), snapshot) && !suppressed) runtime.trial(snapshot, commit)
     else await runtime.save(commit)
 }
 export async function trialAppearanceActivation(): Promise<void> {

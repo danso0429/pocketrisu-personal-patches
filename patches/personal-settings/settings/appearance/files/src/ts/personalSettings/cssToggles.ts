@@ -98,7 +98,7 @@ export function cssSnapshot(db: Database, safeMode: boolean, readyCustomFontId?:
         nodes: active ? items.filter(d => d.enabled).map(d => ({ key: `${d.shipped ? 'shipped' : 'custom'}:${d.id}`, css: d.css })) : [],
         revisions: cssToggleDefinitions.map(d => d.revision) }
 }
-export type CssEdit = { kind: 'put'; item: CustomCssToggle; shipped: boolean } | { kind: 'reset'; id: string; disable?: boolean } | { kind: 'delete'; id: string } | { kind: 'move'; id: string; direction: -1 | 1 } | { kind: 'reset-group' }
+export type CssEdit = { kind: 'put'; item: CustomCssToggle; shipped: boolean } | { kind: 'toggle'; id: string; enabled: boolean } | { kind: 'reset'; id: string; disable?: boolean } | { kind: 'delete'; id: string } | { kind: 'move'; id: string; direction: -1 | 1 } | { kind: 'reset-group' }
 export function cssEditBase(db: Database, edit: CssEdit): unknown {
     const raw = rawAppearance(db).cssToggles
     const copy = (value: unknown) => value === undefined ? undefined : JSON.parse(JSON.stringify(value))
@@ -119,7 +119,12 @@ export function applyCssEdit(db: Database, edit: CssEdit, suppressed: boolean): 
     const definition = cssToggleDefinitions.find(d => d.id === id)
     const index = value.custom.findIndex(d => d.id === id)
     const previous = effectiveCssToggles(db).find(d => d.id === id)
-    if (edit.kind === 'move') {
+    if (edit.kind === 'toggle') {
+        if (!previous) throw new Error('변경할 CSS를 찾을 수 없습니다.')
+        if (suppressed && edit.enabled) throw new Error('꾸미기 적용을 재개한 뒤 CSS를 켜세요.')
+        if (definition) setPersonalAppearanceValue(db, definition.id, definition.id === 'chat.alignment' ? (edit.enabled ? 'center' : 'left') : edit.enabled)
+        else value.custom[index] = { ...value.custom[index], enabled: edit.enabled }
+    } else if (edit.kind === 'move') {
         if (suppressed) throw new Error('꾸미기가 중지된 동안 순서를 바꿀 수 없습니다.')
         const to = index + edit.direction
         if (index < 0 || to < 0 || to >= value.custom.length) throw new Error('이동할 항목이 없습니다.')

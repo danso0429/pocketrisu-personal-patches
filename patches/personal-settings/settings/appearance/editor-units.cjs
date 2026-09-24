@@ -220,7 +220,7 @@ for (const file of [
     const relative = `src/ts/personalSettings/${file}`
     units.push({ id: `personal-settings:editor-owned-${file.replaceAll('.', '-')}`, file: relative, type: 'owned', content: owned(__dirname, relative), targetVersions })
 }
-for (const file of ['CssToggleManager.svelte', 'CustomFontManager.svelte', 'FontNamePreview.svelte']) {
+for (const file of ['CssToggleManager.svelte', 'CustomFontManager.svelte', 'FontNamePreview.svelte', 'CssRecoveryNotice.svelte']) {
     const relative = `src/lib/Setting/Pages/PersonalSettings/${file}`
     units.push({ id: `personal-settings:editor-owned-${file}`, file: relative, type: 'owned', content: owned(__dirname, relative), targetVersions })
 }

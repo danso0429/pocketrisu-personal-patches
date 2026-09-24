@@ -5,6 +5,15 @@ import { CSS_LIMITS, appearanceDraft, applyCssEdit, cssEditBase, cssSnapshot, ef
 const db = (cssToggles?: unknown) => ({ theme: '', pocketRisuPersonalSettings: { futureRoot: 2, appearance: { version: 1, enabled: true, futureAppearance: 3, cssToggles } } } as unknown as Database)
 const item = (id = 'a', css = 'body { color: red; }') => ({ id, name: id, description: '', css, enabled: true })
 describe('CSS editor storage and snapshot contract', () => {
+    test('direct toggles change only enable state and preserve authored CSS and unknown fields', () => {
+        const source = db({ version: 1, custom: [{ ...item('a'), futureItem: 7 }] })
+        applyCssEdit(source, { kind: 'toggle', id: 'a', enabled: false }, false)
+        expect(readCssToggles(source).value.custom?.[0]).toEqual({ ...item('a'), enabled: false, futureItem: 7 })
+        applyCssEdit(source, { kind: 'toggle', id: 'chat.alignment', enabled: true }, false)
+        expect(effectiveCssToggles(source)[0].enabled).toBe(true)
+        expect(readCssToggles(source).value.overrides).toEqual({})
+        expect(() => applyCssEdit(source, { kind: 'toggle', id: 'a', enabled: true }, true)).toThrow('재개')
+    })
     test('drafts preserve the root, plugins, and unrelated personal fields', () => {
         const source = db(); (source as any).plugins = [{ name: 'untouched' }]
         const before = JSON.stringify(source)
