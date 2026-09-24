@@ -549,4 +549,20 @@ work check again found native running/pending zero and BG active/result zero.
 FastImport remained at the known patched script and database blob hashes; no
 plugin or database migration write was repeated.
 
-Physical L3 remains the stable-release gate.
+Physical L3 was still open at this automatic-qualification checkpoint.
+
+## User L3 and stable admission
+
+On 2026-09-24 KST, the user reported the previously presented iPhone L3
+scenarios normal. The reported scope covers native JPEG-wrapped CharX import,
+FastImport's first-tap file chooser, empty-chat persistence, and initial
+Request/System Logs. The report does not supply per-screen latency numbers or
+a separate desktop observation; those measurements are not inferred.
+
+The subsequent `fastimport-ios-picker` exact-1.10 pack transforms only a known
+original execution copy to the already observed corrected script hash. Focused
+tests execute the final composed loader before API 2.1 execution and compare
+iOS synchronous picker versus desktop clipboard behavior. The installed live
+plugin already has the corrected script hash. The new loader path has not
+received a separate physical iPhone run; this limit is carried into the stable
+receipt instead of relabelling the prior report.

@@ -1,5 +1,25 @@
 # Changelog
 
+## 0.2.2
+
+- Promote the maintenance fixes to stable after the user reported the
+  presented iPhone L3 scenarios normal: JPEG-wrapped CharX import, FastImport
+  first-tap picker, empty new-chat persistence, and initial log views.
+- Add `fastimport-ios-picker` as an exact-PocketRisu-1.10 runtime pack. The
+  plugin loader transforms only a matching execution copy of the known
+  FastImport API 2.1 script, preserving the installed plugin array and desktop
+  Realm clipboard behavior. An unknown script revision retains its original
+  bytes and emits a warning.
+- Pass 50/50 patcher files, 153 frontend files / 1,758 tests, 23 server files /
+  233 pass with 12 skips, compatibility 74 pass / five skips, Svelte 0/0, the
+  help-key audit, the 7,941-module build, and BG bundle load.
+- Verify fresh and previous-candidate upgrade apply/current/zero-plan, and
+  exact byte/mode revert of all 344 managed paths. The complete exact-1.10
+  graph resolves 42 packs, 941 units, and 13 ordered collisions.
+- Build two byte-identical mode-0755 installers twice. Each is 7,902,434
+  bytes with SHA-256
+  `88ae0e251694b705abcc9450c264ef2fa468edfb6ac8a287d550a07fe7b2ea66`.
+
 ## 0.2.2-experimental.2
 
 - Add an exact-1.10 final-composition save test that extracts the production
