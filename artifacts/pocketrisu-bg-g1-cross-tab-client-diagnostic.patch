@@ -1,0 +1,30 @@
+--- a/src/ts/bgServerInputClient.test.ts
++++ b/src/ts/bgServerInputClient.test.ts
+@@ -168,4 +168,27 @@
+         expect(harness.flushSettings).not.toHaveBeenCalled()
+         expect(harness.start).not.toHaveBeenCalled()
+     })
++
++    it('diagnostic only: two tabs can both pass the pre-marker check before either POST', async () => {
++        const harness = makeHarness()
++        let releaseCapability!: () => void
++        const capabilityGate = new Promise<void>(resolve => { releaseCapability = resolve })
++        let capabilityReads = 0
++        harness.deps.readCapability = async () => {
++            capabilityReads += 1
++            await capabilityGate
++            return capability
++        }
++        const first = submitServerInputCommand(harness.deps, request)
++        const second = submitServerInputCommand({ ...harness.deps }, request)
++        await vi.waitFor(() => expect(capabilityReads).toBe(2))
++        releaseCapability()
++        const outcomes = await Promise.all([first, second])
++        expect(outcomes.map(outcome => outcome.kind)).toEqual(['accepted', 'accepted'])
++        expect(harness.start).toHaveBeenCalledTimes(2)
++        expect(harness.start.mock.calls.map(call => call[0].inputCommand)).toMatchObject([
++            { rawText: request.rawText }, { rawText: request.rawText },
++        ])
++        expect(readServerInputMarkers(harness.deps.storage, 1009)).toHaveLength(2)
++    })
+ })

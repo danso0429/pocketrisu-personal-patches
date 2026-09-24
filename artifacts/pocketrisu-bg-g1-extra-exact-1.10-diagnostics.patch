@@ -1,0 +1,205 @@
+--- a/server/node/bgServerChatProcessBoundary.test.ts
++++ b/server/node/bgServerChatProcessBoundary.test.ts
+@@ -961,4 +961,189 @@
+             { operationId, cumulative: 1 },
+         ])
+     }, 30_000)
++
++    it('diagnostic only: result ACK and short-lived state expiry retain input and commit lineage', async () => {
++        const runtimeRoot = makeRuntimeRoot()
++        await seedRuntime(runtimeRoot)
++        const server = await startServer(runtimeRoot)
++        const initial = await readChat(server)
++        const operationId = 'operation-h1-retention-n-1'
++        expect(await submitFromDisposableClient(
++            server, inputBody(operationId, initial.revision, 'input N'),
++        )).toMatchObject({ status: 200, body: { started: true } })
++        await server.waitFor('provider-waiting', message => message.operationId === operationId)
++        server.child.send({ scope: 'pocketrisu-h1', command: 'release-provider' })
++        await server.waitFor('commit-result', message => (
++            message.status === 'committed' && message.receipt?.operationId === operationId
++        ))
++        const delivered = await readResult(server, operationId)
++        expect(delivered).toMatchObject({ found: true, operationId })
++        const ack = await fetch(
++            `${server.baseURL}/api/bg-orchestrate-result/${operationId}/${delivered.resultId}`
++            + '?consumerId=h1-process-observer',
++            { method: 'DELETE', headers: { cookie: server.cookie } },
++        )
++        expect(ack.status).toBe(200)
++        expect(await ack.json()).toMatchObject({ acked: true })
++        const listKeys = async (prefix: string) => {
++            const response = await fetch(`${server.baseURL}/api/list`, {
++                headers: { 'risu-auth': server.token, cookie: server.cookie, 'key-prefix': prefix },
++            })
++            if (response.status !== 200) throw new Error(`list ${prefix}: ${response.status} ${await response.text()}`)
++            return (await response.json() as any).content as string[]
++        }
++        expect((await listKeys('internal/server-chat-input/v1/')).length).toBeGreaterThan(0)
++        expect((await listKeys('internal/server-chat-commit/v1/')).length).toBeGreaterThan(0)
++        await stopChild(server.child, 'SIGKILL')
++        await expireShortLivedState(runtimeRoot, operationId)
++        const restarted = await startServer(runtimeRoot)
++        const retained = async (prefix: string) => {
++            const response = await fetch(`${restarted.baseURL}/api/list`, {
++                headers: { 'risu-auth': restarted.token, cookie: restarted.cookie, 'key-prefix': prefix },
++            })
++            expect(response.status).toBe(200)
++            return (await response.json() as any).content as string[]
++        }
++        expect((await retained('internal/server-chat-input/v1/')).length).toBeGreaterThan(0)
++        expect((await retained('internal/server-chat-commit/v1/')).length).toBeGreaterThan(0)
++        expect(await readStatus(restarted, operationId)).toMatchObject({
++            status: 200,
++            body: { accepted: true, state: 'chat-committed', operationId },
++        })
++    }, 30_000)
++
++    it('diagnostic only: the server accepts an identical draft as a distinct N+1 command', async () => {
++        const runtimeRoot = makeRuntimeRoot()
++        await seedRuntime(runtimeRoot)
++        const server = await startServer(runtimeRoot)
++        const initial = await readChat(server)
++        const firstId = 'operation-h1-duplicate-draft-n-1'
++        const nextId = 'operation-h1-duplicate-draft-n1-1'
++        expect(await submitFromDisposableClient(
++            server, inputBody(firstId, initial.revision, 'same visible draft'),
++        )).toMatchObject({ status: 200, body: { started: true } })
++        await server.waitFor('provider-waiting', message => message.operationId === firstId)
++        const attachedRevision = (await readChat(server)).revision
++        expect(await submitFromDisposableClient(
++            server, inputBody(nextId, attachedRevision, 'same visible draft'),
++        )).toMatchObject({
++            status: 202,
++            body: {
++                accepted: true, started: false, operationId: nextId,
++                predecessorOperationId: firstId,
++            },
++        })
++        server.child.send({ scope: 'pocketrisu-h1', command: 'release-provider' })
++        await server.waitFor('provider-waiting', message => message.operationId === nextId)
++        server.child.send({ scope: 'pocketrisu-h1', command: 'release-provider' })
++        await server.waitFor('provider-finished', message => message.operationId === nextId)
++        expect(await readCounters(server)).toMatchObject({ providerCalls: 2 })
++    }, 30_000)
++
++    it('diagnostic only: identical cross-tab starts can both be admitted before first attach', async () => {
++        const runtimeRoot = makeRuntimeRoot()
++        await seedRuntime(runtimeRoot)
++        const server = await startServer(runtimeRoot, { fault: 'pause-input-transform' })
++        const initial = await readChat(server)
++        const firstId = 'operation-h1-pre-attach-n-1'
++        const nextId = 'operation-h1-pre-attach-n1-1'
++        const firstBody = inputBody(firstId, initial.revision, 'same visible draft')
++        const secondBody = inputBody(nextId, initial.revision, 'same visible draft')
++        expect(await submitFromDisposableClient(server, firstBody)).toMatchObject({
++            status: 200, body: { started: true, operationId: firstId },
++        })
++        await server.waitFor('transform-waiting', message => message.operationId === firstId)
++        const second = await submitFromDisposableClient(server, secondBody)
++        expect(second).toMatchObject({
++            status: 202,
++            body: {
++                accepted: true, started: false, operationId: nextId,
++                predecessorOperationId: firstId,
++            },
++        })
++        server.child.send({ scope: 'pocketrisu-h1', command: 'release-provider' })
++        await server.waitFor('provider-waiting', message => message.operationId === firstId)
++        server.child.send({ scope: 'pocketrisu-h1', command: 'release-provider' })
++        await server.waitFor('commit-result', message => (
++            message.status === 'committed' && message.receipt?.operationId === firstId
++        ))
++        await server.waitFor('transform-waiting', message => message.operationId === nextId)
++        server.child.send({ scope: 'pocketrisu-h1', command: 'release-provider' })
++        await server.waitFor('provider-waiting', message => message.operationId === nextId)
++        server.child.send({ scope: 'pocketrisu-h1', command: 'release-provider' })
++        await server.waitFor('provider-finished', message => message.operationId === nextId)
++        expect(await readCounters(server)).toMatchObject({ providerCalls: 2 })
++    }, 30_000)
++
++    it('diagnostic only: an HTTP edit of attached input wins over the late N result', async () => {
++        const runtimeRoot = makeRuntimeRoot()
++        await seedRuntime(runtimeRoot)
++        const server = await startServer(runtimeRoot)
++        const initial = await readChat(server)
++        const operationId = 'operation-h1-attached-edit-n-1'
++        expect(await submitFromDisposableClient(
++            server, inputBody(operationId, initial.revision, 'input N'),
++        )).toMatchObject({ status: 200, body: { started: true } })
++        await server.waitFor('provider-waiting', message => message.operationId === operationId)
++        const attached = await readChat(server)
++        const edited = structuredClone(attached.chat)
++        edited.message[1].data = 'user edited the attached input'
++        const write = await fetch(`${server.baseURL}/api/chat-content/char-1/0`, {
++            method: 'POST',
++            headers: {
++                'risu-auth': server.token,
++                cookie: server.cookie,
++                'content-type': 'application/octet-stream',
++                'x-chat-id': 'chat-1',
++                'x-chat-base-revision': attached.revision,
++            },
++            body: encodeRisuSaveLegacy(edited),
++        })
++        expect(write.status).toBe(200)
++        expect((await readChat(server)).chat.message[1].data).toBe('user edited the attached input')
++        server.child.send({ scope: 'pocketrisu-h1', command: 'release-provider' })
++        const result = await server.waitFor('commit-result', message => (
++            message.receipt?.operationId === operationId
++                || message.status === 'conflict'
++        ))
++        expect(result.status).toBe('conflict')
++        const stored = await readChat(server)
++        expect(stored.chat.message[1].data).toBe('user edited the attached input')
++        expect(stored.chat.message).toHaveLength(2)
++        expect(await readCounters(server)).toMatchObject({ providerCalls: 1 })
++    }, 30_000)
++
++    it('diagnostic only: an HTTP deletion of attached input is not resurrected by N', async () => {
++        const runtimeRoot = makeRuntimeRoot()
++        await seedRuntime(runtimeRoot)
++        const server = await startServer(runtimeRoot)
++        const initial = await readChat(server)
++        const operationId = 'operation-h1-attached-delete-n-1'
++        expect(await submitFromDisposableClient(
++            server, inputBody(operationId, initial.revision, 'input N'),
++        )).toMatchObject({ status: 200, body: { started: true } })
++        await server.waitFor('provider-waiting', message => message.operationId === operationId)
++        const attached = await readChat(server)
++        const deleted = structuredClone(attached.chat)
++        deleted.message = deleted.message.slice(0, 1)
++        const write = await fetch(`${server.baseURL}/api/chat-content/char-1/0`, {
++            method: 'POST',
++            headers: {
++                'risu-auth': server.token,
++                cookie: server.cookie,
++                'content-type': 'application/octet-stream',
++                'x-chat-id': 'chat-1',
++                'x-chat-base-revision': attached.revision,
++            },
++            body: encodeRisuSaveLegacy(deleted),
++        })
++        expect(write.status).toBe(200)
++        server.child.send({ scope: 'pocketrisu-h1', command: 'release-provider' })
++        const result = await server.waitFor('commit-result', message => message.status === 'conflict')
++        expect(result.status).toBe('conflict')
++        const stored = await readChat(server)
++        expect(stored.chat.message).toHaveLength(1)
++        expect(stored.chat.message[0]).toMatchObject({ chatId: 'user-1' })
++        expect(await readCounters(server)).toMatchObject({ providerCalls: 1 })
++    }, 30_000)
+ })
+--- a/server/node/bgServerChatProcessPreload.cjs
++++ b/server/node/bgServerChatProcessPreload.cjs
+@@ -250,6 +250,10 @@
+             control.onInputBlocked('predecessor_effect_lineage_changed')
+             throw new Error('injected predecessor effect lineage mismatch')
+         }
++        if (fault === 'pause-input-transform') {
++            send('transform-waiting', { operationId: settingsSnapshot.record?.operationId })
++            await waitForProviderRelease()
++        }
+         const transform = await control.beginInputTransform()
+         const command = transform.record.admission
+         const inputChat = {

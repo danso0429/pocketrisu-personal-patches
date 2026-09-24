@@ -13,14 +13,16 @@ changes, raise capabilities, or change live PocketRisu from those instructions.
    `docs/BG-PRESERVE-ORDERED-GOALS.md`, especially G1 and §8.
 2. `docs/POCKETRISU-1.10-BG-INDEPENDENT-G1-ROOT-EFFECT-IMPLEMENTATION-PLAN.md`
    in the private patcher G1 worktree. It owns R0–R6 and the result matrix.
-3. `docs/POCKETRISU-1.10-BG-INDEPENDENT-G1-REBASE.md` for pre-existing source,
+3. `docs/POCKETRISU-1.10-BG-INDEPENDENT-G1-PREIMPLEMENTATION-TEST-AUDIT.md`
+   for G1.3–G1.6 coverage, new findings, and evidence limits.
+4. `docs/POCKETRISU-1.10-BG-INDEPENDENT-G1-REBASE.md` for pre-existing source,
    ownership, and validation receipts. Historical statements in its G1.2
    table are not the current activation state.
-4. `docs/POCKETRISU-1.10-BG-INDEPENDENT-G1-ROOT-WRITER-OWNERSHIP-MAP.md`
+5. `docs/POCKETRISU-1.10-BG-INDEPENDENT-G1-ROOT-WRITER-OWNERSHIP-MAP.md`
    for the completed static map and explicitly unclosed runtime paths.
-5. `docs/POCKETRISU-1.10-BG-INDEPENDENT-G1-CLIENT-STRUCTURE-REVIEW.md`
+6. `docs/POCKETRISU-1.10-BG-INDEPENDENT-G1-CLIENT-STRUCTURE-REVIEW.md`
    when changing the operation-keyed client path.
-6. `docs/PATCHER-V2-DESIGN.md`; if changing the manifest/graph, follow the
+7. `docs/PATCHER-V2-DESIGN.md`; if changing the manifest/graph, follow the
    current all-or-nothing graph gate, not the retired raw-mask verifier.
 
 Read the exact source/functions touched by the first change after this
@@ -76,7 +78,11 @@ is the official SHA above before applying anything. The patch SHA-256 is
 The patch has zero context lines; the generated H1 test must first match
 SHA-256 `642ff4fec39d27132ea46107741a05fab0dc625a0f4d676517422c4fca8642dc`.
 Do not use `--unidiff-zero` against a different target or a drifted test file.
-After the check, apply it only to that disposable target. Its five tests are
+After the check, apply it only to that disposable target. Apply the additional
+G1 process and client diagnostic patches **after** this base patch, with
+SHA-256 `db477e197ea58fe32b85aae47706907ceaabd4e7b513edc49b9db4f672ed0373`
+and `de87149ea555cf6581fe4c8d3b555639c7867d871b45fef77584bae2d2e57e44`.
+The base patch has five process tests; the composed set has ten. They are
 selected by `-t 'diagnostic only'` in
 `server/node/bgServerChatProcessBoundary.test.ts` under the target's server
 Vitest configuration. The spawned process needs permission to bind loopback;
@@ -89,15 +95,25 @@ its limits are in the implementation plan §2.
 ```bash
 git -C "$CANDIDATE_ROOT" apply --unidiff-zero \
   "$G1_WORKTREE/artifacts/pocketrisu-bg-root-race-exact-1.10-diagnostics.patch"
+git -C "$CANDIDATE_ROOT" apply --check \
+  "$G1_WORKTREE/artifacts/pocketrisu-bg-g1-extra-exact-1.10-diagnostics.patch"
+git -C "$CANDIDATE_ROOT" apply \
+  "$G1_WORKTREE/artifacts/pocketrisu-bg-g1-extra-exact-1.10-diagnostics.patch"
+git -C "$CANDIDATE_ROOT" apply --check \
+  "$G1_WORKTREE/artifacts/pocketrisu-bg-g1-cross-tab-client-diagnostic.patch"
+git -C "$CANDIDATE_ROOT" apply \
+  "$G1_WORKTREE/artifacts/pocketrisu-bg-g1-cross-tab-client-diagnostic.patch"
 cd "$CANDIDATE_ROOT"
 pnpm install --offline --frozen-lockfile
 pnpm exec vitest run --config vitest.config.server.ts \
   server/node/bgServerChatProcessBoundary.test.ts \
   -t 'diagnostic only' --reporter dot
+pnpm exec vitest run src/ts/bgServerInputClient.test.ts \
+  -t 'two tabs can both' --reporter dot
 ```
 
-For a contract-independent red acceptance boundary, confirm the five
-observational tests first, then apply
+For a contract-independent red acceptance boundary, confirm the ten process
+and one client observational tests first, then apply
 `artifacts/pocketrisu-bg-root-race-no-etag-acceptance.patch` (SHA-256
 `fe461fa0a596d633ab1099b15ff618342f408dbb6fdabd3de45cbcec22668edf`)
 to the same disposable target. Run only `-t 'unconditional stale full write'`;
@@ -119,8 +135,8 @@ pnpm exec vitest run --config vitest.config.server.ts \
 
 ## First implementation unit and stop conditions
 
-Begin with R1's runtime/dynamic surfaces from the already written static
-owner map, then choose the R2 idempotent contract
+Begin with R1's remaining runtime/dynamic surfaces from the owner map and
+G1-wide test audit, then choose the R2 idempotent root-and-cross-tab contract
 before modifying production code. The diagnostic patch asserts the **current
 bad observations** so that reproduction itself is green; it is not an
 acceptance test for a fix. Convert its relevant cases into invariant tests

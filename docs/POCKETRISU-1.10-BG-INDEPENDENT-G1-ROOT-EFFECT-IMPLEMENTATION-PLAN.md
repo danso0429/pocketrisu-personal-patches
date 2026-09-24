@@ -16,6 +16,9 @@ The static caller inventory completed in this session is
 `POCKETRISU-1.10-BG-INDEPENDENT-G1-ROOT-WRITER-OWNERSHIP-MAP.md`; R1 below
 resolves its remaining runtime surfaces rather than rediscovering direct
 writers from scratch.
+The G1-wide reusable evidence/gap matrix is
+`POCKETRISU-1.10-BG-INDEPENDENT-G1-PREIMPLEMENTATION-TEST-AUDIT.md`. Read it
+before deciding that a unit pass covers a browser or joined-retention gate.
 
 The required user result is unchanged: after a supported BG request is
 accepted, the server completes and commits chat and effects without a browser,
@@ -62,6 +65,16 @@ Apply it only after the observational patch in a disposable target. The
 single stale no-ETag case intentionally failed on the current candidate:
 count 10 was below the minimum retained count 11. It permits refusal or
 safe reconciliation and does not choose the implementation.
+Additional G1 diagnostics are preserved as two replay patches: the process
+supplement `artifacts/pocketrisu-bg-g1-extra-exact-1.10-diagnostics.patch`
+(SHA-256 `db477e197ea58fe32b85aae47706907ceaabd4e7b513edc49b9db4f672ed0373`)
+and the pure two-tab client schedule
+`artifacts/pocketrisu-bg-g1-cross-tab-client-diagnostic.patch` (SHA-256
+`de87149ea555cf6581fe4c8d3b555639c7867d871b45fef77584bae2d2e57e44`).
+Apply them after the base observational patch. Together, the process filter
+passed 10/10 with 12 original H1 cases skipped, and the client filter passed
+1/1 with seven ordinary cases skipped, in two disposable target trees. The
+coverage matrix above specifies their observed owner/retention/edit results.
 
 | Deterministic order / protocol | Observed persisted `statics.messages` from base 10 | Required semantic result |
 | --- | ---: | ---: |
@@ -145,11 +158,13 @@ is needed. It does not reopen the ownership result itself.
 ### R0 — Rebaseline and reproduce
 
 Start from a clean private G1 branch, exact 1.10 target, matching installer,
-and the diagnostic patch. Read the public ordered goals and this plan. Run the
-five diagnostic cases and the focused owner/client tests. Preserve all
+the base and supplemental diagnostic patches, and the test audit. Read the
+public ordered goals and this plan. Run the ten process and one two-tab
+diagnostic cases plus the focused owner/client tests. Preserve all
 existing worktrees, live data, AC snapshots, and unrelated dirty state.
-Exit: exact source and evidence identities recorded; the five result rows
-above reproduced or each difference explained from newly read source.
+Exit: exact source and evidence identities recorded; the observed root,
+duplicate-admission, edit/delete, and retention rows reproduced or each
+difference explained from newly read source.
 
 ### R1 — Close the writer and intent map before design selection
 
@@ -163,6 +178,10 @@ or another existing invariant. Inspect all no-ETag `database.bin` writers,
 lost HTTP responses, client patch baseline handling, same-device tabs and
 cross-device writer-lock behavior. Identify the exact retention/retry window
 for any operation identity used as deduplication evidence.
+Map which records a pending N+1 or old client can still reference after a
+result ACK and result/state expiry. Distinguish an intentional identical
+N+1 draft from the same visible draft sent twice across tabs; text equality
+is not an operation identity.
 Exit: the existing caller/owner table has runtime evidence for paths a new
 contract will change and states the trigger, root intent, durable identity,
 accepted HTTP path, failure/ACK behavior, and normal use to preserve.
@@ -180,6 +199,11 @@ Keep `globalChatVariables` set/delete conflict semantics separate from this
 additive statistic. If a narrower rebase-only design cannot distinguish the
 two histories above, reject it rather than assuming it is safe. Record the
 chosen design, alternatives, affected callers, and rollback before coding.
+Define an exact cross-tab admission claim or equivalent idempotent submission
+identity without rejecting a deliberately separate same-text N+1. Define
+joined input/commit/result/context retention only after all successor and
+recovery references are known; do not delete a terminal predecessor merely
+because its result was ACKed.
 If the only workable design changes the supported user result or broadens
 normal writer authority materially, present that impact for a user decision.
 
@@ -203,7 +227,13 @@ canonical root/effect state or block while preserving the draft. A pending
 N+1 cannot use a predecessor value check as a substitute for the root writer
 contract. Treat `serverChatCommitVersion` and `inputCommandVersion` as
 independent rollout gates: commit v1 is not delivery-qualified merely because
-input v1 remains 0. Keep both unqualified in live until R3/R5/R6 close.
+input v1 remains 0. A two-tab duplicate start cannot become a paid N+1 just
+because it has a new operation ID and unchanged draft text. Commit-v1
+qualification requires the root contract, legacy-client compatibility, and
+its own browser/process gates; input-v1 qualification additionally requires
+cross-tab admission, joined retention, and the ordinary early-send/client
+gates. A pass on either narrower branch is not G1 completion or permission
+to turn on the other. Do not apply an unqualified capability to live.
 
 ### R5 — Adversarial regression matrix
 
@@ -212,8 +242,10 @@ tests for at least: both save orders; patch and conditional full write;
 missing ETag on existing versus new DB; lost response before/after commit;
 same browser operation retried; different browser operations; two BG N/N+1
 operations; failed/cancelled N; same-key and different-key global edits;
-cross-tab/cross-device ownership; local chat edit/delete/reroll; old-client
-capability negotiation; ledger retention edge and unknown identity; provider
+two tabs accidentally submitting one draft versus deliberate same-text N+1;
+cross-device ownership; HTTP local chat edit/delete plus UI reroll/branch;
+old-client capability negotiation; result ACK versus surviving successor
+references, ledger retention edge and unknown identity; provider
 call count, full chat readback, counter, ledger, and receipt consistency.
 Expected independent browser +1 and N +1 from base 10 is 12 in either
 commit order; a retry must leave it at 12. User edits must not be overwritten

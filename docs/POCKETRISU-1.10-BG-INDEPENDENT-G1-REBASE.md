@@ -296,6 +296,18 @@ preserve all effects. `inputCommandVersion=0` is insufficient as a rollout
 fence because `serverChatCommitVersion=1` is advertised and independently
 negotiated. Both activation boundaries require the root contract to close.
 
+The G1-wide pre-implementation coverage receipt is
+`POCKETRISU-1.10-BG-INDEPENDENT-G1-PREIMPLEMENTATION-TEST-AUDIT.md`. After the
+root diagnostic, a supplemental exact-1.10 process patch and a client test
+patch produced 10/10 isolated process observations and 1/1 two-tab client
+schedule observation in two disposable trees. The additional process cases
+found that a duplicate same-text draft can be admitted before N's input
+attachment and consume two provider calls, that input/commit recovery rows
+survive result ACK plus short-lived state removal, and that normal HTTP edits
+or deletion of an attached input are not overwritten by late N completion.
+These results add cross-tab admission and joined retention to G1.4/G1.5's
+explicit blockers; they do not prove actual browser or 48-hour expiry paths.
+
 ## G1.1 rebaseline verification (historical)
 
 - Patcher tests: 55 passed, 0 failed.
