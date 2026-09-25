@@ -226,6 +226,34 @@ for (const file of ['CssToggleManager.svelte', 'CustomFontManager.svelte', 'Font
 }
 insert('save-import', 'src/ts/globalApi.svelte.ts', 'export const forageStorage = new AutoStorage()',
     'import { registerAppearanceWriter, appearanceSaveFailure } from "./personalSettings/appearancePersistence";\n\n', globalOwners)
+units.push({
+    id: 'personal-settings:editor-defer-full-buffer', file: 'src/ts/globalApi.svelte.ts', type: 'replace', targetVersions,
+    after: globalOwners,
+    anchor: `        await encoder.set(db, safeStructuredClone(toSave))
+        const encoded = encoder.encode()
+        if (!encoded) {
+            await sleep(1000)
+            return 'noop'
+        }
+        const dbData = new Uint8Array(encoded)
+`,
+    managed: `        const personalPatchOnly = supportsPatchSync && (options as any)?.personalStrict && !options?.forceFullWrite
+        // Root blocks are rebuilt on every ordinary/full save. Preserve updates
+        // to independently tracked blocks before consuming their dirty flags.
+        if (!personalPatchOnly || toSave.botPreset || toSave.modules || toSave.plugins || toSave.pluginCustomStorage || toSave.character.length || toSave.chat.length) {
+            await encoder.set(db, safeStructuredClone(toSave))
+        }
+        let dbData: Uint8Array | undefined
+        if (!personalPatchOnly) {
+            const encoded = encoder.encode()
+            if (!encoded) {
+                await sleep(1000)
+                return 'noop'
+            }
+            dbData = new Uint8Array(encoded)
+        }
+`,
+})
 insert('save-registration', 'src/ts/globalApi.svelte.ts', '    requestImmediateSaveImpl = async (options) => {\n',
     fs.readFileSync(path.join(__dirname, 'strict-save.txt'), 'utf8'), ['personal-settings:editor-save-import'])
 insert('patch-refusal', 'src/ts/globalApi.svelte.ts', '                saved = patchResult.success\n',
@@ -235,6 +263,9 @@ insert('patch-refusal', 'src/ts/globalApi.svelte.ts', '                saved = p
 `, ['personal-settings:editor-save-registration'])
 insert('no-full-fallback', 'src/ts/globalApi.svelte.ts', '        if (!saved) {\n',
     '        if ((options as any)?.personalStrict && !saved && supportsPatchSync) throw appearanceSaveFailure(false)\n', ['personal-settings:editor-patch-refusal'])
+insert('full-buffer-required', 'src/ts/globalApi.svelte.ts', '        if (!saved) {\n',
+    '            if (!dbData) throw appearanceSaveFailure(false)\n',
+    ['personal-settings:editor-defer-full-buffer', 'personal-settings:editor-no-full-fallback'], 'after')
 insert('no-conflict-rebase', 'src/ts/globalApi.svelte.ts', '                if (conflictErr instanceof ConflictError) {\n',
     '                if ((options as any)?.personalStrict && conflictErr instanceof ConflictError) throw appearanceSaveFailure(false)\n', ['personal-settings:editor-no-full-fallback'])
 insert('full-write-etag', 'src/ts/globalApi.svelte.ts', '                const currentEtag = forageStorage.getDbEtag()\n',

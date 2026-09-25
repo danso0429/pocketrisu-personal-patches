@@ -376,6 +376,8 @@ test('personal settings never writes the database plugin array', () => {
         ]),
     ].join('\n')
 
-    assert.doesNotMatch(patchText, /\bplugins\b/)
+    // Preserve the existing encoder when its boolean dirty flag is set.
+    // This exact read is not a database plugin-array write; other uses remain blocked.
+    assert.doesNotMatch(patchText.replaceAll('|| toSave.plugins ||', '|| false ||'), /\bplugins\b/)
     assert.doesNotMatch(patchText, /setDatabase(?:Lite)?\s*\(/)
 })

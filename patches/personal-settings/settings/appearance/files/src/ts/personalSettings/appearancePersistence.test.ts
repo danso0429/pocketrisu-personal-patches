@@ -72,3 +72,65 @@ test('strict composed persistence refuses patch fallback and rebase before runni
     expect(guard).toContain('throw appearanceSaveFailure(false)')
     expect(body).toContain('personalStrict && !currentEtag')
 })
+
+function bufferHarness(patchSync = true, rejectPatch = false) {
+    const persist = saveDb.body!.statements.find(n => ts.isFunctionDeclaration(n) && n.name?.text === 'persistTrackedChanges') as ts.FunctionDeclaration
+    const code = ts.transpileModule(persist.getText(source), { compilerOptions: { target: ts.ScriptTarget.ES2022 } }).outputText
+    const db = { characters: [], modules: [{ id: 'm', value: 'old' }], value: 'root' }
+    const blocks = { modules: structuredClone(db.modules), value: db.value }
+    const encoder = {
+        set: vi.fn(async (data: typeof db, scope: { modules?: boolean }) => { blocks.value = data.value; if (scope.modules) blocks.modules = structuredClone(data.modules) }),
+        encode: vi.fn(() => new TextEncoder().encode(JSON.stringify({ ...blocks, characters: [] })).buffer),
+    }
+    const storage = { patchItem: vi.fn(async () => rejectPatch ? { success: false, conflict: true } : { success: true, etag: 'next' }), setItem: vi.fn(async () => {}), setDbEtag: vi.fn(), getDbEtag: () => 'current' }
+    const context = {
+        gotChannel: false, channel: null, sessionID: 'fixture', getDatabase: () => db,
+        assignMissingChatIdsToNewCharacters: () => [], collectChatsToPersist: () => [], v4: () => 'fixture',
+        lastConfirmedServerDb: structuredClone(db), encoder, safeStructuredClone: structuredClone,
+        sleep: async () => {}, supportsPatchSync: patchSync, appearanceSaveFailure,
+        patcher: { set: async () => ({ patch: [], expectedHash: 'fixture', rollback: () => {} }), baselineSnapshot: () => structuredClone(db), init: async () => {} },
+        findDangerousChatOps: () => [], forageStorage: storage, updateKnownChatsAfterSuccessfulSave: () => {},
+        normalizeJSON: structuredClone, decodeRisuSave: async (bytes: Uint8Array) => JSON.parse(new TextDecoder().decode(bytes)),
+    }
+    const run = new Function(...Object.keys(context), `${code}; return persistTrackedChanges`)(...Object.values(context))
+    const changes = { root: true, character: [], chat: [], botPreset: false, modules: true, plugins: false, pluginCustomStorage: false }
+    return { db, encoder, storage, run: (options: Record<string, boolean>, modules = true) => run({ ...changes, modules }, options) }
+}
+test('strict patches skip full buffer assembly but keep encoder blocks ready for a later full write', async () => {
+    const h = bufferHarness()
+    h.db.modules[0].value = 'changed'
+    expect(await h.run({ personalStrict: true })).toBe('saved')
+    expect(h.encoder.set).toHaveBeenCalledTimes(1)
+    expect(h.encoder.encode).not.toHaveBeenCalled()
+    expect(h.storage.setItem).not.toHaveBeenCalled()
+    expect(await h.run({ forceFullWrite: true }, false)).toBe('saved')
+    expect(h.encoder.encode).toHaveBeenCalledTimes(1)
+    const bytes = (h.storage.setItem.mock.calls as unknown[][])[0][1] as Uint8Array
+    expect(JSON.parse(new TextDecoder().decode(bytes)).modules[0].value).toBe('changed')
+})
+test('strict saves without patch sync still assemble the qualified full write', async () => {
+    const h = bufferHarness(false)
+    expect(await h.run({ personalStrict: true })).toBe('saved')
+    expect(h.encoder.encode).toHaveBeenCalledTimes(1)
+    expect(h.storage.setItem).toHaveBeenCalledTimes(1)
+})
+test('root-only strict patches defer root encoding until the next ordinary/full save', async () => {
+    const h = bufferHarness()
+    h.db.value = 'new root'
+    expect(await h.run({ personalStrict: true }, false)).toBe('saved')
+    expect(h.encoder.set).not.toHaveBeenCalled()
+    expect(h.encoder.encode).not.toHaveBeenCalled()
+    expect(await h.run({ forceFullWrite: true }, false)).toBe('saved')
+    expect(h.encoder.set).toHaveBeenCalledTimes(1)
+    const bytes = (h.storage.setItem.mock.calls as unknown[][])[0][1] as Uint8Array
+    expect(JSON.parse(new TextDecoder().decode(bytes)).value).toBe('new root')
+})
+test('ordinary patch saves retain encoding and rejected strict patches cannot use a missing buffer', async () => {
+    const ordinary = bufferHarness()
+    expect(await ordinary.run({})).toBe('saved')
+    expect(ordinary.encoder.encode).toHaveBeenCalledTimes(1)
+    const rejected = bufferHarness(true, true)
+    await expect(rejected.run({ personalStrict: true })).rejects.toMatchObject({ ambiguous: false })
+    expect(rejected.encoder.encode).not.toHaveBeenCalled()
+    expect(rejected.storage.setItem).not.toHaveBeenCalled()
+})
