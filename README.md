@@ -16,6 +16,8 @@ The [font-save and switch follow-up](docs/POCKETRISU-FONT-SAVE-SWITCH-VALIDATION
 records font reuse, direct CSS enable switches, and the merged top recovery notice.
 The [gate-retention follow-up](docs/POCKETRISU-CSS-GATE-RETENTION-VALIDATION.md)
 records why theme and master-switch round trips no longer hold Personal CSS in recovery.
+The [theme-independence follow-up](docs/POCKETRISU-CSS-THEME-INDEPENDENCE-VALIDATION.md)
+records Personal CSS under every theme, its order after theme CSS, and the body-only chat font.
 
 ## Complete installer
 
