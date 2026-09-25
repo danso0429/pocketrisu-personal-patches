@@ -66,19 +66,28 @@ html[data-pocketrisu-css~="chat-font-hahmlet"] {
   --personal-chat-font-family: "Hahmlet", "Noto Serif KR", serif;
 }
 
+/*
+ * The chat font replaces the message body's base font under every theme.
+ * PocketRisu styles every element with var(--risu-font-family), so setting that
+ * variable on the text root reaches body text, while elements whose font a theme,
+ * module, or character sets explicitly keep that font.
+ */
 html[data-pocketrisu-css*="chat-font-"]
-  .default-chat-screen.nodeonly-standard .risu-chat[data-chat-index] .chattext,
-html[data-pocketrisu-css*="chat-font-"]
-  .default-chat-screen.nodeonly-standard .risu-chat[data-chat-index] .chattext :where(*),
+  .default-chat-screen .risu-chat[data-chat-index] .chattext {
+  --risu-font-family: var(--personal-chat-font-family) !important;
+  font-family: var(--personal-chat-font-family) !important;
+}
+
 html[data-pocketrisu-css*="chat-font-"] .personal-font-preview__sample,
 html[data-pocketrisu-css*="chat-font-"] .personal-font-preview__sample :where(*) {
   font-family: var(--personal-chat-font-family) !important;
 }
 
-html[data-pocketrisu-css*="chat-font-"]
-  .default-chat-screen.nodeonly-standard .risu-chat[data-chat-index] .chattext
+/* Zero-specificity default: any explicit code font from a theme still wins. */
+:where(html[data-pocketrisu-css*="chat-font-"]
+  .default-chat-screen .risu-chat[data-chat-index] .chattext)
   :is(pre, code, kbd, samp) {
-  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", monospace !important;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", monospace;
 }
 
 /* Stable hooks are inert until a definition is enabled. */
