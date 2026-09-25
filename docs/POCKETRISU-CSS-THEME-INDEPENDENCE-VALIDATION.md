@@ -99,6 +99,25 @@ Rejected without measurement: wrapping theme CSS in `@layer`. Unlayered app
 styles would then beat every theme rule, and a top-level `@import` inside the
 theme CSS would become invalid.
 
+### Theme hook
+
+`--personal-chat-font-family` is defined on `html` only while a chat font is
+selected. A theme can make its own decorative elements follow the chat font,
+for example:
+
+```css
+.theme .chattext mark[risu-mark="quote2"] {
+  font-family: var(--personal-chat-font-family, var(--theme-serif));
+  --risu-font-family: var(--personal-chat-font-family, var(--theme-serif));
+}
+```
+
+With the app font, the fallback applies. Treat the variable name as a stable
+hook: renaming it silently returns such themes to their fallback fonts.
+Measured with the deployed CSS, quote and blockquote marks followed Paperlogy
+and Gowun Dodum when selected, and returned to the theme serif when no chat
+font was selected. Headings and code were unaffected.
+
 ### When to revisit
 
 Re-run `measure-cascade.cjs` and compare it with `results.json` when:
