@@ -11,7 +11,16 @@ const definitions = JSON.parse(text.slice(text.indexOf('= [') + 2))
 test('the editable registry preserves every former static rule exactly', () => {
     const staticDefinitions = definitions.filter(d => !['composer.textSendIcon', 'visibility.hideJailbreakToggle'].includes(d.id))
     assert.equal(staticDefinitions.length, 8)
-    for (const definition of staticDefinitions) assert.ok(fixture.stylesheet.includes(definition.css), definition.id)
+    for (const definition of staticDefinitions) {
+        // Revision 2 chat rules differ from their former static rules only by
+        // dropping the Standard-theme scope, so they reach every theme's chat text.
+        const former = definition.revision === 2
+            ? definition.css.replaceAll('.default-chat-screen .risu-chat', '.default-chat-screen.nodeonly-standard .risu-chat')
+            : definition.css
+        assert.ok(fixture.stylesheet.includes(former), definition.id)
+    }
+    assert.deepEqual(definitions.filter(d => d.revision === 2).map(d => d.id), ['chat.alignment', 'chat.keepKoreanWords', 'chat.wrapCodeBlocks'])
+    for (const definition of definitions.filter(d => d.id.startsWith('chat.'))) assert.doesNotMatch(definition.css, /nodeonly-standard/)
     assert.deepEqual(definitions.map(d => d.token), fixture.tokens)
     assert.equal(new Set(definitions.map(d => d.id)).size, definitions.length)
 })

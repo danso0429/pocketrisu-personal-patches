@@ -1,5 +1,20 @@
 # Changelog
 
+## 0.2.3-experimental.7
+
+- Apply Personal CSS, chat fonts, and appearance tokens under every theme,
+  including Custom HTML. Safe Mode and the master switch remain the only
+  global gates. Chat alignment, Korean word keeping, and code-block wrapping
+  target every theme's message text; the minimal composer stays scoped to the
+  PocketRisu Standard composer.
+- Keep Personal CSS style nodes after the theme's `#customcss`, so
+  equal-specificity conflicts resolve to Personal CSS regardless of which side
+  changed last.
+- Limit the chat font to the message body's base font. It sets
+  `--risu-font-family` on the text root, so body text follows it while
+  elements whose font a theme, module, or character sets explicitly keep that
+  font. Code keeps a zero-specificity monospace default.
+
 ## 0.2.3-experimental.6
 
 - Stop marking Personal CSS for activation revalidation when the theme or the

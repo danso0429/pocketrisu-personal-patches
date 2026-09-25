@@ -341,6 +341,22 @@ units.push({
         expect(root.hasAttribute(PERSONAL_APPEARANCE_ATTRIBUTE)).toBe(false)`,
     requires: ['personal-settings:appearance-logic-tests-1.9'], targetVersions,
 })
+units.push({
+    id: 'personal-settings:editor-theme-independent-test',
+    file: 'src/ts/personalSettings/appearance.test.ts', type: 'replace',
+    anchor: `    test('Safe Mode, master off, and unsupported themes remove all effects', () => {
+        const value = enabledDb()
+        expect(resolvePersonalAppearanceTokens(value, true)).toEqual([])
+        ;(value as any).theme = 'waifu'
+        expect(resolvePersonalAppearanceTokens(value, false)).toEqual([])`,
+    content: `    test('Safe Mode and master off remove all effects under every theme', () => {
+        const value = enabledDb()
+        expect(resolvePersonalAppearanceTokens(value, true)).toEqual([])
+        ;(value as any).theme = 'waifu'
+        expect(resolvePersonalAppearanceTokens(value, false)).not.toEqual([])
+        expect(resolvePersonalAppearanceTokens(value, true)).toEqual([])`,
+    requires: ['personal-settings:appearance-logic-tests-1.9'], targetVersions,
+})
 for (const unit of units) {
     const previous = previousByHost.get(unit.file)
     if (previous) unit.after = [...(unit.after ?? []), previous]

@@ -7,7 +7,7 @@ let runtime: PersonalCssRuntime | undefined
 const db = { theme: '', pocketRisuPersonalSettings: { appearance: { version: 1, enabled: true } } } as unknown as Database
 const snap = (nodes: { key: string; css: string }[], tokens = ['candidate']) => ({ gates: [], revisions: [1], tokens, nodes }) as CssSnapshot
 afterEach(() => { runtime?.dispose(); runtime = undefined; document.head.innerHTML = ''; document.querySelectorAll('#customcss').forEach(n => n.remove()); sessionStorage.clear(); vi.useRealTimers(); window.history.replaceState({}, '', '/') })
-test('keeps one independent style per item, unchanged identity, order, and customcss precedence', async () => {
+test('keeps one independent style per item, unchanged identity, order, and precedence over customcss', async () => {
     const global = document.createElement('style'); global.id = 'customcss'; document.body.append(global)
     runtime = new PersonalCssRuntime(document, () => ({ db, safeMode: false }))
     const candidate = snap([{ key: 'a', css: 'body{' }, { key: 'b', css: 'p { color: blue; }' }])
@@ -18,7 +18,12 @@ test('keeps one independent style per item, unchanged identity, order, and custo
     expect(document.querySelector('style[data-pocketrisu-personal-css]')).toBe(nodes[0])
     global.remove(); const replacement = document.createElement('style'); replacement.id = 'customcss'; document.body.prepend(replacement)
     await new Promise(resolve => setTimeout(resolve, 0))
-    expect([...document.body.querySelectorAll('style')]).toEqual([...nodes, replacement])
+    expect([...document.body.querySelectorAll('style')]).toEqual([replacement, ...nodes])
+    const later = document.createElement('div'); document.body.append(later)
+    replacement.textContent = '.theme { color: red; }'
+    await new Promise(resolve => setTimeout(resolve, 0))
+    expect([...document.body.children].slice(-4)).toEqual([replacement, ...nodes, later])
+    expect(document.querySelector('style[data-pocketrisu-personal-css]')).toBe(nodes[0])
 })
 test('trials replace tokens and sequence without DB mutation; expiry restores persisted state', () => {
     vi.useFakeTimers()
@@ -141,19 +146,16 @@ test('recovery exit cannot clear its sentinel after a gate closes and reopens du
     expect(sessionStorage.getItem(recoveryKey)).toBe('1')
     expect(runtime.suppressed).toBe(true)
 })
-test.each([
-    ['theme', (db: any, closed: boolean) => { db.theme = closed ? 'customHTML' : '' }],
-    ['master', (db: any, closed: boolean) => { db.pocketRisuPersonalSettings.appearance.enabled = !closed }],
-] as const)('closing and reopening the %s gate reapplies the confirmed stored snapshot', (_gate, set) => {
+test('closing and reopening the master gate reapplies the confirmed stored snapshot', () => {
     const local = { theme: '', pocketRisuPersonalSettings: { appearance: { version: 1, enabled: true, chat: { font: 'paperlogy', keepKoreanWords: true } } } } as unknown as Database
     runtime = new PersonalCssRuntime(document, () => ({ db: local, safeMode: false }))
     const before = runtime.sync()
     expect(before).toContain('chat-font-paperlogy')
     expect(document.querySelectorAll('[data-pocketrisu-personal-css]')).toHaveLength(1)
-    set(local, true)
+    ;(local as any).pocketRisuPersonalSettings.appearance.enabled = false
     expect(runtime.sync()).toBe('')
     expect(document.querySelectorAll('[data-pocketrisu-personal-css]')).toHaveLength(0)
-    set(local, false)
+    ;(local as any).pocketRisuPersonalSettings.appearance.enabled = true
     expect(runtime.sync()).toBe(before)
     expect(document.querySelectorAll('[data-pocketrisu-personal-css]')).toHaveLength(1)
     expect(runtime.suppressed).toBe(false)
@@ -167,4 +169,16 @@ test('a stored suppressed-state repair still blocks activation after the gate re
     expect(runtime.sync()).toBe('')
     expect(runtime.suppressed).toBe(true)
     expect(document.querySelectorAll('[data-pocketrisu-personal-css]')).toHaveLength(0)
+})
+test('switching to a non-Standard theme keeps Personal CSS, tokens, and actions available', () => {
+    const local = { theme: '', pocketRisuPersonalSettings: { appearance: { version: 1, enabled: true, chat: { font: 'paperlogy', keepKoreanWords: true } } } } as unknown as Database
+    runtime = new PersonalCssRuntime(document, () => ({ db: local, safeMode: false }))
+    const before = runtime.sync()
+    for (const theme of ['customHTML', 'waifu', '']) {
+        ;(local as any).theme = theme
+        expect(runtime.sync()).toBe(before)
+        expect(document.querySelectorAll('[data-pocketrisu-personal-css]')).toHaveLength(1)
+        expect(runtime.suppressed).toBe(false)
+    }
+    expect(sessionStorage.length).toBe(0)
 })

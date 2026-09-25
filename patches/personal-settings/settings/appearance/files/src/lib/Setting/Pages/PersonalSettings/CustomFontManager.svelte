@@ -17,7 +17,7 @@
     const selectedLabel = $derived(builtins.find(([value]) => value === selected)?.[1] ?? fonts.value.custom?.find(font => `custom:${font.id}` === selected)?.name ?? '저장된 폰트를 확인할 수 없음 · 앱 폰트 사용')
     const storedBytes = $derived([...new Map((fonts.value.custom ?? []).map(f => [f.assetPath, f.byteLength])).values()].reduce((sum, bytes) => sum + bytes, 0))
     const busy = $derived($personalCssStatus.phase !== 'idle')
-    const paused = $derived($SafeModeStore || DBState.db.theme !== '' || !readPersonalAppearance(DBState.db).enabled || $personalCssStatus.recovery || $personalCssStatus.validation)
+    const paused = $derived($SafeModeStore || !readPersonalAppearance(DBState.db).enabled || $personalCssStatus.recovery || $personalCssStatus.validation)
     let editing = $state(false)
     let replacing = $state<string | undefined>()
     let name = $state('')
@@ -169,7 +169,7 @@
         <p class="text-xs">사용자 폰트 {fonts.value.custom?.length ?? 0} / {FONT_LIMITS.count} · 고유 파일 {displaySize(storedBytes)} / {displaySize(FONT_LIMITS.total)} · 파일당 {displaySize(FONT_LIMITS.file)}</p>
         {#if storedBytes >= FONT_LIMITS.warningTotal || (fonts.value.custom?.length ?? 0) >= FONT_LIMITS.warningCount}<p role="status">폰트가 많습니다. 백업 크기와 모바일 메모리 사용에 주의하세요.</p>{/if}
         <button class="action" disabled={busy || pending || editing || paused || !customSupported} onclick={(event) => open(undefined, event)}>사용자 폰트 추가</button>
-        {#if paused}<p class="text-xs">사용자 폰트 미리보기는 Standard 테마에서 전체 사용을 켜고 Safe Mode·복구 모드를 종료한 뒤 사용할 수 있습니다.</p>{/if}
+        {#if paused}<p class="text-xs">사용자 폰트 미리보기는 전체 사용을 켜고 Safe Mode·복구 모드를 종료한 뒤 사용할 수 있습니다.</p>{/if}
         {#if editing}
             <form class="border border-primary rounded p-3 space-y-3" onsubmit={(e) => { e.preventDefault(); void preview() }}>
                 <label class="block">이름 <input class="w-full bg-darkbg p-2" bind:value={name} disabled={pending} /></label>

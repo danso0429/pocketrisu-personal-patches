@@ -88,7 +88,7 @@ export function storedCssBytes(db: Database): number {
 export interface CssSnapshot { gates: unknown[]; tokens: string[]; nodes: { key: string; css: string }[]; revisions: number[]; customFontId?: string }
 export function cssSnapshot(db: Database, safeMode: boolean, readyCustomFontId?: string | null): CssSnapshot {
     const appearance = readPersonalAppearance(db)
-    const active = !safeMode && db.theme === '' && appearance.schemaStatus !== 'unsupported' && appearance.enabled
+    const active = !safeMode && appearance.schemaStatus !== 'unsupported' && appearance.enabled
     const read = readCssToggles(db)
     const items = effectiveCssToggles(db)
     // Invalid additive data never disables unrelated, code-owned defaults.

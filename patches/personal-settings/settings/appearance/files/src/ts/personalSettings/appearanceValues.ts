@@ -426,10 +426,9 @@ function getPersonalAppearanceValueFromNormalized(
 /** Resolves a stable, de-duplicated whitespace token list. */
 export function resolvePersonalAppearanceTokens(db: Database, safeMode: boolean): string[] {
     const appearance = readPersonalAppearance(db)
-    const theme = readCarrier(db).theme
+    // Tokens apply under every theme; theme-specific rules scope themselves.
     if (
         safeMode
-        || theme !== ''
         || appearance.schemaStatus === 'unsupported'
         || !appearance.enabled
     ) {

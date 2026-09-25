@@ -15,28 +15,28 @@ export const cssToggleDefinitions: readonly CssToggleDefinition[] = [
         "id": "chat.alignment",
         "token": "chat-align-center",
         "settingId": "personal.appearance.chatAlignment",
-        "revision": 1,
+        "revision": 2,
         "name": "메시지 가운데 정렬",
         "description": "목록·인용·코드·표는 왼쪽 정렬을 유지합니다.",
-        "css": "html[data-pocketrisu-css~=\"chat-align-center\"]\n  .default-chat-screen.nodeonly-standard .risu-chat[data-chat-index] .chattext {\n  text-align: center;\n}\n\nhtml[data-pocketrisu-css~=\"chat-align-center\"]\n  .default-chat-screen.nodeonly-standard .risu-chat[data-chat-index] .chattext\n  :is(ul, ol, blockquote, pre, table) {\n  text-align: left;\n}\n"
+        "css": "html[data-pocketrisu-css~=\"chat-align-center\"]\n  .default-chat-screen .risu-chat[data-chat-index] .chattext {\n  text-align: center;\n}\n\nhtml[data-pocketrisu-css~=\"chat-align-center\"]\n  .default-chat-screen .risu-chat[data-chat-index] .chattext\n  :is(ul, ol, blockquote, pre, table) {\n  text-align: left;\n}\n"
     },
     {
         "id": "chat.keepKoreanWords",
         "token": "chat-keep-korean-words",
         "settingId": "personal.appearance.keepKoreanWords",
-        "revision": 1,
+        "revision": 2,
         "name": "한글 단어 끊김 방지",
         "description": "긴 URL은 줄바꿈하고 코드는 제외합니다.",
-        "css": "html[data-pocketrisu-css~=\"chat-keep-korean-words\"]\n  .default-chat-screen.nodeonly-standard .risu-chat[data-chat-index] .chattext\n  :where(p, h1, h2, h3, h4, h5, h6, li, blockquote, figcaption) {\n  word-break: keep-all;\n  overflow-wrap: anywhere;\n}\n"
+        "css": "html[data-pocketrisu-css~=\"chat-keep-korean-words\"]\n  .default-chat-screen .risu-chat[data-chat-index] .chattext\n  :where(p, h1, h2, h3, h4, h5, h6, li, blockquote, figcaption) {\n  word-break: keep-all;\n  overflow-wrap: anywhere;\n}\n"
     },
     {
         "id": "chat.wrapCodeBlocks",
         "token": "chat-wrap-code-blocks",
         "settingId": "personal.appearance.wrapCodeBlocks",
-        "revision": 1,
+        "revision": 2,
         "name": "블록 코드 줄바꿈",
         "description": "블록 코드의 긴 줄을 화면에 맞춥니다.",
-        "css": "html[data-pocketrisu-css~=\"chat-wrap-code-blocks\"]\n  .default-chat-screen.nodeonly-standard .risu-chat[data-chat-index] .chattext pre > code {\n  white-space: pre-wrap;\n  word-break: normal;\n  overflow-wrap: anywhere;\n}\n\nhtml[data-pocketrisu-css~=\"chat-wrap-code-blocks\"]\n  .default-chat-screen.nodeonly-standard .risu-chat[data-chat-index] .chattext pre {\n  overflow-x: auto;\n}\n"
+        "css": "html[data-pocketrisu-css~=\"chat-wrap-code-blocks\"]\n  .default-chat-screen .risu-chat[data-chat-index] .chattext pre > code {\n  white-space: pre-wrap;\n  word-break: normal;\n  overflow-wrap: anywhere;\n}\n\nhtml[data-pocketrisu-css~=\"chat-wrap-code-blocks\"]\n  .default-chat-screen .risu-chat[data-chat-index] .chattext pre {\n  overflow-x: auto;\n}\n"
     },
     {
         "id": "composer.minimal",

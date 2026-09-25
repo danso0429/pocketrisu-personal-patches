@@ -17,7 +17,7 @@
     <input class="w-full rounded border border-darkborderc bg-darkbg text-textcolor" aria-label="복구 주소" readonly value={recoveryUrl} onclick={(e) => e.currentTarget.select()} />
 </details>
 {#if $personalCssStatus.recovery || $personalCssStatus.validation}
-    <p role="status">CSS 적용이 중지되어 있습니다. 수정한 CSS는 끈 상태로 저장하세요. Safe Mode를 끄고 Standard 테마와 전체 사용을 켠 뒤 전체 규칙을 시험 적용할 수 있습니다.</p>
+    <p role="status">CSS 적용이 중지되어 있습니다. 수정한 CSS는 끈 상태로 저장하세요. Safe Mode를 끄고 전체 사용을 켠 뒤 전체 규칙을 시험 적용할 수 있습니다.</p>
     <button class="action" disabled={busy} onclick={activate}>전체 규칙 시험 적용 · 복구 종료</button>
 {/if}
 {#if error}<p role="alert" class="text-draculared">{error}</p>{/if}

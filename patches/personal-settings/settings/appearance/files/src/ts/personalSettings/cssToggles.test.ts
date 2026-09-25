@@ -1,4 +1,5 @@
 import { describe, expect, test } from 'vitest'
+import { cssToggleDefinitions } from './cssToggleDefinitions'
 import type { Database } from '../storage/database.svelte'
 import { CSS_LIMITS, appearanceDraft, applyCssEdit, cssEditBase, cssSnapshot, effectiveCssToggles, rawAppearance, readCssToggles, sameValue, utf8Bytes } from './cssToggles'
 
@@ -35,7 +36,7 @@ describe('CSS editor storage and snapshot contract', () => {
     test('overrides contain only changed fields and reset adopts current defaults', () => {
         const source = db(); const shipped = effectiveCssToggles(source)[0]
         applyCssEdit(source, { kind: 'put', item: { ...shipped, name: 'renamed', enabled: true }, shipped: true }, false)
-        expect(rawAppearance(source).cssToggles.overrides[shipped.id]).toEqual({ baseRevision: 1, name: 'renamed' })
+        expect(rawAppearance(source).cssToggles.overrides[shipped.id]).toEqual({ baseRevision: cssToggleDefinitions.find(d => d.id === shipped.id)!.revision, name: 'renamed' })
         applyCssEdit(source, { kind: 'reset', id: shipped.id }, false)
         expect(rawAppearance(source).cssToggles.overrides).toEqual({})
         expect(effectiveCssToggles(source)[0]).toMatchObject({ name: shipped.name, enabled: true })
@@ -81,10 +82,14 @@ describe('CSS editor storage and snapshot contract', () => {
         expect(readCssToggles(source).value.needsValidation).toBe(true)
         expect(() => applyCssEdit(source, { kind: 'move', id: 'a', direction: 1 }, true)).toThrow()
     })
-    test.each([{ safe: true }, { theme: 'other' }, { master: false }])('global gates suppress styles %j', gates => {
+    test.each([{ safe: true }, { master: false }])('global gates suppress styles %j', gates => {
         const source = db({ version: 1, custom: [item()] })
-        if ('theme' in gates) source.theme = gates.theme as any
         if ('master' in gates) rawAppearance(source).enabled = gates.master
         expect(cssSnapshot(source, !!gates.safe).nodes).toEqual([])
+    })
+    test('a non-Standard theme does not suppress styles', () => {
+        const source = db({ version: 1, custom: [item()] })
+        source.theme = 'customHTML' as any
+        expect(cssSnapshot(source, false).nodes).toHaveLength(1)
     })
 })

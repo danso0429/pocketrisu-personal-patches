@@ -74,7 +74,7 @@
 </script>
 
 <div class="mb-3 rounded-md border border-darkborderc/70 bg-darkbg/30 p-3 text-xs text-textcolor2 space-y-2" aria-label="꾸미기 안내 및 복구">
-    <p>{language.personalAppearanceStandardOnly}</p>
+    <p>꾸미기는 모든 테마에 적용됩니다. 채팅 폰트는 본문 기본 글꼴만 바꾸고, 테마가 직접 지정한 제목·대사 등의 글꼴은 유지합니다. 심플 입력창은 PocketRisu Standard 입력창에만 적용됩니다. Safe Mode에서는 저장값을 바꾸지 않고 모두 잠시 꺼집니다.</p>
     {#if appearance.schemaStatus !== 'unsupported'}<CssRecoveryNotice />{/if}
 </div>
 

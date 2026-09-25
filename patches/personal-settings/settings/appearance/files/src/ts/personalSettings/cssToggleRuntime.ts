@@ -63,7 +63,7 @@ export class PersonalCssRuntime {
     private active(): boolean {
         const { db, safeMode } = this.current()
         const gates = cssSnapshot(db, safeMode).gates
-        return !gates[0] && gates[1] === '' && gates[2] !== 'unsupported' && gates[3] === true
+        return !gates[0] && gates[2] !== 'unsupported' && gates[3] === true
     }
     private publish(): void { if (!this.disposed) personalCssStatus.set({ recovery: this.recovery, validation: this.validation, phase: this.phase, message: this.message }) }
     requireValidation(): void {
@@ -77,8 +77,8 @@ export class PersonalCssRuntime {
         const { db, safeMode } = this.current()
         const active = this.active()
         // Safe Mode is the emergency CSS switch, so leaving it requires the
-        // activation trial. Theme and master switches only pause the confirmed
-        // stored snapshot, which reapplies when the gate reopens.
+        // activation trial. The master switch only pauses the confirmed stored
+        // snapshot, which reapplies when the gate reopens.
         if (this.lastActive === true && !active && safeMode) this.requireValidation()
         this.lastActive = active
         if (readCssToggles(db).value.needsValidation) this.requireValidation()
@@ -96,15 +96,17 @@ export class PersonalCssRuntime {
     private restoreOrder(): void {
         const custom = this.doc.getElementById('customcss')
         const parent = custom?.parentNode ?? this.doc.head
-        if (this.anchor.parentNode !== parent || this.anchor.nextSibling !== custom) {
-            // With no customcss, the anchor remains at the end of head.
-            if (custom || this.anchor.parentNode !== parent || this.anchor.nextSibling) parent.insertBefore(this.anchor, custom)
-        }
-        let next: Node = this.anchor
-        for (const node of [...this.nodes.values()].reverse()) {
-            if (node.parentNode !== parent || node.nextSibling !== next) parent.insertBefore(node, next)
-            next = node
-        }
+        // Personal nodes follow the theme's #customcss so they win equal-specificity
+        // conflicts regardless of which side changed last. Without customcss, the
+        // run stays at the end of head.
+        const run: Node[] = [this.anchor, ...this.nodes.values()]
+        const inPlace = run.every((node, i) => node.parentNode === parent
+            && (i > 0 ? node.previousSibling === run[i - 1] : !custom || node.previousSibling === custom))
+            && (!!custom || run[run.length - 1].nextSibling === null)
+        if (inPlace) return
+        const fragment = this.doc.createDocumentFragment()
+        fragment.append(...run)
+        parent.insertBefore(fragment, custom ? custom.nextSibling : null)
     }
     reconcile(snapshot: CssSnapshot): void {
         if (this.disposed) return
@@ -142,7 +144,7 @@ export class PersonalCssRuntime {
     trial(snapshot: CssSnapshot, confirm: () => Promise<void>, rollbackResources?: () => void): void {
         if (this.disposed) throw new Error('꾸미기 화면이 닫혔습니다.')
         if (this.busy) throw new Error('진행 중인 확인 또는 저장을 먼저 마쳐야 합니다.')
-        if (!this.active()) throw new Error('Standard 테마에서 Safe Mode와 전체 사용 상태를 확인하세요.')
+        if (!this.active()) throw new Error('Safe Mode와 전체 사용 상태를 확인하세요.')
         this.phase = 'trial'
         this.safetyInterrupted = false
         this.candidate = snapshot
