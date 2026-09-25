@@ -6,7 +6,8 @@ PocketRisu `v1.10.0`.
 
 The `0.2.3-experimental.8` candidate adds an editable Personal CSS
 manager and imported chat fonts. Stable `v0.2.2` remains the published stable
-baseline while the physical iPhone gate is pending. See the
+baseline while the full physical iPhone gate is pending. The
+experimental.6–8 follow-ups passed their own iPhone checks. See the
 [candidate validation and recovery guide](docs/POCKETRISU-PERSONAL-CSS-TOGGLE-EDITOR-VALIDATION.md).
 The [editor-text follow-up](docs/POCKETRISU-CSS-EDITOR-TEXT-VALIDATION.md)
 records how internal activation selectors are hidden without rewriting existing data.

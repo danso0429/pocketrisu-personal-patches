@@ -192,10 +192,17 @@ Readback:
 - A new plan has 0 changes.
 - The error log has no entries after the restart.
 
-## Remaining gate
+## Physical iPhone L3
 
-Check on iPhone with the Custom HTML theme:
+Checked on iPhone with the Custom HTML theme that:
 
 - message alignment, the body font, and custom fonts apply;
 - theme headings and dialogue marks keep the theme font; and
 - the PocketRisu Standard appearance is unchanged.
+
+The user reported on 2026-09-25 that all of these iPhone checks passed. No
+separate per-step timings or screenshots were supplied.
+
+This result covers only this change. Stable promotion of the `0.2.3` line
+still needs the full 18-step device gate in the editor plan (section 15.5),
+recorded by feature.

@@ -82,11 +82,18 @@ Readback:
 - Patcher status is `current`, and a new plan has 0 changes.
 - The error log has no entries after the restart.
 
-## Remaining gate
+## Physical iPhone L3
 
-Check on iPhone: switch the theme to Custom HTML and back, and turn the master
-switch off and on. After both, Personal CSS, built-in fonts, and custom-font
-selection should work without the recovery notice.
+Checked on iPhone: switching the theme to Custom HTML and back, and turning the
+master switch off and on, left Personal CSS, built-in fonts, and custom-font
+selection working without the recovery notice.
 
 A device that already has a stored `needsValidation` marker still needs one
 "전체 규칙 시험 적용 · 복구 종료" confirmation.
+
+The user reported on 2026-09-25 that all of these iPhone checks passed. No
+separate per-step timings or screenshots were supplied.
+
+This result covers only this change. Stable promotion of the `0.2.3` line
+still needs the full 18-step device gate in the editor plan (section 15.5),
+recorded by feature.

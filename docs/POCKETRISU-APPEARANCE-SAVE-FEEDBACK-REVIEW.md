@@ -175,11 +175,18 @@ Readback:
 - A new plan has 0 changes.
 - The error log has no entries after the restart.
 
-## Remaining gate
+## Physical iPhone L3
 
-Check on iPhone:
+Checked on iPhone that:
 
-- toggle a CSS item and select a font, and confirm that one top toast moves
+- toggling a CSS item and selecting a font show one top toast that moves
   through its stages and ends with a completion message;
-- confirm that no progress toast flickers or disappears mid-save; and
-- confirm that controls under a progress toast stay tappable.
+- no progress toast flickers or disappears mid-save; and
+- controls under a progress toast stay tappable.
+
+The user reported on 2026-09-25 that all of these iPhone checks passed. No
+separate per-step timings or screenshots were supplied.
+
+This result covers only this change. Stable promotion of the `0.2.3` line
+still needs the full 18-step device gate in the editor plan (section 15.5),
+recorded by feature.
