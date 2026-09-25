@@ -10,9 +10,12 @@ only the message body's base font.
   `.default-chat-screen .risu-chat[data-chat-index] .chattext`. Custom HTML's
   `<risutextbox>` uses the same text-box snippet. Only PocketRisu Standard adds
   `.nodeonly-standard` to the chat screen.
-- Custom HTML does not render `<style>` elements from the Chat HTML. A theme's
-  CSS reaches the page only through the global `#customcss` element, which is
-  appended to `body`.
+- A theme's CSS reaches the page in two ways. The global `#customcss` element
+  is appended to `body` after the static `#app` root. Custom HTML can also
+  render `<style>` inside a message, which places it within `#app`. Both come
+  before the Personal CSS run. (An earlier revision of this record said that
+  Custom HTML does not render `<style>`. That was wrong, and the ordering
+  conclusion does not depend on it.)
 - Upstream styles every element with `* { font-family: var(--risu-font-family) }`.
   Children therefore do not inherit a parent's `font-family`, but they do
   inherit the `--risu-font-family` variable. Themes that intend inheritance
@@ -42,6 +45,72 @@ only the message body's base font.
 - **Limit.** A theme rule that sets `font-family` directly on ordinary
   paragraphs (for example `.chattext p`) keeps its font. An enabled item in the
   Personal CSS editor can override it.
+
+## Decision evidence
+
+The upstream facts, the adopted rule, and the rejected alternatives are kept
+as reproducible evidence in
+[`docs/validation/personal-css-theme-independence-2026-09-25/`](validation/personal-css-theme-independence-2026-09-25/).
+
+- `measure-cascade.cjs` checks the upstream anchors verbatim against a
+  pristine source. It then measures computed font and alignment in Chromium
+  for four cases (a `#customcss` theme, an in-message `<style>` theme,
+  Standard, and an adversarial theme) under three rule variants.
+- `results.json` is the observed output for the deployed CSS
+  `index-CYOCyhvL.css` (SHA-256 `5570154813cf…d678`), Chromium 140.0.7339.16,
+  and PocketRisu `v1.10.0` (`98e968339d1b3f91b9dac85bb3f2ebb5f90f9d14`).
+  All 15 anchors matched.
+
+### Upstream anchors (`v1.10.0`)
+
+| Fact the design relies on | Location |
+| --- | --- |
+| Every element uses `font-family: var(--risu-font-family)` | [`src/styles.css:397-399`](https://github.com/PocketRisu/PocketRisu/blob/98e968339d1b3f91b9dac85bb3f2ebb5f90f9d14/src/styles.css#L397-L399) |
+| The app font setting writes the same variable | [`src/ts/gui/colorscheme.ts:445`](https://github.com/PocketRisu/PocketRisu/blob/98e968339d1b3f91b9dac85bb3f2ebb5f90f9d14/src/ts/gui/colorscheme.ts#L445) |
+| Global custom CSS feeds `#customcss`, and Safe Mode clears it | [`src/ts/gui/colorscheme.ts:450-455`](https://github.com/PocketRisu/PocketRisu/blob/98e968339d1b3f91b9dac85bb3f2ebb5f90f9d14/src/ts/gui/colorscheme.ts#L450-L455) |
+| `#customcss` is appended to `body` | [`src/ts/stores.svelte.ts:120-133`](https://github.com/PocketRisu/PocketRisu/blob/98e968339d1b3f91b9dac85bb3f2ebb5f90f9d14/src/ts/stores.svelte.ts#L120-L133) |
+| `#app` is static in `body` before it | [`index.html:20`](https://github.com/PocketRisu/PocketRisu/blob/98e968339d1b3f91b9dac85bb3f2ebb5f90f9d14/index.html#L20) |
+| Themed messages share `.risu-chat[data-chat-index]` | [`src/lib/ChatScreens/Chat.svelte:1126-1127`](https://github.com/PocketRisu/PocketRisu/blob/98e968339d1b3f91b9dac85bb3f2ebb5f90f9d14/src/lib/ChatScreens/Chat.svelte#L1126-L1127) |
+| Message text renders in `.chattext` | [`src/lib/ChatScreens/Chat.svelte:435`](https://github.com/PocketRisu/PocketRisu/blob/98e968339d1b3f91b9dac85bb3f2ebb5f90f9d14/src/lib/ChatScreens/Chat.svelte#L435) |
+| Custom HTML `<risutextbox>` uses that text box | [`src/lib/ChatScreens/Chat.svelte:1089`](https://github.com/PocketRisu/PocketRisu/blob/98e968339d1b3f91b9dac85bb3f2ebb5f90f9d14/src/lib/ChatScreens/Chat.svelte#L1089) |
+| Custom HTML renders in-message `<style>` | [`src/lib/ChatScreens/Chat.svelte:1097-1100`](https://github.com/PocketRisu/PocketRisu/blob/98e968339d1b3f91b9dac85bb3f2ebb5f90f9d14/src/lib/ChatScreens/Chat.svelte#L1097-L1100) |
+| Only Standard adds `.nodeonly-standard` | [`src/lib/ChatScreens/DefaultChatScreen.svelte:1268`](https://github.com/PocketRisu/PocketRisu/blob/98e968339d1b3f91b9dac85bb3f2ebb5f90f9d14/src/lib/ChatScreens/DefaultChatScreen.svelte#L1268) |
+| Standard is `''` and Custom HTML is `'customHTML'` | [`src/ts/setting/displaySettingsData.svelte.ts:22-27`](https://github.com/PocketRisu/PocketRisu/blob/98e968339d1b3f91b9dac85bb3f2ebb5f90f9d14/src/ts/setting/displaySettingsData.svelte.ts#L22-L27) |
+| Safe Mode is the `toggleCSS` hotkey | [`src/ts/hotkey.ts:94-96`](https://github.com/PocketRisu/PocketRisu/blob/98e968339d1b3f91b9dac85bb3f2ebb5f90f9d14/src/ts/hotkey.ts#L94-L96) |
+
+### Alternatives measured in `results.json`
+
+| Variant | Theme-set dialogue marks, headings, and code | Plain body paragraphs | Decision |
+| --- | --- | --- | --- |
+| `chosen`: variable and font on the text root | Keep the theme fonts | Personal font | Adopted |
+| `descendantWide`: former `:where(*)` rule with `!important` | Replaced by the personal font, including theme code fonts | Personal font | Rejected: erases theme typography |
+| `containerFontOnly`: `font-family` on the root without the variable | Keep the theme fonts | Theme or app font, because of the upstream `*` rule | Rejected: does not reach body text |
+
+Two further observations:
+
+- **Order.** In the `#customcss` case, a Personal rule and a theme rule of
+  equal specificity (`p.tie`) resolved to Personal when the Personal run
+  followed the theme, and to the theme when it preceded it.
+- **Adversarial theme.** A theme that set the font, the variable, and
+  `text-align` on `.chattext` itself still yielded the personal font and
+  centered text. A theme font on `p.lead` stayed, which is the documented limit.
+
+Rejected without measurement: wrapping theme CSS in `@layer`. Unlayered app
+styles would then beat every theme rule, and a top-level `@import` inside the
+theme CSS would become invalid.
+
+### When to revisit
+
+Re-run `measure-cascade.cjs` and compare it with `results.json` when:
+
+- a new upstream target is qualified;
+- an anchor no longer matches;
+- a theme reports that body text ignores the chat font or alignment; or
+- Personal CSS appears to lose to theme CSS of equal specificity.
+
+The design stops holding if upstream drops the `*` variable rule, renames the
+`.chattext` or `.risu-chat[data-chat-index]` roots, or moves `#customcss`
+after other theme style sources.
 
 ## Validation
 

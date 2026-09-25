@@ -1,0 +1,776 @@
+{
+  "generatedBy": "measure-cascade.cjs",
+  "chromium": "140.0.7339.16",
+  "css": {
+    "file": "index-CYOCyhvL.css",
+    "sha256": "5570154813cfbc4304dde6ad06ca22fe3ab0190b070f54706e6b81021518d678"
+  },
+  "anchors": [
+    {
+      "file": "src/styles.css",
+      "line": 397,
+      "text": "* {",
+      "claim": "Every element takes its font from the variable, so descendants do not inherit a parent font-family.",
+      "matches": true
+    },
+    {
+      "file": "src/styles.css",
+      "line": 398,
+      "text": "  font-family: var(--risu-font-family);",
+      "matches": true
+    },
+    {
+      "file": "src/ts/gui/colorscheme.ts",
+      "line": 445,
+      "text": "            root.style.setProperty('--risu-font-family', db.customFont);",
+      "claim": "The app font setting is delivered through the same variable.",
+      "matches": true
+    },
+    {
+      "file": "src/ts/gui/colorscheme.ts",
+      "line": 451,
+      "text": "        CustomCSSStore.set(db.customCSS ?? '')",
+      "claim": "Global custom CSS is the theme CSS channel; Safe Mode clears it.",
+      "matches": true
+    },
+    {
+      "file": "src/ts/stores.svelte.ts",
+      "line": 128,
+      "text": "        s.id = 'customcss'",
+      "matches": true
+    },
+    {
+      "file": "src/ts/stores.svelte.ts",
+      "line": 130,
+      "text": "        document.body.appendChild(s)",
+      "claim": "#customcss is appended to body after the static #app root.",
+      "matches": true
+    },
+    {
+      "file": "index.html",
+      "line": 20,
+      "text": "    <div id=\"app\">",
+      "matches": true
+    },
+    {
+      "file": "src/lib/ChatScreens/Chat.svelte",
+      "line": 1126,
+      "text": "<div class=\"flex max-w-full justify-center risu-chat\"",
+      "claim": "Every theme shares the .risu-chat[data-chat-index] message root.",
+      "matches": true
+    },
+    {
+      "file": "src/lib/ChatScreens/Chat.svelte",
+      "line": 1127,
+      "text": "     data-chat-index={idx}",
+      "matches": true
+    },
+    {
+      "file": "src/lib/ChatScreens/Chat.svelte",
+      "line": 435,
+      "text": "        <span class=\"text chat-width chattext prose minw-0\"",
+      "claim": "Message text renders in one .chattext root.",
+      "matches": true
+    },
+    {
+      "file": "src/lib/ChatScreens/Chat.svelte",
+      "line": 1089,
+      "text": "    {:else if dom.tagName === 'RISUTEXTBOX'}",
+      "claim": "Custom HTML <risutextbox> renders the same text box.",
+      "matches": true
+    },
+    {
+      "file": "src/lib/ChatScreens/Chat.svelte",
+      "line": 1097,
+      "text": "    {:else if dom.tagName === 'STYLE'}",
+      "claim": "Custom HTML can also render <style> inside the message, within #app.",
+      "matches": true
+    },
+    {
+      "file": "src/lib/ChatScreens/DefaultChatScreen.svelte",
+      "line": 1268,
+      "text": "            class:nodeonly-standard={DBState.db.theme === ''}",
+      "claim": "Only PocketRisu Standard adds .nodeonly-standard.",
+      "matches": true
+    },
+    {
+      "file": "src/ts/setting/displaySettingsData.svelte.ts",
+      "line": 27,
+      "text": "                { value: 'customHTML', label: 'Custom HTML' },",
+      "claim": "Custom HTML is db.theme 'customHTML'; Standard is ''.",
+      "matches": true
+    },
+    {
+      "file": "src/ts/hotkey.ts",
+      "line": 95,
+      "text": "                    SafeModeStore.set(!get(SafeModeStore))",
+      "claim": "Safe Mode is the toggleCSS emergency hotkey.",
+      "matches": true
+    }
+  ],
+  "measurements": {
+    "chosen/customcssTheme/personalAfterTheme": {
+      "ct": {
+        "font": "personal",
+        "textAlign": "center"
+      },
+      "p": {
+        "font": "personal",
+        "textAlign": "center"
+      },
+      "lead": {
+        "font": "personal",
+        "textAlign": "center"
+      },
+      "tie": {
+        "font": "personal",
+        "textAlign": "center",
+        "color": "rgb(0, 128, 0)"
+      },
+      "q2": {
+        "font": "Fixture Serif",
+        "textAlign": "center"
+      },
+      "q1": {
+        "font": "Fixture Serif",
+        "textAlign": "center"
+      },
+      "em": {
+        "font": "personal",
+        "textAlign": "center"
+      },
+      "h2": {
+        "font": "Fixture Serif",
+        "textAlign": "center"
+      },
+      "bqp": {
+        "font": "personal",
+        "textAlign": "left"
+      },
+      "li": {
+        "font": "personal",
+        "textAlign": "left"
+      },
+      "code": {
+        "font": "Fixture Mono",
+        "textAlign": "left"
+      },
+      "td": {
+        "font": "personal",
+        "textAlign": "left"
+      }
+    },
+    "chosen/customcssTheme/personalBeforeTheme": {
+      "ct": {
+        "font": "personal",
+        "textAlign": "center"
+      },
+      "p": {
+        "font": "personal",
+        "textAlign": "center"
+      },
+      "lead": {
+        "font": "personal",
+        "textAlign": "center"
+      },
+      "tie": {
+        "font": "personal",
+        "textAlign": "center",
+        "color": "rgb(128, 0, 0)"
+      },
+      "q2": {
+        "font": "Fixture Serif",
+        "textAlign": "center"
+      },
+      "q1": {
+        "font": "Fixture Serif",
+        "textAlign": "center"
+      },
+      "em": {
+        "font": "personal",
+        "textAlign": "center"
+      },
+      "h2": {
+        "font": "Fixture Serif",
+        "textAlign": "center"
+      },
+      "bqp": {
+        "font": "personal",
+        "textAlign": "left"
+      },
+      "li": {
+        "font": "personal",
+        "textAlign": "left"
+      },
+      "code": {
+        "font": "Fixture Mono",
+        "textAlign": "left"
+      },
+      "td": {
+        "font": "personal",
+        "textAlign": "left"
+      }
+    },
+    "chosen/inMessageStyleTheme/personalAfterTheme": {
+      "ct": {
+        "font": "personal",
+        "textAlign": "center"
+      },
+      "p": {
+        "font": "personal",
+        "textAlign": "center"
+      },
+      "lead": {
+        "font": "personal",
+        "textAlign": "center"
+      },
+      "tie": {
+        "font": "personal",
+        "textAlign": "center",
+        "color": "rgb(0, 128, 0)"
+      },
+      "q2": {
+        "font": "Fixture Serif",
+        "textAlign": "center"
+      },
+      "q1": {
+        "font": "Fixture Serif",
+        "textAlign": "center"
+      },
+      "em": {
+        "font": "personal",
+        "textAlign": "center"
+      },
+      "h2": {
+        "font": "Fixture Serif",
+        "textAlign": "center"
+      },
+      "bqp": {
+        "font": "personal",
+        "textAlign": "left"
+      },
+      "li": {
+        "font": "personal",
+        "textAlign": "left"
+      },
+      "code": {
+        "font": "Fixture Mono",
+        "textAlign": "left"
+      },
+      "td": {
+        "font": "personal",
+        "textAlign": "left"
+      }
+    },
+    "chosen/standard/personalAfterTheme": {
+      "ct": {
+        "font": "personal",
+        "textAlign": "center"
+      },
+      "p": {
+        "font": "personal",
+        "textAlign": "center"
+      },
+      "lead": {
+        "font": "personal",
+        "textAlign": "center"
+      },
+      "tie": {
+        "font": "personal",
+        "textAlign": "center",
+        "color": "rgb(250, 250, 250)"
+      },
+      "q2": {
+        "font": "personal",
+        "textAlign": "center"
+      },
+      "q1": {
+        "font": "personal",
+        "textAlign": "center"
+      },
+      "em": {
+        "font": "personal",
+        "textAlign": "center"
+      },
+      "h2": {
+        "font": "personal",
+        "textAlign": "center"
+      },
+      "bqp": {
+        "font": "personal",
+        "textAlign": "left"
+      },
+      "li": {
+        "font": "personal",
+        "textAlign": "left"
+      },
+      "code": {
+        "font": "monospace",
+        "textAlign": "left"
+      },
+      "td": {
+        "font": "personal",
+        "textAlign": "start"
+      }
+    },
+    "chosen/adversarialTheme/personalAfterTheme": {
+      "ct": {
+        "font": "personal",
+        "textAlign": "center"
+      },
+      "p": {
+        "font": "personal",
+        "textAlign": "center"
+      },
+      "lead": {
+        "font": "Fixture Para",
+        "textAlign": "center"
+      },
+      "tie": {
+        "font": "personal",
+        "textAlign": "center",
+        "color": "rgb(250, 250, 250)"
+      },
+      "q2": {
+        "font": "personal",
+        "textAlign": "center"
+      },
+      "q1": {
+        "font": "personal",
+        "textAlign": "center"
+      },
+      "em": {
+        "font": "personal",
+        "textAlign": "center"
+      },
+      "h2": {
+        "font": "personal",
+        "textAlign": "center"
+      },
+      "bqp": {
+        "font": "personal",
+        "textAlign": "left"
+      },
+      "li": {
+        "font": "personal",
+        "textAlign": "left"
+      },
+      "code": {
+        "font": "monospace",
+        "textAlign": "left"
+      },
+      "td": {
+        "font": "personal",
+        "textAlign": "start"
+      }
+    },
+    "descendantWide/customcssTheme/personalAfterTheme": {
+      "ct": {
+        "font": "personal",
+        "textAlign": "center"
+      },
+      "p": {
+        "font": "personal",
+        "textAlign": "center"
+      },
+      "lead": {
+        "font": "personal",
+        "textAlign": "center"
+      },
+      "tie": {
+        "font": "personal",
+        "textAlign": "center",
+        "color": "rgb(0, 128, 0)"
+      },
+      "q2": {
+        "font": "personal",
+        "textAlign": "center"
+      },
+      "q1": {
+        "font": "personal",
+        "textAlign": "center"
+      },
+      "em": {
+        "font": "personal",
+        "textAlign": "center"
+      },
+      "h2": {
+        "font": "personal",
+        "textAlign": "center"
+      },
+      "bqp": {
+        "font": "personal",
+        "textAlign": "left"
+      },
+      "li": {
+        "font": "personal",
+        "textAlign": "left"
+      },
+      "code": {
+        "font": "personal",
+        "textAlign": "left"
+      },
+      "td": {
+        "font": "personal",
+        "textAlign": "left"
+      }
+    },
+    "descendantWide/inMessageStyleTheme/personalAfterTheme": {
+      "ct": {
+        "font": "personal",
+        "textAlign": "center"
+      },
+      "p": {
+        "font": "personal",
+        "textAlign": "center"
+      },
+      "lead": {
+        "font": "personal",
+        "textAlign": "center"
+      },
+      "tie": {
+        "font": "personal",
+        "textAlign": "center",
+        "color": "rgb(0, 128, 0)"
+      },
+      "q2": {
+        "font": "personal",
+        "textAlign": "center"
+      },
+      "q1": {
+        "font": "personal",
+        "textAlign": "center"
+      },
+      "em": {
+        "font": "personal",
+        "textAlign": "center"
+      },
+      "h2": {
+        "font": "personal",
+        "textAlign": "center"
+      },
+      "bqp": {
+        "font": "personal",
+        "textAlign": "left"
+      },
+      "li": {
+        "font": "personal",
+        "textAlign": "left"
+      },
+      "code": {
+        "font": "personal",
+        "textAlign": "left"
+      },
+      "td": {
+        "font": "personal",
+        "textAlign": "left"
+      }
+    },
+    "descendantWide/standard/personalAfterTheme": {
+      "ct": {
+        "font": "personal",
+        "textAlign": "center"
+      },
+      "p": {
+        "font": "personal",
+        "textAlign": "center"
+      },
+      "lead": {
+        "font": "personal",
+        "textAlign": "center"
+      },
+      "tie": {
+        "font": "personal",
+        "textAlign": "center",
+        "color": "rgb(250, 250, 250)"
+      },
+      "q2": {
+        "font": "personal",
+        "textAlign": "center"
+      },
+      "q1": {
+        "font": "personal",
+        "textAlign": "center"
+      },
+      "em": {
+        "font": "personal",
+        "textAlign": "center"
+      },
+      "h2": {
+        "font": "personal",
+        "textAlign": "center"
+      },
+      "bqp": {
+        "font": "personal",
+        "textAlign": "left"
+      },
+      "li": {
+        "font": "personal",
+        "textAlign": "left"
+      },
+      "code": {
+        "font": "personal",
+        "textAlign": "left"
+      },
+      "td": {
+        "font": "personal",
+        "textAlign": "start"
+      }
+    },
+    "descendantWide/adversarialTheme/personalAfterTheme": {
+      "ct": {
+        "font": "personal",
+        "textAlign": "center"
+      },
+      "p": {
+        "font": "personal",
+        "textAlign": "center"
+      },
+      "lead": {
+        "font": "personal",
+        "textAlign": "center"
+      },
+      "tie": {
+        "font": "personal",
+        "textAlign": "center",
+        "color": "rgb(250, 250, 250)"
+      },
+      "q2": {
+        "font": "personal",
+        "textAlign": "center"
+      },
+      "q1": {
+        "font": "personal",
+        "textAlign": "center"
+      },
+      "em": {
+        "font": "personal",
+        "textAlign": "center"
+      },
+      "h2": {
+        "font": "personal",
+        "textAlign": "center"
+      },
+      "bqp": {
+        "font": "personal",
+        "textAlign": "left"
+      },
+      "li": {
+        "font": "personal",
+        "textAlign": "left"
+      },
+      "code": {
+        "font": "personal",
+        "textAlign": "left"
+      },
+      "td": {
+        "font": "personal",
+        "textAlign": "start"
+      }
+    },
+    "containerFontOnly/customcssTheme/personalAfterTheme": {
+      "ct": {
+        "font": "personal",
+        "textAlign": "center"
+      },
+      "p": {
+        "font": "Fixture Sans",
+        "textAlign": "center"
+      },
+      "lead": {
+        "font": "Fixture Sans",
+        "textAlign": "center"
+      },
+      "tie": {
+        "font": "Fixture Sans",
+        "textAlign": "center",
+        "color": "rgb(0, 128, 0)"
+      },
+      "q2": {
+        "font": "Fixture Serif",
+        "textAlign": "center"
+      },
+      "q1": {
+        "font": "Fixture Serif",
+        "textAlign": "center"
+      },
+      "em": {
+        "font": "Fixture Sans",
+        "textAlign": "center"
+      },
+      "h2": {
+        "font": "Fixture Serif",
+        "textAlign": "center"
+      },
+      "bqp": {
+        "font": "Fixture Sans",
+        "textAlign": "left"
+      },
+      "li": {
+        "font": "Fixture Sans",
+        "textAlign": "left"
+      },
+      "code": {
+        "font": "Fixture Mono",
+        "textAlign": "left"
+      },
+      "td": {
+        "font": "Fixture Sans",
+        "textAlign": "left"
+      }
+    },
+    "containerFontOnly/inMessageStyleTheme/personalAfterTheme": {
+      "ct": {
+        "font": "personal",
+        "textAlign": "center"
+      },
+      "p": {
+        "font": "Fixture Sans",
+        "textAlign": "center"
+      },
+      "lead": {
+        "font": "Fixture Sans",
+        "textAlign": "center"
+      },
+      "tie": {
+        "font": "Fixture Sans",
+        "textAlign": "center",
+        "color": "rgb(0, 128, 0)"
+      },
+      "q2": {
+        "font": "Fixture Serif",
+        "textAlign": "center"
+      },
+      "q1": {
+        "font": "Fixture Serif",
+        "textAlign": "center"
+      },
+      "em": {
+        "font": "Fixture Sans",
+        "textAlign": "center"
+      },
+      "h2": {
+        "font": "Fixture Serif",
+        "textAlign": "center"
+      },
+      "bqp": {
+        "font": "Fixture Sans",
+        "textAlign": "left"
+      },
+      "li": {
+        "font": "Fixture Sans",
+        "textAlign": "left"
+      },
+      "code": {
+        "font": "Fixture Mono",
+        "textAlign": "left"
+      },
+      "td": {
+        "font": "Fixture Sans",
+        "textAlign": "left"
+      }
+    },
+    "containerFontOnly/standard/personalAfterTheme": {
+      "ct": {
+        "font": "personal",
+        "textAlign": "center"
+      },
+      "p": {
+        "font": "Arial, sans-serif, serif",
+        "textAlign": "center"
+      },
+      "lead": {
+        "font": "Arial, sans-serif, serif",
+        "textAlign": "center"
+      },
+      "tie": {
+        "font": "Arial, sans-serif, serif",
+        "textAlign": "center",
+        "color": "rgb(250, 250, 250)"
+      },
+      "q2": {
+        "font": "Arial, sans-serif, serif",
+        "textAlign": "center"
+      },
+      "q1": {
+        "font": "Arial, sans-serif, serif",
+        "textAlign": "center"
+      },
+      "em": {
+        "font": "Arial, sans-serif, serif",
+        "textAlign": "center"
+      },
+      "h2": {
+        "font": "Arial, sans-serif, serif",
+        "textAlign": "center"
+      },
+      "bqp": {
+        "font": "Arial, sans-serif, serif",
+        "textAlign": "left"
+      },
+      "li": {
+        "font": "Arial, sans-serif, serif",
+        "textAlign": "left"
+      },
+      "code": {
+        "font": "monospace",
+        "textAlign": "left"
+      },
+      "td": {
+        "font": "Arial, sans-serif, serif",
+        "textAlign": "start"
+      }
+    },
+    "containerFontOnly/adversarialTheme/personalAfterTheme": {
+      "ct": {
+        "font": "personal",
+        "textAlign": "center"
+      },
+      "p": {
+        "font": "Fixture Root",
+        "textAlign": "center"
+      },
+      "lead": {
+        "font": "Fixture Para",
+        "textAlign": "center"
+      },
+      "tie": {
+        "font": "Fixture Root",
+        "textAlign": "center",
+        "color": "rgb(250, 250, 250)"
+      },
+      "q2": {
+        "font": "Fixture Root",
+        "textAlign": "center"
+      },
+      "q1": {
+        "font": "Fixture Root",
+        "textAlign": "center"
+      },
+      "em": {
+        "font": "Fixture Root",
+        "textAlign": "center"
+      },
+      "h2": {
+        "font": "Fixture Root",
+        "textAlign": "center"
+      },
+      "bqp": {
+        "font": "Fixture Root",
+        "textAlign": "left"
+      },
+      "li": {
+        "font": "Fixture Root",
+        "textAlign": "left"
+      },
+      "code": {
+        "font": "monospace",
+        "textAlign": "left"
+      },
+      "td": {
+        "font": "Fixture Root",
+        "textAlign": "start"
+      }
+    }
+  }
+}
