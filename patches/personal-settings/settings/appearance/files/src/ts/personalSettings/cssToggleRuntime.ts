@@ -74,14 +74,17 @@ export class PersonalCssRuntime {
     }
     sync(): string {
         if (this.disposed) return ''
-        const { db } = this.current()
+        const { db, safeMode } = this.current()
         const active = this.active()
-        if (this.lastActive === true && !active) this.requireValidation()
+        // Safe Mode is the emergency CSS switch, so leaving it requires the
+        // activation trial. Theme and master switches only pause the confirmed
+        // stored snapshot, which reapplies when the gate reopens.
+        if (this.lastActive === true && !active && safeMode) this.requireValidation()
         this.lastActive = active
         if (readCssToggles(db).value.needsValidation) this.requireValidation()
         if (!active) {
             if (this.phase === 'trial' || this.phase === 'preparing') this.cancel('꾸미기가 중지되어 시험 적용을 취소했습니다.')
-            if (this.phase === 'saving') this.safetyInterrupted = true
+            if (this.phase === 'saving') { this.safetyInterrupted = true; this.requireValidation() }
             this.reconcile({ gates: [], tokens: [], nodes: [], revisions: [] })
             return ''
         }

@@ -1,5 +1,14 @@
 # Changelog
 
+## 0.2.3-experimental.6
+
+- Stop marking Personal CSS for activation revalidation when the theme or the
+  appearance master switch closes the gate. Switching to a non-Standard theme
+  and back, or turning the master switch off and on, reapplies the confirmed
+  stored CSS, root tokens, and fonts instead of holding them in recovery.
+- Keep revalidation for leaving Safe Mode, for a save interrupted by a gate
+  change, and for CSS repairs written while suppressed.
+
 ## 0.2.3-experimental.5
 
 - Reuse already verified and loaded font faces across live preview/selection

@@ -4,7 +4,7 @@ Private, all-or-nothing patch delivery for PocketRisu NodeOnly. The current
 stable release is `v0.2.2`, and its complete manifest graph targets exact
 PocketRisu `v1.10.0`.
 
-The `0.2.3-experimental.5` candidate adds an editable Personal CSS
+The `0.2.3-experimental.6` candidate adds an editable Personal CSS
 manager and imported chat fonts. Stable `v0.2.2` remains the published stable
 baseline while the physical iPhone gate is pending. See the
 [candidate validation and recovery guide](docs/POCKETRISU-PERSONAL-CSS-TOGGLE-EDITOR-VALIDATION.md).
@@ -150,6 +150,7 @@ retains the detailed source and path review.
 
 | Release | What changed |
 | --- | --- |
+| `v0.2.3-experimental.6` | Reapplies confirmed Personal CSS after theme or master-switch round trips instead of requiring a recovery trial. |
 | `v0.2.3-experimental.5` | Reuses verified font previews for selection, avoids metadata-only preview reloads, saves CSS enable switches directly, and merges recovery into the compact top notice. |
 | `v0.2.3-experimental.4` | Uses one-decimal KB/MB labels and a collapsible font picker with font-name previews and inline custom-font actions. |
 | `v0.2.3-experimental.3` | Hides owned activation selectors from shipped CSS editor text while preserving unchanged source and existing selector specificity for declaration edits. New/custom CSS remains ordinary stylesheet text. |

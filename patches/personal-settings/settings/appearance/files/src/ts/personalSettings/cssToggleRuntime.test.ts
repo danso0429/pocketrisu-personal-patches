@@ -141,3 +141,30 @@ test('recovery exit cannot clear its sentinel after a gate closes and reopens du
     expect(sessionStorage.getItem(recoveryKey)).toBe('1')
     expect(runtime.suppressed).toBe(true)
 })
+test.each([
+    ['theme', (db: any, closed: boolean) => { db.theme = closed ? 'customHTML' : '' }],
+    ['master', (db: any, closed: boolean) => { db.pocketRisuPersonalSettings.appearance.enabled = !closed }],
+] as const)('closing and reopening the %s gate reapplies the confirmed stored snapshot', (_gate, set) => {
+    const local = { theme: '', pocketRisuPersonalSettings: { appearance: { version: 1, enabled: true, chat: { font: 'paperlogy', keepKoreanWords: true } } } } as unknown as Database
+    runtime = new PersonalCssRuntime(document, () => ({ db: local, safeMode: false }))
+    const before = runtime.sync()
+    expect(before).toContain('chat-font-paperlogy')
+    expect(document.querySelectorAll('[data-pocketrisu-personal-css]')).toHaveLength(1)
+    set(local, true)
+    expect(runtime.sync()).toBe('')
+    expect(document.querySelectorAll('[data-pocketrisu-personal-css]')).toHaveLength(0)
+    set(local, false)
+    expect(runtime.sync()).toBe(before)
+    expect(document.querySelectorAll('[data-pocketrisu-personal-css]')).toHaveLength(1)
+    expect(runtime.suppressed).toBe(false)
+    expect(sessionStorage.length).toBe(0)
+})
+test('a stored suppressed-state repair still blocks activation after the gate reopens', () => {
+    const local = { theme: 'customHTML', pocketRisuPersonalSettings: { appearance: { version: 1, enabled: true, chat: { keepKoreanWords: true }, cssToggles: { version: 1, needsValidation: true } } } } as unknown as Database
+    runtime = new PersonalCssRuntime(document, () => ({ db: local, safeMode: false }))
+    runtime.sync()
+    ;(local as any).theme = ''
+    expect(runtime.sync()).toBe('')
+    expect(runtime.suppressed).toBe(true)
+    expect(document.querySelectorAll('[data-pocketrisu-personal-css]')).toHaveLength(0)
+})
