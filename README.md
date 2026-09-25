@@ -14,6 +14,8 @@ The [font-picker follow-up](docs/POCKETRISU-FONT-PICKER-VALIDATION.md) records
 the collapsible preview list, inline actions, and readable size labels.
 The [font-save and switch follow-up](docs/POCKETRISU-FONT-SAVE-SWITCH-VALIDATION.md)
 records font reuse, direct CSS enable switches, and the merged top recovery notice.
+The [gate-retention follow-up](docs/POCKETRISU-CSS-GATE-RETENTION-VALIDATION.md)
+records why theme and master-switch round trips no longer hold Personal CSS in recovery.
 
 ## Complete installer
 
