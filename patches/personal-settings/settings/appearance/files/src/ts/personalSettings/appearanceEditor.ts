@@ -175,7 +175,7 @@ export async function commitFont(make: (db: Database) => void, base: unknown, do
             if (!sameValue(fontEditBase(), expected)) throw new Error('저장 중 폰트 목록 또는 선택이 변경되었습니다.')
         })
         done()
-    })
+    }, 'font')
     // Font synchronization deliberately skips the saving lane. Run it only
     // after that lane closes, including clearing a formerly selected face.
     selectedFontKey = null

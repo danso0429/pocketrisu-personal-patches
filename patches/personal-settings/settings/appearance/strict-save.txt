@@ -1,6 +1,7 @@
-    registerAppearanceWriter(async (mutate, verify) => {
+    registerAppearanceWriter(async (mutate, verify, progress) => {
         // Wait before mutation: ordinary autosave cannot capture an unqualified candidate.
-        if (saveInFlight) await saveInFlight
+        if (saveInFlight) { progress?.('waiting'); await saveInFlight }
+        progress?.('preparing')
         verify()
         const baseline = supportsPatchSync ? safeStructuredClone((patcher as any).lastSyncedDb) : null
         const undo = mutate()
@@ -12,8 +13,10 @@
             saving.state = true
             try {
                 attempted = true
+                progress?.('writing')
                 const result = await persistTrackedChanges(toSave, { personalStrict: true } as any)
                 if (result !== 'saved') throw appearanceSaveFailure(result !== 'noop')
+                progress?.('flushing')
                 await forageStorage.realStorage.flushPersonalAppearance()
                 verify()
             } catch (error) {

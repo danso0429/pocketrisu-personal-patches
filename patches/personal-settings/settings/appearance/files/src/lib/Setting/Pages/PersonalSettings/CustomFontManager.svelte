@@ -3,12 +3,13 @@
     import { DBState, SafeModeStore } from 'src/ts/stores.svelte'
     import { personalCssStatus } from 'src/ts/personalSettings/cssToggleRuntime'
     import { appearanceRuntime, commitFont, fontEditBase, persistImportedFont, selectCustomFont } from 'src/ts/personalSettings/appearanceEditor'
-    import { CustomFontRuntime, customFontFamily, customFontLoadStatus } from 'src/ts/personalSettings/customFontRuntime'
+    import { CustomFontRuntime, customFontFamily } from 'src/ts/personalSettings/customFontRuntime'
     import { acquireFont, detectFontFormat, FONT_LIMITS, fontDigest, readCustomFonts, sanitizeFontFilename, writeFontEntry, type CustomFont } from 'src/ts/personalSettings/customFonts'
     import { newPersonalId, rawAppearance, utf8Bytes, writeAppearanceGroup } from 'src/ts/personalSettings/cssToggles'
     import { readPersonalAppearance, setPersonalAppearanceValue } from 'src/ts/personalSettings/appearanceValues'
     import { displaySize } from 'src/ts/personalSettings/displaySize'
     import FontNamePreview from './FontNamePreview.svelte'
+    import { appearanceNotice, dismissAppearanceNotice } from 'src/ts/personalSettings/appearanceNotices'
 
     const builtins = [['app', '앱 폰트 사용'], ['paperlogy', 'Paperlogy'], ['noto-sans-kr', 'Noto Sans KR'], ['noto-serif-kr', 'Noto Serif KR'], ['ibm-plex-sans-kr', 'IBM Plex Sans KR'], ['gowun-dodum', 'Gowun Dodum'], ['gowun-batang', 'Gowun Batang'], ['hahmlet', 'Hahmlet']] as const
     const fonts = $derived(readCustomFonts(DBState.db))
@@ -26,7 +27,6 @@
     let file = $state<File | undefined>()
     let pending = $state(false)
     let bytesRead = $state(0)
-    let status = $state('')
     let candidate = $state<CustomFont | null>(null)
     let bytes: Uint8Array | undefined
     let base: unknown
@@ -39,6 +39,8 @@
     let returnFocus = $state(false)
     let fontSummary = $state<HTMLElement>()
     function close(focus = true) {
+        const saving = (pending && (!editing || !!candidate)) || ($personalCssStatus.scope === 'font' && $personalCssStatus.phase === 'saving')
+        if (!saving) dismissAppearanceNotice('font')
         ++generation
         controller?.abort()
         previewOwner?.clear()
@@ -49,10 +51,11 @@
     function open(entry?: CustomFont, event?: MouseEvent) {
         close(false)
         origin = event?.currentTarget as HTMLElement ?? null
-        editing = true; replacing = entry?.id; name = entry?.name ?? ''; base = fontEditBase(); status = ''
+        editing = true; replacing = entry?.id; name = entry?.name ?? ''; base = fontEditBase()
     }
     async function preview() {
-        status = ''; pending = true
+        pending = true
+        appearanceNotice('font', 'loading', '폰트 미리보기를 준비하는 중…')
         const current = ++generation
         controller?.abort()
         controller = new AbortController()
@@ -67,45 +70,45 @@
             if (current !== generation) return
             await owner.prepare(entry, data)
             if (current !== generation) return
-            bytes = data; candidate = entry; status = '미리보기 준비 완료 · 아직 저장되지 않았습니다.'
-        } catch (e) { if (current === generation) status = e instanceof Error ? e.message : '미리보기 실패' }
+            bytes = data; candidate = entry; appearanceNotice('font', 'info', '미리보기 준비 완료 · 아직 저장되지 않았습니다.')
+        } catch (e) { if (current === generation) appearanceNotice('font', 'error', e instanceof Error ? e.message : '미리보기 실패') }
         finally { if (current === generation) pending = false }
     }
     async function save() {
         if (!candidate || !bytes) return
-        pending = true; status = '폰트 자산 저장 및 무결성 확인 중…'
+        pending = true; appearanceNotice('font', 'loading', '폰트 파일을 저장하고 확인하는 중…')
         try {
-            await persistImportedFont({ ...candidate, name: name.trim() }, bytes, base, () => { close(); expanded = true; status = '폰트 저장 완료 · 목록에서 채팅 폰트를 선택하세요.' })
-        } catch (e) { status = e instanceof Error ? e.message : '폰트 저장 실패' }
+            await persistImportedFont({ ...candidate, name: name.trim() }, bytes, base, () => { close(); expanded = true })
+        } catch (e) { appearanceNotice('font', 'error', e instanceof Error ? e.message : '폰트 저장 실패') }
         finally { pending = false }
     }
     async function choose(value: string) {
         if (value === selected) return
-        status = ''; pending = true
+        pending = true; appearanceNotice('font', 'loading', '폰트를 준비하는 중…')
         try {
             if (value.startsWith('custom:')) await selectCustomFont(value.slice(7), fontEditBase())
-            else await commitFont(db => { if (!setPersonalAppearanceValue(db, 'chat.font', value)) throw new Error('폰트를 선택할 수 없습니다.') }, fontEditBase(), () => { status = '폰트 선택 저장 완료' })
-        } catch (e) { status = e instanceof Error ? e.message : '폰트 선택 실패' }
+            else await commitFont(db => { if (!setPersonalAppearanceValue(db, 'chat.font', value)) throw new Error('폰트를 선택할 수 없습니다.') }, fontEditBase(), () => {})
+        } catch (e) { appearanceNotice('font', 'error', e instanceof Error ? e.message : '폰트 선택 실패') }
         finally { pending = false }
     }
     async function remove(entry: CustomFont) {
         if (!window.confirm(`“${entry.name}” 폰트를 목록에서 제거할까요? 선택 중인 폰트라면 앱 폰트로 변경됩니다. 파일 자체는 삭제하지 않습니다.`)) return
-        try { await commitFont(db => writeFontEntry(db, undefined, entry.id), fontEditBase(), () => { status = '목록에서 제거했습니다.' }) }
-        catch (e) { status = e instanceof Error ? e.message : '제거 실패' }
+        try { await commitFont(db => writeFontEntry(db, undefined, entry.id), fontEditBase(), () => {}) }
+        catch (e) { appearanceNotice('font', 'error', e instanceof Error ? e.message : '제거 실패') }
     }
     async function rename(entry: CustomFont) {
         const value = window.prompt('폰트 이름', entry.name)
         if (value === null) return
-        try { await commitFont(db => writeFontEntry(db, { ...entry, name: value }, entry.id), fontEditBase(), () => { status = '이름 저장 완료' }) }
-        catch (e) { status = e instanceof Error ? e.message : '이름 저장 실패' }
+        try { await commitFont(db => writeFontEntry(db, { ...entry, name: value }, entry.id), fontEditBase(), () => {}) }
+        catch (e) { appearanceNotice('font', 'error', e instanceof Error ? e.message : '이름 저장 실패') }
     }
     async function reset() {
         if (!window.confirm('사용자 폰트 설정만 초기화할까요? 원본 복사는 폰트 파일의 백업이 아닙니다. 필요한 파일은 일반 백업으로 보관하세요.')) return
         try { await commitFont(db => {
             writeAppearanceGroup(db, 'fonts', undefined)
             if (String(rawAppearance(db).chat?.font).startsWith('custom:')) setPersonalAppearanceValue(db, 'chat.font', 'app')
-        }, fontEditBase(), () => { showRaw = false; status = '폰트 하위 설정을 초기화했습니다.' }) }
-        catch (e) { status = e instanceof Error ? e.message : '초기화 실패' }
+        }, fontEditBase(), () => { showRaw = false }) }
+        catch (e) { appearanceNotice('font', 'error', e instanceof Error ? e.message : '초기화 실패') }
     }
     $effect(() => {
         if (paused) {
@@ -151,10 +154,8 @@
             </div>
         {/if}
     </details>
-    <p role="status" aria-live="polite">{status || $personalCssStatus.message}</p>
     {#if !customSupported}<p role="status">사용자 폰트 미리보기·선택을 사용할 수 없습니다. HTTPS 연결 또는 최신 브라우저를 사용하세요. 기본 폰트와 저장된 목록 관리는 계속 사용할 수 있습니다.</p>{/if}
     {#if String(selected).startsWith('custom:')}
-        <p role="status" aria-live="polite">{$customFontLoadStatus}</p>
         <p class="personal-font-preview__sample text-xl">가나다라마바사 ABC xyz 日本語の文章 简体中文 繁體中文 Français été cœur</p>
     {/if}
     {#if !fonts.valid}

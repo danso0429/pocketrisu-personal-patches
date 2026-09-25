@@ -5,7 +5,7 @@ import { CSS_LIMITS, cssSnapshot, readCssToggles, sameValue, type CssSnapshot } 
 export const recoveryKey = 'pocketrisu-personal-css-recovery'
 const validationKey = 'pocketrisu-personal-css-validation'
 export type AppearancePhase = 'idle' | 'preparing' | 'trial' | 'saving' | 'unresolved'
-export const personalCssStatus = writable({ recovery: false, validation: false, phase: 'idle' as AppearancePhase, message: '' })
+export const personalCssStatus = writable({ recovery: false, validation: false, phase: 'idle' as AppearancePhase, scope: 'css' as 'css' | 'font', outcome: 'none' as 'none' | 'saved' | 'failed', message: '' })
 const owners = new WeakMap<Document, PersonalCssRuntime>()
 
 export class PersonalCssRuntime {
@@ -23,6 +23,8 @@ export class PersonalCssRuntime {
     private current: () => { db: Database; safeMode: boolean }
     private lastActive: boolean | undefined
     private phase: AppearancePhase = 'idle'
+    private scope: 'css' | 'font' = 'css'
+    private outcome: 'none' | 'saved' | 'failed' = 'none'
     private recovery = false
     private validation = false
     private message = ''
@@ -65,7 +67,7 @@ export class PersonalCssRuntime {
         const gates = cssSnapshot(db, safeMode).gates
         return !gates[0] && gates[2] !== 'unsupported' && gates[3] === true
     }
-    private publish(): void { if (!this.disposed) personalCssStatus.set({ recovery: this.recovery, validation: this.validation, phase: this.phase, message: this.message }) }
+    private publish(): void { if (!this.disposed) personalCssStatus.set({ recovery: this.recovery, validation: this.validation, phase: this.phase, scope: this.scope, outcome: this.outcome, message: this.message }) }
     requireValidation(): void {
         if (this.validation) return
         this.validation = true
@@ -127,6 +129,7 @@ export class PersonalCssRuntime {
     async prepare<T>(load: () => Promise<T>): Promise<T> {
         if (this.disposed || this.busy || !this.active()) throw new Error('꾸미기 적용 상태와 진행 중인 작업을 확인하세요.')
         const epoch = ++this.preparation
+        this.scope = 'css'
         this.phase = 'preparing'
         this.message = '전체 규칙 시험 적용에 필요한 폰트를 준비하는 중…'
         this.publish()
@@ -146,6 +149,7 @@ export class PersonalCssRuntime {
         if (this.busy) throw new Error('진행 중인 확인 또는 저장을 먼저 마쳐야 합니다.')
         if (!this.active()) throw new Error('Safe Mode와 전체 사용 상태를 확인하세요.')
         this.phase = 'trial'
+        this.scope = 'css'
         this.safetyInterrupted = false
         this.candidate = snapshot
         this.confirmAction = confirm
@@ -195,6 +199,7 @@ export class PersonalCssRuntime {
         const action = this.confirmAction
         clearTimeout(this.timer)
         this.phase = 'saving'
+        this.outcome = 'none'
         this.dialog?.remove()
         this.dialog = undefined
         this.message = '저장 완료를 확인하는 중…'
@@ -202,10 +207,12 @@ export class PersonalCssRuntime {
         try {
             await action()
             this.phase = 'idle'
+            this.outcome = 'saved'
             this.candidate = undefined
             this.message = '저장 완료'
         } catch (error) {
             this.rollbackResources?.()
+            this.outcome = 'failed'
             const ambiguous = (error as any)?.ambiguous === true
             this.phase = ambiguous ? 'unresolved' : 'idle'
             this.candidate = undefined
@@ -218,8 +225,9 @@ export class PersonalCssRuntime {
         this.sync()
         this.restoreFocus()
     }
-    async save(action: () => Promise<void>): Promise<void> {
+    async save(action: () => Promise<void>, scope: 'css' | 'font' = 'css'): Promise<void> {
         if (this.busy) throw new Error('다른 저장이 진행 중입니다.')
+        this.scope = scope
         this.safetyInterrupted = false
         if (!this.suppressed) {
             this.candidate = this.snapshot()

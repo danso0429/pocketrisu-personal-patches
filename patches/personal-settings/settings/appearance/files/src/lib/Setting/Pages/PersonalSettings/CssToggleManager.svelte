@@ -6,6 +6,7 @@
     import { CSS_LIMITS, cssEditBase, effectiveCssToggles, newPersonalId, rawAppearance, readCssToggles, storedCssBytes, utf8Bytes, type CssEdit, type EffectiveCssToggle } from 'src/ts/personalSettings/cssToggles'
     import { cssEditorText, storedCssFromEditor, type CssEditorText } from 'src/ts/personalSettings/cssEditorText'
     import { displaySize } from 'src/ts/personalSettings/displaySize'
+    import { appearanceNotice } from 'src/ts/personalSettings/appearanceNotices'
 
     let filter = $state('')
     let draft = $state<EffectiveCssToggle | null>(null)
@@ -14,14 +15,13 @@
     let origin: HTMLElement | null = null
     let returnFocus = $state(false)
     let filterInput = $state<HTMLInputElement>()
-    let error = $state('')
     let showRaw = $state(false)
     const read = $derived(readCssToggles(DBState.db))
     const items = $derived(effectiveCssToggles(DBState.db))
     const filtered = $derived(items.filter(item => `${item.name} ${item.description}`.toLocaleLowerCase().includes(filter.toLocaleLowerCase())))
     const busy = $derived($personalCssStatus.phase !== 'idle')
     const totalBytes = $derived(storedCssBytes(DBState.db))
-    function close() { draft = null; error = ''; returnFocus = true }
+    function close() { draft = null; returnFocus = true }
     $effect(() => {
         if (returnFocus && !draft && !busy) {
             returnFocus = false
@@ -30,7 +30,7 @@
         }
     })
     function open(item?: EffectiveCssToggle, event?: MouseEvent) {
-        if (draft) { error = '열린 초안을 먼저 저장하거나 취소하세요.'; return }
+        if (draft) { appearanceNotice('css', 'error', '열린 초안을 먼저 저장하거나 취소하세요.'); return }
         origin = event?.currentTarget as HTMLElement ?? null
         draft = item ? { ...item } : { id: newPersonalId(), name: '새 CSS', description: '', css: '', enabled: false, shipped: false, modified: false, newerDefault: false }
         base = cssEditBase(DBState.db, { kind: 'put', item: draft, shipped: draft.shipped })
@@ -38,8 +38,7 @@
         draft.css = cssProjection.text
     }
     async function run(edit: CssEdit, expected = cssEditBase(DBState.db, edit), saved = () => {}) {
-        error = ''
-        try { await submitCssEdit(edit, expected, saved) } catch (e) { error = e instanceof Error ? e.message : '설정을 변경할 수 없습니다.' }
+        try { await submitCssEdit(edit, expected, saved) } catch (e) { appearanceNotice('css', 'error', e instanceof Error ? e.message : '설정을 변경할 수 없습니다.') }
     }
     function save() {
         if (!draft) return
@@ -49,7 +48,6 @@
 </script>
 
 <section class="space-y-3 mt-4" aria-label="CSS 토글 편집기">
-    {#if error}<p role="alert" class="text-draculared">{error}</p>{/if}
     {#if !read.valid}
         <p role="alert">{read.error}</p>
         <button class="action" onclick={() => showRaw = true}>원본 보기 · 복사</button>

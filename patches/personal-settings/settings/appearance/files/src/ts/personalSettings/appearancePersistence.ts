@@ -1,10 +1,15 @@
+import { writable } from 'svelte/store'
+
+export type AppearanceSaveStage = 'idle' | 'waiting' | 'preparing' | 'writing' | 'flushing'
+export const appearanceSaveStage = writable<AppearanceSaveStage>('idle')
 export type AppearanceMutation = () => (() => void)
-export type AppearanceWriter = (mutate: AppearanceMutation, verify: () => void) => Promise<void>
+export type AppearanceWriter = (mutate: AppearanceMutation, verify: () => void, progress?: (stage: AppearanceSaveStage) => void) => Promise<void>
 let writer: AppearanceWriter | undefined
 export function registerAppearanceWriter(value: AppearanceWriter): void { writer = value }
 export function saveAppearanceStrict(mutate: AppearanceMutation, verify: () => void): Promise<void> {
     if (!writer) return Promise.reject(new Error('저장 준비가 끝나지 않았습니다. 잠시 후 다시 시도하세요.'))
-    return writer(mutate, verify)
+    appearanceSaveStage.set('preparing')
+    return writer(mutate, verify, stage => appearanceSaveStage.set(stage)).finally(() => appearanceSaveStage.set('idle'))
 }
 export function appearanceSaveFailure(ambiguous: boolean): Error & { ambiguous: boolean } {
     return Object.assign(new Error(ambiguous

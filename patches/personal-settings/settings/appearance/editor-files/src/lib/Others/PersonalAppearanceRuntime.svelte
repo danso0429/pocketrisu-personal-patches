@@ -4,6 +4,7 @@
     import { syncPersonalAppearance } from 'src/ts/personalSettings/appearance'
     import { disposePersonalAppearance, syncCustomFont } from 'src/ts/personalSettings/appearanceEditor'
     import { personalCssStatus } from 'src/ts/personalSettings/cssToggleRuntime'
+    import AppearanceNotifications from '../Setting/Pages/PersonalSettings/AppearanceNotifications.svelte'
     $effect(() => {
         $personalCssStatus.recovery
         $personalCssStatus.validation
@@ -12,3 +13,5 @@
     })
     onDestroy(disposePersonalAppearance)
 </script>
+
+<AppearanceNotifications />
