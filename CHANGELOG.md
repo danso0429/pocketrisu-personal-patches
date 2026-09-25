@@ -1,5 +1,23 @@
 # Changelog
 
+## 0.2.3-experimental.8
+
+- Skip the unused full `database.bin` assembly for strict appearance saves
+  that go through patch sync, and defer root-only encoder work to the next
+  ordinary save. Tracked character, chat, preset, module, and plugin blocks are
+  still encoded before their dirty flags are consumed. A guard refuses any
+  full write that would need the skipped buffer. Measured on a 22-character
+  17.5 MB snapshot, this removes about 50 ms of host CPU per save.
+- Move appearance save, completion, and error feedback into the top toaster,
+  with save stages (waiting, preparing, writing, confirming). Each CSS, font,
+  and font-load notice mounts one custom toast and updates it through a store,
+  because updating an infinite sonner toast in place dismisses it almost
+  immediately. Only error toasts accept touch, and ambiguous-save errors
+  persist.
+- Do not preload `fast-json-patch` from the settings page: its implementation
+  is already statically loaded, and the dynamic import resolves to a 71-byte
+  re-export.
+
 ## 0.2.3-experimental.7
 
 - Apply Personal CSS, chat fonts, and appearance tokens under every theme,

@@ -4,7 +4,7 @@ Private, all-or-nothing patch delivery for PocketRisu NodeOnly. The current
 stable release is `v0.2.2`, and its complete manifest graph targets exact
 PocketRisu `v1.10.0`.
 
-The `0.2.3-experimental.7` candidate adds an editable Personal CSS
+The `0.2.3-experimental.8` candidate adds an editable Personal CSS
 manager and imported chat fonts. Stable `v0.2.2` remains the published stable
 baseline while the physical iPhone gate is pending. See the
 [candidate validation and recovery guide](docs/POCKETRISU-PERSONAL-CSS-TOGGLE-EDITOR-VALIDATION.md).
@@ -18,6 +18,8 @@ The [gate-retention follow-up](docs/POCKETRISU-CSS-GATE-RETENTION-VALIDATION.md)
 records why theme and master-switch round trips no longer hold Personal CSS in recovery.
 The [theme-independence follow-up](docs/POCKETRISU-CSS-THEME-INDEPENDENCE-VALIDATION.md)
 records Personal CSS under every theme, its order after theme CSS, and the body-only chat font.
+The [save and feedback review](docs/POCKETRISU-APPEARANCE-SAVE-FEEDBACK-REVIEW.md)
+records how the paused save-speed and toast candidate was reviewed and completed.
 
 ## Complete installer
 
@@ -154,6 +156,7 @@ retains the detailed source and path review.
 
 | Release | What changed |
 | --- | --- |
+| `v0.2.3-experimental.8` | Skips unused full-buffer work for strict appearance saves and shows save stages and results as stable top toasts. |
 | `v0.2.3-experimental.7` | Applies Personal CSS under every theme after theme CSS, and limits the chat font to the message body base font. |
 | `v0.2.3-experimental.6` | Reapplies confirmed Personal CSS after theme or master-switch round trips instead of requiring a recovery trial. |
 | `v0.2.3-experimental.5` | Reuses verified font previews for selection, avoids metadata-only preview reloads, saves CSS enable switches directly, and merges recovery into the compact top notice. |

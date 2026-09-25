@@ -1,0 +1,62 @@
+{
+ "wip1_loading": {
+  "100ms": [
+   "WIP 저장 중"
+  ],
+  "400ms": [
+   "WIP 저장 중"
+  ],
+  "1500ms": [
+   "WIP 저장 중"
+  ]
+ },
+ "wip2_loadingUpdate": {
+  "100ms": [],
+  "400ms": [],
+  "1500ms": []
+ },
+ "wip3_persistentError": {
+  "100ms": [
+   "WIP 불확실 오류"
+  ],
+  "400ms": [
+   "WIP 불확실 오류"
+  ],
+  "1500ms": [
+   "WIP 불확실 오류"
+  ]
+ },
+ "new1_loading": {
+  "100ms": [
+   "NEW 저장 중"
+  ],
+  "400ms": [
+   "NEW 저장 중"
+  ],
+  "1500ms": [
+   "NEW 저장 중"
+  ]
+ },
+ "new2_loadingUpdate": {
+  "100ms": [
+   "NEW 서버 확인 중"
+  ],
+  "400ms": [
+   "NEW 서버 확인 중"
+  ],
+  "1500ms": [
+   "NEW 서버 확인 중"
+  ]
+ },
+ "new3_persistentError": {
+  "100ms": [
+   "NEW 불확실 오류"
+  ],
+  "400ms": [
+   "NEW 불확실 오류"
+  ],
+  "1500ms": [
+   "NEW 불확실 오류"
+  ]
+ }
+}
