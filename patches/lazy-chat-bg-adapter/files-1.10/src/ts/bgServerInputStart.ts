@@ -19,6 +19,7 @@ const preAdmissionReasons = new Set([
     'server-input-command-unavailable',
     'server-chat-commit-unavailable',
     'input_command_identity_conflict',
+    'blocked_input_retry_unavailable',
     'submitted_base_changed',
 ])
 

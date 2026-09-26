@@ -81,11 +81,18 @@ function normalizeCommand(value) {
     };
     if (!validOperationId(command.operationId)
         || !/^[a-f0-9]{64}$/.test(command.submittedBaseRevision)
-        || !Number.isSafeInteger(command.submittedAt) || command.submittedAt <= 0) {
+        || !Number.isSafeInteger(command.submittedAt) || command.submittedAt <= 0
+        || (value.replaceBlockedOperationId !== undefined
+            && !validOperationId(value.replaceBlockedOperationId))) {
         throw new Error('server input command identity is invalid');
     }
     return {
         ...command,
+        ...(value.replaceBlockedOperationId !== undefined ? {
+            replaceBlockedOperationId: text(
+                'replaceBlockedOperationId', value.replaceBlockedOperationId, 128,
+            ),
+        } : {}),
         rawTextHash: sha256(command.rawText),
     };
 }
@@ -129,7 +136,7 @@ function parseRetiredRecord(parsed, expectedOperationId) {
         || parsed.contractVersion !== SERVER_CHAT_INPUT_COMMAND_CONTRACT
         || !validOperationId(parsed.operationId)
         || (expectedOperationId && parsed.operationId !== expectedOperationId)
-        || !['completed', 'failed', 'cancelled'].includes(parsed.inputState)
+        || !['completed', 'failed', 'cancelled', 'blocked_edit'].includes(parsed.inputState)
         || !Number.isSafeInteger(parsed.admissionSeq) || parsed.admissionSeq <= 0
         || (parsed.queuePredecessorId !== null
             && !validOperationId(parsed.queuePredecessorId))
@@ -149,6 +156,13 @@ function parseRetiredRecord(parsed, expectedOperationId) {
         || parsed.admission?.rawText !== null
         || parsed.admission?.rawTextHash !== null
         || parsed.terminal?.state !== parsed.inputState
+        || (parsed.inputState === 'blocked_edit'
+            && (!Number.isSafeInteger(parsed.userResolvedAt)
+                || parsed.userResolvedAt <= 0
+                || !validOperationId(parsed.replacedByOperationId)))
+        || (parsed.inputState !== 'blocked_edit'
+            && (parsed.userResolvedAt !== undefined
+                || parsed.replacedByOperationId !== undefined))
         || !Number.isSafeInteger(parsed.terminal?.at)
         || parsed.terminal.at <= 0 || parsed.retiredAt < parsed.terminal.at
         || (parsed.inputState === 'completed'
@@ -193,6 +207,12 @@ function parseRecord(value, expectedOperationId = null) {
             || (parsed.executionPredecessorId !== null
                 && !validOperationId(parsed.executionPredecessorId))) {
             return null;
+        }
+        if (parsed.userResolvedAt !== undefined || parsed.replacedByOperationId !== undefined) {
+            if (parsed.inputState !== 'blocked_edit'
+                || !Number.isSafeInteger(parsed.userResolvedAt)
+                || parsed.userResolvedAt <= 0
+                || !validOperationId(parsed.replacedByOperationId)) return null;
         }
         if (parsed.predecessorResolution !== null) {
             const resolution = parsed.predecessorResolution;
@@ -412,7 +432,7 @@ function createServerChatInputOwner({
 
     function requiresExecutionPredecessor(record, chat) {
         if (record.recordVersion === 5) return false;
-        if (record.inputState === 'blocked_edit') return true;
+        if (record.inputState === 'blocked_edit') return !record.userResolvedAt;
         if (!TERMINAL_INPUT_STATES.has(record.inputState)) return true;
         if (record.inputState === 'completed') {
             const resultRevision = record.terminal?.resultRevision;
@@ -674,14 +694,34 @@ function createServerChatInputOwner({
                 return { status: 'conflict', reason: 'command_record_invalid' };
             }
             const records = allRecords();
-            const duplicateCommand = records.find((record) => (
+            const replacement = command.replaceBlockedOperationId
+                ? records.find((record) => record.operationId === command.replaceBlockedOperationId)
+                : null;
+            if (command.replaceBlockedOperationId && (
+                !replacement || replacement.recordVersion !== 4
+                || replacement.inputState !== 'blocked_edit'
+                || replacement.userResolvedAt
+                || !['not_run', 'completed'].includes(replacement.transformState)
+                || replacement.inputReceipt !== null
+                || replacement.admission.charId !== command.charId
+                || replacement.admission.chatId !== command.chatId
+                || replacement.admission.rawText !== command.rawText
+                || replacement.admission.inputCommandId !== command.inputCommandId
+                || replacement.admission.userMessageId === command.userMessageId
+            )) {
+                return { status: 'conflict', reason: 'blocked_input_retry_unavailable' };
+            }
+            const duplicateCommands = records.filter((record) => (
                 record.admission.inputCommandId === command.inputCommandId
             ));
-            if (duplicateCommand) {
+            if (duplicateCommands.length > 0 && (
+                !replacement || duplicateCommands.length !== 1
+                || duplicateCommands[0].operationId !== replacement.operationId
+            )) {
                 return {
                     status: 'conflict',
                     reason: 'input_command_identity_conflict',
-                    existingOperationId: duplicateCommand.operationId,
+                    existingOperationId: duplicateCommands.at(-1).operationId,
                 };
             }
             if (currentRevision(command.charId, command.chatId)
@@ -743,7 +783,8 @@ function createServerChatInputOwner({
             };
             const canonicalChat = currentChat(command.charId, command.chatId);
             const executionPredecessor = matching.filter((record) => (
-                requiresExecutionPredecessor(record, canonicalChat)
+                record.operationId !== replacement?.operationId
+                && requiresExecutionPredecessor(record, canonicalChat)
             )).at(-1) || null;
             const record = {
                 recordVersion: 4,
@@ -768,6 +809,11 @@ function createServerChatInputOwner({
                 globalOutcomes: null,
                 terminal: null,
             };
+            if (replacement) write({
+                ...replacement,
+                userResolvedAt: Date.now(),
+                replacedByOperationId: admission.operationId,
+            });
             write(record);
             kvSet(counterKey, JSON.stringify({
                 version: 1,
@@ -1181,7 +1227,7 @@ function createServerChatInputOwner({
             record.admission.charId === charId
             && record.admission.chatId === chatId
             && (record.inputState === 'queued' || record.inputState === 'attached'
-                || record.inputState === 'blocked_edit')
+                || (record.inputState === 'blocked_edit' && !record.userResolvedAt))
         )).sort((left, right) => left.admissionSeq - right.admissionSeq).map((record) => {
             let state = 'queued';
             if (record.inputState === 'attached') {
@@ -1210,6 +1256,9 @@ function createServerChatInputOwner({
                 predecessorOperationId: record.executionPredecessorId,
                 rawText: record.admission.rawText,
                 cancelAllowed: record.inputState === 'queued',
+                retryAllowed: record.inputState === 'blocked_edit'
+                    && ['not_run', 'completed'].includes(record.transformState)
+                    && record.inputReceipt === null,
                 state,
                 ...(record.inputReceipt && record.executionBaseRevision ? {
                     attachedRevision: record.executionBaseRevision,
@@ -1267,14 +1316,15 @@ function createServerChatInputOwner({
             const records = allRecords();
             const referenced = new Set(records.filter((record) => (
                 record.inputState === 'queued' || record.inputState === 'attached'
-                || record.inputState === 'blocked_edit'
+                || (record.inputState === 'blocked_edit' && !record.userResolvedAt)
             )).flatMap((record) => [
                 record.queuePredecessorId, record.executionPredecessorId,
             ]).filter(Boolean));
             const eligible = [];
             for (const record of records) {
                 if (record.recordVersion !== 4
-                    || !['completed', 'failed', 'cancelled'].includes(record.inputState)
+                    || (!['completed', 'failed', 'cancelled'].includes(record.inputState)
+                        && !(record.inputState === 'blocked_edit' && record.userResolvedAt))
                     || !record.terminal?.at
                     || now - record.terminal.at <= SERVER_CHAT_INPUT_RETIRE_AFTER_MS
                     || (record.inputState === 'completed'

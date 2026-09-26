@@ -21,7 +21,7 @@ const bgGlobalApiUnits = [
 module.exports = {
     id: 'lazy-chat-bg-adapter',
     title: 'BG preserve integration for lazy chat storage',
-    version: '0.7.9',
+    version: '0.7.12',
     targets: {
         pocketrisu: {
             verified: ['1.8.1', '1.9.0', '1.10.0'],
@@ -409,6 +409,21 @@ export async function adoptServerCommittedChat(
             targetVersions: pocketRisu1100,
         },
         {
+            id: 'lazy-chat-bg-adapter:owned:bg-server-input-provider-policy:1.10',
+            file: 'src/ts/bgServerInputProviderPolicy.ts',
+            type: 'owned',
+            content: owned1100('src/ts/bgServerInputProviderPolicy.ts'),
+            targetVersions: pocketRisu1100,
+        },
+        {
+            id: 'lazy-chat-bg-adapter:owned:bg-server-input-provider-policy-test:1.10',
+            file: 'src/ts/bgServerInputProviderPolicy.test.ts',
+            type: 'owned',
+            content: owned1100('src/ts/bgServerInputProviderPolicy.test.ts'),
+            requires: ['lazy-chat-bg-adapter:owned:bg-server-input-provider-policy:1.10'],
+            targetVersions: pocketRisu1100,
+        },
+        {
             id: 'lazy-chat-bg-adapter:owned:bg-draft-identity-test:1.10',
             file: 'src/ts/bgDraftIdentity.test.ts',
             type: 'owned',
@@ -536,6 +551,14 @@ export async function adoptServerCommittedChat(
             targetVersions: pocketRisu1100,
         },
         {
+            id: 'lazy-chat-bg-adapter:owned:server-pending-inputs-ui-test:1.10',
+            file: 'src/lib/ChatScreens/ServerPendingInputs.test.ts',
+            type: 'owned',
+            content: owned1100('src/lib/ChatScreens/ServerPendingInputs.test.ts'),
+            requires: ['lazy-chat-bg-adapter:owned:server-pending-inputs-ui:1.10'],
+            targetVersions: pocketRisu1100,
+        },
+        {
             id: 'lazy-chat-bg-adapter:owned:server-committed-chat-adoption-test:1.10',
             file: 'src/ts/storage/serverCommittedChatAdoption.test.ts',
             type: 'owned',
@@ -655,6 +678,7 @@ import { parseServerPendingInputs, type ServerPendingInput } from './bgServerPen
 import { submitServerInputCommand, type ServerInputClientOutcome } from './bgServerInputClient'
 import { adoptAttachedServerInputs } from './bgServerInputAdoption'
 import { recordBrowserMessageEffect } from './bgBrowserMessageEffects'
+import { requiresClientOwnedInputPreparation } from './bgServerInputProviderPolicy'
 import {
     advanceServerInputMarkerRevisions,
     clearServerInputMarker,
@@ -668,6 +692,7 @@ import {
                 'lazy-chat-bg-adapter:owned:bg-server-input-client-test:1.10',
                 'lazy-chat-bg-adapter:owned:bg-server-input-adoption-test:1.10',
                 'lazy-chat-bg-adapter:owned:bg-browser-message-effects-test:1.10',
+                'lazy-chat-bg-adapter:owned:bg-server-input-provider-policy-test:1.10',
             ],
             targetVersions: pocketRisu1100,
         },
@@ -797,6 +822,25 @@ export async function reconcileServerPendingInputCommands(
     for (const marker of readServerInputMarkers(localStorage).filter(row => (
         row.charId === charId && row.chatId === chatId && row.state === 'accepted'
     ))) {
+        if (!pending.some(input => input.operationId === marker.operationId)) {
+            try {
+                const query = new URLSearchParams({ charId, chatId })
+                const statusResponse = await fetchOrchestrationControl(
+                    '/api/bg-orchestrate-status/' + encodeURIComponent(marker.operationId)
+                    + '?' + query.toString(),
+                    { method: 'GET', credentials: 'same-origin' },
+                )
+                const statusData = await statusResponse.json()
+                if (statusResponse.ok && statusData?.accepted === true
+                    && statusData.operationId === marker.operationId
+                    && statusData.state === 'input-retried'
+                    && typeof statusData.replacementOperationId === 'string'
+                    && /^[A-Za-z0-9_-]{8,128}$/.test(statusData.replacementOperationId)) {
+                    clearServerInputMarker(localStorage, marker.operationId)
+                    continue
+                }
+            } catch { /* Keep the marker until exact status can be read. */ }
+        }
         let response: Response
         try {
             response = await fetchOrchestrationControl(
@@ -841,12 +885,16 @@ export async function tryRunServerOwnedInput(
     selectedIndex: number,
     rawText: string,
     draftId: string,
+    replaceBlockedOperationId?: string,
 ): Promise<ServerInputClientOutcome> {
     if (typeof document === 'undefined' || !isServerOrchestrationEnabled()) {
         return { kind: 'unsupported' }
     }
     const character: any = (DBState as any)?.db?.characters?.[selectedIndex]
     const selectedChat: any = character?.chats?.[character.chatPage]
+    if (requiresClientOwnedInputPreparation((DBState as any)?.db, selectedChat)) {
+        return { kind: 'unsupported' }
+    }
     const charId = character?.chaId
     const chatId = selectedChat?.id
     if (typeof charId !== 'string' || typeof chatId !== 'string') {
@@ -932,7 +980,7 @@ export async function tryRunServerOwnedInput(
             },
             newId: v4,
             isCurrent,
-        }, { charId, chatId, rawText, draftId })
+        }, { charId, chatId, rawText, draftId, replaceBlockedOperationId })
     } catch (error) {
         console.error('[bg-orch] server input admission unavailable', error)
         return { kind: 'blocked', reason: 'admission-unavailable' }
@@ -1317,10 +1365,15 @@ function retainUncommittedServerChat(
             where: 'after',
             anchor: '    import { sleep } from "../../ts/util";\n',
             content: `    import ServerPendingInputs from './ServerPendingInputs.svelte';
+    import type { ServerPendingInput } from '../../ts/bgServerPendingProjection';
     import { hasServerOwnedInputMarker, tryRunServerOwnedInput } from '../../ts/bgOrchestrate';
     import { requiresClientGenerationEpilogue } from '../../ts/bgOrchestrationPolicy';
+    import { requiresClientOwnedInputPreparation } from '../../ts/bgServerInputProviderPolicy';
 `,
-            requires: ['lazy-chat-bg-adapter:owned:server-pending-inputs-ui:1.10'],
+            requires: [
+                'lazy-chat-bg-adapter:owned:server-pending-inputs-ui:1.10',
+                'lazy-chat-bg-adapter:owned:bg-server-input-provider-policy:1.10',
+            ],
             after: [
                 'bg-preserve:hook:defaultchatscreen-import-orchestrating',
                 'bg-preserve:hook:defaultchatscreen-sendmain-orchestrating-gate',
@@ -1368,6 +1421,41 @@ function retainUncommittedServerChat(
             content: `    let pendingCharacter = $derived(DBState.db.characters[$selectedCharID])
     let pendingChat = $derived(pendingCharacter?.chats?.[pendingCharacter.chatPage])
     let inputAdmissionBusy = $state(false)
+    async function retryBlockedServerInput(input: ServerPendingInput): Promise<void> {
+        if (inputAdmissionBusy || !input.rawText || !input.inputCommandId) return
+        if (requiresClientGenerationEpilogue(DBState.db, pendingCharacter)
+            || requiresClientOwnedInputPreparation(DBState.db, pendingChat)) {
+            notifyError('현재 설정에서는 서버 입력을 다시 시작할 수 없어요', {
+                description: '원래 입력은 서버에 남아 있어요.', source: 'bg-input',
+            })
+            return
+        }
+        inputAdmissionBusy = true
+        try {
+            const outcome = await tryRunServerOwnedInput(
+                $selectedCharID, input.rawText, input.inputCommandId, input.operationId,
+            )
+            if (outcome.kind === 'accepted' && outcome.clearDraft) {
+                notifySuccess('변경된 채팅에서 입력을 다시 접수했어요.')
+            } else if (outcome.kind === 'accepted') {
+                notifyError('입력은 접수됐지만 실행이 멈췄어요', {
+                    description: '서버 입력 상태를 확인해 주세요.', source: 'bg-input',
+                })
+            } else if (outcome.kind === 'unknown') {
+                notifyError('재접수 여부를 확인할 수 없어요', {
+                    description: '다시 누르기 전에 서버 입력 상태를 확인해 주세요.', source: 'bg-input',
+                })
+            } else {
+                notifyError('입력을 다시 시작하지 않았어요', {
+                    description: '원래 입력은 서버에 남아 있어요. 채팅 상태를 확인해 주세요.',
+                    source: 'bg-input',
+                })
+            }
+            window.dispatchEvent(new Event('bg-server-input-updated'))
+        } finally {
+            inputAdmissionBusy = false
+        }
+    }
 `,
             requires: ['lazy-chat-bg-adapter:server-pending-ui-import:1.10'],
             targetVersions: pocketRisu1100,
@@ -1384,6 +1472,7 @@ function retainUncommittedServerChat(
                         charId={pendingCharacter.chaId}
                         chatId={pendingChat.id}
                         chat={pendingChat}
+                        onRetryBlocked={retryBlockedServerInput}
                     />
                 {/if}
                 <!-- POCKETRISU-PATCH:lazy-chat-bg-adapter:server-pending-ui:END -->
@@ -1404,7 +1493,9 @@ function retainUncommittedServerChat(
         if (!continueResponse && !$doingChat && !$orchestrating
             && !messageInput.startsWith('/')
             && (messageInput !== '' || fileInput.length > 0)
-            && !requiresClientGenerationEpilogue(DBState.db, DBState.db.characters[selectedChar])) {
+            && !requiresClientGenerationEpilogue(DBState.db, DBState.db.characters[selectedChar])
+            && !requiresClientOwnedInputPreparation(DBState.db,
+                DBState.db.characters[selectedChar]?.chats?.[DBState.db.characters[selectedChar]?.chatPage])) {
             const draftText = messageInput
             const draftTranslation = messageInputTranslate
             const draftFiles = [...fileInput]
@@ -2502,7 +2593,7 @@ const serverChatCommitOwner = createServerChatCommitOwner({
             content: `  app.get('/api/bg-orchestrate-capabilities', sessionAuthMiddleware, (_req, res) => {
     res.json({
       contract: 'bg_orchestration_capabilities.v1',
-      inputCommandVersion: 0,
+      inputCommandVersion: 1,
       inputCommandFoundationVersion: serverChatInputOwner ? 4 : 0,
       serverChatCommitVersion: serverChatCommitOwner ? 1 : 0,
       chatExecutionProjectionVersion: serverChatCommitOwner ? 1 : 0,
@@ -2818,7 +2909,9 @@ const serverChatCommitOwner = createServerChatCommitOwner({
         ? serverChatInputOwner.pendingProjection(charId, chatId)
           .find((entry) => entry.operationId === operationId)
         : null
-      const state = inputCommand.transformState === 'unknown'
+      const state = inputCommand.userResolvedAt
+        ? 'input-retried'
+        : inputCommand.transformState === 'unknown'
         ? 'input-transform-unknown'
         : inputCommand.inputState === 'attached'
           ? pendingInput?.state === 'execution_unknown'
@@ -2841,6 +2934,8 @@ const serverChatCommitOwner = createServerChatCommitOwner({
         inputCommandId: inputCommand.admission.inputCommandId,
         admissionSeq: inputCommand.admissionSeq,
         predecessorOperationId: inputCommand.executionPredecessorId,
+        ...(inputCommand.userResolvedAt
+          ? { replacementOperationId: inputCommand.replacedByOperationId } : {}),
       })
     }
     const run = orchestrationRuns.get(operationId)

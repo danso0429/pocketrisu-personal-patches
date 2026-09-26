@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest'
 import { parseServerPendingInputs } from './bgServerPendingProjection'
 
 describe('server pending input projection', () => {
-    it('keeps server order and excludes raw user text from UI state', () => {
+    it('keeps server order and excludes active raw user text from UI state', () => {
         const attachedRevision = 'a'.repeat(64)
         const inputReceiptId = 'b'.repeat(64)
         expect(parseServerPendingInputs({
@@ -17,6 +17,21 @@ describe('server pending input projection', () => {
                 attachedRevision, inputReceiptId },
             { operationId: 'second', admissionSeq: 2, state: 'waiting_predecessor' },
         ])
+    })
+
+    it('exposes only a blocked draft with its exact retry identity', () => {
+        expect(parseServerPendingInputs({
+            found: true,
+            pendingInputCommands: [{
+                operationId: 'blocked-1', admissionSeq: 1, state: 'blocked_edit',
+                retryAllowed: true,
+                rawText: 'preserved draft', inputCommandId: 'draft-shared-1',
+            }],
+        })).toEqual([{
+            operationId: 'blocked-1', admissionSeq: 1, state: 'blocked_edit',
+            retryAllowed: true,
+            rawText: 'preserved draft', inputCommandId: 'draft-shared-1',
+        }])
     })
 
     it('represents an empty or absent projection without inventing work', () => {

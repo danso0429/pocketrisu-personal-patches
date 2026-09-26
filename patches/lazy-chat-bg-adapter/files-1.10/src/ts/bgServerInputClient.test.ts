@@ -240,4 +240,52 @@ describe('server-owned input client admission', () => {
         expect((bodies[1].inputCommand as Record<string, unknown>).inputCommandId)
             .toBe(request.draftId)
     })
+
+    it('retries only the attested blocked draft and clears its old marker after acceptance', async () => {
+        const harness = makeHarness()
+        const blockedId = 'operation-blocked-before-retry-1'
+        harness.deps.storage.setItem(`bg-server-input-v1:${blockedId}`, JSON.stringify({
+            operationId: blockedId, charId: request.charId, chatId: request.chatId,
+            localRevision: base, baseRevision: base, state: 'accepted', createdAt: 1000,
+        }))
+        harness.status.mockImplementation(async operationId => ({
+            status: 200,
+            body: { operationId, accepted: true, state: 'input-blocked_edit' },
+        }))
+        harness.setPending([{
+            operationId: blockedId, admissionSeq: 1, state: 'blocked_edit',
+            retryAllowed: true,
+            rawText: request.rawText, inputCommandId: request.draftId,
+        }])
+        await expect(submitServerInputCommand(harness.deps, {
+            ...request, replaceBlockedOperationId: blockedId,
+        })).resolves.toMatchObject({ kind: 'accepted', clearDraft: true })
+        expect(harness.start.mock.calls[0][0]).toMatchObject({
+            inputCommand: {
+                inputCommandId: request.draftId,
+                replaceBlockedOperationId: blockedId,
+            },
+        })
+        expect(readServerInputMarkers(harness.deps.storage, 1002)
+            .some(marker => marker.operationId === blockedId)).toBe(false)
+    })
+
+    it('clears a resolved marker from another tab before a genuinely new draft', async () => {
+        const harness = makeHarness()
+        const oldId = 'operation-retried-from-other-tab-1'
+        harness.deps.storage.setItem(`bg-server-input-v1:${oldId}`, JSON.stringify({
+            operationId: oldId, charId: request.charId, chatId: request.chatId,
+            localRevision: base, baseRevision: base, state: 'accepted', createdAt: 1000,
+        }))
+        harness.status.mockImplementation(async operationId => ({
+            status: 200,
+            body: { operationId, accepted: true, state: 'input-retried' },
+        }))
+        await expect(submitServerInputCommand(harness.deps, {
+            ...request, draftId: 'draft-new-after-retry-2',
+        })).resolves.toMatchObject({ kind: 'accepted' })
+        expect(readServerInputMarkers(harness.deps.storage, 1002)
+            .some(marker => marker.operationId === oldId)).toBe(false)
+        expect(harness.start).toHaveBeenCalledTimes(1)
+    })
 })

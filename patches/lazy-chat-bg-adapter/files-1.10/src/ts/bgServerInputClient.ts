@@ -57,7 +57,13 @@ const acceptedButBlocked = new Set([
 
 export async function submitServerInputCommand(
     deps: ServerInputClientDependencies,
-    request: { charId: string, chatId: string, rawText: string, draftId?: string },
+    request: {
+        charId: string
+        chatId: string
+        rawText: string
+        draftId?: string
+        replaceBlockedOperationId?: string
+    },
 ): Promise<ServerInputClientOutcome> {
     const now = deps.now || Date.now
     if (!request.charId || !request.chatId || !request.rawText) {
@@ -81,6 +87,12 @@ export async function submitServerInputCommand(
             return { kind: 'blocked', reason: 'prior-operation-unknown' }
         }
         const body = outcome.body as { state?: unknown }
+        if (body.state === 'input-retried') {
+            clearServerInputMarker(deps.storage, marker.operationId)
+            continue
+        }
+        if (marker.operationId === request.replaceBlockedOperationId
+            && body.state === 'input-blocked_edit') continue
         if (typeof body.state !== 'string' || !activeInputStates.has(body.state)) {
             return { kind: 'blocked', reason: 'prior-operation-needs-reconciliation' }
         }
@@ -129,6 +141,17 @@ export async function submitServerInputCommand(
             return { kind: 'blocked', reason: 'local-chat-changed' }
         }
     } catch { return { kind: 'blocked', reason: 'local-chat-changed' } }
+    if (request.replaceBlockedOperationId) {
+        const blocked = pendingInputs.find(input => (
+            input.operationId === request.replaceBlockedOperationId
+            && input.state === 'blocked_edit'
+            && input.retryAllowed === true
+            && input.rawText === request.rawText
+            && input.inputCommandId === request.draftId
+        ))
+        if (!blocked) return { kind: 'blocked', reason: 'blocked-input-unavailable' }
+        pendingInputs = pendingInputs.filter(input => input !== blocked)
+    }
     const known = active.slice().reverse().find(marker => (
         marker.localRevision === localRevision
         && pendingInputs.some(pending => pending.operationId === marker.operationId)
@@ -163,6 +186,9 @@ export async function submitServerInputCommand(
             userMessageId: deps.newId(),
             rawText: request.rawText,
             submittedAt: createdAt,
+            ...(request.replaceBlockedOperationId ? {
+                replaceBlockedOperationId: request.replaceBlockedOperationId,
+            } : {}),
         },
     }
     try {
@@ -196,6 +222,9 @@ export async function submitServerInputCommand(
             ...marker, state: 'accepted',
         }))) return { kind: 'unknown', operationId }
     } catch { return { kind: 'unknown', operationId } }
+    if (request.replaceBlockedOperationId) {
+        clearServerInputMarker(deps.storage, request.replaceBlockedOperationId)
+    }
     return {
         kind: 'accepted', operationId, state: started.state,
         clearDraft: !started.state || !acceptedButBlocked.has(started.state),

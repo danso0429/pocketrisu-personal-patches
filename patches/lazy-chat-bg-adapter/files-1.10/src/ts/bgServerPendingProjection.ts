@@ -5,6 +5,9 @@ export interface ServerPendingInput {
         | 'attached' | 'generating' | 'execution_unknown'
     attachedRevision?: string
     inputReceiptId?: string
+    rawText?: string
+    inputCommandId?: string
+    retryAllowed?: boolean
 }
 
 const states = new Set<ServerPendingInput['state']>([
@@ -33,6 +36,13 @@ export function parseServerPendingInputs(projection: unknown): ServerPendingInpu
             || row.operationId.length > 128 || seen.has(row.operationId)
             || !Number.isSafeInteger(row.admissionSeq) || Number(row.admissionSeq) <= 0
             || !states.has(row.state as ServerPendingInput['state'])
+            || (row.retryAllowed !== undefined && typeof row.retryAllowed !== 'boolean')
+            || (row.state === 'blocked_edit'
+                && (row.rawText !== undefined || row.inputCommandId !== undefined)
+                && (typeof row.rawText !== 'string' || row.rawText.length === 0
+                    || row.rawText.length > 1024 * 1024
+                    || typeof row.inputCommandId !== 'string'
+                    || !/^[A-Za-z0-9_-]{8,128}$/.test(row.inputCommandId)))
             || ((row.attachedRevision !== undefined || row.inputReceiptId !== undefined)
                 && (typeof row.attachedRevision !== 'string'
                     || !/^[a-f0-9]{64}$/.test(row.attachedRevision)
@@ -48,6 +58,11 @@ export function parseServerPendingInputs(projection: unknown): ServerPendingInpu
             ...(typeof row.attachedRevision === 'string' ? {
                 attachedRevision: row.attachedRevision,
                 inputReceiptId: row.inputReceiptId as string,
+            } : {}),
+            ...(row.state === 'blocked_edit' && typeof row.rawText === 'string' ? {
+                rawText: row.rawText,
+                inputCommandId: row.inputCommandId as string,
+                retryAllowed: row.retryAllowed === true,
             } : {}),
         })
     }

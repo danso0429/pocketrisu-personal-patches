@@ -18,7 +18,7 @@ function unit(id) {
 }
 
 test('C3: exact-1.10 graph owns revision-bound chat execution projection', () => {
-    assert.equal(adapter.version, '0.7.9')
+    assert.equal(adapter.version, '0.7.12')
     const resolution = resolveSelection(loadCatalog(), ['lazy-chat-sync', 'bg-preserve'])
     const units1100 = flattenUnits(resolution.packs, target1100)
     const units190 = flattenUnits(resolution.packs, target190)
@@ -52,7 +52,7 @@ test('C3: pre-canonical server input remains an explicit dormant contract', () =
     const settings = unit('lazy-chat-bg-adapter:server-input-settings-snapshot:1.10')
     const terminal = unit('lazy-chat-bg-adapter:server-chat-commit-terminal:1.10')
     const intermediate = unit('lazy-chat-bg-adapter:server-input-intermediate-policy:1.10')
-    assert.match(capability.content, /inputCommandVersion: 0/)
+    assert.match(capability.content, /inputCommandVersion: 1/)
     assert.match(capability.content, /inputCommandFoundationVersion: serverChatInputOwner \? 4 : 0/)
     assert.match(start.content, /serverChatInputOwner\.admit/)
     assert.match(start.content, /serverRunChat/)

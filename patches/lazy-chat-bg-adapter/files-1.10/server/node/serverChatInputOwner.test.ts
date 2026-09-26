@@ -1272,4 +1272,61 @@ describe('pre-canonical server chat input owner', () => {
         expect(owner.read(first)).toMatchObject({ recordVersion: 5 })
         expect(owner.read(second)).toMatchObject({ recordVersion: 5 })
     })
+
+    it('atomically retries one blocked draft from the edited canonical chat', async () => {
+        const harness = makeHarness()
+        const owner = harness.makeOwner()
+        const blockedId = 'operation-input-blocked-retry-old-1'
+        const replacementId = 'operation-input-blocked-retry-new-1'
+        await owner.admit(admission(blockedId, 'preserved draft'))
+        expect(owner.blockEditSynchronously(blockedId, 'base_revision_changed')).toBe(true)
+        const edited = { ...baseChat(), note: 'user edit' }
+        harness.runtime.fullStore.get('char-1')?.set('chat-1', edited)
+        const replacement = {
+            ...admission(replacementId, 'preserved draft'),
+            inputCommandId: `input-${blockedId}`,
+            submittedBaseRevision: revision(edited),
+            replaceBlockedOperationId: blockedId,
+        }
+        harness.failWriteAt(1)
+        await expect(owner.admit(replacement))
+            .rejects.toThrow('injected-input-write-failure')
+        expect(owner.read(blockedId)).toMatchObject({
+            inputState: 'blocked_edit',
+        })
+        expect(owner.read(blockedId).userResolvedAt).toBeUndefined()
+        expect(owner.read(replacementId)).toBeNull()
+        harness.failWriteAt(0)
+        await expect(owner.admit(replacement)).resolves.toMatchObject({
+            status: 'admitted',
+            record: {
+                queuePredecessorId: blockedId,
+                executionPredecessorId: null,
+            },
+        })
+        expect(owner.read(blockedId)).toMatchObject({
+            userResolvedAt: expect.any(Number),
+            replacedByOperationId: replacementId,
+        })
+        expect(owner.pendingProjection('char-1', 'chat-1')).toMatchObject([{
+            operationId: replacementId, state: 'queued', rawText: 'preserved draft',
+        }])
+        const restarted = harness.makeOwner()
+        expect(restarted.read(blockedId)).toMatchObject({
+            replacedByOperationId: replacementId,
+        })
+        await expect(restarted.loadExecution(replacementId)).resolves.toMatchObject({
+            status: 'blocked', reason: 'settings_context_unavailable',
+        })
+        await expect(owner.admit({
+            ...admission('operation-input-blocked-retry-duplicate-1', 'preserved draft'),
+            inputCommandId: `input-${blockedId}`,
+            submittedBaseRevision: revision(edited),
+        })).resolves.toMatchObject({
+            status: 'conflict', reason: 'input_command_identity_conflict',
+        })
+        await expect(owner.beginTransform(replacementId)).resolves.toMatchObject({
+            status: 'started',
+        })
+    })
 })

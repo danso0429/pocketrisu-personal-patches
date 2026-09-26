@@ -381,7 +381,7 @@ describe('server chat composed process boundary', () => {
         const capabilities = await bgGet(server, '/api/bg-orchestrate-capabilities')
         expect(capabilities.status).toBe(200)
         await expect(capabilities.json()).resolves.toMatchObject({
-            inputCommandVersion: 0,
+            inputCommandVersion: 1,
             inputCommandFoundationVersion: 4,
             serverChatCommitVersion: 1,
         })
@@ -641,7 +641,7 @@ describe('server chat composed process boundary', () => {
         })
     }, 30_000)
 
-    it('retains a predecessor-effect mismatch as blocked without paying for N+1', async () => {
+    it('keeps a mismatched N+1 blocked until an explicit retry after restart', async () => {
         const runtimeRoot = makeRuntimeRoot()
         await seedRuntime(runtimeRoot)
         const server = await startServer(runtimeRoot, { fault: 'effect-lineage' })
@@ -679,6 +679,53 @@ describe('server chat composed process boundary', () => {
         })
         const stored = await readChat(server)
         expect(stored.chat.message).toHaveLength(3)
+        await stopChild(server.child, 'SIGKILL')
+        const restarted = await startServer(runtimeRoot)
+        const current = await readChat(restarted)
+        const retryOperation = 'operation-h1-effect-n1-retry-1'
+        const retry = inputBody(retryOperation, current.revision, 'input N+1')
+        const retryBody = {
+            ...retry,
+            inputCommand: {
+                ...retry.inputCommand,
+                inputCommandId: `input-${operationN1}`,
+                replaceBlockedOperationId: operationN1,
+            },
+        }
+        expect(await submitFromDisposableClient(restarted, retryBody)).toMatchObject({
+            status: 200,
+            body: { handled: true, started: true, operationId: retryOperation },
+        })
+        await restarted.waitFor('provider-waiting', message => (
+            message.operationId === retryOperation
+        ))
+        expect(await readStatus(restarted, operationN1)).toMatchObject({
+            status: 200,
+            body: {
+                state: 'input-retried', replacementOperationId: retryOperation,
+            },
+        })
+        const secondRetry = {
+            ...inputBody('operation-h1-effect-n1-retry-2', current.revision, 'input N+1'),
+            inputCommand: {
+                ...retryBody.inputCommand,
+                userMessageId: 'user-operation-h1-effect-n1-retry-2',
+            },
+        }
+        expect(await submitFromDisposableClient(restarted, secondRetry)).toMatchObject({
+            status: 409,
+            body: { reason: 'blocked_input_retry_unavailable' },
+        })
+        restarted.child.send({ scope: 'pocketrisu-h1', command: 'release-provider' })
+        await restarted.waitFor('commit-result', message => (
+            message.status === 'committed'
+                && message.receipt?.operationId === retryOperation
+        ))
+        expect((await readChat(restarted)).chat.message).toHaveLength(5)
+        expect(await readCounters(restarted)).toMatchObject({
+            providerCalls: 1, commitCalls: 1, fallbackProviderCalls: 0,
+            clientSaves: 0,
+        })
     }, 30_000)
 
     it('rejects a second operation for the same shared draft identity', async () => {
@@ -760,6 +807,71 @@ describe('server chat composed process boundary', () => {
         },
         30_000,
     )
+
+    it('preserves a separately created branch while N finishes in the original chat', async () => {
+        const runtimeRoot = makeRuntimeRoot()
+        await seedRuntime(runtimeRoot)
+        const server = await startServer(runtimeRoot)
+        const initial = await readChat(server)
+        const operationId = 'operation-h1-branch-preserve-1'
+        expect(await submitFromDisposableClient(
+            server, inputBody(operationId, initial.revision, 'input N'),
+        )).toMatchObject({ status: 200, body: { started: true } })
+        await server.waitFor('provider-waiting', message => message.operationId === operationId)
+        const branch = {
+            id: 'branch-1', name: 'Branch',
+            message: [{ role: 'user', data: 'separate branch', chatId: 'branch-user-1' }],
+        }
+        const created = await fetch(`${server.baseURL}/api/chat-content/char-1/1`, {
+            method: 'POST',
+            headers: {
+                'risu-auth': server.token, cookie: server.cookie,
+                'content-type': 'application/octet-stream',
+                'x-chat-id': branch.id, 'if-none-match': '*',
+            },
+            body: encodeRisuSaveLegacy(branch),
+        })
+        expect(created.status).toBe(200)
+        const databaseKey = Buffer.from('database/database.bin', 'utf8').toString('hex')
+        const rootResponse = await fetch(`${server.baseURL}/api/read`, {
+            headers: { 'risu-auth': server.token, 'file-path': databaseKey },
+        })
+        expect(rootResponse.status).toBe(200)
+        const root = await decodeRisuSave(new Uint8Array(await rootResponse.arrayBuffer()))
+        const updated = structuredClone(root)
+        updated.characters[0].chats.push({ id: branch.id, name: branch.name, _stub: true })
+        const patch = await fetch(`${server.baseURL}/api/patch`, {
+            method: 'POST',
+            headers: {
+                'risu-auth': server.token, cookie: server.cookie,
+                'content-type': 'application/json', 'file-path': databaseKey,
+            },
+            body: JSON.stringify({
+                expectedHash: calculateHash(root).toString(16),
+                patch: compare(root, updated),
+            }),
+        })
+        expect(patch.status).toBe(200)
+        server.child.send({ scope: 'pocketrisu-h1', command: 'release-provider' })
+        await server.waitFor('commit-result', message => (
+            message.status === 'committed' && message.receipt?.operationId === operationId
+        ))
+        expect((await readChat(server)).chat.message).toHaveLength(3)
+        const branchRead = await fetch(`${server.baseURL}/api/chat-content/char-1/1`, {
+            headers: {
+                'risu-auth': server.token, 'x-chat-id': branch.id,
+            },
+        })
+        expect(branchRead.status).toBe(200)
+        expect(await decodeRisuSave(new Uint8Array(await branchRead.arrayBuffer())))
+            .toMatchObject(branch)
+        const finalRoot = await fetch(`${server.baseURL}/api/read`, {
+            headers: { 'risu-auth': server.token, 'file-path': databaseKey },
+        })
+        expect(finalRoot.status).toBe(200)
+        expect((await decodeRisuSave(new Uint8Array(await finalRoot.arrayBuffer())))
+            .characters[0].chats.some((chat: any) => chat.id === branch.id)).toBe(true)
+    }, 30_000)
 
     it('rejects an already committed operation before another paid provider call', async () => {
         const runtimeRoot = makeRuntimeRoot()

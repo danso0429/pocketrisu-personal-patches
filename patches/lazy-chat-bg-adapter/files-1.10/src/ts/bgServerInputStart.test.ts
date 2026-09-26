@@ -110,6 +110,27 @@ describe('server input start reconciliation', () => {
         expect(status).toHaveBeenCalledTimes(1)
     })
 
+    it('does not wait on a retry that another tab already resolved', async () => {
+        const status = vi.fn()
+        await expect(reconcileServerInputStart({
+            operationId,
+            start: async () => ({
+                status: 409,
+                body: {
+                    operationId, started: false,
+                    reason: 'blocked_input_retry_unavailable',
+                },
+            }),
+            status,
+            isCurrent: () => true,
+            deadlineAt: Date.now() + 1_000,
+        })).resolves.toEqual({
+            resolution: 'rejected', state: null,
+            rejectedReason: 'blocked_input_retry_unavailable',
+        })
+        expect(status).not.toHaveBeenCalled()
+    })
+
     it('leaves an unclassified 409 unknown instead of falling back', async () => {
         let now = 0
         const status = vi.fn(async () => { throw new Error('status unavailable') })
