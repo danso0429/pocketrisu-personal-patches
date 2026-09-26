@@ -1179,4 +1179,96 @@ describe('pre-canonical server chat input owner', () => {
         expect(harness.kvGet(operationStateKey(operationId))).toBeNull()
         expect(harness.kvGet(operationResultKey(operationId))).toBeNull()
     })
+
+    it('retires terminal input payload only after result/state release and keeps exact draft dedupe', async () => {
+        const harness = makeHarness()
+        const owner = harness.makeOwner()
+        const operationId = 'operation-input-retention-1'
+        await owner.admit(admission(operationId, 'private draft text'))
+        await owner.beginTransform(operationId)
+        const attached = await owner.attachTransformed(
+            operationId, harness.transformed(operationId, 'private draft text'),
+        )
+        const resultChat = {
+            ...harness.runtime.fullStore.get('char-1')?.get('chat-1'),
+            message: [
+                ...harness.runtime.fullStore.get('char-1')?.get('chat-1').message,
+                { role: 'char', data: 'answer', chatId: 'assistant-retention-1' },
+            ],
+        }
+        harness.runtime.fullStore.get('char-1')?.set('chat-1', resultChat)
+        const resultRevision = revision(resultChat)
+        expect(owner.settleSynchronously(operationId, 'completed', resultRevision)).toBe(true)
+        expect(owner.markResultPublishedSynchronously(operationId, resultRevision)).toBe(true)
+        const afterHorizon = Date.now() + 50 * 60 * 60 * 1000
+        expect(await owner.retireTerminal(afterHorizon)).toEqual([])
+        harness.kvDel(operationStateKey(operationId))
+        harness.kvSet(operationResultKey(operationId), JSON.stringify({ operationId }))
+        expect(await owner.retireTerminal(afterHorizon)).toEqual([])
+        harness.kvDel(operationResultKey(operationId))
+        harness.failWriteAt(1)
+        await expect(owner.retireTerminal(afterHorizon))
+            .rejects.toThrow('injected-input-write-failure')
+        expect(owner.read(operationId)).toMatchObject({ recordVersion: 4 })
+        harness.failWriteAt(0)
+        expect(await owner.retireTerminal(afterHorizon)).toEqual([operationId])
+        const stored = JSON.parse(harness.kvGet(commandKey(operationId)).toString('utf8'))
+        expect(stored.recordVersion).toBe(5)
+        expect(stored.admission.rawText).toBeNull()
+        expect(stored.admission.rawTextHash).toBeNull()
+        expect(stored.rawTextHash).toBeNull()
+        expect(JSON.stringify(stored)).not.toContain('private draft text')
+        expect(owner.read(operationId)).toMatchObject({
+            recordVersion: 5, admission: { inputCommandId: `input-${operationId}` },
+        })
+        harness.kvSet(commandKey(operationId), JSON.stringify({
+            ...stored,
+            admission: { ...stored.admission, inputCommandId: 'forged-draft-id' },
+        }))
+        expect(owner.read(operationId)).toBeNull()
+        harness.kvSet(commandKey(operationId), JSON.stringify(stored))
+        const restarted = harness.makeOwner()
+        expect(restarted.read(operationId)).toMatchObject({ recordVersion: 5 })
+        await expect(restarted.admit({
+            ...admission('operation-input-retention-replay-1', 'private draft text'),
+            inputCommandId: `input-${operationId}`,
+        })).resolves.toMatchObject({
+            status: 'conflict', reason: 'input_command_identity_conflict',
+            existingOperationId: operationId,
+        })
+        await expect(restarted.admit({
+            ...admission('operation-input-retention-next-1', 'new draft'),
+            submittedBaseRevision: resultRevision,
+        })).resolves.toMatchObject({
+            status: 'admitted',
+            record: {
+                admissionSeq: 2,
+                queuePredecessorId: operationId,
+                executionPredecessorId: null,
+            },
+        })
+        expect(attached.record.admission.rawText).toBe('private draft text')
+    })
+
+    it('keeps a terminal predecessor while a queued successor still references it', async () => {
+        const harness = makeHarness()
+        const owner = harness.makeOwner()
+        const first = 'operation-input-retention-predecessor-1'
+        const second = 'operation-input-retention-successor-1'
+        await owner.admit(admission(first, 'first draft'))
+        await expect(owner.admit(admission(second, 'second draft'))).resolves.toMatchObject({
+            status: 'admitted',
+            record: { queuePredecessorId: first, executionPredecessorId: first },
+        })
+        expect(owner.settleSynchronously(first, 'cancelled')).toBe(true)
+        harness.kvDel(operationStateKey(first))
+        const afterHorizon = Date.now() + 50 * 60 * 60 * 1000
+        expect(await owner.retireTerminal(afterHorizon)).toEqual([])
+        expect(owner.read(first)).toMatchObject({ recordVersion: 4 })
+        expect(owner.settleSynchronously(second, 'cancelled')).toBe(true)
+        harness.kvDel(operationStateKey(second))
+        expect(await owner.retireTerminal(afterHorizon)).toEqual([first, second])
+        expect(owner.read(first)).toMatchObject({ recordVersion: 5 })
+        expect(owner.read(second)).toMatchObject({ recordVersion: 5 })
+    })
 })

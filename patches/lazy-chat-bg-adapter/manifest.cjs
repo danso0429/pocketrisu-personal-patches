@@ -21,7 +21,7 @@ const bgGlobalApiUnits = [
 module.exports = {
     id: 'lazy-chat-bg-adapter',
     title: 'BG preserve integration for lazy chat storage',
-    version: '0.7.6',
+    version: '0.7.7',
     targets: {
         pocketrisu: {
             verified: ['1.8.1', '1.9.0', '1.10.0'],
@@ -3278,6 +3278,21 @@ const serverChatCommitOwner = createServerChatCommitOwner({
   // M8: reconcile a lost detached-start response by exact operation identity. Active/finished
 `,
             requires: ['lazy-chat-bg-adapter:server-input-mode-preflight:1.10'],
+            targetVersions: pocketRisu1100,
+        },
+        {
+            id: 'lazy-chat-bg-adapter:server-input-retention-sweep:1.10',
+            file: 'server/node/bgOrchestrator.cjs',
+            type: 'insert',
+            where: 'after',
+            anchor: "          isOperationActive: (operationId) => orchestrationRuns.status(operationId) === 'running',\n        })\n",
+            content: `        if (serverChatInputOwner) {
+          void serverChatInputOwner.retireTerminal().catch(() => {
+            // Keep the durable records; the next retention sweep retries.
+          })
+        }
+`,
+            requires: ['lazy-chat-bg-adapter:server-input-drain-registration:1.10'],
             targetVersions: pocketRisu1100,
         },
     ],

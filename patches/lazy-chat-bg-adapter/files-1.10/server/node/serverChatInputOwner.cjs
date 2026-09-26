@@ -22,6 +22,7 @@ const SERVER_CHAT_INPUT_MAX_TEXT_BYTES = 1024 * 1024;
 const SERVER_CHAT_SETTINGS_SNAPSHOT_MAX_BYTES = 256 * 1024 * 1024;
 const SERVER_CHAT_SETTINGS_SNAPSHOT_MAX_CONTEXTS = 2;
 const SERVER_CHAT_INPUT_MAX_NONTERMINAL_PER_CHAT = 2;
+const SERVER_CHAT_INPUT_RETIRE_AFTER_MS = 49 * 60 * 60 * 1000;
 const TERMINAL_INPUT_STATES = new Set(['completed', 'failed', 'cancelled', 'blocked_edit']);
 
 function sha256(value) {
@@ -117,10 +118,58 @@ function requestFingerprint(admission) {
     return sha256(stableJSON(admission));
 }
 
+function retiredChecksum(record) {
+    const body = { ...record };
+    delete body.retiredChecksum;
+    return sha256(stableJSON(body));
+}
+
+function parseRetiredRecord(parsed, expectedOperationId) {
+    if (parsed.recordVersion !== 5
+        || parsed.contractVersion !== SERVER_CHAT_INPUT_COMMAND_CONTRACT
+        || !validOperationId(parsed.operationId)
+        || (expectedOperationId && parsed.operationId !== expectedOperationId)
+        || !['completed', 'failed', 'cancelled'].includes(parsed.inputState)
+        || !Number.isSafeInteger(parsed.admissionSeq) || parsed.admissionSeq <= 0
+        || (parsed.queuePredecessorId !== null
+            && !validOperationId(parsed.queuePredecessorId))
+        || parsed.executionPredecessorId !== null
+        || parsed.predecessorResolution !== null
+        || typeof parsed.effectiveBaseRevision !== 'string'
+        || !/^[a-f0-9]{64}$/.test(parsed.effectiveBaseRevision)
+        || !/^[a-f0-9]{64}$/.test(parsed.requestFingerprint)
+        || parsed.rawTextHash !== null
+        || parsed.retiredChecksum !== retiredChecksum(parsed)
+        || !Number.isSafeInteger(parsed.retiredAt) || parsed.retiredAt <= 0
+        || parsed.inputReceipt !== null || parsed.journal !== null
+        || parsed.globalIntent !== null || parsed.globalOutcomes !== null
+        || parsed.inputMessageRevision !== null || parsed.baselineMessageCount !== null
+        || parsed.admission?.rawText !== null
+        || parsed.admission?.rawTextHash !== null
+        || parsed.terminal?.state !== parsed.inputState
+        || !Number.isSafeInteger(parsed.terminal?.at)
+        || parsed.terminal.at <= 0 || parsed.retiredAt < parsed.terminal.at
+        || (parsed.inputState === 'completed'
+            && (parsed.terminal.publication !== 'published'
+                || !/^[a-f0-9]{64}$/.test(parsed.terminal.resultRevision)))) {
+        return null;
+    }
+    const admission = normalizeAdmission({ ...parsed.admission, rawText: 'retired' });
+    if (admission.operationId !== parsed.operationId
+        || (parsed.admissionSeq === 1 && parsed.queuePredecessorId !== null)) return null;
+    return {
+        ...parsed,
+        admission: { ...admission, rawText: null, rawTextHash: null },
+    };
+}
+
 function parseRecord(value, expectedOperationId = null) {
     if (!value || Buffer.byteLength(value) > SERVER_CHAT_INPUT_MAX_RECORD_BYTES) return null;
     try {
         const parsed = JSON.parse(Buffer.isBuffer(value) ? value.toString('utf8') : String(value));
+        if (parsed?.recordVersion === 5) {
+            return parseRetiredRecord(parsed, expectedOperationId);
+        }
         if (!parsed || parsed.recordVersion !== 4
             || parsed.contractVersion !== SERVER_CHAT_INPUT_COMMAND_CONTRACT
             || !Number.isSafeInteger(parsed.admissionSeq) || parsed.admissionSeq <= 0
@@ -359,6 +408,7 @@ function createServerChatInputOwner({
     }
 
     function requiresExecutionPredecessor(record, chat) {
+        if (record.recordVersion === 5) return false;
         if (record.inputState === 'blocked_edit') return true;
         if (!TERMINAL_INPUT_STATES.has(record.inputState)) return true;
         if (record.inputState === 'completed') {
@@ -1205,6 +1255,60 @@ function createServerChatInputOwner({
         return results;
     }
 
+    async function retireTerminal(now = Date.now()) {
+        if (!Number.isSafeInteger(now) || now <= 0) {
+            throw new Error('server input retirement time is invalid');
+        }
+        await ensureCanonicalState();
+        const retired = await queueStorageOperation(() => sqliteDb.transaction(() => {
+            const records = allRecords();
+            const referenced = new Set(records.filter((record) => (
+                record.inputState === 'queued' || record.inputState === 'attached'
+                || record.inputState === 'blocked_edit'
+            )).flatMap((record) => [
+                record.queuePredecessorId, record.executionPredecessorId,
+            ]).filter(Boolean));
+            const eligible = [];
+            for (const record of records) {
+                if (record.recordVersion !== 4
+                    || !['completed', 'failed', 'cancelled'].includes(record.inputState)
+                    || !record.terminal?.at
+                    || now - record.terminal.at <= SERVER_CHAT_INPUT_RETIRE_AFTER_MS
+                    || (record.inputState === 'completed'
+                        && record.terminal.publication !== 'published')
+                    || referenced.has(record.operationId)
+                    || kvGet(operationResultKey(record.operationId)) != null
+                    || kvGet(operationStateKey(record.operationId)) != null
+                    || requiresExecutionPredecessor(
+                        record,
+                        currentChat(record.admission.charId, record.admission.chatId),
+                    )) continue;
+                eligible.push(record);
+            }
+            for (const record of eligible) {
+                const retired = {
+                    ...record,
+                    recordVersion: 5,
+                    admission: { ...record.admission, rawText: null, rawTextHash: null },
+                    rawTextHash: null,
+                    executionPredecessorId: null,
+                    predecessorResolution: null,
+                    inputReceipt: null,
+                    inputMessageRevision: null,
+                    baselineMessageCount: null,
+                    journal: null,
+                    globalIntent: null,
+                    globalOutcomes: null,
+                    retiredAt: now,
+                };
+                write({ ...retired, retiredChecksum: retiredChecksum(retired) });
+            }
+            return eligible.map((record) => record.operationId);
+        })());
+        for (const operationId of retired) settingsSnapshots.delete(operationId);
+        return retired;
+    }
+
     function discardRecovery() {
         for (const record of allRecords()) {
             kvDel(operationStateKey(record.operationId));
@@ -1227,6 +1331,7 @@ function createServerChatInputOwner({
         pendingProjection,
         read: (operationId) => clone(read(operationId)),
         recoverAll,
+        retireTerminal,
         releaseSettingsContext,
         blockEditSynchronously,
         settingsSnapshotStats,
