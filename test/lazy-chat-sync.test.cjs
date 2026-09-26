@@ -25,7 +25,7 @@ function payload1100(relative) {
 
 test('lazy chat pack includes CAS, WAL, reconciliation, and safe hydration boundaries', () => {
     assert.equal(lazyManifest.id, 'lazy-chat-sync')
-    assert.equal(lazyManifest.version, '0.3.2')
+    assert.equal(lazyManifest.version, '0.5.2')
     assert.deepEqual(lazyManifest.targets, {
         pocketrisu: {
             verified: ['1.10.0'],
