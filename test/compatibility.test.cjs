@@ -106,6 +106,7 @@ test('packs qualified on PocketRisu 1.9.0 remain explicitly verified', () =>
         assert.deepEqual(
             rollingCatalog.reviewRequiredPacks.map((entry) => entry.id),
             [
+                'personal-settings',
                 'charx-archive-integrity',
                 'log-load-performance',
                 'fastimport-ios-picker',

@@ -1,0 +1,113 @@
+<script lang="ts">
+    import { onDestroy } from 'svelte'
+    import { DBState } from 'src/ts/stores.svelte'
+    import { personalCssStatus } from 'src/ts/personalSettings/cssToggleRuntime'
+    import { appearanceRuntime, submitCssEdit } from 'src/ts/personalSettings/appearanceEditor'
+    import { CSS_LIMITS, cssEditBase, effectiveCssToggles, newPersonalId, rawAppearance, readCssToggles, storedCssBytes, utf8Bytes, type CssEdit, type EffectiveCssToggle } from 'src/ts/personalSettings/cssToggles'
+    import { cssEditorText, storedCssFromEditor, type CssEditorText } from 'src/ts/personalSettings/cssEditorText'
+    import { displaySize } from 'src/ts/personalSettings/displaySize'
+    import { appearanceNotice } from 'src/ts/personalSettings/appearanceNotices'
+
+    let filter = $state('')
+    let draft = $state<EffectiveCssToggle | null>(null)
+    let base: unknown
+    let cssProjection: CssEditorText
+    let origin: HTMLElement | null = null
+    let returnFocus = $state(false)
+    let filterInput = $state<HTMLInputElement>()
+    let showRaw = $state(false)
+    const read = $derived(readCssToggles(DBState.db))
+    const items = $derived(effectiveCssToggles(DBState.db))
+    const filtered = $derived(items.filter(item => `${item.name} ${item.description}`.toLocaleLowerCase().includes(filter.toLocaleLowerCase())))
+    const busy = $derived($personalCssStatus.phase !== 'idle')
+    const totalBytes = $derived(storedCssBytes(DBState.db))
+    function close() { draft = null; returnFocus = true }
+    $effect(() => {
+        if (returnFocus && !draft && !busy) {
+            returnFocus = false
+            if (origin?.isConnected && !origin.hasAttribute('disabled')) origin.focus()
+            else filterInput?.focus()
+        }
+    })
+    function open(item?: EffectiveCssToggle, event?: MouseEvent) {
+        if (draft) { appearanceNotice('css', 'error', '열린 초안을 먼저 저장하거나 취소하세요.'); return }
+        origin = event?.currentTarget as HTMLElement ?? null
+        draft = item ? { ...item } : { id: newPersonalId(), name: '새 CSS', description: '', css: '', enabled: false, shipped: false, modified: false, newerDefault: false }
+        base = cssEditBase(DBState.db, { kind: 'put', item: draft, shipped: draft.shipped })
+        cssProjection = cssEditorText(draft)
+        draft.css = cssProjection.text
+    }
+    async function run(edit: CssEdit, expected = cssEditBase(DBState.db, edit), saved = () => {}) {
+        try { await submitCssEdit(edit, expected, saved) } catch (e) { appearanceNotice('css', 'error', e instanceof Error ? e.message : '설정을 변경할 수 없습니다.') }
+    }
+    function save() {
+        if (!draft) return
+        void run({ kind: 'put', item: { id: draft.id, name: draft.name, description: draft.description, css: storedCssFromEditor(cssProjection, draft.css), enabled: draft.enabled }, shipped: draft.shipped }, base, close)
+    }
+    onDestroy(() => { appearanceRuntime().cancel() })
+</script>
+
+<section class="space-y-3 mt-4" aria-label="CSS 토글 편집기">
+    {#if !read.valid}
+        <p role="alert">{read.error}</p>
+        <button class="action" onclick={() => showRaw = true}>원본 보기 · 복사</button>
+        {#if showRaw}
+            <textarea class="w-full h-40 text-black font-mono" aria-label="CSS 설정 원본" readonly value={JSON.stringify(rawAppearance(DBState.db).cssToggles, null, 2)}></textarea>
+            <button class="action" disabled={busy} onclick={() => { if (window.confirm('CSS 토글 하위 설정만 초기화할까요? 복사한 원본을 보관하세요.')) void run({ kind: 'reset-group' }) }}>CSS 하위 설정 초기화</button>
+        {/if}
+    {:else}
+        <label class="block">이름·설명 검색 <input class="w-full rounded p-2 bg-darkbg" bind:this={filterInput} bind:value={filter} /></label>
+        <div class="flex flex-wrap items-center gap-2">
+            <button class="action" disabled={busy || !!draft} onclick={(e) => open(undefined, e)}>새 CSS 추가</button>
+            <span class="text-xs">저장된 CSS {displaySize(totalBytes)} / {displaySize(CSS_LIMITS.total)} · 사용자 항목 {read.value.custom?.length ?? 0} / {CSS_LIMITS.count}</span>
+        </div>
+        {#if totalBytes >= CSS_LIMITS.warningTotal || (read.value.custom?.length ?? 0) >= CSS_LIMITS.warningCount}<p role="status">저장된 CSS가 많습니다. 꺼진 항목도 저장·백업 비용에 포함됩니다.</p>{/if}
+        {#if draft}
+            <form class="rounded border border-primary p-3 space-y-3" onsubmit={(e) => { e.preventDefault(); save() }}>
+                <label class="block">이름 <input class="w-full rounded p-2 bg-darkbg" readonly={busy} bind:value={draft.name} /></label>
+                <p class="text-xs">{displaySize(utf8Bytes(draft.name))} / {displaySize(CSS_LIMITS.name)}</p>
+                <label class="block">설명 <textarea class="w-full rounded p-2 bg-darkbg" readonly={busy} bind:value={draft.description}></textarea></label>
+                <p class="text-xs">{displaySize(utf8Bytes(draft.description))} / {displaySize(CSS_LIMITS.description)}</p>
+                <label class="block">CSS <textarea class="w-full h-64 rounded p-2 bg-darkbg font-mono text-sm" spellcheck="false" readonly={busy} bind:value={draft.css}></textarea></label>
+                <p class="text-xs">{displaySize(utf8Bytes(draft.css))} / {displaySize(CSS_LIMITS.item)}</p>
+                {#if utf8Bytes(draft.css) >= CSS_LIMITS.warningItem}<p role="status">큰 CSS 규칙입니다. 실제 기기에서 스크롤·입력·복구 동작을 확인하세요.</p>{/if}
+                <label class="flex items-center gap-2 min-h-11"><input type="checkbox" disabled={busy} bind:checked={draft.enabled} /> 저장 후 켜기 (적용이 중지된 동안 수정하면 끄세요)</label>
+                <button class="action" type="submit" disabled={busy}>시험 적용 / 저장</button>
+                <button class="action" type="button" disabled={busy} onclick={close}>취소</button>
+            </form>
+        {/if}
+        {#each filtered as item (item.id)}
+            <article class="rounded border border-darkborderc p-3" data-setting-id={item.settingId}>
+                <div class="item-row">
+                    <div class="item-text">
+                        <label class="flex items-center gap-3 min-h-11">
+                            <input type="checkbox" checked={item.enabled} aria-label={`${item.name} 켜기`} disabled={busy || !!draft} onchange={(e) => { const enabled = e.currentTarget.checked; e.currentTarget.checked = item.enabled; void run({ kind: 'toggle', id: item.id, enabled }) }} />
+                            <strong class="min-w-0" style:overflow-wrap="anywhere">{item.name}</strong>
+                            {#if item.modified}<span class="text-xs">수정됨{item.newerDefault ? ' · 새 기본값 있음' : ''}</span>{/if}
+                        </label>
+                        <p class="text-sm text-textcolor2 whitespace-pre-wrap break-words">{item.description}</p>
+                    </div>
+                    <button class="action" disabled={busy || !!draft} onclick={(e) => open(item, e)}>편집</button>
+                </div>
+                {#if (item.shipped && item.modified) || !item.shipped}
+                <div class="flex flex-wrap gap-1 mt-2">
+                    {#if item.shipped && item.modified}
+                        <button class="action" disabled={busy || !!draft} onclick={() => void run({ kind: 'reset', id: item.id })}>현재 기본값으로 복원</button>
+                    {:else if !item.shipped}
+                        <button class="action" aria-label={`${item.name} 위로`} disabled={busy || !!draft} onclick={() => void run({ kind: 'move', id: item.id, direction: -1 })}>위로</button>
+                        <button class="action" aria-label={`${item.name} 아래로`} disabled={busy || !!draft} onclick={() => void run({ kind: 'move', id: item.id, direction: 1 })}>아래로</button>
+                        <button class="action" disabled={busy || !!draft} onclick={() => { if (window.confirm(`“${item.name}” CSS를 삭제할까요?`)) void run({ kind: 'delete', id: item.id }) }}>삭제</button>
+                    {/if}
+                </div>
+                {/if}
+            </article>
+        {/each}
+    {/if}
+</section>
+
+<style>
+    .item-row { display: grid; grid-template-columns: minmax(0, 1fr) auto; align-items: center; gap: 0.75rem; }
+    .item-text { min-width: 0; }
+    .action { min-height: 44px; padding: 0.4rem 0.8rem; border: 1px solid currentColor; border-radius: 0.4rem; }
+    .action:disabled { opacity: 0.45; }
+</style>

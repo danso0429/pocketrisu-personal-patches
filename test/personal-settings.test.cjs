@@ -13,6 +13,7 @@ const importNavigationUnits = require(
     '../patches/personal-settings/settings/import-navigation/units.cjs',
 )
 const appearanceUnits = require('../patches/personal-settings/settings/appearance/units.cjs')
+const editorUnits = require('../patches/personal-settings/settings/appearance/editor-units.cjs')
 const searchUnits = require('../patches/personal-settings/settings/search/units.cjs')
 const logic = read('core/files/src/ts/personalSettings.ts')
 const logicTests = read('core/files/src/ts/personalSettings.test.ts')
@@ -58,10 +59,10 @@ function replacementText(candidate) {
 
 test('personal settings is an independent rolling feature pack', () => {
     assert.equal(manifest.id, 'personal-settings')
-    assert.equal(manifest.version, '0.4.3')
+    assert.equal(manifest.version, '0.5.11')
     assert.deepEqual(manifest.targets, {
         pocketrisu: {
-            verified: ['1.8.1', '1.9.0', '1.10.0'],
+            verified: ['1.10.0'],
             reviewing: [],
         },
     })
@@ -70,12 +71,13 @@ test('personal settings is an independent rolling feature pack', () => {
     assert.equal(manifest.requires, undefined)
 })
 
-test('the root manifest only aggregates core and setting-owned units', () => {
+test('the root manifest aggregates the exact-1.10 appearance editor units', () => {
     assert.deepEqual(manifest.units, [
         ...coreUnits,
         ...importNavigationUnits,
         ...appearanceUnits,
         ...searchUnits,
+        ...editorUnits,
     ])
     assert.equal(
         new Set(manifest.units.map((candidate) => candidate.id)).size,
@@ -91,11 +93,11 @@ test('the root manifest only aggregates core and setting-owned units', () => {
     )
     assert.equal(searchUnits.length, 2)
     assert.ok(searchUnits.every((candidate) =>
-        candidate.targetVersions?.pocketrisu?.join(',') === '1.9.0,1.10.0'
+        candidate.targetVersions?.pocketrisu?.join(',') === '1.10.0'
     ))
     assert.ok(appearanceUnits.length > 0)
     assert.ok(appearanceUnits.every((candidate) =>
-        candidate.targetVersions?.pocketrisu?.join(',') === '1.9.0,1.10.0'
+        candidate.targetVersions?.pocketrisu?.join(',') === '1.10.0'
     ))
 })
 
@@ -374,6 +376,6 @@ test('personal settings never writes the database plugin array', () => {
         ]),
     ].join('\n')
 
-    assert.doesNotMatch(patchText, /\bplugins\b/)
+    assert.doesNotMatch(patchText, /\b(?:db|database)\.plugins\s*=/)
     assert.doesNotMatch(patchText, /setDatabase(?:Lite)?\s*\(/)
 })

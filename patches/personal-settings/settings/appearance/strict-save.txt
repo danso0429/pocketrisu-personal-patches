@@ -1,0 +1,39 @@
+    registerAppearanceWriter(async (mutate, verify, progress) => {
+        // Wait before mutation: ordinary autosave cannot capture an unqualified candidate.
+        if (saveInFlight) { progress?.('waiting'); await saveInFlight }
+        progress?.('preparing')
+        verify()
+        const baseline = supportsPatchSync ? safeStructuredClone((patcher as any).lastSyncedDb) : null
+        const undo = mutate()
+        let attempted = false
+        const work = (async () => {
+            await tick()
+            changeTracker.root = true
+            const toSave = takeTrackedChanges()
+            saving.state = true
+            try {
+                attempted = true
+                progress?.('writing')
+                const result = await persistTrackedChanges(toSave, { personalStrict: true } as any)
+                if (result !== 'saved') throw appearanceSaveFailure(result !== 'noop')
+                progress?.('flushing')
+                await forageStorage.realStorage.flushPersonalAppearance()
+                verify()
+            } catch (error) {
+                requeueTrackedChanges(toSave)
+                if ((error as any)?.ambiguous === false) undo()
+                changed = true
+                if (supportsPatchSync && baseline) {
+                    try { await patcher.init(baseline) } catch { throw appearanceSaveFailure(true) }
+                }
+                if (typeof (error as any)?.ambiguous === 'boolean') throw error
+                throw appearanceSaveFailure(attempted)
+            } finally {
+                saving.state = false
+                saveInFlight = null
+            }
+        })()
+        // Autosave callers may wait on this lane without inheriting editor rejection.
+        saveInFlight = work.catch(() => {})
+        return work
+    })
