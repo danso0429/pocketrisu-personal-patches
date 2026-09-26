@@ -21,7 +21,7 @@ const bgGlobalApiUnits = [
 module.exports = {
     id: 'lazy-chat-bg-adapter',
     title: 'BG preserve integration for lazy chat storage',
-    version: '0.7.5',
+    version: '0.7.6',
     targets: {
         pocketrisu: {
             verified: ['1.8.1', '1.9.0', '1.10.0'],
@@ -387,6 +387,127 @@ export async function adoptServerCommittedChat(
             targetVersions: pocketRisu1100,
         },
         {
+            id: 'lazy-chat-bg-adapter:owned:bg-browser-message-effects:1.10',
+            file: 'src/ts/bgBrowserMessageEffects.ts',
+            type: 'owned',
+            content: owned1100('src/ts/bgBrowserMessageEffects.ts'),
+            targetVersions: pocketRisu1100,
+        },
+        {
+            id: 'lazy-chat-bg-adapter:owned:bg-browser-message-effects-test:1.10',
+            file: 'src/ts/bgBrowserMessageEffects.test.ts',
+            type: 'owned',
+            content: owned1100('src/ts/bgBrowserMessageEffects.test.ts'),
+            requires: ['lazy-chat-bg-adapter:owned:bg-browser-message-effects:1.10'],
+            targetVersions: pocketRisu1100,
+        },
+        {
+            id: 'lazy-chat-bg-adapter:owned:bg-draft-identity:1.10',
+            file: 'src/ts/bgDraftIdentity.ts',
+            type: 'owned',
+            content: owned1100('src/ts/bgDraftIdentity.ts'),
+            targetVersions: pocketRisu1100,
+        },
+        {
+            id: 'lazy-chat-bg-adapter:owned:bg-draft-identity-test:1.10',
+            file: 'src/ts/bgDraftIdentity.test.ts',
+            type: 'owned',
+            content: owned1100('src/ts/bgDraftIdentity.test.ts'),
+            requires: ['lazy-chat-bg-adapter:owned:bg-draft-identity:1.10'],
+            targetVersions: pocketRisu1100,
+        },
+        {
+            id: 'lazy-chat-bg-adapter:draft-identity-import:1.10',
+            file: 'src/ts/storage/chatDraft.ts',
+            type: 'insert',
+            where: 'after',
+            anchor: 'import { forageStorage } from "../globalApi.svelte"\n',
+            content: 'import { legacyDraftIdentity, validDraftIdentity } from "../bgDraftIdentity"\n',
+            requires: ['lazy-chat-bg-adapter:owned:bg-draft-identity:1.10'],
+            after: [
+                'client-build-fence:draft-import:1.9',
+                'client-build-fence:draft-queue-state:1.9',
+                'client-build-fence:draft-timer-state:1.9',
+                'client-build-fence:draft-schedule-state:1.9',
+                'client-build-fence:draft-flush-key:1.9',
+                'client-build-fence:draft-remove-key:1.9',
+                'client-build-fence:draft-sweep-key:1.9',
+            ],
+            targetVersions: pocketRisu1100,
+        },
+        {
+            id: 'lazy-chat-bg-adapter:draft-identity-type:1.10',
+            file: 'src/ts/storage/chatDraft.ts',
+            type: 'replace',
+            anchor: '    t: string\n}\n',
+            content: '    t: string\n    /** Stable identity of this unsent draft across tabs and reloads. */\n    id?: string\n}\n',
+            requires: ['lazy-chat-bg-adapter:draft-identity-import:1.10'],
+            targetVersions: pocketRisu1100,
+        },
+        {
+            id: 'lazy-chat-bg-adapter:draft-identity-load:1.10',
+            file: 'src/ts/storage/chatDraft.ts',
+            type: 'replace',
+            anchor: "        return { m: obj.m ?? '', t: obj.t ?? '' }\n",
+            content: `        const m = typeof obj.m === 'string' ? obj.m : ''
+        const t = typeof obj.t === 'string' ? obj.t : ''
+        let id = validDraftIdentity(obj.id) ? obj.id : undefined
+        if (!id) {
+            try { id = await legacyDraftIdentity(chaId, chatId, m, t) }
+            catch { /* Keep the text; server-owned admission will remain blocked. */ }
+        }
+        return { m, t, ...(id ? { id } : {}) }
+`,
+            requires: ['lazy-chat-bg-adapter:draft-identity-type:1.10'],
+            targetVersions: pocketRisu1100,
+        },
+        {
+            id: 'lazy-chat-bg-adapter:draft-identity-native-test:1.10',
+            file: 'src/ts/storage/chatDraft.test.ts',
+            type: 'replace',
+            anchor: "        expect(loaded).toEqual({ m: 'second', t: '' })\n",
+            content: "        expect(loaded).toMatchObject({ m: 'second', t: '' })\n        expect(loaded?.id).toMatch(/^legacy_[a-f0-9]{64}$/)\n",
+            requires: ['lazy-chat-bg-adapter:draft-identity-load:1.10'],
+            targetVersions: pocketRisu1100,
+        },
+        {
+            id: 'lazy-chat-bg-adapter:draft-identity-native-roundtrip-test:1.10',
+            file: 'src/ts/storage/chatDraft.test.ts',
+            type: 'replace',
+            anchor: "        expect(loaded).toEqual({ m: 'remember me', t: 'tr' })\n",
+            content: "        expect(loaded).toMatchObject({ m: 'remember me', t: 'tr' })\n        expect(loaded?.id).toMatch(/^legacy_[a-f0-9]{64}$/)\n",
+            requires: ['lazy-chat-bg-adapter:draft-identity-native-test:1.10'],
+            targetVersions: pocketRisu1100,
+        },
+        {
+            id: 'lazy-chat-bg-adapter:browser-stat-effect-send-import:1.10',
+            file: 'src/ts/process/index.svelte.ts',
+            type: 'insert',
+            where: 'after',
+            anchor: 'import { v4 } from "uuid";\n',
+            content: 'import { recordBrowserMessageEffect } from "../bgBrowserMessageEffects";\n',
+            requires: ['lazy-chat-bg-adapter:owned:bg-browser-message-effects:1.10'],
+            targetVersions: pocketRisu1100,
+        },
+        {
+            id: 'lazy-chat-bg-adapter:browser-stat-effect-send:1.10',
+            file: 'src/ts/process/index.svelte.ts',
+            type: 'replace',
+            anchor: '    DBState.db.statics.messages += 1\n',
+            managed: `    /* POCKETRISU-PATCH:lazy-chat-bg-adapter:browser-stat-effect-send:START */
+    if ((globalThis as { __bgOrch?: unknown }).__bgOrch) {
+        DBState.db.statics.messages += 1
+    } else {
+        recordBrowserMessageEffect(DBState.db.statics, generationId)
+    }
+    /* POCKETRISU-PATCH:lazy-chat-bg-adapter:browser-stat-effect-send:END */
+`,
+            markerNeedle: 'POCKETRISU-PATCH:lazy-chat-bg-adapter:browser-stat-effect-send:START',
+            requires: ['lazy-chat-bg-adapter:browser-stat-effect-send-import:1.10'],
+            after: ['bg-preserve:hook:index-direct-send-lifecycle-wrapper:1.9'],
+            targetVersions: pocketRisu1100,
+        },
+        {
             id: 'lazy-chat-bg-adapter:owned:bg-server-input-client:1.10',
             file: 'src/ts/bgServerInputClient.ts',
             type: 'owned',
@@ -442,6 +563,59 @@ export async function adoptServerCommittedChat(
             ],
         },
         {
+            id: 'lazy-chat-bg-adapter:browser-stat-effect-import:1.10',
+            file: 'src/ts/globalApi.svelte.ts',
+            type: 'insert',
+            where: 'after',
+            anchor: "import { v4 as uuidv4, v4 } from 'uuid';\n",
+            content: 'import { mergeBrowserMessageEffects } from "./bgBrowserMessageEffects";\n',
+            requires: [
+                'lazy-chat-bg-adapter:global-import',
+                'lazy-chat-bg-adapter:owned:bg-browser-message-effects:1.10',
+            ],
+            after: [
+                'haejeok-persistence-safety-adapter:durable-save-plugin-scope',
+                'haejeok-persistence-safety-adapter:durable-chat-payload-api',
+                'haejeok-persistence-safety-adapter:durable-save-plugin-enlistment',
+                'haejeok-persistence-safety-adapter:durable-chat-payload-impl',
+            ],
+            targetVersions: pocketRisu1100,
+        },
+        {
+            id: 'lazy-chat-bg-adapter:browser-stat-effect-rebase:1.10',
+            file: 'src/ts/globalApi.svelte.ts',
+            type: 'insert',
+            where: 'after',
+            anchor: `            const mergedDb = mergeThreeWayValue(
+                previousServerBaseline,
+                localDb,
+                latestDb,
+            ) as Database
+`,
+            content: `            mergeBrowserMessageEffects(
+                previousServerBaseline,
+                localDb,
+                latestDb,
+                mergedDb,
+            )
+`,
+            requires: ['lazy-chat-bg-adapter:browser-stat-effect-import:1.10'],
+            after: [
+                ...bgGlobalApiUnits,
+                'lazy-chat-sync:replace:src:ts:globalApi-svelte-ts',
+                'client-build-fence:global-import:1.9',
+                'client-build-fence:global-dirty-probe:1.9',
+                'client-build-fence:global-flush:1.9',
+                'client-build-fence:global-proxy-stream-cancel:1.9',
+                'client-build-fence:global-proxy-stream-abort:1.9',
+                'haejeok-persistence-safety-adapter:durable-save-plugin-scope',
+                'haejeok-persistence-safety-adapter:durable-chat-payload-api',
+                'haejeok-persistence-safety-adapter:durable-save-plugin-enlistment',
+                'haejeok-persistence-safety-adapter:durable-chat-payload-impl',
+            ],
+            targetVersions: pocketRisu1100,
+        },
+        {
             id: 'lazy-chat-bg-adapter:durable-flush',
             file: 'src/ts/globalApi.svelte.ts',
             type: 'replace',
@@ -480,6 +654,7 @@ import {
 import { parseServerPendingInputs, type ServerPendingInput } from './bgServerPendingProjection'
 import { submitServerInputCommand, type ServerInputClientOutcome } from './bgServerInputClient'
 import { adoptAttachedServerInputs } from './bgServerInputAdoption'
+import { recordBrowserMessageEffect } from './bgBrowserMessageEffects'
 import {
     advanceServerInputMarkerRevisions,
     clearServerInputMarker,
@@ -492,6 +667,42 @@ import {
                 'lazy-chat-bg-adapter:owned:bg-server-pending-projection-test:1.10',
                 'lazy-chat-bg-adapter:owned:bg-server-input-client-test:1.10',
                 'lazy-chat-bg-adapter:owned:bg-server-input-adoption-test:1.10',
+                'lazy-chat-bg-adapter:owned:bg-browser-message-effects-test:1.10',
+            ],
+            targetVersions: pocketRisu1100,
+        },
+        {
+            id: 'lazy-chat-bg-adapter:legacy-browser-stat-effect:1.10',
+            file: 'src/ts/bgOrchestrate.ts',
+            type: 'replace',
+            anchor: `        if (statics && staticsIncrement > 0) {
+            statics.messages = (statics.messages || 0) + staticsIncrement
+        }
+`,
+            content: `        if (statics && staticsIncrement > 0) {
+            if (operationId && typeof data.resultId === 'string'
+                && /^[A-Za-z0-9_-]{8,128}$/.test(data.resultId)) {
+                recordBrowserMessageEffect(
+                    statics, data.resultId, Date.now(), staticsIncrement,
+                )
+            } else {
+                // Pre-operation-ID legacy delivery cannot provide an exact
+                // idempotency key; retain its old client-owned behavior.
+                statics.messages = (statics.messages || 0) + staticsIncrement
+            }
+        }
+`,
+            requires: ['lazy-chat-bg-adapter:server-commit-client-import:1.10'],
+            after: [
+                'lazy-chat-bg-adapter:server-commit-client-hydration:1.10',
+                'lazy-chat-bg-adapter:server-commit-client-missing-result:1.10',
+                'lazy-chat-bg-adapter:server-commit-client-ownership-fence:1.10',
+                'lazy-chat-bg-adapter:server-commit-client-found-result:1.10',
+                'lazy-chat-bg-adapter:server-commit-boot-missing-result:1.10',
+                'lazy-chat-bg-adapter:server-commit-boot-ownership-fence:1.10',
+                'lazy-chat-bg-adapter:server-commit-boot-found-result:1.10',
+                'lazy-chat-bg-adapter:server-chat-commit-client-negotiate:1.10',
+                'lazy-chat-bg-adapter:server-chat-commit-client-request:1.10',
             ],
             targetVersions: pocketRisu1100,
         },
@@ -629,6 +840,7 @@ export async function reconcileServerPendingInputCommands(
 export async function tryRunServerOwnedInput(
     selectedIndex: number,
     rawText: string,
+    draftId: string,
 ): Promise<ServerInputClientOutcome> {
     if (typeof document === 'undefined' || !isServerOrchestrationEnabled()) {
         return { kind: 'unsupported' }
@@ -720,7 +932,7 @@ export async function tryRunServerOwnedInput(
             },
             newId: v4,
             isCurrent,
-        }, { charId, chatId, rawText })
+        }, { charId, chatId, rawText, draftId })
     } catch (error) {
         console.error('[bg-orch] server input admission unavailable', error)
         return { kind: 'blocked', reason: 'admission-unavailable' }
@@ -1184,7 +1396,7 @@ function retainUncommittedServerChat(
             const rawText = draftText + draftFiles.map(file => '{{inlayed::' + file + '}}').join('')
             inputAdmissionBusy = true
             try {
-                const outcome = await tryRunServerOwnedInput(selectedChar, rawText)
+                const outcome = await tryRunServerOwnedInput(selectedChar, rawText, draftInputId)
                 if (outcome.kind !== 'unsupported') {
                     window.dispatchEvent(new Event('bg-server-input-updated'))
                     if (outcome.kind === 'accepted' && outcome.clearDraft) {
@@ -1204,6 +1416,12 @@ function retainUncommittedServerChat(
                     } else if (outcome.kind === 'unknown') {
                         notifyError('서버 접수 여부를 확인할 수 없어요', {
                             description: '같은 입력을 다시 보내지 말고 채팅 상태를 확인해 주세요. 초안은 남겼어요.',
+                            source: 'bg-input',
+                        })
+                    } else if (outcome.kind === 'blocked'
+                        && outcome.reason === 'draft-already-submitted') {
+                        notifyError('같은 초안이 이미 다른 화면에서 접수됐어요', {
+                            description: '진행 상태를 확인해 주세요. 초안은 지우지 않았어요.',
                             source: 'bg-input',
                         })
                     } else {
@@ -1258,6 +1476,95 @@ function retainUncommittedServerChat(
 `,
             markerNeedle: 'POCKETRISU-PATCH:lazy-chat-bg-adapter:server-input-client-busy-ui:START',
             requires: ['lazy-chat-bg-adapter:server-input-client-send:1.10'],
+            targetVersions: pocketRisu1100,
+        },
+        {
+            id: 'lazy-chat-bg-adapter:composer-draft-identity-state:1.10',
+            file: 'src/lib/ChatScreens/DefaultChatScreen.svelte',
+            type: 'insert',
+            where: 'after',
+            anchor: '    let draftLoading = $state(false)\n',
+            content: `    let draftInputId = $state(v4())
+    let draftIdentityContent = JSON.stringify(['', '', []])
+
+    // Programmatic composer changes also create a new unsent draft identity.
+    $effect(() => {
+        const content = JSON.stringify([messageInput, messageInputTranslate, fileInput])
+        if (draftLoading || content === draftIdentityContent) return
+        draftIdentityContent = content
+        draftInputId = v4()
+    })
+`,
+            requires: [
+                'lazy-chat-bg-adapter:server-input-client-busy-ui:1.10',
+                'lazy-chat-bg-adapter:owned:bg-draft-identity:1.10',
+            ],
+            targetVersions: pocketRisu1100,
+        },
+        {
+            id: 'lazy-chat-bg-adapter:composer-draft-identity-reset:1.10',
+            file: 'src/lib/ChatScreens/DefaultChatScreen.svelte',
+            type: 'replace',
+            anchor: "        untrack(() => { messageInput = ''; messageInputTranslate = ''; draftLoading = true })\n",
+            content: "        untrack(() => { messageInput = ''; messageInputTranslate = ''; draftInputId = v4(); draftLoading = true })\n",
+            requires: ['lazy-chat-bg-adapter:composer-draft-identity-state:1.10'],
+            targetVersions: pocketRisu1100,
+        },
+        {
+            id: 'lazy-chat-bg-adapter:composer-draft-identity-load:1.10',
+            file: 'src/lib/ChatScreens/DefaultChatScreen.svelte',
+            type: 'replace',
+            anchor: `                if (draft && messageInput === '' && messageInputTranslate === '') {
+                    messageInput = draft.m
+                    messageInputTranslate = draft.t
+                }
+                draftLoading = false
+`,
+            content: `                if (draft && messageInput === '' && messageInputTranslate === '') {
+                    messageInput = draft.m
+                    messageInputTranslate = draft.t
+                    draftInputId = draft.id ?? ''
+                }
+                draftIdentityContent = JSON.stringify([messageInput, messageInputTranslate, fileInput])
+                draftLoading = false
+`,
+            requires: ['lazy-chat-bg-adapter:composer-draft-identity-reset:1.10'],
+            targetVersions: pocketRisu1100,
+        },
+        {
+            id: 'lazy-chat-bg-adapter:composer-draft-identity-persist:1.10',
+            file: 'src/lib/ChatScreens/DefaultChatScreen.svelte',
+            type: 'replace',
+            anchor: '        flushChatDraft(draftChaId, draftChatId, { m: messageInput, t: messageInputTranslate })\n',
+            content: '        flushChatDraft(draftChaId, draftChatId, { m: messageInput, t: messageInputTranslate, id: draftInputId })\n',
+            requires: ['lazy-chat-bg-adapter:composer-draft-identity-load:1.10'],
+            targetVersions: pocketRisu1100,
+        },
+        {
+            id: 'lazy-chat-bg-adapter:composer-draft-identity-cleanup:1.10',
+            file: 'src/lib/ChatScreens/DefaultChatScreen.svelte',
+            type: 'replace',
+            anchor: `            flushChatDraft(chaId, chatId, {
+                m: untrack(() => messageInput),
+                t: untrack(() => messageInputTranslate),
+            })
+`,
+            content: `            flushChatDraft(chaId, chatId, {
+                m: untrack(() => messageInput),
+                t: untrack(() => messageInputTranslate),
+                id: untrack(() => draftInputId),
+            })
+`,
+            requires: ['lazy-chat-bg-adapter:composer-draft-identity-persist:1.10'],
+            targetVersions: pocketRisu1100,
+        },
+        {
+            id: 'lazy-chat-bg-adapter:composer-draft-identity-save:1.10',
+            file: 'src/lib/ChatScreens/DefaultChatScreen.svelte',
+            type: 'replace',
+            anchor: '        scheduleSaveChatDraft(chaId, chatId, { m, t })\n',
+            content: '        scheduleSaveChatDraft(chaId, chatId, { m, t, id: draftInputId })\n',
+            requires: ['lazy-chat-bg-adapter:composer-draft-identity-cleanup:1.10'],
             targetVersions: pocketRisu1100,
         },
         {
@@ -1656,12 +1963,16 @@ const serverChatCommitOwner = createServerChatCommitOwner({
             content: `                    incomingStrippedDb = canonicalizeStrippedDatabase(
                         normalizeJSON(stripChatsFromDb(incomingDb))
                     );
-                    // A validator-free root snapshot cannot attest to a
-                    // previously committed server-owned effect. The empty
-                    // initial database has no such receipt and stays writable.
+                    // A validator-free root snapshot cannot attest to an
+                    // already accepted server or browser statistic effect.
+                    // A truly empty initial database remains writable.
                     if (!req.headers['if-match'] && !req.headers['x-if-match']
-                        && Array.isArray(acceptedStrippedDb.serverChatCommitApplied)
-                        && acceptedStrippedDb.serverChatCommitApplied.length > 0) {
+                        && ((Array.isArray(acceptedStrippedDb.serverChatCommitApplied)
+                            && acceptedStrippedDb.serverChatCommitApplied.length > 0)
+                            || (Array.isArray(acceptedStrippedDb.statics?.browserMessageEffects)
+                                && acceptedStrippedDb.statics.browserMessageEffects.length > 0)
+                            || (Number.isSafeInteger(acceptedStrippedDb.statics?.browserMessageEffectCutoff)
+                                && acceptedStrippedDb.statics.browserMessageEffectCutoff > 0))) {
                         return res.status(428).json({
                             error: 'Current database revision required after server chat commit',
                             code: 'BG_SERVER_EFFECT_REVISION_REQUIRED',
@@ -2032,6 +2343,8 @@ const serverChatCommitOwner = createServerChatCommitOwner({
               handled: false, started: false, operationId,
               reason: admission && admission.reason
                 ? admission.reason : 'server-input-admission-conflict',
+              ...(admission && admission.existingOperationId
+                ? { existingOperationId: admission.existingOperationId } : {}),
               ...(admission && admission.blockingOperationId
                 ? { blockingOperationId: admission.blockingOperationId } : {}),
               ...(admission && Array.isArray(admission.blockingOperationIds)

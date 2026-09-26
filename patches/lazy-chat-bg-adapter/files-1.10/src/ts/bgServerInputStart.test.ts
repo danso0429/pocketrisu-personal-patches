@@ -13,7 +13,7 @@ describe('server input start reconciliation', () => {
         await expect(reconcileServerInputStart({
             operationId, start, status, isCurrent: () => true,
             deadlineAt: Date.now() + 1_000,
-        })).resolves.toEqual({ resolution: 'accepted', state: 'input-waiting-predecessor' })
+        })).resolves.toEqual({ resolution: 'accepted', state: 'input-waiting-predecessor', rejectedReason: null })
         expect(start).toHaveBeenCalledTimes(1)
         expect(status).not.toHaveBeenCalled()
     })
@@ -28,7 +28,7 @@ describe('server input start reconciliation', () => {
             operationId, start, status, isCurrent: () => true,
             deadlineAt: Date.now() + 1_000,
             wait: async () => {},
-        })).resolves.toEqual({ resolution: 'accepted', state: 'input-generating' })
+        })).resolves.toEqual({ resolution: 'accepted', state: 'input-generating', rejectedReason: null })
         expect(start).toHaveBeenCalledTimes(1)
         expect(status).toHaveBeenCalledTimes(1)
     })
@@ -44,7 +44,7 @@ describe('server input start reconciliation', () => {
             operationId, start, status, isCurrent: () => true,
             deadlineAt: Date.now() + 1_000,
             wait: async () => {},
-        })).resolves.toEqual({ resolution: 'accepted', state: null })
+        })).resolves.toEqual({ resolution: 'accepted', state: null, rejectedReason: null })
         expect(start).toHaveBeenCalledTimes(2)
     })
 
@@ -58,7 +58,32 @@ describe('server input start reconciliation', () => {
             status: async () => { throw new Error('status must not be needed') },
             isCurrent: () => true,
             deadlineAt: Date.now() + 1_000,
-        })).resolves.toEqual({ resolution: 'rejected', state: null })
+        })).resolves.toEqual({
+            resolution: 'rejected', state: null,
+            rejectedReason: 'server-input-command-mode-unsupported',
+        })
+    })
+
+    it('rejects a proven same-draft conflict without polling the new operation', async () => {
+        const status = vi.fn()
+        await expect(reconcileServerInputStart({
+            operationId,
+            start: async () => ({
+                status: 409,
+                body: {
+                    operationId, started: false,
+                    reason: 'input_command_identity_conflict',
+                    existingOperationId: 'operation-existing-1',
+                },
+            }),
+            status,
+            isCurrent: () => true,
+            deadlineAt: Date.now() + 1_000,
+        })).resolves.toEqual({
+            resolution: 'rejected', state: null,
+            rejectedReason: 'input_command_identity_conflict',
+        })
+        expect(status).not.toHaveBeenCalled()
     })
 
     it('leaves an unclassified 409 unknown instead of falling back', async () => {
@@ -75,7 +100,7 @@ describe('server input start reconciliation', () => {
             deadlineAt: 3,
             now: () => now,
             wait: async () => { now += 1 },
-        })).resolves.toEqual({ resolution: 'unknown', state: null })
+        })).resolves.toEqual({ resolution: 'unknown', state: null, rejectedReason: null })
         expect(status).toHaveBeenCalled()
     })
 })

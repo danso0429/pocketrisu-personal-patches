@@ -4,7 +4,10 @@ import { readServerInputMarkers } from './bgServerInputLedger'
 
 const base = 'a'.repeat(64)
 const next = 'b'.repeat(64)
-const request = { charId: 'char-1', chatId: 'chat-1', rawText: 'next message' }
+const request = {
+    charId: 'char-1', chatId: 'chat-1', rawText: 'next message',
+    draftId: 'draft-original-1',
+}
 const capability = {
     contract: 'bg_orchestration_capabilities.v1',
     inputCommandVersion: 1,
@@ -66,9 +69,9 @@ describe('server-owned input client admission', () => {
         expect(firstBody).toMatchObject({
             inputCommandVersion: 1, serverChatCommitVersion: 1,
             baseChatRevision: base,
-            inputCommand: { rawText: 'next message' },
+            inputCommand: { rawText: 'next message', inputCommandId: request.draftId },
         })
-        expect(JSON.stringify(readServerInputMarkers(harness.deps.storage, 1003)))
+        expect(JSON.stringify(readServerInputMarkers(harness.deps.storage, 1002)))
             .not.toContain('next message')
 
         harness.setServerRevision(next)
@@ -82,8 +85,10 @@ describe('server-owned input client admission', () => {
                 state: 'input-waiting-predecessor',
             },
         }))
-        await expect(submitServerInputCommand(harness.deps, request)).resolves.toEqual({
-            kind: 'accepted', operationId: 'operation-4',
+        await expect(submitServerInputCommand(harness.deps, {
+            ...request, draftId: 'draft-retyped-2',
+        })).resolves.toEqual({
+            kind: 'accepted', operationId: 'operation-3',
             state: 'input-waiting-predecessor', clearDraft: true,
         })
         expect(harness.start.mock.calls[1][0]).toMatchObject({ baseChatRevision: next })
@@ -167,5 +172,72 @@ describe('server-owned input client admission', () => {
         })
         expect(harness.flushSettings).not.toHaveBeenCalled()
         expect(harness.start).not.toHaveBeenCalled()
+    })
+
+    it('blocks an enabled input command without a durable draft identity', async () => {
+        const harness = makeHarness()
+        await expect(submitServerInputCommand(harness.deps, {
+            ...request, draftId: undefined,
+        })).resolves.toEqual({ kind: 'blocked', reason: 'draft-identity-unavailable' })
+        expect(harness.flushSettings).not.toHaveBeenCalled()
+        expect(harness.start).not.toHaveBeenCalled()
+    })
+
+    it('keeps the visible draft after another tab submitted the same identity', async () => {
+        const harness = makeHarness()
+        harness.start.mockImplementationOnce(async body => ({
+            status: 409,
+            body: {
+                operationId: body.operationId,
+                started: false,
+                reason: 'input_command_identity_conflict',
+                existingOperationId: 'operation-other-tab-1',
+            },
+        }))
+        await expect(submitServerInputCommand(harness.deps, request)).resolves.toEqual({
+            kind: 'blocked', reason: 'draft-already-submitted',
+        })
+        expect(harness.start).toHaveBeenCalledTimes(1)
+        expect(harness.status).not.toHaveBeenCalled()
+        expect(readServerInputMarkers(harness.deps.storage, 1002)).toEqual([])
+    })
+
+    it('uses one shared draft identity when two tabs pass the marker check together', async () => {
+        const harness = makeHarness()
+        let reads = 0
+        let release = () => {}
+        const bothAtCapability = new Promise<void>(resolve => { release = resolve })
+        harness.deps.readCapability = async () => {
+            reads += 1
+            if (reads === 2) release()
+            await bothAtCapability
+            return capability
+        }
+        harness.start.mockImplementation(async body => {
+            if (harness.start.mock.calls.length === 1) {
+                return { status: 200, body: { operationId: body.operationId, started: true } }
+            }
+            return {
+                status: 409,
+                body: {
+                    operationId: body.operationId,
+                    started: false,
+                    reason: 'input_command_identity_conflict',
+                },
+            }
+        })
+        const [first, second] = await Promise.all([
+            submitServerInputCommand(harness.deps, request),
+            submitServerInputCommand(harness.deps, request),
+        ])
+        expect(first.kind).toBe('accepted')
+        expect(second).toEqual({ kind: 'blocked', reason: 'draft-already-submitted' })
+        const bodies = harness.start.mock.calls.map(call => call[0])
+        expect(bodies).toHaveLength(2)
+        expect(bodies[0].operationId).not.toBe(bodies[1].operationId)
+        expect((bodies[0].inputCommand as Record<string, unknown>).inputCommandId)
+            .toBe(request.draftId)
+        expect((bodies[1].inputCommand as Record<string, unknown>).inputCommandId)
+            .toBe(request.draftId)
     })
 })

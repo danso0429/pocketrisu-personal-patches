@@ -11,12 +11,15 @@ interface HttpOutcome {
 export interface ServerInputStartOutcome {
     resolution: 'accepted' | 'rejected' | 'unknown'
     state: string | null
+    rejectedReason: string | null
 }
 
 const preAdmissionReasons = new Set([
     'server-input-command-mode-unsupported',
     'server-input-command-unavailable',
     'server-chat-commit-unavailable',
+    'input_command_identity_conflict',
+    'submitted_base_changed',
 ])
 
 export async function reconcileServerInputStart(options: {
@@ -29,6 +32,7 @@ export async function reconcileServerInputStart(options: {
     wait?: (ms: number) => Promise<void>
 }): Promise<ServerInputStartOutcome> {
     let state: string | null = null
+    let rejectedReason: string | null = null
     const resolution = await reconcileOrchestrationStart({
         start: async signal => {
             const response = await options.start(signal)
@@ -42,6 +46,7 @@ export async function reconcileServerInputStart(options: {
             if ((response.status === 401 || response.status === 403)
                 || (response.status === 409 && body?.operationId === options.operationId
                     && preAdmissionReasons.has(String(body.reason)))) {
+                rejectedReason = typeof body?.reason === 'string' ? body.reason : null
                 return 'rejected'
             }
             throw new Error('server input start outcome is ambiguous')
@@ -67,5 +72,6 @@ export async function reconcileServerInputStart(options: {
     return {
         resolution: resolution === 'abandoned' ? 'unknown' : resolution,
         state,
+        rejectedReason,
     }
 }

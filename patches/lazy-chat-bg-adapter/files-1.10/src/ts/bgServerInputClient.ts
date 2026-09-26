@@ -57,7 +57,7 @@ const acceptedButBlocked = new Set([
 
 export async function submitServerInputCommand(
     deps: ServerInputClientDependencies,
-    request: { charId: string, chatId: string, rawText: string },
+    request: { charId: string, chatId: string, rawText: string, draftId?: string },
 ): Promise<ServerInputClientOutcome> {
     const now = deps.now || Date.now
     if (!request.charId || !request.chatId || !request.rawText) {
@@ -103,6 +103,10 @@ export async function submitServerInputCommand(
         return active.length > 0
             ? { kind: 'blocked', reason: 'capability-downgraded' }
             : { kind: 'unsupported' }
+    }
+    if (typeof request.draftId !== 'string'
+        || !/^[A-Za-z0-9_-]{8,128}$/.test(request.draftId)) {
+        return { kind: 'blocked', reason: 'draft-identity-unavailable' }
     }
     if (!deps.isCurrent()) return { kind: 'blocked', reason: 'selection-changed' }
     try { await deps.flushSettings() }
@@ -155,7 +159,7 @@ export async function submitServerInputCommand(
         serverChatCommitVersion: 1,
         inputCommandVersion: 1,
         inputCommand: {
-            inputCommandId: deps.newId(),
+            inputCommandId: request.draftId,
             userMessageId: deps.newId(),
             rawText: request.rawText,
             submittedAt: createdAt,
@@ -181,6 +185,9 @@ export async function submitServerInputCommand(
     })
     if (started.resolution === 'rejected') {
         clearServerInputMarker(deps.storage, operationId)
+        if (started.rejectedReason === 'input_command_identity_conflict') {
+            return { kind: 'blocked', reason: 'draft-already-submitted' }
+        }
         return { kind: 'rejected', operationId }
     }
     if (started.resolution === 'unknown') return { kind: 'unknown', operationId }

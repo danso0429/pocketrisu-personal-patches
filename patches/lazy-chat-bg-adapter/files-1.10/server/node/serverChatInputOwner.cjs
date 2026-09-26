@@ -620,10 +620,6 @@ function createServerChatInputOwner({
             if (kvGet(commandKey(command.operationId))) {
                 return { status: 'conflict', reason: 'command_record_invalid' };
             }
-            if (currentRevision(command.charId, command.chatId)
-                !== command.submittedBaseRevision) {
-                return { status: 'conflict', reason: 'submitted_base_changed' };
-            }
             const records = allRecords();
             const duplicateCommand = records.find((record) => (
                 record.admission.inputCommandId === command.inputCommandId
@@ -634,6 +630,10 @@ function createServerChatInputOwner({
                     reason: 'input_command_identity_conflict',
                     existingOperationId: duplicateCommand.operationId,
                 };
+            }
+            if (currentRevision(command.charId, command.chatId)
+                !== command.submittedBaseRevision) {
+                return { status: 'conflict', reason: 'submitted_base_changed' };
             }
             const matching = records.filter((record) => (
                 record.admission.charId === command.charId

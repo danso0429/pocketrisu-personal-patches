@@ -156,7 +156,7 @@ describe('server chat execution projection', () => {
             serverChatCommitApplied: [{ operationId: 'forged-operation' }],
             bgOrchestrationGlobalConflicts: [],
             serverChatExecutionState: { contractVersion: 'forged', entries: [] },
-            statics: { messages: 12, bgOrchestrationApplied: [] },
+            statics: { messages: 11, bgOrchestrationApplied: [] },
         }
 
         expect(copyServerOwnedRootState(current, incoming)).toEqual({
@@ -164,18 +164,80 @@ describe('server chat execution projection', () => {
             bgOrchestrationGlobalConflicts: current.bgOrchestrationGlobalConflicts,
             serverChatExecutionState: current.serverChatExecutionState,
             statics: {
-                messages: 12,
+                messages: 11,
+                browserMessageEffects: [],
                 bgOrchestrationApplied: current.statics.bgOrchestrationApplied,
             },
         })
-        expect(copyServerOwnedRootState({}, incoming)).toEqual({ statics: { messages: 12 } })
+        expect(copyServerOwnedRootState({}, incoming)).toEqual({ statics: { messages: 11 } })
         expect(copyServerOwnedRootState(current, {})).toEqual({
             serverChatCommitApplied: current.serverChatCommitApplied,
             bgOrchestrationGlobalConflicts: current.bgOrchestrationGlobalConflicts,
             serverChatExecutionState: current.serverChatExecutionState,
             statics: {
+                messages: 11,
+                browserMessageEffects: [],
                 bgOrchestrationApplied: current.statics.bgOrchestrationApplied,
             },
+        })
+        expect(() => copyServerOwnedRootState(current, {
+            statics: { messages: 10 },
+        })).toThrow('browser statistic effect identity required')
+    })
+
+    it('applies each browser statistic effect once despite a concurrent BG commit or lost response', () => {
+        const server = {
+            serverChatCommitApplied: [{ operationId: 'operation-root-1' }],
+            statics: {
+                messages: 11,
+                bgOrchestrationApplied: [{ operationId: 'operation-root-1', cumulative: 1 }],
+            },
+        }
+        const attempt = { id: 'browser-attempt-1', delta: 1, createdAt: Date.now() }
+        const incoming = {
+            statics: { messages: 12, browserMessageEffects: [attempt] },
+        }
+        expect(() => copyServerOwnedRootState(server, {
+            statics: { messages: 11, browserMessageEffects: [attempt] },
+        })).toThrow('browser statistic effect identity required')
+        const first = copyServerOwnedRootState(server, incoming)
+        expect(first.statics).toMatchObject({
+            messages: 12,
+            browserMessageEffects: [attempt],
+            bgOrchestrationApplied: server.statics.bgOrchestrationApplied,
+        })
+        const replay = copyServerOwnedRootState(first, {
+            statics: { messages: 12, browserMessageEffects: [attempt] },
+        })
+        expect(replay.statics.messages).toBe(12)
+        expect(replay.statics.browserMessageEffects).toEqual([attempt])
+    })
+
+    it('compacts expired browser identities without losing their count or admitting a replay', () => {
+        const old = {
+            id: 'browser-old-attempt-1',
+            delta: 1,
+            createdAt: Date.now() - 15 * 24 * 60 * 60 * 1000,
+        }
+        const current = { statics: { messages: 11, browserMessageEffects: [old] } }
+        const compacted = copyServerOwnedRootState(current, current)
+        expect(compacted.statics).toEqual({
+            messages: 11,
+            browserMessageEffects: [],
+            browserMessageEffectCutoff: old.createdAt,
+        })
+        expect(() => copyServerOwnedRootState(compacted, {
+            statics: { messages: 12, browserMessageEffects: [old] },
+        })).toThrow('outside the recovery window')
+        const fresh = {
+            id: 'browser-fresh-attempt-1', delta: 1, createdAt: Date.now(),
+        }
+        expect(copyServerOwnedRootState(compacted, {
+            statics: { messages: 12, browserMessageEffects: [fresh] },
+        }).statics).toEqual({
+            messages: 12,
+            browserMessageEffects: [fresh],
+            browserMessageEffectCutoff: old.createdAt,
         })
     })
 })

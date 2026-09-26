@@ -7,6 +7,9 @@ import { tmpdir } from 'node:os'
 import path from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { afterEach, describe, expect, it } from 'vitest'
+import { compare } from 'fast-json-patch'
+import { mergeBrowserMessageEffects } from '../../src/ts/bgBrowserMessageEffects'
+import { mergeThreeWayValue } from '../../src/ts/storage/conflictRebase'
 
 type H1Message = {
     scope?: string
@@ -37,7 +40,8 @@ const currentFile = fileURLToPath(import.meta.url)
 const serverDir = path.dirname(currentFile)
 const targetRoot = path.resolve(serverDir, '../..')
 const require = createRequire(import.meta.url)
-const { decodeRisuSave, encodeRisuSaveLegacy } = require('./utils.cjs') as {
+const { calculateHash, decodeRisuSave, encodeRisuSaveLegacy } = require('./utils.cjs') as {
+    calculateHash: (data: unknown) => number
     decodeRisuSave: (bytes: Uint8Array) => Promise<any>
     encodeRisuSaveLegacy: (data: unknown) => Buffer
 }
@@ -677,6 +681,45 @@ describe('server chat composed process boundary', () => {
         expect(stored.chat.message).toHaveLength(3)
     }, 30_000)
 
+    it('rejects a second operation for the same shared draft identity', async () => {
+        const runtimeRoot = makeRuntimeRoot()
+        await seedRuntime(runtimeRoot)
+        const server = await startServer(runtimeRoot)
+        const initial = await readChat(server)
+        const firstOperation = 'operation-h1-shared-draft-first-1'
+        const first = inputBody(firstOperation, initial.revision, 'same saved draft')
+        first.inputCommand.inputCommandId = 'draft-shared-across-tabs-1'
+        expect(await submitFromDisposableClient(server, first)).toMatchObject({
+            status: 200, body: { started: true },
+        })
+        await server.waitFor('provider-waiting', message => (
+            message.operationId === firstOperation
+        ))
+        const attachedRevision = (await readChat(server)).revision
+        expect(attachedRevision).not.toBe(initial.revision)
+        const second = inputBody(
+            'operation-h1-shared-draft-second-1', initial.revision, 'same saved draft',
+        )
+        second.inputCommand.inputCommandId = first.inputCommand.inputCommandId
+        const duplicate = await submitFromDisposableClient(server, second)
+        expect(duplicate.status).toBe(409)
+        expect(duplicate.body).toMatchObject({
+            reason: 'input_command_identity_conflict',
+            existingOperationId: firstOperation,
+        })
+        expect(await readCounters(server)).toMatchObject({
+            providerCalls: 0, commitCalls: 0, fallbackProviderCalls: 0,
+        })
+        server.child.send({ scope: 'pocketrisu-h1', command: 'release-provider' })
+        await server.waitFor('commit-result', message => (
+            message.status === 'committed' && message.receipt?.operationId === firstOperation
+        ))
+        expect(await readCounters(server)).toMatchObject({
+            providerCalls: 1, commitCalls: 1, fallbackProviderCalls: 0,
+        })
+        expect((await readChat(server)).chat.message).toHaveLength(3)
+    }, 30_000)
+
     it('rejects a validator-free stale database after a server chat commit', async () => {
         const runtimeRoot = makeRuntimeRoot()
         await seedRuntime(runtimeRoot)
@@ -746,5 +789,292 @@ describe('server chat composed process boundary', () => {
         expect(read.status).toBe(200)
         expect(await decodeRisuSave(new Uint8Array(await read.arrayBuffer())))
             .toMatchObject({ characters: [] })
+    }, 30_000)
+
+    it('rejects a validator-free stale database after a browser statistic effect', async () => {
+        const runtimeRoot = makeRuntimeRoot()
+        await seedRuntime(runtimeRoot)
+        const server = await startServer(runtimeRoot)
+        const databaseKey = Buffer.from('database/database.bin', 'utf8').toString('hex')
+        const headers = {
+            'risu-auth': server.token,
+            cookie: server.cookie,
+            'file-path': databaseKey,
+        }
+        const readRoot = async () => {
+            const response = await fetch(`${server.baseURL}/api/read`, { headers })
+            expect(response.status).toBe(200)
+            return await decodeRisuSave(new Uint8Array(await response.arrayBuffer()))
+        }
+        const baseline = await readRoot()
+        const withEffect = structuredClone(baseline)
+        withEffect.statics.messages += 1
+        withEffect.statics.browserMessageEffects = [{
+            id: 'browser-attempt-no-validator-1', delta: 1, createdAt: Date.now(),
+        }]
+        const accepted = await fetch(`${server.baseURL}/api/write`, {
+            method: 'POST',
+            headers: { ...headers, 'content-type': 'application/octet-stream' },
+            body: encodeRisuSaveLegacy(withEffect),
+        })
+        expect(accepted.status).toBe(200)
+        const stale = await fetch(`${server.baseURL}/api/write`, {
+            method: 'POST',
+            headers: { ...headers, 'content-type': 'application/octet-stream' },
+            body: encodeRisuSaveLegacy(baseline),
+        })
+        expect(stale.status).toBe(428)
+        expect(await stale.json()).toMatchObject({
+            code: 'BG_SERVER_EFFECT_REVISION_REQUIRED',
+        })
+        const stored = await readRoot()
+        expect(stored.statics.messages).toBe(baseline.statics.messages + 1)
+        expect(stored.statics.browserMessageEffects)
+            .toEqual(withEffect.statics.browserMessageEffects)
+    }, 30_000)
+
+    it('preserves a distinct browser statistic effect after N commits first', async () => {
+        const runtimeRoot = makeRuntimeRoot()
+        await seedRuntime(runtimeRoot)
+        const server = await startServer(runtimeRoot)
+        const databaseKey = Buffer.from('database/database.bin', 'utf8').toString('hex')
+        const readRoot = async () => {
+            const response = await fetch(`${server.baseURL}/api/read`, {
+                headers: { 'risu-auth': server.token, 'file-path': databaseKey },
+            })
+            expect(response.status).toBe(200)
+            return await decodeRisuSave(new Uint8Array(await response.arrayBuffer()))
+        }
+        const patchRoot = async (expectedHash: string, patch: unknown[]) => {
+            const response = await fetch(`${server.baseURL}/api/patch`, {
+                method: 'POST',
+                headers: {
+                    'risu-auth': server.token,
+                    cookie: server.cookie,
+                    'content-type': 'application/json',
+                    'file-path': databaseKey,
+                },
+                body: JSON.stringify({ expectedHash, patch }),
+            })
+            return response.status
+        }
+        const baseline = await readRoot()
+        const local = structuredClone(baseline)
+        local.statics.messages += 1
+        local.statics.browserMessageEffects = [{
+            id: 'browser-attempt-1', delta: 1, createdAt: Date.now(),
+        }]
+        const initial = await readChat(server)
+        const operationId = 'operation-h1-browser-stat-n-1'
+        expect(await submitFromDisposableClient(
+            server, inputBody(operationId, initial.revision, 'input N'),
+        )).toMatchObject({ status: 200, body: { started: true } })
+        await server.waitFor('provider-waiting', message => message.operationId === operationId)
+        server.child.send({ scope: 'pocketrisu-h1', command: 'release-provider' })
+        await server.waitFor('commit-result', message => (
+            message.status === 'committed' && message.receipt?.operationId === operationId
+        ))
+        const remote = await readRoot()
+        expect(remote.statics.messages).toBe(11)
+        expect(await patchRoot(
+            calculateHash(baseline).toString(16), compare(baseline, local),
+        )).toBe(409)
+        const merged = mergeThreeWayValue(baseline, local, remote)
+        mergeBrowserMessageEffects(baseline, local, remote, merged)
+        expect(merged.statics.messages).toBe(12)
+        expect(await patchRoot(
+            calculateHash(remote).toString(16), compare(remote, merged),
+        )).toBe(200)
+        const stored = await readRoot()
+        expect(stored.statics.messages).toBe(12)
+        expect(stored.statics.browserMessageEffects)
+            .toEqual(local.statics.browserMessageEffects)
+        expect(stored.statics.bgOrchestrationApplied).toEqual([
+            { operationId, cumulative: 1 },
+        ])
+    }, 30_000)
+
+    it('does not count an already accepted browser effect again after a lost save response', async () => {
+        const runtimeRoot = makeRuntimeRoot()
+        await seedRuntime(runtimeRoot)
+        const server = await startServer(runtimeRoot)
+        const databaseKey = Buffer.from('database/database.bin', 'utf8').toString('hex')
+        const headers = {
+            'risu-auth': server.token,
+            cookie: server.cookie,
+            'content-type': 'application/json',
+            'file-path': databaseKey,
+        }
+        const readRoot = async () => {
+            const response = await fetch(`${server.baseURL}/api/read`, {
+                headers: { 'risu-auth': server.token, 'file-path': databaseKey },
+            })
+            expect(response.status).toBe(200)
+            return await decodeRisuSave(new Uint8Array(await response.arrayBuffer()))
+        }
+        const patchRoot = async (expectedHash: string, patch: unknown[]) => {
+            const response = await fetch(`${server.baseURL}/api/patch`, {
+                method: 'POST', headers,
+                body: JSON.stringify({ expectedHash, patch }),
+            })
+            return response.status
+        }
+        const baseline = await readRoot()
+        const local = structuredClone(baseline)
+        local.statics.messages += 1
+        local.statics.browserMessageEffects = [{
+            id: 'browser-attempt-lost-1', delta: 1, createdAt: Date.now(),
+        }]
+        expect(await patchRoot(
+            calculateHash(baseline).toString(16), compare(baseline, local),
+        )).toBe(200)
+        // The client did not observe the success response and keeps its old baseline.
+        const initial = await readChat(server)
+        const operationId = 'operation-h1-browser-lost-n-1'
+        expect(await submitFromDisposableClient(
+            server, inputBody(operationId, initial.revision, 'input N'),
+        )).toMatchObject({ status: 200, body: { started: true } })
+        await server.waitFor('provider-waiting', message => message.operationId === operationId)
+        server.child.send({ scope: 'pocketrisu-h1', command: 'release-provider' })
+        await server.waitFor('commit-result', message => (
+            message.status === 'committed' && message.receipt?.operationId === operationId
+        ))
+        const remote = await readRoot()
+        expect(remote.statics.messages).toBe(12)
+        expect(await patchRoot(
+            calculateHash(baseline).toString(16), compare(baseline, local),
+        )).toBe(409)
+        const merged = mergeThreeWayValue(baseline, local, remote)
+        mergeBrowserMessageEffects(baseline, local, remote, merged)
+        expect(merged.statics.messages).toBe(12)
+        expect(await patchRoot(
+            calculateHash(remote).toString(16), compare(remote, merged),
+        )).toBe(200)
+        const stored = await readRoot()
+        expect(stored.statics.messages).toBe(12)
+        expect(stored.statics.browserMessageEffects)
+            .toEqual(local.statics.browserMessageEffects)
+        expect(stored.statics.bgOrchestrationApplied).toEqual([
+            { operationId, cumulative: 1 },
+        ])
+    }, 30_000)
+
+    it('preserves a browser statistic effect through conditional full-write rebase', async () => {
+        const runtimeRoot = makeRuntimeRoot()
+        await seedRuntime(runtimeRoot)
+        const server = await startServer(runtimeRoot)
+        const databaseKey = Buffer.from('database/database.bin', 'utf8').toString('hex')
+        const readRoot = async () => {
+            const response = await fetch(`${server.baseURL}/api/read`, {
+                headers: { 'risu-auth': server.token, 'file-path': databaseKey },
+            })
+            expect(response.status).toBe(200)
+            return {
+                database: await decodeRisuSave(new Uint8Array(await response.arrayBuffer())),
+                etag: response.headers.get('x-db-etag'),
+            }
+        }
+        const baseline = await readRoot()
+        const local = structuredClone(baseline.database)
+        local.statics.messages += 1
+        local.statics.browserMessageEffects = [{
+            id: 'browser-attempt-full-1', delta: 1, createdAt: Date.now(),
+        }]
+        const initial = await readChat(server)
+        const operationId = 'operation-h1-browser-full-n-1'
+        expect(await submitFromDisposableClient(
+            server, inputBody(operationId, initial.revision, 'input N'),
+        )).toMatchObject({ status: 200, body: { started: true } })
+        await server.waitFor('provider-waiting', message => message.operationId === operationId)
+        server.child.send({ scope: 'pocketrisu-h1', command: 'release-provider' })
+        await server.waitFor('commit-result', message => (
+            message.status === 'committed' && message.receipt?.operationId === operationId
+        ))
+        const stale = await fetch(`${server.baseURL}/api/write`, {
+            method: 'POST',
+            headers: {
+                'risu-auth': server.token, cookie: server.cookie,
+                'content-type': 'application/octet-stream',
+                'file-path': databaseKey,
+                'x-if-match': baseline.etag || '',
+            },
+            body: encodeRisuSaveLegacy(local),
+        })
+        expect(stale.status).toBe(409)
+        const remote = await readRoot()
+        const merged = mergeThreeWayValue(baseline.database, local, remote.database)
+        mergeBrowserMessageEffects(baseline.database, local, remote.database, merged)
+        expect(merged.statics.messages).toBe(12)
+        const accepted = await fetch(`${server.baseURL}/api/write`, {
+            method: 'POST',
+            headers: {
+                'risu-auth': server.token, cookie: server.cookie,
+                'content-type': 'application/octet-stream',
+                'file-path': databaseKey,
+                'x-if-match': remote.etag || '',
+            },
+            body: encodeRisuSaveLegacy(merged),
+        })
+        expect(accepted.status).toBe(200)
+        const stored = (await readRoot()).database
+        expect(stored.statics.messages).toBe(12)
+        expect(stored.statics.browserMessageEffects)
+            .toEqual(local.statics.browserMessageEffects)
+        expect(stored.statics.bgOrchestrationApplied).toEqual([
+            { operationId, cumulative: 1 },
+        ])
+    }, 30_000)
+
+    it('merges two independent browser statistic identities through a root conflict', async () => {
+        const runtimeRoot = makeRuntimeRoot()
+        await seedRuntime(runtimeRoot)
+        const server = await startServer(runtimeRoot)
+        const databaseKey = Buffer.from('database/database.bin', 'utf8').toString('hex')
+        const headers = {
+            'risu-auth': server.token, cookie: server.cookie,
+            'content-type': 'application/json', 'file-path': databaseKey,
+        }
+        const readRoot = async () => {
+            const response = await fetch(`${server.baseURL}/api/read`, {
+                headers: { 'risu-auth': server.token, 'file-path': databaseKey },
+            })
+            expect(response.status).toBe(200)
+            return await decodeRisuSave(new Uint8Array(await response.arrayBuffer()))
+        }
+        const patchRoot = async (expectedHash: string, patch: unknown[]) => {
+            const response = await fetch(`${server.baseURL}/api/patch`, {
+                method: 'POST', headers,
+                body: JSON.stringify({ expectedHash, patch }),
+            })
+            return response.status
+        }
+        const base = await readRoot()
+        const first = structuredClone(base)
+        first.statics.messages += 1
+        first.statics.browserMessageEffects = [{
+            id: 'browser-session-a-1', delta: 1, createdAt: Date.now(),
+        }]
+        const second = structuredClone(base)
+        second.statics.messages += 1
+        second.statics.browserMessageEffects = [{
+            id: 'browser-session-b-1', delta: 1, createdAt: Date.now(),
+        }]
+        expect(await patchRoot(
+            calculateHash(base).toString(16), compare(base, first),
+        )).toBe(200)
+        expect(await patchRoot(
+            calculateHash(base).toString(16), compare(base, second),
+        )).toBe(409)
+        const remote = await readRoot()
+        const merged = mergeThreeWayValue(base, second, remote)
+        mergeBrowserMessageEffects(base, second, remote, merged)
+        expect(merged.statics.messages).toBe(12)
+        expect(await patchRoot(
+            calculateHash(remote).toString(16), compare(remote, merged),
+        )).toBe(200)
+        const stored = await readRoot()
+        expect(stored.statics.messages).toBe(12)
+        expect(stored.statics.browserMessageEffects.map((entry: any) => entry.id))
+            .toEqual(['browser-session-a-1', 'browser-session-b-1'])
     }, 30_000)
 })

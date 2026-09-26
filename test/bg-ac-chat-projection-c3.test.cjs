@@ -18,7 +18,7 @@ function unit(id) {
 }
 
 test('C3: exact-1.10 graph owns revision-bound chat execution projection', () => {
-    assert.equal(adapter.version, '0.7.5')
+    assert.equal(adapter.version, '0.7.6')
     const resolution = resolveSelection(loadCatalog(), ['lazy-chat-sync', 'bg-preserve'])
     const units1100 = flattenUnits(resolution.packs, target1100)
     const units190 = flattenUnits(resolution.packs, target190)

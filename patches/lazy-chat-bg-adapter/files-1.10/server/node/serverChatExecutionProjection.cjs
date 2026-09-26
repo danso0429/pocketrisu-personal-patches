@@ -9,6 +9,9 @@ const SERVER_CHAT_EXECUTION_FIELD = 'serverChatExecutionState';
 const OPERATION_ID = /^[A-Za-z0-9_-]{8,128}$/;
 const SHA256 = /^[a-f0-9]{64}$/;
 const AC_STATES = new Set(['pending', 'settled', 'skipped', 'invalidated', 'disabled']);
+const BROWSER_EFFECT_MAX_AGE_MS = 14 * 24 * 60 * 60 * 1000;
+const BROWSER_EFFECT_MAX_FUTURE_SKEW_MS = 24 * 60 * 60 * 1000;
+const BROWSER_EFFECT_MAX_ROWS = 8192;
 
 function own(value, key) {
     return Object.prototype.hasOwnProperty.call(value, key);
@@ -251,6 +254,87 @@ function copyServerOwnedRootState(currentDatabase, incomingDatabase) {
     ]) {
         if (own(current, field)) next[field] = structuredClone(current[field]);
         else delete next[field];
+    }
+    const currentStatics = current.statics && typeof current.statics === 'object'
+        && !Array.isArray(current.statics) ? current.statics : null;
+    const incomingStatics = next.statics && typeof next.statics === 'object'
+        && !Array.isArray(next.statics) ? next.statics : null;
+    const browserEffects = (value) => {
+        if (value === undefined) return [];
+        if (!Array.isArray(value)) throw new Error('browser statistic effect ledger is invalid');
+        const seen = new Set();
+        return value.map((effect) => {
+            if (!effect || typeof effect !== 'object' || Array.isArray(effect)
+                || typeof effect.id !== 'string' || !OPERATION_ID.test(effect.id)
+                || !Number.isSafeInteger(effect.delta) || effect.delta <= 0
+                || !Number.isSafeInteger(effect.createdAt) || effect.createdAt <= 0
+                || seen.has(effect.id)) {
+                throw new Error('browser statistic effect ledger is invalid');
+            }
+            seen.add(effect.id);
+            return { id: effect.id, delta: effect.delta, createdAt: effect.createdAt };
+        });
+    };
+    const oldEffects = browserEffects(currentStatics?.browserMessageEffects);
+    const submittedEffects = browserEffects(incomingStatics?.browserMessageEffects);
+    const oldCutoff = currentStatics?.browserMessageEffectCutoff === undefined
+        ? 0 : currentStatics.browserMessageEffectCutoff;
+    if (!Number.isSafeInteger(oldCutoff) || oldCutoff < 0) {
+        throw new Error('browser statistic effect cutoff is invalid');
+    }
+    const acceptedById = new Map(oldEffects.map((effect) => [effect.id, effect]));
+    const newEffects = [];
+    const now = Date.now();
+    for (const effect of submittedEffects) {
+        const prior = acceptedById.get(effect.id);
+        if (prior) {
+            if (prior.delta !== effect.delta || prior.createdAt !== effect.createdAt) {
+                throw new Error('browser statistic effect identity conflict');
+            }
+            continue;
+        }
+        if (effect.createdAt <= oldCutoff
+            || effect.createdAt < now - BROWSER_EFFECT_MAX_AGE_MS
+            || effect.createdAt > now + BROWSER_EFFECT_MAX_FUTURE_SKEW_MS) {
+            throw new Error('browser statistic effect identity is outside the recovery window');
+        }
+        acceptedById.set(effect.id, effect);
+        newEffects.push(effect);
+    }
+    let nextCutoff = oldCutoff;
+    const keptEffects = [...oldEffects, ...newEffects].filter((effect) => {
+        if (effect.createdAt >= now - BROWSER_EFFECT_MAX_AGE_MS) return true;
+        nextCutoff = Math.max(nextCutoff, effect.createdAt);
+        return false;
+    });
+    if (keptEffects.length > BROWSER_EFFECT_MAX_ROWS) {
+        throw new Error('browser statistic effect recovery window is full');
+    }
+    const hasServerEffect = Array.isArray(current.serverChatCommitApplied)
+        && current.serverChatCommitApplied.length > 0;
+    if (hasServerEffect || oldEffects.length > 0 || submittedEffects.length > 0
+        || nextCutoff > 0) {
+        const currentCount = currentStatics?.messages;
+        if (!Number.isSafeInteger(currentCount) || currentCount < 0) {
+            throw new Error('server statistic count is invalid');
+        }
+        const newDelta = newEffects.reduce((sum, effect) => sum + effect.delta, 0);
+        const expectedCount = currentCount + newDelta;
+        if (!Number.isSafeInteger(expectedCount)) {
+            throw new Error('browser statistic delta exceeds safe count');
+        }
+        if (newEffects.length > 0
+            ? incomingStatics?.messages !== expectedCount
+            : incomingStatics && incomingStatics.messages !== currentCount) {
+            throw new Error('browser statistic effect identity required');
+        }
+        next.statics = {
+            ...(incomingStatics || currentStatics),
+            messages: expectedCount,
+            browserMessageEffects: keptEffects,
+            ...(nextCutoff > 0 ? { browserMessageEffectCutoff: nextCutoff } : {}),
+        };
+        if (nextCutoff === 0) delete next.statics.browserMessageEffectCutoff;
     }
     const currentStaticsOwnsLedger = current.statics && typeof current.statics === 'object'
         && !Array.isArray(current.statics) && own(current.statics, 'bgOrchestrationApplied');
