@@ -257,103 +257,6 @@ function analyzePair(base, left, right) {
     }
 }
 
-function stableCacheValue(value) {
-    if (Array.isArray(value)) return value.map(stableCacheValue)
-    if (!value || typeof value !== 'object') return value
-    return Object.fromEntries(
-        Object.keys(value).sort().map((key) => [key, stableCacheValue(value[key])]),
-    )
-}
-
-function pairUnitCacheKey(unit) {
-    return JSON.stringify(stableCacheValue(unit))
-}
-
-function createPairAnalysisCache() {
-    return {
-        analyses: new Map(),
-        entries: 0,
-        hits: 0,
-        misses: 0,
-    }
-}
-
-function sameCacheValue(left, right) {
-    if (left === right) return true
-    if (Array.isArray(left) || Array.isArray(right)) {
-        if (!Array.isArray(left) || !Array.isArray(right) || left.length !== right.length) {
-            return false
-        }
-        return left.every((value, index) => sameCacheValue(value, right[index]))
-    }
-    if (!left || !right || typeof left !== 'object' || typeof right !== 'object') {
-        return false
-    }
-    const leftKeys = Object.keys(left).sort()
-    const rightKeys = Object.keys(right).sort()
-    return leftKeys.length === rightKeys.length
-        && leftKeys.every((key, index) =>
-            key === rightKeys[index]
-            && sameCacheValue(left[key], right[key])
-        )
-}
-
-function sameBaselineMap(left, right) {
-    if (left.size !== right.size) return false
-    for (const [file, value] of left) {
-        if (!right.has(file) || right.get(file) !== value) return false
-    }
-    return true
-}
-
-function createCompositionCache() {
-    return {
-        bypasses: 0,
-        hits: 0,
-        misses: 0,
-        record: null,
-        stores: 0,
-    }
-}
-
-function cloneCompositionPlan(plan) {
-    return {
-        order: [...plan.order],
-        collisions: stableCacheValue(plan.collisions),
-        edges: stableCacheValue(plan.edges),
-        outputs: new Map(plan.outputs),
-    }
-}
-
-function analyzePairCached(cache, base, left, right, leftKey, rightKey) {
-    let byBase = cache.analyses.get(left.file)
-    if (!byBase) {
-        byBase = new Map()
-        cache.analyses.set(left.file, byBase)
-    }
-    let byPair = byBase.get(base)
-    if (!byPair) {
-        byPair = new Map()
-        byBase.set(base, byPair)
-    }
-    const key = JSON.stringify([leftKey, rightKey])
-    if (byPair.has(key)) {
-        cache.hits += 1
-        return byPair.get(key)
-    }
-
-    cache.misses += 1
-    const analysis = analyzePair(base, left, right)
-    // Failure analysis stays uncached so invalid graphs reproduce their exact
-    // error path every time. Valid deterministic relationships may be reused
-    // only for the same full unit definitions and exact baseline text.
-    if (analysis.kind !== 'incompatible') {
-        byPair.set(key, analysis)
-        cache.entries += 1
-    }
-    return analysis
-}
-
 function addEdge(edges, from, to, reason) {
     if (from === to) {
         throw new PatchCompositionError('ORDER_CYCLE', `Self dependency for ${from}`, { from, to, reason })
@@ -407,9 +310,7 @@ function topologicalSort(units, edges) {
     return output
 }
 
-function buildPlan(units, baselines, {
-    pairAnalysisCache = null,
-} = {}) {
+function buildPlan(units, baselines) {
     const byId = new Map()
     for (const unit of units) {
         assertUnit(unit)
@@ -418,9 +319,6 @@ function buildPlan(units, baselines, {
         }
         byId.set(unit.id, unit)
     }
-    const pairUnitKeys = pairAnalysisCache === null
-        ? null
-        : new Map(units.map((unit) => [unit.id, pairUnitCacheKey(unit)]))
 
     const edges = new Map()
     for (const unit of units) {
@@ -452,16 +350,7 @@ function buildPlan(units, baselines, {
                 continue
             }
             const base = baselines.get(left.file) ?? null
-            const analysis = pairAnalysisCache === null
-                ? analyzePair(base, left, right)
-                : analyzePairCached(
-                    pairAnalysisCache,
-                    base,
-                    left,
-                    right,
-                    pairUnitKeys.get(left.id),
-                    pairUnitKeys.get(right.id),
-                )
+            const analysis = analyzePair(base, left, right)
             if (analysis.kind === 'ordered') {
                 addEdge(edges, analysis.before, analysis.after, 'inferred-structural-collision')
                 collisions.push({ units: [left.id, right.id], ...analysis })
@@ -505,32 +394,8 @@ function buildPlan(units, baselines, {
     }
 }
 
-function compose(units, baselines, {
-    compositionCache = null,
-    pairAnalysisCache = null,
-} = {}) {
-    if (compositionCache === null || units.length === 0) {
-        if (compositionCache !== null) compositionCache.bypasses += 1
-        return buildPlan(units, baselines, { pairAnalysisCache })
-    }
-
-    if (
-        compositionCache.record
-        && sameCacheValue(compositionCache.record.units, units)
-        && sameBaselineMap(compositionCache.record.baselines, baselines)
-    ) {
-        compositionCache.hits += 1
-        return cloneCompositionPlan(compositionCache.record.plan)
-    }
-
-    compositionCache.misses += 1
-    const plan = buildPlan(units, baselines, { pairAnalysisCache })
-    compositionCache.record = {
-        units: stableCacheValue(units),
-        baselines: new Map(baselines),
-        plan: cloneCompositionPlan(plan),
-    }
-    compositionCache.stores += 1
+function compose(units, baselines) {
+    const plan = buildPlan(units, baselines)
     return plan
 }
 
@@ -540,8 +405,6 @@ module.exports = {
     applyUnit,
     buildPlan,
     compose,
-    createCompositionCache,
-    createPairAnalysisCache,
     insertionText,
     markedBlock,
     markerEnd,
@@ -2748,46 +2611,8 @@ function sameStateValue(left, right) {
         )
 }
 
-function createPackEtagCache() {
-    return {
-        hits: 0,
-        misses: 0,
-        values: new WeakMap(),
-    }
-}
-
-function createStateEncodingCache() {
-    return {
-        hits: 0,
-        misses: 0,
-        record: null,
-    }
-}
-
-function assertDeepFrozen(value, seen = new Set()) {
-    if (!value || typeof value !== 'object' || seen.has(value)) return
-    if (!Object.isFrozen(value)) {
-        throw new PatchManagerError(
-            'PACK_ETAG_CACHE_REQUIRES_FROZEN_PACK',
-            'Pack ETag caching requires a deeply frozen pack',
-        )
-    }
-    seen.add(value)
-    for (const child of Object.values(value)) assertDeepFrozen(child, seen)
-}
-
-function packEtag(pack, {
-    cache = null,
-} = {}) {
-    if (cache !== null) {
-        if (cache.values.has(pack)) {
-            cache.hits += 1
-            return cache.values.get(pack)
-        }
-        assertDeepFrozen(pack)
-        cache.misses += 1
-    }
-    const etag = sha256(stableStringify({
+function packEtag(pack) {
+    return sha256(stableStringify({
         id: pack.id,
         title: pack.title ?? null,
         version: pack.version,
@@ -2800,8 +2625,6 @@ function packEtag(pack, {
         units: pack.units,
         contracts: pack.contracts ?? [],
     }))
-    if (cache !== null) cache.values.set(pack, etag)
-    return etag
 }
 
 function assertSafeRelative(relativePath) {
@@ -3324,7 +3147,6 @@ function readTargetIdentity(root) {
 }
 
 function makeState(profile, packs, units, result, baselines, currentModes, {
-    packEtagCache = null,
     resolution,
     target,
 } = {}) {
@@ -3351,7 +3173,7 @@ function makeState(profile, packs, units, result, baselines, currentModes, {
         packs: packs.map((pack) => ({
             id: pack.id,
             version: pack.version,
-            etag: packEtag(pack, { cache: packEtagCache }),
+            etag: packEtag(pack),
         })),
         order: result.order,
         collisions: result.collisions,
@@ -3360,17 +3182,8 @@ function makeState(profile, packs, units, result, baselines, currentModes, {
     }
 }
 
-function encodeState(state, {
-    cache = null,
-} = {}) {
-    if (cache?.record && sameStateValue(cache.record.state, state)) {
-        cache.hits += 1
-        return cache.record.encoded
-    }
-    if (cache !== null) cache.misses += 1
-    const encoded = Buffer.from(`${JSON.stringify(state, null, 2)}\n`)
-    if (cache !== null) cache.record = { state: stableValue(state), encoded }
-    return encoded
+function encodeState(state) {
+    return Buffer.from(`${JSON.stringify(state, null, 2)}\n`)
 }
 
 function planTransition({
@@ -3382,9 +3195,6 @@ function planTransition({
     intentPath = DEFAULT_INTENT_PATH,
     persistIntent = false,
     intentPolicy = null,
-    compositionOptions = undefined,
-    packEtagCache = null,
-    stateEncodingCache = null,
 }) {
     const previous = loadState(root, statePath)
     const resolution = resolveSelection(catalog, packIds)
@@ -3399,9 +3209,8 @@ function planTransition({
     const current = new Map([...paths].map((file) => [file, readOptionalText(root, file)]))
     const currentModes = new Map([...paths].map((file) => [file, readOptionalMode(root, file)]))
     const baselines = previous ? stripCurrentUnits(current, previous) : new Map(current)
-    const result = compose(units, baselines, compositionOptions)
+    const result = compose(units, baselines)
     const nextState = makeState(profile, packs, units, result, baselines, currentModes, {
-        packEtagCache,
         resolution,
         target,
     })
@@ -3421,9 +3230,7 @@ function planTransition({
 
     const stateBefore = readOptionalText(root, statePath)
     const stateBeforeMode = readOptionalMode(root, statePath)
-    const stateAfter = units.length === 0
-        ? null
-        : encodeState(nextState, { cache: stateEncodingCache }).toString('utf8')
+    const stateAfter = units.length === 0 ? null : encodeState(nextState).toString('utf8')
     const stateAfterMode = stateAfter === null
         ? null
         : (stateBeforeMode ?? PRIVATE_STATE_MODE)
@@ -3676,8 +3483,6 @@ module.exports = {
     PatchManagerError,
     applyTransition,
     customIntent,
-    createPackEtagCache,
-    createStateEncodingCache,
     flattenUnits,
     loadState,
     loadIntent,
