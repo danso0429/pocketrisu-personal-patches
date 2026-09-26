@@ -218,11 +218,10 @@ order was export → typed fallback → owned test.
 
 ### Cross-piece integration check
 
-K04 currently composes with every existing catalog owner, including
-`preset-integrity`; no collision was added.
-That proves graph and transaction composition, not future semantic interaction
-with K17/K22/K23/K26/K27/K29. The final aggregate audit must revisit those
-cross-piece interactions after their isolated commits.
+K04 adds no ordering collision with any existing catalog owner, including
+`preset-integrity`. That covers graph and transaction composition, not future
+semantic interaction with K17/K22/K23/K26/K27/K29. The final aggregate audit
+must revisit those cross-piece interactions after their isolated commits.
 
 ## Aggregate-only L3 status
 

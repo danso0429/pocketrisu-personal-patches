@@ -128,7 +128,7 @@ were not used for the exact-source claim.
 
 ## Aggregate graph gates
 
-A separate fresh official target received `--all`: compatibility `verified`,
+A fresh official target received `--all`: compatibility `verified`,
 28 packs, 538 units, five declared ordered collisions, 219 planned paths, and
 217 transaction-managed source paths. Both the corrected composer directive
 and the independent K16 narrow-screen Hotkey route were present. Observed

@@ -128,7 +128,7 @@ all 28 test files. `git diff --check` reported no errors.
   read-only diagnostic and can omit all scoped units for an unknown target.
   Apply/stage callers evaluate exact compatibility and refuse an unsupported
   target before `applyTransition()` (`src/cli.cjs:587-646,860-920`).
-- **Synchronous cost and state growth — structural plus measured.** The new
+- **Synchronous cost and state growth — structural.** The new
   validation/filtering is linear in maintainer-authored manifest units and
   exact-version entries and creates no persistent collection outside the
   existing state snapshot (`src/manager.cjs:515-540,579-585`). This does
@@ -158,9 +158,9 @@ all 28 test files. `git diff --check` reported no errors.
   signal is `STALE_TRANSITION` when the change precedes validation; a target
   replacement concurrent with active patch application remains outside the
   supported operating procedure.
-- **Q4, retained limitation:** linear work is measured only for the current
-  maintainer catalog. Unbounded third-party manifest size is not a supported
-  input contract.
+- **Q4, retained limitation:** linear work is established structurally, not
+  by measurement. Unbounded third-party manifest size is not a supported input
+  contract.
 
 ### Prepared surfaces
 
@@ -173,7 +173,7 @@ all 28 test files. `git diff --check` reported no errors.
    and risk divide at whether every source replacement is excluded during an
    active patch transaction.
 2. **Arbitrarily large private manifests.** Validation and filtering are
-   linear and current-catalog execution was measured. The exact open link is
+   linear. The exact open link is
    resource behavior for an unbounded number or size of maintainer-provided
    unit definitions. No representative third-party limit exists to measure.
    If external manifest loading is ever added, define and test explicit unit
