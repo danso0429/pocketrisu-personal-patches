@@ -1,7 +1,7 @@
 'use strict'
 
-// The private repository remains the source of truth. Enable this channel only
-// when a public, allowlisted, notification-only feed has been published.
+// The repository releases remain the source of truth. Enable this channel only
+// when an allowlisted, notification-only HTTPS feed has been published.
 module.exports = Object.freeze({
     schema: 1,
     url: null,

@@ -1,6 +1,6 @@
 # PocketRisu Personal Patches
 
-Private, all-or-nothing patch delivery for PocketRisu NodeOnly. The current
+Personal, all-or-nothing patch delivery for PocketRisu NodeOnly. The current
 stable release is `v0.2.3`, and its complete manifest graph targets exact
 PocketRisu `v1.10.0`.
 
@@ -1261,7 +1261,7 @@ disposable candidate patched for maintainer diagnosis, but marks it
 `readyForManualCutover: false`; it must not replace the live installation.
 
 Maintainers do not mark an unknown version verified merely to get past this
-gate. In the private source tree, declare that exact version as `reviewing`
+gate. In the source tree, declare that exact version as `reviewing`
 for every affected pack and run:
 
 ```bash
@@ -1287,8 +1287,7 @@ the maximum complete graph.
 
 ## Update notification channel
 
-Distributed installers can poll a small public HTTPS JSON feed even while this
-source repository and release workflow remain private. The check is
+Distributed installers can poll a small HTTPS JSON feed for new releases. The check is
 notification-only: it sends no installed version, follows no redirects,
 allowlists both feed and release-link hosts, caches privately, never executes
 downloaded code, and does not block local patch commands when offline.
