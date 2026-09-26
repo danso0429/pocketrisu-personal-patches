@@ -108,13 +108,24 @@ saves only:
   only, enables it.
 - While it is on, the save completion toast appends a one-line summary. The
   line also proves that the traced bundle is the one loaded.
-- Recorded spans: baseline clone, character walk, rest of `patcher.set`,
-  patch request round trip, strict flush, and total time from the start of the
-  save to acknowledgement.
-- Units: one ordered Personal unit on `risuSave.ts` after the lazy-chat-sync
-  replacement for the walk span, and Personal units on `globalApi.svelte.ts`
-  after the existing owners for the other spans. Graphs without
-  lazy-chat-sync keep the untraced walk.
+- Recorded spans: wait for a previous save, baseline clone, character walk,
+  root per-key walk, write (`persistTrackedChanges`), patch request (until
+  response headers), strict flush, and total time from the start of the save
+  to acknowledgement. A traced result toast stays until the next notice or
+  until the settings page closes.
+- Units: ordered Personal units on `risuSave.ts` (after the lazy-chat-sync
+  replacement) for the two walks and on `nodeStorage.ts` (after the existing
+  storage owners) for the request; the traced statements are identical in the
+  official files, so every graph is traced. The writer, toast, and switch are
+  edited in the Personal units that already own them.
+
+**S0b validation (2026-09-26).** Patcher suite 332/332. Personal owner graphs
+(standalone, lazy, BG-lazy, complete) 105/105 each, with zero-change reapply,
+compatibility UI rollback, reader preservation, and exact byte/mode revert.
+The complete graph has 42 packs, 1,001 units, 372 paths; its collision
+records are identical to `main`. On the composed complete candidate: client
+suite 162 files and 1,844 tests, Svelte 0 errors and 0 warnings, production
+build 7,995 modules.
 
 **Decision point D0.** Collect several CSS and font saves on the user's real
 database on iPhone. Present each span's share of the total next to the host
