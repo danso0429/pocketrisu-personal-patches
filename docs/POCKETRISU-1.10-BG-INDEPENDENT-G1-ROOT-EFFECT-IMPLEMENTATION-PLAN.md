@@ -272,3 +272,31 @@ unverified browser/live paths, and the capability values separately. Do not
 promote source existence, a passing unit test, or an AC simulation to product
 qualification. Live PocketRisu, PM2, provider calls, user data, and official
 AC are outside the diagnostic target until the explicit delivery gate.
+
+## 6. Implementation checkpoint — 2026-09-27 KST
+
+This section supersedes the pre-implementation source and capability facts in
+sections 1–2 for work on the current candidate; their diagnostic reasoning
+remains historical evidence. The user elected to complete G1 in the current
+task rather than transfer implementation to the separate fresh-session entry.
+
+Private branch `codex/pocketrisu-bg-independent` now contains the narrow
+validator-free root fence `78c8c64`, operation-keyed browser effects and shared
+draft identity `1e59e6d`, terminal input compaction `f254337`, compact commit
+receipts and paid-replay fencing `5f274df`, guarded input activation and
+blocked-draft retry `b12179f`, and preservation of the newer live appearance
+pack `32068e2`. The current isolated installer advertises input capability 1
+and server-commit capability 1. Live still carries the older adapter 0.2.1 and
+has not been applied from this branch.
+
+The current automatic audit and exact validation numbers are in
+`POCKETRISU-1.10-BG-INDEPENDENT-G1-RUNTIME-AUDIT-2026-09-27.md`. The
+candidate's latest `personal-settings` 0.5.11 incorporates the live 0.5.10
+feature source plus ordering edges for G1; old 0.4.3 application would have
+downgraded live behavior and is no longer a valid delivery candidate.
+
+Remaining G1 exit gates are the actual browser process-exit/read-before-reopen
+sequence, empty-local and cached-old-client return, iPhone user scenarios,
+safe live application only when active work is idle, and direct post-apply
+readback. A paid-provider/device check requires user participation. Neither
+AC implementation nor an AC-modified runtime is a G1 prerequisite.

@@ -369,3 +369,17 @@ Verify the normal chat API **before** actual browser-process reopen.
 The iPhone scenarios and safe delivery are G1.6 gates. G2 implementation
 starts only after G1 completion; G3 starts only after G2 completion. Neither
 AC simulation nor AC source modification closes a G1 gate.
+
+## 2026-09-27 superseding current status
+
+The preceding "Next gate" and 344-file live snapshot describe the earlier
+checkpoint. The current candidate and automatic audit are recorded in
+`POCKETRISU-1.10-BG-INDEPENDENT-G1-ROOT-EFFECT-IMPLEMENTATION-PLAN.md` §6 and
+`POCKETRISU-1.10-BG-INDEPENDENT-G1-RUNTIME-AUDIT-2026-09-27.md`.
+Input capability is 1 in the disposable candidate, not live. Read-only live
+state now has 42 installed packs and 370 managed paths, all matching their
+recorded byte hashes and modes. Its newer personal-settings 0.5.10 is carried
+forward as 0.5.11 in this candidate rather than overwritten by 0.4.3.
+Actual browser and iPhone gates, user-cost decision, and safe live delivery
+remain open. Historical pre-fix failures remain diagnostic evidence, not the
+current implementation's observed result.
