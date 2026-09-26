@@ -21,7 +21,7 @@ const bgGlobalApiUnits = [
 module.exports = {
     id: 'lazy-chat-bg-adapter',
     title: 'BG preserve integration for lazy chat storage',
-    version: '0.7.7',
+    version: '0.7.9',
     targets: {
         pocketrisu: {
             verified: ['1.8.1', '1.9.0', '1.10.0'],
@@ -1296,6 +1296,21 @@ function retainUncommittedServerChat(
             targetVersions: pocketRisu1100,
         },
         {
+            id: 'lazy-chat-bg-adapter:server-chat-commit-client-replay-ambiguity:1.10',
+            file: 'src/ts/bgOrchestrate.ts',
+            type: 'insert',
+            where: 'before',
+            anchor: "                if (data?.started === false || (res.ok && data?.handled === false)) return 'rejected'\n",
+            content: `                if (data?.reason === 'server-chat-commit-already-completed'
+                    || data?.reason === 'server-chat-commit-identity-unavailable') {
+                    throw new Error('server chat commit identity requires exact status reconciliation')
+                }
+`,
+            requires: ['lazy-chat-bg-adapter:server-chat-commit-client-request:1.10'],
+            after: ['lazy-chat-bg-adapter:legacy-browser-stat-effect:1.10'],
+            targetVersions: pocketRisu1100,
+        },
+        {
             id: 'lazy-chat-bg-adapter:server-pending-ui-import:1.10',
             file: 'src/lib/ChatScreens/DefaultChatScreen.svelte',
             type: 'insert',
@@ -2297,11 +2312,27 @@ const serverChatCommitOwner = createServerChatCommitOwner({
         const inputCommandVersion = req.body && req.body.inputCommandVersion === 1 ? 1 : 0
         const requestedBaseChatRevision = req.body && req.body.baseChatRevision
         if (serverChatCommitVersion === 1
-          && (resultKeyVersion !== 1 || !serverChatCommitOwner)) {
+          && (resultKeyVersion !== 1 || !serverChatCommitOwner
+            || typeof serverChatCommitOwner.readGenerationCommit !== 'function')) {
           return res.status(409).json({
             handled: false, started: false, operationId,
             reason: 'server-chat-commit-unavailable',
           })
+        }
+        if (serverChatCommitVersion === 1) {
+          const existingCommit = serverChatCommitOwner.readGenerationCommit(operationId)
+          if (existingCommit.status === 'committed') {
+            return res.status(409).json({
+              handled: true, operationId,
+              reason: 'server-chat-commit-already-completed',
+            })
+          }
+          if (existingCommit.status === 'conflict') {
+            return res.status(503).json({
+              handled: true, operationId,
+              reason: 'server-chat-commit-identity-unavailable',
+            })
+          }
         }
         if (inputCommandVersion === 1
           && (serverChatCommitVersion !== 1 || !serverChatInputOwner
@@ -3286,8 +3317,11 @@ const serverChatCommitOwner = createServerChatCommitOwner({
             type: 'insert',
             where: 'after',
             anchor: "          isOperationActive: (operationId) => orchestrationRuns.status(operationId) === 'running',\n        })\n",
-            content: `        if (serverChatInputOwner) {
-          void serverChatInputOwner.retireTerminal().catch(() => {
+            content: `        if (serverChatInputOwner || serverChatCommitOwner) {
+          void (async () => {
+            if (serverChatInputOwner) await serverChatInputOwner.retireTerminal()
+            if (serverChatCommitOwner) await serverChatCommitOwner.retireRecoveries()
+          })().catch(() => {
             // Keep the durable records; the next retention sweep retries.
           })
         }

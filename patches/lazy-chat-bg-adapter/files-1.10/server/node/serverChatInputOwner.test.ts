@@ -1217,6 +1217,7 @@ describe('pre-canonical server chat input owner', () => {
         expect(stored.admission.rawText).toBeNull()
         expect(stored.admission.rawTextHash).toBeNull()
         expect(stored.rawTextHash).toBeNull()
+        expect(stored.inputReceiptId).toBe(attached.record.inputReceipt.receiptId)
         expect(JSON.stringify(stored)).not.toContain('private draft text')
         expect(owner.read(operationId)).toMatchObject({
             recordVersion: 5, admission: { inputCommandId: `input-${operationId}` },

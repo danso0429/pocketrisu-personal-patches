@@ -720,6 +720,77 @@ describe('server chat composed process boundary', () => {
         expect((await readChat(server)).chat.message).toHaveLength(3)
     }, 30_000)
 
+    it.each(['edit', 'delete'])(
+        'keeps an HTTP %s of attached input instead of publishing a late N result',
+        async change => {
+            const runtimeRoot = makeRuntimeRoot()
+            await seedRuntime(runtimeRoot)
+            const server = await startServer(runtimeRoot)
+            const initial = await readChat(server)
+            const operationId = `operation-h1-attached-${change}-1`
+            expect(await submitFromDisposableClient(
+                server, inputBody(operationId, initial.revision, 'input N'),
+            )).toMatchObject({ status: 200, body: { started: true } })
+            await server.waitFor('provider-waiting', message => (
+                message.operationId === operationId
+            ))
+            const attached = await readChat(server)
+            const changed = structuredClone(attached.chat)
+            if (change === 'edit') changed.message[1].data = 'user-edited input'
+            else changed.message = changed.message.slice(0, 1)
+            const write = await fetch(`${server.baseURL}/api/chat-content/char-1/0`, {
+                method: 'POST',
+                headers: {
+                    'risu-auth': server.token,
+                    cookie: server.cookie,
+                    'content-type': 'application/octet-stream',
+                    'x-chat-id': 'chat-1',
+                    'x-chat-base-revision': attached.revision,
+                },
+                body: encodeRisuSaveLegacy(changed),
+            })
+            expect(write.status).toBe(200)
+            server.child.send({ scope: 'pocketrisu-h1', command: 'release-provider' })
+            await server.waitFor('commit-result', message => message.status === 'conflict')
+            const stored = await readChat(server)
+            expect(stored.chat.message).toEqual(changed.message)
+            expect(await readCounters(server)).toMatchObject({
+                providerCalls: 1, commitCalls: 1, fallbackProviderCalls: 0,
+            })
+        },
+        30_000,
+    )
+
+    it('rejects an already committed operation before another paid provider call', async () => {
+        const runtimeRoot = makeRuntimeRoot()
+        await seedRuntime(runtimeRoot)
+        const server = await startServer(runtimeRoot)
+        const initial = await readChat(server)
+        const operationId = 'operation-h1-committed-start-replay-1'
+        const body = inputBody(operationId, initial.revision, 'one input')
+        expect(await submitFromDisposableClient(server, body)).toMatchObject({
+            status: 200, body: { started: true },
+        })
+        await server.waitFor('provider-waiting', message => (
+            message.operationId === operationId
+        ))
+        server.child.send({ scope: 'pocketrisu-h1', command: 'release-provider' })
+        await server.waitFor('commit-result', message => (
+            message.status === 'committed' && message.receipt?.operationId === operationId
+        ))
+        expect(await submitFromDisposableClient(server, body)).toMatchObject({
+            status: 409,
+            body: {
+                handled: true, operationId,
+                reason: 'server-chat-commit-already-completed',
+            },
+        })
+        expect(await readCounters(server)).toMatchObject({
+            providerCalls: 1, commitCalls: 1, fallbackProviderCalls: 0,
+        })
+        expect((await readChat(server)).chat.message).toHaveLength(3)
+    }, 30_000)
+
     it('rejects a validator-free stale database after a server chat commit', async () => {
         const runtimeRoot = makeRuntimeRoot()
         await seedRuntime(runtimeRoot)

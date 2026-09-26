@@ -86,6 +86,30 @@ describe('server input start reconciliation', () => {
         expect(status).not.toHaveBeenCalled()
     })
 
+    it('reconciles an already committed start through exact status, never fallback', async () => {
+        const status = vi.fn(async () => ({
+            status: 200,
+            body: { accepted: true, operationId, state: 'chat-committed' },
+        }))
+        await expect(reconcileServerInputStart({
+            operationId,
+            start: async () => ({
+                status: 409,
+                body: {
+                    operationId, handled: true, started: false,
+                    reason: 'server-chat-commit-already-completed',
+                },
+            }),
+            status,
+            isCurrent: () => true,
+            deadlineAt: Date.now() + 1_000,
+            wait: async () => {},
+        })).resolves.toEqual({
+            resolution: 'accepted', state: 'chat-committed', rejectedReason: null,
+        })
+        expect(status).toHaveBeenCalledTimes(1)
+    })
+
     it('leaves an unclassified 409 unknown instead of falling back', async () => {
         let now = 0
         const status = vi.fn(async () => { throw new Error('status unavailable') })

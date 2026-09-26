@@ -12,7 +12,7 @@ import ownerPackage from './serverChatCommitOwner.cjs'
 import utilsPackage from './utils.cjs'
 
 const { commitStorageKey, stableJSON } = commitPackage as any
-const { createServerChatInputOwner } = inputPackage as any
+const { commandKey, createServerChatInputOwner } = inputPackage as any
 const { createChatWriteJournal } = journalPackage as any
 const { operationResultKey, operationStateKey } = operationPackage as any
 const {
@@ -234,6 +234,7 @@ function makeHarness() {
         runtime,
         kvGet,
         kvSet,
+        kvDel,
         kvList,
         makeJournal,
         makeInputOwner,
@@ -413,6 +414,115 @@ describe('server-owned BG chat commit', () => {
                 owners: [],
             },
         })
+    })
+
+    it('keeps an exact compact receipt after legacy commit recovery is retired', async () => {
+        const harness = makeHarness()
+        const owner = harness.makeOwner()
+        const operationId = 'operation-c2-retire-legacy-1'
+        const before = baseChat()
+        const after = withAnswer(before, 'retained answer', 'assistant-retired-1')
+        harness.primeOperation(operationId, 'chat-1', 'running-result-consumed')
+        const input = harness.commitInput(
+            operationId, result(after, 'old', 'new'), 1, revision(before),
+        )
+        const committed = await owner.commitGenerationResult(input)
+        expect(committed.status).toBe('committed')
+        harness.kvDel(operationStateKey(operationId))
+        const later = Date.parse(input.committedAt) + 50 * 60 * 60 * 1000
+        const receiptKey = 'internal/server-chat-commit-receipt/v1/'
+            + Buffer.from(operationId).toString('base64url')
+        harness.failNextWriteTo(receiptKey)
+        await expect(owner.retireRecoveries(later))
+            .rejects.toThrow('injected-owner-write-failure')
+        expect(harness.kvGet(commitStorageKey(operationId))).not.toBeNull()
+        expect(harness.kvGet(receiptKey)).toBeNull()
+        expect(await owner.retireRecoveries(later)).toEqual([operationId])
+        expect(harness.kvGet(commitStorageKey(operationId))).toBeNull()
+        expect(owner.readGenerationCommit(operationId)).toMatchObject({
+            status: 'committed', retired: true,
+            receipt: { commitReceiptId: committed.receipt.commitReceiptId },
+        })
+        await expect(owner.recoverAll()).resolves.toEqual([])
+        await expect(owner.readChatProjection('char-1', 'chat-1', revision(after)))
+            .resolves.toMatchObject({ status: 'ok' })
+        await expect(owner.commitGenerationResult(input)).resolves.toMatchObject({
+            status: 'conflict', reason: 'retired_operation_identity',
+        })
+        expect(harness.runtime.database.statics.messages).toBe(11)
+    })
+
+    it('retires the paired input and commit only after the shared recovery horizon', async () => {
+        const harness = makeHarness()
+        const journal = harness.makeJournal()
+        const inputOwner = harness.makeInputOwner(journal)
+        const commitOwner = harness.makeOwner(journal, inputOwner)
+        const operationId = 'operation-c3-retire-pair-1'
+        const initial = baseChat()
+        await inputOwner.admit(inputAdmission(operationId, initial, 'private input'))
+        await inputOwner.beginTransform(operationId)
+        const attached = await inputOwner.attachTransformed(
+            operationId, inputTransform(operationId, initial, 'private input'),
+        )
+        const inputChat = harness.runtime.fullStore.get('char-1')?.get('chat-1') as any
+        const finalChat = withAnswer(inputChat, 'paired answer', 'assistant-pair-1')
+        harness.primeOperation(operationId, 'chat-1', 'running-result-consumed')
+        const committed = await commitOwner.commitGenerationResult({
+            ...harness.commitInput(
+                operationId,
+                result(finalChat, 'old', 'new'),
+                inputChat.message.length,
+                attached.record.executionBaseRevision,
+            ),
+            settingsDigest: attached.record.admission.settingsContextDigest,
+            inputReceipt: attached.record.inputReceipt,
+        })
+        expect(committed).toMatchObject({ status: 'committed', publication: 'published' })
+        harness.kvDel(operationStateKey(operationId))
+        const later = Date.now() + 50 * 60 * 60 * 1000
+        expect(await inputOwner.retireTerminal(later)).toEqual([operationId])
+        const retiredInput = harness.kvGet(commandKey(operationId))
+        harness.kvSet(commandKey(operationId), '{"corrupt":true}')
+        expect(await commitOwner.retireRecoveries(later)).toEqual([])
+        expect(harness.kvGet(commitStorageKey(operationId))).not.toBeNull()
+        const wrongInput = JSON.parse(retiredInput.toString('utf8'))
+        wrongInput.inputReceiptId = '0'.repeat(64)
+        const wrongBody = { ...wrongInput }
+        delete wrongBody.retiredChecksum
+        wrongInput.retiredChecksum = digest(wrongBody)
+        harness.kvSet(commandKey(operationId), JSON.stringify(wrongInput))
+        expect(await commitOwner.retireRecoveries(later)).toEqual([])
+        harness.kvSet(commandKey(operationId), retiredInput)
+        expect(await commitOwner.retireRecoveries(later)).toEqual([operationId])
+        expect(harness.kvGet(commitStorageKey(operationId))).toBeNull()
+        expect(inputOwner.read(operationId)).toMatchObject({ recordVersion: 5 })
+        expect(commitOwner.readGenerationCommit(operationId)).toMatchObject({
+            status: 'committed', retired: true,
+            receipt: { commitReceiptId: committed.receipt.commitReceiptId },
+        })
+        expect(harness.runtime.database.statics.messages).toBe(11)
+    })
+
+    it('never republishes a deleted normal chat merely to retire its old commit', async () => {
+        const harness = makeHarness()
+        const owner = harness.makeOwner()
+        const operationId = 'operation-c2-retire-deleted-chat-1'
+        const before = baseChat()
+        harness.primeOperation(operationId, 'chat-1', 'running-result-consumed')
+        const input = harness.commitInput(
+            operationId,
+            result(withAnswer(before, 'answer', 'assistant-deleted-1'), 'old', 'new'),
+            1,
+            revision(before),
+        )
+        expect((await owner.commitGenerationResult(input)).status).toBe('committed')
+        harness.runtime.fullStore.get('char-1')?.delete('chat-1')
+        harness.kvDel(operationStateKey(operationId))
+        expect(await owner.retireRecoveries(
+            Date.parse(input.committedAt) + 50 * 60 * 60 * 1000,
+        )).toEqual([])
+        expect(harness.runtime.fullStore.get('char-1')?.has('chat-1')).toBe(false)
+        expect(harness.kvGet(commitStorageKey(operationId))).not.toBeNull()
     })
 
     it('records a per-key conflict and preserves the newer canonical global value', async () => {

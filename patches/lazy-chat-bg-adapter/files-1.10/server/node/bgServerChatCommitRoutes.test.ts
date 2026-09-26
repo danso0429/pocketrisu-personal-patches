@@ -627,7 +627,7 @@ describe('server chat commit route precedence', () => {
                 cancel: () => ({ cancelled: false, run: null }),
                 isActive: () => false,
             },
-            serverChatCommitOwner: {},
+            serverChatCommitOwner: { readGenerationCommit: () => ({ status: 'missing' }) },
             serverChatInputOwner: {
                 admit: async () => { admissionCalls += 1; return { status: 'admitted', reused: false } },
                 loadExecution: async () => ({

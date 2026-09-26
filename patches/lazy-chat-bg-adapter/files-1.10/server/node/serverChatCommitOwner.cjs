@@ -24,6 +24,8 @@ const {
 } = require('./serverChatExecutionProjection.cjs');
 
 const SERVER_CHAT_COMMIT_SEQUENCE_KEY = 'internal/server-chat-commit-sequence/v1';
+const SERVER_CHAT_COMMIT_RECEIPT_PREFIX = 'internal/server-chat-commit-receipt/v1/';
+const SERVER_CHAT_COMMIT_RETIRE_AFTER_MS = 49 * 60 * 60 * 1000;
 const SERVER_CHAT_COMMIT_APPLIED_FIELD = 'serverChatCommitApplied';
 const SERVER_CHAT_COMMIT_GLOBAL_CONFLICT_FIELD = 'bgOrchestrationGlobalConflicts';
 
@@ -67,6 +69,17 @@ function operationIdFromCommitKey(key) {
     return validOperationId(operationId) && commitStorageKey(operationId) === key
         ? operationId
         : null;
+}
+
+function retiredReceiptKey(operationId) {
+    return SERVER_CHAT_COMMIT_RECEIPT_PREFIX
+        + Buffer.from(operationId, 'utf8').toString('base64url');
+}
+
+function retiredReceiptChecksum(record) {
+    const body = { ...record };
+    delete body.checksum;
+    return sha256(stableJSON(body));
 }
 
 function nextCommitSequence(kvGet, kvSet, appliedLedger) {
@@ -553,6 +566,39 @@ function createServerChatCommitOwner({
         },
     });
 
+    function readRetiredReceipt(operationId) {
+        const raw = kvGet(retiredReceiptKey(operationId));
+        if (raw == null) return { status: 'missing', record: null };
+        const record = parseJson(raw);
+        if (!record || record.contractVersion !== 'bg_server_commit_receipt.v1'
+            || record.operationId !== operationId
+            || !validOperationId(record.operationId)
+            || !/^[a-f0-9]{64}$/.test(record.requestFingerprint)
+            || !Number.isSafeInteger(record.retiredAt) || record.retiredAt <= 0
+            || record.receipt?.operationId !== operationId
+            || typeof record.receipt?.commitReceiptId !== 'string'
+            || record.checksum !== retiredReceiptChecksum(record)) {
+            return { status: 'invalid', record: null };
+        }
+        return { status: 'found', record };
+    }
+
+    function readGenerationCommit(operationId) {
+        const current = committer.status(operationId);
+        if (current.status !== 'missing') return current;
+        const retired = readRetiredReceipt(operationId);
+        if (retired.status === 'invalid') {
+            return { status: 'conflict', reason: 'retired_commit_receipt_invalid', receipt: null };
+        }
+        return retired.status === 'found'
+            ? {
+                status: 'committed', reason: 'retired_commit_receipt',
+                receipt: structuredClone(retired.record.receipt),
+                reused: true, publication: 'durable', retired: true,
+            }
+            : current;
+    }
+
     function finalizeInputCommit(outcome) {
         if (!serverChatInputOwner || outcome?.status !== 'committed'
             || !outcome.receipt || typeof outcome.receipt.operationId !== 'string'
@@ -602,6 +648,14 @@ function createServerChatCommitOwner({
         committedAt,
         inputReceipt = null,
     }) {
+        const retired = readRetiredReceipt(operationId);
+        if (retired.status !== 'missing') {
+            return {
+                status: 'conflict', reason: retired.status === 'invalid'
+                    ? 'retired_commit_receipt_invalid' : 'retired_operation_identity',
+                receipt: null, reused: false,
+            };
+        }
         await ensureCanonicalState();
         if (!result?.chat || result.chat.id !== chatId || !Array.isArray(result.chat.message)) {
             throw new Error('server chat commit result chat is invalid');
@@ -713,7 +767,8 @@ function createServerChatCommitOwner({
     }
 
     async function recover(operationId) {
-        const status = committer.status(operationId);
+        const status = readGenerationCommit(operationId);
+        if (status.retired) return status;
         if (status.status !== 'committed') return status;
         await ensureCanonicalState();
         const outcome = await committer.recover(operationId);
@@ -729,6 +784,74 @@ function createServerChatCommitOwner({
             for (const outcome of outcomes) finalizeInputCommit(outcome);
         });
         return outcomes;
+    }
+
+    async function retireRecoveries(now = Date.now()) {
+        if (!Number.isSafeInteger(now) || now <= 0) {
+            throw new Error('server commit retirement time is invalid');
+        }
+        const retired = [];
+        for (const key of kvList(SERVER_CHAT_COMMIT_PREFIX)) {
+            if (retired.length >= 32) break;
+            const operationId = operationIdFromCommitKey(key);
+            const record = operationId ? committer.readRecovery(operationId) : null;
+            if (!record || readRetiredReceipt(operationId).status !== 'missing') continue;
+            const input = serverChatInputOwner?.read(operationId) || null;
+            const receipt = record.recovery?.inputReceipt;
+            const syntheticLegacyInput = receipt?.inputCommandId === `input-${operationId}`
+                && receipt.receiptId === sha256(stableJSON({
+                    operationId,
+                    messageId: receipt.messageId,
+                    revision: record.recovery.baseChatRevision,
+                }));
+            if ((input && (input.recordVersion !== 5
+                    || input.inputReceiptId !== record.commitReceipt.inputReceiptId))
+                || (!input && !syntheticLegacyInput)) continue;
+            const eligibleAt = input
+                ? input.retiredAt
+                : Date.parse(record.recovery?.hostChangeIntent?.committedAt);
+            if (!Number.isFinite(eligibleAt)
+                || (input ? eligibleAt > now
+                    : now - eligibleAt <= SERVER_CHAT_COMMIT_RETIRE_AFTER_MS)
+                || kvGet(operationResultKey(operationId)) != null
+                || kvGet(operationStateKey(operationId)) != null) continue;
+            const recovered = await recover(operationId);
+            if (recovered.status !== 'committed'
+                || recovered.publication !== 'published'
+                || recovered.receipt?.commitReceiptId !== record.commitReceipt.commitReceiptId) {
+                continue;
+            }
+            const changed = await queueStorageOperation(() => sqliteDb.transaction(() => {
+                const latest = committer.readRecovery(operationId);
+                const latestInput = serverChatInputOwner?.read(operationId) || null;
+                const database = getDbCache()?.[databaseKey];
+                const applied = database ? currentAppliedLedger(database).find((entry) => (
+                    entry.operationId === operationId
+                    && entry.commitReceiptId === record.commitReceipt.commitReceiptId
+                    && entry.commitSequence === record.commitSequence
+                )) : null;
+                if (!latest || latest.requestFingerprint !== record.requestFingerprint
+                    || readRetiredReceipt(operationId).status !== 'missing'
+                    || !applied
+                    || (input && latestInput?.recordVersion !== 5)
+                    || kvGet(operationResultKey(operationId)) != null
+                    || kvGet(operationStateKey(operationId)) != null) return false;
+                const tombstone = {
+                    contractVersion: 'bg_server_commit_receipt.v1',
+                    operationId,
+                    requestFingerprint: record.requestFingerprint,
+                    receipt: structuredClone(record.commitReceipt),
+                    retiredAt: now,
+                };
+                kvSet(retiredReceiptKey(operationId), stableJSON({
+                    ...tombstone, checksum: retiredReceiptChecksum(tombstone),
+                }));
+                kvDel(commitStorageKey(operationId));
+                return true;
+            })());
+            if (changed) retired.push(operationId);
+        }
+        return retired;
     }
 
     function readEffectLineage(operationId) {
@@ -795,6 +918,7 @@ function createServerChatCommitOwner({
             kvDel(operationResultKey(operationId));
         }
         kvDelPrefix(SERVER_CHAT_COMMIT_PREFIX);
+        kvDelPrefix(SERVER_CHAT_COMMIT_RECEIPT_PREFIX);
         kvDel(SERVER_CHAT_COMMIT_SEQUENCE_KEY);
     }
 
@@ -805,11 +929,12 @@ function createServerChatCommitOwner({
         discardRecovery,
         preserveDatabaseState,
         readChatProjection,
-        readGenerationCommit: committer.status,
+        readGenerationCommit,
         readEffectLineage,
         readGenerationRecovery: committer.readRecovery,
         recover,
         recoverAll,
+        retireRecoveries,
     };
 }
 

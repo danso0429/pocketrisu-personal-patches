@@ -142,6 +142,8 @@ function parseRetiredRecord(parsed, expectedOperationId) {
         || parsed.retiredChecksum !== retiredChecksum(parsed)
         || !Number.isSafeInteger(parsed.retiredAt) || parsed.retiredAt <= 0
         || parsed.inputReceipt !== null || parsed.journal !== null
+        || (parsed.inputReceiptId !== undefined && parsed.inputReceiptId !== null
+            && !/^[a-f0-9]{64}$/.test(parsed.inputReceiptId))
         || parsed.globalIntent !== null || parsed.globalOutcomes !== null
         || parsed.inputMessageRevision !== null || parsed.baselineMessageCount !== null
         || parsed.admission?.rawText !== null
@@ -159,6 +161,7 @@ function parseRetiredRecord(parsed, expectedOperationId) {
         || (parsed.admissionSeq === 1 && parsed.queuePredecessorId !== null)) return null;
     return {
         ...parsed,
+        inputReceiptId: parsed.inputReceiptId ?? null,
         admission: { ...admission, rawText: null, rawTextHash: null },
     };
 }
@@ -1294,6 +1297,7 @@ function createServerChatInputOwner({
                     executionPredecessorId: null,
                     predecessorResolution: null,
                     inputReceipt: null,
+                    inputReceiptId: record.inputReceipt?.receiptId || null,
                     inputMessageRevision: null,
                     baselineMessageCount: null,
                     journal: null,
