@@ -37,8 +37,8 @@ longer promises a public selector.
 - `allDefault: false` is a maintainer-only pre-admission state. It cannot be
   selected by a distributed installer.
 - This checkpoint removes `background-import` from registration after device
-  use found its upload path slower and less convenient. Its source/tests remain
-  historical audit material and cannot enter a distributed graph.
+  use found its upload path slower and less convenient. Its source/tests were
+  later removed from the tree; tag `v0.2.3` keeps the last copy.
 - A new feature must pass its focused owner graphs and the maximum complete
   graph before `allDefault: false` is removed.
 - The old exhaustive `2^N` raw-selection verifier is retired because public

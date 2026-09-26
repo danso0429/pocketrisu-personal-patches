@@ -47,9 +47,11 @@ implementation and verification units, not downloader choices. A newly
 admitted root pack joins the complete set only after its focused owners and
 maximum graph pass; a conflict blocks before source writes.
 
-The experimental `background-import` source and tests remain as an audit
-artifact, but it is absent from the catalog and both generated installers.
-Character and module imports therefore use the existing foreground flow.
+The experimental `background-import` pack is retired and absent from the
+catalog and installer. Its source, tests, and validation records were removed
+from the tree after `v0.2.3`; that tag keeps the last copy. The resolver still
+recognizes the retired id so an older state that owned it can move to the
+complete set. Character and module imports use the existing foreground flow.
 
 See the [delivery design](docs/PATCHER-V2-DESIGN.md),
 [v0.2.2 stable receipt](docs/POCKETRISU-0.2.2-MAINTENANCE-STABLE-RELEASE.md),
