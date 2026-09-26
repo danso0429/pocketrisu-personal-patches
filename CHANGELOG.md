@@ -1,5 +1,15 @@
 # Changelog
 
+## 0.2.4-experimental.3
+
+Personal settings `0.5.9`.
+
+- A traced appearance save also writes its stage times to the server log
+  through the existing client log (`/api/logs`), as an `info` entry with
+  source `personal-save-trace`, so measurements are collected without copying
+  toasts. Failed saves are recorded with their outcome. The toast and the
+  switch are unchanged.
+
 ## 0.2.4-experimental.2
 
 Measurement build for the root-only save plan
