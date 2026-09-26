@@ -155,7 +155,7 @@ function insert(id, file, anchor, content, after = [], where = 'before') {
 for (const file of [
     'appearanceValues.ts', 'cssToggleDefinitions.ts', 'cssToggles.ts', 'cssToggleRuntime.ts', 'cssEditorText.ts', 'cssEditorText.test.ts', 'displaySize.ts', 'appearanceNotices.ts', 'appearanceNotices.test.ts',
     'customFonts.ts', 'customFontRuntime.ts', 'fontBytes.ts', 'appearancePersistence.ts', 'appearanceEditor.ts',
-    'appearancePersistence.test.ts', 'personalAssets.test.ts',
+    'appearancePersistence.test.ts', 'personalAssets.test.ts', 'saveTrace.ts', 'saveTrace.test.ts',
     'cssToggles.test.ts', 'cssToggleRuntime.test.ts', 'customFonts.test.ts', 'customFontRuntime.test.ts',
 ]) {
     const relative = `src/ts/personalSettings/${file}`
@@ -166,7 +166,8 @@ for (const file of ['CssToggleManager.svelte', 'CustomFontManager.svelte', 'Font
     units.push({ id: `personal-settings:editor-owned-${file}`, file: relative, type: 'owned', content: owned(__dirname, relative), targetVersions })
 }
 insert('save-import', 'src/ts/globalApi.svelte.ts', 'export const forageStorage = new AutoStorage()',
-    'import { registerAppearanceWriter, appearanceSaveFailure } from "./personalSettings/appearancePersistence";\n\n', globalOwners)
+    'import { registerAppearanceWriter, appearanceSaveFailure } from "./personalSettings/appearancePersistence";\n'
+    + 'import { beginSaveTrace, endSaveTrace, traceSpan, traceStart, traceValue } from "./personalSettings/saveTrace";\n\n', globalOwners)
 units.push({
     id: 'personal-settings:editor-defer-full-buffer', file: 'src/ts/globalApi.svelte.ts', type: 'replace', targetVersions,
     after: globalOwners,
@@ -329,6 +330,32 @@ units.push({
         expect(resolvePersonalAppearanceTokens(value, true)).toEqual([])`,
     requires: ['personal-settings:appearance-logic-tests-1.9'], targetVersions,
 })
+// Save trace (root-only save plan, S0b); removed after its device measurement.
+// The traced loops are identical in the official and lazy-chat-sync files.
+const risuSaveOwners = ['lazy-chat-sync:replace:src:ts:storage:risuSave-ts:1.10']
+insert('trace-risusave-import', 'src/ts/storage/risuSave.ts', 'import { chatToStub } from "./chatStorage";\n',
+    'import { traceSpan, traceStart } from "../personalSettings/saveTrace";\n', risuSaveOwners, 'after')
+insert('trace-root-walk-start', 'src/ts/storage/risuSave.ts', '        const nextRoot: any = {}\n',
+    '        const personalTraceRoot = traceStart()\n', risuSaveOwners)
+insert('trace-root-walk-end', 'src/ts/storage/risuSave.ts', '        for (const key of removedRootKeys) {\n',
+    "        traceSpan('rootWalk', personalTraceRoot)\n", risuSaveOwners)
+insert('trace-character-walk-start', 'src/ts/storage/risuSave.ts', '        // Detect structural changes (additions, deletions, reordering)\n',
+    '        const personalTraceCharacters = traceStart()\n', risuSaveOwners)
+insert('trace-character-walk-end', 'src/ts/storage/risuSave.ts', '        this.lastSyncedDb = {\n            characters: this.lastSyncedDb.characters,\n',
+    "        traceSpan('characterWalk', personalTraceCharacters)\n", risuSaveOwners)
+insert('trace-storage-import', 'src/ts/storage/nodeStorage.ts', 'export class NodeStorage',
+    'import { traceSpan, traceStart } from "../personalSettings/saveTrace";\n\n', storageOwners)
+insert('trace-patch-request-start', 'src/ts/storage/nodeStorage.ts', "        const da = await this.authFetch('/api/patch', {\n",
+    '        const personalTraceRequest = traceStart()\n', storageOwners)
+insert('trace-patch-request-end', 'src/ts/storage/nodeStorage.ts', `        const da = await this.authFetch('/api/patch', {
+            method: "POST",
+            body: JSON.stringify(patchData),
+            headers: {
+                'content-type': 'application/json',
+                'file-path': Buffer.from(key, 'utf-8').toString('hex')
+            }
+        })
+`, "        traceSpan('request', personalTraceRequest)\n", storageOwners, 'after')
 for (const unit of units) {
     const previous = previousByHost.get(unit.file)
     if (previous) unit.after = [...(unit.after ?? []), previous]

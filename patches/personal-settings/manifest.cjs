@@ -9,7 +9,7 @@ const editorUnits = require('./settings/appearance/editor-units.cjs')
 module.exports = {
     id: 'personal-settings',
     title: 'Personal settings',
-    version: '0.5.7',
+    version: '0.5.8',
     targets: {
         pocketrisu: {
             verified: ['1.10.0'],

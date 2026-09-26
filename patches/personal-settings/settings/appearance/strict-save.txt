@@ -1,9 +1,15 @@
     registerAppearanceWriter(async (mutate, verify, progress) => {
+        const personalTraceTotal = performance.now()
+        let personalTraceWait = 0
         // Wait before mutation: ordinary autosave cannot capture an unqualified candidate.
-        if (saveInFlight) { progress?.('waiting'); await saveInFlight }
+        if (saveInFlight) { progress?.('waiting'); await saveInFlight; personalTraceWait = performance.now() - personalTraceTotal }
         progress?.('preparing')
         verify()
+        beginSaveTrace()
+        traceValue('wait', personalTraceWait)
+        const personalTraceClone = traceStart()
         const baseline = supportsPatchSync ? safeStructuredClone((patcher as any).lastSyncedDb) : null
+        traceSpan('clone', personalTraceClone)
         const undo = mutate()
         let attempted = false
         const work = (async () => {
@@ -14,10 +20,14 @@
             try {
                 attempted = true
                 progress?.('writing')
+                const personalTraceWrite = traceStart()
                 const result = await persistTrackedChanges(toSave, { personalStrict: true } as any)
+                traceSpan('write', personalTraceWrite)
                 if (result !== 'saved') throw appearanceSaveFailure(result !== 'noop')
                 progress?.('flushing')
+                const personalTraceFlush = traceStart()
                 await forageStorage.realStorage.flushPersonalAppearance()
+                traceSpan('flush', personalTraceFlush)
                 verify()
             } catch (error) {
                 requeueTrackedChanges(toSave)
@@ -31,6 +41,8 @@
             } finally {
                 saving.state = false
                 saveInFlight = null
+                traceValue('total', performance.now() - personalTraceTotal)
+                endSaveTrace()
             }
         })()
         // Autosave callers may wait on this lane without inheriting editor rejection.
