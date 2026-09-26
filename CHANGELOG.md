@@ -1,5 +1,38 @@
 # Changelog
 
+## 0.2.3
+
+- Promote the Personal CSS editor and imported chat fonts
+  (`0.2.3-experimental.1` through `.8`) to stable by explicit user decision.
+  The release contains only this Personal settings work since `v0.2.2`.
+- Personal CSS: editable shipped and custom CSS items with trials, recovery,
+  and strict saves. It applies under every theme after theme CSS. Theme and
+  master-switch round trips keep confirmed CSS; Safe Mode still requires the
+  activation trial.
+- Chat fonts: local-file and direct HTTPS imports with integrity checks and
+  asset-first persistence. The chat font replaces only the message body's
+  base font, so theme-set fonts on headings and dialogue marks stay.
+- Saves and feedback: strict appearance saves skip unused full-buffer work.
+  Save stages and results appear as stable top toasts.
+- Physical checks: the user reported the experimental.6–8 iPhone scenarios
+  normal and uses the editor on the live instance. The editor plan's full
+  18-step device gate (section 15.5) was not recorded feature by feature; the
+  user accepted promotion without it, and it is not relabelled as passed.
+- Automatic qualification:
+  - patcher suite: 343/343;
+  - five owner graphs: 101/101 each;
+  - fresh-candidate client suite: 161 files, 1,840 tests;
+  - server suite: 233 passed, 12 skipped;
+  - compatibility suite: 74 passed, 5 skipped;
+  - Svelte: 0 errors, 0 warnings;
+  - production build: 7,994 modules;
+  - BG bundle load check: passed;
+  - upgrades: `v0.2.2` → `v0.2.3` and `experimental.8` → `v0.2.3` both
+    reach current with a zero-change re-plan; and
+  - revert: exact byte/mode restoration.
+- Installers: two byte-identical installers, mode 0755, 8,153,436 bytes,
+  SHA-256 `2bd666826023d34bfbd7a9cc13da22d5b56665b00cebe9286a76110b78ec67a3`.
+
 ## 0.2.3-experimental.8
 
 - Skip the unused full `database.bin` assembly for strict appearance saves

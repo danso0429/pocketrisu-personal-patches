@@ -1,14 +1,14 @@
 # PocketRisu Personal Patches
 
 Private, all-or-nothing patch delivery for PocketRisu NodeOnly. The current
-stable release is `v0.2.2`, and its complete manifest graph targets exact
+stable release is `v0.2.3`, and its complete manifest graph targets exact
 PocketRisu `v1.10.0`.
 
-The `0.2.3-experimental.8` candidate adds an editable Personal CSS
-manager and imported chat fonts. Stable `v0.2.2` remains the published stable
-baseline while the full physical iPhone gate is pending. The
-experimental.6–8 follow-ups passed their own iPhone checks. See the
-[candidate validation and recovery guide](docs/POCKETRISU-PERSONAL-CSS-TOGGLE-EDITOR-VALIDATION.md).
+`v0.2.3` adds an editable Personal CSS manager and imported chat fonts. It was
+promoted by explicit user decision after the experimental.6–8 iPhone checks.
+The editor plan's full 18-step device gate is recorded as not run, not as
+passed; see the [release receipt](docs/POCKETRISU-0.2.3-PERSONAL-CSS-STABLE-RELEASE.md).
+See the [validation and recovery guide](docs/POCKETRISU-PERSONAL-CSS-TOGGLE-EDITOR-VALIDATION.md).
 The [editor-text follow-up](docs/POCKETRISU-CSS-EDITOR-TEXT-VALIDATION.md)
 records how internal activation selectors are hidden without rewriting existing data.
 The [font-picker follow-up](docs/POCKETRISU-FONT-PICKER-VALIDATION.md) records
@@ -157,6 +157,7 @@ retains the detailed source and path review.
 
 | Release | What changed |
 | --- | --- |
+| `v0.2.3` | Stable Personal CSS editor and imported chat fonts: theme-independent CSS after theme CSS, body-only chat font, theme-switch retention, faster strict saves, and stable save toasts. |
 | `v0.2.3-experimental.8` | Skips unused full-buffer work for strict appearance saves and shows save stages and results as stable top toasts. |
 | `v0.2.3-experimental.7` | Applies Personal CSS under every theme after theme CSS, and limits the chat font to the message body base font. |
 | `v0.2.3-experimental.6` | Reapplies confirmed Personal CSS after theme or master-switch round trips instead of requiring a recovery trial. |
