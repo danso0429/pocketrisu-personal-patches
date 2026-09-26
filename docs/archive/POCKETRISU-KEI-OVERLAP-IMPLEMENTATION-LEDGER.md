@@ -245,7 +245,7 @@ client epilogue without generalizing G07, G08, or G12.
 4. Compare managed bytes and modes to the pre-apply snapshot and run the
    feature-scoped L2.5 discovery/anchor/triage receipt.
 5. If catalog or managed units changed, run the focused owner compositions and
-   the maximum complete graph. The former raw-selection verifier is retired.
+   the maximum complete graph.
 6. Stage only the feature's exact paths and commit it independently. Generated
    `dist/` is regenerated only by `scripts/build-installers.cjs` after source
    features close; it is never hand-edited.

@@ -45,34 +45,6 @@ The focused manager tests observed:
 `node --test test/manager.test.cjs` passed. The complete patcher suite passed
 all 28 test files. `git diff --check` reported no errors.
 
-The routine exhaustive gate used the separate pristine PocketRisu 1.8.1
-source copy at official revision
-`63832a138c14cc7f11364cf7efdcb61950e7894c`. Before the run, a
-commit-to-work-tree comparison against the local official `v1.8.1` Git tag
-exited zero with no tracked byte differences, and patch state was absent. Its
-observed result was:
-
-```json
-{
-  "target": {
-    "packageName": "pocketrisu",
-    "packageVersion": "1.8.1"
-  },
-  "compatibility": "verified",
-  "rawSelections": 2048,
-  "verifiedSelections": 2048,
-  "normalizedGraphs": 1024,
-  "managedPaths": 189,
-  "maximumResolvedUnits": 425,
-  "roundTrips": "passed",
-  "workers": 2
-}
-```
-
-The verifier exercised initial plan/apply, status, zero-change replan, empty
-selection revert, and SHA-256/POSIX-mode identity for every catalog-managed
-path in every raw selection. It did not modify the supplied pristine source.
-
 ## L2.5 runtime audit
 
 ### Phase 1 — flat discovery
@@ -91,8 +63,7 @@ path in every raw selection. It did not modify the supplied pristine source.
 - Status can observe unchanged managed bytes after the target has changed.
 - Missing or malformed `package.json` can affect target identity reads.
 - Legacy format-1 state has no recorded target identity.
-- CLI plan, apply, stage, status, and exhaustive combination verification all
-  call the changed manager paths.
+- CLI plan, apply, stage, and status all call the changed manager paths.
 - Manifest size can affect synchronous validation and filtering work and the
   size of stored unit snapshots.
 - The changed paths can encounter filesystem read and JSON parse failures.
@@ -127,9 +98,7 @@ path in every raw selection. It did not modify the supplied pristine source.
   manifest unit definitions, so adding or changing `targetVersions` changes
   pack identity. Exact caches compare the resulting unit arrays/state rather
   than assuming one graph across targets
-  (`src/manager.cjs:96-120,631-665,694-731`). The 2,048-selection exhaustive
-  run exercised these paths with cache reuse and exact reverts
-  (`scripts/verify-all-combinations.cjs:202-270`).
+  (`src/manager.cjs:96-120,631-665,694-731`).
 - **Status target drift — structural.** A breaking scenario was reproduced by
   applying on 1.8.1 and changing only `package.json` to 1.9.0: managed bytes
   still matched, but the stored and current targets differed. `status()` now
@@ -158,16 +127,11 @@ path in every raw selection. It did not modify the supplied pristine source.
 - **Unknown target and CLI gates — structural.** Planning itself remains a
   read-only diagnostic and can omit all scoped units for an unknown target.
   Apply/stage callers evaluate exact compatibility and refuse an unsupported
-  target before `applyTransition()`. The exhaustive verifier independently
-  asserts verified/reviewing compatibility before processing masks
-  (`src/cli.cjs:587-646,860-920`;
-  `scripts/verify-all-combinations.cjs:120-147`).
+  target before `applyTransition()` (`src/cli.cjs:587-646,860-920`).
 - **Synchronous cost and state growth — structural plus measured.** The new
   validation/filtering is linear in maintainer-authored manifest units and
   exact-version entries and creates no persistent collection outside the
-  existing state snapshot. The full 1.8.1 catalog run completed all 2,048 raw
-  selections with maximum 425 resolved units and exact round trips
-  (`src/manager.cjs:515-540,579-585` and the measured result above). This does
+  existing state snapshot (`src/manager.cjs:515-540,579-585`). This does
   not establish a universal performance bound for arbitrarily large private
   manifests.
 - **Async, resource, environment, and security absence — structural.** Fresh
@@ -186,7 +150,7 @@ path in every raw selection. It did not modify the supplied pristine source.
   covered by manager tests.
 - **Q3, resolved by preserved behavior:** inactive path access, previous-unit
   cleanup, exact reapply, state identity, and existing 1.8.1 graph regression
-  are covered by focused tests and the exhaustive combination gate.
+  are covered by focused tests.
 - **Q4, retained limitation:** an arbitrary non-patcher process can alter the
   target after the synchronous precondition read. Eliminating that final
   inter-process window would require a shared OS-level writer protocol across
@@ -220,8 +184,7 @@ path in every raw selection. It did not modify the supplied pristine source.
 Validation, target filtering, previous-state stripping, composition, ETag and
 state encoding, status, and transaction preconditions were inspected as one
 flow. The interaction audit first exposed the stale-status and stale-plan
-faults; both were fixed before this receipt. The exhaustive 1.8.1 gate then
-exercised the combined manager flow through all existing pack graphs. The
+faults; both were fixed before this receipt. The
 first real 1.9-only consumer must still prove that a scoped unit is omitted on
 1.8.1 and applied, tested, and exactly reverted on 1.9.0.
 

@@ -277,8 +277,7 @@ refreshed separately in `815673e`. The 1.9-only unit removes only the outer
 route guard. The component's inner `< 768` notice and desktop-only binding
 table remain unchanged. Fresh observed gates include source patcher 38/38,
 client 128 files / 1,533 tests, server 9 files / 163 tests, diagnostics 0/0,
-production build at 7,857 modules, all 2,048 combination selections and 1,024
-normalized graphs round-tripped, and source/fixed/generic maximum plans all at
+production build at 7,857 modules, and source/fixed/generic maximum plans all at
 28 packs, 538 units, five ordered collisions, and 219 planned paths. Exact
 details and the L2.5 audit are in the K16 receipt.
 
@@ -330,8 +329,7 @@ fragment extends the condition. Its applied-output regression test covers
 outside-brace placement, both native terms, `$orchestrating`, idempotency,
 marker drift, inherited first-anchor behavior, and exact revert. The fresh
 focused and maximum targets compiled zero browser assets containing the
-literal marker. All 2,048 selections and 1,024 normalized graphs
-round-tripped; the maximum graph remains 28 packs, 538 units, five ordered
+literal marker. The maximum graph remains 28 packs, 538 units, five ordered
 collisions, and 217 transaction-managed source paths. Client 1,533, server
 163, Svelte 0/0, production build, BG bundle load, repeated apply, exact
 revert, deterministic installer, and L2.5 gates passed with the exact observed
@@ -454,9 +452,7 @@ The marker infrastructure/adapter correction is `1d53f58`; the BG keyed
 preparation-lifecycle correction is `dc82721`; canonical installers are
 `fd60890`. All three commits were pushed before live apply. The patcher suite
 passed 38/38 files. Disposable aggregate apply/replan/exact revert passed.
-The exhaustive verifier passed 2,048/2,048 raw selections, 1,024 normalized
-graphs, maximum 542 units, 223 planned paths, and all round trips with one
-worker. Two canonical builder runs produced identical installer hashes.
+Two canonical builder runs produced identical installer hashes.
 
 Preflight observed active/queued/unclaimed/pending work and result payloads
 zero, nine operation states all delivered, and `quick_check=ok`. The exact

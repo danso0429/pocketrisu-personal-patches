@@ -82,7 +82,6 @@ result was observed after another apply/status/revert cycle.
 
 The `startup-cache,toolchain-hardening` combination separately passed its
 full target gates, zero-change reapply, `current` status, and exact revert.
-This pair check does not replace the later exhaustive raw-selection gate.
 
 ## Remaining gates
 

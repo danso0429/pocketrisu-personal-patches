@@ -966,10 +966,7 @@ and before database mutation.
    browser-opened recovery URL reaches the same storage and bootstrap path.
 6. Add a deterministic fixture that describes the current shipped CSS effects.
 7. Record standalone and relevant composed owner graphs before source changes.
-8. Record the active patcher gate authority. The repository's raw-selection
-   verifier is retired and absent; if an encompassing instruction still requires
-   it, reconcile that instruction before claiming gate closure rather than
-   inventing or silently skipping a command.
+8. Record the active patcher gate authority.
 
 Gate: the baseline fixture reproduces every current shipped appearance effect
 and font state without changing a target tree, and the implementation plan names
@@ -1084,8 +1081,7 @@ recorded before live candidate delivery.
 
 1. Run focused `personal-settings` tests and the complete patcher suite.
 2. Run the current all-or-nothing patcher's focused owner graphs and maximum
-   complete graph lifecycle. The retired raw-selection verifier is not an
-   executable gate for this baseline.
+   complete graph lifecycle.
 3. Verify standalone, focused composed, and maximum complete owner graphs,
    exact reapply, current status, empty-selection revert, byte/mode restoration,
    and generated installer parity.

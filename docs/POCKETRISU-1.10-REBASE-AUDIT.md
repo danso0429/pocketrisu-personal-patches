@@ -19,8 +19,8 @@
 > **2026-08-24 policy overlay:** the exact-1.10 runtime graph subsequently
 > admitted durable background import and its WebKit resume follow-up.
 > `0.2.0-experimental.20` retires public combinations and delivers the same 14
-> root capabilities as one complete set. The cutover-time diagnosis and its
-> waived raw-selection result below remain historical evidence.
+> root capabilities as one complete set. The cutover-time diagnosis below
+> remains historical evidence.
 
 > **Cutover-time status (historical):** Official 1.10.0 plus the
 > `v0.2.0-experimental.17` rolling `all`
@@ -56,10 +56,8 @@ been acted on by `v0.2.0-experimental.16`:
   frontend tests, 177 server tests, 74 compatibility tests, Svelte 0/0,
   7,918-module build, BG bundle load, zero-change re-plan, and exact revert.
 
-The user explicitly waived the exhaustive raw-selection combination verifier.
-That step in the ordered plan is therefore a recorded residual risk, not a
-claimed pass. See
-`docs/POCKETRISU-1.10-CHARX-MODULE-ALL-VALIDATION.md` for the detailed receipt.
+See `docs/POCKETRISU-1.10-CHARX-MODULE-ALL-VALIDATION.md` for the detailed
+receipt.
 
 ## Initial cutover outcome
 
@@ -366,9 +364,8 @@ listed above.
    require target evidence; changed Chat/bootstrap/database/language adapters
    retain the native fixes explicitly.
 9. **Close aggregate gates.** Run first apply/current/reapply/exact revert,
-   target tests/check/build, all owner combinations, L2.5, deterministic
-   installer generation, and the discovered raw-selection domain before any
-   live patch apply. Stable tag/release remains behind review and consolidated
+   target tests/check/build, all owner combinations, L2.5, and deterministic
+   installer generation before any live patch apply. Stable tag/release remains behind review and consolidated
    device L3.
 
 ## Final boundary

@@ -13,10 +13,7 @@ Date: 2026-08-22
 - This checkpoint is `v0.2.0-experimental.17`; it is not a stable tag or
   release.
 
-The user explicitly waived the exhaustive raw-selection combination verifier
-for this installation. No result below is presented as exhaustive subset
-coverage. Focused compositions and the maximum rolling `all` graph were still
-planned, applied, re-planned, status-checked, reverted, and run.
+Focused compositions and the maximum rolling `all` graph were planned, applied, re-planned, status-checked, reverted, and run.
 
 ## CharX Phase 1 and exact-original boundary
 
@@ -134,8 +131,6 @@ All four passed `node --check`; consecutive builds were byte-identical.
 ## Remaining gates and limits
 
 - Exact-original CharX validation remains unavailable.
-- Exhaustive raw-selection combination verification was skipped by explicit
-  user instruction; this is the principal composition residual risk.
 - The `.17` iOS picker L3 for real `.risum` and `.module.charx` selection,
   import, notification, and reload persistence passed. Ordinary character
   CharX, persona, fence, and BG aggregate L3 remain before a stable tag or

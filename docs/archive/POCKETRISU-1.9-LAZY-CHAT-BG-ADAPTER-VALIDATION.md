@@ -40,10 +40,6 @@ the lazy root database flush succeed.
   auto-added the adapter, and reported verified/current. Its three reported
   collisions were ordered full-replacement-before-hook relationships. Reapply
   changed zero files; revert restored zero tracked diff.
-- The adapter unit bytes were already present in the exact-1.8 exhaustive
-  catalog run performed with the BG authority qualification: 2,048/2,048 raw
-  selections, 1,024 normalized graphs, 192 managed paths, maximum 425 units,
-  and every exact round trip passed.
 
 ## L2.5 runtime audit
 

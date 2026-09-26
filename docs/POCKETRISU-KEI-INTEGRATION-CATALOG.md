@@ -189,9 +189,8 @@ children plus hidden K04, K17, and K26 children enter the umbrella. K23, K27,
 K29-F05, and K22 stay owner-local in packs already selected by the final
 graph. This structure does not claim deferred rows as implemented.
 
-That exact-1.9 aggregate qualification subsequently passed: 2,048/2,048 raw
-selections, 1,024 normalized graphs, 222 managed paths, a 538-unit maximum
-graph, complete target gates, exact revert, and deterministic installers. The
+That exact-1.9 aggregate qualification subsequently passed: 222 managed
+paths, a 538-unit maximum graph, complete target gates, exact revert, and deterministic installers. The
 observations are recorded in
 `docs/archive/POCKETRISU-1.9-AGGREGATE-VALIDATION.md`. This result advances the
 existing admitted children; it does not change any deferred disposition in

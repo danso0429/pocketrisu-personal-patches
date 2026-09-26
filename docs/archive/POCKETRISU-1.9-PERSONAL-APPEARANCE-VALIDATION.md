@@ -123,9 +123,6 @@ itself remains unchanged and keeps final author override authority.
 Automated evidence before live admission:
 
 - patcher source tests: 38/38 files passed;
-- exact-1.9 combination verifier: 2,048/2,048 raw selections, 1,024
-  normalized graphs, 239 catalog-managed paths, maximum 587 resolved units,
-  exact round trips passed with two workers;
 - clean rolling-all staging client: 130 files and 1,549 tests passed;
 - clean rolling-all staging server: 9 files and 163 tests passed;
 - Svelte diagnostics: 0 errors and 0 warnings;
@@ -223,9 +220,8 @@ Safe Mode resolver remain unchanged.
 ### Follow-up live admission
 
 At 2026-08-09 02:07 KST, implementation commit `8876c98` and generated
-installer commit `77ad138` were already pushed. Patcher tests passed 38/38,
-and the exact-1.9 verifier passed 2,048/2,048 raw selections as 1,024 graphs
-with two workers. In a separate 1.9 `all` candidate, focused appearance tests
+installer commit `77ad138` were already pushed. Patcher tests passed 38/38.
+In a separate 1.9 `all` candidate, focused appearance tests
 passed 10/10, Svelte diagnostics were 0/0, the production build transformed
 7,862 modules, the built CSS retained the preview-descendant selector, the
 font-specific note was absent, and both language help entries contained only
@@ -311,8 +307,6 @@ status remains observable.
 Pre-live automated evidence:
 
 - patcher suite: 38/38 test files passed;
-- exact-1.9 combination verifier: 2,048/2,048 raw selections, 1,024
-  normalized graphs, exact round trips passed with two workers;
 - isolated appearance logic: 15/15 tests passed, including optional-link
   de-duplication and load completion;
 - clean rolling-all client suite: 130/130 files and 1,554/1,554 tests passed;
@@ -458,14 +452,11 @@ branch into `main`.
   passed;
 - isolated Svelte diagnostics: 0 errors and four pre-existing
   `DefaultChatScreen.svelte` warnings;
-- isolated production build: 7,803 modules;
-- exhaustive exact-1.9 catalog: 2,048 raw selections, 1,024 normalized graphs,
-  two workers, exact round trips passed.
+- isolated production build: 7,803 modules.
 
 The first composition scan identified an ambiguous DefaultChatScreen import
 anchor when bg-preserve was selected. The final unit is explicitly ordered
-after the bg-preserve import owner, and the complete exhaustive run above is
-the post-correction result.
+after the bg-preserve import owner.
 
 Physical iPhone behavior is recorded only after it is observed.
 

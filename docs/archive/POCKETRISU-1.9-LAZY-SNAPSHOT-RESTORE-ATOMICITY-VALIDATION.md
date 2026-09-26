@@ -103,9 +103,6 @@ trimming runs only after that transaction returns successfully.
   `b10276f7651160902313d8cb7022d27b72f6e051281fa438ef52672c900f5e30`,
   removed the owned journal files, and left the target tracked diff/status
   clean.
-- Final catalog combination verification completed with exit 0: 2,048/2,048
-  raw selections, 1,024 normalized graphs, 217 managed paths, maximum 531
-  resolved units, and round-trip `passed` with two workers.
 
 ## L2.5 runtime audit
 

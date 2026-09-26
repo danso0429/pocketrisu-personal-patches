@@ -95,9 +95,6 @@ full identity/cache contract are recorded in
 - The patcher suite passed all 30 test files. `node --check` passed for both
   manifests and the focused contract test, and `git diff --check` passed.
 
-The exhaustive aggregate selection gate remains deferred until K11 and K12
-are rebased. No aggregate result is inferred from these focused graphs.
-
 ## L2.5 runtime audit
 
 ### Phase 1 — flat discovery

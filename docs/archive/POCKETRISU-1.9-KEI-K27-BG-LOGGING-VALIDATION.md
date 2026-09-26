@@ -125,9 +125,6 @@ graph selects the prior orchestrator/registration payload and no K27 bridge.
   hashes above and official `server.cjs` SHA-256
   `b10276f7651160902313d8cb7022d27b72f6e051281fa438ef52672c900f5e30`
   were restored, and tracked target diff was zero.
-- Exhaustive combination verifier: exit 0; 2,048/2,048 raw selections,
-  1,024 normalized graphs, 213 managed paths, maximum 490 resolved units,
-  two workers, and all round trips passed.
 
 No paid provider request was made. These gates prove owner wiring and bounded
 storage semantics without mutating a real user log database.

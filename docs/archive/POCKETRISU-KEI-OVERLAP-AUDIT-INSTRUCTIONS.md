@@ -441,9 +441,6 @@ overlap finding reaches it through a real caller or state conflict.
 - Verify one owner per state machine/request class where duplicate authority
   was the exclusion reason.
 - Check owner-absent, owner-present, and aggregate graphs as applicable.
-- Use the existing combination verifier only when executable catalog or
-  managed-unit changes are later approved; the read-only audit itself does
-  not require a new exhaustive run.
 
 ### Phase 4 - triage without implementation
 

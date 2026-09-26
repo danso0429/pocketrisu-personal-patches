@@ -2533,8 +2533,7 @@ After physical L3:
 5. final full graph lifecycle, deterministic artifacts, CI, and sweep;
 6. only then promote verified/stable catalog and tag/release metadata.
 
-The retired raw-selection combination verifier is not revived. Distributed
-selection no longer exists. Follow `docs/PATCHER-V2-DESIGN.md`: focused owner
+Distributed selection no longer exists. Follow `docs/PATCHER-V2-DESIGN.md`: focused owner
 graphs plus the complete graph lifecycle.
 
 ## 21. Runtime-audit surfaces

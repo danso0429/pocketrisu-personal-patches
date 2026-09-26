@@ -44,22 +44,6 @@ SHA-256 was
 `3dd071eb9faac2e25e5bfd809ecf54bcb59657908e09243e49873f9ec3c55c12`.
 The patcher compatibility result was `verified`.
 
-The full combination verifier observed:
-
-```json
-{
-  "rawSelections": 2048,
-  "normalizedGraphs": 1024,
-  "managedPaths": 152,
-  "maximumResolvedUnits": 305,
-  "roundTrips": "passed"
-}
-```
-
-For every selection it performed plan, apply, a zero-change second plan,
-status, and an empty-selection revert, then compared every managed file's
-bytes and POSIX mode with the initial snapshot.
-
 The explicit meta-only CLI flow observed:
 
 - initial apply resolved only `pocketrisu-kei` and changed only
@@ -84,10 +68,8 @@ The explicit `pocketrisu-kei,parser-hardening` flow observed:
 
 ## Exact-revert boundary
 
-The established combination verifier's exact-revert claim covers managed
-file bytes and POSIX modes. A full directory-tree comparison after the
-exhaustive run also found five empty mode-`0700` directories created as
-parents for state or owned files:
+A full directory-tree comparison found five empty mode-`0700` directories
+created as parents for state or owned files:
 
 - `save`
 - `save/pocketrisu-patches`

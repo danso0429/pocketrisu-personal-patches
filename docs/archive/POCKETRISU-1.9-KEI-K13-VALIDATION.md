@@ -43,9 +43,6 @@ owned and managed bytes are identical on the two exact targets.
 - The patcher contract suite passed after adding explicit dual-target
   assertions for the core and both adapters.
 
-The final dual-target exhaustive catalog gate remains an aggregate gate after
-all Kei children and K12 are rebased. No aggregate result is inferred here.
-
 ## L2.5 runtime audit
 
 ### Phase 1 — flat discovery
@@ -95,8 +92,7 @@ all Kei children and K12 are rebased. No aggregate result is inferred here.
   with no new byte cap.
 - **Installation — measured round trip.** Exact 1.9 plans had zero collisions,
   zero-change replans, current status, and exact tracked restoration for both
-  base and BG graphs. Exact 1.8 units are unchanged; the later aggregate
-  verifier remains responsible for the whole dual-target catalog.
+  base and BG graphs. Exact 1.8 units are unchanged.
 
 ### Phase 3 — triage
 

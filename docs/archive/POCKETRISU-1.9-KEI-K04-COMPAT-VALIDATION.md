@@ -90,12 +90,6 @@ order was export → typed fallback → owned test.
   `9e95e5f74cae21579a6dfec2c19885a471945616882b7237f155dee7b097c750`,
   mode `0600`, and size 108,070 bytes, matching the recorded baseline; tracked
   source diff was zero.
-- Exhaustive combination verifier: exit 0; 2,048/2,048 raw selections, 1,024
-  normalized graphs, 205 managed paths, maximum 478 resolved units, two
-  workers, and `roundTrips: passed`.
-
-The verifier result is composition and transaction evidence, not browser
-feature intent or publication qualification.
 
 ## L2.5 runtime audit
 
@@ -187,8 +181,8 @@ feature intent or publication qualification.
   overwritten, not accumulated or retained separately.
 - **Pack and revert — measured.** Owner-absent and owner-present plans, target
   apply/status/reapply/revert, exact database bytes/mode, owned-file removal,
-  complete patcher tests, target diagnostics/build, and all 2,048 raw catalog
-  selections were observed as recorded above.
+  complete patcher tests, and target diagnostics/build were observed as
+  recorded above.
 
 ### Phase 3 — triage
 
@@ -224,8 +218,8 @@ feature intent or publication qualification.
 
 ### Cross-piece integration check
 
-K04 currently composes with every existing catalog owner through the observed
-2,048-selection gate, including `preset-integrity`; no collision was added.
+K04 currently composes with every existing catalog owner, including
+`preset-integrity`; no collision was added.
 That proves graph and transaction composition, not future semantic interaction
 with K17/K22/K23/K26/K27/K29. The final aggregate audit must revisit those
 cross-piece interactions after their isolated commits.

@@ -116,9 +116,6 @@ implementation is introduced.
 On 2026-08-09 KST:
 
 - patcher suite: 39/39 test files passed;
-- exhaustive selection gate: 4,096/4,096 raw selections, 2,048 normalized
-  graphs, 237 managed paths, maximum 607 units, four workers, every apply,
-  repeated plan, status, revert, and pristine snapshot round trip passed;
 - maximum apply: compatibility `verified`, 32 resolved packs, 607 units, five
   previously ordered collisions, and zero changed files on immediate re-plan;
 - PocketRisu client suite: 131/131 files and 1,547/1,547 tests passed;
@@ -150,22 +147,6 @@ On 2026-08-09 KST:
   remained, and the official tracked tree was pristine. The ignored empty
   custom intent and diagnostic reports contain no installed source state.
 
-The exhaustive gate's exact receipt was:
-
-```json
-{
-  "target": { "packageName": "pocketrisu", "packageVersion": "1.9.0" },
-  "compatibility": "verified",
-  "rawSelections": 4096,
-  "verifiedSelections": 4096,
-  "normalizedGraphs": 2048,
-  "managedPaths": 237,
-  "maximumResolvedUnits": 607,
-  "roundTrips": "passed",
-  "workers": 4
-}
-```
-
 ## Personal appearance composition qualification
 
 The first live-admission plan exposed a branch-composition hazard rather than
@@ -184,9 +165,6 @@ receipts, and scoped iPhone L3, was merged into the fence branch as
 the following observed results:
 
 - patcher suite: 39/39 test files passed;
-- exhaustive exact-1.9 gate: 4,096/4,096 raw selections, 2,048 normalized
-  graphs, 253 catalog-managed paths, maximum 652 units, four workers, and
-  exact apply/re-plan/status/revert byte-and-mode round trips passed;
 - maximum graph: 32 resolved packs, 652 units, six explicitly ordered
   collisions, 250 transition files, and no skipped file on the pristine
   target;

@@ -44,9 +44,8 @@ longer promises a public selector.
   later removed from the tree; tag `v0.2.3` keeps the last copy.
 - A new feature must pass its focused owner graphs and the maximum complete
   graph before `allDefault: false` is removed.
-- The old exhaustive `2^N` raw-selection verifier is retired because public
-  subset selection no longer exists. Focused internal compositions remain
-  normal feature gates when an adapter has multiple authorities.
+- Focused internal compositions remain normal feature gates when an adapter
+  has multiple authorities.
 
 ## Intent migration
 
@@ -102,5 +101,3 @@ does not mark the version verified or allow cutover by itself.
   without the source-only maintainer gate. Inactive adapter alternatives and
   future PocketRisu versions remain fail-closed and use the `reviewing`
   qualification path first.
-- Historical combination receipts remain historical evidence; they are not
-  active operational instructions after this migration.

@@ -130,25 +130,6 @@ excluded by contract. Empty parent-directory cleanup remains outside the
 patch manager's exact-revert claim; no file or symlink was left inside those
 parents.
 
-The exhaustive combination verifier observed:
-
-```json
-{
-  "rawSelections": 2048,
-  "verifiedSelections": 2048,
-  "normalizedGraphs": 1024,
-  "managedPaths": 161,
-  "maximumResolvedUnits": 320,
-  "roundTrips": "passed",
-  "workers": 2
-}
-```
-
-For every raw selection it performed initial plan, apply, a zero-change
-second plan, current-status inspection, empty-selection revert, and exact
-managed byte/mode comparison. This is the patch-combination gate, not the
-L2.5 runtime audit below.
-
 ## L2.5 runtime audit
 
 This section follows `docs/runtime-audit-instructions.md` v2. Discovery is
@@ -368,8 +349,6 @@ hook is overwritten, or revert restores only content but not mode.
   `test/kei-stream-parser.test.cjs:19-99`.
 - Fresh base/bg plans, applies, repeat plans, statuses, and reverts produced
   the measured results above.
-- The exhaustive verifier checked all 2,048 raw selections and all 161
-  managed paths' bytes and modes.
 - Adapter anchors and managed payloads participate in ETags:
   `test/kei-stream-parser.test.cjs:101-113`.
 
@@ -493,9 +472,7 @@ from each component:
 - offset recovery supplies a contiguous raw byte sequence before K13 frames
   it;
 - the combined focused suite passed 38 tests;
-- the complete bg/toolchain graph passed 1,128 tests and built;
-- the exhaustive verifier covered both adapter variants across all public
-  selections and exact revert.
+- the complete bg/toolchain graph passed 1,128 tests and built.
 
 The remaining cross-piece observation is S4's physical iPhone/provider
 round-trip. It is deferred by the user's explicit decision to perform one

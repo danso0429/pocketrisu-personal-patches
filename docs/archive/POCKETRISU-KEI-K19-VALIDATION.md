@@ -117,22 +117,6 @@ same SHA-256 before apply and after revert:
 The explicit `pocketrisu-kei,toolchain-hardening` flow reported every K19 and
 toolchain-managed file current, then produced a zero-change second plan.
 
-The exhaustive combination verifier observed:
-
-```json
-{
-  "rawSelections": 2048,
-  "normalizedGraphs": 1024,
-  "managedPaths": 156,
-  "maximumResolvedUnits": 312,
-  "roundTrips": "passed"
-}
-```
-
-For every raw selection it performed plan, apply, a zero-change second plan,
-status, and an empty-selection revert, then compared all 156 managed paths'
-bytes and POSIX modes with the initial snapshot.
-
 The established exact-revert boundary is unchanged. A directory comparison
 against pristine 1.8.1 found no missing directories or mode changes and only
 the five existing empty mode-`0700` parent directories created by patch
@@ -144,7 +128,7 @@ transactions or other owned packs:
 - `src/ts/personalSettings`;
 - `src/ts/vendor`.
 
-They contained no files or symlinks after the exhaustive run. K19 does not
+They contained no files or symlinks. K19 does not
 change shared patch-manager directory cleanup policy.
 
 ## Remaining review and publication state

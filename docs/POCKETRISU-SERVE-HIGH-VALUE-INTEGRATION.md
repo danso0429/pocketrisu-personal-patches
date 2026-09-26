@@ -65,8 +65,7 @@ ordinary paths normal, completing the one-time admission gate for P2.
 
 P2 is implemented as the hidden exact-1.9
 `server-backup-snapshot-core` plus exactly one standard/lazy adapter. P1
-activates this boundary without adding a thirteenth visible pack, so the
-supported selection space remains 4,096 raw masks and 2,048 normalized graphs.
+activates this boundary without adding a thirteenth visible pack.
 
 The selected storage owner flushes pending state and pins a read-only SQLite
 WAL epoch plus verified private filesystem inlay copies under one storage-queue

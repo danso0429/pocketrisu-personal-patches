@@ -618,8 +618,7 @@ files) is byte-identical to `v0.2.3`.
   fence-adapter payloads. Remove the background parser qualification hook and
   import-route fence entries.
 - Remove interactive `configure`, `--packs`, `--preset`, narrow
-  features/hardening installers, preset-default metadata, the exhaustive raw
-  selection verifier, its package command, and its CI job. Retain internal
+  features/hardening installers, and preset-default metadata. Retain internal
   pack/adapter resolution and focused owner compositions for deterministic
   ordering, collision isolation, and exact revert.
 - Audit Haejeok RisuAI at `e9d03568` and establish from README and Git ancestry
@@ -779,9 +778,7 @@ files) is byte-identical to `v0.2.3`.
 - Keep the existing native archive format, routes, UI, standard/lazy storage
   ownership, and live write availability. Leave detached spooling, restart
   retry, retention, and long-reader WAL-duration control to P3.
-- Pass all 40 patcher test files and all 4,096 raw selections as 2,048
-  normalized graphs across 259 catalog-managed paths with up to 669 units,
-  including exact byte/mode round trips. Pass the maximum graph with 132 client
+- Pass all 40 patcher test files. Pass the maximum graph with 132 client
   files / 1,564 tests, 12 server files / 176 tests, Svelte 0/0 diagnostics, a
   7,864-module production build, build-stamp/BG-bundle checks, and a zero-change
   re-plan.
@@ -820,9 +817,7 @@ files) is byte-identical to `v0.2.3`.
   restore safety, and bg-preserve acknowledgements, cancellation, result and
   draft cleanup. Preserve one existing storage/generation owner in every
   selection.
-- Pass all 39 patcher test files and all 4,096 raw selections as 2,048
-  normalized graphs across 237 managed paths with up to 607 units, including
-  zero-change re-plans and exact round trips. Pass the maximum PocketRisu graph
+- Pass all 39 patcher test files. Pass the maximum PocketRisu graph
   with 131 client files / 1,547 tests, 10 server files / 170 tests, Svelte
   diagnostics at 0 errors and 0 warnings, and a 7,859-module production build.
   Confirm one identical 70-character stamp in the artifact, client chunk, and
@@ -831,8 +826,7 @@ files) is byte-identical to `v0.2.3`.
   twice with identical sizes and SHA-256 values. Confirm source,
   generic-installer, and fixed-all plans agree at 32 packs, 607 units, five
   ordered collisions, and 233 planned paths.
-- Pass the combined 4,096/4,096 selection gate as 2,048 normalized graphs
-  across 253 catalog paths and up to 652 units. Pass the applied maximum graph
+- Pass the applied maximum graph
   with 132 client files / 1,564 tests, 10 server files / 170 tests, Svelte 0/0,
   a 7,864-module build, retained appearance CSS tokens/imports, and the BG
   bundle build/load check. Confirm a zero-change 32-pack re-plan and exact
@@ -866,11 +860,10 @@ files) is byte-identical to `v0.2.3`.
   elements and an in-memory `Document.head` double. The browser production
   loader remains unchanged, while Vitest no longer starts and aborts a real
   Google Fonts request during teardown.
-- Pass all 38 patcher test files, 2,048 exact-1.9 raw selections as 1,024
-  normalized graphs, 130 client files/1,554 tests, 9 server files/163 tests,
-  Svelte 0/0 diagnostics, and the 7,862-module production build. Two installer
-  builds produce identical hashes and the applied candidate re-plans with zero
-  changed files.
+- Pass all 38 patcher test files, 130 client files/1,554 tests, 9 server
+  files/163 tests, Svelte 0/0 diagnostics, and the 7,862-module production
+  build. Two installer builds produce identical hashes and the applied
+  candidate re-plans with zero changed files.
 - Pass the instructed user-visible appearance L3: app font hides the preview,
   a non-app font shows `폰트 미리보기` immediately below Chat font, the
   selected face reaches preview and chat, and code stays monospace. This scoped
@@ -886,11 +879,11 @@ files) is byte-identical to `v0.2.3`.
   where they are required as selectable option labels.
 - Keep actual chat typography, font-load status, Safe Mode behavior, and the
   code/keyboard monospace reset unchanged.
-- Pass all 38 patcher tests, 2,048/2,048 exact-1.9 selections as 1,024 graphs,
-  focused 10/10 appearance tests, Svelte 0/0 diagnostics, and the 7,862-module
-  production build. The stopped live tree repeats its full 130/1,549 client
-  and 9/163 server tests, restarts with the corrected served CSS, and preserves
-  the observed database, empty custom CSS, and appearance settings exactly.
+- Pass all 38 patcher tests, focused 10/10 appearance tests, Svelte 0/0
+  diagnostics, and the 7,862-module production build. The stopped live tree
+  repeats its full 130/1,549 client and 9/163 server tests, restarts with the
+  corrected served CSS, and preserves the observed database, empty custom CSS,
+  and appearance settings exactly.
 
 ## 0.2.0-experimental.11
 
@@ -913,12 +906,10 @@ files) is byte-identical to `v0.2.3`.
   Google Fonts CSS endpoint. Document the SIL OFL 1.1 source, Korean default
   Han glyph forms, runtime availability/privacy dependency, and the reason a
   self-hosted binary pack remains a separate patcher-format change.
-- Pass all 38 patcher test files and all 2,048 exact-1.9 raw selections as
-  1,024 normalized graphs across 239 catalog paths with exact round trips. A
-  clean rolling-all staging candidate passes 130 frontend files/1,549 tests,
-  9 server files/163 tests, Svelte 0/0 diagnostics, production build, and BG
-  bundle build/load. The generated installer re-plan changes no file across
-  the 234 active managed paths.
+- Pass all 38 patcher test files. A clean rolling-all staging candidate passes
+  130 frontend files/1,549 tests, 9 server files/163 tests, Svelte 0/0
+  diagnostics, production build, and BG bundle build/load. The generated
+  installer re-plan changes no file across the 234 active managed paths.
 
 ## 0.2.0-experimental.10
 
@@ -950,8 +941,7 @@ files) is byte-identical to `v0.2.3`.
 - Leave the live/user `customCSS` value untouched. Replacing it remains a
   separate, explicitly approved migration with byte/hash/revision backup and
   exact restore verification.
-- Pass all 38 patcher test files and exact-1.9 exhaustive verification across
-  2,048 raw selections and 1,024 normalized graphs. The final rolling-all
+- Pass all 38 patcher test files. The final rolling-all
   candidate resolves 587 units and 234 managed paths, passes 130 frontend
   files/1,545 tests, 9 server files/163 tests, Svelte 0/0 diagnostics, a
   7,862-module production build, and an 8,464,290-byte BG bundle load check.
@@ -977,10 +967,8 @@ files) is byte-identical to `v0.2.3`.
 - Import 179 bg units: 58 owned files plus 121 host hooks. Relative to the
   previous manifest, add four owned files and eight hooks, update the existing
   server orchestrator, and remove no prior unit.
-- Pass 20 patcher test files with 142 top-level declarations. Verify all 1,024
-  raw selections as 512 normalized graphs across 152 managed paths and up to
-  305 units, including zero-change re-plans and exact byte/file-mode reverts;
-  generate all four syntax-valid installers twice with identical bytes.
+- Pass 20 patcher test files with 142 top-level declarations. Generate all
+  four syntax-valid installers twice with identical bytes.
 - Reconcile the live rolling-all installation to 152 current paths and a
   zero-change plan, restart only with active/durable/parked work at zero, and
   pass root, asset-hash, cache-status, bundle-freshness, and error-log smoke
@@ -999,10 +987,8 @@ files) is byte-identical to `v0.2.3`.
   published unit IDs, local and Realm hook payloads, optional database
   namespace, and import-navigation behavior. Add four internal units for
   shared storage plus the extracted setting logic, tests, and Svelte section.
-- Pass 19 patcher test files with 141 top-level declarations. Verify all 1,024
-  raw selections as 512 normalized graphs across 146 managed paths and up to
-  293 units, including zero-change re-plans and exact byte/file-mode reverts;
-  generate all four syntax-valid installers twice with identical bytes.
+- Pass 19 patcher test files with 141 top-level declarations. Generate all
+  four syntax-valid installers twice with identical bytes.
 - Pass the clean unified PocketRisu candidate with 99 frontend files and 1,249
   tests, Svelte diagnostics with no findings, and a 7,725-module production
   build.
@@ -1032,10 +1018,7 @@ files) is byte-identical to `v0.2.3`.
   when updating it. The navigation decision reads the latest toggle value at
   import completion without changing the import parse, confirmation, or save
   contracts.
-- Pass 19 patcher test files with 140 top-level declarations. Verify all 1,024
-  raw selections of the ten user-facing packs as 512 normalized graphs across
-  142 managed paths and up to 289 units, including zero-change re-plans and
-  exact byte/file-mode reverts on PocketRisu v1.8.1.
+- Pass 19 patcher test files with 140 top-level declarations.
 - Pass the final clean unified candidate with 98 frontend files and 1,248
   tests, 53/53 server tests, 53 compatibility tests with 5 skipped, Svelte
   diagnostics with no findings, the production frontend build, and the BG
@@ -1084,10 +1067,8 @@ files) is byte-identical to `v0.2.3`.
 - Pass 18 patcher test files with 134 top-level declarations, 97 frontend
   files with 1,245 tests, 53/53 server tests, 53 compat tests with 5 skipped,
   Svelte diagnostics with no findings, the production frontend build, and the
-  BG bundle build/load check on a clean PocketRisu v1.8.1 candidate. Verify
-  all 512 raw selections as 256 normalized graphs across 136 managed paths and
-  up to 275 units with zero-change re-plans and exact byte/file-mode reverts;
-  generate all four syntax-valid installers twice with identical hashes.
+  BG bundle build/load check on a clean PocketRisu v1.8.1 candidate. Generate
+  all four syntax-valid installers twice with identical hashes.
 - Pass the follow-up iPhone gate with one continuously visible import toast,
   in-place stage/counter updates, non-blocking navigation and messaging, and a
   successful durable import after cold PWA reopen.

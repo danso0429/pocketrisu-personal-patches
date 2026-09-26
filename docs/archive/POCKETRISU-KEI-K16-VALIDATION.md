@@ -271,72 +271,6 @@ from pristine PocketRisu 1.8.1 in the base target. The composed target
 retained only an empty `src/ts/vendor/` parent directory. It contained no
 file or symlink.
 
-The final exhaustive combination verifier observed:
-
-```json
-{
-  "target": {
-    "packageName": "pocketrisu",
-    "packageVersion": "1.8.1"
-  },
-  "compatibility": "verified",
-  "visiblePacks": [
-    "bg-preserve",
-    "character-import-ux",
-    "character-organizer",
-    "lazy-chat-sync",
-    "parser-hardening",
-    "persona-organizer",
-    "personal-settings",
-    "pocketrisu-kei",
-    "preset-integrity",
-    "startup-cache",
-    "toolchain-hardening"
-  ],
-  "rawSelections": 2048,
-  "verifiedSelections": 2048,
-  "normalizedGraphs": 1024,
-  "managedPaths": 176,
-  "maximumResolvedUnits": 383,
-  "roundTrips": "passed",
-  "workers": 2,
-  "compositionCache": {
-    "bypasses": 2050,
-    "hits": 2047,
-    "misses": 2047,
-    "stores": 2047
-  },
-  "pairAnalysisCache": {
-    "entries": 818,
-    "hits": 213710,
-    "misses": 818
-  },
-  "packEtagCache": {
-    "hits": 38361,
-    "misses": 39
-  },
-  "stateEncodingCache": {
-    "hits": 2047,
-    "misses": 2047
-  },
-  "timingsMs": {
-    "apply": 167656.48,
-    "initialPlan": 153546.9,
-    "repeatedPlan": 99092.48,
-    "revertApply": 155809.91,
-    "revertPlan": 68506.14,
-    "snapshot": 15845.97,
-    "status": 50882.97,
-    "total": 711404.75
-  }
-}
-```
-
-That verifier exercises initial plan, transactional apply, zero-change
-re-plan and reapply, current status, empty-selection revert, and exact
-managed byte/mode restoration for every raw selection. It is the optimized
-patch-combination gate, not the L2.5 runtime audit below.
-
 ## L2.5 runtime audit
 
 This section follows `docs/runtime-audit-instructions.md` v2. Phase 1 is a
@@ -599,7 +533,7 @@ or bg/lazy composition loses a pending change or delivery hook.
   bg-preserve/lazy-chat collisions in global API, server reader, and plugin
   `sendChat`; no K16 unit owns them.
 - Base/composed focused and full tests, diagnostics, production builds, bg
-  bundle load, fresh lifecycle, and exhaustive combinations ran after the
+  bundle load, and fresh lifecycle ran after the
   final modal and failure-cycle fixes.
 
 A dynamic-dispatch counterexample would require a new K16 helper to invoke a
@@ -704,9 +638,7 @@ The interaction among all admitted pieces was checked separately:
 - K14/bg-preserve active generation and result claim/ACK remain outside K16;
 - combined target tests passed 1,252 tests with 3 existing skips;
 - combined diagnostics/build and the bg bundle load check completed;
-- focused base/composed lifecycle restored managed bytes/modes exactly;
-- the all-selection verifier result is recorded above separately from this
-  runtime audit.
+- focused base/composed lifecycle restored managed bytes/modes exactly.
 
 The remaining cross-piece observations are the physical iPhone behavior in
 S1 and the explicit history-owner interaction in S2. The user's decision to

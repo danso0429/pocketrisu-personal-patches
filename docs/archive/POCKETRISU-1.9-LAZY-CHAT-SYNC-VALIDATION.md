@@ -9,8 +9,8 @@ supported by the original target-scoped replacements. This decision qualifies
 the lazy chat storage/hydration owner; it does not qualify `bg-preserve`, the
 lazy/BG adapter, another 1.9.x release, or the aggregate candidate.
 
-The review candidate, ordinary verified round-trip target, and exhaustive
-1.8.1 target were disposable clones of the official commits. The live
+The review candidate and ordinary verified round-trip target were disposable
+clones of the official commits. The live
 PocketRisu installation and the preserved staged K12 worktree were not
 modified.
 
@@ -135,34 +135,6 @@ no collisions. Composition with Personal Settings and Persona Organizer
 resolved 71 units; its five reported overlaps were declared order edges on
 shared server/global insertion hosts, not incompatible ownership collisions.
 
-## Exhaustive 1.8.1 regression gate
-
-The final dual-target catalog ran against a separately proved-pristine
-official PocketRisu 1.8.1 source:
-
-```json
-{
-  "target": {
-    "packageName": "pocketrisu",
-    "packageVersion": "1.8.1"
-  },
-  "compatibility": "verified",
-  "rawSelections": 2048,
-  "verifiedSelections": 2048,
-  "normalizedGraphs": 1024,
-  "managedPaths": 191,
-  "maximumResolvedUnits": 425,
-  "roundTrips": "passed",
-  "workers": 2
-}
-```
-
-The verifier's target-independent path snapshot includes the 1.9 anchor and
-managed-file directories only through manifest ownership; exact 1.8.1 plans
-selected none of the seven 1.9 replacement units. After the verifier exited,
-the target had no tracked byte, mode, or index difference from official
-1.8.1.
-
 ## L2.5 runtime audit
 
 ### Phase 1 — flat discovery
@@ -199,8 +171,7 @@ the target had no tracked byte, mode, or index difference from official
 ### Phase 2 — external-anchor resolution
 
 - **Target graph — measured.** Exact 1.8 and 1.9 plans selected exactly one
-  replacement family. The complete exact-1.8 catalog round-tripped all 2,048
-  selections, and the ordinary exact-1.9 combined graph applied, reapplied
+  replacement family. The ordinary exact-1.9 combined graph applied, reapplied
   without changes, reported current, and reverted to a clean official source.
 - **Upstream preservation — structural plus measured.** Three-way integration
   retained every unique upstream-added line across all seven changed outputs.
@@ -260,8 +231,8 @@ the target had no tracked byte, mode, or index difference from official
   diagnostics and resolved with the existing fail-closed update default on
   both supported targets.
 - **Q3, resolved by measured behavior:** full/focused target tests,
-  diagnostics, build, patcher tests, ordinary apply/reapply/status/revert, and
-  exhaustive exact-1.8 selection verification passed.
+  diagnostics, build, patcher tests, and ordinary apply/reapply/status/revert
+  passed.
 - **Q4, next design gate:** request-class generation authority must be decided
   and tested before `bg-preserve` or `lazy-chat-bg-adapter` can be promoted.
 - **Q4, pending user-visible gate:** iPhone import, hydration, native recovery,

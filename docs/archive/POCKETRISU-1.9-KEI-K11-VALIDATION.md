@@ -89,9 +89,6 @@ recorded in `docs/POCKETRISU-KEI-K11-VALIDATION.md`.
 - The patcher suite passed all 30 test files. `node --check` passed for both
   manifests and the focused contract test, and `git diff --check` passed.
 
-The exhaustive aggregate selection gate remains deferred until K12 is
-rebased. No aggregate result is inferred from these focused graphs.
-
 ## Aggregate L3 marker finding and remediation
 
 During the later aggregate iPhone session, K11 did not reach its manual-tools
@@ -106,7 +103,7 @@ blocks with HTML comments and advances the adapter to `0.2.1`. The manager now
 rejects future likely-markup `.svelte` units that omit an exact managed block.
 K11 selection, generation, persistence, provider, and storage ownership are
 unchanged. The correction passed focused contracts, the 38-file patcher suite,
-the 542-unit exhaustive verifier, disposable apply/replan/exact revert, full
+disposable apply/replan/exact revert, full
 live client/server tests, diagnostics, build, and a compiled production scan
 with zero `POCKETRISU-PATCH:` strings. The canonical installer is in
 `fd60890`; the complete receipt is

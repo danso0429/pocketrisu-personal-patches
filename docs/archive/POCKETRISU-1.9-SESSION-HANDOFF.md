@@ -45,7 +45,7 @@
 > language is expected.
 > The candidate-admission and result ledger is
 > `docs/POCKETRISU-1.9-AGGREGATE-L3.md`. The overlap-equivalence audit,
-> user-authorized bounded implementation, aggregate target, raw-selection,
+> user-authorized bounded implementation, aggregate target,
 > L2.5, exact-revert, and deterministic-installer gates are recorded in the
 > audit, implementation ledger, feature receipts, and
 > `docs/POCKETRISU-1.9-AGGREGATE-VALIDATION.md`.
@@ -75,12 +75,8 @@ pushed; no candidate is tagged or released.
 - For every changed pack, retain observed evidence for first apply, current
   status, zero-change reapply, relevant combinations, and exact byte/mode/
   symlink revert.
-- The raw-selection patch-combination verifier and L2.5 runtime audit are
-  separate gates. Follow
-  `docs/patch-combination-verification-instructions.md` for the former and do
-  not claim that either gate substitutes for the other.
 - Do not hardcode today's pack, graph, unit, or path counts as a success
-  condition. Compare the verifier's discovered and verified domains.
+  condition.
 
 ## Work completed before the 1.9 pivot
 
@@ -92,7 +88,6 @@ that each behavior, owner, receipt, and revert boundary remained reviewable.
 | --- | --- | --- |
 | `a1c23d5` | Empty `pocketrisu-kei` meta-pack and resolver/catalog foundation | No Kei behavior was implied by the umbrella alone. |
 | `2436606` | K19 fullscreen image viewer | Focused 1.8.1 candidate; iPhone/review gate remained. |
-| `85cfb43` | Exhaustive combination-verifier optimization | Infrastructure-only detour; cached and uncached plans were differentially checked rather than reducing the raw mask domain. |
 | `6ffed92` | K13 robust OpenAI/Google SSE parsing | Pure replayable parsing plus base/composed adapters. |
 | `ee91f24` | K14 streamed-chat render stability | Existing rendering and bg owners were preserved; no second generation owner was added. |
 | `038df10` | K16 navigation, hotkeys, pointer gestures, and opt-in mobile Back guard | Feature-local settings and cleanup boundaries. |
@@ -101,14 +96,9 @@ that each behavior, owner, receipt, and revert boundary remained reviewable.
 | `081a32b` | Status advanced to K12 | Last committed boundary shared by the two worktrees. |
 
 The feature commits have matching validation documents. Their tests, builds,
-L2.5 surfaces, raw-selection gates, and exact-revert receipts are observations
+L2.5 surfaces, and exact-revert receipts are observations
 against PocketRisu 1.8.1 only. They are evidence for the rebase, not 1.9
 qualification and not publication approval.
-
-At the last committed 1.8.1 boundary, the observed full combination gate was
-2,048/2,048 raw selections, 1,024 normalized graphs, 189 managed paths, a
-maximum of 425 units, and a passing round trip. Those are historical observed
-values, not constants for later verification.
 
 ### Preserved staged K12 work
 
@@ -156,7 +146,7 @@ the staged K12 bytes.
 | `ae70364` | Qualified `startup-cache` for exact 1.9.0 as a cache-only delta, including focused and combined evidence. |
 | `88ddfe5` | Qualified `parser-hardening` for exact 1.9.0, including unchanged upstream parser defects, focused parsing tests, toolchain composition, and exact round trips. |
 | `532547c` | Qualified `character-organizer` while preserving native 1.9 drag/file-drop and AssetViewer behavior. |
-| `3406325` | Added exact-target-scoped units and stale-target preconditions, with exhaustive exact-1.8 combination evidence. |
+| `3406325` | Added exact-target-scoped units and stale-target preconditions. |
 | `eca26f0` | Added the 1.9-only native Settings Search adapter for `personal-settings` while preserving its 1.8 graph. |
 
 The exact commit sequence through the current branch HEAD remains authoritative
@@ -279,8 +269,7 @@ than a floating branch if needed.
 
 Start at the `codex/pocketrisu-1.9-rebase` branch HEAD containing this handoff
 and the feature-local qualification receipts. First re-read this handoff, the
-integration status, the 1.9 audit, the catalog, and the combination-verification
-instructions. Confirm all worktree heads and the preserved staged K12 index
+integration status, the 1.9 audit, and the catalog. Confirm all worktree heads and the preserved staged K12 index
 before editing anything.
 
 The read-only overlap-equivalence audit is complete. Its master report and
@@ -300,8 +289,7 @@ target-scoped 1.9 server asset walker that preserves native embedded-module
 and settings-only export semantics. `lazy-chat-sync` and its dependent
 `character-import-ux` graph are now qualified with target-scoped full
 replacements, native 1.9 recovery/logging/lock/backup preservation, combined
-target gates, ordinary exact round trip, L2.5, and the exhaustive exact-1.8
-gate. `preset-integrity` is also qualified with separate 1.8 and 1.9 units;
+target gates, ordinary exact round trip, and L2.5. `preset-integrity` is also qualified with separate 1.8 and 1.9 units;
 the 1.9 path preserves the native `-1` no-active sentinel and guards
 active-only settings controls. Close the current candidate in this order:
 
@@ -318,7 +306,7 @@ active-only settings controls. Close the current candidate in this order:
    broad K26/K27/K28 policy work, and every explicit exclusion out of
    incidental aggregate fixes.
 4. Retain the completed post-overlap aggregate exact-1.9 target, L2.5,
-   raw-selection, exact-revert, deterministic-installer, and runtime-audit
+   exact-revert, deterministic-installer, and runtime-audit
    receipt.
 5. Retain the K16 mobile-route correction in `a043d98` and generated-installer
    refresh in `815673e`. It removes only official 1.9's outer width guard;
@@ -338,7 +326,7 @@ active-only settings controls. Close the current candidate in this order:
 8. Retain the live-admitted BG direct-generation lifecycle correction and receipt.
    It extends native PocketRisu 1.9 `generationStates`/`pendingSends` owners
    for server and browser direct callers, leaves G06 and provider routing
-   unchanged, and passed a 542-unit maximum graph with 2,048 exact round trips.
+   unchanged, and passed a 542-unit maximum graph.
    It is present in the live 542-unit candidate. Its two-consecutive-send
    physical rerun belongs in the consolidated affected-row re-L3 batch.
 9. Retain `1d53f58`, `dc82721`, and generated boundary `fd60890`. The first

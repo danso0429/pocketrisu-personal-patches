@@ -82,26 +82,6 @@ versions planned `persona-organizer` as verified and selected the same picker
 and import units, while retaining their mutually exclusive existing server
 asset adapter.
 
-Because K22 added managed units and paths, the complete exact-1.9 catalog was
-then reverified:
-
-```json
-{
-  "compatibility": "verified",
-  "rawSelections": 2048,
-  "verifiedSelections": 2048,
-  "normalizedGraphs": 1024,
-  "managedPaths": 222,
-  "maximumResolvedUnits": 537,
-  "roundTrips": "passed",
-  "workers": 2
-}
-```
-
-Every reachable selection completed first plan/apply, current status,
-zero-change repeated plan, empty-selection revert, and managed byte/mode
-snapshot comparison.
-
 ## Focused and adversarial verification
 
 Observed final-payload results:
@@ -217,8 +197,7 @@ canonical folder/order schema.
   declared internal order.
 - **Compatibility/revert — measured.** Exact 1.8.1 and 1.9.0 both accepted the
   anchors and completed apply/reapply/revert; exact 1.9 returned to official
-  hashes and zero owned-path diff. The 2,048-selection exact-1.9 verifier
-  independently round-tripped all 1,024 normalized graphs.
+  hashes and zero owned-path diff.
 - **Compile/runtime reachability — measured.** The final helper tests,
   complete patcher suite, Svelte diagnostics, and production build completed
   with the observations above. The official-source Gemini test-environment

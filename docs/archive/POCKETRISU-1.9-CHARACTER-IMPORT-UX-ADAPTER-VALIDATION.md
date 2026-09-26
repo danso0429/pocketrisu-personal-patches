@@ -72,11 +72,6 @@ The ordinary exact-1.9 path selected `character-import-ux`, dependency-added
 collisions. Status was `current`; repeated plan and apply changed zero files;
 revert returned `clean` and left no tracked byte, mode, or index difference.
 
-The complete current catalog also passed all 2,048/2,048 raw exact-1.8.1
-selections, 1,024 normalized graphs, 191 managed paths, a maximum of 425
-resolved units, and exact round trips. The separately inspected target had no
-Git difference after completion.
-
 ## L2.5 runtime audit
 
 ### Phase 1 — flat discovery
@@ -128,8 +123,8 @@ Git difference after completion.
 - **Q3, fixed:** the version-coupled System Backup import anchor now composes
   without weakening native behavior.
 - **Q3, resolved by measured behavior:** the required lazy parent is now
-  target-qualified, and the combined full/focused tests, build, round trip,
-  and exact-1.8 exhaustive gate passed.
+  target-qualified, and the combined full/focused tests, build, and round trip
+  passed.
 - **Q4, pending user-visible gate:** real iPhone import progress, suspension,
   toast interaction, and persistence remain for consolidated L3. They block
   aggregate publication and live candidate acceptance, not this local commit.

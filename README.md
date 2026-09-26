@@ -178,7 +178,7 @@ retains the detailed source and path review.
 | `v0.2.0-experimental.22` | Adds the exact-1.10 PageFold ModelPreset candidate for one v8-qualified native Vertex global `gemini-3.7-flash` low route, server-owned deterministic PDF rendering, role overrides, explicit mode/persistence UI, Service Account import, budgets/retry/redaction/metrics, and BG composition. The 40-pack / 929-unit / 339-path graph remains review-only for candidate L3. |
 | `v0.2.0` | Promotes the exact PocketRisu 1.10 all-or-nothing graph: 38 resolved packs, 769 units, and 280 managed paths. Ordinary generated-installer apply is enabled only for that complete graph; retired and alternative adapters stay outside stable qualification. The release preserves the recorded physical passes and explicitly accepts, without relabelling, the remaining unavailable or not-exercised device surfaces. |
 | `v0.2.0-experimental.21` | Adapts Haejeok's persistence ordering, Korean-aware character search, and distinct Small 600px chat width into PocketRisu 1.10's existing lazy/BG, catalog, and native width owners. Later source/runtime revalidation keeps HJ02/HJ05/HJ07 trigger-gated, HJ06 blocked, and the frozen HJ08 implementation rejected; no additional HJ code enters this checkpoint. |
-| `v0.2.0-experimental.20` | Makes delivery all-or-nothing, retires background import after the device UX finding, removes public combinations/raw-mask verification, restores foreground import payloads, and records the source-provenance audits. |
+| `v0.2.0-experimental.20` | Makes delivery all-or-nothing, retires background import after the device UX finding, removes public combinations, restores foreground import payloads, and records the source-provenance audits. |
 | `v0.2.0-experimental.19` | Keeps one durable import operation alive across iOS/WebKit `AbortError`, `NetworkError`, and `Load failed` suspend/resume failures instead of showing a false terminal import error. |
 | `v0.2.0-experimental.18` | Adds review-only resumable character/module upload, server-owned preparation and append-only commit, canonical client reconciliation, restart recovery, bounded retention, and truthful post-handoff background status for exact PocketRisu 1.10. |
 | `v0.2.0-experimental.17` | Keeps the 1.10 aggregate unchanged while removing the iOS Files `accept` hint that disabled proprietary `.risum` and `.module.charx` files; exact post-selection type validation and terminal persistence remain in force. |
@@ -242,9 +242,7 @@ SHA-256
 `88ae0e251694b705abcc9450c264ef2fa468edfb6ac8a287d550a07fe7b2ea66`.
 
 The `v0.2.0-experimental.4` checkpoint passes all 126 patcher tests in 17
-files. The same 256 raw selections still normalize to 192 graphs and pass
-apply, zero-change re-plan, and exact byte/mode revert across 126 managed paths
-with up to 257 units. All four installers pass CJS syntax checks and two
+files. All four installers pass CJS syntax checks and two
 consecutive builds produce byte-identical artifacts. The generated installer
 was then applied to the live experimental.3 `all` installation: it interpreted
 the legacy intent as rolling, skipped all 126 managed source paths, and wrote
@@ -264,13 +262,10 @@ behavior; those CLI and migration paths are covered by the automated and live
 zero-change checks above.
 
 The `v0.2.0-experimental.8` candidate passes 19 patcher test files with 141
-top-level declarations. All 1,024 raw selections of the ten user-facing packs
-normalize to 512 graphs and pass apply, zero-change re-plan, and exact
-byte/file-mode revert across 146 managed paths with up to 293 resolved units.
-All four installers pass CJS syntax checks and two consecutive builds produce
-byte-identical artifacts. The clean unified PocketRisu candidate passes 99
-frontend files and 1,249 tests, Svelte diagnostics at 0 errors and 0 warnings,
-and a 7,725-module production build.
+top-level declarations. All four installers pass CJS syntax checks and two
+consecutive builds produce byte-identical artifacts. The clean unified
+PocketRisu candidate passes 99 frontend files and 1,249 tests, Svelte
+diagnostics at 0 errors and 0 warnings, and a 7,725-module production build.
 
 The live rolling-all upgrade changed only the Personal pack's seven owned
 source files and patch state. Its focused 4/4 tests, Svelte 0/0 diagnostics,
@@ -290,9 +285,7 @@ bg-preserve delta adds four owned files, eight host hooks, and one updated
 server-orchestrator file without removing an earlier bg unit.
 
 The candidate passes 20 patcher test files with 142 top-level declarations.
-All 1,024 raw selections of the ten user-facing packs normalize to 512 graphs
-and pass apply, zero-change re-plan, and exact byte/file-mode revert across
-152 managed paths with up to 305 resolved units. All four installers pass CJS
+All four installers pass CJS
 syntax checks and two consecutive builds produce byte-identical artifacts.
 
 The live rolling-all composition reports all 152 managed paths current and an
@@ -314,27 +307,22 @@ once. A tab with unsaved database, composer, draft, or generation state freezes
 all mutation surfaces and exposes only the unsent composer/draft text in a
 recovery banner.
 
-The patcher passes 39/39 test files. All 4,096 raw selections of the twelve
-user-facing packs normalize to 2,048 graphs and pass apply, zero-change
-re-plan, and exact round-trip recovery across 237 managed paths with up to 607
-resolved units. The applied maximum graph passes 131 client files / 1,547
-tests, 10 server files / 170 tests, Svelte diagnostics at 0 errors and 0
-warnings, and a 7,859-module production build. The emitted artifact, the one
-matching JavaScript chunk, and the server loader hold the same 70-character
-stamp. Two patcher builds produce byte-identical, syntax-valid installers, and
-source, generic, and fixed-all plans agree at 32 packs / 607 units / five
-ordered collisions / 233 planned paths before composition with the already
-qualified Personal appearance branch. Live admission and the first
-cross-build device transition remain separate gates.
+The patcher passes 39/39 test files. The applied maximum graph passes 131
+client files / 1,547 tests, 10 server files / 170 tests, Svelte diagnostics at
+0 errors and 0 warnings, and a 7,859-module production build. The emitted
+artifact, the one matching JavaScript chunk, and the server loader hold the
+same 70-character stamp. Two patcher builds produce byte-identical,
+syntax-valid installers, and source, generic, and fixed-all plans agree at 32
+packs / 607 units / five ordered collisions / 233 planned paths before
+composition with the already qualified Personal appearance branch. Live
+admission and the first cross-build device transition remain separate gates.
 
 The retained experimental.14 candidate merges that appearance branch rather
-than admitting the stale pre-composition installer. The combined exact-1.9
-gate passes all 4,096 raw selections as 2,048 graphs across 253 catalog paths
-with up to 652 units. Its maximum graph passes 132 client files / 1,564 tests,
-10 server files / 170 tests, Svelte 0/0 diagnostics, a 7,864-module production
-build, the build-stamp and BG-bundle checks, a zero-change re-plan, and exact
-source revert. All appearance font tokens and Noto imports remain in the
-generated CSS.
+than admitting the stale pre-composition installer. Its maximum graph passes
+132 client files / 1,564 tests, 10 server files / 170 tests, Svelte 0/0
+diagnostics, a 7,864-module production build, the build-stamp and BG-bundle
+checks, a zero-change re-plan, and exact source revert. All appearance font
+tokens and Noto imports remain in the generated CSS.
 
 The same combined installer is live. It changed only the 23 fence-owned
 source paths plus patch state, repeated the full stopped-tree gates, re-planned
@@ -353,9 +341,7 @@ and verified private filesystem copies. Capture holds the selected storage
 queue only while it flushes and fixes that source; archive transfer then runs
 outside the queue so ordinary writes retain their prior availability.
 
-The patcher passes 40/40 test files. All 4,096 raw selections of the twelve
-user-facing packs normalize to 2,048 graphs and pass exact byte/mode recovery
-across 259 catalog-managed paths with up to 669 units. The maximum graph passes
+The patcher passes 40/40 test files. The maximum graph passes
 132 client files / 1,564 tests, 12 server files / 176 tests, Svelte 0/0
 diagnostics, a 7,864-module production build, the build-stamp and BG-bundle
 checks, and an immediate zero-change re-plan. Missing databases or chunks,
@@ -625,9 +611,7 @@ Mode temporarily pauses the saved font. The preview title is the generic
 `Font preview` / `폰트 미리보기`; the multilingual sample text and explicit
 language tags remain available for visual comparison.
 
-The source patcher passes all 38 test files. The exact-1.9 verifier passes all
-2,048 raw selections as 1,024 normalized graphs across 239 catalog-managed
-paths with a maximum of 587 resolved units and exact round trips. A clean
+The source patcher passes all 38 test files. A clean
 rolling-all staging candidate passes 130 frontend files with 1,549 tests, 9
 server files with 163 tests, Svelte diagnostics at 0/0, the production build,
 and the BG bundle build/load check. The generated installer then reports the
@@ -651,8 +635,7 @@ themes remove the attribute without changing saved values. Static unlayered
 CSS remains before the runtime user custom-CSS element, while Send and
 jailbreak visibility use the same effective resolver at render time.
 
-All 38 patcher test files pass. The exact-1.9 exhaustive verifier passes 2,048
-raw selections as 1,024 normalized graphs. The final 587-unit, 234-path
+All 38 patcher test files pass. The final 587-unit, 234-path
 rolling-all candidate passes 130 frontend files with 1,545 tests, 9 server
 files with 163 tests, Svelte diagnostics at 0/0, a 7,862-module production
 build, and an 8,464,290-byte BG bundle load check. Its repeated apply changes
@@ -685,21 +668,18 @@ Standard theme, and `custom/Galmuri14` font choice remained exact; no
 appearance value was written on the user's behalf.
 
 The `v0.2.0-experimental.3` checkpoint passes 17 patcher test files containing
-118 top-level test declarations. All 256 raw selections of the eight
-user-facing packs resolve to 192 graphs and pass apply, current-state re-plan,
-and exact byte/mode revert across 126 managed paths, with up to 257 resolved
-units. The standalone Character organizer applies cleanly to an unmodified
-PocketRisu v1.8.1 tree; its 12 focused helper tests pass, Svelte diagnostics
-report 0 errors and only the four pre-existing warnings outside its managed
-paths, the production frontend builds, and exact re-plan and source revert
-checks pass. Report delivery tests cover exact persona/character fields,
-inactive module lore, missing and duplicate receivers, loopback URL
-restrictions, concurrent hash refusal, durable flush confirmation, and exact
-read-back using PocketRisu's actual msgpack dependency without touching live
-data. They also require the flush session cookie to be issued without an
-`x-session-id`, so report delivery cannot replace RisuAI's active writer
-session. All four generated artifacts pass syntax checks and consecutive
-generation produces byte-identical files.
+118 top-level test declarations. The standalone Character organizer applies
+cleanly to an unmodified PocketRisu v1.8.1 tree; its 12 focused helper tests
+pass, Svelte diagnostics report 0 errors and only the four pre-existing
+warnings outside its managed paths, the production frontend builds, and exact
+re-plan and source revert checks pass. Report delivery tests cover exact
+persona/character fields, inactive module lore, missing and duplicate
+receivers, loopback URL restrictions, concurrent hash refusal, durable flush
+confirmation, and exact read-back using PocketRisu's actual msgpack dependency
+without touching live data. They also require the flush session cookie to be
+issued without an `x-session-id`, so report delivery cannot replace RisuAI's
+active writer session. All four generated artifacts pass syntax checks and
+consecutive generation produces byte-identical files.
 
 The live `--all` transition wrote only the Character organizer's five source
 files plus patch state and intent metadata, while 121 already-current managed

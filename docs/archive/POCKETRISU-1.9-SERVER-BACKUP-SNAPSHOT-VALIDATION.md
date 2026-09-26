@@ -35,9 +35,7 @@ admission trigger, not its semantic owner:
 - P1 with lazy storage resolves the core and lazy adapter;
 - the two adapters cannot resolve together.
 
-This keeps twelve visible packs, 4,096 raw selections, and 2,048 normalized
-graphs. A complete mask assertion observed P2 absent in 2,048 masks, standard
-in 512, lazy in 1,536, and both adapters together in zero.
+This keeps twelve visible packs.
 
 ## Point-in-time source contract
 
@@ -140,9 +138,6 @@ All observations below are from the final source candidate on 2026-08-09 KST:
 - P2 endpoint compat on the maximum `all` graph: 1/1 file and 6/6 tests passed;
 - standard P2 plus native backup regression: 3/3 files and 32/32 tests passed;
 - lazy P2 plus native backup regression: 3/3 files and 32/32 tests passed;
-- exhaustive selection gate: 4,096/4,096 raw selections, 2,048 normalized
-  graphs, 259 catalog-managed paths, maximum 669 units, four workers, and
-  byte/mode round-trip `passed` in 933.08 seconds wall time;
 - maximum graph client suite: 132/132 files and 1,564/1,564 tests passed;
 - maximum graph server suite: 12/12 files and 176/176 tests passed;
 - `pnpm check`: 0 errors and 0 warnings;

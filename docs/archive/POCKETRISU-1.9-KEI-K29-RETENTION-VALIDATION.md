@@ -166,9 +166,6 @@ graph.
   `server.cjs` SHA-256
   `b10276f7651160902313d8cb7022d27b72f6e051281fa438ef52672c900f5e30`,
   and left the tracked target diff/status clean.
-- Exhaustive combination verifier: exit 0; 2,048/2,048 raw selections, 1,024
-  normalized graphs, 221 managed paths, maximum 535 resolved units, two
-  workers, and exact round trips passed.
 - Independent read-only review found and closed two blockers before final
   qualification: operation state could expire while a claimed payload still
   suppressed duplicate work, and rolling heartbeat hardcoded the
@@ -213,7 +210,7 @@ graph.
 - **One owner — structural plus graph.** The helper receives only existing
   `kvList/kvGet/kvSet/kvDel`, run status, claim, and operation-state functions.
   It imports no DB/schema authority. Exact target graphs select one owner per
-  file and the exhaustive verifier closed every public selection.
+  file.
 - **Paid-result preservation — adversarial tests.** Active/claimed results
   bypass candidates; owner uncertainty and tombstone/delete failure fail
   closed; explicit ACK/cancel states remain stronger than retention cleanup.
@@ -231,8 +228,7 @@ graph.
   `result-evicted` terminate only the exact live/boot watcher with an explicit
   message and no fallback call.
 - **Revert/composition — measured.** Fresh lifecycle restored every managed
-  byte/mode and removed owned files. All 2,048 public selections completed exact
-  round trips.
+  byte/mode and removed owned files.
 
 ### Phase 3 — triage
 

@@ -116,7 +116,6 @@ history.
 | --- | --- | --- |
 | `a1c23d5` | Empty `pocketrisu-kei` meta-pack foundation | Implemented and automatically validated |
 | `2436606` | K19 fullscreen image viewer | Implemented and automatically validated; review and iPhone interaction gate remain |
-| `85cfb43` | Exhaustive verifier optimization | Implemented and validated; infrastructure only, no Kei catalog feature progress |
 | `6ffed92` | K13 robust OpenAI/Google SSE parsing | Implemented and automatically validated; review and consolidated iPhone/provider gate remain |
 | `ee91f24` | K14 streaming chat render stability | Implemented and automatically validated; review and consolidated iPhone scroll/background gate remain |
 | `038df10` | K16 navigation, hotkeys, pointer gestures, and opt-in mobile Back guard | Implemented and automatically validated; review and consolidated iPhone input/history gate remain |
@@ -172,9 +171,8 @@ paths. This is not a publication or release qualification.
 | --- | --- | --- |
 | 1. Empty meta pack and resolver/catalog foundation | Candidate complete | `docs/POCKETRISU-KEI-FOUNDATION-VALIDATION.md`; review remains before publication |
 | 2. Minimal K02 primitives required by K19, then K19 | Exact-1.9 implementation and aggregate automated gates complete | PocketRisu 1.8.1 already supplied the Svelte/icon primitives needed by the original focused port, so no K02 child was added. The 1.9 delta reuses native AssetViewer ownership and adds accessibility only. Evidence is in `docs/POCKETRISU-KEI-K19-VALIDATION.md` and `docs/POCKETRISU-1.9-KEI-K19-VALIDATION.md`. Review and the concrete iPhone gate remain, so this step is not publication-qualified. |
-| Detour: exhaustive verifier performance | Complete as local infrastructure | `docs/COMBINATION-VERIFIER-OPTIMIZATION-VALIDATION.md`; this does not advance an admission step |
 | 3. K13 stream parser, K14 render stability, K16 navigation/hotkeys | Exact-1.9 implementation and aggregate automated gates recorded; K16 L3 correction locally requalified | Each feature has an isolated core/adapters, 1.9 receipt, L2.5 audit, base/composed target tests and builds, dual-target planning, exact revert evidence, and coverage in the passing aggregate gate. K16's first device report prompted source inspection, which found the native outer route guard made its actual top-level Hotkey page unreachable on iPhone; `a043d98` removes only that guard and the 538-unit aggregate gates passed. See `docs/POCKETRISU-1.9-KEI-K13-VALIDATION.md`, `docs/POCKETRISU-1.9-KEI-K14-VALIDATION.md`, and `docs/POCKETRISU-1.9-KEI-K16-VALIDATION.md`. The corrected live rerun and remaining consolidated scenarios are not publication-qualified. |
-| 4. K15 partial edit, K11 Hypa tools, K12 translation tools | All three exact-1.9 implementations and aggregate automated gates recorded | Exact-1.9 evidence is in `docs/POCKETRISU-1.9-KEI-K15-VALIDATION.md`, `docs/POCKETRISU-1.9-KEI-K11-VALIDATION.md`, and `docs/POCKETRISU-1.9-KEI-K12-VALIDATION.md`. Aggregate combination, target, L2.5, and deterministic-installer gates passed; review and L3 remain. |
+| 4. K15 partial edit, K11 Hypa tools, K12 translation tools | All three exact-1.9 implementations and aggregate automated gates recorded | Exact-1.9 evidence is in `docs/POCKETRISU-1.9-KEI-K15-VALIDATION.md`, `docs/POCKETRISU-1.9-KEI-K11-VALIDATION.md`, and `docs/POCKETRISU-1.9-KEI-K12-VALIDATION.md`. Aggregate target, L2.5, and deterministic-installer gates passed; review and L3 remain. |
 | 5. K03/K04 preset behavior and K26 backup tools | Bounded K04-F01 and K26-F02 admitted and qualified | K04 adds only one-way frozen `.role` compatibility under native `.role2`; K26 requires a fresh pre-restore snapshot through exactly one standard/lazy owner adapter. Broad ports and K03 remain excluded/deferred. |
 | 6. K20/K22/K23/K29 existing-authority merges | Bounded K22 P04-P06, K23-F01, and K29-F05 admitted and qualified | Existing persona, regex `types[]`, and BG result/claim/ACK authorities were extended without parallel schemas. K20, K22 P07, broad K23, and direct Revenant remain excluded/deferred; G06 is documented blocked with no runtime unit. |
 | 7. K05–K09, K24/K25, K27, K28 policy packs | K27-F01 delivery only admitted; policy packs remain deferred | BG calls now reach the native request-log/usage owner. Provider/network/storage-policy packs, richer accounting, independent usage policy, and new privacy policy remain separate opt-in work. |
@@ -315,7 +313,7 @@ and publication, but not implementation push or safe live delivery.
 ## Next review and L3 sequence
 
 The overlap-equivalence audit and its user-authorized implementation are
-complete. The fresh exact-1.9 aggregate graph, L2.5, raw-selection,
+complete. The fresh exact-1.9 aggregate graph, L2.5,
 maximum-target, exact-revert, and deterministic-installer gates are recorded
 in `docs/POCKETRISU-1.9-AGGREGATE-VALIDATION.md`. Preserve the separate staged
 K12 worktree and do not add deferred catalog children while closing the

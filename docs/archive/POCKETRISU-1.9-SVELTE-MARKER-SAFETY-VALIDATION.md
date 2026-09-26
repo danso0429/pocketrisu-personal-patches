@@ -55,7 +55,6 @@ remains in the existing transaction schema.
 | Focused applied runtime | 5 files / 34 tests passed across direct lifecycle, generation busy, K11 selection/panel, and preset integrity. |
 | Disposable aggregate apply | 28 packs / 542 units / 223 planned managed paths / five ordered collisions; repeated plan had zero changes. |
 | Exact revert | Disposable target and its baseline compared equal after revert when builder-only artifacts were excluded. |
-| Combination verifier | 2,048/2,048 raw selections, 1,024 normalized graphs, maximum 542 units, 223 managed paths, and round trips passed with one worker. |
 | Live client/server | Client 129 files / 1,537 tests; server 9 files / 163 tests; all passed. |
 | Live diagnostics/build | Svelte diagnostics 0 errors / 0 warnings; 7,857 modules transformed; production build exited 0. |
 | Compiled marker scan | Zero production `.js` files contained `POCKETRISU-PATCH:`. The served main asset matched the local marker-free asset byte-for-byte. |
@@ -115,7 +114,7 @@ re-L3 was performed during admission.
 - every exact-1.9 non-owned `.svelte` unit, its insertion context, wrapper,
   marker needle, apply/status/replan/revert behavior, and compiled output;
 - K11 modal/header control flow and preset active-body control flow;
-- owner-absent and owner-present graphs, all 2,048 raw selections, maximum
+- owner-absent and owner-present graphs, maximum
   composition, generated installers, live source, and served production bytes;
 - provider/custom/local, generation, storage, plugin-array, and user-data
   owners that must not move with a presentation-marker fix.
@@ -132,8 +131,8 @@ re-L3 was performed during admission.
 - **Runtime absence — compiled scan plus served hash.** The production build
   contained zero ownership marker strings in `.js`; the served main asset was
   the identical local byte sequence.
-- **Composition and revert — exhaustive verifier plus disposable target.** All
-  raw selections round-tripped, maximum replan was empty, and exact revert
+- **Composition and revert — disposable target.** Maximum replan was empty,
+  and exact revert
   returned the disposable source to its baseline.
 - **Owner preservation — source and graph.** Only Svelte insertion encoding
   changed. K11, preset, provider, storage, plugin-array, and BG state owners

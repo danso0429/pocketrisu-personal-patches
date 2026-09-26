@@ -126,26 +126,7 @@ diff returned to zero and the official two-term composer directive returned.
 The two untracked BG bundle build products remained outside patch ownership and
 were not used for the exact-source claim.
 
-## Aggregate graph and combination gates
-
-The complete exact-1.9 verifier observed:
-
-```json
-{
-  "rawSelections": 2048,
-  "verifiedSelections": 2048,
-  "normalizedGraphs": 1024,
-  "managedPaths": 222,
-  "maximumResolvedUnits": 538,
-  "roundTrips": "passed",
-  "workers": 2
-}
-```
-
-The final post-toolchain verifier total was 880,039.29 ms. Cache observations were
-composition bypasses 2,050, hits/misses/stores 2,047/2,047/2,047; pair-cache
-entries 2,143 with 550,945 hits; pack-ETag hits/misses 58,819/61; and
-state-encoding hits/misses 2,047/2,047.
+## Aggregate graph gates
 
 A separate fresh official target received `--all`: compatibility `verified`,
 28 packs, 538 units, five declared ordered collisions, 219 planned paths, and
@@ -211,7 +192,7 @@ passed `node --check`:
   other BG guards were not moved or rewritten, so the change is limited to the
   composer presentation branch.
 - **Graph — source and generated installers.** Owner-absent, focused owner,
-  maximum owner, all 2,048 selections, repeated apply, and empty-selection
+  maximum owner, repeated apply, and empty-selection
   revert resolve without a new unit, collision, schema, or state machine.
 - **Failure surfaces — adversarial tests.** Outside-brace placement, marker
   drift, idempotency, exact revert, and inherited first-anchor behavior are now

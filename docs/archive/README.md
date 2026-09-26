@@ -12,6 +12,7 @@ that no longer describes the current patcher:
 - `PATCHER-TARGET-SCOPED-UNITS-VALIDATION.md` — the manager receipt for
   exact-target unit scoping before its first version-scoped consumer.
 
-The records are kept byte-for-byte as they were written. Paths inside them,
+The records are kept as they were written, except that results and references
+of the retired exhaustive combination verifier were removed. Paths inside them,
 such as `docs/POCKETRISU-1.9-REBASE-AUDIT.md`, name each file's original
 location; the file now lives in this directory under the same name.

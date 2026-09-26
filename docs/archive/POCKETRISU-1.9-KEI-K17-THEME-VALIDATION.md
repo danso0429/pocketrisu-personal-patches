@@ -94,9 +94,6 @@ import/CSS/runtime test.
   SHA-256 values above, mode `0600`, and sizes 108,070 and 15,175 bytes. The
   API-v3 file remained at its recorded SHA, mode `0600`, and size 60,888
   bytes. Tracked target diff was zero.
-- Exhaustive combination verifier: exit 0; 2,048/2,048 raw selections, 1,024
-  normalized graphs, 210 managed paths, maximum 487 resolved units, two
-  workers, and `roundTrips: passed`.
 
 The graph and transaction gates do not by themselves prove browser feature
 intent or publication qualification.
@@ -178,8 +175,8 @@ intent or publication qualification.
   replacement hazard.
 - **Pack and revert — measured.** Owner-absent and owner-present plans, target
   apply/status/reapply/revert, source hashes/modes, owned-file removal,
-  complete patcher tests, target diagnostics, production build, and every one
-  of the 2,048 raw catalog selections were observed as recorded above.
+  complete patcher tests, target diagnostics, and production build were
+  observed as recorded above.
 
 ### Phase 3 — triage
 

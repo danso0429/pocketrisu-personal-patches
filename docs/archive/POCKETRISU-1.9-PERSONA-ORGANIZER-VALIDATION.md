@@ -104,32 +104,6 @@ The repeated plan had `changedFiles: []`, and repeated apply returned
 paths, returned patcher status to `clean`, and left no tracked byte, mode, or
 index difference from the official commit.
 
-## Exhaustive 1.8.1 regression gate
-
-The current catalog, including the real 1.9-only server adapter, ran against
-the separately proved-pristine official PocketRisu 1.8.1 source:
-
-```json
-{
-  "target": {
-    "packageName": "pocketrisu",
-    "packageVersion": "1.8.1"
-  },
-  "compatibility": "verified",
-  "rawSelections": 2048,
-  "verifiedSelections": 2048,
-  "normalizedGraphs": 1024,
-  "managedPaths": 191,
-  "maximumResolvedUnits": 425,
-  "roundTrips": "passed",
-  "workers": 2
-}
-```
-
-The new unit shares the already managed `server/node/server.cjs` path, so the
-target-independent managed-path count stayed 191. Exact 1.8 planning selected
-only the 1.8 server unit; exact 1.9 planning selected only the 1.9 unit.
-
 ## L2.5 runtime audit
 
 ### Phase 1 — flat discovery
@@ -157,9 +131,8 @@ only the 1.8 server unit; exact 1.9 planning selected only the 1.9 unit.
 ### Phase 2 — external-anchor resolution
 
 - **Target graph — measured.** Exact 1.8 and 1.9 plans each resolved 24 active
-  units and selected only their declared server adapter. All 2,048 exact-1.8
-  raw selections round-tripped, and exact-1.9 ordinary apply/reapply/revert
-  returned to a clean official source.
+  units and selected only their declared server adapter. Exact-1.9 ordinary
+  apply/reapply/revert returned to a clean official source.
 - **Native 1.9 server behavior — structural and measured.** The final 1.9
   replacement includes every upstream persona icon, embedded asset, embedded
   icon, and `includeModuleAssets` line. The maintainer target tests and build
@@ -204,8 +177,8 @@ only the 1.8 server unit; exact 1.9 planning selected only the 1.9 unit.
 - **Q3, fixed:** applied-diff inspection caught and removed the newline join at
   the following `characterOrder` branch.
 - **Q3, resolved by measured behavior:** focused/full tests, diagnostics,
-  build, patcher tests, dual-target planning, ordinary 1.9 round trip, and the
-  exhaustive 1.8 gate passed.
+  build, patcher tests, dual-target planning, and ordinary 1.9 round trip
+  passed.
 - **Q4, pending user-visible gate:** iPhone interaction, production database
   persistence, and real backup contents require the consolidated L3 session.
   They block aggregate publication and live candidate acceptance, not this

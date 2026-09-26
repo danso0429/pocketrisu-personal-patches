@@ -224,9 +224,7 @@ iPhone L3 remains a later release gate and does not merge child evidence.
    logging/usage is the baseline; no hidden umbrella default changes privacy
    or retention.
 9. **Qualification:** run patcher tests, focused apply/reapply/current/revert,
-   target tests/check/build, existing-owner combinations, L2.5, and the full
-   raw-selection combination gate from
-   `docs/patch-combination-verification-instructions.md`.
+   target tests/check/build, existing-owner combinations, and L2.5.
 
 Only observed results may move 1.9.0 from `reviewing` to `verified`.
 
@@ -254,7 +252,7 @@ Only observed results may move 1.9.0 from `reviewing` to `verified`.
 - `personal-settings`: qualified for exact 1.9.0 with a target-scoped native
   Settings Search manifest entry and exact-one-result tests. Exact 1.8.1
   planning excludes both 1.9-only paths. Its dual-target gates, exact round
-  trips, exhaustive 1.8 combination result, and runtime audit are recorded in
+  trips, and runtime audit are recorded in
   `docs/POCKETRISU-1.9-PERSONAL-SETTINGS-VALIDATION.md`.
 - `bg-preserve-storage-base`: qualified for exact 1.9.0 as a conditional
   asset-only retry/error adapter. Native database/chat/model-job storage paths
@@ -266,20 +264,20 @@ Only observed results may move 1.9.0 from `reviewing` to `verified`.
   sends redirect before native generation/pending registration; client-owned
   sends preserve native model jobs, and only the detached server clone
   disables nested jobs. Full/focused target gates, exact ordinary round trip,
-  the 2,048/2,048 exact-1.8 exhaustive gate, and runtime audit are recorded in
+  and runtime audit are recorded in
   `docs/POCKETRISU-1.9-GENERATION-AUTHORITY.md`.
 - `persona-organizer`: qualified for exact 1.9.0 with mutually exclusive 1.8
   and 1.9 server asset walkers. The 1.9 adapter keeps native embedded-module
   and settings-only export semantics while adding gallery/folder references.
-  Dual-target planning, focused/full gates, exact round trips, the exhaustive
-  1.8 combination result, and runtime audit are recorded in
+  Dual-target planning, focused/full gates, exact round trips, and runtime
+  audit are recorded in
   `docs/POCKETRISU-1.9-PERSONA-ORGANIZER-VALIDATION.md`.
 - `lazy-chat-sync`: qualified for exact 1.9.0 with seven target-scoped full
   replacements. The three-way integrations preserve native model jobs,
   recovery, request logging, locks, settings backup, and storage behavior
   while retaining lazy hydration, CAS, journals, and save intent. Full and
-  focused target gates, ordinary exact round trip, the exhaustive 1.8 gate,
-  and runtime audit are recorded in
+  focused target gates, ordinary exact round trip, and runtime audit are
+  recorded in
   `docs/POCKETRISU-1.9-LAZY-CHAT-SYNC-VALIDATION.md`.
 - `lazy-chat-bg-adapter`: qualified for exact 1.9.0 with both parent owners
   active. It adds no third owner: BG ACK follows strict lazy chat save and root
@@ -329,9 +327,7 @@ Only observed results may move 1.9.0 from `reviewing` to `verified`.
   generation, request-log, or usage owner to the current aggregate.
 - Aggregate exact-1.9 qualification is recorded in
   `docs/POCKETRISU-1.9-AGGREGATE-VALIDATION.md`. The ordinary gate observed
-  2,048/2,048 raw selections, 1,024 normalized graphs, 204 managed paths, a
-  maximum of 475 units, passing round trips, the complete `--all` target
-  checks/build, exact tracked revert, and deterministic installers. The
+  the complete `--all` target checks/build, exact tracked revert, and deterministic installers. The
   subsequent aggregate review found no actionable issue in the inspected
   exact-1.9 boundary. Consolidated feature-by-feature iPhone L3 remains the
   next publication gate.

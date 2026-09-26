@@ -80,8 +80,7 @@ A repeated plan reported no changed files, and a repeated apply returned
 removed all four owned files, and returned patcher status to `clean`. Git
 reported no tracked byte or mode difference from the exact 1.9.0 commit.
 
-This focused round trip does not replace the later exhaustive raw-selection
-combination gate. No runtime source bytes changed in the patch repository;
+No runtime source bytes changed in the patch repository;
 the change declares the observed exact-target compatibility of the existing
 pack, so no new L2.5 runtime leaf was introduced.
 
@@ -89,6 +88,6 @@ pack, so no new L2.5 runtime leaf was introduced.
 
 The 1.9 Settings Search adapter for `personal-settings` is the next localized
 pack. Storage/import owners, the generation-authority redesign, the Kei child
-deltas, K12, aggregate raw-selection verification, review, and consolidated
+deltas, K12, review, and consolidated
 per-feature iPhone L3 remain pending. No live apply, restart, push, tag,
 release, installer rebuild, or cutover was performed.

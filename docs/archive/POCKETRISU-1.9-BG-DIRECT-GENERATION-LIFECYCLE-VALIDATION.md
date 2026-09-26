@@ -110,12 +110,11 @@ ordered composition, idempotent apply, and exact revert.
 | BG bundle | 8,201 KB; normal load check reported `sendChat=function`, and a separate load check observed `sendChatWithDirectLifecycle=function`. |
 | Aggregate apply/replan | Exact 1.9 aggregate apply completed; repeated plan reported zero changed files. |
 | Exact revert | All tracked source returned clean; only generated BG bundle artifacts remained untracked. |
-| Combination verifier | 2,048/2,048 raw selections, 1,024 normalized graphs, 223 managed paths, maximum 542 units, round trips passed with four workers. |
 
 The first aggregate apply attempt failed closed before source writes with
 `AMBIGUOUS_ORDER` because the new lifecycle import and the existing abort
 import shared an anchor. The manifest now orders the lifecycle import after the
-abort import; focused tests and the complete combination verifier observed the
+abort import; focused tests observed the
 resolved graph.
 
 ## Generated installers for the direct-caller correction
@@ -187,9 +186,7 @@ store-only `doingChat` writes; direct callers remain on the `.6` wrapper.
 Focused static/adversarial contracts and the applied runtime test passed, and
 the patcher suite passed 38/38 files. A disposable aggregate target applied
 542 units, replanned with zero changes, and compared equal to its baseline
-after exact revert. The complete verifier passed 2,048/2,048 raw selections,
-1,024 normalized graphs, 223 managed paths, maximum 542 units, and all round
-trips with one worker.
+after exact revert.
 
 Canonical installers were deterministic across two builder runs. The `all`
 installer was 5,094,115 bytes with SHA-256
@@ -243,10 +240,9 @@ receipt cited above.
   request arguments still enter native `sendChat()`. Programmatic `noBgOrch`
   callers and G06 reroll/continue remain on their former blocking owner; the
   result schema and browser epilogues are unchanged.
-- **Graph/revert — generated installer and exhaustive verifier.** Owner-absent
+- **Graph/revert — generated installer.** Owner-absent
   selection adds no unit; owner-present exact 1.9 adds four units with one
-  declared import order. Repeated plan is empty and every raw selection
-  round-trips.
+  declared import order. Repeated plan is empty.
 - **Build boundary — production and bundle load.** Browser compilation and
   server-bundle export load both completed. The earlier restricted-sandbox
   localhost block remains recorded, and the unchanged live-host suite later

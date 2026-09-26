@@ -104,9 +104,6 @@ and zero K23-F01 test units.
 - Full revert changed 90 paths and reported clean status. The owned K23 test
   was absent afterward. `scripts.ts` returned to the pristine SHA above, mode
   `0600`, and size 15,308 bytes; tracked target diff was zero.
-- Exhaustive combination verifier: exit 0; 2,048/2,048 raw selections,
-  1,024 normalized graphs, 211 managed paths, maximum 488 resolved units,
-  two workers, and apply/reapply/revert round-trips passed.
 
 The graph and transaction gates do not by themselves prove browser feature
 intent or publication qualification.
@@ -222,8 +219,7 @@ intent or publication qualification.
 
 K23 changes the existing BG owner's import result only. Its interaction with
 the later K27 logging, K29 retention, and K26 restore work is structurally
-disjoint; the exhaustive combination result and final aggregate audit remain
-the composition authorities. K04/K17 add no regex state.
+disjoint; the final aggregate audit remains the composition authority. K04/K17 add no regex state.
 
 ## Publication boundary
 

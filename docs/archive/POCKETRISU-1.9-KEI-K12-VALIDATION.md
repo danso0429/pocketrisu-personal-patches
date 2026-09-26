@@ -194,7 +194,7 @@ scenario:
 9. Exercise the largest real cache with keyboard, scrolling, rotation,
    clipboard, cancellation, and destructive confirmations.
 
-Review, the aggregate raw-selection gate, deterministic installer rebuild,
+Review, deterministic installer rebuild,
 and the consolidated feature-specific L3 observations remain separate
 publication gates.
 

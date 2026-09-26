@@ -104,9 +104,6 @@ after `lazy-chat-bg-adapter:asset-upload-error-detail` at position 422.
 - Full BG+lazy apply resolved 171 managed files; no-op reapply changed 0 and
   skipped 171; status reported 171/171 current with zero drift; revert changed
   173 paths including state/intent and restored a clean tracked tree.
-- Final combination verifier exited 0 with 2,048/2,048 raw selections, 1,024
-  normalized graphs, 217 managed paths, maximum 531 resolved units, and
-  round-trip `passed` using two workers.
 - The standard graph production build exited 0 after 7,808 transformed modules.
   The final server-only token and transaction-order corrections did not modify
   frontend payloads. Svelte diagnostics remained 0 errors and four existing
@@ -166,8 +163,7 @@ after `lazy-chat-bg-adapter:asset-upload-error-detail` at position 422.
   native snapshot schema are preserved. No new generation, usage, privacy, or
   plugin-array owner is introduced.
 - **Graph and revert — measured.** Exact plan/apply/reapply/status/revert passed
-  for standard, lazy, and full BG+lazy graphs. The final 2,048-selection
-  verifier closed all normalized graphs and round trips.
+  for standard, lazy, and full BG+lazy graphs.
 
 ### Phase 3 — triage
 

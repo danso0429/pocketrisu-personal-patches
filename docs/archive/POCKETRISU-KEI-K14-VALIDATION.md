@@ -150,44 +150,6 @@ difference from pristine PocketRisu 1.8.1. The composed target retained only
 an empty `src/ts/vendor/` parent directory. Empty directory cleanup is outside
 the patch manager's exact-revert claim; it contained no file or symlink.
 
-The final exhaustive combination verifier observed:
-
-```json
-{
-  "rawSelections": 2048,
-  "verifiedSelections": 2048,
-  "normalizedGraphs": 1024,
-  "managedPaths": 165,
-  "maximumResolvedUnits": 342,
-  "roundTrips": "passed",
-  "workers": 2,
-  "compositionCache": {
-    "bypasses": 2050,
-    "hits": 2047,
-    "misses": 2047,
-    "stores": 2047
-  },
-  "pairAnalysisCache": {
-    "entries": 346,
-    "hits": 117926,
-    "misses": 346
-  },
-  "packEtagCache": {
-    "hits": 34271,
-    "misses": 33
-  },
-  "stateEncodingCache": {
-    "hits": 2047,
-    "misses": 2047
-  }
-}
-```
-
-For every raw selection it performed initial plan, apply, a zero-change
-second plan, current-status inspection, empty-selection revert, and exact
-managed byte/mode comparison. This is the optimized exhaustive composition
-gate, not the L2.5 runtime audit below.
-
 ## L2.5 runtime audit
 
 This section follows `docs/runtime-audit-instructions.md` v2. Discovery is
@@ -385,8 +347,8 @@ bg-owned hook is overwritten, or revert restores content but not mode.
 - Absence, exactly-one-adapter resolution, touched paths, prohibited
   operations, ETag participation, and pinned attribution are tested in
   `test/kei-chat-render.test.cjs:19-172`.
-- Fresh base/composed plan, apply, second plan, status, revert, checksum, and
-  exhaustive-selection results are recorded above.
+- Fresh base/composed plan, apply, second plan, status, revert, and checksum
+  results are recorded above.
 
 Break scenario: a new listener, timer, socket, hidden HTML sink, persisted
 content, or credential flow exists outside the pure helper's obvious body.
@@ -510,8 +472,7 @@ separately:
   with no K14 collision;
 - base and combined focused suites each passed 26 tests;
 - clean full graphs passed 950 and 1,235 tests;
-- both production builds and the bg bundle load check passed;
-- all 2,048 public selections completed exact managed round trips.
+- both production builds and the bg bundle load check passed.
 
 The remaining cross-piece observation is S1's physical iPhone
 scroll/background behavior. It is deferred by the user's explicit decision

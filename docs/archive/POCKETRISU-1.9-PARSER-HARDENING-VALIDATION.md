@@ -78,8 +78,7 @@ returned the tracked tree to exact 1.9.0 with a zero byte/mode diff. The
 `parser-hardening,toolchain-hardening` candidate independently produced the
 same zero-change reapply, `current` status, and exact revert result.
 
-This pair check does not replace the later exhaustive raw-selection gate and
-is distinct from L2.5 runtime audit.
+This pair check is distinct from L2.5 runtime audit.
 
 ## Remaining gates
 

@@ -140,7 +140,7 @@ audit found the same markup-context defect in `prompt-body-start:1.9` and
 `prompt-body-end:1.9`. Commit `1d53f58` converts those units to exact managed
 Svelte blocks with HTML comments and advances the pack to `0.2.1`; it does not
 change normalization, the native `-1` sentinel, or preset UI behavior. The
-manager-level guard, focused/full tests, 542-unit exhaustive verifier,
+manager-level guard, focused/full tests,
 disposable exact revert, live tests/diagnostics/build, and zero-marker compiled
 scan passed. Commit `fd60890` contains the canonical installer, and
 `docs/POCKETRISU-1.9-SVELTE-MARKER-SAFETY-VALIDATION.md` records the complete
@@ -153,6 +153,6 @@ control can recover the screen after no active preset is shown through a safe
 test fixture. A real user database must not be corrupted merely to create the
 fixture.
 
-The aggregate graph, raw-selection verifier, deterministic installer rebuild,
+The aggregate graph, deterministic installer rebuild,
 and safe live admission are now recorded. Review and the applicable
 per-feature L3 observations remain separate publication gates.

@@ -302,72 +302,6 @@ ownership: SQLite save databases and WAL/SHM files,
 `server/node/bgOrchBundle.css`, and an empty `src/ts/vendor/` directory.
 They were recorded rather than misreported as managed revert drift.
 
-The final exhaustive combination verifier observed:
-
-```json
-{
-  "target": {
-    "packageName": "pocketrisu",
-    "packageVersion": "1.8.1"
-  },
-  "compatibility": "verified",
-  "visiblePacks": [
-    "bg-preserve",
-    "character-import-ux",
-    "character-organizer",
-    "lazy-chat-sync",
-    "parser-hardening",
-    "persona-organizer",
-    "personal-settings",
-    "pocketrisu-kei",
-    "preset-integrity",
-    "startup-cache",
-    "toolchain-hardening"
-  ],
-  "rawSelections": 2048,
-  "verifiedSelections": 2048,
-  "normalizedGraphs": 1024,
-  "managedPaths": 180,
-  "maximumResolvedUnits": 401,
-  "roundTrips": "passed",
-  "workers": 2,
-  "compositionCache": {
-    "bypasses": 2050,
-    "hits": 2047,
-    "misses": 2047,
-    "stores": 2047
-  },
-  "pairAnalysisCache": {
-    "entries": 929,
-    "hits": 265311,
-    "misses": 929
-  },
-  "packEtagCache": {
-    "hits": 42453,
-    "misses": 43
-  },
-  "stateEncodingCache": {
-    "hits": 2047,
-    "misses": 2047
-  },
-  "timingsMs": {
-    "apply": 129437.96,
-    "initialPlan": 160187.65,
-    "repeatedPlan": 104566.82,
-    "revertApply": 117897.6,
-    "revertPlan": 71049.68,
-    "snapshot": 16252.94,
-    "status": 51620.86,
-    "total": 651087.36
-  }
-}
-```
-
-That verifier exercises initial plan, transactional apply, zero-change
-re-plan and reapply, current status, empty-selection revert, and exact
-managed byte/mode restoration for every raw selection. It is the optimized
-patch-combination gate, not the L2.5 runtime audit below.
-
 ## L2.5 runtime audit
 
 This section follows `docs/runtime-audit-instructions.md` v2. Phase 1 is a
@@ -443,7 +377,7 @@ anchored in Phase 2.
 - P32. Focused/full tests, diagnostics, builds, and the bg bundle exercise
   base and composed target graphs.
 - P33. Fresh apply, zero-change plan/reapply, current status, exact revert,
-  checksum comparison, and all combinations exercise installation lifecycle.
+  and checksum comparison exercise installation lifecycle.
 
 ### Phase 2 — external-anchor resolution
 
@@ -463,8 +397,8 @@ not alter ETags, or revert restores text but not target modes.
   `adapter-manifest.cjs:12-96`.
 - Resolver/static tests exercise absent, base, and bg graphs, adapter
   exclusivity, ETag changes, prohibited authorities, and manifest ownership.
-- Installer hashes, fresh lifecycle, source comparisons, and the final
-  2,048-selection verifier are measured above.
+- Installer hashes, fresh lifecycle, and source comparisons are measured
+  above.
 
 The dynamic-dispatch counterexample was an internal adapter selected only by
 `autoWhen`. Its `all` condition includes the K15 core, and the base adapter's
@@ -788,7 +722,7 @@ The interaction among all admitted pieces was checked separately:
 - K16 modal/interactive pointer guards and K19 fullscreen dialog remain
   outside K15's document selection/hover ownership;
 - base/composed focused and full suites, diagnostics, production builds, bg
-  bundle load, fresh lifecycle, and exhaustive combinations ran after the
+  bundle load, and fresh lifecycle ran after the
   final token and cache-failure fixes.
 
 The remaining cross-piece observations are the physical iPhone behavior in

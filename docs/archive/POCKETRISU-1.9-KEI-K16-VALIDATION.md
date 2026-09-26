@@ -127,9 +127,7 @@ not reused as post-correction graph counts.
   directory completed frozen installation, reusing 485 packages and
   downloading zero; `msgpackr-extract` fell back from its Node 25 prebuilt
   probe to a successful local native build.
-- The exhaustive verifier passed all 2,048 raw selections and 1,024 normalized
-  graphs, with 222 catalog-managed paths, maximum 538 units, and complete
-  round trips in 873,623 ms with two workers. Source CLI `--all`, fixed-profile
+- Source CLI `--all`, fixed-profile
   installer `--all`, and generic installer `--all` agreed on 28 packs, 538
   units, five collisions, and 219 planned paths.
 
@@ -193,7 +191,7 @@ not reused as post-correction graph counts.
   the inner `< 768` notice, and the desktop-only binding table. It adds no
   timer, listener, request, plugin-array write, database schema, or alternate
   setting state.
-- **Route composition — owner-absent/present graphs plus exhaustive verifier.**
+- **Route composition — owner-absent/present graphs.**
   The route unit follows its K16 page-toggle prerequisite. With Personal
   Settings present, the same-file pair is commutative and the optional
   `personal-settings:settings-render` ordering adds no collision; without that
@@ -207,7 +205,7 @@ not reused as post-correction graph counts.
 - **Q3, fixed after the first physical report and source inspection:** official
   1.9's outer width guard made the K16 master switch and native small-screen
   notice unreachable on iPhone. The owner-local 1.9 route unit removes only
-  that outer guard; focused, composed, target, exhaustive,
+  that outer guard; focused, composed, target,
   installer-equivalence, idempotency, and exact-revert gates passed.
 - **Q3, resolved by observed gates:** exact target selection, both composed
   graphs, diagnostics, builds, idempotence, and transactional restoration

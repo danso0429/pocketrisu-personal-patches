@@ -67,9 +67,6 @@ translation deferral when the user disables upstream display optimization.
   and 95 for BG, including private patch state; both then reported `clean`
   and zero tracked diff.
 
-The final exhaustive dual-target catalog gate remains deferred until all Kei
-children and K12 are rebased. No aggregate result is inferred here.
-
 ## L2.5 runtime audit
 
 ### Phase 1 — flat discovery

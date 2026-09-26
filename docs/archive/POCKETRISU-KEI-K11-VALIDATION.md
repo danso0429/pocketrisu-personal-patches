@@ -329,72 +329,6 @@ reverted target and found zero differences from pristine PocketRisu 1.8.1.
 The exclusions were recorded rather than misreported as managed revert
 drift.
 
-The final exhaustive combination verifier observed:
-
-```json
-{
-  "target": {
-    "packageName": "pocketrisu",
-    "packageVersion": "1.8.1"
-  },
-  "compatibility": "verified",
-  "visiblePacks": [
-    "bg-preserve",
-    "character-import-ux",
-    "character-organizer",
-    "lazy-chat-sync",
-    "parser-hardening",
-    "persona-organizer",
-    "personal-settings",
-    "pocketrisu-kei",
-    "preset-integrity",
-    "startup-cache",
-    "toolchain-hardening"
-  ],
-  "rawSelections": 2048,
-  "verifiedSelections": 2048,
-  "normalizedGraphs": 1024,
-  "managedPaths": 189,
-  "maximumResolvedUnits": 425,
-  "roundTrips": "passed",
-  "workers": 2,
-  "compositionCache": {
-    "bypasses": 2050,
-    "hits": 2047,
-    "misses": 2047,
-    "stores": 2047
-  },
-  "pairAnalysisCache": {
-    "entries": 951,
-    "hits": 272457,
-    "misses": 951
-  },
-  "packEtagCache": {
-    "hits": 46545,
-    "misses": 47
-  },
-  "stateEncodingCache": {
-    "hits": 2047,
-    "misses": 2047
-  },
-  "timingsMs": {
-    "apply": 129608.7,
-    "initialPlan": 157786.37,
-    "repeatedPlan": 103463.26,
-    "revertApply": 118237.3,
-    "revertPlan": 70521,
-    "snapshot": 16457.64,
-    "status": 51804.3,
-    "total": 647947.11
-  }
-}
-```
-
-That verifier exercises initial plan, transactional apply, zero-change
-re-plan and reapply, current status, empty-selection revert, and exact
-managed byte/mode restoration for every raw selection. It is the optimized
-patch-combination gate, not the L2.5 runtime audit below.
-
 ## L2.5 runtime audit
 
 This section follows `docs/runtime-audit-instructions.md` v2. Phase 1 is a
@@ -469,7 +403,7 @@ anchored in Phase 2.
 - P32. K19/K13/K14/K16/K15, bg-preserve, lazy-chat, existing Hypa, provider,
   and storage owners form the cross-piece composition.
 - P33. Focused/full tests, diagnostics, builds, apply/reapply/status/revert,
-  deterministic installers, and all combinations exercise the lifecycle.
+  and deterministic installers exercise the lifecycle.
 
 ### Phase 2 — external-anchor resolution
 
@@ -488,8 +422,8 @@ its ETag, or revert restores text but not a file mode.
   entry manifests pass only the base/bg graph difference.
 - Catalog/resolver/static tests exercise absent, base, and bg graphs,
   exclusivity, ownership, prohibited authorities, ETags, and attribution.
-- Installer hashes, both fresh target lifecycles, the 1,022-entry source
-  comparisons, and the 2,048-selection verifier are measured above.
+- Installer hashes, both fresh target lifecycles, and the 1,022-entry source
+  comparisons are measured above.
 
 The dynamic-dispatch counterexample is a hidden adapter selected only by
 `autoWhen`. Both conditions include the K11 core; the base condition also

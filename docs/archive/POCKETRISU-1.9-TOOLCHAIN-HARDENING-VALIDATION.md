@@ -84,7 +84,7 @@ The test command ran without `NODE_OPTIONS`. Its complete captured stderr had
 zero `localstorage-file` warnings. The two existing localhost:3000 mock
 `ECONNREFUSED` reports remained visible and the complete suites exited 0.
 
-## Maximum graph, combinations, and revert
+## Maximum graph and revert
 
 A separate fresh official target received the final `--all` graph:
 compatibility `verified`, 28 packs, 538 units, five declared ordered
@@ -101,26 +101,6 @@ Observed gates were:
 A repeated plan returned zero changed paths and all 217 source paths skipped.
 Empty-selection revert changed the 219 planned paths, and the target's tracked
 source diff returned to zero.
-
-The final exact-target combination verifier observed:
-
-```json
-{
-  "rawSelections": 2048,
-  "verifiedSelections": 2048,
-  "normalizedGraphs": 1024,
-  "managedPaths": 222,
-  "maximumResolvedUnits": 538,
-  "roundTrips": "passed",
-  "workers": 2,
-  "totalMs": 880039.29
-}
-```
-
-Cache observations were composition bypasses 2,050; composition
-hits/misses/stores 2,047/2,047/2,047; pair-cache entries 2,143 with 550,945
-hits; pack-ETag hits/misses 58,819/61; and state-encoding hits/misses
-2,047/2,047.
 
 ## Deterministic installers
 

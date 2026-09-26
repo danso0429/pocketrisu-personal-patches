@@ -91,34 +91,6 @@ applicable adapter in each graph.
 The catalog contained 37 packs, 11 of them user-selectable. The umbrella ETag
 was `ed1063cd05724923139b556d20edc6791b729aee03022ace405f669a4e7113e2`.
 
-## Exhaustive selection and round-trip gate
-
-The complete exact-1.9 catalog produced this observed result:
-
-```json
-{
-  "compatibility": "verified",
-  "rawSelections": 2048,
-  "verifiedSelections": 2048,
-  "normalizedGraphs": 1024,
-  "managedPaths": 222,
-  "maximumResolvedUnits": 538,
-  "roundTrips": "passed",
-  "workers": 2
-}
-```
-
-Every reachable selection completed first plan/apply, current status,
-zero-change repeated plan, empty-selection revert, and managed byte/mode
-snapshot comparison.
-
-The final post-toolchain-correction run reported 880,039.29 ms of aggregate
-per-selection worker time with two workers. This was not a wall-clock elapsed
-measurement. Recorded
-cache diagnostics were composition bypasses 2,050, hits 2,047, misses/stores
-2,047; pair-cache entries 2,143, hits 550,945, misses 2,143; pack-ETag hits
-58,819, misses 61; and state-encoding hits/misses 2,047/2,047.
-
 ## Maximum-target automated gates
 
 A fresh disposable exact-1.9 target received ordinary source-CLI `--all`.
@@ -224,8 +196,7 @@ same umbrella version/ETag.
 ### Phase 2 — external-anchor resolution
 
 - **Target and graph — measured.** Source and generated installers agreed on
-  exact 1.9 verification and the 538-unit maximum graph. The exhaustive gate
-  round-tripped all 2,048 raw selections and 1,024 normalized graphs.
+  exact 1.9 verification and the 538-unit maximum graph.
 - **Same-file ownership — plan plus target gates.** Only the five declared
   ordered collisions appeared. The maximum applied graph passed client/server
   tests, diagnostics, the post-correction frontend build, current status,
@@ -298,20 +269,20 @@ same umbrella version/ETag.
 - **Q3, fixed after the first physical report and source inspection:** K16's
   top-level Hotkey page was unreachable on narrow screens because the native
   route guard prevented the component from mounting. The local owner-scoped
-  correction passed focused, maximum, exhaustive, generated-installer,
+  correction passed focused, maximum, generated-installer,
   idempotency, and exact-revert gates.
 - **Q3, fixed after the later physical report and source inspection:** the
   exact-1.9 BG composer adapter placed `$orchestrating` after the directive
   brace. The owner-local correction passed applied-output, focused, maximum,
-  exhaustive, generated-installer, compiled-asset, idempotency, exact-revert,
+  generated-installer, compiled-asset, idempotency, exact-revert,
   and L2.5 gates.
 - **Q3, deliberately blocked:** K29 G06 has no safe owner-local composition in
   the current request/result schema. Its exact callers and missing operation
   contract are recorded; the other approved features continued.
 - **Q3, resolved by observed gates:** graph exclusivity, ordered composition,
   focused/complete tests, diagnostics, the post-correction frontend build,
-  fresh BG builder load, current/reapply, exact revert, exhaustive
-  combinations, and deterministic installers.
+  fresh BG builder load, current/reapply, exact revert, and deterministic
+  installers.
 - **Q4, consolidated iPhone L3:** the concrete scenarios below remain. K19
   swipe/arrows/boundaries/rotation were reported normal and VoiceOver is
   recorded not exercised by user choice. The later K22 picker search/folder
@@ -327,7 +298,7 @@ same umbrella version/ETag.
   defect. The user later confirmed its retained gray indicator was gone, then
   reported a remaining pre-indicator delay and literal K11 ownership wrappers.
   The keyed preparation owner and marker-safe Svelte corrections passed their
-  focused, compile, bundle, exact-revert, exhaustive combination, live install,
+  focused, compile, bundle, exact-revert, live install,
   and runtime smoke gates. Their BG physical rerun was later reported normal at
   the instructed aggregate batch scope. K27 was
   separately reported normal.
@@ -345,9 +316,7 @@ owner, or state machine was added.
 
 The post-correction patcher suite passed 38/38 files. A disposable target
 applied the maximum graph, replanned with zero changes, and compared equal to
-its baseline after exact revert. The complete combination verifier passed
-2,048/2,048 raw selections, 1,024 normalized graphs, 223 managed paths,
-maximum 542 units, and all round trips. The canonical installer builder was
+its baseline after exact revert. The canonical installer builder was
 deterministic across two runs.
 
 The safe live update passed client 129 files / 1,537 tests, server 9 files /

@@ -134,8 +134,7 @@ The user explicitly chose stable publication with these disclosed residuals:
   desktop pointer/hover subcases remain unexercised;
 - the reported exact-original CharX was unavailable, so archive admission is
   synthetic mechanism qualification rather than exact reproduction;
-- the former raw subset-combination verifier was waived and later retired;
-  stable support is the one complete graph, not subset coverage;
+- stable support is the one complete graph, not subset coverage;
 - no destructive live orphan purge was used as a probe; and
 - the current native HTML export metadata literal-entity round-trip defect is
   a separately recorded current-owner problem, not an HJ08 admission.

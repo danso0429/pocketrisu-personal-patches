@@ -95,34 +95,6 @@ zero-change repeated plan, and repeated apply `{ changed: false, files: [] }`.
 Revert removed/restored all managed content, returned patcher status to
 `clean`, and left no tracked byte or mode difference from official 1.9.0.
 
-## Exhaustive 1.8.1 regression gate
-
-The current catalog, including both real 1.9-only search units, was run
-against the separately proved-pristine official PocketRisu 1.8.1 source:
-
-```json
-{
-  "target": {
-    "packageName": "pocketrisu",
-    "packageVersion": "1.8.1"
-  },
-  "compatibility": "verified",
-  "rawSelections": 2048,
-  "verifiedSelections": 2048,
-  "normalizedGraphs": 1024,
-  "managedPaths": 191,
-  "maximumResolvedUnits": 425,
-  "roundTrips": "passed",
-  "workers": 2
-}
-```
-
-`managedPaths` is the verifier's target-independent catalog snapshot list, so
-it includes the two absent 1.9-only file names and increased from 189 to 191.
-The verifier proved those paths remained absent across every 1.8.1 selection.
-The active 1.8.1 Personal plan and maximum resolved-unit count did not include
-the scoped units.
-
 ## L2.5 runtime audit
 
 ### Phase 1 — flat discovery
@@ -165,7 +137,7 @@ the scoped units.
   `pocketrisu: ['1.9.0']` and require the universal routing/manifest unit
   chain (`settings/search/units.cjs:5-60`). Exact 1.8 planning measured 18
   Personal units with both search paths absent; exact 1.9 planning measured 20
-  units and 14 paths. The 2,048-selection 1.8 gate retained exact round trips.
+  units and 14 paths.
 - **Anchor ambiguity — structural and measured.** The short anchor produced
   `ANCHOR_COUNT` with two matches before writes. Fresh source inspection found
   the interface occurrence and array terminator. The complete final native
@@ -292,14 +264,13 @@ The audit combined target-scoped filtering, route ownership, native search,
 Personal page rendering, database mutation/save, and three import surfaces.
 The interaction review found and fixed both the ambiguous native-manifest
 anchor and the weak duplicate-key assertion. The final verified staging and
-round trip used the combined Personal and native 1.9 graph; the 1.8 exhaustive
-gate used the same catalog with the scoped units present but inactive.
+round trip used the combined Personal and native 1.9 graph.
 
 ## Remaining gates and publication state
 
 The feature's concrete iPhone scenarios remain queued for the consolidated
 L3 session chosen by the user. Later 1.9 packs, the aggregate graph, K12,
-review, and final raw-selection gate remain separate work.
+and review remain separate work.
 
 No push, tag, release, installer rebuild, live PocketRisu apply, data
 migration, PocketRisu restart, or cutover was performed.

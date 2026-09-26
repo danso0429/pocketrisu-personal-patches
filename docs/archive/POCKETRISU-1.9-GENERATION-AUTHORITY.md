@@ -188,9 +188,6 @@ a blocking caller resolving before its reply is the unsafe signal.
 - The promoted ordinary exact-1.9 graph resolved 180 units over 89 files with
   zero collisions. Status reported every file current, reapply changed zero
   files, and revert restored zero tracked diff.
-- The exact-1.8 catalog gate passed 2,048/2,048 raw selections, 1,024
-  normalized graphs, 192 managed paths, a maximum of 425 resolved units, and
-  every exact apply/revert round trip.
 - The patcher suite passed 30/30 tests.
 
 `lazy-chat-bg-adapter` is now separately qualified with both owners active;

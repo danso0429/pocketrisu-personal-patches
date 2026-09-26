@@ -20,7 +20,7 @@ The working baseline was `8671312` / stable `v0.2.2`. The isolated source came
 from the official `v1.10.0` archive, SHA-256
 `3bf1a512b745e036ab2b0c72ba194efd72d1364ca60f89a36c535836167743d2`.
 The all-or-nothing graph lifecycle in `PATCHER-V2-DESIGN.md` is the active
-composition gate. The retired raw-mask command is not claimed as executed.
+composition gate.
 
 ## Resulting behavior
 

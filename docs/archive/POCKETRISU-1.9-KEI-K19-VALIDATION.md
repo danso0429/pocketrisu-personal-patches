@@ -50,9 +50,6 @@ filtering, keyboard, swipe, or gallery-state owner is replaced.
 - Repeated plan changed zero source files, status reported every managed file
   current, and empty-selection revert restored zero tracked diff.
 
-The final dual-target exhaustive catalog gate remains an aggregate gate after
-all Kei children and K12 are rebased; no aggregate result is inferred here.
-
 ## L2.5 runtime audit
 
 ### Phase 1 — flat discovery

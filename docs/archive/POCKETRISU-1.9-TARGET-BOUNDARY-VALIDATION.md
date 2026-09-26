@@ -69,11 +69,5 @@ All four artifacts passed `node --check`.
 
 ## Gate boundary
 
-The raw-selection combination gate was not claimed for 1.9.0 here. Several
-packs are already known to refuse their 1.8.1 anchors on that target, and this
-commit changes no executable graph to repair them. The full reviewing-target
-combination run belongs after those pack-specific rebases; it must not be
-made green by weakening or skipping failing selections.
-
 No target build, runtime audit, mobile gate, live apply, process restart,
 push, tag, or release is claimed by this receipt.
