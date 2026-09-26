@@ -7,9 +7,11 @@ const LABELS = [
     ['rootWalk', 'root'], ['write', '쓰기'], ['request', '왕복'], ['flush', 'flush'],
 ] as const
 
+export interface SaveTraceResult { summary: string; spans: Record<string, number> }
+
 let active = false
 let spans: Record<string, number> = {}
-let summary = ''
+let result: SaveTraceResult | null = null
 
 export function isSaveTraceEnabled(): boolean {
     try { return globalThis.localStorage?.getItem(STORAGE_KEY) === '1' } catch { return false }
@@ -24,7 +26,7 @@ export function setSaveTraceEnabled(enabled: boolean): void {
 
 export function beginSaveTrace(): void {
     spans = {}
-    summary = ''
+    result = null
     active = isSaveTraceEnabled()
 }
 
@@ -42,15 +44,20 @@ export function traceValue(name: string, ms: number): void {
 
 export function endSaveTrace(): void {
     if (active) {
-        const parts = LABELS.filter(([key]) => key in spans).map(([key, label]) => `${label} ${Math.round(spans[key])}`)
-        summary = parts.length ? `측정(ms) ${parts.join(' · ')}` : ''
+        const recorded = LABELS.filter(([key]) => key in spans)
+        if (recorded.length) {
+            result = {
+                summary: `측정(ms) ${recorded.map(([key, label]) => `${label} ${Math.round(spans[key])}`).join(' · ')}`,
+                spans: Object.fromEntries(recorded.map(([key]) => [key, Math.round(spans[key] * 10) / 10])),
+            }
+        }
     }
     active = false
     spans = {}
 }
 
-export function takeSaveTraceSummary(): string {
-    const value = summary
-    summary = ''
+export function takeSaveTrace(): SaveTraceResult | null {
+    const value = result
+    result = null
     return value
 }

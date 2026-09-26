@@ -142,12 +142,14 @@ test('an opted-in strict save reports its stages once and an untraced save repor
     vi.stubGlobal('localStorage', { getItem: (k: string) => values.get(k) ?? null, setItem: (k: string, v: string) => { values.set(k, v) }, removeItem: (k: string) => { values.delete(k) } })
     try {
         await harness().save()
-        expect(saveTrace.takeSaveTraceSummary()).toBe('')
+        expect(saveTrace.takeSaveTrace()).toBeNull()
         saveTrace.setSaveTraceEnabled(true)
         await harness().save()
-        expect(saveTrace.takeSaveTraceSummary()).toMatch(/^측정\(ms\) 전체 \d+ · 대기 \d+ · 복사 \d+ · 쓰기 \d+ · flush \d+$/)
+        const saved = saveTrace.takeSaveTrace()
+        expect(saved?.summary).toMatch(/^측정\(ms\) 전체 \d+ · 대기 \d+ · 복사 \d+ · 쓰기 \d+ · flush \d+$/)
+        expect(Object.keys(saved?.spans ?? {})).toEqual(['total', 'wait', 'clone', 'write', 'flush'])
         await expect(harness({ reject: appearanceSaveFailure(false) }).save()).rejects.toMatchObject({ ambiguous: false })
-        expect(saveTrace.takeSaveTraceSummary()).toMatch(/^측정\(ms\) 전체 \d+ · 대기 \d+ · 복사 \d+$/)
+        expect(saveTrace.takeSaveTrace()?.summary).toMatch(/^측정\(ms\) 전체 \d+ · 대기 \d+ · 복사 \d+$/)
     } finally {
         vi.unstubAllGlobals()
     }

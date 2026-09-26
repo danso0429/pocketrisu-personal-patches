@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, expect, test, vi } from 'vitest'
-import { beginSaveTrace, endSaveTrace, isSaveTraceEnabled, setSaveTraceEnabled, takeSaveTraceSummary, traceSpan, traceStart, traceValue } from './saveTrace'
+import { beginSaveTrace, endSaveTrace, isSaveTraceEnabled, setSaveTraceEnabled, takeSaveTrace, traceSpan, traceStart, traceValue } from './saveTrace'
 
 function memoryStorage() {
     const values = new Map<string, string>()
@@ -11,7 +11,7 @@ function memoryStorage() {
 }
 
 beforeEach(() => { vi.stubGlobal('localStorage', memoryStorage()) })
-afterEach(() => { endSaveTrace(); takeSaveTraceSummary(); vi.unstubAllGlobals() })
+afterEach(() => { endSaveTrace(); takeSaveTrace(); vi.unstubAllGlobals() })
 
 test('the switch is off by default and records nothing', () => {
     expect(isSaveTraceEnabled()).toBe(false)
@@ -20,7 +20,7 @@ test('the switch is off by default and records nothing', () => {
     traceValue('total', 12)
     traceSpan('rootWalk', 0)
     endSaveTrace()
-    expect(takeSaveTraceSummary()).toBe('')
+    expect(takeSaveTrace()).toBeNull()
 })
 
 test('an enabled trace reports recorded spans in a fixed order, once', () => {
@@ -31,11 +31,14 @@ test('an enabled trace reports recorded spans in a fixed order, once', () => {
     traceValue('rootWalk', 4.4)
     traceValue('total', 120.6)
     endSaveTrace()
-    expect(takeSaveTraceSummary()).toBe('측정(ms) 전체 121 · root 34 · flush 20')
-    expect(takeSaveTraceSummary()).toBe('')
+    expect(takeSaveTrace()).toEqual({
+        summary: '측정(ms) 전체 121 · root 34 · flush 20',
+        spans: { total: 120.6, rootWalk: 34.4, flush: 20.4 },
+    })
+    expect(takeSaveTrace()).toBeNull()
     traceValue('total', 5)
     endSaveTrace()
-    expect(takeSaveTraceSummary()).toBe('')
+    expect(takeSaveTrace()).toBeNull()
 })
 
 test('turning the switch off and unavailable storage both disable tracing', () => {

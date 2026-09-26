@@ -113,6 +113,12 @@ saves only:
   response headers), strict flush, and total time from the start of the save
   to acknowledgement. A traced result toast stays until the next notice or
   until the settings page closes.
+- Collection (`0.2.4-experimental.3`): when the result notice is raised, the
+  same spans are sent through the official client log (`addLog` →
+  `/api/logs` → `logs.db`) as an `info` entry with source
+  `personal-save-trace` and a JSON description (scope, outcome, spans in
+  0.1 ms). The user does not transcribe toasts; the maintainer reads the
+  entries read-only. No server code changes.
 - Units: ordered Personal units on `risuSave.ts` (after the lazy-chat-sync
   replacement) for the two walks and on `nodeStorage.ts` (after the existing
   storage owners) for the request; the traced statements are identical in the

@@ -7,7 +7,8 @@
     import { rawAppearance } from 'src/ts/personalSettings/cssToggles'
     import { appearanceNotice, dismissAppearanceNotice } from 'src/ts/personalSettings/appearanceNotices'
     import { appearanceSaveStage } from 'src/ts/personalSettings/appearancePersistence'
-    import { takeSaveTraceSummary } from 'src/ts/personalSettings/saveTrace'
+    import { takeSaveTrace } from 'src/ts/personalSettings/saveTrace'
+    import { addLog } from 'src/ts/log'
 
     onMount(() => {
         let previous = '', previousPhase = ''
@@ -32,10 +33,16 @@
             else if (state.phase === 'unresolved') appearanceNotice(state.scope, 'error', state.message, true)
             else if (wasSaving) {
                 loadingKey = ''
-                // A traced save keeps its result until the next notice or leaving the page, so it can be read.
-                const trace = takeSaveTraceSummary()
+                // A traced save shows its stage times until the next notice or leaving the page,
+                // and the same times go to the server log (logs.db) for collection.
+                const trace = takeSaveTrace()
+                if (trace) addLog({
+                    level: 'info', source: 'personal-save-trace',
+                    message: `personal-save-trace ${state.scope} ${state.outcome} ${trace.summary}`,
+                    description: JSON.stringify({ version: 1, scope: state.scope, outcome: state.outcome, spans: trace.spans }),
+                })
                 const done = state.scope === 'font' ? '폰트 설정 저장 완료' : 'CSS 설정 저장 완료'
-                if (state.outcome === 'saved') appearanceNotice(state.scope, 'success', trace ? `${done} · ${trace}` : done, !!trace)
+                if (state.outcome === 'saved') appearanceNotice(state.scope, 'success', trace ? `${done} · ${trace.summary}` : done, !!trace)
                 else appearanceNotice(state.scope, 'error', state.message)
             }
             else if (!initial && state.phase === 'trial') appearanceNotice(state.scope, 'info', state.message)
