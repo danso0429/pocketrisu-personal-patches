@@ -83,18 +83,19 @@ function bufferHarness(patchSync = true, rejectPatch = false) {
         encode: vi.fn(() => new TextEncoder().encode(JSON.stringify({ ...blocks, characters: [] })).buffer),
     }
     const storage = { patchItem: vi.fn(async () => rejectPatch ? { success: false, conflict: true } : { success: true, etag: 'next' }), setItem: vi.fn(async () => {}), setDbEtag: vi.fn(), getDbEtag: () => 'current' }
+    const patcher = { set: vi.fn(async () => ({ patch: [], expectedHash: 'fixture', rollback: () => {} })), baselineSnapshot: () => structuredClone(db), init: async () => {} }
     const context = {
         gotChannel: false, channel: null, sessionID: 'fixture', getDatabase: () => db,
         assignMissingChatIdsToNewCharacters: () => [], collectChatsToPersist: () => [], v4: () => 'fixture',
         lastConfirmedServerDb: structuredClone(db), encoder, safeStructuredClone: structuredClone,
         sleep: async () => {}, supportsPatchSync: patchSync, appearanceSaveFailure,
-        patcher: { set: async () => ({ patch: [], expectedHash: 'fixture', rollback: () => {} }), baselineSnapshot: () => structuredClone(db), init: async () => {} },
+        patcher,
         findDangerousChatOps: () => [], forageStorage: storage, updateKnownChatsAfterSuccessfulSave: () => {},
         normalizeJSON: structuredClone, decodeRisuSave: async (bytes: Uint8Array) => JSON.parse(new TextDecoder().decode(bytes)),
     }
     const run = new Function(...Object.keys(context), `${code}; return persistTrackedChanges`)(...Object.values(context))
     const changes = { root: true, character: [], chat: [], botPreset: false, modules: true, plugins: false, pluginCustomStorage: false }
-    return { db, encoder, storage, run: (options: Record<string, boolean>, modules = true) => run({ ...changes, modules }, options) }
+    return { db, encoder, storage, patcher, run: (options: Record<string, boolean>, modules = true) => run({ ...changes, modules }, options) }
 }
 test('strict patches skip full buffer assembly but keep encoder blocks ready for a later full write', async () => {
     const h = bufferHarness()
@@ -124,6 +125,20 @@ test('root-only strict patches defer root encoding until the next ordinary/full 
     expect(h.encoder.set).toHaveBeenCalledTimes(1)
     const bytes = (h.storage.setItem.mock.calls as unknown[][])[0][1] as Uint8Array
     expect(JSON.parse(new TextDecoder().decode(bytes)).value).toBe('new root')
+})
+test('strict root-only saves still submit an operation-keyed browser effect to patch sync', async () => {
+    const h = bufferHarness()
+    const effect = { id: 'browser-effect-1', delta: 1, createdAt: Date.now() }
+    ;(h.db as any).statics = { messages: 12, browserMessageEffects: [effect] }
+    expect(await h.run({ personalStrict: true }, false)).toBe('saved')
+    expect(h.patcher.set).toHaveBeenCalledWith(
+        expect.objectContaining({
+            statics: { messages: 12, browserMessageEffects: [effect] },
+        }),
+        expect.objectContaining({ root: true }),
+    )
+    expect(h.storage.patchItem).toHaveBeenCalledTimes(1)
+    expect(h.encoder.encode).not.toHaveBeenCalled()
 })
 test('ordinary patch saves retain encoding and rejected strict patches cannot use a missing buffer', async () => {
     const ordinary = bufferHarness()
