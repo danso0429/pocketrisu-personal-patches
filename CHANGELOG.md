@@ -1,5 +1,22 @@
 # Changelog
 
+## 0.2.4-experimental.2
+
+Measurement build for the root-only save plan
+(`docs/POCKETRISU-ROOT-ONLY-SAVE-DIFF-PLAN.md`, stage S0b). Personal
+settings `0.5.8`.
+
+- Personal appearance settings gain a "save timing" switch, stored on the
+  device and off by default. While it is on, the completion toast of a CSS or
+  font save lists the time spent waiting, cloning the baseline, walking the
+  characters and the root keys, writing, in the patch request, and in the
+  flush, and stays until the next notice or until the page closes.
+- The trace does not change what is saved. It is removed after the device
+  measurement.
+- Host measurement on the live database (S0a): character walk about 8 ms,
+  root per-key walk about 33 ms, baseline clone about 24–30 ms, against a
+  `patcher.set` total of about 43 ms.
+
 ## 0.2.4-experimental.1
 
 Structural cleanup with no change to the PocketRisu 1.10.0 source the
