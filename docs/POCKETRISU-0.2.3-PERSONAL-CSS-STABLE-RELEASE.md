@@ -87,9 +87,21 @@ The following are observed results on release content (`package.json`
 ## Live delivery
 
 Live already runs the experimental.8 content, and a release plan against live
-reports no source change. See the publication readback below for the live
-status after release.
+reports no source change. No apply, rebuild, or restart was needed.
+
+After publication, live readback showed:
+
+- status `current` with 42 packs;
+- a next plan with 0 changes; and
+- PM2 online with 0 unstable restarts, and root HTTP 200.
 
 ## Publication readback
 
-Recorded after the release commit's CI run and GitHub Release publication.
+- Release commit `f8f795c` passed GitHub Actions `patch-integrity` run
+  `36216743626` on `main`.
+- Annotated tag `v0.2.3` peels to `f8f795c`.
+- The GitHub Release `v0.2.3` is non-draft, non-prerelease, and Latest.
+- Both attached installers were downloaded again into a new directory. Each is
+  8,153,436 bytes with SHA-256
+  `2bd666826023d34bfbd7a9cc13da22d5b56665b00cebe9286a76110b78ec67a3`, and
+  each is byte-identical to the local build.
