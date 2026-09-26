@@ -78,6 +78,29 @@ on the same read-only snapshot, the median of 7 runs of:
 - `safeStructuredClone(patcher.lastSyncedDb)`; and
 - `safeStructuredClone(toSave)`.
 
+**S0a result (2026-09-26).** Composed complete graph (42 packs, 991 units,
+370 paths; `risuSave.ts` and `globalApi.svelte.ts` byte-identical to the live
+source), the live database read read-only: 26 characters, 409 root keys,
+17,160,156 encoded bytes. Chats go through the real `chatToStub` from
+placeholder chats, as in the client. Median of 7 runs, three runs:
+
+| Step | Run 1 | Run 2 | Run 3 |
+| --- | --- | --- | --- |
+| Baseline clone (`structuredClone(lastSyncedDb)`) | 28.8 ms | 24.3 ms | 29.7 ms |
+| Character walk (replicated) | 8.0 ms | 7.9 ms | 7.8 ms |
+| Root per-key walk (replicated) | 34.2 ms | 32.9 ms | 33.7 ms |
+| `patcher.set` total | 44.4 ms | 42.5 ms | 43.2 ms |
+| `patcher.set` minus both walks | 2.2 ms | 1.7 ms | 1.7 ms |
+| `toSave` clone | 0 ms | 0 ms | 0 ms |
+
+The serialized root is 6,178,154 JSON characters, of which `plugins` is
+4,854,053; the characters with chat stubs are 1,934,429. On the host, the
+character walk that S1 would skip is about 8 ms of about 72 ms of client work
+(baseline clone plus `patcher.set`). The root per-key walk, dominated by
+`plugins`, and the baseline clone are larger. The replicated loops copy the
+statements in `set()`; the per-loop split is not an instrumented measurement
+of `set()` itself. Files: `docs/validation/root-only-save-2026-09-26/`.
+
 **S0b — Device trace.** Ship an opt-in timing trace for strict appearance
 saves only:
 
