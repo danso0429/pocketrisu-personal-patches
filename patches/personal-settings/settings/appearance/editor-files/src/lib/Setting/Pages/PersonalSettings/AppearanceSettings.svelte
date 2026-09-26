@@ -14,9 +14,6 @@
         isPersonalAppearanceFeatureEffective,
         readPersonalAppearance,
     } from 'src/ts/personalSettings/appearance'
-    import { isSaveTraceEnabled, setSaveTraceEnabled } from 'src/ts/personalSettings/saveTrace'
-
-    let saveTraceOn = $state(isSaveTraceEnabled())
 
     type FontLoadStatus = 'app' | 'inactive' | 'loading' | 'ready' | 'failed' | 'unavailable'
 
@@ -135,9 +132,4 @@
             ? language.personalAppearanceJailbreakStatusOn
             : language.personalAppearanceJailbreakStatusOff}
     </p>
-
-    <label class="mt-3 flex items-center gap-2 min-h-11 text-xs text-textcolor2">
-        <input type="checkbox" checked={saveTraceOn} onchange={(e) => { saveTraceOn = e.currentTarget.checked; setSaveTraceEnabled(saveTraceOn) }} />
-        저장 시간 측정 (이 기기에서만 · 저장 완료 알림에 구간별 시간 표시)
-    </label>
 {/if}

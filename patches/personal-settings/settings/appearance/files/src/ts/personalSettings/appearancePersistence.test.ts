@@ -2,7 +2,6 @@ import { expect, test, vi } from 'vitest'
 import fs from 'node:fs'
 import ts from 'typescript'
 import { appearanceSaveFailure, type AppearanceWriter } from './appearancePersistence'
-import * as saveTrace from './saveTrace'
 
 const source = ts.createSourceFile('globalApi.ts', fs.readFileSync('src/ts/globalApi.svelte.ts', 'utf8'), ts.ScriptTarget.Latest, true)
 const saveDb = source.statements.find(n => ts.isFunctionDeclaration(n) && n.name?.text === 'saveDb') as ts.FunctionDeclaration
@@ -27,8 +26,6 @@ function harness(options: { outcome?: 'saved' | 'noop' | 'retry'; reject?: Error
         },
         forageStorage: { realStorage: { flushPersonalAppearance: async () => { events.push('flush'); if (options.flushReject) throw new Error('transport') } } },
         requeueTrackedChanges: () => events.push('requeue'), changed: false, appearanceSaveFailure,
-        beginSaveTrace: saveTrace.beginSaveTrace, endSaveTrace: saveTrace.endSaveTrace,
-        traceSpan: saveTrace.traceSpan, traceStart: saveTrace.traceStart, traceValue: saveTrace.traceValue,
     }
     new Function(...Object.keys(context), js)(...Object.values(context))
     return { state, events, save: () => writer(() => {
@@ -136,21 +133,4 @@ test('ordinary patch saves retain encoding and rejected strict patches cannot us
     await expect(rejected.run({ personalStrict: true })).rejects.toMatchObject({ ambiguous: false })
     expect(rejected.encoder.encode).not.toHaveBeenCalled()
     expect(rejected.storage.setItem).not.toHaveBeenCalled()
-})
-test('an opted-in strict save reports its stages once and an untraced save reports nothing', async () => {
-    const values = new Map<string, string>()
-    vi.stubGlobal('localStorage', { getItem: (k: string) => values.get(k) ?? null, setItem: (k: string, v: string) => { values.set(k, v) }, removeItem: (k: string) => { values.delete(k) } })
-    try {
-        await harness().save()
-        expect(saveTrace.takeSaveTrace()).toBeNull()
-        saveTrace.setSaveTraceEnabled(true)
-        await harness().save()
-        const saved = saveTrace.takeSaveTrace()
-        expect(saved?.summary).toMatch(/^측정\(ms\) 전체 \d+ · 대기 \d+ · 복사 \d+ · 쓰기 \d+ · flush \d+$/)
-        expect(Object.keys(saved?.spans ?? {})).toEqual(['total', 'wait', 'clone', 'write', 'flush'])
-        await expect(harness({ reject: appearanceSaveFailure(false) }).save()).rejects.toMatchObject({ ambiguous: false })
-        expect(saveTrace.takeSaveTrace()?.summary).toMatch(/^측정\(ms\) 전체 \d+ · 대기 \d+ · 복사 \d+$/)
-    } finally {
-        vi.unstubAllGlobals()
-    }
 })
