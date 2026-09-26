@@ -1,5 +1,32 @@
 # Changelog
 
+## 0.2.4-experimental.1
+
+Structural cleanup with no change to the PocketRisu 1.10.0 source the
+installer writes: the composed output of the complete set (991 units, 370
+files) is byte-identical to `v0.2.3`.
+
+- Compose splices patch text literally. `$$`, `$&`, `` $` `` and `$'` in an
+  anchor or patch text were expanded by `String.prototype.replace` and then
+  reported as marker drift; no shipped unit contained them.
+- The Personal CSS UI rollback plan lists the paths it would change instead of
+  printing every entry as `null`.
+- The catalog carries only the delivered 1.10.0 graph. Thirteen adapters for
+  graphs without bg-preserve, lazy chat storage, CharX integrity, or Kei
+  restore safety, 196 units scoped to PocketRisu 1.8.1 or 1.9.0, and their
+  payloads are removed; every pack targets 1.10.0. Earlier PocketRisu releases
+  use their own tagged installers.
+- Seven cross-pack orderings on 1.10.0 that the composer inferred from
+  collisions are now declared.
+- `pocketrisu-all.cjs` and `--all` are retired; `pocketrisu-patcher.cjs` is the
+  only installer.
+- The retired `background-import` pack is removed from the tree; `v0.2.3`
+  keeps the last copy.
+- Historical 1.9, Kei-era, and combination-verifier records move to
+  `docs/archive/`.
+- `version.json`, CI push triggers, and repository wording are aligned with
+  the public repository and the `v0.2.3` release.
+
 ## 0.2.3
 
 - Promote the Personal CSS editor and imported chat fonts
