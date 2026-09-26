@@ -21,6 +21,8 @@ The [theme-independence follow-up](docs/POCKETRISU-CSS-THEME-INDEPENDENCE-VALIDA
 records Personal CSS under every theme, its order after theme CSS, and the body-only chat font.
 The [save and feedback review](docs/POCKETRISU-APPEARANCE-SAVE-FEEDBACK-REVIEW.md)
 records how the paused save-speed and toast candidate was reviewed and completed.
+The deferred [root-only save diff plan](docs/POCKETRISU-ROOT-ONLY-SAVE-DIFF-PLAN.md)
+keeps the measured next save-speed candidate.
 
 ## Complete installer
 

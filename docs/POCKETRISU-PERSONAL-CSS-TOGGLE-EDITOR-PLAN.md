@@ -782,6 +782,8 @@ measured rendering problem.
 
 `RisuSaveEncoder.set()` reconstructs and encodes the root block during saves.
 `RisuSavePatcher.set()` separately stringifies and compares changed root keys.
+(Later measurement: it also stringifies every character on each save; see
+[`POCKETRISU-ROOT-ONLY-SAVE-DIFF-PLAN.md`](POCKETRISU-ROOT-ONLY-SAVE-DIFF-PLAN.md).)
 Patch-sync transport can send only the changed CSS string, but encoding,
 cloning, normalization, patch generation, backup, restore, and full-write
 fallback still observe the complete stored CSS payload.

@@ -69,7 +69,8 @@ median of 7 runs on the host CPU (`strict-save-bench.test.ts`,
 Not changed: `patcher.set` is the largest remaining client cost because it
 still stringifies every character. Narrowing it for root-only saves would
 change the upstream patch-protocol module, so it is recorded here as a measured
-opportunity rather than admitted into this candidate.
+opportunity rather than admitted into this candidate. The follow-up plan is
+[`POCKETRISU-ROOT-ONLY-SAVE-DIFF-PLAN.md`](POCKETRISU-ROOT-ONLY-SAVE-DIFF-PLAN.md).
 
 ### 2. Dependency preload (dropped)
 
