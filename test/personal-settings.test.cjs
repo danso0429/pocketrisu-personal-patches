@@ -381,3 +381,18 @@ test('personal settings never writes the database plugin array', () => {
     assert.doesNotMatch(patchText.replaceAll('|| toSave.plugins ||', '|| false ||'), /\bplugins\b/)
     assert.doesNotMatch(patchText, /setDatabase(?:Lite)?\s*\(/)
 })
+
+test('Personal CSS UI rollback plan lists the paths it would change', () => {
+    const { rollbackSummary } = require('../scripts/rollback-personal-css-ui.cjs')
+    const summary = rollbackSummary('plan', {
+        changes: [
+            { path: 'src/lib/Setting/Pages/PersonalSettings.svelte' },
+            { path: 'save/pocketrisu-patches/state.json' },
+        ],
+    })
+    assert.deepEqual(summary.changedFiles, [
+        'src/lib/Setting/Pages/PersonalSettings.svelte',
+        'save/pocketrisu-patches/state.json',
+    ])
+    assert.equal(Object.hasOwn(summary, 'status'), false)
+})
