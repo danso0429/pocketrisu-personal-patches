@@ -222,6 +222,25 @@ test('apply and revert round-trip byte exactly', () => {
     }
 })
 
+test('dollar sequences in anchors and patch text stay literal', () => {
+    const text = 'a $$props $& $` $\' b\n'
+    const base = `before\nANCHOR ${text}after\n`
+    for (const unit of [
+        insert('insert-before', 'x.ts', `ANCHOR ${text}`, text, 'before'),
+        insert('insert-after', 'x.ts', `ANCHOR ${text}`, text, 'after'),
+        replace('replace', 'x.ts', `ANCHOR ${text}`, text),
+        replace('managed', 'x.ts', `ANCHOR ${text}`, null, {
+            managed: `/* managed */ ${text}`,
+            markerNeedle: '/* managed */',
+        }),
+    ]) {
+        const applied = applyUnit(base, unit)
+        assert.equal(applied.split(text).length - 1, unit.type === 'replace' ? 1 : 2, unit.id)
+        assert.equal(applyUnit(applied, unit), applied, unit.id)
+        assert.equal(revertUnit(applied, unit), base, unit.id)
+    }
+})
+
 test('owned files refuse to overwrite unrelated content', () => {
     const unit = { id: 'owned', file: 'new.ts', type: 'owned', content: 'owned\n' }
     assert.equal(applyUnit(null, unit), 'owned\n')

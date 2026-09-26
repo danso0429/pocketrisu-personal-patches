@@ -27,6 +27,14 @@ function countOccurrences(text, needle) {
     }
 }
 
+// String.prototype.replace expands $$, $&, $` and $' in a string replacement.
+// Patch text is literal source code, so splice the first match instead.
+function replaceFirst(text, needle, replacement) {
+    const index = text.indexOf(needle)
+    if (index === -1) return text
+    return `${text.slice(0, index)}${replacement}${text.slice(index + needle.length)}`
+}
+
 function assertUnit(unit) {
     if (!unit || typeof unit !== 'object') {
         throw new PatchCompositionError('INVALID_UNIT', 'Patch unit must be an object')
@@ -142,7 +150,7 @@ function applyUnit(input, unit) {
                 { unit: unit.id, file: unit.file, count },
             )
         }
-        return input.replace(unit.anchor, block)
+        return replaceFirst(input, unit.anchor, block)
     }
 
     const inserted = insertionText(unit)
@@ -157,8 +165,8 @@ function applyUnit(input, unit) {
         )
     }
     return unit.where === 'before'
-        ? input.replace(unit.anchor, `${inserted}${unit.anchor}`)
-        : input.replace(unit.anchor, `${unit.anchor}${inserted}`)
+        ? replaceFirst(input, unit.anchor, `${inserted}${unit.anchor}`)
+        : replaceFirst(input, unit.anchor, `${unit.anchor}${inserted}`)
 }
 
 function revertUnit(input, unit) {
@@ -191,8 +199,8 @@ function revertUnit(input, unit) {
         )
     }
     return unit.type === 'replace'
-        ? input.replace(managed, unit.anchor)
-        : input.replace(managed, '')
+        ? replaceFirst(input, managed, unit.anchor)
+        : replaceFirst(input, managed, '')
 }
 
 function trySequence(base, sequence) {
