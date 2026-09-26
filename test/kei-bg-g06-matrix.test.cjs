@@ -6,7 +6,7 @@ const test = require('node:test')
 const manifest = require('../patches/bg-preserve/manifest.cjs')
 const { unitMatchesTarget } = require('../src/manager.cjs')
 
-const target190 = { packageName: 'pocketrisu', packageVersion: '1.9.0' }
+const target1100 = { packageName: 'pocketrisu', packageVersion: '1.10.0' }
 
 function unit(id) {
     const value = manifest.units.find((candidate) => candidate.id === id)
@@ -17,7 +17,7 @@ function unit(id) {
 function activeOwned(file) {
     const value = manifest.units.find((candidate) =>
         candidate.type === 'owned' && candidate.file === file
-        && unitMatchesTarget(candidate, target190)
+        && unitMatchesTarget(candidate, target1100)
     )
     assert.ok(value, `missing exact-1.9 owned unit ${file}`)
     return value.content

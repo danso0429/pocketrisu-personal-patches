@@ -5,7 +5,7 @@ const path = require('node:path')
 
 const filesRoot = path.join(__dirname, 'files')
 const owned = (relative) => fs.readFileSync(path.join(filesRoot, relative), 'utf8')
-const pocketRisu190 = { pocketrisu: ['1.9.0', '1.10.0'] }
+const pocketRisu1100 = { pocketrisu: ['1.10.0'] }
 
 module.exports = {
     id: 'kei-text-theme-normalization-core',
@@ -13,7 +13,7 @@ module.exports = {
     version: '0.1.1',
     targets: {
         pocketrisu: {
-            verified: ['1.8.1', '1.9.0', '1.10.0'],
+            verified: ['1.10.0'],
             reviewing: [],
         },
     },
@@ -24,7 +24,7 @@ module.exports = {
             file: 'src/ts/gui/textTheme.ts',
             type: 'owned',
             content: owned('src/ts/gui/textTheme.ts'),
-            targetVersions: pocketRisu190,
+            targetVersions: pocketRisu1100,
         },
         {
             id: 'kei-text-theme-normalization-core:normalizer-tests:1.9',
@@ -32,7 +32,7 @@ module.exports = {
             type: 'owned',
             content: owned('src/ts/gui/textTheme.test.ts'),
             requires: ['kei-text-theme-normalization-core:normalizer:1.9'],
-            targetVersions: pocketRisu190,
+            targetVersions: pocketRisu1100,
         },
         {
             id: 'kei-text-theme-normalization-core:database-import:1.9',
@@ -43,7 +43,7 @@ module.exports = {
 import { normalizeTextTheme } from '../gui/textTheme';
 `,
             requires: ['kei-text-theme-normalization-core:normalizer:1.9'],
-            targetVersions: pocketRisu190,
+            targetVersions: pocketRisu1100,
         },
         {
             id: 'kei-text-theme-normalization-core:database-load:1.9',
@@ -58,7 +58,7 @@ import { normalizeTextTheme } from '../gui/textTheme';
 `,
             markerNeedle: 'POCKETRISU-PATCH:kei-text-theme-normalization:database-load',
             requires: ['kei-text-theme-normalization-core:database-import:1.9'],
-            targetVersions: pocketRisu190,
+            targetVersions: pocketRisu1100,
         },
         {
             id: 'kei-text-theme-normalization-core:preset-activation:1.9',
@@ -71,7 +71,7 @@ import { normalizeTextTheme } from '../gui/textTheme';
             markerNeedle: 'POCKETRISU-PATCH:kei-text-theme-normalization:preset-activation',
             requires: ['kei-text-theme-normalization-core:database-import:1.9'],
             after: ['kei-text-theme-normalization-core:database-load:1.9'],
-            targetVersions: pocketRisu190,
+            targetVersions: pocketRisu1100,
         },
         {
             id: 'kei-text-theme-normalization-core:database-tests:1.9',
@@ -82,7 +82,7 @@ import { normalizeTextTheme } from '../gui/textTheme';
                 'kei-text-theme-normalization-core:database-load:1.9',
                 'kei-text-theme-normalization-core:preset-activation:1.9',
             ],
-            targetVersions: pocketRisu190,
+            targetVersions: pocketRisu1100,
         },
         {
             id: 'kei-text-theme-normalization-core:runtime-import:1.9',
@@ -93,7 +93,7 @@ import { normalizeTextTheme } from '../gui/textTheme';
 import { normalizeTextTheme } from "./textTheme";
 `,
             requires: ['kei-text-theme-normalization-core:normalizer:1.9'],
-            targetVersions: pocketRisu190,
+            targetVersions: pocketRisu1100,
         },
         {
             id: 'kei-text-theme-normalization-core:runtime-css:1.9',
@@ -105,7 +105,7 @@ import { normalizeTextTheme } from "./textTheme";
 `,
             markerNeedle: 'POCKETRISU-PATCH:kei-text-theme-normalization:runtime-css',
             requires: ['kei-text-theme-normalization-core:runtime-import:1.9'],
-            targetVersions: pocketRisu190,
+            targetVersions: pocketRisu1100,
         },
         {
             id: 'kei-text-theme-normalization-core:runtime-tests:1.9',
@@ -113,7 +113,7 @@ import { normalizeTextTheme } from "./textTheme";
             type: 'owned',
             content: owned('src/ts/gui/textThemeRuntime.test.ts'),
             requires: ['kei-text-theme-normalization-core:runtime-css:1.9'],
-            targetVersions: pocketRisu190,
+            targetVersions: pocketRisu1100,
         },
     ],
 }

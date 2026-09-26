@@ -10,7 +10,7 @@ const bgGlobalApiUnits = [
     'bg-preserve:hook:globalapi-durable-save-outcome',
     'bg-preserve:hook:globalapi-durable-save-rethrow',
     'bg-preserve:hook:globalapi-durable-save-impl',
-    'bg-preserve:hook:globalapi-fetch-impl-register',
+    'bg-preserve:hook:globalapi-fetch-impl-register:1.9',
     'bg-preserve:hook:globalapi-fetchnative-bgsubkey-arg',
     'bg-preserve:hook:globalapi-gemini-main-branch',
 ]
@@ -21,7 +21,7 @@ module.exports = {
     version: '0.2.1',
     targets: {
         pocketrisu: {
-            verified: ['1.8.1', '1.9.0', '1.10.0'],
+            verified: ['1.10.0'],
             reviewing: [],
         },
     },
@@ -41,8 +41,7 @@ module.exports = {
             markerNeedle: 'asset-upload-retry-import',
             anchorPolicy: 'first',
             after: [
-                'lazy-chat-sync:replace:src:ts:storage:nodeStorage-ts',
-                'lazy-chat-sync:replace:src:ts:storage:nodeStorage-ts:1.9',
+                'lazy-chat-sync:replace:src:ts:storage:nodeStorage-ts:1.10',
             ],
         },
         {
@@ -124,8 +123,7 @@ module.exports = {
             ],
             after: [
                 ...bgGlobalApiUnits,
-                'lazy-chat-sync:replace:src:ts:globalApi-svelte-ts',
-                'lazy-chat-sync:replace:src:ts:globalApi-svelte-ts:1.9',
+                'lazy-chat-sync:replace:src:ts:globalApi-svelte-ts:1.10',
             ],
         },
         {
@@ -143,8 +141,7 @@ module.exports = {
             ],
             after: [
                 ...bgGlobalApiUnits,
-                'lazy-chat-sync:replace:src:ts:globalApi-svelte-ts',
-                'lazy-chat-sync:replace:src:ts:globalApi-svelte-ts:1.9',
+                'lazy-chat-sync:replace:src:ts:globalApi-svelte-ts:1.10',
                 'lazy-chat-bg-adapter:global-import',
             ],
         },

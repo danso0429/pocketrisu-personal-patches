@@ -14,11 +14,11 @@ const { packEtag, unitMatchesTarget } = require('../src/manager.cjs')
 const { resolveSelection } = require('../src/resolver.cjs')
 
 const target181 = { packageName: 'pocketrisu', packageVersion: '1.8.1' }
-const target190 = { packageName: 'pocketrisu', packageVersion: '1.9.0' }
+const target1100 = { packageName: 'pocketrisu', packageVersion: '1.10.0' }
 const unitText = (unit) => unit.managed ?? unit.content ?? ''
 const lazyServer190 = fs.readFileSync(path.join(
     __dirname,
-    '../patches/lazy-chat-sync/files-1.9/server/node/server.cjs',
+    '../patches/lazy-chat-sync/files-1.10/server/node/server.cjs',
 ), 'utf8')
 
 test('K26 restore safety is a hidden core with a lazy-storage adapter', () => {
@@ -47,7 +47,7 @@ test('K26 owns no 1.8 payload and limits 1.9 edits to the native restore surface
             manifest.units.filter((unit) => unitMatchesTarget(unit, target181)),
             [],
         )
-        assert.ok(manifest.units.some((unit) => unitMatchesTarget(unit, target190)))
+        assert.ok(manifest.units.some((unit) => unitMatchesTarget(unit, target1100)))
     }
 
     assert.deepEqual(

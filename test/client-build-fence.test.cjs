@@ -15,7 +15,7 @@ const { packEtag, unitMatchesTarget } = require('../src/manager.cjs')
 const { resolveSelection } = require('../src/resolver.cjs')
 
 const target181 = { packageName: 'pocketrisu', packageVersion: '1.8.1' }
-const target190 = { packageName: 'pocketrisu', packageVersion: '1.9.0' }
+const target1100 = { packageName: 'pocketrisu', packageVersion: '1.10.0' }
 const unitText = (manifest) => manifest.units.map((unit) => unit.managed ?? unit.content ?? '').join('\n')
 
 test('client build fence resolves its BG, Kei, and Kei lazy-storage adapters with their hosts', () => {
@@ -55,7 +55,7 @@ test('client build fence is exact-1.9 and its adapters declare their owners', ()
             manifest.units.filter((unit) => unitMatchesTarget(unit, target181)),
             [],
         )
-        assert.ok(manifest.units.some((unit) => unitMatchesTarget(unit, target190)))
+        assert.ok(manifest.units.some((unit) => unitMatchesTarget(unit, target1100)))
     }
     assert.deepEqual(bg.requires, [core.id, 'bg-preserve'])
     assert.deepEqual(kei.requires, [core.id, 'kei-backup-restore-safety-core'])

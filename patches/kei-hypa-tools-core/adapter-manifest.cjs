@@ -1,7 +1,8 @@
 'use strict'
 
-const pocketRisu181 = { pocketrisu: ['1.8.1'] }
-const pocketRisu190 = { pocketrisu: ['1.9.0', '1.10.0'] }
+// units181 keeps the original PocketRisu 1.8.1 definitions only as the source
+// for the delivered units, which derive from them with ':1.9' ids.
+const pocketRisu1100 = { pocketrisu: ['1.10.0'] }
 
 function createHypaToolsAdapterManifest({ id, title }) {
     const prefix = `${id}:`
@@ -737,7 +738,7 @@ export async function getNextSummarizationTarget(
         id: `${unit.id}:1.9`,
         requires: unit.requires?.map(target190Dependency),
         after: unit.after?.map(target190Dependency),
-        targetVersions: pocketRisu190,
+        targetVersions: pocketRisu1100,
     }))
 
     return {
@@ -747,7 +748,7 @@ export async function getNextSummarizationTarget(
         userSelectable: false,
         targets: {
             pocketrisu: {
-                verified: ['1.8.1', '1.9.0', '1.10.0'],
+                verified: ['1.10.0'],
                 reviewing: [],
             },
         },
@@ -755,13 +756,7 @@ export async function getNextSummarizationTarget(
         autoWhen: {
             all: ['kei-hypa-tools-core', 'bg-preserve'],
         },
-        units: [
-            ...units181.map((unit) => ({
-                ...unit,
-                targetVersions: pocketRisu181,
-            })),
-            ...units190,
-        ],
+        units: units190,
     }
 }
 

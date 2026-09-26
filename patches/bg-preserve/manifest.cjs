@@ -10,8 +10,7 @@ const base = JSON.parse(fs.readFileSync(
 const filesRoot = path.join(__dirname, 'files')
 const owned = (relative) => fs.readFileSync(path.join(filesRoot, relative), 'utf8')
 
-const pocketRisu181 = { pocketrisu: ['1.8.1'] }
-const pocketRisu190 = { pocketrisu: ['1.9.0', '1.10.0'] }
+const pocketRisu1100 = { pocketrisu: ['1.10.0'] }
 const legacyCharxCauseUnit = 'bg-preserve:hook:processzip-asset-save-aggregate-cause'
 
 function replaceExact(source, anchor, replacement, label) {
@@ -715,14 +714,14 @@ const variant190 = new Map([
             'bg-preserve:owned:server/node/bgOrchestrationResultRetention.cjs:1.9',
             'bg-preserve:hook:index-direct-send-lifecycle-wrapper:1.9',
         ],
-        targetVersions: pocketRisu190,
+        targetVersions: pocketRisu1100,
     })],
     ['bg-preserve:owned:server/node/bgOrchestrationRunRegistry.cjs', (unit) => ({
         ...unit,
         id: `${unit.id}:1.9`,
         content: adaptRunRegistryRetention190(unit),
         requires: ['bg-preserve:owned:server/node/bgOrchestrationResultRetention.cjs:1.9'],
-        targetVersions: pocketRisu190,
+        targetVersions: pocketRisu1100,
     })],
     ['bg-preserve:owned:src/ts/bgOrchestrationRunRegistry.test.ts', (unit) => ({
         ...unit,
@@ -748,13 +747,13 @@ test('default tombstones retain the exact 48-hour boundary and expire one millis
             'bg-preserve:owned:server/node/bgOrchestrationRunRegistry.cjs:1.9',
             'bg-preserve:owned:server/node/bgOrchestrationResultRetention.cjs:1.9',
         ],
-        targetVersions: pocketRisu190,
+        targetVersions: pocketRisu1100,
     })],
     ['bg-preserve:owned:src/ts/bgOrchestrationPending.ts', (unit) => ({
         ...unit,
         id: `${unit.id}:1.9`,
         content: adaptPendingRetention190(unit),
-        targetVersions: pocketRisu190,
+        targetVersions: pocketRisu1100,
     })],
     ['bg-preserve:owned:src/ts/bgOrchestrationPending.test.ts', (unit) => ({
         ...unit,
@@ -783,7 +782,7 @@ test('clock rollback cannot evict a newly admitted marker behind future timestam
 })
 `,
         requires: ['bg-preserve:owned:src/ts/bgOrchestrationPending.ts:1.9'],
-        targetVersions: pocketRisu190,
+        targetVersions: pocketRisu1100,
     })],
     ['bg-preserve:owned:src/ts/bgOrchestrate.ts', (unit) => ({
         ...unit,
@@ -793,7 +792,7 @@ test('clock rollback cannot evict a newly admitted marker behind future timestam
             'bg-preserve:owned:src/ts/bgOrchestrationRetentionState.ts:1.9',
             'bg-preserve:hook:index-direct-send-lifecycle-wrapper:1.9',
         ],
-        targetVersions: pocketRisu190,
+        targetVersions: pocketRisu1100,
     })],
     ['bg-preserve:hook:server-cjs-register-routes', (unit) => ({
         ...unit,
@@ -804,19 +803,19 @@ test('clock rollback cannot evict a newly admitted marker behind future timestam
             "require('./bgOrchestrator.cjs')(app, Object.assign({ sessionAuthMiddleware, ensureChatStore, getDbCache: () => dbCache, getFullChatStore: () => fullChatStore, DB_HEX_KEY, requestLogs }, require('./db.cjs')));",
             `${unit.id}: native request-log owner registration`,
         ),
-        targetVersions: pocketRisu190,
+        targetVersions: pocketRisu1100,
     })],
     ['bg-preserve:hook:regex-import-merge', (unit) => ({
         ...unit,
         id: `${unit.id}:1.9`,
         managed: regexImportMerge190,
-        targetVersions: pocketRisu190,
+        targetVersions: pocketRisu1100,
     })],
     ['bg-preserve:hook:globalapi-fetch-impl-register', (unit) => ({
         ...unit,
         id: `${unit.id}:1.9`,
         anchor: 'export async function fetchNative(url: string, arg: FetchNativeArgs): Promise<Response> {',
-        targetVersions: pocketRisu190,
+        targetVersions: pocketRisu1100,
     })],
     ['bg-preserve:hook:index-unified-generation-busy', (unit) => ({
         ...unit,
@@ -833,7 +832,7 @@ export const doingChat = unifiedDoingChat
         markerNeedle: 'generation-busy-store-1.9',
         requires: ['bg-preserve:hook:index-unified-generation-busy-import:1.9'],
         after: undefined,
-        targetVersions: pocketRisu190,
+        targetVersions: pocketRisu1100,
     })],
     ['bg-preserve:hook:index-register-gen-context', (unit) => ({
         ...unit,
@@ -858,7 +857,7 @@ export const doingChat = unifiedDoingChat
 `,
         markerNeedle: 'generation-context-1.9',
         requires: ['bg-preserve:hook:index-register-gen-context-abort-import:1.9'],
-        targetVersions: pocketRisu190,
+        targetVersions: pocketRisu1100,
     })],
     ['bg-preserve:hook:defaultchatscreen-composer-orchestrating-gate', (unit) => ({
         ...unit,
@@ -867,7 +866,7 @@ export const doingChat = unifiedDoingChat
         // inserts `after`, so including `}` would render the managed expression
         // as literal composer text instead of extending the condition.
         anchor: '                {#if currentChatGenerating || doingChatInputTranslate',
-        targetVersions: pocketRisu190,
+        targetVersions: pocketRisu1100,
     })],
     ['bg-preserve:hook:request-cache-authority-gate', (unit) => ({
         ...unit,
@@ -918,7 +917,7 @@ export const doingChat = unifiedDoingChat
     /* BG-PRESERVE:END */
 `,
         markerNeedle: 'gemini-cache-authority-gate-1.9',
-        targetVersions: pocketRisu190,
+        targetVersions: pocketRisu1100,
     })],
     ['bg-preserve:hook:request-stream-cache-source-badge', (unit) => ({
         ...unit,
@@ -927,17 +926,20 @@ export const doingChat = unifiedDoingChat
                                     addBadge(genId, { key: 'cache', text: language.requestStatus.cacheHit.replace('{n}', cachedTokens.toLocaleString()), tone: 'success' })
                                 }
 `,
-        targetVersions: pocketRisu190,
+        targetVersions: pocketRisu1100,
     })],
     ['bg-preserve:hook:tokenizer-tikjs-catch-fallback', (unit) => ({
         ...unit,
         id: `${unit.id}:1.9`,
         anchor: '    return (await pending).encode(text)\n',
-        targetVersions: pocketRisu190,
+        targetVersions: pocketRisu1100,
     })],
 ])
 
-const target181Only = new Set([
+// Imported hooks written for PocketRisu 1.8.1 that the delivered set does not
+// install; their PocketRisu 1.10.0 behavior comes from native code or a variant.
+const excludedLegacyUnits = new Set([
+    legacyCharxCauseUnit,
     'bg-preserve:hook:app-svelte-safe-mobile-file-drop',
     'bg-preserve:hook:defaultchatscreen-import-abort',
     'bg-preserve:hook:defaultchatscreen-register-abort',
@@ -946,33 +948,25 @@ const target181Only = new Set([
 
 const variantIds = new Set(variant190.keys())
 
-function expandRelations(unit) {
+// Imported hooks with a variant are delivered only as that ':1.9'-suffixed
+// variant, so ordering hints naming the imported id point at the variant, and
+// hints naming an excluded hook are dropped.
+function redirectRelations(unit) {
     const output = { ...unit }
-    // Version siblings are mutually exclusive. Only optional ordering hints may
-    // name both; hard requirements must keep naming one concrete active unit.
     for (const relation of ['after', 'before']) {
         if (!Array.isArray(output[relation])) continue
-        output[relation] = [...new Set(output[relation].flatMap((id) =>
-            variantIds.has(id) ? [id, `${id}:1.9`] : [id]
-        ))]
+        output[relation] = [...new Set(output[relation]
+            .filter((id) => !excludedLegacyUnits.has(id))
+            .map((id) => variantIds.has(id) ? `${id}:1.9` : id))]
     }
     return output
 }
 
 const units = base.units.flatMap((rawUnit) => {
-    if (rawUnit.id === legacyCharxCauseUnit) return []
     const unit = adaptUniversalUnit(adaptOwned(rawUnit))
+    if (excludedLegacyUnits.has(unit.id)) return []
     const create190 = variant190.get(unit.id)
-    if (create190) {
-        return [
-            expandRelations({ ...unit, targetVersions: pocketRisu181 }),
-            expandRelations(create190(unit)),
-        ]
-    }
-    if (target181Only.has(unit.id)) {
-        return [expandRelations({ ...unit, targetVersions: pocketRisu181 })]
-    }
-    return [expandRelations(unit)]
+    return [redirectRelations(create190 ? create190(unit) : unit)]
 })
 
 units.push(
@@ -981,7 +975,7 @@ units.push(
         file: 'server/node/bgOrchestrationResultRetention.cjs',
         type: 'owned',
         content: owned('server/node/bgOrchestrationResultRetention.cjs'),
-        targetVersions: pocketRisu190,
+        targetVersions: pocketRisu1100,
     },
     {
         id: 'bg-preserve:owned:server/node/bgOrchestrationResultRetention.test.ts:1.9',
@@ -992,14 +986,14 @@ units.push(
             'bg-preserve:owned:server/node/bgOrchestrationResultRetention.cjs:1.9',
             'bg-preserve:owned:server/node/bgOrchestrator.cjs:1.9',
         ],
-        targetVersions: pocketRisu190,
+        targetVersions: pocketRisu1100,
     },
     {
         id: 'bg-preserve:owned:src/ts/bgOrchestrationRetentionState.ts:1.9',
         file: 'src/ts/bgOrchestrationRetentionState.ts',
         type: 'owned',
         content: owned('src/ts/bgOrchestrationRetentionState.ts'),
-        targetVersions: pocketRisu190,
+        targetVersions: pocketRisu1100,
     },
     {
         id: 'bg-preserve:owned:src/ts/bgOrchestrationRetentionState.test.ts:1.9',
@@ -1010,14 +1004,14 @@ units.push(
             'bg-preserve:owned:src/ts/bgOrchestrationRetentionState.ts:1.9',
             'bg-preserve:owned:src/ts/bgOrchestrate.ts:1.9',
         ],
-        targetVersions: pocketRisu190,
+        targetVersions: pocketRisu1100,
     },
     {
         id: 'bg-preserve:owned:server/node/bgRequestLogBridge.cjs:1.9',
         file: 'server/node/bgRequestLogBridge.cjs',
         type: 'owned',
         content: owned('server/node/bgRequestLogBridge.cjs'),
-        targetVersions: pocketRisu190,
+        targetVersions: pocketRisu1100,
     },
     {
         id: 'bg-preserve:owned:server/node/bgRequestLogBridge.test.ts:1.9',
@@ -1028,7 +1022,7 @@ units.push(
             'bg-preserve:owned:server/node/bgRequestLogBridge.cjs:1.9',
             'bg-preserve:owned:server/node/bgOrchestrator.cjs:1.9',
         ],
-        targetVersions: pocketRisu190,
+        targetVersions: pocketRisu1100,
     },
     {
         id: 'bg-preserve:hook:index-unified-generation-busy-import:1.9',
@@ -1037,7 +1031,7 @@ units.push(
         where: 'after',
         anchor: 'import { derived, get, writable, type Readable } from "svelte/store"\n',
         content: 'import { doingChat as unifiedDoingChat } from "../generationBusy"\n',
-        targetVersions: pocketRisu190,
+        targetVersions: pocketRisu1100,
     },
     {
         id: 'bg-preserve:hook:index-register-gen-context-abort-import:1.9',
@@ -1046,7 +1040,7 @@ units.push(
         where: 'after',
         anchor: 'import { chatGenKey, chatProcessStage, endGeneration, isChatGenerating, setGenerationStage, startGeneration } from "./generationState";\n',
         content: 'import { abortGeneration } from "./generationState";\n',
-        targetVersions: pocketRisu190,
+        targetVersions: pocketRisu1100,
     },
     {
         id: 'bg-preserve:hook:generation-state-direct-lifecycle:1.9',
@@ -1085,7 +1079,7 @@ export function endGenerationIfOwned(chatKey: string, generationId: string): boo
 }
 `,
         requires: ['bg-preserve:hook:index-unified-generation-busy:1.9'],
-        targetVersions: pocketRisu190,
+        targetVersions: pocketRisu1100,
     },
     {
         id: 'bg-preserve:hook:index-direct-send-lifecycle-import:1.9',
@@ -1095,7 +1089,7 @@ export function endGenerationIfOwned(chatKey: string, generationId: string): boo
         anchor: 'import { chatGenKey, chatProcessStage, endGeneration, isChatGenerating, setGenerationStage, startGeneration } from "./generationState";\n',
         content: 'import { runDirectGenerationLifecycle } from "./generationState";\n',
         after: ['bg-preserve:hook:index-register-gen-context-abort-import:1.9'],
-        targetVersions: pocketRisu190,
+        targetVersions: pocketRisu1100,
     },
     {
         id: 'bg-preserve:hook:index-direct-send-lifecycle-wrapper:1.9',
@@ -1129,7 +1123,7 @@ export async function sendChatWithDirectLifecycle(
             'bg-preserve:hook:index-direct-send-lifecycle-import:1.9',
             'bg-preserve:hook:generation-state-direct-lifecycle:1.9',
         ],
-        targetVersions: pocketRisu190,
+        targetVersions: pocketRisu1100,
     },
     {
         id: 'bg-preserve:owned:src/ts/process/directGenerationLifecycle.test.ts:1.9',
@@ -1137,7 +1131,7 @@ export async function sendChatWithDirectLifecycle(
         type: 'owned',
         content: owned('src/ts/process/directGenerationLifecycle.test.ts'),
         requires: ['bg-preserve:hook:generation-state-direct-lifecycle:1.9'],
-        targetVersions: pocketRisu190,
+        targetVersions: pocketRisu1100,
     },
     {
         id: 'bg-preserve:owned:src/ts/process/regexImportMultiplicity.test.ts:1.9',
@@ -1145,7 +1139,7 @@ export async function sendChatWithDirectLifecycle(
         type: 'owned',
         content: owned('src/ts/process/regexImportMultiplicity.test.ts'),
         requires: ['bg-preserve:hook:regex-import-merge:1.9'],
-        targetVersions: pocketRisu190,
+        targetVersions: pocketRisu1100,
     },
 )
 
@@ -1155,7 +1149,7 @@ module.exports = {
     source: 'bg-preserve-install.cjs + PocketRisu 1.9 authority adapter',
     targets: {
         pocketrisu: {
-            verified: ['1.8.1', '1.9.0', '1.10.0'],
+            verified: ['1.10.0'],
             reviewing: [],
         },
     },

@@ -5,7 +5,7 @@ const path = require('node:path')
 
 const filesRoot = path.join(__dirname, 'files')
 const read = (relative) => fs.readFileSync(path.join(filesRoot, relative), 'utf8')
-const pocketRisu190 = { pocketrisu: ['1.9.0', '1.10.0'] }
+const pocketRisu1100 = { pocketrisu: ['1.10.0'] }
 
 module.exports = {
     id: 'server-backup-snapshot-core',
@@ -14,7 +14,7 @@ module.exports = {
     userSelectable: false,
     targets: {
         pocketrisu: {
-            verified: ['1.9.0', '1.10.0'],
+            verified: ['1.10.0'],
             reviewing: [],
         },
     },
@@ -34,7 +34,7 @@ module.exports = {
             file: relative,
             type: 'owned',
             content: read(relative),
-            targetVersions: pocketRisu190,
+            targetVersions: pocketRisu1100,
         })),
         {
             id: 'server-backup-snapshot-core:db-helper-import:1.9',
@@ -47,7 +47,7 @@ const { openKvSnapshot } = require('./backupSnapshot.cjs');
 `,
             markerNeedle: 'POCKETRISU-PATCH:server-backup-snapshot-core:db-helper-import',
             requires: ['server-backup-snapshot-core:owned:server:node:backupSnapshot-cjs:1.9'],
-            targetVersions: pocketRisu190,
+            targetVersions: pocketRisu1100,
         },
         {
             id: 'server-backup-snapshot-core:db-open-snapshot:1.9',
@@ -61,7 +61,7 @@ const { openKvSnapshot } = require('./backupSnapshot.cjs');
 
 `,
             requires: ['server-backup-snapshot-core:db-helper-import:1.9'],
-            targetVersions: pocketRisu190,
+            targetVersions: pocketRisu1100,
         },
         {
             id: 'server-backup-snapshot-core:db-export-snapshot:1.9',
@@ -73,7 +73,7 @@ const { openKvSnapshot } = require('./backupSnapshot.cjs');
     createKvSnapshot,
 `,
             requires: ['server-backup-snapshot-core:db-open-snapshot:1.9'],
-            targetVersions: pocketRisu190,
+            targetVersions: pocketRisu1100,
         },
     ],
 }

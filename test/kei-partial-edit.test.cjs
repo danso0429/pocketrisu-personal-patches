@@ -24,7 +24,7 @@ test('K15 keeps its core and bg-preserve adapter internal', () => {
     for (const pack of [core, bg]) {
         assert.deepEqual(pack.targets, {
             pocketrisu: {
-                verified: ['1.8.1', '1.9.0', '1.10.0'],
+                verified: ['1.10.0'],
                 reviewing: [],
             },
         })
@@ -69,19 +69,12 @@ test('K15 owns only identity/manager code and hooks four focused hosts', () => {
         'src/lib/ChatScreens/DefaultChatScreen.svelte',
     ]
     for (const adapter of [bg]) {
-        const units181 = adapter.units.filter((unit) =>
-            unit.targetVersions?.pocketrisu?.includes('1.8.1')
-        )
-        const units190 = adapter.units.filter((unit) =>
-            unit.targetVersions?.pocketrisu?.includes('1.9.0')
-        )
-        assert.equal(units181.length, 14)
+        const units190 = adapter.units
         assert.equal(units190.length, 14)
         assert.equal(
-            adapter.units.every((unit) => {
-                const versions = unit.targetVersions?.pocketrisu
-                return versions?.length === 1 || versions?.join(',') === '1.9.0,1.10.0'
-            }),
+            adapter.units.every((unit) =>
+                unit.targetVersions?.pocketrisu?.join(',') === '1.10.0'
+            ),
             true,
         )
         assert.deepEqual(
@@ -93,11 +86,9 @@ test('K15 owns only identity/manager code and hooks four focused hosts', () => {
             managed,
             /bgOrchestrat|result.?claim|acknowledge|sendChat|requestStatus|setCurrentChat/i,
         )
-        assert.equal((managed.match(/setLLMCache/g) ?? []).length, 2)
+        assert.equal((managed.match(/setLLMCache/g) ?? []).length, 1)
 
-        const managed181 = units181.map(unitText).join('\n')
         const managed190 = units190.map(unitText).join('\n')
-        assert.match(managed181, /isStreamingDisplay/)
         assert.doesNotMatch(managed190, /isStreamingDisplay/)
         assert.match(managed190, /isOptimizedStreamingMessage/)
         assert.match(managed190, /overscroll-y-contain/)
@@ -183,10 +174,9 @@ test('K15 translation bridge requires an issued current cache identity', () => {
 
     for (const adapter of [bg]) {
         const bridges = adapter.units.filter((unit) =>
-            unit.id.endsWith(':chat-translation-bridge')
-            || unit.id.endsWith(':chat-translation-bridge:1.9')
+            unit.id.endsWith(':chat-translation-bridge:1.9')
         )
-        assert.equal(bridges.length, 2)
+        assert.equal(bridges.length, 1)
         for (const bridge of bridges) {
             const payload = unitText(bridge)
             assert.match(payload, /chatRef: chat as object/)
@@ -212,16 +202,10 @@ test('K15 translation bridge requires an issued current cache identity', () => {
 test('K15 bg adapter follows existing touch ownership without replacing it', () => {
     for (const suffix of ['chat-standard-root', 'chat-themed-root']) {
         const units = bg.units.filter((candidate) =>
-            candidate.id.endsWith(`:${suffix}`)
-            || candidate.id.endsWith(`:${suffix}:1.9`),
+            candidate.id.endsWith(`:${suffix}:1.9`),
         )
-        assert.equal(units.length, 2)
+        assert.equal(units.length, 1)
         assert.deepEqual(units[0].after, [
-            'kei-chat-render-bg-adapter:chat-body-streaming-prop',
-            'bg-preserve:hook:chat-standard-risu-control-touch-events',
-            'bg-preserve:hook:chat-themed-risu-control-touch-events',
-        ])
-        assert.deepEqual(units[1].after, [
             'kei-chat-render-bg-adapter:chat-body-streaming-prop:1.9',
             'bg-preserve:hook:chat-standard-risu-control-touch-events',
             'bg-preserve:hook:chat-themed-risu-control-touch-events',

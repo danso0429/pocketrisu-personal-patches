@@ -16,13 +16,6 @@ function payload(relative) {
     )
 }
 
-function payload190(relative) {
-    return fs.readFileSync(
-        path.join(repositoryRoot, 'patches/lazy-chat-sync/files-1.9', relative),
-        'utf8',
-    )
-}
-
 function payload1100(relative) {
     return fs.readFileSync(
         path.join(repositoryRoot, 'patches/lazy-chat-sync/files-1.10', relative),
@@ -35,53 +28,48 @@ test('lazy chat pack includes CAS, WAL, reconciliation, and safe hydration bound
     assert.equal(lazyManifest.version, '0.3.2')
     assert.deepEqual(lazyManifest.targets, {
         pocketrisu: {
-            verified: ['1.8.1', '1.9.0', '1.10.0'],
+            verified: ['1.10.0'],
             reviewing: [],
         },
     })
-    assert.match(payload('server/node/server.cjs'), /chatWriteJournal/)
-    assert.match(payload('server/node/server.cjs'), /\/api\/chat-content\/:chaId\/:chatIndex\/patch/)
-    assert.match(payload('server/node/server.cjs'), /validateStrippedDatabaseTransition/)
-    assert.match(payload('server/node/server.cjs'), /CHAT_PAYLOAD_MISSING/)
+    assert.match(payload1100('server/node/server.cjs'), /chatWriteJournal/)
+    assert.match(payload1100('server/node/server.cjs'), /\/api\/chat-content\/:chaId\/:chatIndex\/patch/)
+    assert.match(payload1100('server/node/server.cjs'), /validateStrippedDatabaseTransition/)
+    assert.match(payload1100('server/node/server.cjs'), /CHAT_PAYLOAD_MISSING/)
     assert.match(payload('server/node/chatWriteJournal.cjs'), /CHAT_JOURNAL_CAPACITY/)
     assert.match(payload('server/node/chatWriteJournal.cjs'), /DEFAULT_MAX_AWAITING_RECORDS = 128/)
-    assert.match(payload('src/ts/storage/nodeStorage.ts'), /x-chat-base-revision/)
-    assert.match(payload('src/ts/storage/nodeStorage.ts'), /ChatSaveIntent/)
+    assert.match(payload1100('src/ts/storage/nodeStorage.ts'), /x-chat-base-revision/)
+    assert.match(payload1100('src/ts/storage/nodeStorage.ts'), /ChatSaveIntent/)
     assert.match(
-        payload('src/ts/storage/chatStorage.ts'),
+        payload1100('src/ts/storage/chatStorage.ts'),
         /intent: ChatSaveIntent = 'update'/,
     )
-    assert.match(payload('src/ts/globalApi.svelte.ts'), /classifyChatSaveIntent/)
-    assert.match(payload('src/ts/globalApi.svelte.ts'), /assignMissingChatIdsToNewCharacters/)
-    const importedCharacterSave = payload('src/ts/globalApi.svelte.ts').slice(
-        payload('src/ts/globalApi.svelte.ts').indexOf('requestImportedCharacterSaveImpl = async'),
-        payload('src/ts/globalApi.svelte.ts').indexOf('requestChatSaveImpl = async'),
+    const globalApiSource = payload1100('src/ts/globalApi.svelte.ts')
+    assert.match(globalApiSource, /classifyChatSaveIntent/)
+    assert.match(globalApiSource, /assignMissingChatIdsToNewCharacters/)
+    const importedCharacterSave = globalApiSource.slice(
+        globalApiSource.indexOf('requestImportedCharacterSaveImpl = async'),
+        globalApiSource.indexOf('requestChatSaveImpl = async'),
     )
     assert.match(importedCharacterSave, /queueTrackedCharacter\(chaId\)/)
     assert.match(importedCharacterSave, /queueTrackedChat\(chaId, chat\.id\)/)
     assert.match(importedCharacterSave, /lastConfirmedServerDb/)
     assert.match(importedCharacterSave, /forageStorage\.flushDatabase\(\)/)
-    for (const globalApiSource of [
-        payload('src/ts/globalApi.svelte.ts'),
-        payload190('src/ts/globalApi.svelte.ts'),
-        payload1100('src/ts/globalApi.svelte.ts'),
-    ]) {
-        const importedModuleSave = globalApiSource.slice(
-            globalApiSource.indexOf('requestImportedModuleSaveImpl = async'),
-            globalApiSource.indexOf('requestChatSaveImpl = async'),
-        )
-        assert.match(globalApiSource, /export function requestImportedModuleSave\(moduleId: string\)/)
-        assert.match(importedModuleSave, /changeTracker\.modules = true/)
-        assert.match(importedModuleSave, /lastConfirmedServerDb\?\.modules\?\.some/)
-        assert.match(importedModuleSave, /forageStorage\.flushDatabase\(\)/)
-    }
+    const importedModuleSave = globalApiSource.slice(
+        globalApiSource.indexOf('requestImportedModuleSaveImpl = async'),
+        globalApiSource.indexOf('requestChatSaveImpl = async'),
+    )
+    assert.match(globalApiSource, /export function requestImportedModuleSave\(moduleId: string\)/)
+    assert.match(importedModuleSave, /changeTracker\.modules = true/)
+    assert.match(importedModuleSave, /lastConfirmedServerDb\?\.modules\?\.some/)
+    assert.match(importedModuleSave, /forageStorage\.flushDatabase\(\)/)
     assert.match(payload('src/ts/storage/conflictRebase.ts'), /mergeThreeWayValue/)
     assert.match(payload('src/ts/plugins/apiV3/pluginChatAccess.ts'), /hydrateChat/)
     assert.match(payload('src/ts/plugins/apiV3/pluginChatAccess.ts'), /getDatabaseWithChatMetadata/)
-    assert.match(payload('src/ts/plugins/apiV3/v3.svelte.ts'), /getDatabaseMetadata/)
-    assert.match(payload('src/ts/plugins/apiV3/v3.svelte.ts'), /assignMissingChatIdsToNewCharacters/)
+    assert.match(payload1100('src/ts/plugins/apiV3/v3.svelte.ts'), /getDatabaseMetadata/)
+    assert.match(payload1100('src/ts/plugins/apiV3/v3.svelte.ts'), /assignMissingChatIdsToNewCharacters/)
     assert.match(payload('src/ts/storage/chatIdentityRepair.ts'), /Refusing to replace the missing ID of existing character/)
-    const serverSource = payload('server/node/server.cjs')
+    const serverSource = payload1100('server/node/server.cjs')
     const failedColdStoragePromotion = serverSource.slice(
         serverSource.indexOf('function promoteFailedColdStorageStub'),
         serverSource.indexOf('function restoreColdStorageCharactersInDb'),
@@ -107,14 +95,14 @@ test('lazy chat pack includes CAS, WAL, reconciliation, and safe hydration bound
     assert.match(composedSaveTest.content, /requestDurableSaveImpl = async/)
 })
 
-test('PocketRisu 1.9 and 1.10 replacements retain native runtime owners and lazy-chat contracts', () => {
-    const server = payload190('server/node/server.cjs')
-    const bootstrap = payload190('src/ts/bootstrap.ts')
-    const globalApi = payload190('src/ts/globalApi.svelte.ts')
-    const pluginApi = payload190('src/ts/plugins/apiV3/v3.svelte.ts')
-    const autoStorage = payload190('src/ts/storage/autoStorage.ts')
-    const chatStorage = payload190('src/ts/storage/chatStorage.ts')
-    const nodeStorage = payload190('src/ts/storage/nodeStorage.ts')
+test('PocketRisu 1.10 replacements retain native runtime owners and lazy-chat contracts', () => {
+    const server = payload1100('server/node/server.cjs')
+    const bootstrap = payload1100('src/ts/bootstrap.ts')
+    const globalApi = payload1100('src/ts/globalApi.svelte.ts')
+    const pluginApi = payload1100('src/ts/plugins/apiV3/v3.svelte.ts')
+    const autoStorage = payload1100('src/ts/storage/autoStorage.ts')
+    const chatStorage = payload1100('src/ts/storage/chatStorage.ts')
+    const nodeStorage = payload1100('src/ts/storage/nodeStorage.ts')
 
     assert.match(server, /normalizeForwardHeaders/)
     assert.match(server, /chatWriteJournal/)
@@ -173,17 +161,10 @@ test('PocketRisu 1.9 and 1.10 replacements retain native runtime owners and lazy
             'src/ts/storage/risuSavePatcher.test.ts',
         ].includes(unit.file)
     )
-    assert.equal(versioned.length, 27)
-    for (const file of new Set(versioned.map((unit) => unit.file))) {
-        const variants = versioned.filter((unit) => unit.file === file)
-        assert.deepEqual(
-            variants.map((unit) => unit.targetVersions),
-            [
-                { pocketrisu: ['1.8.1'] },
-                { pocketrisu: ['1.9.0'] },
-                { pocketrisu: ['1.10.0'] },
-            ],
-        )
+    assert.equal(versioned.length, 9)
+    for (const unit of versioned) {
+        assert.equal(unit.id.endsWith(':1.10'), true, unit.id)
+        assert.deepEqual(unit.targetVersions, { pocketrisu: ['1.10.0'] })
     }
 })
 
@@ -202,7 +183,7 @@ test('BG adapter preserves semantic revisions and adds only the durable flush ba
     assert.deepEqual(bgAdapter.autoWhen, { all: ['bg-preserve', 'lazy-chat-sync'] })
     assert.deepEqual(bgAdapter.targets, {
         pocketrisu: {
-            verified: ['1.8.1', '1.9.0', '1.10.0'],
+            verified: ['1.10.0'],
             reviewing: [],
         },
     })
@@ -215,7 +196,7 @@ test('BG adapter preserves semantic revisions and adds only the durable flush ba
     assert.deepEqual(flush.requires, [
         'bg-preserve:hook:globalapi-durable-save-impl',
     ])
-    assert.ok(flush.after.includes('lazy-chat-sync:replace:src:ts:globalApi-svelte-ts:1.9'))
+    assert.ok(flush.after.includes('lazy-chat-sync:replace:src:ts:globalApi-svelte-ts:1.10'))
 
     const retry = bgAdapter.units.find((unit) =>
         unit.id === 'lazy-chat-bg-adapter:adaptive-asset-upload-retry'

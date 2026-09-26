@@ -51,7 +51,7 @@ test('toolchain hardening is independently versioned and included in the complet
 test('toolchain hardening is qualified only for reviewed exact PocketRisu targets', () => {
     assert.deepEqual(manifest.targets, {
         pocketrisu: {
-            verified: ['1.8.1', '1.9.0', '1.10.0'],
+            verified: ['1.10.0'],
             reviewing: [],
         },
     })

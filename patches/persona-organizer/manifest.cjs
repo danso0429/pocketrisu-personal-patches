@@ -3,11 +3,6 @@
 const fs = require('node:fs')
 const path = require('node:path')
 
-const replacementPath = path.join(
-    __dirname,
-    'files/src/lib/Setting/Pages/PersonaSettings.svelte',
-)
-const originalPath = path.join(__dirname, 'anchors/PersonaSettings.svelte')
 const pickerReplacementPath = path.join(
     __dirname,
     'files/src/lib/Setting/listedPersona.svelte',
@@ -24,9 +19,6 @@ const pickerOriginal = fs.readFileSync(pickerOriginalPath, 'utf8')
         'import { language } from "../../lang";\n    \n',
     )
     .replace(/\n$/, '')
-const pocketRisu181 = { pocketrisu: ['1.8.1'] }
-const pocketRisu190 = { pocketrisu: ['1.9.0'] }
-const pocketRisu181And190 = { pocketrisu: ['1.8.1', '1.9.0'] }
 const pocketRisu1100 = { pocketrisu: ['1.10.0'] }
 const personaDefault1100 = `    if(!Array.isArray(data.personas) || data.personas.length === 0){
         data.personas = [{
@@ -45,7 +37,7 @@ module.exports = {
     version: '0.11.1',
     targets: {
         pocketrisu: {
-            verified: ['1.8.1', '1.9.0', '1.10.0'],
+            verified: ['1.10.0'],
             reviewing: [],
         },
     },
@@ -76,35 +68,6 @@ module.exports = {
             content: fs.readFileSync(path.join(__dirname, 'files/src/ts/personaImages.test.ts'), 'utf8'),
         },
         {
-            id: 'persona-organizer:model-normalization',
-            file: 'src/ts/storage/database.svelte.ts',
-            type: 'insert',
-            where: 'after',
-            anchor: `    data.personas ??= [{
-        name: data.username,
-        personaPrompt: "",
-        icon: data.userIcon,
-        note: data.userNote,
-        largePortrait: false
-    }]
-`,
-            content: `    data.personaFolders ??= []
-    if (!Array.isArray(data.personaFolders)) data.personaFolders = []
-    const personaFolderIds = new Set<string>()
-    data.personaFolders = data.personaFolders.filter((folder) => {
-        if (!folder || typeof folder.id !== 'string' || !folder.id || personaFolderIds.has(folder.id)) return false
-        personaFolderIds.add(folder.id)
-        if (typeof folder.name !== 'string' || !folder.name.trim()) folder.name = 'Folder'
-        if (typeof folder.icon !== 'string') folder.icon = ''
-        return true
-    })
-    for (const persona of data.personas) {
-        if (persona.folderId && !personaFolderIds.has(persona.folderId)) persona.folderId = undefined
-    }
-`,
-            targetVersions: pocketRisu181And190,
-        },
-        {
             id: 'persona-organizer:model-normalization:1.10',
             file: 'src/ts/storage/database.svelte.ts',
             type: 'insert',
@@ -125,34 +88,6 @@ module.exports = {
     }
 `,
             targetVersions: pocketRisu1100,
-        },
-        {
-            id: 'persona-organizer:image-gallery-normalization',
-            file: 'src/ts/storage/database.svelte.ts',
-            type: 'insert',
-            where: 'after',
-            anchor: `    data.personas ??= [{
-        name: data.username,
-        personaPrompt: "",
-        icon: data.userIcon,
-        note: data.userNote,
-        largePortrait: false
-    }]
-`,
-            content: `    for (const persona of data.personas) {
-        const gallery = Array.isArray(persona.imageGallery)
-            ? persona.imageGallery.filter((path, index, values) =>
-                typeof path === 'string' && !!path && values.indexOf(path) === index
-            )
-            : []
-        if (typeof persona.icon !== 'string') persona.icon = ''
-        if (persona.icon && !gallery.includes(persona.icon)) gallery.unshift(persona.icon)
-        if (!persona.icon && gallery.length > 0) persona.icon = gallery[0]
-        persona.imageGallery = gallery
-    }
-`,
-            requires: ['persona-organizer:model-normalization'],
-            targetVersions: pocketRisu181And190,
         },
         {
             id: 'persona-organizer:image-gallery-normalization:1.10',
@@ -429,57 +364,6 @@ import { resolvePersonaFolderId } from "./personaOrganizer"
             after: ['lazy-chat-bg-adapter:durable-flush'],
         },
         {
-            id: 'persona-organizer:server-gallery-assets',
-            file: 'server/node/server.cjs',
-            type: 'replace',
-            anchor: '    if (Array.isArray(dbObj.personas)) for (const p of dbObj.personas) add(p?.icon);',
-            content: `    if (Array.isArray(dbObj.personas)) {
-        for (const persona of dbObj.personas) {
-            add(persona?.icon);
-            if (Array.isArray(persona?.imageGallery)) {
-                for (const image of persona.imageGallery) add(image);
-            }
-        }
-    }
-    if (Array.isArray(dbObj.personaFolders)) {
-        for (const folder of dbObj.personaFolders) add(folder?.icon);
-    }
-
-`,
-            after: ['bg-preserve:hook:server-cjs-register-routes'],
-            targetVersions: pocketRisu181,
-        },
-        {
-            id: 'persona-organizer:server-gallery-assets-1.9',
-            file: 'server/node/server.cjs',
-            type: 'replace',
-            anchor: `    if (Array.isArray(dbObj.personas)) {
-        for (const p of dbObj.personas) {
-            add(p?.icon);
-            const embedded = p?.embeddedModule;
-            if (includeModuleAssets && Array.isArray(embedded?.assets)) for (const a of embedded.assets) add(a?.[1]);
-            add(embedded?.icon);
-        }
-    }`,
-            content: `    if (Array.isArray(dbObj.personas)) {
-        for (const p of dbObj.personas) {
-            add(p?.icon);
-            if (Array.isArray(p?.imageGallery)) {
-                for (const image of p.imageGallery) add(image);
-            }
-            const embedded = p?.embeddedModule;
-            if (includeModuleAssets && Array.isArray(embedded?.assets)) for (const a of embedded.assets) add(a?.[1]);
-            add(embedded?.icon);
-        }
-    }
-    if (Array.isArray(dbObj.personaFolders)) {
-        for (const folder of dbObj.personaFolders) add(folder?.icon);
-    }
-`,
-            after: ['bg-preserve:hook:server-cjs-register-routes'],
-            targetVersions: pocketRisu190,
-        },
-        {
             id: 'persona-organizer:server-gallery-assets-1.10',
             file: 'server/node/server.cjs',
             type: 'replace',
@@ -579,16 +463,6 @@ import { resolvePersonaFolderId } from "./personaOrganizer"
                 'persona-organizer:logic',
                 'persona-organizer:import-folder-preservation',
             ],
-        },
-        {
-            id: 'persona-organizer:settings-page',
-            file: 'src/lib/Setting/Pages/PersonaSettings.svelte',
-            type: 'replace',
-            anchor: fs.readFileSync(originalPath, 'utf8'),
-            managed: fs.readFileSync(replacementPath, 'utf8'),
-            markerNeedle: 'POCKETRISU-PATCH:persona-organizer:START',
-            requires: ['persona-organizer:import-folder-preservation'],
-            targetVersions: pocketRisu181And190,
         },
         {
             id: 'persona-organizer:settings-page:1.10',

@@ -7,10 +7,6 @@ const path = require('node:path')
 
 const source = fs.readFileSync(path.join(
     __dirname,
-    '../patches/persona-organizer/files/src/lib/Setting/Pages/PersonaSettings.svelte',
-), 'utf8')
-const source1100 = fs.readFileSync(path.join(
-    __dirname,
     '../patches/persona-organizer/files-1.10/src/lib/Setting/Pages/PersonaSettings.svelte',
 ), 'utf8')
 const pickerSource = fs.readFileSync(path.join(
@@ -48,7 +44,7 @@ test('persona folders are explicit same-size cards that open normally', () => {
 
 test('folder images use shared asset storage and can return to the default icon', () => {
     const normalization = manifest.units.find(
-        (unit) => unit.id === 'persona-organizer:model-normalization',
+        (unit) => unit.id === 'persona-organizer:model-normalization:1.10',
     )
     const folderInterface = manifest.units.find(
         (unit) => unit.id === 'persona-organizer:folder-interface',
@@ -57,7 +53,7 @@ test('folder images use shared asset storage and can return to the default icon'
     assert.equal(manifest.version, '0.11.1')
     assert.deepEqual(manifest.targets, {
         pocketrisu: {
-            verified: ['1.8.1', '1.9.0', '1.10.0'],
+            verified: ['1.10.0'],
             reviewing: [],
         },
     })
@@ -141,10 +137,10 @@ test('the persona plus menu is local, closable, and preserves create and import 
     assert.match(source, /function createPersona\(\): void \{[\s\S]*name: "New Persona"[\s\S]*folderId: activeFolderId \?\? undefined/)
     assert.match(source, /async function importPersonaFromDialog\(\): Promise<void> \{[\s\S]*await importUserPersona\(activeFolderId \?\? undefined\)/)
     assert.doesNotMatch(source, /alertSelect/)
-    assert.match(source1100, /function duplicatePersona\(\): void/)
-    assert.match(source1100, /name: `\$\{clone\.name\} \(Copy\)`/)
-    assert.match(source1100, /\{language\.personaDuplicate\}/)
-    assert.match(source1100, /DBState\.db\.selectedPersona = 0/)
+    assert.match(source, /function duplicatePersona\(\): void/)
+    assert.match(source, /name: `\$\{clone\.name\} \(Copy\)`/)
+    assert.match(source, /\{language\.personaDuplicate\}/)
+    assert.match(source, /DBState\.db\.selectedPersona = 0/)
 })
 
 test('persona organizer owns exactly the settings editor and native selection popup', () => {
@@ -190,9 +186,16 @@ test('picker and settings create or import only into a still-valid selected fold
 })
 
 test('K22 picker scope does not add persona duplication or a parallel identity schema', () => {
-    const owned = `${pickerSource}\n${logicSource}\n${source}`
-    assert.doesNotMatch(owned, /duplicatePersona|clonePersona|copyPersona/)
-    assert.doesNotMatch(owned, /personaPickerId|pickerPersonaId/)
+    const organizerOwned = `${pickerSource}\n${logicSource}`
+    assert.doesNotMatch(organizerOwned, /duplicatePersona|clonePersona|copyPersona/)
+    assert.doesNotMatch(`${organizerOwned}\n${source}`, /personaPickerId|pickerPersonaId/)
+    // PocketRisu 1.10 ships persona duplication natively; the replaced
+    // settings page keeps that action instead of adding a new one.
+    const nativeSource = fs.readFileSync(path.join(
+        __dirname,
+        '../patches/persona-organizer/anchors-1.10/PersonaSettings.svelte',
+    ), 'utf8')
+    assert.match(nativeSource, /language\.personaDuplicate/)
 })
 
 test('existing persona editor behavior remains available', () => {
@@ -215,7 +218,7 @@ test('persona image gallery keeps icon as the selected compatibility image', () 
         '../patches/persona-organizer/files/src/ts/personaImages.ts',
     ), 'utf8')
     const normalization = manifest.units.find(
-        (unit) => unit.id === 'persona-organizer:image-gallery-normalization',
+        (unit) => unit.id === 'persona-organizer:image-gallery-normalization:1.10',
     )
     const modelField = manifest.units.find(
         (unit) => unit.id === 'persona-organizer:persona-image-gallery-field',
@@ -296,22 +299,11 @@ test('persona PNG export chooses a gallery image without changing the active ima
 
 test('persona and folder image references survive cleanup, replacement, and partial backup', () => {
     const unit = (id) => manifest.units.find((candidate) => candidate.id === id)
-    const server181 = unit('persona-organizer:server-gallery-assets')
-    const server190 = unit('persona-organizer:server-gallery-assets-1.9')
-
     assert.match(unit('persona-organizer:uncleanable-gallery-assets').content, /v\.imageGallery/)
     assert.match(unit('persona-organizer:uncleanable-folder-assets').content, /db\.personaFolders/)
     assert.match(unit('persona-organizer:replace-gallery-assets').content, /persona\.icon = replaceData\(persona\.icon\)/)
     assert.match(unit('persona-organizer:replace-gallery-assets').content, /persona\.imageGallery = persona\.imageGallery\.map/)
     assert.match(unit('persona-organizer:replace-gallery-assets').content, /folder\.icon = replaceData/)
-    assert.match(server181.content, /persona\?\.imageGallery/)
-    assert.match(server181.content, /dbObj\.personaFolders/)
-    assert.deepEqual(server181.targetVersions, { pocketrisu: ['1.8.1'] })
-    assert.match(server190.content, /p\?\.imageGallery/)
-    assert.match(server190.content, /dbObj\.personaFolders/)
-    assert.match(server190.content, /p\?\.embeddedModule/)
-    assert.match(server190.content, /includeModuleAssets/)
-    assert.deepEqual(server190.targetVersions, { pocketrisu: ['1.9.0'] })
     assert.match(unit('persona-organizer:backup-gallery-assets').content, /persona\.imageGallery/)
     assert.match(unit('persona-organizer:backup-gallery-assets').content, /folder\.icon/)
 })

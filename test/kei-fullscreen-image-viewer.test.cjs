@@ -5,29 +5,12 @@ const assert = require('node:assert/strict')
 const fs = require('node:fs')
 const path = require('node:path')
 const { loadCatalog, resolveProfile } = require('../src/catalog.cjs')
-const { packEtag, unitMatchesTarget } = require('../src/manager.cjs')
+const { packEtag } = require('../src/manager.cjs')
 const { resolveSelection } = require('../src/resolver.cjs')
 const manifest = require('../patches/kei-fullscreen-image-viewer-core/manifest.cjs')
 const metaManifest = require('../patches/pocketrisu-kei/manifest.cjs')
 
-const patchRoot = path.join(__dirname, '../patches/kei-fullscreen-image-viewer-core')
-const read = (relative) => fs.readFileSync(path.join(patchRoot, relative), 'utf8')
-const component = read('files/src/lib/UI/GUI/FullscreenImageViewer.svelte')
-const navigation = read('files/src/ts/fullscreenImageNavigation.ts')
-const navigationTests = read('files/src/ts/fullscreenImageNavigation.test.ts')
 const notice = fs.readFileSync(path.join(__dirname, '../THIRD_PARTY_NOTICES.md'), 'utf8')
-const target181 = { packageName: 'pocketrisu', packageVersion: '1.8.1' }
-const target190 = { packageName: 'pocketrisu', packageVersion: '1.9.0' }
-
-function active(target) {
-    return manifest.units.filter((candidate) => unitMatchesTarget(candidate, target))
-}
-
-function unit(id) {
-    const result = manifest.units.find((candidate) => candidate.id === id)
-    assert.ok(result, `missing unit ${id}`)
-    return result
-}
 
 function managedText(candidate) {
     return candidate.managed ?? candidate.content ?? ''
@@ -39,13 +22,12 @@ test('fullscreen viewer remains a hidden child of the complete set', () => {
     assert.equal(manifest.version, '0.2.1')
     assert.deepEqual(manifest.targets, {
         pocketrisu: {
-            verified: ['1.8.1', '1.9.0', '1.10.0'],
+            verified: ['1.10.0'],
             reviewing: [],
         },
     })
     assert.equal(manifest.userSelectable, false)
     assert.equal(manifest.presetDefaults, undefined)
-    assert.equal(metaManifest.version, '0.13.0')
     assert.equal(metaManifest.requires.includes(manifest.id), true)
     assert.equal(resolveProfile('all', catalog).defaults.includes(metaManifest.id), true)
 
@@ -58,40 +40,22 @@ test('fullscreen viewer remains a hidden child of the complete set', () => {
     )
 })
 
-test('1.8 keeps focused K19 files while 1.9 retires duplicate viewer ownership', () => {
-    const ownedFiles = active(target181)
-        .filter((candidate) => candidate.type === 'owned')
-        .map((candidate) => candidate.file)
-    const hostFiles = [...new Set(
-        active(target181)
-            .filter((candidate) => candidate.type !== 'owned')
-            .map((candidate) => candidate.file),
-    )]
-
-    assert.deepEqual(ownedFiles, [
-        'src/ts/fullscreenImageNavigation.ts',
-        'src/ts/fullscreenImageNavigation.test.ts',
-        'src/lib/UI/GUI/FullscreenImageViewer.svelte',
-    ])
-    assert.deepEqual(hostFiles, ['src/lib/SideBars/CharConfig.svelte'])
-    assert.equal(active(target190).some((candidate) => candidate.type === 'owned'), false)
+test('the native asset viewer is the only host and no viewer file is owned', () => {
+    assert.equal(manifest.units.some((candidate) => candidate.type === 'owned'), false)
     assert.deepEqual(
-        [...new Set(active(target190).map((candidate) => candidate.file))],
+        [...new Set(manifest.units.map((candidate) => candidate.file))],
         ['src/lib/Others/AssetViewer.svelte'],
     )
     assert.equal(
-        active(target190).some((candidate) =>
-            candidate.file.includes('InlayImageGallery')
-            || candidate.file.includes('database')
-            || candidate.file.includes('characters.ts')
-            || candidate.file.includes('CharConfig')
+        manifest.units.every((candidate) =>
+            candidate.targetVersions?.pocketrisu?.join(',') === '1.10.0'
         ),
-        false,
+        true,
     )
 })
 
-test('1.9 adds only dialog, accessible-name, and touch-target deltas', () => {
-    const combined = active(target190).map(managedText).join('\n')
+test('the pack adds only dialog, accessible-name, and touch-target deltas', () => {
+    const combined = manifest.units.map(managedText).join('\n')
     assert.match(combined, /role="dialog"/)
     assert.match(combined, /aria-modal="true"/)
     assert.match(combined, /aria-label=\{assetViewerStore\.title\}/)
@@ -103,59 +67,7 @@ test('1.9 adds only dialog, accessible-name, and touch-target deltas', () => {
     assert.doesNotMatch(combined, /additionalAssets|openAssetViewer|scrollToIndex|onscroll/)
 })
 
-test('viewer centralizes one keyboard action and exposes touch-sized controls', () => {
-    assert.match(component, /getFullscreenImageAction\(event\.key, canGoPrev, canGoNext\)/)
-    assert.match(component, /if \(action === 'close'\) onClose\(\)/)
-    assert.match(component, /else if \(action === 'previous'\) onPrev\?\.\(\)/)
-    assert.match(component, /<svelte:window onkeydown=\{handleKeydown\} \/>/)
-    assert.match(component, /role="dialog"/)
-    assert.match(component, /aria-modal="true"/)
-    assert.match(component, /w-11 h-11/)
-    assert.match(component, /aria-label=\{previousLabel\}/)
-    assert.match(component, /aria-label=\{nextLabel\}/)
-    assert.match(component, /draggable=\{false\}/)
-    assert.doesNotMatch(component, /document\.addEventListener\('keydown'/)
-})
-
-test('pure navigation skips non-images and refuses unavailable boundaries', () => {
-    assert.match(navigation, /key === 'Escape'/)
-    assert.match(navigation, /key === 'ArrowLeft' && canGoPrevious/)
-    assert.match(navigation, /key === 'ArrowRight' && canGoNext/)
-    assert.match(navigation, /indexes\.indexOf\(currentIndex\)/)
-    assert.match(navigation, /indexes\[position \+ direction\] \?\? null/)
-    assert.match(navigationTests, /const imageIndexes = \[0, 2, 5\]/)
-    assert.match(navigationTests, /getGalleryNeighborIndex\(imageIndexes, 2, -1\)\)\.toBe\(0\)/)
-    assert.match(navigationTests, /getGalleryNeighborIndex\(imageIndexes, 2, 1\)\)\.toBe\(5\)/)
-    assert.match(navigationTests, /getGalleryNeighborIndex\(imageIndexes, 0, -1\)\)\.toBeNull\(\)/)
-    assert.match(navigationTests, /getGalleryNeighborIndex\(imageIndexes, 5, 1\)\)\.toBeNull\(\)/)
-})
-
-test('character hooks preserve asset writes and close stale character previews', () => {
-    const state = managedText(unit('kei-fullscreen-image-viewer-core:char-config-state'))
-    const thumbnail = managedText(unit(
-        'kei-fullscreen-image-viewer-core:char-config-thumbnail',
-    ))
-    const viewer = managedText(unit('kei-fullscreen-image-viewer-core:char-config-viewer'))
-    const allHooks = manifest.units
-        .filter((candidate) => candidate.type !== 'owned')
-        .map(managedText)
-        .join('\n')
-
-    assert.match(state, /previewableImageExtensions = \['png', 'webp', 'jpeg', 'jpg', 'gif', 'svg', 'avif'\]/)
-    assert.match(state, /assetPreviewCharacterId !== currentCharacterId/)
-    assert.match(state, /!assetPreviewIndexes\.includes\(assetPreviewIndex\)/)
-    assert.match(state, /getGalleryNeighborIndex\(assetPreviewIndexes, assetPreviewIndex, direction\)/)
-    assert.match(thumbnail, /onclick=\{\(\) => openAssetPreview\(i\)\}/)
-    assert.match(viewer, /assetPreviewCharacterId === \$selectedCharID/)
-    assert.match(viewer, /onPrev=\{\(\) => goToAssetPreviewNeighbor\(-1\)\}/)
-    assert.match(viewer, /onNext=\{\(\) => goToAssetPreviewNeighbor\(1\)\}/)
-    assert.doesNotMatch(
-        allHooks,
-        /additionalAssets\.push|additionalAssets\.splice|prebuiltAssetExclude\s*=|setDatabase|removeAsset/,
-    )
-})
-
-test('Kei provenance is pinned and graph metadata changes the pack ETag', () => {
+test('Kei provenance is pinned and unit payloads change the pack ETag', () => {
     assert.match(notice, /https:\/\/github\.com\/seto-sama\/PocketRisu-Kei/)
     assert.match(notice, /cc1d1b195babd887577ebf943d5e82f01f58135c/)
     assert.match(notice, /GNU General Public License v3\.0/)
@@ -165,7 +77,7 @@ test('Kei provenance is pinned and graph metadata changes the pack ETag', () => 
     assert.notEqual(packEtag({
         ...pack,
         units: pack.units.map((candidate, index) => index === 0
-            ? { ...candidate, content: `${candidate.content}\n` }
+            ? { ...candidate, managed: `${managedText(candidate)}\n` }
             : candidate),
     }), original)
     assert.equal(packEtag(pack), original)

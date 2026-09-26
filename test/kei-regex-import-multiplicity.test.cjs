@@ -13,7 +13,7 @@ const importedManifest = JSON.parse(fs.readFileSync(
 const { unitMatchesTarget } = require('../src/manager.cjs')
 
 const target181 = { packageName: 'pocketrisu', packageVersion: '1.8.1' }
-const target190 = { packageName: 'pocketrisu', packageVersion: '1.9.0' }
+const target1100 = { packageName: 'pocketrisu', packageVersion: '1.10.0' }
 const targetTestPath = path.join(
     __dirname,
     '../patches/bg-preserve/files/src/ts/process/regexImportMultiplicity.test.ts',
@@ -30,22 +30,17 @@ test('K23-F01 versions the existing BG regex owner without a new pack or schema'
     assert.equal(manifest.id, 'bg-preserve')
     assert.match(manifest.version, /^v1\.0\.1-patcher\.\d+$/)
 
-    const merge181 = unit('bg-preserve:hook:regex-import-merge')
     const merge190 = unit('bg-preserve:hook:regex-import-merge:1.9')
-    assert.equal(unitMatchesTarget(merge181, target181), true)
-    assert.equal(unitMatchesTarget(merge181, target190), false)
+    assert.equal(manifest.units.some((candidate) => candidate.id === 'bg-preserve:hook:regex-import-merge'), false)
     assert.equal(unitMatchesTarget(merge190, target181), false)
-    assert.equal(unitMatchesTarget(merge190, target190), true)
+    assert.equal(unitMatchesTarget(merge190, target1100), true)
     assert.equal(merge190.file, 'src/ts/process/scripts.ts')
     const importedMerge = importedManifest.units.find(
         (candidate) => candidate.id === 'bg-preserve:hook:regex-import-merge',
     )
-    assert.ok(importedMerge, 'missing imported 1.8.1 regex merge unit')
-    const { targetVersions, ...merge181Payload } = merge181
-    assert.deepEqual(merge181Payload, importedMerge)
-    assert.deepEqual(targetVersions, { pocketrisu: ['1.8.1'] })
-    assert.match(merge181.managed, /new Map<string, customscript>\(\)/)
-    assert.doesNotMatch(merge181.managed, /candidates\.find/)
+    assert.ok(importedMerge, 'missing imported regex merge unit')
+    assert.match(importedMerge.managed, /new Map<string, customscript>\(\)/)
+    assert.doesNotMatch(importedMerge.managed, /candidates\.find/)
     assert.match(merge190.managed, /new Map<string, customscript\[\]>\(\)/)
     assert.match(merge190.managed, /candidates\.find/)
     assert.match(merge190.managed, /every\(\(mode\) => !incomingSet\.has\(mode\)\)/)
@@ -68,7 +63,7 @@ test('K23-F01 target fixture covers disjoint merge, overlap split, order, and ex
 
     assert.equal(ownedTest.type, 'owned')
     assert.equal(unitMatchesTarget(ownedTest, target181), false)
-    assert.equal(unitMatchesTarget(ownedTest, target190), true)
+    assert.equal(unitMatchesTarget(ownedTest, target1100), true)
     assert.deepEqual(ownedTest.requires, ['bg-preserve:hook:regex-import-merge:1.9'])
     assert.equal(ownedTest.content, targetTest)
     assert.match(targetTest, /merges equal-key records only when their directions are disjoint/)

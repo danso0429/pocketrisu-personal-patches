@@ -1,13 +1,13 @@
 'use strict'
 
-const pocketRisu190 = { pocketrisu: ['1.9.0', '1.10.0'] }
+const pocketRisu1100 = { pocketrisu: ['1.10.0'] }
 
 module.exports = {
     id: 'client-build-fence-kei-lazy-storage-adapter',
     title: 'Client build fence Kei lazy-storage adapter',
     version: '0.1.1',
     targets: {
-        pocketrisu: { verified: ['1.9.0', '1.10.0'], reviewing: [] },
+        pocketrisu: { verified: ['1.10.0'], reviewing: [] },
     },
     userSelectable: false,
     requires: ['client-build-fence', 'kei-backup-restore-safety-lazy-adapter'],
@@ -27,7 +27,7 @@ module.exports = {
                 'kei-backup-restore-safety-lazy-adapter:node-local-stream-error:1.9',
                 'kei-backup-restore-safety-lazy-adapter:node-server-stream-error:1.9',
             ],
-            targetVersions: pocketRisu190,
+            targetVersions: pocketRisu1100,
         },
         {
             id: 'client-build-fence-kei-lazy-storage-adapter:backup-xhr-response:1.9',
@@ -43,7 +43,7 @@ module.exports = {
                     /* POCKETRISU-PATCH:kei-backup-restore-safety:lazy:node-local-http-error */
 `,
             requires: ['client-build-fence-kei-lazy-storage-adapter:backup-xhr-header:1.9'],
-            targetVersions: pocketRisu190,
+            targetVersions: pocketRisu1100,
         },
     ],
 }

@@ -23,7 +23,7 @@ test('K14 keeps its pure core and bg-preserve adapter internal', () => {
     for (const pack of [core, bg]) {
         assert.deepEqual(pack.targets, {
             pocketrisu: {
-                verified: ['1.8.1', '1.9.0', '1.10.0'],
+                verified: ['1.10.0'],
                 reviewing: [],
             },
         })
@@ -91,19 +91,12 @@ test('K14 identity retains structure but removes only streaming churn', () => {
     assert.match(runtimeTests, /keeps structural message changes visible/)
 })
 
-test('K14 updates mounted props and defers translation only for active streaming', () => {
+test('K14 passes generation state and defers translation only for active streaming', () => {
     for (const adapter of [bg]) {
         const managed = adapter.units.map(unitText).join('\n')
-        assert.match(managed, /const props = \$state<ChatMountProps>/)
-        assert.match(managed, /entry\.props\.message = message\.data/)
-        assert.match(managed, /isStreamingDisplay: isStreamingMessage/)
         assert.match(
             managed,
             /messageGenerationInfo: message\.generationInfo,/,
-        )
-        assert.match(
-            managed,
-            /entry\.props\.messageGenerationInfo !== message\.generationInfo/,
         )
         assert.doesNotMatch(
             managed,
@@ -118,21 +111,14 @@ test('K14 updates mounted props and defers translation only for active streaming
     }
 })
 
-test('K14 reuses the native 1.9 streaming renderer and adds only missing guarantees', () => {
+test('K14 reuses the native streaming renderer and adds only missing guarantees', () => {
     for (const adapter of [bg]) {
-        const units181 = adapter.units.filter((unit) =>
-            unit.targetVersions?.pocketrisu?.includes('1.8.1')
-        )
-        const units190 = adapter.units.filter((unit) =>
-            unit.targetVersions?.pocketrisu?.includes('1.9.0')
-        )
-        assert.equal(units181.length, 20)
+        const units190 = adapter.units
         assert.equal(units190.length, 16)
         assert.equal(
-            adapter.units.every((unit) => {
-                const versions = unit.targetVersions?.pocketrisu
-                return versions?.length === 1 || versions?.join(',') === '1.9.0,1.10.0'
-            }),
+            adapter.units.every((unit) =>
+                unit.targetVersions?.pocketrisu?.join(',') === '1.10.0'
+            ),
             true,
         )
 
@@ -152,36 +138,7 @@ test('K14 reuses the native 1.9 streaming renderer and adds only missing guarant
 })
 
 test('K14 bg adapter explicitly follows existing Chat ownership without touching delivery', () => {
-    const units181 = bg.units.filter((unit) =>
-        unit.targetVersions?.pocketrisu?.includes('1.8.1')
-    )
-    const units190 = bg.units.filter((unit) =>
-        unit.targetVersions?.pocketrisu?.includes('1.9.0')
-    )
-    const chatUnits = units181.filter((unit) =>
-        unit.file === 'src/lib/ChatScreens/Chat.svelte'
-    )
-    assert.equal(chatUnits.length, 5)
-    for (const unit of chatUnits) {
-        assert.deepEqual(unit.after, [
-            'bg-preserve:hook:chat-risu-control-touch-import',
-            'bg-preserve:hook:chat-risu-control-touch-bridge',
-            'bg-preserve:hook:chat-standard-risu-control-touch-events',
-            'bg-preserve:hook:chat-themed-risu-control-touch-events',
-        ])
-    }
-    const defaultChatUnit = units181.find((unit) =>
-        unit.file === 'src/lib/ChatScreens/DefaultChatScreen.svelte',
-    )
-    assert.ok(defaultChatUnit)
-    assert.equal(defaultChatUnit.after.length, 15)
-    assert.equal(
-        defaultChatUnit.after.every((id) =>
-            id.startsWith('bg-preserve:hook:defaultchatscreen-')
-        ),
-        true,
-    )
-
+    const units190 = bg.units
     const chatUnits190 = units190.filter((unit) =>
         unit.file === 'src/lib/ChatScreens/Chat.svelte'
     )
@@ -198,7 +155,13 @@ test('K14 bg adapter explicitly follows existing Chat ownership without touching
         unit.file === 'src/lib/ChatScreens/DefaultChatScreen.svelte'
     )
     assert.ok(defaultChatUnit190)
-    assert.equal(defaultChatUnit190.after.length, 15)
+    assert.equal(defaultChatUnit190.after.length, 13)
+    assert.equal(
+        defaultChatUnit190.after.every((id) =>
+            id.startsWith('bg-preserve:hook:defaultchatscreen-')
+        ),
+        true,
+    )
 })
 
 test('K14 adapter payloads participate in ETags and retain pinned attribution', () => {

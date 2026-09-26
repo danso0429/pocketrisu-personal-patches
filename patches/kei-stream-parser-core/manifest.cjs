@@ -13,7 +13,7 @@ module.exports = {
     userSelectable: false,
     targets: {
         pocketrisu: {
-            verified: ['1.8.1', '1.9.0', '1.10.0'],
+            verified: ['1.10.0'],
             reviewing: [],
         },
     },

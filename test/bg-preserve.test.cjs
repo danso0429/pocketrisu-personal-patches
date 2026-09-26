@@ -12,7 +12,7 @@ const {
 const { unitMatchesTarget } = require('../src/manager.cjs')
 
 const target181 = { packageName: 'pocketrisu', packageVersion: '1.8.1' }
-const target190 = { packageName: 'pocketrisu', packageVersion: '1.9.0' }
+const target1100 = { packageName: 'pocketrisu', packageVersion: '1.10.0' }
 
 function active(target) {
     return manifest.units.filter((unit) => unitMatchesTarget(unit, target))
@@ -32,36 +32,44 @@ function owned(file) {
     return found.content
 }
 
-test('BG pack keeps exact 1.8 support and verifies its target-scoped 1.9 graph', () => {
+test('BG pack delivers only its exact-1.10 graph', () => {
     assert.equal(manifest.id, 'bg-preserve')
     assert.equal(manifest.version, 'v1.0.1-patcher.9')
     assert.deepEqual(manifest.targets, {
         pocketrisu: {
-            verified: ['1.8.1', '1.9.0', '1.10.0'],
+            verified: ['1.10.0'],
             reviewing: [],
         },
     })
-    assert.equal(active(target181).some((candidate) => candidate.id.endsWith(':1.9')), false)
-    assert.equal(active(target190).some((candidate) => candidate.id.endsWith(':1.9')), true)
+    assert.equal(active(target1100).length, manifest.units.length)
+    assert.equal(active(target181).some((candidate) => candidate.targetVersions), false)
+    assert.equal(active(target1100).some((candidate) => candidate.id.endsWith(':1.9')), true)
 })
 
-test('1.9 drops upstream-equivalent or obsolete host hooks', () => {
-    const ids190 = new Set(active(target190).map((candidate) => candidate.id))
+test('upstream-equivalent or obsolete host hooks are not delivered', () => {
+    const ids = new Set(manifest.units.map((candidate) => candidate.id))
     for (const id of [
         'bg-preserve:hook:app-svelte-safe-mobile-file-drop',
         'bg-preserve:hook:defaultchatscreen-import-abort',
         'bg-preserve:hook:defaultchatscreen-register-abort',
         'bg-preserve:hook:index-remove-legacy-busy-guard',
+        'bg-preserve:hook:processzip-asset-save-aggregate-cause',
     ]) {
-        assert.equal(ids190.has(id), false, id)
-        assert.equal(active(target181).some((candidate) => candidate.id === id), true, id)
+        assert.equal(ids.has(id), false, id)
+    }
+    for (const candidate of manifest.units) {
+        for (const relation of ['after', 'before', 'requires']) {
+            for (const reference of candidate[relation] ?? []) {
+                assert.equal(ids.has(reference) || !reference.startsWith('bg-preserve:'), true, `${candidate.id} -> ${reference}`)
+            }
+        }
     }
 })
 
-test('1.9 native generation state delegates only its client lease to BG busy state', () => {
+test('native generation state delegates only its client lease to BG busy state', () => {
     const importUnit = unit('bg-preserve:hook:index-unified-generation-busy-import:1.9')
     const storeUnit = unit('bg-preserve:hook:index-unified-generation-busy:1.9')
-    assert.deepEqual(importUnit.targetVersions, { pocketrisu: ['1.9.0', '1.10.0'] })
+    assert.deepEqual(importUnit.targetVersions, { pocketrisu: ['1.10.0'] })
     assert.equal(storeUnit.file, 'src/ts/process/generationState.ts')
     assert.match(importUnit.content, /doingChat as unifiedDoingChat/)
     assert.match(storeUnit.managed, /export const doingChat = unifiedDoingChat/)

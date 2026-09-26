@@ -5,9 +5,9 @@ const path = require('node:path')
 
 const filesRoot = path.join(__dirname, 'files')
 const owned = (relative) => fs.readFileSync(path.join(filesRoot, relative), 'utf8')
-const pocketRisu190 = { pocketrisu: ['1.9.0', '1.10.0'] }
+const pocketRisu1100 = { pocketrisu: ['1.10.0'] }
 const nodeStorageOwnerUnits = [
-    'lazy-chat-sync:replace:src:ts:storage:nodeStorage-ts:1.9',
+    'lazy-chat-sync:replace:src:ts:storage:nodeStorage-ts:1.10',
     'lazy-chat-bg-adapter:asset-upload-error-detail',
     'kei-backup-restore-safety-lazy-adapter:node-safety-import:1.9',
     'kei-backup-restore-safety-lazy-adapter:node-server-stream-error:1.9',
@@ -20,7 +20,7 @@ const globalApiOwnerUnits = [
     'bg-preserve:hook:globalapi-fetch-impl-register:1.9',
     'bg-preserve:hook:globalapi-fetchnative-bgsubkey-arg',
     'bg-preserve:hook:globalapi-gemini-main-branch',
-    'lazy-chat-sync:replace:src:ts:globalApi-svelte-ts:1.9',
+    'lazy-chat-sync:replace:src:ts:globalApi-svelte-ts:1.10',
     'lazy-chat-bg-adapter:global-import',
     'lazy-chat-bg-adapter:durable-flush',
     'persona-organizer:uncleanable-gallery-assets',
@@ -34,7 +34,7 @@ module.exports = {
     version: '0.1.1',
     targets: {
         pocketrisu: {
-            verified: ['1.9.0', '1.10.0'],
+            verified: ['1.10.0'],
             reviewing: [],
         },
     },
@@ -45,7 +45,7 @@ module.exports = {
             file: 'src/ts/storage/clientBuild.ts',
             type: 'owned',
             content: owned('src/ts/storage/clientBuild.ts'),
-            targetVersions: pocketRisu190,
+            targetVersions: pocketRisu1100,
         },
         {
             id: 'client-build-fence:client-handshake:1.9',
@@ -53,7 +53,7 @@ module.exports = {
             type: 'owned',
             content: owned('src/ts/storage/clientBuildHandshake.ts'),
             requires: ['client-build-fence:client-build-helper:1.9'],
-            targetVersions: pocketRisu190,
+            targetVersions: pocketRisu1100,
         },
         {
             id: 'client-build-fence:client-handshake-tests:1.9',
@@ -61,7 +61,7 @@ module.exports = {
             type: 'owned',
             content: owned('src/ts/storage/clientBuildHandshake.test.ts'),
             requires: ['client-build-fence:client-handshake:1.9'],
-            targetVersions: pocketRisu190,
+            targetVersions: pocketRisu1100,
         },
         {
             id: 'client-build-fence:draft-failure-tests:1.9',
@@ -69,14 +69,14 @@ module.exports = {
             type: 'owned',
             content: owned('src/ts/storage/chatDraftClientBuild.test.ts'),
             requires: ['client-build-fence:draft-sweep-key:1.9'],
-            targetVersions: pocketRisu190,
+            targetVersions: pocketRisu1100,
         },
         {
             id: 'client-build-fence:server-helper:1.9',
             file: 'server/node/clientBuildFence.cjs',
             type: 'owned',
             content: owned('server/node/clientBuildFence.cjs'),
-            targetVersions: pocketRisu190,
+            targetVersions: pocketRisu1100,
         },
         {
             id: 'client-build-fence:server-helper-tests:1.9',
@@ -84,7 +84,7 @@ module.exports = {
             type: 'owned',
             content: owned('server/node/clientBuildFence.test.ts'),
             requires: ['client-build-fence:server-helper:1.9'],
-            targetVersions: pocketRisu190,
+            targetVersions: pocketRisu1100,
         },
         {
             id: 'client-build-fence:vite-crypto-import:1.9',
@@ -93,7 +93,7 @@ module.exports = {
             where: 'after',
             anchor: "import { readFileSync } from 'fs';\n",
             content: "import { randomBytes } from 'crypto';\n",
-            targetVersions: pocketRisu190,
+            targetVersions: pocketRisu1100,
         },
         {
             id: 'client-build-fence:vite-stamp-value:1.9',
@@ -111,7 +111,7 @@ module.exports = {
   }, null, 2) + '\\n';
 `,
             requires: ['client-build-fence:vite-crypto-import:1.9'],
-            targetVersions: pocketRisu190,
+            targetVersions: pocketRisu1100,
         },
         {
             id: 'client-build-fence:vite-stamp-define:1.9',
@@ -121,7 +121,7 @@ module.exports = {
             anchor: "      '__APP_VERSION__': JSON.stringify(pkg.version),\n",
             content: "      '__CLIENT_BUILD_STAMP__': JSON.stringify(clientBuildStamp),\n",
             requires: ['client-build-fence:vite-stamp-value:1.9'],
-            targetVersions: pocketRisu190,
+            targetVersions: pocketRisu1100,
         },
         {
             id: 'client-build-fence:vite-stamp-asset:1.9',
@@ -142,7 +142,7 @@ module.exports = {
       },
 `,
             requires: ['client-build-fence:vite-stamp-define:1.9'],
-            targetVersions: pocketRisu190,
+            targetVersions: pocketRisu1100,
         },
         {
             id: 'client-build-fence:vite-env:1.9',
@@ -151,7 +151,7 @@ module.exports = {
             where: 'after',
             anchor: 'declare const __APP_VERSION__: string\n',
             content: 'declare const __CLIENT_BUILD_STAMP__: string\n',
-            targetVersions: pocketRisu190,
+            targetVersions: pocketRisu1100,
         },
         {
             id: 'client-build-fence:node-storage-import:1.9',
@@ -168,7 +168,7 @@ module.exports = {
 `,
             after: nodeStorageOwnerUnits,
             requires: ['client-build-fence:client-handshake:1.9'],
-            targetVersions: pocketRisu190,
+            targetVersions: pocketRisu1100,
         },
         {
             id: 'client-build-fence:node-session-fetch:1.9',
@@ -178,7 +178,7 @@ module.exports = {
             content: "            const res = await clientBuildFetch('/api/session', {\n",
             after: nodeStorageOwnerUnits,
             requires: ['client-build-fence:node-storage-import:1.9'],
-            targetVersions: pocketRisu190,
+            targetVersions: pocketRisu1100,
         },
         {
             id: 'client-build-fence:node-session-accept:1.9',
@@ -196,7 +196,7 @@ module.exports = {
 `,
             after: nodeStorageOwnerUnits,
             requires: ['client-build-fence:node-session-fetch:1.9'],
-            targetVersions: pocketRisu190,
+            targetVersions: pocketRisu1100,
         },
         {
             id: 'client-build-fence:node-auth-fetch:1.9',
@@ -214,7 +214,7 @@ module.exports = {
 `,
             after: nodeStorageOwnerUnits,
             requires: ['client-build-fence:node-session-accept:1.9'],
-            targetVersions: pocketRisu190,
+            targetVersions: pocketRisu1100,
         },
         {
             id: 'client-build-fence:node-migration-xhr-header:1.9',
@@ -233,7 +233,7 @@ module.exports = {
 `,
             after: nodeStorageOwnerUnits,
             requires: ['client-build-fence:node-auth-fetch:1.9'],
-            targetVersions: pocketRisu190,
+            targetVersions: pocketRisu1100,
         },
         {
             id: 'client-build-fence:node-migration-xhr-response:1.9',
@@ -250,7 +250,7 @@ module.exports = {
 `,
             after: nodeStorageOwnerUnits,
             requires: ['client-build-fence:node-migration-xhr-header:1.9'],
-            targetVersions: pocketRisu190,
+            targetVersions: pocketRisu1100,
         },
         {
             id: 'client-build-fence:global-import:1.9',
@@ -265,7 +265,7 @@ module.exports = {
 `,
             after: globalApiOwnerUnits,
             requires: ['client-build-fence:client-handshake:1.9'],
-            targetVersions: pocketRisu190,
+            targetVersions: pocketRisu1100,
         },
         {
             id: 'client-build-fence:global-dirty-probe:1.9',
@@ -293,7 +293,7 @@ module.exports = {
 `,
             after: globalApiOwnerUnits,
             requires: ['client-build-fence:global-import:1.9'],
-            targetVersions: pocketRisu190,
+            targetVersions: pocketRisu1100,
         },
         {
             id: 'client-build-fence:global-flush:1.9',
@@ -313,7 +313,7 @@ module.exports = {
 `,
             after: globalApiOwnerUnits,
             requires: ['client-build-fence:global-dirty-probe:1.9'],
-            targetVersions: pocketRisu190,
+            targetVersions: pocketRisu1100,
         },
         {
             id: 'client-build-fence:global-proxy-stream-cancel:1.9',
@@ -329,7 +329,7 @@ module.exports = {
 `,
             after: globalApiOwnerUnits,
             requires: ['client-build-fence:global-flush:1.9'],
-            targetVersions: pocketRisu190,
+            targetVersions: pocketRisu1100,
         },
         {
             id: 'client-build-fence:global-proxy-stream-abort:1.9',
@@ -345,7 +345,7 @@ module.exports = {
 `,
             after: globalApiOwnerUnits,
             requires: ['client-build-fence:global-proxy-stream-cancel:1.9'],
-            targetVersions: pocketRisu190,
+            targetVersions: pocketRisu1100,
         },
         {
             id: 'client-build-fence:draft-import:1.9',
@@ -355,7 +355,7 @@ module.exports = {
             anchor: 'import { forageStorage } from "../globalApi.svelte"\n',
             content: 'import { setClientBuildDraftUnsafe } from "./clientBuildHandshake"\n',
             requires: ['client-build-fence:client-handshake:1.9'],
-            targetVersions: pocketRisu190,
+            targetVersions: pocketRisu1100,
         },
         {
             id: 'client-build-fence:draft-queue-state:1.9',
@@ -416,7 +416,7 @@ function enqueue(key: string, op: () => Promise<void>, recoveryText = ''): void 
 }
 `,
             requires: ['client-build-fence:draft-import:1.9'],
-            targetVersions: pocketRisu190,
+            targetVersions: pocketRisu1100,
         },
         {
             id: 'client-build-fence:draft-timer-state:1.9',
@@ -442,7 +442,7 @@ function cancelPending() {
 }
 `,
             requires: ['client-build-fence:draft-queue-state:1.9'],
-            targetVersions: pocketRisu190,
+            targetVersions: pocketRisu1100,
         },
         {
             id: 'client-build-fence:draft-schedule-state:1.9',
@@ -460,7 +460,7 @@ function cancelPending() {
     syncClientBuildDraftState()
 `,
             requires: ['client-build-fence:draft-timer-state:1.9'],
-            targetVersions: pocketRisu190,
+            targetVersions: pocketRisu1100,
         },
         {
             id: 'client-build-fence:draft-flush-key:1.9',
@@ -474,7 +474,7 @@ function cancelPending() {
     enqueue(key, () => persistSave(key, draft), formatDraftRecovery(draft))
 `,
             requires: ['client-build-fence:draft-schedule-state:1.9'],
-            targetVersions: pocketRisu190,
+            targetVersions: pocketRisu1100,
         },
         {
             id: 'client-build-fence:draft-remove-key:1.9',
@@ -488,7 +488,7 @@ function cancelPending() {
     enqueue(key, () => persistRemove(key))
 `,
             requires: ['client-build-fence:draft-flush-key:1.9'],
-            targetVersions: pocketRisu190,
+            targetVersions: pocketRisu1100,
         },
         {
             id: 'client-build-fence:draft-sweep-key:1.9',
@@ -501,7 +501,7 @@ function cancelPending() {
                 await forageStorage.removeItem(key)
 `,
             requires: ['client-build-fence:draft-remove-key:1.9'],
-            targetVersions: pocketRisu190,
+            targetVersions: pocketRisu1100,
         },
         {
             id: 'client-build-fence:composer-import:1.9',
@@ -511,7 +511,7 @@ function cancelPending() {
             anchor: "    import { loadChatDraft, scheduleSaveChatDraft, flushChatDraft, removeChatDraft } from 'src/ts/storage/chatDraft';\n",
             content: "    import { setClientBuildComposerDirty } from 'src/ts/storage/clientBuildHandshake';\n",
             requires: ['client-build-fence:client-handshake:1.9'],
-            targetVersions: pocketRisu190,
+            targetVersions: pocketRisu1100,
         },
         {
             id: 'client-build-fence:composer-dirty-state:1.9',
@@ -546,7 +546,7 @@ function cancelPending() {
     })
 `,
             requires: ['client-build-fence:composer-import:1.9'],
-            targetVersions: pocketRisu190,
+            targetVersions: pocketRisu1100,
         },
         {
             id: 'client-build-fence:generation-import:1.9',
@@ -557,7 +557,7 @@ function cancelPending() {
             content: 'import { setClientBuildGenerationActive } from "../storage/clientBuildHandshake"\n',
             after: ['bg-preserve:hook:index-unified-generation-busy-import:1.9'],
             requires: ['client-build-fence:client-handshake:1.9'],
-            targetVersions: pocketRisu190,
+            targetVersions: pocketRisu1100,
         },
         {
             id: 'client-build-fence:generation-state:1.9',
@@ -567,7 +567,7 @@ function cancelPending() {
             anchor: 'export const generationStates = writable<Map<string, GenState>>(new Map())\n',
             content: 'generationStates.subscribe((states) => setClientBuildGenerationActive(states.size > 0))\n',
             requires: ['client-build-fence:generation-import:1.9'],
-            targetVersions: pocketRisu190,
+            targetVersions: pocketRisu1100,
         },
         {
             id: 'client-build-fence:job-fetch-import:1.9',
@@ -577,7 +577,7 @@ function cancelPending() {
             anchor: "import { language } from 'src/lang'\n",
             content: "import { clientBuildFetch } from 'src/ts/storage/clientBuildHandshake'\n",
             requires: ['client-build-fence:client-handshake:1.9'],
-            targetVersions: pocketRisu190,
+            targetVersions: pocketRisu1100,
         },
         {
             id: 'client-build-fence:job-fetch-delete:1.9',
@@ -586,7 +586,7 @@ function cancelPending() {
             anchor: "                await fetch(`/api/model-jobs/${jobId}`, { method: 'DELETE', headers: await authHeader() })\n",
             content: "                await clientBuildFetch(`/api/model-jobs/${jobId}`, { method: 'DELETE', headers: await authHeader() })\n",
             requires: ['client-build-fence:job-fetch-import:1.9'],
-            targetVersions: pocketRisu190,
+            targetVersions: pocketRisu1100,
         },
         {
             id: 'client-build-fence:job-fetch-claim:1.9',
@@ -595,7 +595,7 @@ function cancelPending() {
             anchor: "                await fetch(`/api/model-jobs/${jobId}/claim`, { method: 'POST', headers: await authHeader() })\n",
             content: "                await clientBuildFetch(`/api/model-jobs/${jobId}/claim`, { method: 'POST', headers: await authHeader() })\n",
             requires: ['client-build-fence:job-fetch-delete:1.9'],
-            targetVersions: pocketRisu190,
+            targetVersions: pocketRisu1100,
         },
         {
             id: 'client-build-fence:job-recovery-import:1.9',
@@ -605,7 +605,7 @@ function cancelPending() {
             anchor: "import { language } from 'src/lang'\n",
             content: "import { clientBuildFetch } from 'src/ts/storage/clientBuildHandshake'\n",
             requires: ['client-build-fence:client-handshake:1.9'],
-            targetVersions: pocketRisu190,
+            targetVersions: pocketRisu1100,
         },
         {
             id: 'client-build-fence:job-recovery-claim:1.9',
@@ -614,7 +614,7 @@ function cancelPending() {
             anchor: "        await fetch(`/api/model-jobs/${jobId}/claim`, { method: 'POST', headers: await authHeader() })\n",
             content: "        await clientBuildFetch(`/api/model-jobs/${jobId}/claim`, { method: 'POST', headers: await authHeader() })\n",
             requires: ['client-build-fence:job-recovery-import:1.9'],
-            targetVersions: pocketRisu190,
+            targetVersions: pocketRisu1100,
         },
         {
             id: 'client-build-fence:job-recovery-delete:1.9',
@@ -623,7 +623,7 @@ function cancelPending() {
             anchor: "            await fetch(`/api/model-jobs/${job.id}`, { method: 'DELETE', headers: await authHeader() })\n",
             content: "            await clientBuildFetch(`/api/model-jobs/${job.id}`, { method: 'DELETE', headers: await authHeader() })\n",
             requires: ['client-build-fence:job-recovery-claim:1.9'],
-            targetVersions: pocketRisu190,
+            targetVersions: pocketRisu1100,
         },
         {
             id: 'client-build-fence:pending-sends-import:1.9',
@@ -633,7 +633,7 @@ function cancelPending() {
             anchor: "import { authHeader } from './jobFetch'\n",
             content: "import { clientBuildFetch } from 'src/ts/storage/clientBuildHandshake'\n",
             requires: ['client-build-fence:client-handshake:1.9'],
-            targetVersions: pocketRisu190,
+            targetVersions: pocketRisu1100,
         },
         {
             id: 'client-build-fence:pending-sends-delete:1.9',
@@ -642,7 +642,7 @@ function cancelPending() {
             anchor: "        await fetch(`/api/pending-sends/${encodeURIComponent(chatId)}`, {\n",
             content: "        await clientBuildFetch(`/api/pending-sends/${encodeURIComponent(chatId)}`, {\n",
             requires: ['client-build-fence:pending-sends-import:1.9'],
-            targetVersions: pocketRisu190,
+            targetVersions: pocketRisu1100,
         },
         {
             id: 'client-build-fence:pending-sends-claim:1.9',
@@ -651,7 +651,7 @@ function cancelPending() {
             anchor: "        const res = await fetch(`/api/pending-sends/${encodeURIComponent(chatId)}/claim`, {\n",
             content: "        const res = await clientBuildFetch(`/api/pending-sends/${encodeURIComponent(chatId)}/claim`, {\n",
             requires: ['client-build-fence:pending-sends-delete:1.9'],
-            targetVersions: pocketRisu190,
+            targetVersions: pocketRisu1100,
         },
         {
             id: 'client-build-fence:system-backup-import:1.9',
@@ -661,7 +661,7 @@ function cancelPending() {
             anchor: "    import { forageStorage } from 'src/ts/globalApi.svelte'\n",
             content: "    import { clientBuildFetch } from 'src/ts/storage/clientBuildHandshake'\n",
             requires: ['client-build-fence:client-handshake:1.9'],
-            targetVersions: pocketRisu190,
+            targetVersions: pocketRisu1100,
         },
         ...[
             ['snapshot-delete', "            const res = await fetch(url, { method: 'DELETE', headers: { 'risu-auth': auth } })\n", "            const res = await clientBuildFetch(url, { method: 'DELETE', headers: { 'risu-auth': auth } })\n"],
@@ -677,7 +677,7 @@ function cancelPending() {
             requires: [index === 0
                 ? 'client-build-fence:system-backup-import:1.9'
                 : `client-build-fence:system-backup-${['snapshot-delete', 'snapshot-limits', 'backup-path'][index - 1]}:1.9`],
-            targetVersions: pocketRisu190,
+            targetVersions: pocketRisu1100,
         })),
         {
             id: 'client-build-fence:system-dashboard-import:1.9',
@@ -687,7 +687,7 @@ function cancelPending() {
             anchor: "    import { forageStorage } from 'src/ts/globalApi.svelte'\n",
             content: "    import { clientBuildFetch } from 'src/ts/storage/clientBuildHandshake'\n",
             requires: ['client-build-fence:client-handshake:1.9'],
-            targetVersions: pocketRisu190,
+            targetVersions: pocketRisu1100,
         },
         {
             id: 'client-build-fence:system-dashboard-wal:1.9',
@@ -696,7 +696,7 @@ function cancelPending() {
             anchor: "            const res = await fetch('/api/db/wal-checkpoint', {\n",
             content: "            const res = await clientBuildFetch('/api/db/wal-checkpoint', {\n",
             requires: ['client-build-fence:system-dashboard-import:1.9'],
-            targetVersions: pocketRisu190,
+            targetVersions: pocketRisu1100,
         },
         {
             id: 'client-build-fence:system-dashboard-optimize:1.9',
@@ -705,7 +705,7 @@ function cancelPending() {
             anchor: "            const res = await fetch('/api/db/optimize', {\n",
             content: "            const res = await clientBuildFetch('/api/db/optimize', {\n",
             requires: ['client-build-fence:system-dashboard-wal:1.9'],
-            targetVersions: pocketRisu190,
+            targetVersions: pocketRisu1100,
         },
         {
             id: 'client-build-fence:system-dashboard-purge:1.10',
@@ -724,7 +724,7 @@ function cancelPending() {
             anchor: '    import { alertConfirm, alertNormal } from "src/ts/alert";\n',
             content: '    import { clientBuildFetch } from "src/ts/storage/clientBuildHandshake";\n',
             requires: ['client-build-fence:client-handshake:1.9'],
-            targetVersions: pocketRisu190,
+            targetVersions: pocketRisu1100,
         },
         {
             id: 'client-build-fence:inlay-request:1.9',
@@ -733,7 +733,7 @@ function cancelPending() {
             anchor: "            const res = await fetch('/api/inlays/compress', {\n",
             content: "            const res = await clientBuildFetch('/api/inlays/compress', {\n",
             requires: ['client-build-fence:inlay-import:1.9'],
-            targetVersions: pocketRisu190,
+            targetVersions: pocketRisu1100,
         },
         {
             id: 'client-build-fence:server-import:1.9',
@@ -743,11 +743,11 @@ function cancelPending() {
             anchor: "const { createRequestLogs } = require('./request-logs.cjs');\n",
             content: "const { createClientBuildFence } = require('./clientBuildFence.cjs');\n",
             after: [
-                'lazy-chat-sync:replace:server:node:server-cjs:1.9',
+                'lazy-chat-sync:replace:server:node:server-cjs:1.10',
                 'kei-backup-restore-safety-lazy-adapter:server-helper-import:1.9',
             ],
             requires: ['client-build-fence:server-helper:1.9'],
-            targetVersions: pocketRisu190,
+            targetVersions: pocketRisu1100,
         },
         {
             id: 'client-build-fence:server-middleware:1.9',
@@ -761,7 +761,7 @@ function cancelPending() {
 app.use(clientBuildFence.middleware);
 `,
             requires: ['client-build-fence:server-import:1.9'],
-            targetVersions: pocketRisu190,
+            targetVersions: pocketRisu1100,
         },
         {
             id: 'client-build-fence:server-session-advertise:1.9',
@@ -770,7 +770,7 @@ app.use(clientBuildFence.middleware);
             anchor: '    res.json({ ok: true })\n',
             content: '    res.json({ ok: true, build: clientBuildFence.expectedBuild ?? undefined })\n',
             requires: ['client-build-fence:server-middleware:1.9'],
-            targetVersions: pocketRisu190,
+            targetVersions: pocketRisu1100,
         },
     ],
 }

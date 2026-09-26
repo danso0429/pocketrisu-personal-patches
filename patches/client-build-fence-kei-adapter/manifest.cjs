@@ -1,6 +1,6 @@
 'use strict'
 
-const pocketRisu190 = { pocketrisu: ['1.9.0', '1.10.0'] }
+const pocketRisu1100 = { pocketrisu: ['1.10.0'] }
 
 module.exports = {
     id: 'client-build-fence-kei-adapter',
@@ -8,7 +8,7 @@ module.exports = {
     version: '0.1.1',
     targets: {
         pocketrisu: {
-            verified: ['1.9.0', '1.10.0'],
+            verified: ['1.10.0'],
             reviewing: [],
         },
     },
@@ -28,7 +28,7 @@ module.exports = {
                 'client-build-fence:system-backup-boot-reminder:1.9',
                 'kei-backup-restore-safety-core:snapshot-ui-retry:1.9',
             ],
-            targetVersions: pocketRisu190,
+            targetVersions: pocketRisu1100,
         },
     ],
 }

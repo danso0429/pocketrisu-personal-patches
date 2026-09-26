@@ -23,7 +23,7 @@ test('K13 keeps the pure core and its bg-preserve adapter internal', () => {
     for (const pack of [core, bg]) {
         assert.deepEqual(pack.targets, {
             pocketrisu: {
-                verified: ['1.8.1', '1.9.0', '1.10.0'],
+                verified: ['1.10.0'],
                 reviewing: [],
             },
         })

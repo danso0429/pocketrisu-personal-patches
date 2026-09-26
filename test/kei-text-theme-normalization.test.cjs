@@ -18,7 +18,7 @@ const helperTest = read('files/src/ts/gui/textTheme.test.ts')
 const databaseTest = read('files/src/ts/storage/textThemeDatabase.test.ts')
 const runtimeTest = read('files/src/ts/gui/textThemeRuntime.test.ts')
 const target181 = { packageName: 'pocketrisu', packageVersion: '1.8.1' }
-const target190 = { packageName: 'pocketrisu', packageVersion: '1.9.0' }
+const target1100 = { packageName: 'pocketrisu', packageVersion: '1.10.0' }
 const unitText = (unit) => unit.managed ?? unit.content ?? ''
 
 test('K17 normalization is a hidden exact-1.9 umbrella child', () => {
@@ -29,7 +29,7 @@ test('K17 normalization is a hidden exact-1.9 umbrella child', () => {
     assert.equal(manifest.userSelectable, false)
     assert.deepEqual(manifest.targets, {
         pocketrisu: {
-            verified: ['1.8.1', '1.9.0', '1.10.0'],
+            verified: ['1.10.0'],
             reviewing: [],
         },
     })
@@ -51,7 +51,7 @@ test('K17 owns no 1.8 units and only the helper, three boundaries, and tests on 
         manifest.units.filter((unit) => unitMatchesTarget(unit, target181)),
         [],
     )
-    const active190 = manifest.units.filter((unit) => unitMatchesTarget(unit, target190))
+    const active190 = manifest.units.filter((unit) => unitMatchesTarget(unit, target1100))
     assert.equal(active190.length, 9)
     assert.deepEqual(
         [...new Set(active190.map((unit) => unit.file))],

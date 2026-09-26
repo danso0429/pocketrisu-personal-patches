@@ -43,7 +43,7 @@ test('character organizer is an independent hamburger capability', () => {
 test('character organizer is qualified only for reviewed exact PocketRisu targets', () => {
     assert.deepEqual(manifest.targets, {
         pocketrisu: {
-            verified: ['1.8.1', '1.9.0', '1.10.0'],
+            verified: ['1.10.0'],
             reviewing: [],
         },
     })

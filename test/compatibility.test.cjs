@@ -73,47 +73,23 @@ test('only the private maintainer gate may stage an explicitly reviewing target'
         assert.doesNotThrow(() => assertTargetReviewable(result))
     }))
 
-test('packs qualified on PocketRisu 1.9.0 remain explicitly verified', () =>
-    withRoot('1.9.0', (root) => {
-        const catalog = loadCatalog()
-        const eligible = catalog.filter((entry) =>
-            entry.targets.pocketrisu.verified.includes('1.9.0')
-            || entry.targets.pocketrisu.reviewing.includes('1.9.0')
-        )
-        const expectedVerified = eligible
-            .filter((entry) => entry.targets.pocketrisu.verified.includes('1.9.0'))
-            .map((entry) => entry.id)
-        const expectedReviewing = eligible
-            .filter((entry) => entry.targets.pocketrisu.reviewing.includes('1.9.0'))
-            .map((entry) => entry.id)
-        const result = evaluateTargetCompatibility(root, eligible)
-        assert.deepEqual(expectedReviewing, [])
-        assert.equal(result.status, 'verified')
-        assert.deepEqual(
-            result.verifiedPacks.map((entry) => entry.id),
-            expectedVerified,
-        )
-        assert.deepEqual(
-            result.underReviewPacks.map((entry) => entry.id),
-            expectedReviewing,
-        )
-        assert.deepEqual(result.reviewRequiredPacks, [])
-        assert.doesNotThrow(() => assertTargetVerified(result))
-        assert.doesNotThrow(() => assertTargetReviewable(result))
-
-        const rollingCatalog = evaluateTargetCompatibility(root, catalog)
-        assert.equal(rollingCatalog.status, 'review-required')
-        assert.deepEqual(
-            rollingCatalog.reviewRequiredPacks.map((entry) => entry.id),
-            [
-                'charx-archive-integrity',
-                'log-load-performance',
-                'fastimport-ios-picker',
-                'pagefold-model-preset',
-                'pagefold-bg-adapter',
-            ],
-        )
-    }))
+test('earlier PocketRisu releases are outside every pack target', () => {
+    for (const version of ['1.8.1', '1.9.0']) {
+        withRoot(version, (root) => {
+            const catalog = loadCatalog()
+            const result = evaluateTargetCompatibility(root, catalog)
+            assert.equal(result.status, 'review-required', version)
+            assert.deepEqual(
+                result.reviewRequiredPacks.map((entry) => entry.id),
+                catalog.map((entry) => entry.id),
+            )
+            assert.throws(
+                () => assertTargetReviewable(result),
+                (error) => error.code === 'TARGET_REVIEW_REQUIRED',
+            )
+        })
+    }
+})
 
 test('the PageFold release verifies the complete exact-1.10 graph', () =>
     withRoot('1.10.0', (root) => {

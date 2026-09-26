@@ -12,7 +12,7 @@ const { packEtag, unitMatchesTarget } = require('../src/manager.cjs')
 const { resolveSelection } = require('../src/resolver.cjs')
 
 const target181 = { packageName: 'pocketrisu', packageVersion: '1.8.1' }
-const target190 = { packageName: 'pocketrisu', packageVersion: '1.9.0' }
+const target1100 = { packageName: 'pocketrisu', packageVersion: '1.10.0' }
 const unitText = (manifest) => manifest.units
     .map((unit) => unit.managed ?? unit.content ?? '')
     .join('\n')
@@ -57,7 +57,7 @@ test('P2 owns no 1.8 payload and its lazy adapter requires lazy storage', () => 
             manifest.units.filter((unit) => unitMatchesTarget(unit, target181)),
             [],
         )
-        assert.ok(manifest.units.some((unit) => unitMatchesTarget(unit, target190)))
+        assert.ok(manifest.units.some((unit) => unitMatchesTarget(unit, target1100)))
     }
     assert.deepEqual(core.requires, ['client-build-fence'])
     assert.deepEqual(lazy.requires, [core.id, 'lazy-chat-sync'])

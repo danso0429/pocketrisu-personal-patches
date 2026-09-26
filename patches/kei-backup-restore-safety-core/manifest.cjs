@@ -5,7 +5,7 @@ const path = require('node:path')
 
 const filesRoot = path.join(__dirname, 'files')
 const owned = (relative) => fs.readFileSync(path.join(filesRoot, relative), 'utf8')
-const pocketRisu190 = { pocketrisu: ['1.9.0', '1.10.0'] }
+const pocketRisu1100 = { pocketrisu: ['1.10.0'] }
 
 module.exports = {
     id: 'kei-backup-restore-safety-core',
@@ -13,7 +13,7 @@ module.exports = {
     version: '0.2.0',
     targets: {
         pocketrisu: {
-            verified: ['1.8.1', '1.9.0', '1.10.0'],
+            verified: ['1.10.0'],
             reviewing: [],
         },
     },
@@ -24,7 +24,7 @@ module.exports = {
             file: 'server/node/restoreSafety.cjs',
             type: 'owned',
             content: owned('server/node/restoreSafety.cjs'),
-            targetVersions: pocketRisu190,
+            targetVersions: pocketRisu1100,
         },
         {
             id: 'kei-backup-restore-safety-core:server-helper-tests:1.9',
@@ -32,14 +32,14 @@ module.exports = {
             type: 'owned',
             content: owned('server/node/restoreSafety.test.ts'),
             requires: ['kei-backup-restore-safety-core:server-helper:1.9'],
-            targetVersions: pocketRisu190,
+            targetVersions: pocketRisu1100,
         },
         {
             id: 'kei-backup-restore-safety-core:client-helper:1.9',
             file: 'src/ts/storage/restoreSafety.ts',
             type: 'owned',
             content: owned('src/ts/storage/restoreSafety.ts'),
-            targetVersions: pocketRisu190,
+            targetVersions: pocketRisu1100,
         },
         {
             id: 'kei-backup-restore-safety-core:client-helper-tests:1.9',
@@ -47,7 +47,7 @@ module.exports = {
             type: 'owned',
             content: owned('src/ts/storage/restoreSafety.test.ts'),
             requires: ['kei-backup-restore-safety-core:client-helper:1.9'],
-            targetVersions: pocketRisu190,
+            targetVersions: pocketRisu1100,
         },
         {
             id: 'kei-backup-restore-safety-core:local-ui-import:1.9',
@@ -63,7 +63,7 @@ module.exports = {
 `,
             requires: ['kei-backup-restore-safety-core:client-helper:1.9'],
             after: ['character-import-ux:backup-guard-import'],
-            targetVersions: pocketRisu190,
+            targetVersions: pocketRisu1100,
         },
         {
             id: 'kei-backup-restore-safety-core:local-ui-retry:1.9',
@@ -99,7 +99,7 @@ module.exports = {
 `,
             markerNeedle: 'POCKETRISU-PATCH:kei-backup-restore-safety:local-retry:START',
             requires: ['kei-backup-restore-safety-core:local-ui-import:1.9'],
-            targetVersions: pocketRisu190,
+            targetVersions: pocketRisu1100,
         },
         {
             id: 'kei-backup-restore-safety-core:snapshot-ui-import:1.9',
@@ -119,7 +119,7 @@ module.exports = {
 `,
             requires: ['kei-backup-restore-safety-core:client-helper:1.9'],
             after: ['character-import-ux:snapshot-guard-import'],
-            targetVersions: pocketRisu190,
+            targetVersions: pocketRisu1100,
         },
         {
             id: 'kei-backup-restore-safety-core:snapshot-ui-retry:1.9',
@@ -165,7 +165,7 @@ module.exports = {
             markerNeedle: 'POCKETRISU-PATCH:kei-backup-restore-safety:snapshot-retry:START',
             requires: ['kei-backup-restore-safety-core:snapshot-ui-import:1.9'],
             after: ['character-import-ux:snapshot-restore-guard'],
-            targetVersions: pocketRisu190,
+            targetVersions: pocketRisu1100,
         },
         {
             id: 'kei-backup-restore-safety-core:server-ui-import:1.9',
@@ -182,7 +182,7 @@ module.exports = {
 `,
             requires: ['kei-backup-restore-safety-core:client-helper:1.9'],
             after: ['character-import-ux:server-backup-guard-import'],
-            targetVersions: pocketRisu190,
+            targetVersions: pocketRisu1100,
         },
         {
             id: 'kei-backup-restore-safety-core:server-ui-retry:1.9',
@@ -217,7 +217,7 @@ module.exports = {
             markerNeedle: 'POCKETRISU-PATCH:kei-backup-restore-safety:server-retry:START',
             requires: ['kei-backup-restore-safety-core:server-ui-import:1.9'],
             after: ['character-import-ux:server-backup-restore-guard'],
-            targetVersions: pocketRisu190,
+            targetVersions: pocketRisu1100,
         },
     ],
 }

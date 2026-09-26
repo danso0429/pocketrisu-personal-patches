@@ -1,15 +1,15 @@
 'use strict'
 
-const pocketRisu181 = { pocketrisu: ['1.8.1'] }
-const pocketRisu190 = { pocketrisu: ['1.9.0', '1.10.0'] }
+// units181 keeps the original PocketRisu 1.8.1 definitions only as the source
+// for the delivered units, which derive from them with ':1.9' ids.
+const pocketRisu1100 = { pocketrisu: ['1.10.0'] }
 
 function createMobileNavigationAdapterManifest({ id, title }) {
     const prefix = `${id}:`
     const marker = (name) =>
         `POCKETRISU-PATCH:kei-mobile-navigation:lazy:${name}`
     const bootstrapAfter = [
-        'lazy-chat-sync:replace:src:ts:bootstrap-ts',
-        'lazy-chat-sync:replace:src:ts:bootstrap-ts:1.9',
+        'lazy-chat-sync:replace:src:ts:bootstrap-ts:1.10',
     ]
 
     const units181 = [
@@ -987,7 +987,7 @@ import {
         after: unit.after?.map((predecessor) =>
             units190Ids.has(predecessor) ? `${predecessor}:1.9` : predecessor
         ),
-        targetVersions: pocketRisu190,
+        targetVersions: pocketRisu1100,
     }))
 
     return {
@@ -997,7 +997,7 @@ import {
         userSelectable: false,
         targets: {
             pocketrisu: {
-                verified: ['1.8.1', '1.9.0', '1.10.0'],
+                verified: ['1.10.0'],
                 reviewing: [],
             },
         },
@@ -1005,13 +1005,7 @@ import {
         autoWhen: {
             all: ['kei-mobile-navigation-core', 'lazy-chat-sync'],
         },
-        units: [
-            ...units181.map((unit) => ({
-                ...unit,
-                targetVersions: pocketRisu181,
-            })),
-            ...units190,
-        ],
+        units: units190,
     }
 }
 

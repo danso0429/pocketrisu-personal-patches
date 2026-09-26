@@ -1,6 +1,5 @@
 'use strict'
 
-const crypto = require('node:crypto')
 const fs = require('node:fs')
 const path = require('node:path')
 const test = require('node:test')
@@ -10,7 +9,7 @@ const manifest = require('../patches/bg-preserve/manifest.cjs')
 const { unitMatchesTarget } = require('../src/manager.cjs')
 
 const target181 = { packageName: 'pocketrisu', packageVersion: '1.8.1' }
-const target190 = { packageName: 'pocketrisu', packageVersion: '1.9.0' }
+const target1100 = { packageName: 'pocketrisu', packageVersion: '1.10.0' }
 
 function unit(id) {
     const found = manifest.units.find((candidate) => candidate.id === id)
@@ -18,25 +17,20 @@ function unit(id) {
     return found
 }
 
-function sha(value) {
-    return crypto.createHash('sha256').update(value).digest('hex')
-}
-
-test('K27-F01 keeps the 1.8 BG payload and scopes native logging to exact 1.9', () => {
+test('K27-F01 delivers native logging only through the BG variants', () => {
     assert.equal(manifest.version, 'v1.0.1-patcher.9')
-    const orchestrator181 = unit('bg-preserve:owned:server/node/bgOrchestrator.cjs')
     const orchestrator190 = unit('bg-preserve:owned:server/node/bgOrchestrator.cjs:1.9')
-    const register181 = unit('bg-preserve:hook:server-cjs-register-routes')
     const register190 = unit('bg-preserve:hook:server-cjs-register-routes:1.9')
 
-    assert.equal(sha(orchestrator181.content), 'e51d91b18251534cab4dc077cc8b99feaf7060f5e3ff0b79d3380cef30100a2c')
-    assert.equal(sha(register181.managed), '2f6888a998a332a65681d8f7be8d66344fbc8e4d66917e6d2f2c602dc79fcc7d')
-    assert.equal(unitMatchesTarget(orchestrator181, target181), true)
-    assert.equal(unitMatchesTarget(orchestrator181, target190), false)
+    for (const importedId of [
+        'bg-preserve:owned:server/node/bgOrchestrator.cjs',
+        'bg-preserve:hook:server-cjs-register-routes',
+    ]) {
+        assert.equal(manifest.units.some((candidate) => candidate.id === importedId), false)
+    }
     assert.equal(unitMatchesTarget(orchestrator190, target181), false)
-    assert.equal(unitMatchesTarget(orchestrator190, target190), true)
-    assert.equal(unitMatchesTarget(register181, target181), true)
-    assert.equal(unitMatchesTarget(register190, target190), true)
+    assert.equal(unitMatchesTarget(orchestrator190, target1100), true)
+    assert.equal(unitMatchesTarget(register190, target1100), true)
 })
 
 test('K27-F01 routes only the bundle logging POST through the native owner', () => {

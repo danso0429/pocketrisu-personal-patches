@@ -17,7 +17,7 @@ const targetTest = fs.readFileSync(
     'utf8',
 )
 const target181 = { packageName: 'pocketrisu', packageVersion: '1.8.1' }
-const target190 = { packageName: 'pocketrisu', packageVersion: '1.9.0' }
+const target1100 = { packageName: 'pocketrisu', packageVersion: '1.10.0' }
 const unitText = (unit) => unit.managed ?? unit.content ?? ''
 
 test('K04 compatibility is a hidden exact-1.9 umbrella child', () => {
@@ -28,7 +28,7 @@ test('K04 compatibility is a hidden exact-1.9 umbrella child', () => {
     assert.equal(manifest.userSelectable, false)
     assert.deepEqual(manifest.targets, {
         pocketrisu: {
-            verified: ['1.8.1', '1.9.0', '1.10.0'],
+            verified: ['1.10.0'],
             reviewing: [],
         },
     })
@@ -50,7 +50,7 @@ test('K04 owns no 1.8 units and only the 1.9 normalizer branch plus its test', (
         manifest.units.filter((unit) => unitMatchesTarget(unit, target181)),
         [],
     )
-    const active190 = manifest.units.filter((unit) => unitMatchesTarget(unit, target190))
+    const active190 = manifest.units.filter((unit) => unitMatchesTarget(unit, target1100))
     assert.equal(active190.length, 3)
     assert.deepEqual(
         [...new Set(active190.map((unit) => unit.file))],

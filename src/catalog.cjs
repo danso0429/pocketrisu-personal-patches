@@ -2,13 +2,6 @@
 
 const path = require('node:path')
 
-const DEFAULT_TARGETS = Object.freeze({
-    pocketrisu: Object.freeze({
-        verified: Object.freeze(['1.8.1']),
-        reviewing: Object.freeze(['1.9.0', '1.10.0']),
-    }),
-})
-
 const PROFILES = Object.freeze({
     all: Object.freeze({
         id: 'all',
@@ -23,6 +16,13 @@ function validateProfileMetadata(catalog) {
         if (pack.presetDefaults !== undefined) {
             throw new Error(`${pack.id}.presetDefaults is obsolete in all-or-nothing delivery`)
         }
+    }
+}
+
+function assertDeclaredTargets(pack) {
+    const pocketrisu = pack.targets?.pocketrisu
+    if (!Array.isArray(pocketrisu?.verified) || !Array.isArray(pocketrisu?.reviewing)) {
+        throw new Error(`${pack.id} must declare its exact PocketRisu targets`)
     }
 }
 
@@ -70,10 +70,8 @@ function loadCatalog(repositoryRoot = path.resolve(__dirname, '..')) {
         require(path.join(repositoryRoot, 'patches/pocketrisu-kei/manifest.cjs')),
         require(path.join(repositoryRoot, 'patches/pagefold-model-preset/manifest.cjs')),
         require(path.join(repositoryRoot, 'patches/pagefold-bg-adapter/manifest.cjs')),
-    ].map((pack) => ({
-        targets: DEFAULT_TARGETS,
-        ...pack,
-    }))
+    ].map((pack) => ({ ...pack }))
+    for (const pack of catalog) assertDeclaredTargets(pack)
     validateProfileMetadata(catalog)
     return catalog
 }
@@ -130,7 +128,6 @@ function validateProfileTransition(profile, previousState, catalog = []) {
 }
 
 module.exports = {
-    DEFAULT_TARGETS,
     PROFILES,
     loadCatalog,
     resolveProfile,

@@ -12,26 +12,12 @@ test('preset integrity is a separate default pack with load, save, and UI guards
     assert.equal(manifest.id, 'preset-integrity')
     assert.equal(manifest.version, '0.2.2')
     assert.deepEqual(manifest.targets.pocketrisu, {
-        verified: ['1.8.1', '1.9.0', '1.10.0'],
+        verified: ['1.10.0'],
         reviewing: [],
     })
     assert.deepEqual(
         manifest.units
-            .filter((unit) => unit.targetVersions.pocketrisu.includes('1.8.1'))
-            .map((unit) => unit.id),
-        [
-            'preset-integrity:normalizer',
-            'preset-integrity:load-normalization',
-            'preset-integrity:save-normalization',
-            'preset-integrity:change-guard',
-            'preset-integrity:prompt-active-preset',
-            'preset-integrity:prompt-name-guard',
-            'preset-integrity:tests',
-        ],
-    )
-    assert.deepEqual(
-        manifest.units
-            .filter((unit) => unit.targetVersions.pocketrisu.includes('1.9.0'))
+            .filter((unit) => unit.targetVersions.pocketrisu.includes('1.10.0'))
             .map((unit) => unit.id),
         [
             'preset-integrity:normalizer:1.9',
@@ -47,7 +33,7 @@ test('preset integrity is a separate default pack with load, save, and UI guards
 })
 
 test('preset selection normalization preserves entries and clamps only the index', () => {
-    const normalizer = manifest.units.find((unit) => unit.id === 'preset-integrity:normalizer')
+    const normalizer = manifest.units.find((unit) => unit.id === 'preset-integrity:normalizer:1.9')
     assert.ok(normalizer)
     assert.match(normalizer.content, /db\.botPresets\.length === 0/)
     assert.match(normalizer.content, /Math\.max\(0, Math\.min\(requested, db\.botPresets\.length - 1\)\)/)
@@ -58,7 +44,7 @@ test('embedded PocketRisu tests cover the observed one-past-end state', () => {
     const source = fs.readFileSync(
         path.join(
             repositoryRoot,
-            'patches/preset-integrity/files/src/ts/storage/botPresetIntegrity.test.ts',
+            'patches/preset-integrity/files-1.10/src/ts/storage/botPresetIntegrity.test.ts',
         ),
         'utf8',
     )
@@ -66,7 +52,7 @@ test('embedded PocketRisu tests cover the observed one-past-end state', () => {
     assert.match(source, /toEqual\(\['a', 'b', 'c'\]\)/)
 })
 
-test('PocketRisu 1.9 adapter preserves the no-active sentinel and guards active-only UI', () => {
+test('preset adapter preserves the no-active sentinel and guards active-only UI', () => {
     const normalizer = manifest.units.find(
         (unit) => unit.id === 'preset-integrity:normalizer:1.9',
     )
@@ -82,7 +68,7 @@ test('PocketRisu 1.9 adapter preserves the no-active sentinel and guards active-
     const source = fs.readFileSync(
         path.join(
             repositoryRoot,
-            'patches/preset-integrity/files-1.9/src/ts/storage/botPresetIntegrity.test.ts',
+            'patches/preset-integrity/files-1.10/src/ts/storage/botPresetIntegrity.test.ts',
         ),
         'utf8',
     )

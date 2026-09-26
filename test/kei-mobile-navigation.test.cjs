@@ -32,7 +32,7 @@ test('K16 keeps its core and lazy-chat adapter internal', () => {
     for (const pack of [core, lazy]) {
         assert.deepEqual(pack.targets, {
             pocketrisu: {
-                verified: ['1.8.1', '1.9.0', '1.10.0'],
+                verified: ['1.10.0'],
                 reviewing: [],
             },
         })
@@ -149,25 +149,17 @@ test('K16 guard waits for activation and removes only its history entry', () => 
 
 test('K16 adapters preserve existing hotkeys and harden pointer cleanup', () => {
     for (const adapter of [lazy]) {
-        const units181 = adapter.units.filter((unit) =>
-            unit.targetVersions?.pocketrisu?.includes('1.8.1')
-        )
-        const units190 = adapter.units.filter((unit) =>
-            unit.targetVersions?.pocketrisu?.includes('1.9.0')
-        )
-        assert.equal(units181.length, 37)
+        const units190 = adapter.units
         assert.equal(units190.length, 36)
-        assert.equal(new Set(units181.map((unit) => unit.file)).size, 11)
         assert.equal(new Set(units190.map((unit) => unit.file)).size, 12)
         assert.equal(
-            adapter.units.every((unit) => {
-                const versions = unit.targetVersions?.pocketrisu
-                return versions?.length === 1 || versions?.join(',') === '1.9.0,1.10.0'
-            }),
+            adapter.units.every((unit) =>
+                unit.targetVersions?.pocketrisu?.join(',') === '1.10.0'
+            ),
             true,
         )
 
-        for (const units of [units181, units190]) {
+        for (const units of [units190]) {
             const managed = units.map(unitText).join('\n')
             assert.match(managed, /data\.enableHotkeys \?\?= true/)
             assert.match(
@@ -193,9 +185,7 @@ test('K16 adapters preserve existing hotkeys and harden pointer cleanup', () => 
             assert.doesNotMatch(managed, /toggleVoice.*remove|webcam.*remove/)
         }
 
-        const managed181 = units181.map(unitText).join('\n')
         const managed190 = units190.map(unitText).join('\n')
-        assert.match(managed181, /openModelPresetList/)
         assert.doesNotMatch(managed190, /openModelPresetList/)
         assert.match(
             managed190,
@@ -213,14 +203,10 @@ test('K16 adapters preserve existing hotkeys and harden pointer cleanup', () => 
             managed190,
             /built-in page-exit confirmation remains unchanged/,
         )
-        assert.doesNotMatch(
-            managed181,
-            /built-in page-exit confirmation remains unchanged/,
-        )
     }
 })
 
-test('K16 1.9 exposes the native Hotkey page on narrow screens', () => {
+test('K16 exposes the native Hotkey page on narrow screens', () => {
     for (const adapter of [lazy]) {
         const routeUnits181 = adapter.units.filter((unit) =>
             unit.file === 'src/lib/Setting/Settings.svelte'
@@ -228,7 +214,7 @@ test('K16 1.9 exposes the native Hotkey page on narrow screens', () => {
         )
         const routeUnits190 = adapter.units.filter((unit) =>
             unit.file === 'src/lib/Setting/Settings.svelte'
-            && unit.targetVersions?.pocketrisu?.includes('1.9.0')
+            && unit.targetVersions?.pocketrisu?.includes('1.10.0')
         )
 
         assert.equal(routeUnits181.length, 0)
@@ -276,7 +262,7 @@ test('K16 1.9 exposes the native Hotkey page on narrow screens', () => {
 
         const hotkeyPageUnits = adapter.units.filter((unit) =>
             unit.file === 'src/lib/Setting/Pages/HotkeySettings.svelte'
-            && unit.targetVersions?.pocketrisu?.includes('1.9.0')
+            && unit.targetVersions?.pocketrisu?.includes('1.10.0')
         )
         const hotkeyPageContract = hotkeyPageUnits
             .map((unit) => `${unit.anchor ?? ''}\n${unitText(unit)}`)
@@ -289,25 +275,11 @@ test('K16 1.9 exposes the native Hotkey page on narrow screens', () => {
 test('K16 bootstrap ordering follows the lazy replacement', () => {
     const lazyBootstrap = lazy.units.filter((unit) =>
         unit.file === 'src/ts/bootstrap.ts'
-        && unit.targetVersions?.pocketrisu?.includes('1.8.1'),
     )
     assert.equal(lazyBootstrap.length, 2)
     for (const unit of lazyBootstrap) {
         assert.deepEqual(unit.after, [
-            'lazy-chat-sync:replace:src:ts:bootstrap-ts',
-            'lazy-chat-sync:replace:src:ts:bootstrap-ts:1.9',
-        ])
-    }
-
-    const lazyBootstrap190 = lazy.units.filter((unit) =>
-        unit.file === 'src/ts/bootstrap.ts'
-        && unit.targetVersions?.pocketrisu?.includes('1.9.0')
-    )
-    assert.equal(lazyBootstrap190.length, 2)
-    for (const unit of lazyBootstrap190) {
-        assert.deepEqual(unit.after, [
-            'lazy-chat-sync:replace:src:ts:bootstrap-ts',
-            'lazy-chat-sync:replace:src:ts:bootstrap-ts:1.9',
+            'lazy-chat-sync:replace:src:ts:bootstrap-ts:1.10',
         ])
     }
 })

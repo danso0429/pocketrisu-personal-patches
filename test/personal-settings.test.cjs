@@ -62,7 +62,7 @@ test('personal settings is an independent rolling feature pack', () => {
     assert.equal(manifest.version, '0.5.7')
     assert.deepEqual(manifest.targets, {
         pocketrisu: {
-            verified: ['1.8.1', '1.9.0', '1.10.0'],
+            verified: ['1.10.0'],
             reviewing: [],
         },
     })
@@ -93,11 +93,11 @@ test('the root manifest only aggregates core and setting-owned units', () => {
     )
     assert.equal(searchUnits.length, 2)
     assert.ok(searchUnits.every((candidate) =>
-        candidate.targetVersions?.pocketrisu?.join(',') === '1.9.0,1.10.0'
+        candidate.targetVersions?.pocketrisu?.join(',') === '1.10.0'
     ))
     assert.ok(appearanceUnits.length > 0)
     assert.ok(appearanceUnits.every((candidate) =>
-        candidate.targetVersions?.pocketrisu?.join(',') === '1.9.0,1.10.0'
+        candidate.targetVersions?.pocketrisu?.join(',') === '1.10.0'
     ))
 })
 

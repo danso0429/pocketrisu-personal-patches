@@ -3,7 +3,6 @@
 const test = require('node:test')
 const assert = require('node:assert/strict')
 const {
-    DEFAULT_TARGETS,
     loadCatalog,
     resolveProfile,
     validateProfileMetadata,
@@ -11,13 +10,16 @@ const {
     validateProfileTransition,
 } = require('../src/catalog.cjs')
 
-test('target metadata keeps 1.8.1 verified and later exact targets review-only', () => {
-    assert.deepEqual(DEFAULT_TARGETS.pocketrisu.verified, ['1.8.1'])
-    assert.deepEqual(DEFAULT_TARGETS.pocketrisu.reviewing, ['1.9.0', '1.10.0'])
-    assert.equal(Object.isFrozen(DEFAULT_TARGETS), true)
-    assert.equal(Object.isFrozen(DEFAULT_TARGETS.pocketrisu), true)
-    assert.equal(Object.isFrozen(DEFAULT_TARGETS.pocketrisu.verified), true)
-    assert.equal(Object.isFrozen(DEFAULT_TARGETS.pocketrisu.reviewing), true)
+test('every pack declares exactly the delivered PocketRisu 1.10.0 target', () => {
+    for (const pack of loadCatalog()) {
+        assert.deepEqual(pack.targets, {
+            pocketrisu: { verified: ['1.10.0'], reviewing: [] },
+        }, pack.id)
+        for (const unit of pack.units) {
+            if (unit.targetVersions === undefined) continue
+            assert.deepEqual(unit.targetVersions, { pocketrisu: ['1.10.0'] }, unit.id)
+        }
+    }
 })
 
 test('one delivery profile contains every admitted root pack', () => {

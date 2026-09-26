@@ -28,7 +28,7 @@ test('K12 keeps one internal core and its bg-preserve adapter', () => {
     for (const pack of [core, bg]) {
         assert.deepEqual(pack.targets, {
             pocketrisu: {
-                verified: ['1.8.1', '1.9.0', '1.10.0'],
+                verified: ['1.10.0'],
                 reviewing: [],
             },
         })
@@ -58,30 +58,18 @@ test('K12 keeps one internal core and its bg-preserve adapter', () => {
     assert.equal(composed.resolvedIds.includes(bg.id), true)
 })
 
-test('K12 selects one exact adapter graph for each supported PocketRisu', () => {
+test('K12 delivers one exact-1.10 adapter graph', () => {
     for (const adapter of [bg]) {
-        assert.equal(adapter.units.length, 92)
-        const historical = adapter.units.filter((unit) =>
-            unit.targetVersions?.pocketrisu?.includes('1.8.1')
-        )
-        const current = adapter.units.filter((unit) =>
-            unit.targetVersions?.pocketrisu?.includes('1.9.0')
-        )
-        assert.equal(historical.length, 46)
+        const current = adapter.units
         assert.equal(current.length, 46)
-        assert.equal(
-            historical.every((unit) => !unit.id.endsWith(':1.9')),
-            true,
-        )
         assert.equal(
             current.every((unit) => unit.id.endsWith(':1.9')),
             true,
         )
         assert.equal(
-            adapter.units.every((unit) => {
-                const versions = unit.targetVersions.pocketrisu
-                return versions.length === 1 || versions.join(',') === '1.9.0,1.10.0'
-            }),
+            adapter.units.every((unit) =>
+                unit.targetVersions.pocketrisu.join(',') === '1.10.0'
+            ),
             true,
         )
 

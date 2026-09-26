@@ -1,6 +1,6 @@
 'use strict'
 
-const pocketRisu190 = { pocketrisu: ['1.9.0', '1.10.0'] }
+const pocketRisu1100 = { pocketrisu: ['1.10.0'] }
 
 function appendAfter(unit, ids) {
     if (ids.length === 0) return unit
@@ -10,14 +10,14 @@ function appendAfter(unit, ids) {
 function createBackupRestoreSafetyAdapterManifest({ id, title }) {
     const prefix = `${id}:`
     const marker = (name) => `POCKETRISU-PATCH:kei-backup-restore-safety:lazy:${name}`
-    const serverAfter = ['lazy-chat-sync:replace:server:node:server-cjs:1.9']
+    const serverAfter = ['lazy-chat-sync:replace:server:node:server-cjs:1.10']
     const nodeAfter = [
-        'lazy-chat-sync:replace:src:ts:storage:nodeStorage-ts:1.9',
+        'lazy-chat-sync:replace:src:ts:storage:nodeStorage-ts:1.10',
         // Optional when bg-preserve is absent. When present, run after the
         // complete BG nodeStorage adapter so both imports retain ownership.
         'lazy-chat-bg-adapter:asset-upload-error-detail',
     ]
-    const autoAfter = ['lazy-chat-sync:replace:src:ts:storage:autoStorage-ts:1.9']
+    const autoAfter = ['lazy-chat-sync:replace:src:ts:storage:autoStorage-ts:1.10']
     const snapshotRestoreIndent = '                    '
     const snapshotRestoreManaged = `/* ${marker('snapshot-restore-post-copy-rotation')}:START */
 ${snapshotRestoreIndent}restoreSnapshotValue({
@@ -529,7 +529,7 @@ async function importBackupFromSource(dataSource, {
             markerNeedle: marker('snapshot-restore-error-code'),
             requires: [`${prefix}snapshot-restore-post-commit-rotation:1.9`],
         },
-    ].map((unit) => appendAfter({ ...unit, targetVersions: pocketRisu190 }, serverAfter))
+    ].map((unit) => appendAfter({ ...unit, targetVersions: pocketRisu1100 }, serverAfter))
 
     const nodeUnits = [
         {
@@ -744,7 +744,7 @@ import {
             markerNeedle: marker('node-server-stream-error'),
             requires: [`${prefix}node-server-http-error:1.9`],
         },
-    ].map((unit) => appendAfter({ ...unit, targetVersions: pocketRisu190 }, nodeAfter))
+    ].map((unit) => appendAfter({ ...unit, targetVersions: pocketRisu1100 }, nodeAfter))
 
     const autoUnits = [
         {
@@ -794,7 +794,7 @@ import type { RestoreSafetyOptions } from "./restoreSafety"
             markerNeedle: marker('auto-server-option'),
             requires: [`${prefix}auto-local-option:1.9`],
         },
-    ].map((unit) => appendAfter({ ...unit, targetVersions: pocketRisu190 }, autoAfter))
+    ].map((unit) => appendAfter({ ...unit, targetVersions: pocketRisu1100 }, autoAfter))
 
     return {
         id,
@@ -803,7 +803,7 @@ import type { RestoreSafetyOptions } from "./restoreSafety"
         userSelectable: false,
         targets: {
             pocketrisu: {
-                verified: ['1.8.1', '1.9.0', '1.10.0'],
+                verified: ['1.10.0'],
                 reviewing: [],
             },
         },

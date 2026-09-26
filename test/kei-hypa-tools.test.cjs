@@ -25,7 +25,7 @@ test('K11 keeps one internal core and its bg-preserve adapter', () => {
     for (const pack of [core, bg]) {
         assert.deepEqual(pack.targets, {
             pocketrisu: {
-                verified: ['1.8.1', '1.9.0', '1.10.0'],
+                verified: ['1.10.0'],
                 reviewing: [],
             },
         })
@@ -65,24 +65,13 @@ test('K11 owns only its deterministic selection and manual panel code', () => {
         'src/lib/Others/HypaV3Modal/utils.ts',
     ]
     for (const adapter of [bg]) {
-        const units181 = adapter.units.filter((unit) =>
-            unit.targetVersions?.pocketrisu?.includes('1.8.1')
-        )
-        const units190 = adapter.units.filter((unit) =>
-            unit.targetVersions?.pocketrisu?.includes('1.9.0')
-        )
-        assert.equal(units181.length, 20)
+        const units190 = adapter.units
         assert.equal(units190.length, 18)
         assert.equal(
-            adapter.units.every((unit) => {
-                const versions = unit.targetVersions?.pocketrisu
-                return versions?.length === 1 || versions?.join(',') === '1.9.0,1.10.0'
-            }),
+            adapter.units.every((unit) =>
+                unit.targetVersions?.pocketrisu?.join(',') === '1.10.0'
+            ),
             true,
-        )
-        assert.deepEqual(
-            [...new Set(adapter.units.map((unit) => unit.file))].sort(),
-            expectedHosts,
         )
         assert.deepEqual(
             [...new Set(units190.map((unit) => unit.file))].sort(),
@@ -164,15 +153,11 @@ test('K11 selection blocks gaps, ambiguous identities, and stale apply', () => {
 
 test('K11 adapters retain existing management surfaces and correct CBS context', () => {
     for (const adapter of [bg]) {
-        const processing181 = adapter.units.find((unit) =>
-            unit.id.endsWith(':utils-message-processing'),
-        )
         const processing190 = adapter.units.find((unit) =>
             unit.id.endsWith(':utils-message-processing:1.9'),
         )
-        assert.ok(processing181)
         assert.ok(processing190)
-        for (const processing of [processing181, processing190]) {
+        for (const processing of [processing190]) {
             assert.match(unitText(processing), /chatID: msgIndex/)
             assert.match(unitText(processing), /rmVar: true/)
             assert.match(unitText(processing), /firstmsg: firstMessage/)
@@ -191,7 +176,7 @@ test('K11 adapters retain existing management surfaces and correct CBS context',
             processing190.content,
             /return await processMessageForPreview\(/,
         )
-        for (const targetSuffix of ['', ':1.9']) {
+        for (const targetSuffix of [':1.9']) {
             const modalOpen = adapter.units.find((unit) =>
                 unit.id.endsWith(`:modal-panel-open${targetSuffix}`)
             )
