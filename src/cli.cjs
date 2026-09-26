@@ -56,7 +56,6 @@ function parseArgs(argv) {
         command: argv[2] ?? 'status',
         root: process.cwd(),
         candidate: null,
-        all: false,
         reportTo: null,
         reportId: 'latest',
         risuUrl: null,
@@ -82,12 +81,11 @@ function parseArgs(argv) {
             else if (value === '--risu-url') options.risuUrl = next
             else throw new Error(`Unknown argument: ${value}`)
         }
-        else if (value === '--packs' || value === '--preset' || value === '--profile') {
+        else if (['--all', '--packs', '--preset', '--profile'].includes(value)) {
             throw new Error(
                 `${value} was removed; this patcher applies or reverts the complete admitted set`,
             )
         }
-        else if (value === '--all') options.all = true
         else if (value === '--json') options.json = true
         else throw new Error(`Unknown argument: ${value}`)
     }
@@ -234,7 +232,6 @@ function checksForOutput(checks) {
 async function runCli({
     argv = process.argv,
     catalog = null,
-    fixedProfile = null,
     repositoryRoot,
     patcherVersion = 'development',
     updateChannel = defaultUpdateChannel,
@@ -248,9 +245,6 @@ async function runCli({
 } = {}) {
     const options = parseArgs(argv)
     const loadedCatalog = catalog ?? loadCatalog(repositoryRoot)
-    if (fixedProfile && fixedProfile !== 'all') {
-        throw new Error(`Unsupported retired profile: ${fixedProfile}`)
-    }
     const preset = resolveProfile('all', loadedCatalog)
     const delivery = options.reportTo === null
         ? null
@@ -596,7 +590,7 @@ async function runCli({
         }
 
         if (!['plan', 'apply', 'revert'].includes(options.command)) {
-            throw new Error('Usage: <plan|apply|revert|stage|status|list|report> [--root PATH] [--candidate PATH] [--all] [--report-to auto|persona|module|character] [--report-id ID] [--risu-url LOOPBACK_URL] [--json]')
+            throw new Error('Usage: <plan|apply|revert|stage|status|list|report> [--root PATH] [--candidate PATH] [--report-to auto|persona|module|character] [--report-id ID] [--risu-url LOOPBACK_URL] [--json]')
         }
 
         const previous = loadState(options.root, DEFAULT_STATE_PATH)

@@ -7,10 +7,9 @@
 - `plan`, `apply`, and `stage` always resolve that complete set.
 - `revert` removes every managed patch and records delivery as disabled.
 - `status` reports the installed graph and the binary enabled/disabled policy.
-- `--all` remains a compatibility alias. `configure`, `--packs`, `--preset`,
-  and `--profile` are rejected.
-- `pocketrisu-all.cjs` is a byte-identical compatibility filename.
-  `pocketrisu-features.cjs` and `pocketrisu-hardening.cjs` are retired.
+- `configure`, `--all`, `--packs`, `--preset`, and `--profile` are rejected.
+- `pocketrisu-all.cjs`, `pocketrisu-features.cjs`, and
+  `pocketrisu-hardening.cjs` are retired installer filenames.
 
 ## Internal graph
 

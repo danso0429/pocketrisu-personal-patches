@@ -11,7 +11,7 @@ function moduleWrapper(name, source) {
     return `const ${name} = { exports: {} };\n((module, exports, require) => {\n${source}\n})(${name}, ${name}.exports, embeddedRequire);\n`
 }
 
-function build(profile, catalog) {
+function build(catalog) {
     const compose = fs.readFileSync(path.join(repositoryRoot, 'src/compose.cjs'), 'utf8')
     const resolver = fs.readFileSync(path.join(repositoryRoot, 'src/resolver.cjs'), 'utf8')
     const compatibility = fs.readFileSync(path.join(repositoryRoot, 'src/compatibility.cjs'), 'utf8')
@@ -54,7 +54,6 @@ function build(profile, catalog) {
         moduleWrapper('cliModule', cli),
         `cliModule.exports.runCli({
     catalog: EMBEDDED_CATALOG,
-    fixedProfile: ${JSON.stringify(profile)},
     patcherVersion: ${JSON.stringify(packageJson.version)},
 }).catch(cliModule.exports.handleCliFailure);`,
         '',
@@ -65,15 +64,13 @@ function main() {
     const catalog = loadCatalog(repositoryRoot)
     const outputDirectory = path.join(repositoryRoot, 'dist')
     fs.mkdirSync(outputDirectory, { recursive: true })
-    for (const retired of ['features', 'hardening']) {
+    for (const retired of ['features', 'hardening', 'all']) {
         fs.rmSync(path.join(outputDirectory, `pocketrisu-${retired}.cjs`), { force: true })
     }
-    for (const name of ['patcher', 'all']) {
-        const output = path.join(outputDirectory, `pocketrisu-${name}.cjs`)
-        fs.writeFileSync(output, build('all', catalog), { mode: 0o755 })
-        fs.chmodSync(output, 0o755)
-        console.log(`${name}: ${output} (${fs.statSync(output).size} bytes)`)
-    }
+    const output = path.join(outputDirectory, 'pocketrisu-patcher.cjs')
+    fs.writeFileSync(output, build(catalog), { mode: 0o755 })
+    fs.chmodSync(output, 0o755)
+    console.log(`patcher: ${output} (${fs.statSync(output).size} bytes)`)
 }
 
 if (require.main === module) main()

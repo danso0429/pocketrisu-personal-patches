@@ -28,16 +28,11 @@ jobs:
         run: |
           npm run build
           cp dist/pocketrisu-patcher.cjs "$RUNNER_TEMP/pocketrisu-patcher.first.cjs"
-          cp dist/pocketrisu-all.cjs "$RUNNER_TEMP/pocketrisu-all.first.cjs"
           npm run build
           cmp -s "$RUNNER_TEMP/pocketrisu-patcher.first.cjs" dist/pocketrisu-patcher.cjs
-          cmp -s "$RUNNER_TEMP/pocketrisu-all.first.cjs" dist/pocketrisu-all.cjs
-          cmp -s dist/pocketrisu-patcher.cjs dist/pocketrisu-all.cjs
           test "$(stat -c '%a' dist/pocketrisu-patcher.cjs)" = 755
-          test "$(stat -c '%a' dist/pocketrisu-all.cjs)" = 755
-          git diff --exit-code -- dist
+          test -z "$(git status --porcelain -- dist)"
           node --check dist/pocketrisu-patcher.cjs
-          node --check dist/pocketrisu-all.cjs
 
       - name: Check out PocketRisu v1.10.0
         uses: actions/checkout@v6

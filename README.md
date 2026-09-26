@@ -32,9 +32,8 @@ organizers, import UX, Personal settings, parser/toolchain hardening, CharX
 integrity, the FastImport iOS picker compatibility owner, the admitted Kei
 capabilities, PageFold ModelPreset transform, and
 all matching integration adapters. The complete graph also includes the admitted Haejeok persistence,
-Korean-search, and Small-width adapters. `configure`, `--packs`, `--preset`, and the
-features/hardening installers are retired. `--all` and
-`pocketrisu-all.cjs` remain compatibility aliases for one transition.
+Korean-search, and Small-width adapters. `configure`, `--packs`, `--preset`,
+`--all`, and the features/hardening/all installer filenames are retired.
 
 After importing custom fonts, do not use a full revert or an older installer
 that removes Personal asset-reference compatibility. A source-only

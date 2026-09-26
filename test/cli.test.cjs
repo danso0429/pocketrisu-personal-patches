@@ -71,16 +71,22 @@ function qualifiedCatalog(anchor = 'const upstream = 1\n') {
     }]
 }
 
-test('--all remains a compatibility alias while selection flags are rejected', () => {
+test('retired selection flags and the --all alias are rejected', () => {
     const parsed = parseArgs([
         'node',
         'patcher',
         'apply',
-        '--all',
         '--root',
         '/tmp/pocketrisu',
     ])
-    assert.equal(parsed.all, true)
+    assert.equal(parsed.command, 'apply')
+    assert.equal(Object.hasOwn(parsed, 'all'), false)
+    assert.throws(() => parseArgs([
+        'node',
+        'patcher',
+        'apply',
+        '--all',
+    ]), /complete admitted set/)
     for (const retired of ['--packs', '--preset', '--profile']) {
         assert.throws(() => parseArgs([
             'node',
@@ -116,7 +122,6 @@ test('list reports complete-set inclusion without selection affordances', async 
         await runCli({
             argv: ['node', 'patcher', 'list', '--json'],
             catalog,
-            fixedProfile: 'all',
         })
     } finally {
         console.log = originalLog
