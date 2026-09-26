@@ -1,5 +1,16 @@
 # Changelog
 
+## 0.2.4-experimental.4
+
+Personal settings `0.5.10`.
+
+- Remove the strict save timing trace, its switch, and its log entries. The
+  composed PocketRisu source is byte-identical to `0.2.4-experimental.1`.
+- Close the root-only save plan at its device decision point: on iPhone the
+  character walk took 7 ms of a 514.5 ms median strict save (30 saves), while
+  the patch request (194 ms) and the flush (221.5 ms) took about 81%. The
+  character-walk skip is not built.
+
 ## 0.2.4-experimental.3
 
 Personal settings `0.5.9`.
