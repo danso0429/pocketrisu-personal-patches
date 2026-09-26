@@ -1,8 +1,9 @@
 # Root-only save character-diff plan
 
-Status: **admitted for measurement (r2, 2026-09-26)**. Delivered on the
-`0.2.4-experimental.N` line, starting at `0.2.4-experimental.2` on top of the
-`0.2.4-experimental.1` structural cleanup. S0 decides whether S1 is built.
+Status: **closed at D0 (2026-09-27)**. The device measurement showed the
+character walk at about 7 ms of a 514.5 ms median strict save (1.4%), so S1
+was not built. The measurement trace shipped in `0.2.4-experimental.2` and
+`.3` and was removed in `0.2.4-experimental.4`. See "D0 result" below.
 
 ## Problem
 
@@ -140,7 +141,32 @@ baseline clone dominates instead, stop and revise this plan before building
 anything. If neither is worth it, record the numbers, remove the trace, and
 close the candidate.
 
-### S1 — Narrow design
+**D0 result (2026-09-27).** 30 traced saves (22 CSS, 8 font, all saved) from
+one iPhone (Mobile Safari, iOS) on the live database, collected from
+`logs.db` read-only. Safari reports `performance.now()` in whole
+milliseconds. Medians:
+
+| Span | iPhone median | Share | Host (S0a) |
+| --- | --- | --- | --- |
+| Total (start to acknowledgement) | 514.5 ms (459–1,111) | 100% | — |
+| Wait for a previous save | 0 ms | 0% | — |
+| Baseline clone | 31.5 ms | 6% | 24–30 ms |
+| Character walk (S1 target) | 7 ms | 1.4% | 7.8–8.0 ms |
+| Root per-key walk | 20 ms | 4% | 32.9–34.2 ms |
+| Rest of the write on the client | 11 ms | 2% | — |
+| Patch request (to response headers) | 194 ms | 38% | — |
+| Flush | 221.5 ms | 43% | — |
+| Rest of the save on the client | 17 ms | 3% | — |
+
+CSS and font saves have the same profile (medians 514.5 ms and 504.5 ms). The
+one 1,111 ms save was the first, with a 705 ms flush; without it the maximum
+is 656 ms. Client computation totals about 90 ms (18%). The patch request and
+the flush total about 415 ms (81%); how that splits between the network round
+trip and server processing was not measured. Decision: the user closed the
+candidate and asked for the trace to be removed. Per-save records (scope,
+outcome, spans only): `docs/validation/root-only-save-2026-09-26/d0-iphone-traces.jsonl`.
+
+### S1 — Narrow design (not built)
 
 `RisuSavePatcher.set()` gains an optional third argument carrying the strict
 intent. Skip the character walk only when all of these hold:
@@ -217,9 +243,9 @@ changes; the trace switch lives only in device storage.
 
 ## Trigger to reopen
 
-If D0 closes the candidate, reopen this plan when either of these happens:
-
-- appearance or settings saves feel slow again on iPhone; or
-- device timing shows the character walk as a dominant share of save time.
+Reopen this plan only if device timing shows the character walk as a dominant
+share of save time, for example after the character count grows by an order
+of magnitude. If strict saves feel slow again, the measured dominant cost is
+the patch request and the flush, which this plan does not address.
 
 The same item is tracked in the maintainer's backlog.
