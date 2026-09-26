@@ -9,11 +9,8 @@ that no longer describes the current patcher:
   overlap audits, and per-child validation from the 1.8.1/1.9.0 period. The
   active Kei planning authority remains
   [`../POCKETRISU-KEI-INTEGRATION-CATALOG.md`](../POCKETRISU-KEI-INTEGRATION-CATALOG.md).
-- `COMBINATION-VERIFIER-OPTIMIZATION-VALIDATION.md`,
-  `PATCH-COMBINATION-VERIFICATION-COST-REVIEW.md`,
-  `PATCHER-TARGET-SCOPED-UNITS-VALIDATION.md`, and
-  `patch-combination-verification-instructions.md` — the exhaustive raw-mask
-  combination verifier, retired with all-or-nothing delivery.
+- `PATCHER-TARGET-SCOPED-UNITS-VALIDATION.md` — the manager receipt for
+  exact-target unit scoping before its first version-scoped consumer.
 
 The records are kept byte-for-byte as they were written. Paths inside them,
 such as `docs/POCKETRISU-1.9-REBASE-AUDIT.md`, name each file's original

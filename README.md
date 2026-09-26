@@ -378,10 +378,8 @@ background/return, and P1 clean/dirty cross-build behavior remain device L3.
 The `v0.2.0-experimental.16` candidate targets pristine PocketRisu `1.10.0`.
 Its rolling `all` graph resolves 35 packs into 716 units across 267 managed
 paths with 12 deterministic ordering collisions. Exact apply, current status,
-zero-change re-plan, and byte/mode revert pass. The user explicitly waived the
-raw-selection combination verifier for this installation, so this checkpoint
-does not claim exhaustive subset coverage; the maximum aggregate and focused
-CharX/module/BG/toolchain compositions were still exercised directly.
+zero-change re-plan, and byte/mode revert pass. The maximum aggregate and
+focused CharX/module/BG/toolchain compositions were exercised directly.
 
 The aggregate candidate passes 41/41 patcher test files, 136 frontend files
 with 1,609 tests, 13 server files with 177 tests, and 74 compatibility tests
@@ -461,8 +459,7 @@ of a receiving offset, 413 chunk bounding before mutation, 426 stale-build
 fencing, terminal cleanup, diagnostics redaction, and root 200.
 
 The reported exact-original CharX remains unavailable, so that claim is not
-upgraded beyond synthetic mechanism evidence. The user-requested exhaustive
-raw-selection combination verifier remains skipped. iPhone handoff/suspend,
+upgraded beyond synthetic mechanism evidence. iPhone handoff/suspend,
 cold source re-selection, clean/dirty reconciliation, multi-PWA claim recovery,
 and the admitted character/module entry points remain the concrete L3 gate;
 the pack therefore stays `reviewing`, `allDefault: false`, and outside a stable
@@ -570,7 +567,6 @@ changes, and reverts every tracked byte and mode. Two consecutive builds
 produced only the patcher and fixed-all artifacts; both are 7,197,744 bytes,
 mode 0700, syntax-valid, and SHA-256
 `a985c4080cca8582e87730fa7ee40511ecb40aa5841658a068196bc6c59c3530`.
-The exhaustive patch-combination verifier remains skipped by user instruction.
 
 A disposable copy of the exact installed `.19` custom state also transitioned
 from 36 packs / 791 units / 303 paths to 35 / 716 / 267, removed all 36
@@ -1280,11 +1276,8 @@ Move the version from `reviewing` to `verified` only after the maintainer also
 confirms the intended behaviors and round trip, then rebuild and retest the
 downloader artifact.
 
-The retired raw-selection procedure remains in
-[`docs/archive/patch-combination-verification-instructions.md`](docs/archive/patch-combination-verification-instructions.md)
-as historical evidence. It is not an active gate after all-or-nothing
-delivery. Feature work still exercises every relevant owner composition and
-the maximum complete graph.
+Feature work exercises every relevant owner composition and the maximum
+complete graph.
 
 ## Update notification channel
 

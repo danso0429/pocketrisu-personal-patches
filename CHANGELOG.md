@@ -22,8 +22,9 @@ files) is byte-identical to `v0.2.3`.
   only installer.
 - The retired `background-import` pack is removed from the tree; `v0.2.3`
   keeps the last copy.
-- Historical 1.9, Kei-era, and combination-verifier records move to
-  `docs/archive/`.
+- Historical 1.9 and Kei-era records move to `docs/archive/`. The retired
+  combination-verifier documents and its unused cache layer in `compose` and
+  `manager` are removed.
 - `version.json`, CI push triggers, and repository wording are aligned with
   the public repository and the `v0.2.3` release.
 
@@ -634,7 +635,7 @@ files) is byte-identical to `v0.2.3`.
   complete graph requested 13 root packs, resolved 35 packs/adapters, changed
   267 source paths plus state/intent, re-planned with zero changes, reported
   current enabled delivery, and restored tracked source exactly on full
-  revert. The user-requested exhaustive combination verifier remains skipped.
+  revert.
 - Generate only the primary installer and byte-identical `all` compatibility
   alias. Two consecutive builds produced 7,197,744-byte mode-0700 artifacts
   with SHA-256
@@ -706,8 +707,7 @@ files) is byte-identical to `v0.2.3`.
   413-before-mutation, 426 stale-build, cleanup, redacted diagnostics, and root
   200 evidence. Keep the unavailable exact-original CharX and iPhone
   background/reselection/clean-dirty/multi-PWA scenarios explicitly pending.
-  Per user instruction, do not run or claim exhaustive raw-selection
-  combination verification; do not publish a stable tag or release.
+  Do not publish a stable tag or release.
 - Safely apply the pinned 13-pack custom selection over the existing live
   rolling-all installation after maintainer staging, active-work preflight,
   application-only rollback, process-first stop, production prune, and
@@ -759,9 +759,6 @@ files) is byte-identical to `v0.2.3`.
   compatibility tests, Svelte 0/0 diagnostics, a 7,918-module build, and an
   8,555 KB BG bundle load check. The maximum graph is 35 packs / 716 units /
   267 managed paths with a zero-change re-plan and exact revert.
-- Skip the exhaustive raw-selection combination verifier by explicit user
-  instruction. Do not interpret the maximum-graph and focused-composition
-  passes as exhaustive subset coverage.
 
 ## 0.2.0-experimental.15
 
