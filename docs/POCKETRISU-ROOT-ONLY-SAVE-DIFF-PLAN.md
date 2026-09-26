@@ -1,98 +1,130 @@
 # Root-only save character-diff plan
 
-Status: **deferred candidate**, not scheduled. If admitted, it is delivered on
-the `0.2.4-experimental.N` line. Nothing here is implemented.
+Status: **admitted for measurement (r2, 2026-09-26)**. Delivered on the
+`0.2.4-experimental.N` line, starting at `0.2.4-experimental.2` on top of the
+`0.2.4-experimental.1` structural cleanup. S0 decides whether S1 is built.
 
 ## Problem
 
 A strict Personal appearance save changes only the database root. Since
-`0.2.3-experimental.8`, it skips the unused encoder work. The largest client
-cost left is `RisuSavePatcher.set()`: on every save it walks every character,
-serializes each one with `JSON.stringify(withStubs(character))`, and compares
-the result with the last synced JSON. Only characters that differ go on to
-normalization, hashing, and diffing.
+`0.2.3-experimental.8`, it skips the unused encoder work. What remains on the
+client is not yet broken down. Two costs are known to run on every strict
+save:
 
-Evidence (exact PocketRisu `v1.10.0` with the complete patch graph):
+- **`RisuSavePatcher.set()` character walk.** On every save the patcher walks
+  every character, serializes each one with
+  `JSON.stringify(withStubs(character))`, and compares the result with the
+  last synced JSON. Only characters that differ go on to normalization,
+  hashing, and diffing.
+- **Baseline clone.** Before mutating, the strict appearance writer copies the
+  patcher's entire synced baseline with
+  `safeStructuredClone(patcher.lastSyncedDb)` so a failed save can re-seed the
+  patcher. The earlier benchmark did not measure this copy.
 
-- **Character walk.** `src/ts/storage/risuSave.ts`, the per-character loop in
-  `RisuSavePatcher.set()` near lines 1170–1181. The `JSON.stringify` compare
-  runs for every character regardless of `toSave`.
+Evidence (exact PocketRisu `v1.10.0` with the complete patch graph; line
+numbers refer to the composed live source):
+
+- **Character walk.** `src/ts/storage/risuSave.ts` near lines 1170–1181. The
+  `JSON.stringify` compare runs for every character regardless of `toSave`.
 - **Other blocks.** Presets and modules are processed only when `toSave`
-  flags them, near line 1063.
-- **Cost.** Host CPU median over 7 runs, on a real 22-character, 17.5 MB
-  snapshot read read-only: `patcher.set` 69.2 ms. `encoder.set` (44.4 ms) and
-  `encode` (5.9 ms) were already removed for strict saves. Harness and result:
+  flags them (near lines 1063 and 1071). The root is compared per key.
+- **Baseline clone.** `src/ts/globalApi.svelte.ts` near line 1606, inside the
+  `personal-settings:editor-save-registration` unit.
+- **Cost measured so far.** Host CPU median over 7 runs, on a real
+  22-character, 17.5 MB snapshot read read-only: `patcher.set` 69.2 ms as a
+  whole. `encoder.set` (44.4 ms) and `encode` (5.9 ms) were already removed
+  for strict saves. Harness and result:
   `docs/validation/appearance-save-feedback-2026-09-25/`.
 - **Earlier plan omission.** The editor plan's persistence analysis (section
   11.1) describes only the per-key root comparison. It omits this per-save
   character walk.
 
 The host number does not show how much of an iPhone save it represents.
-Network round trips, server patch application, and the strict flush may
-dominate.
+Network round trips, server patch application, the strict flush, and the
+baseline clone may dominate.
 
 ## Constraints
 
 - **Ownership.** `src/ts/storage/risuSave.ts` is fully replaced by the
   lazy-chat-sync pack (`lazy-chat-sync:replace:src:ts:storage:risuSave-ts:1.10`).
-  Any change is either an ordered unit placed after that replacement, like the
-  Personal settings units after the `globalApi` owners, or a decision made
-  under lazy-chat-sync authority. It must not silently fork that file.
+  Changes are Personal settings units ordered after that replacement, like the
+  existing Personal units after the `globalApi` owners. The lazy-chat-sync
+  file is not forked and its version does not change.
 - **Server hash.** `server/node/server.cjs` (near lines 4401–4403) computes
   `calculateHash` of its current cached database *before* applying a patch.
   It rejects the patch unless that hash equals the client's `expectedHash`.
-  The client derives `expectedHash` from `hashBlocks` of its last synced
-  baseline, so any skipped work must leave that baseline and its hashes
-  unchanged.
+  The client computes `expectedHash` with `hash()` at the start of `set()`
+  (near line 981), from the `hashBlocks` of its last synced baseline. The
+  invariant that matters is therefore the post-save one: after the server
+  applies the patch, its recomputed hash must equal the client's `hash()`,
+  which becomes the next save's `expectedHash`.
 - **Call site.** `patcher.set(db, toSave)` is called from
-  `persistTrackedChanges` in `globalApi.svelte.ts` (near line 1160). It
-  currently receives no save options, so the save intent would have to be
-  passed explicitly.
+  `persistTrackedChanges` in `globalApi.svelte.ts` (near line 1160). The
+  strict intent is already available there: the Personal unit
+  `editor-defer-full-buffer` computes `personalPatchOnly` (near line 1140)
+  before the call. Passing it needs one added argument.
 
 ## Stages
 
-### S0 — Measure on the device first
+### S0 — Measure first
 
 This stage decides whether the work is worth doing.
 
-1. Add an opt-in timing trace for strict appearance saves only, enabled by a
-   local flag and off by default. It records:
-   - `patcher.set` duration, split into the character walk and the rest;
-   - the patch request round trip;
-   - the strict flush; and
-   - total time from mutation to acknowledgement.
-2. Surface the numbers where an iPhone user can read them without a console.
-   For example, the completion toast can append a one-line summary while the
-   flag is set.
-3. Collect several saves on the user's real database on iPhone. Re-run the
-   host harness for comparison.
+**S0a — Host breakdown (no live change).** Extend the host harness to time,
+on the same read-only snapshot, the median of 7 runs of:
 
-**Decision point.** Present the measured share of the character walk against
-total save time. Continue to S1 only if the user judges the saving worthwhile.
-If not, record the numbers and close the candidate.
+- the character walk inside `patcher.set`;
+- the rest of `patcher.set` (root per-key loop and bookkeeping);
+- `safeStructuredClone(patcher.lastSyncedDb)`; and
+- `safeStructuredClone(toSave)`.
 
-### S1 — Narrow design (recommended)
+**S0b — Device trace.** Ship an opt-in timing trace for strict appearance
+saves only:
 
-Skip the character walk only when all of these hold:
+- A switch in Personal settings, off by default and stored on the device
+  only, enables it.
+- While it is on, the save completion toast appends a one-line summary. The
+  line also proves that the traced bundle is the one loaded.
+- Recorded spans: baseline clone, character walk, rest of `patcher.set`,
+  patch request round trip, strict flush, and total time from the start of the
+  save to acknowledgement.
+- Units: one ordered Personal unit on `risuSave.ts` after the lazy-chat-sync
+  replacement for the walk span, and Personal units on `globalApi.svelte.ts`
+  after the existing owners for the other spans. Graphs without
+  lazy-chat-sync keep the untraced walk.
 
-- the save is a strict appearance save, carried as an explicit intent from
-  `persistTrackedChanges`;
+**Decision point D0.** Collect several CSS and font saves on the user's real
+database on iPhone. Present each span's share of the total next to the host
+numbers. Continue to S1 only if the user judges the saving worthwhile. If the
+baseline clone dominates instead, stop and revise this plan before building
+anything. If neither is worth it, record the numbers, remove the trace, and
+close the candidate.
+
+### S1 — Narrow design
+
+`RisuSavePatcher.set()` gains an optional third argument carrying the strict
+intent. Skip the character walk only when all of these hold:
+
+- the save is a strict appearance save (`personalPatchOnly`);
 - `toSave.character` and `toSave.chat` are empty; and
-- no structural character change is tracked.
+- `structuralChange` is false. The id comparison that decides it is already
+  computed before the walk, so an added, removed, or reordered character
+  always takes the ordinary full path.
 
 When skipped, the walk leaves the characters, their `hashBlocks`, and their
 JSON baselines exactly as they were. The root per-key diff runs as usual.
 
 Why this is safe, to be proven by tests:
 
-- **Hash.** `expectedHash` is computed from an unchanged baseline, so it still
-  equals the server's pre-patch hash.
+- **Hash.** The skipped walk changes no character hash, so the client's
+  post-save `hash()` equals the server's hash after it applies the root
+  operations.
 - **Server state.** The server applies only root operations, so its new state
   equals the client baseline plus those operations.
-- **Deferred changes.** An untracked character change made meanwhile still
-  differs from the untouched baseline JSON. Every later ordinary save walks all
-  characters and sends it. Ordinary autosaves keep the full walk, so the
-  deferral is bounded by the next ordinary save.
+- **Deferred changes.** An untracked in-place character change made meanwhile
+  still differs from the untouched baseline JSON. Every later ordinary save
+  walks all characters and sends it. Ordinary autosaves keep the full walk, so
+  the deferral is bounded by the next ordinary save.
 
 ### Rejected or deferred alternatives
 
@@ -100,21 +132,25 @@ Why this is safe, to be proven by tests:
   frequent, for example while typing into settings. Untracked character
   mutations, such as those made by plugins, could then be deferred for an
   unbounded time. Not recommended.
+- **Defer structural character changes on strict saves.** Possible, but the
+  structural check costs only an id comparison, and deferring additions or
+  removals adds a case to prove without a measured benefit. Rejected.
 - **Per-character dirty tracking.** This would replace the stringify compare
   with tracked flags. It changes tracking semantics across all savers, which
   is a larger lazy-chat-sync design change. Out of scope.
 
 ### S2 — Tests
 
-- A root-only strict save produces only root operations, and its
-  `expectedHash` equals the pre-save `hash()`.
-- A following ordinary save with an untracked character edit emits that
-  character's operations, and the server-side hash, computed as the server
-  does, matches at each step.
-- An untracked structural character change (add or remove) is deferred by the
-  strict save and delivered by the next ordinary save.
+- A root-only strict save produces only root operations. After applying them
+  to a server-side copy, `calculateHash` of that copy equals the client's
+  post-save `hash()`.
+- A following ordinary save with an untracked in-place character edit emits
+  that character's operations, and the server-side hash matches at each
+  step.
+- A strict save with an added or removed character takes the full path and
+  produces the same patch as the current implementation.
 - Ordinary, preset, module, and character saves produce patches identical to
-  the current implementation on the existing and new fixtures.
+  the current implementation.
 - The existing `risuSavePatcher.test.ts` suite, the Personal owner graphs,
   and the complete graph (lazy, BG, and client-build-fence compositions) all
   pass.
@@ -126,19 +162,22 @@ Why this is safe, to be proven by tests:
 - The ordinary process-first live delivery: active work 0, stop, apply,
   build, prune, restart, and readback.
 - iPhone L3:
-  - with the timing flag on, confirm that the character-walk share dropped
+  - with the timing switch on, confirm that the character-walk span dropped
     for CSS and font saves;
-  - edit a character and confirm that it still saves; and
-  - reload and confirm that both changes persist.
+  - edit a character and confirm that it still saves;
+  - reload and confirm that both changes persist; and
+  - repeat with a character edit immediately after a CSS save.
+- After L3, record the numbers and remove the trace units and the switch.
 
 ## Rollback
 
-The change is a single ordered unit. Reverting the candidate restores the
-full character walk without data migration. No stored format changes.
+Each stage is a separate set of ordered units. Reverting the candidate
+restores the full character walk without data migration. No stored format
+changes; the trace switch lives only in device storage.
 
 ## Trigger to reopen
 
-Reopen this plan when either of these happens:
+If D0 closes the candidate, reopen this plan when either of these happens:
 
 - appearance or settings saves feel slow again on iPhone; or
 - device timing shows the character walk as a dominant share of save time.
