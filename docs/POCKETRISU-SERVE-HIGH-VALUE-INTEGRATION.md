@@ -50,7 +50,7 @@ their real queues, and fails closed in the browser when dirty-state inspection
 cannot be trusted.
 
 Automatic evidence and the exact live/device gate are recorded in
-`docs/POCKETRISU-1.9-CLIENT-BUILD-FENCE-VALIDATION.md`.
+`docs/archive/POCKETRISU-1.9-CLIENT-BUILD-FENCE-VALIDATION.md`.
 
 The first live plan correctly blocked admission of the pre-composition
 installer: it would have downgraded the already-live Personal appearance pack.
@@ -78,7 +78,7 @@ spooling and the long-reader WAL-duration problem.
 
 The exact implementation, adversarial tests, exhaustive graph receipt, limits,
 and live/L3 boundary are recorded in
-`docs/POCKETRISU-1.9-SERVER-BACKUP-SNAPSHOT-VALIDATION.md`.
+`docs/archive/POCKETRISU-1.9-SERVER-BACKUP-SNAPSHOT-VALIDATION.md`.
 
 The generated `.15` installer was admitted only after two zero-work preflight
 reads and a process stop. The live tree repeated the full client/server,

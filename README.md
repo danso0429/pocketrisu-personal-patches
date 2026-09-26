@@ -1281,7 +1281,7 @@ confirms the intended behaviors and round trip, then rebuild and retest the
 downloader artifact.
 
 The retired raw-selection procedure remains in
-[`docs/patch-combination-verification-instructions.md`](docs/patch-combination-verification-instructions.md)
+[`docs/archive/patch-combination-verification-instructions.md`](docs/archive/patch-combination-verification-instructions.md)
 as historical evidence. It is not an active gate after all-or-nothing
 delivery. Feature work still exercises every relevant owner composition and
 the maximum complete graph.

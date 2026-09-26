@@ -31,7 +31,7 @@ The comparison is frozen to:
 
 PocketRisu 1.9.0 later changed the target baseline. The target-specific
 overlap and rebase decisions are recorded in
-`docs/POCKETRISU-1.9-REBASE-AUDIT.md`. That overlay updates applicability
+`docs/archive/POCKETRISU-1.9-REBASE-AUDIT.md`. That overlay updates applicability
 against 1.9.0 without silently changing this catalog's frozen Kei comparison
 or its ownership and preservation contracts.
 
@@ -184,7 +184,7 @@ exact-1.9 aggregate, these later decisions control admission:
 | K27/K28 | Audit-admitted K27-F01 closes only BG delivery L02/U03 inside the existing `bg-preserve` and native request-log owners. Exact 1.9 request bodies remain bounded/cursor-paginated/masked but default on; usage remains content-free and failure-isolated but unbounded/unpaginated and coupled to the log toggle. Platform/delete, rich accounting, independent usage, and safer privacy/retention policy remain deferred explicit features. |
 
 The evidence and exact source anchors are in
-`docs/POCKETRISU-1.9-CATALOG-COMPLETION-DECISIONS.md`. The seven original
+`docs/archive/POCKETRISU-1.9-CATALOG-COMPLETION-DECISIONS.md`. The seven original
 children plus hidden K04, K17, and K26 children enter the umbrella. K23, K27,
 K29-F05, and K22 stay owner-local in packs already selected by the final
 graph. This structure does not claim deferred rows as implemented.
@@ -193,7 +193,7 @@ That exact-1.9 aggregate qualification subsequently passed: 2,048/2,048 raw
 selections, 1,024 normalized graphs, 222 managed paths, a 538-unit maximum
 graph, complete target gates, exact revert, and deterministic installers. The
 observations are recorded in
-`docs/POCKETRISU-1.9-AGGREGATE-VALIDATION.md`. This result advances the
+`docs/archive/POCKETRISU-1.9-AGGREGATE-VALIDATION.md`. This result advances the
 existing admitted children; it does not change any deferred disposition in
 this catalog.
 
