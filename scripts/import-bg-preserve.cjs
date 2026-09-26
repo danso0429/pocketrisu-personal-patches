@@ -11,9 +11,8 @@ const EXCLUDED_PAYLOAD_FILES = new Set([
 ])
 
 // The standalone installer owns one nodeStorage implementation. The composable
-// patcher replaces it with exactly one storage-specific integration pack:
-// bg-preserve-storage-base for standard storage, or lazy-chat-bg-adapter when
-// lazy-chat-sync owns nodeStorage.ts.
+// patcher replaces it with lazy-chat-bg-adapter, because lazy-chat-sync owns
+// nodeStorage.ts in the complete set.
 const EXCLUDED_HOOK_IDS = new Set([
     'nodeStorage: asset upload retry import',
     'nodeStorage: adaptive asset upload retry',

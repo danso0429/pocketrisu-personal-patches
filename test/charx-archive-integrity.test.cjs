@@ -61,12 +61,15 @@ test('CharX integrity is a visible 1.10 review-only hardening owner', () => {
     assert.equal(exact110Units().length, pack.units.length)
 })
 
-test('BG legacy CharX error hook is selected only when the indexed session is absent', () => {
+test('the indexed CharX session replaces the BG legacy CharX error hook', () => {
     const catalog = loadCatalog()
-    const legacy = resolveSelection(catalog, ['bg-preserve'])
-    assert.equal(legacy.resolvedIds.includes('bg-preserve-legacy-charx-adapter'), true)
-    const indexed = resolveSelection(catalog, ['bg-preserve', 'charx-archive-integrity'])
-    assert.equal(indexed.resolvedIds.includes('bg-preserve-legacy-charx-adapter'), false)
+    const bg = catalog.find((pack) => pack.id === 'bg-preserve')
+    assert.equal(
+        bg.units.some((unit) => unit.id === 'bg-preserve:hook:processzip-asset-save-aggregate-cause'),
+        false,
+    )
+    const complete = resolveSelection(catalog, ['bg-preserve', 'charx-archive-integrity'])
+    assert.equal(complete.resolvedIds.includes('charx-archive-integrity'), true)
 })
 
 test('CharX production sources pin indexed no-worker integrity and terminal settlement', () => {

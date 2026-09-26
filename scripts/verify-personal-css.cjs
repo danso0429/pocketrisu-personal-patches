@@ -17,9 +17,8 @@ fs.mkdirSync(artifacts, { recursive: true })
 const all = loadCatalog()
 const specs = [
     ['standalone', ['personal-settings'], ['personal-settings']],
-    ['startup', ['personal-settings', 'startup-cache'], ['personal-settings', 'startup-cache']],
-    ['lazy', ['personal-settings', 'lazy-chat-sync'], ['personal-settings', 'startup-cache', 'lazy-chat-sync']],
-    ['bg-lazy', ['personal-settings', 'lazy-chat-sync', 'bg-preserve'], ['personal-settings', 'startup-cache', 'lazy-chat-sync', 'bg-preserve', 'bg-preserve-storage-base', 'lazy-chat-bg-adapter']],
+    ['lazy', ['personal-settings', 'lazy-chat-sync'], ['personal-settings', 'lazy-chat-sync']],
+    ['bg-lazy', ['personal-settings', 'lazy-chat-sync', 'bg-preserve'], ['personal-settings', 'lazy-chat-sync', 'bg-preserve', 'lazy-chat-bg-adapter']],
     ['complete', resolveProfile('all', all).defaults, null],
 ]
 const snapshot = (root, relative) => {

@@ -44,26 +44,18 @@ function appendAfter(unit, ids) {
         : { ...unit, after: [...(unit.after ?? []), ...ids] }
 }
 
-function createServerBackupSnapshotAdapterManifest({ id, title, lazyChat, verified1100 = false }) {
+function createServerBackupSnapshotAdapterManifest({ id, title }) {
     const prefix = id + ':'
-    const marker = (name) => (
-        'POCKETRISU-PATCH:server-backup-snapshot:'
-        + (lazyChat ? 'lazy' : 'standard')
-        + ':'
-        + name
-    )
+    const marker = (name) => 'POCKETRISU-PATCH:server-backup-snapshot:lazy:' + name
     const serverAfter = [
         'client-build-fence:server-session-advertise:1.9',
-        'kei-backup-restore-safety-standard-adapter:snapshot-restore-error-code:1.9',
         'kei-backup-restore-safety-lazy-adapter:snapshot-restore-error-code:1.9',
         'kei-backup-restore-safety-lazy-adapter:server-restore-error-code:1.9',
         'bg-preserve:hook:server-cjs-stream-reader-import',
         'bg-preserve:hook:server-cjs-mark-user-stream-cancel',
         'bg-preserve:hook:server-cjs-register-routes:1.9',
-        ...(lazyChat ? [
-            'lazy-chat-sync:replace:server:node:server-cjs:1.9',
-            'lazy-chat-sync:replace:server:node:server-cjs:1.10',
-        ] : []),
+        'lazy-chat-sync:replace:server:node:server-cjs:1.9',
+        'lazy-chat-sync:replace:server:node:server-cjs:1.10',
     ]
     const helperFragment = fs.readFileSync(
         path.join(__dirname, 'fragments', 'server-helpers.cjs.txt'),
@@ -247,19 +239,12 @@ ${helperFragment}/* ${marker('server-source-lifecycle')}:END */
         userSelectable: false,
         targets: {
             pocketrisu: {
-                verified: ['1.9.0', ...(verified1100 ? ['1.10.0'] : [])],
-                reviewing: verified1100 ? [] : ['1.10.0'],
+                verified: ['1.9.0', '1.10.0'],
+                reviewing: [],
             },
         },
-        requires: lazyChat
-            ? ['server-backup-snapshot-core', 'lazy-chat-sync']
-            : ['server-backup-snapshot-core'],
-        conflicts: lazyChat
-            ? ['server-backup-snapshot-standard-adapter']
-            : ['lazy-chat-sync', 'server-backup-snapshot-lazy-adapter'],
-        autoWhen: lazyChat
-            ? { all: ['server-backup-snapshot-core', 'lazy-chat-sync'] }
-            : { all: ['server-backup-snapshot-core'], none: ['lazy-chat-sync'] },
+        requires: ['server-backup-snapshot-core', 'lazy-chat-sync'],
+        autoWhen: { all: ['server-backup-snapshot-core', 'lazy-chat-sync'] },
         units: serverUnits,
     }
 }

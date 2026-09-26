@@ -7,7 +7,4 @@ const {
 module.exports = createPartialEditAdapterManifest({
     id: 'kei-partial-edit-bg-adapter',
     title: 'PocketRisu Kei partial edit bg-preserve adapter',
-    adapter: 'bg',
-    bgPreserve: true,
-    verified1100: true,
 })

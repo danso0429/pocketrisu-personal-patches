@@ -6,7 +6,6 @@ const test = require('node:test')
 const assert = require('node:assert/strict')
 
 const core = require('../patches/kei-partial-edit-core/manifest.cjs')
-const base = require('../patches/kei-partial-edit-base-adapter/manifest.cjs')
 const bg = require('../patches/kei-partial-edit-bg-adapter/manifest.cjs')
 const { loadCatalog } = require('../src/catalog.cjs')
 const { packEtag } = require('../src/manager.cjs')
@@ -17,12 +16,10 @@ const source = (relative) =>
     fs.readFileSync(path.join(patchRoot, relative), 'utf8')
 const unitText = (unit) => unit.managed ?? unit.content ?? ''
 
-test('K15 keeps its core and base/bg adapters internal', () => {
+test('K15 keeps its core and bg-preserve adapter internal', () => {
     assert.equal(core.id, 'kei-partial-edit-core')
-    assert.equal(base.id, 'kei-partial-edit-base-adapter')
     assert.equal(bg.id, 'kei-partial-edit-bg-adapter')
     assert.equal(core.userSelectable, false)
-    assert.equal(base.userSelectable, false)
     assert.equal(bg.userSelectable, false)
     for (const pack of [core, bg]) {
         assert.deepEqual(pack.targets, {
@@ -32,49 +29,29 @@ test('K15 keeps its core and base/bg adapters internal', () => {
             },
         })
     }
-    assert.deepEqual(base.targets.pocketrisu, {
-        verified: ['1.8.1', '1.9.0'],
-        reviewing: ['1.10.0'],
-    })
-    assert.deepEqual(base.requires, [
-        'kei-partial-edit-core',
-        'kei-chat-render-base-adapter',
-    ])
     assert.deepEqual(bg.requires, [
         'kei-partial-edit-core',
         'kei-chat-render-bg-adapter',
         'bg-preserve',
     ])
-    assert.deepEqual(base.autoWhen, {
-        all: ['kei-partial-edit-core'],
-        none: ['bg-preserve'],
-    })
     assert.deepEqual(bg.autoWhen, {
         all: ['kei-partial-edit-core', 'bg-preserve'],
     })
-    assert.deepEqual(base.conflicts, [
-        'bg-preserve',
-        'kei-partial-edit-bg-adapter',
-    ])
-    assert.deepEqual(bg.conflicts, ['kei-partial-edit-base-adapter'])
 })
 
-test('K15 selects exactly one adapter and stays absent without its core', () => {
+test('K15 adapter joins only with its core and bg-preserve', () => {
     const catalog = loadCatalog()
     const absent = resolveSelection(catalog, ['bg-preserve'])
     assert.equal(absent.resolvedIds.includes(core.id), false)
-    assert.equal(absent.resolvedIds.includes(base.id), false)
     assert.equal(absent.resolvedIds.includes(bg.id), false)
 
     const standalone = resolveSelection(catalog, ['pocketrisu-kei'])
-    assert.equal(standalone.resolvedIds.includes(base.id), true)
     assert.equal(standalone.resolvedIds.includes(bg.id), false)
 
     const composed = resolveSelection(
         catalog,
         ['pocketrisu-kei', 'bg-preserve'],
     )
-    assert.equal(composed.resolvedIds.includes(base.id), false)
     assert.equal(composed.resolvedIds.includes(bg.id), true)
 })
 
@@ -91,7 +68,7 @@ test('K15 owns only identity/manager code and hooks four focused hosts', () => {
         'src/lib/ChatScreens/Chat.svelte',
         'src/lib/ChatScreens/DefaultChatScreen.svelte',
     ]
-    for (const adapter of [base, bg]) {
+    for (const adapter of [bg]) {
         const units181 = adapter.units.filter((unit) =>
             unit.targetVersions?.pocketrisu?.includes('1.8.1')
         )
@@ -133,7 +110,7 @@ test('K15 owns only identity/manager code and hooks four focused hosts', () => {
         assert.ok(rootState190)
         assert.ok(manager190)
         assert.deepEqual(rootState190.after, [
-            `kei-chat-render-${adapter === base ? 'base' : 'bg'}-adapter:chat-reactive-metadata:1.9`,
+            'kei-chat-render-bg-adapter:chat-reactive-metadata:1.9',
         ])
         assert.match(
             manager190.requires.join('\n'),
@@ -204,7 +181,7 @@ test('K15 translation bridge requires an issued current cache identity', () => {
     assert.match(identity, /request\.key === issued\.key/)
     assert.match(identity, /request\.expectedData === issued\.data/)
 
-    for (const adapter of [base, bg]) {
+    for (const adapter of [bg]) {
         const bridges = adapter.units.filter((unit) =>
             unit.id.endsWith(':chat-translation-bridge')
             || unit.id.endsWith(':chat-translation-bridge:1.9')
@@ -260,7 +237,7 @@ test('K15 bg adapter follows existing touch ownership without replacing it', () 
 })
 
 test('K15 payloads participate in ETags and retain pinned attribution', () => {
-    for (const pack of [core, base, bg]) {
+    for (const pack of [core, bg]) {
         const original = packEtag(pack)
         const changed = {
             ...pack,

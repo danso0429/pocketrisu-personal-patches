@@ -6,7 +6,6 @@ const test = require('node:test')
 const assert = require('node:assert/strict')
 
 const core = require('../patches/kei-backup-restore-safety-core/manifest.cjs')
-const standard = require('../patches/kei-backup-restore-safety-standard-adapter/manifest.cjs')
 const lazy = require('../patches/kei-backup-restore-safety-lazy-adapter/manifest.cjs')
 const meta = require('../patches/pocketrisu-kei/manifest.cjs')
 const restoreSafety = require('../patches/kei-backup-restore-safety-core/files/server/node/restoreSafety.cjs')
@@ -22,23 +21,19 @@ const lazyServer190 = fs.readFileSync(path.join(
     '../patches/lazy-chat-sync/files-1.9/server/node/server.cjs',
 ), 'utf8')
 
-test('K26 restore safety is a hidden exact-1.9 core with one resolved storage adapter', () => {
+test('K26 restore safety is a hidden core with a lazy-storage adapter', () => {
     const catalog = loadCatalog()
     assert.equal(core.userSelectable, false)
-    assert.equal(standard.userSelectable, false)
     assert.equal(lazy.userSelectable, false)
-    assert.equal(meta.version, '0.13.0')
     assert.equal(meta.requires.includes(core.id), true)
 
     const baseGraph = resolveSelection(catalog, [meta.id])
-    assert.equal(baseGraph.resolvedIds.includes(standard.id), true)
     assert.equal(baseGraph.resolvedIds.includes(lazy.id), false)
 
     const lazyGraph = resolveSelection(catalog, [meta.id, 'lazy-chat-sync'])
-    assert.equal(lazyGraph.resolvedIds.includes(standard.id), false)
     assert.equal(lazyGraph.resolvedIds.includes(lazy.id), true)
 
-    for (const hidden of [core.id, standard.id, lazy.id]) {
+    for (const hidden of [core.id, lazy.id]) {
         assert.throws(
             () => resolveSelection(catalog, [hidden]),
             (error) => error.code === 'INTERNAL_PACK_REQUESTED',
@@ -47,7 +42,7 @@ test('K26 restore safety is a hidden exact-1.9 core with one resolved storage ad
 })
 
 test('K26 owns no 1.8 payload and limits 1.9 edits to the native restore surfaces', () => {
-    for (const manifest of [core, standard, lazy]) {
+    for (const manifest of [core, lazy]) {
         assert.deepEqual(
             manifest.units.filter((unit) => unitMatchesTarget(unit, target181)),
             [],
@@ -67,7 +62,7 @@ test('K26 owns no 1.8 payload and limits 1.9 edits to the native restore surface
             'src/lib/Setting/ServerBackupList.svelte',
         ],
     )
-    for (const adapter of [standard, lazy]) {
+    for (const adapter of [lazy]) {
         assert.deepEqual(
             [...new Set(adapter.units.map((unit) => unit.file))],
             [
@@ -80,8 +75,7 @@ test('K26 owns no 1.8 payload and limits 1.9 edits to the native restore surface
 })
 
 test('K26 force-new snapshot keeps ordinary throttle and all three destructive callers', () => {
-    const combined = standard.units.map(unitText).join('\n')
-    const lazyCombined = lazy.units.map(unitText).join('\n')
+    const combined = lazy.units.map(unitText).join('\n')
     assert.match(combined, /if \(!force\)/)
     assert.match(combined, /Preserve native ordinary rotation, including failure-path throttle/)
     assert.match(combined, /if \(protectedSnapshotKeys\.length === 0\)/)
@@ -116,10 +110,10 @@ test('K26 force-new snapshot keeps ordinary throttle and all three destructive c
     assert.match(combined, /importBackupFromSource\(stream/)
     assert.match(combined, /isFreshSnapshotRequiredError/)
     assert.match(combined, /res\.status\(409\)/)
-    assert.match(lazyCombined, /reconcileForFreshSnapshot/)
-    assert.match(lazyCombined, /prepareLazyChatSnapshotOwner/)
-    assert.match(lazyCombined, /readLazyChatSnapshotState/)
-    assert.match(lazyCombined, /requireLazyChatSnapshotCompleteness/)
+    assert.match(combined, /reconcileForFreshSnapshot/)
+    assert.match(combined, /prepareLazyChatSnapshotOwner/)
+    assert.match(combined, /readLazyChatSnapshotState/)
+    assert.match(combined, /requireLazyChatSnapshotCompleteness/)
     assert.doesNotMatch(combined, /schedule|selective|missing.asset|boot.*snapshot/i)
 })
 
@@ -177,8 +171,8 @@ test('K26 server helper makes keys collision-free and requires a bounded one-use
     }), 'local:42:1234')
 })
 
-test('K26 helper, UI, and standard/lazy adapter changes affect their pack ETags', () => {
-    for (const pack of [core, standard, lazy]) {
+test('K26 helper, UI, and lazy adapter changes affect their pack ETags', () => {
+    for (const pack of [core, lazy]) {
         const original = packEtag(pack)
         const mutated = {
             ...pack,

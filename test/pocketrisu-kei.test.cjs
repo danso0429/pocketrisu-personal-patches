@@ -40,21 +40,14 @@ test('PocketRisu Kei remains a unit-free universal-only meta pack', () => {
     const resolution = resolveSelection(catalog, [manifest.id])
     assert.deepEqual(resolution.resolvedIds, [
         'kei-backup-restore-safety-core',
-        'kei-backup-restore-safety-standard-adapter',
-        'kei-chat-render-base-adapter',
         'kei-chat-render-core',
         'kei-fullscreen-image-viewer-core',
-        'kei-hypa-tools-base-adapter',
         'kei-hypa-tools-core',
-        'kei-mobile-navigation-base-adapter',
         'kei-mobile-navigation-core',
-        'kei-partial-edit-base-adapter',
         'kei-partial-edit-core',
         'kei-prompt-role-compat-core',
-        'kei-stream-parser-base-adapter',
         'kei-stream-parser-core',
         'kei-text-theme-normalization-core',
-        'kei-translation-tools-base-adapter',
         'kei-translation-tools-core',
         manifest.id,
     ])
@@ -70,14 +63,19 @@ test('PocketRisu Kei remains a unit-free universal-only meta pack', () => {
         'kei-text-theme-normalization-core',
         'kei-translation-tools-core',
     ])
-    assert.deepEqual(resolution.autoAdded, [
-        'kei-backup-restore-safety-standard-adapter',
-        'kei-chat-render-base-adapter',
-        'kei-hypa-tools-base-adapter',
-        'kei-mobile-navigation-base-adapter',
-        'kei-partial-edit-base-adapter',
-        'kei-stream-parser-base-adapter',
-        'kei-translation-tools-base-adapter',
+    assert.deepEqual(resolution.autoAdded, [])
+
+    const hosted = resolveSelection(catalog, [manifest.id, 'bg-preserve', 'lazy-chat-sync'])
+    assert.deepEqual(hosted.autoAdded, [
+        'haejeok-persistence-safety-adapter',
+        'kei-backup-restore-safety-lazy-adapter',
+        'kei-chat-render-bg-adapter',
+        'kei-hypa-tools-bg-adapter',
+        'kei-mobile-navigation-lazy-adapter',
+        'kei-partial-edit-bg-adapter',
+        'kei-stream-parser-bg-adapter',
+        'kei-translation-tools-bg-adapter',
+        'lazy-chat-bg-adapter',
     ])
 })
 
@@ -103,22 +101,15 @@ test('PocketRisu Kei can require hidden children without exposing them directly'
     const resolution = resolveSelection(futureCatalog, [manifest.id])
     assert.deepEqual(resolution.resolvedIds, [
         'kei-backup-restore-safety-core',
-        'kei-backup-restore-safety-standard-adapter',
-        'kei-chat-render-base-adapter',
         'kei-chat-render-core',
         child.id,
         'kei-fullscreen-image-viewer-core',
-        'kei-hypa-tools-base-adapter',
         'kei-hypa-tools-core',
-        'kei-mobile-navigation-base-adapter',
         'kei-mobile-navigation-core',
-        'kei-partial-edit-base-adapter',
         'kei-partial-edit-core',
         'kei-prompt-role-compat-core',
-        'kei-stream-parser-base-adapter',
         'kei-stream-parser-core',
         'kei-text-theme-normalization-core',
-        'kei-translation-tools-base-adapter',
         'kei-translation-tools-core',
         manifest.id,
     ])
@@ -148,32 +139,23 @@ test('PocketRisu Kei changes only its children and declared client-fence adapter
         .map((pack) => pack.id)
     const keiPackIds = new Set([
         'kei-backup-restore-safety-core',
-        'kei-backup-restore-safety-standard-adapter',
         'kei-backup-restore-safety-lazy-adapter',
         'kei-chat-render-core',
-        'kei-chat-render-base-adapter',
         'kei-chat-render-bg-adapter',
         'kei-fullscreen-image-viewer-core',
         'kei-mobile-navigation-core',
-        'kei-mobile-navigation-base-adapter',
         'kei-mobile-navigation-lazy-adapter',
         'kei-hypa-tools-core',
-        'kei-hypa-tools-base-adapter',
         'kei-hypa-tools-bg-adapter',
         'kei-partial-edit-core',
-        'kei-partial-edit-base-adapter',
         'kei-partial-edit-bg-adapter',
         'kei-prompt-role-compat-core',
         'kei-text-theme-normalization-core',
         'kei-translation-tools-core',
-        'kei-translation-tools-base-adapter',
         'kei-translation-tools-bg-adapter',
         'kei-stream-parser-core',
-        'kei-stream-parser-base-adapter',
         'kei-stream-parser-bg-adapter',
-        'client-build-fence-standard-adapter',
         'client-build-fence-kei-adapter',
-        'client-build-fence-kei-standard-storage-adapter',
         'client-build-fence-kei-lazy-storage-adapter',
         manifest.id,
     ])
@@ -192,53 +174,24 @@ test('PocketRisu Kei changes only its children and declared client-fence adapter
             withKei,
             withoutKei,
         )
-        assert.equal(
-            withKeiResolution.resolvedIds.includes('kei-stream-parser-base-adapter'),
-            !withKeiResolution.resolvedIds.includes('bg-preserve'),
-        )
-        assert.equal(
-            withKeiResolution.resolvedIds.includes('kei-stream-parser-bg-adapter'),
-            withKeiResolution.resolvedIds.includes('bg-preserve'),
-        )
-        assert.equal(
-            withKeiResolution.resolvedIds.includes('kei-chat-render-base-adapter'),
-            !withKeiResolution.resolvedIds.includes('bg-preserve'),
-        )
-        assert.equal(
-            withKeiResolution.resolvedIds.includes('kei-chat-render-bg-adapter'),
-            withKeiResolution.resolvedIds.includes('bg-preserve'),
-        )
-        assert.equal(
-            withKeiResolution.resolvedIds.includes('kei-mobile-navigation-base-adapter'),
-            !withKeiResolution.resolvedIds.includes('lazy-chat-sync'),
-        )
+        const hasBg = withKeiResolution.resolvedIds.includes('bg-preserve')
+        const hasLazy = withKeiResolution.resolvedIds.includes('lazy-chat-sync')
+        for (const adapter of [
+            'kei-stream-parser-bg-adapter',
+            'kei-chat-render-bg-adapter',
+            'kei-hypa-tools-bg-adapter',
+            'kei-partial-edit-bg-adapter',
+            'kei-translation-tools-bg-adapter',
+        ]) {
+            assert.equal(withKeiResolution.resolvedIds.includes(adapter), hasBg, adapter)
+        }
         assert.equal(
             withKeiResolution.resolvedIds.includes('kei-mobile-navigation-lazy-adapter'),
-            withKeiResolution.resolvedIds.includes('lazy-chat-sync'),
+            hasLazy,
         )
         assert.equal(
-            withKeiResolution.resolvedIds.includes('kei-hypa-tools-base-adapter'),
-            !withKeiResolution.resolvedIds.includes('bg-preserve'),
-        )
-        assert.equal(
-            withKeiResolution.resolvedIds.includes('kei-hypa-tools-bg-adapter'),
-            withKeiResolution.resolvedIds.includes('bg-preserve'),
-        )
-        assert.equal(
-            withKeiResolution.resolvedIds.includes('kei-partial-edit-base-adapter'),
-            !withKeiResolution.resolvedIds.includes('bg-preserve'),
-        )
-        assert.equal(
-            withKeiResolution.resolvedIds.includes('kei-partial-edit-bg-adapter'),
-            withKeiResolution.resolvedIds.includes('bg-preserve'),
-        )
-        assert.equal(
-            withKeiResolution.resolvedIds.includes('kei-translation-tools-base-adapter'),
-            !withKeiResolution.resolvedIds.includes('bg-preserve'),
-        )
-        assert.equal(
-            withKeiResolution.resolvedIds.includes('kei-translation-tools-bg-adapter'),
-            withKeiResolution.resolvedIds.includes('bg-preserve'),
+            withKeiResolution.resolvedIds.includes('kei-backup-restore-safety-lazy-adapter'),
+            hasLazy,
         )
     }
 })

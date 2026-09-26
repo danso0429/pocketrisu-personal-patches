@@ -7,12 +7,8 @@ const filesRoot = path.join(__dirname, 'files')
 const owned = (relative) => fs.readFileSync(path.join(filesRoot, relative), 'utf8')
 const pocketRisu190 = { pocketrisu: ['1.9.0', '1.10.0'] }
 const nodeStorageOwnerUnits = [
-    'startup-cache:node-patch-journal',
     'lazy-chat-sync:replace:src:ts:storage:nodeStorage-ts:1.9',
-    'bg-preserve-storage-base:asset-upload-error-detail',
     'lazy-chat-bg-adapter:asset-upload-error-detail',
-    'kei-backup-restore-safety-standard-adapter:node-safety-import:1.9',
-    'kei-backup-restore-safety-standard-adapter:node-server-stream-error:1.9',
     'kei-backup-restore-safety-lazy-adapter:node-safety-import:1.9',
     'kei-backup-restore-safety-lazy-adapter:node-server-stream-error:1.9',
 ]
@@ -748,7 +744,6 @@ function cancelPending() {
             content: "const { createClientBuildFence } = require('./clientBuildFence.cjs');\n",
             after: [
                 'lazy-chat-sync:replace:server:node:server-cjs:1.9',
-                'kei-backup-restore-safety-standard-adapter:server-helper-import:1.9',
                 'kei-backup-restore-safety-lazy-adapter:server-helper-import:1.9',
             ],
             requires: ['client-build-fence:server-helper:1.9'],

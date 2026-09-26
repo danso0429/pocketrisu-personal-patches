@@ -12,7 +12,6 @@ test('catalog exposes the expected user packs and keeps integration packs intern
         [
             'bg-preserve',
             'client-build-fence',
-            'startup-cache',
             'lazy-chat-sync',
             'persona-organizer',
             'character-organizer',
@@ -31,81 +30,64 @@ test('catalog exposes the expected user packs and keeps integration packs intern
     assert.deepEqual(
         catalog.filter((pack) => pack.userSelectable === false).map((pack) => pack.id),
         [
-            'bg-preserve-legacy-charx-adapter',
-            'bg-preserve-storage-base',
             'client-build-fence-bg-adapter',
-            'client-build-fence-standard-adapter',
             'client-build-fence-kei-adapter',
-            'client-build-fence-kei-standard-storage-adapter',
             'client-build-fence-kei-lazy-storage-adapter',
             'server-backup-snapshot-core',
-            'server-backup-snapshot-standard-adapter',
             'server-backup-snapshot-lazy-adapter',
             'lazy-chat-bg-adapter',
             'haejeok-persistence-safety-adapter',
             'haejeok-korean-search-adapter',
             'haejeok-chat-width-adapter',
             'kei-stream-parser-core',
-            'kei-stream-parser-base-adapter',
             'kei-stream-parser-bg-adapter',
             'kei-chat-render-core',
-            'kei-chat-render-base-adapter',
             'kei-chat-render-bg-adapter',
             'kei-mobile-navigation-core',
-            'kei-mobile-navigation-base-adapter',
             'kei-mobile-navigation-lazy-adapter',
             'kei-hypa-tools-core',
-            'kei-hypa-tools-base-adapter',
             'kei-hypa-tools-bg-adapter',
             'kei-partial-edit-core',
-            'kei-partial-edit-base-adapter',
             'kei-partial-edit-bg-adapter',
             'kei-translation-tools-core',
-            'kei-translation-tools-base-adapter',
             'kei-translation-tools-bg-adapter',
             'kei-fullscreen-image-viewer-core',
             'kei-prompt-role-compat-core',
             'kei-text-theme-normalization-core',
             'kei-backup-restore-safety-core',
-            'kei-backup-restore-safety-standard-adapter',
             'kei-backup-restore-safety-lazy-adapter',
             'pagefold-bg-adapter',
         ],
     )
 })
 
-test('lazy chat supersedes the narrower startup cache pack', () => {
-    const resolution = resolveSelection(loadCatalog(), ['startup-cache', 'lazy-chat-sync'])
-    assert.deepEqual(resolution.effectiveRequested, ['lazy-chat-sync'])
-    assert.deepEqual(resolution.superseded, [{
-        pack: 'startup-cache',
-        by: 'lazy-chat-sync',
-    }])
-    assert.equal(resolution.resolvedIds.includes('startup-cache'), false)
+const supersedeCatalog = [
+    { id: 'narrow', version: '1', units: [] },
+    { id: 'broad', version: '1', units: [], supersedes: ['narrow'] },
+    { id: 'feature', version: '1', units: [], requires: ['broad'] },
+]
+
+test('a superseding pack replaces the narrower requested pack', () => {
+    const resolution = resolveSelection(supersedeCatalog, ['narrow', 'broad'])
+    assert.deepEqual(resolution.effectiveRequested, ['broad'])
+    assert.deepEqual(resolution.superseded, [{ pack: 'narrow', by: 'broad' }])
+    assert.equal(resolution.resolvedIds.includes('narrow'), false)
 })
 
-test('a dependency-added lazy chat pack also supersedes requested startup cache', () => {
-    const resolution = resolveSelection(
-        loadCatalog(),
-        ['character-import-ux', 'startup-cache'],
-    )
-    assert.deepEqual(resolution.effectiveRequested, ['character-import-ux'])
-    assert.deepEqual(resolution.dependencyAdded, ['lazy-chat-sync'])
-    assert.deepEqual(resolution.superseded, [{
-        pack: 'startup-cache',
-        by: 'lazy-chat-sync',
-    }])
-    assert.equal(resolution.resolvedIds.includes('lazy-chat-sync'), true)
-    assert.equal(resolution.resolvedIds.includes('startup-cache'), false)
+test('a dependency-added superseding pack also replaces the requested pack', () => {
+    const resolution = resolveSelection(supersedeCatalog, ['feature', 'narrow'])
+    assert.deepEqual(resolution.effectiveRequested, ['feature'])
+    assert.deepEqual(resolution.dependencyAdded, ['broad'])
+    assert.deepEqual(resolution.superseded, [{ pack: 'narrow', by: 'broad' }])
+    assert.equal(resolution.resolvedIds.includes('broad'), true)
+    assert.equal(resolution.resolvedIds.includes('narrow'), false)
 })
 
-test('bg preserve selects exactly one storage integration', () => {
+test('bg preserve with lazy chat storage adds the lazy BG storage adapter', () => {
     const standalone = resolveSelection(loadCatalog(), ['bg-preserve'])
-    assert.equal(standalone.resolvedIds.includes('bg-preserve-storage-base'), true)
     assert.equal(standalone.resolvedIds.includes('lazy-chat-bg-adapter'), false)
 
     const lazy = resolveSelection(loadCatalog(), ['bg-preserve', 'lazy-chat-sync'])
-    assert.equal(lazy.resolvedIds.includes('bg-preserve-storage-base'), false)
     assert.equal(lazy.resolvedIds.includes('lazy-chat-bg-adapter'), true)
 })
 
@@ -124,7 +106,6 @@ test('the complete admitted graph resolves deterministically', () => {
     assert.deepEqual(second, first)
     assert.equal(first.resolvedIds.includes('background-import'), false)
     assert.equal(first.resolvedIds.includes('lazy-chat-bg-adapter'), true)
-    assert.equal(first.resolvedIds.includes('bg-preserve-storage-base'), false)
 })
 
 test('declared conflicts fail before composition', () => {

@@ -14,8 +14,11 @@
 ## Internal graph
 
 All-or-nothing delivery does not flatten implementation ownership. The catalog
-retains root packs, required capability packs, automatic adapters, supersede
-relations, exact ordering, and target-scoped units.
+retains root packs, required capability packs, automatic adapters, exact
+ordering, and target-scoped units. The resolver still supports supersede and
+conflict relations, but the catalog carries only the adapters of the delivered
+graph: the base, standard-storage, legacy CharX, and startup-cache variants for
+graphs without bg-preserve or lazy chat storage were removed after `v0.2.3`.
 
 ```text
 one complete intent

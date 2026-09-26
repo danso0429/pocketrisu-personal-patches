@@ -7,24 +7,18 @@ function appendAfter(unit, ids) {
     return { ...unit, after: [...(unit.after ?? []), ...ids] }
 }
 
-function createBackupRestoreSafetyAdapterManifest({ id, title, lazyChat, verified1100 = false }) {
+function createBackupRestoreSafetyAdapterManifest({ id, title }) {
     const prefix = `${id}:`
-    const marker = (name) => `POCKETRISU-PATCH:kei-backup-restore-safety:${lazyChat ? 'lazy' : 'standard'}:${name}`
-    const serverAfter = lazyChat
-        ? ['lazy-chat-sync:replace:server:node:server-cjs:1.9']
-        : []
-    const nodeAfter = lazyChat
-        ? [
-            'lazy-chat-sync:replace:src:ts:storage:nodeStorage-ts:1.9',
-            // Optional when bg-preserve is absent. When present, run after the
-            // complete BG nodeStorage adapter so both imports retain ownership.
-            'lazy-chat-bg-adapter:asset-upload-error-detail',
-        ]
-        : []
-    const autoAfter = lazyChat
-        ? ['lazy-chat-sync:replace:src:ts:storage:autoStorage-ts:1.9']
-        : []
-    const snapshotRestoreIndent = lazyChat ? '                    ' : '            '
+    const marker = (name) => `POCKETRISU-PATCH:kei-backup-restore-safety:lazy:${name}`
+    const serverAfter = ['lazy-chat-sync:replace:server:node:server-cjs:1.9']
+    const nodeAfter = [
+        'lazy-chat-sync:replace:src:ts:storage:nodeStorage-ts:1.9',
+        // Optional when bg-preserve is absent. When present, run after the
+        // complete BG nodeStorage adapter so both imports retain ownership.
+        'lazy-chat-bg-adapter:asset-upload-error-detail',
+    ]
+    const autoAfter = ['lazy-chat-sync:replace:src:ts:storage:autoStorage-ts:1.9']
+    const snapshotRestoreIndent = '                    '
     const snapshotRestoreManaged = `/* ${marker('snapshot-restore-post-copy-rotation')}:START */
 ${snapshotRestoreIndent}restoreSnapshotValue({
 ${snapshotRestoreIndent}    sourceValue: blob,
@@ -32,12 +26,7 @@ ${snapshotRestoreIndent}    destinationKey: DB_BLOB_KEY,
 ${snapshotRestoreIndent}    setValue: kvSet,
 ${snapshotRestoreIndent}    sizeValue: kvSize,
 ${snapshotRestoreIndent}});
-${lazyChat ? '' : `${snapshotRestoreIndent}// Release the selected-source protection after the copy. If this
-${snapshotRestoreIndent}// best-effort trim fails, the fresh rollback point remains safer
-${snapshotRestoreIndent}// than reporting a false restore failure after destructive write.
-${snapshotRestoreIndent}try { trimSnapshotsToLimits(); }
-${snapshotRestoreIndent}catch (error) { logger.warn('[Snapshot restore] post-copy rotation failed:', error?.message || error); }
-`}${snapshotRestoreIndent}/* ${marker('snapshot-restore-post-copy-rotation')}:END */
+${snapshotRestoreIndent}/* ${marker('snapshot-restore-post-copy-rotation')}:END */
 `
 
     const serverUnits = [
@@ -217,14 +206,14 @@ function createBackupAndRotate({ force = false, protectedSnapshotKeys = [] } = {
             managed: `/* ${marker('flush-without-automatic-snapshot')} */
 async function flushPendingDb({
     createBackup = true,
-    ${lazyChat ? 'reconcileForFreshSnapshot = false,' : ''}
+    reconcileForFreshSnapshot = false,
 } = {}) {
-    if (saveTimers[DB_HEX_KEY]${lazyChat ? ' || reconcileForFreshSnapshot' : ''}) {
+    if (saveTimers[DB_HEX_KEY] || reconcileForFreshSnapshot) {
         clearTimeout(saveTimers[DB_HEX_KEY]);
         delete saveTimers[DB_HEX_KEY];
-        ${lazyChat ? `if (reconcileForFreshSnapshot) {
+        if (reconcileForFreshSnapshot) {
             await prepareLazyChatSnapshotOwner({ ensureChatStore });
-        }` : ''}
+        }
 `,
             markerNeedle: marker('flush-without-automatic-snapshot'),
             requires: [`${prefix}snapshot-force-new:1.9`],
@@ -239,18 +228,13 @@ async function flushPendingDb({
 
 function invalidateDbCache() {
 `,
-            managed: lazyChat ? `        const freshSnapshotState = reconcileForFreshSnapshot
+            managed: `        const freshSnapshotState = reconcileForFreshSnapshot
             ? readLazyChatSnapshotState({
                 getJournalStats: () => chatWriteJournal.stats(),
             })
             : null;
         if (createBackup) createBackupAndRotate();
         return freshSnapshotState;
-    }
-}
-
-function invalidateDbCache() {
-` : `        if (createBackup) createBackupAndRotate();
     }
 }
 
@@ -284,10 +268,10 @@ async function importBackupFromSource(dataSource, {
             restoreTarget,
             flushPendingDb: () => flushPendingDb({
                 createBackup: false,
-                ${lazyChat ? 'reconcileForFreshSnapshot: true,' : ''}
+                reconcileForFreshSnapshot: true,
             }),
             createFreshSnapshot: (snapshotState) => {
-                ${lazyChat ? 'requireLazyChatSnapshotCompleteness(snapshotState);' : ''}
+                requireLazyChatSnapshotCompleteness(snapshotState);
                 return createBackupAndRotate({ force: true });
             },
             logger,
@@ -473,10 +457,10 @@ async function importBackupFromSource(dataSource, {
                 restoreTarget: 'snapshot:' + key,
                 flushPendingDb: () => flushPendingDb({
                     createBackup: false,
-                    ${lazyChat ? 'reconcileForFreshSnapshot: true,' : ''}
+                    reconcileForFreshSnapshot: true,
                 }),
                 createFreshSnapshot: (snapshotState) => {
-                    ${lazyChat ? 'requireLazyChatSnapshotCompleteness(snapshotState);' : ''}
+                    requireLazyChatSnapshotCompleteness(snapshotState);
                     return createBackupAndRotate({
                         force: true,
                         protectedSnapshotKeys: [key],
@@ -499,7 +483,7 @@ async function importBackupFromSource(dataSource, {
             markerNeedle: `${marker('snapshot-restore-post-copy-rotation')}:START`,
             requires: [`${prefix}snapshot-restore-fresh-snapshot:1.9`],
         },
-        ...(lazyChat ? [{
+        {
             id: `${prefix}snapshot-restore-post-commit-rotation:1.9`,
             file: 'server/node/server.cjs',
             type: 'replace',
@@ -517,7 +501,7 @@ async function importBackupFromSource(dataSource, {
 `,
             markerNeedle: `${marker('snapshot-restore-post-commit-rotation')}:START`,
             requires: [`${prefix}snapshot-restore-post-copy-rotation:1.9`],
-        }] : []),
+        },
         {
             id: `${prefix}snapshot-restore-error-code:1.9`,
             file: 'server/node/server.cjs',
@@ -543,9 +527,7 @@ async function importBackupFromSource(dataSource, {
 // ── Boot-time backup reminder ───────────────────────────────────────────────
 `,
             markerNeedle: marker('snapshot-restore-error-code'),
-            requires: [lazyChat
-                ? `${prefix}snapshot-restore-post-commit-rotation:1.9`
-                : `${prefix}snapshot-restore-post-copy-rotation:1.9`],
+            requires: [`${prefix}snapshot-restore-post-commit-rotation:1.9`],
         },
     ].map((unit) => appendAfter({ ...unit, targetVersions: pocketRisu190 }, serverAfter))
 
@@ -821,19 +803,12 @@ import type { RestoreSafetyOptions } from "./restoreSafety"
         userSelectable: false,
         targets: {
             pocketrisu: {
-                verified: ['1.8.1', '1.9.0', ...(verified1100 ? ['1.10.0'] : [])],
-                reviewing: verified1100 ? [] : ['1.10.0'],
+                verified: ['1.8.1', '1.9.0', '1.10.0'],
+                reviewing: [],
             },
         },
-        requires: lazyChat
-            ? ['kei-backup-restore-safety-core', 'lazy-chat-sync']
-            : ['kei-backup-restore-safety-core'],
-        conflicts: lazyChat
-            ? ['kei-backup-restore-safety-standard-adapter']
-            : ['lazy-chat-sync', 'kei-backup-restore-safety-lazy-adapter'],
-        autoWhen: lazyChat
-            ? { all: ['kei-backup-restore-safety-core', 'lazy-chat-sync'] }
-            : { all: ['kei-backup-restore-safety-core'], none: ['lazy-chat-sync'] },
+        requires: ['kei-backup-restore-safety-core', 'lazy-chat-sync'],
+        autoWhen: { all: ['kei-backup-restore-safety-core', 'lazy-chat-sync'] },
         units: [...serverUnits, ...nodeUnits, ...autoUnits],
     }
 }

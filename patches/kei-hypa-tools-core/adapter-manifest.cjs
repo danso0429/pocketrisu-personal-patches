@@ -3,16 +3,10 @@
 const pocketRisu181 = { pocketrisu: ['1.8.1'] }
 const pocketRisu190 = { pocketrisu: ['1.9.0', '1.10.0'] }
 
-function createHypaToolsAdapterManifest({
-    id,
-    title,
-    adapter,
-    bgPreserve,
-    verified1100 = false,
-}) {
+function createHypaToolsAdapterManifest({ id, title }) {
     const prefix = `${id}:`
     const marker = (name) =>
-        `POCKETRISU-PATCH:kei-hypa-tools:${adapter}:${name}`
+        `POCKETRISU-PATCH:kei-hypa-tools:bg:${name}`
 
     const units181 = [
             {
@@ -753,24 +747,14 @@ export async function getNextSummarizationTarget(
         userSelectable: false,
         targets: {
             pocketrisu: {
-                verified: ['1.8.1', '1.9.0', ...(verified1100 ? ['1.10.0'] : [])],
-                reviewing: verified1100 ? [] : ['1.10.0'],
+                verified: ['1.8.1', '1.9.0', '1.10.0'],
+                reviewing: [],
             },
         },
-        requires: bgPreserve
-            ? ['kei-hypa-tools-core', 'bg-preserve']
-            : ['kei-hypa-tools-core'],
-        conflicts: bgPreserve
-            ? ['kei-hypa-tools-base-adapter']
-            : ['bg-preserve', 'kei-hypa-tools-bg-adapter'],
-        autoWhen: bgPreserve
-            ? {
-                all: ['kei-hypa-tools-core', 'bg-preserve'],
-            }
-            : {
-                all: ['kei-hypa-tools-core'],
-                none: ['bg-preserve'],
-            },
+        requires: ['kei-hypa-tools-core', 'bg-preserve'],
+        autoWhen: {
+            all: ['kei-hypa-tools-core', 'bg-preserve'],
+        },
         units: [
             ...units181.map((unit) => ({
                 ...unit,

@@ -122,28 +122,16 @@ test('the PageFold release verifies the complete exact-1.10 graph', () =>
             catalog,
             resolveProfile('all', catalog).defaults,
         )
-        const resolvedIds = new Set(resolution.resolvedIds)
-        const resolved = catalog.filter((entry) => resolvedIds.has(entry.id))
-        const inactive = catalog.filter((entry) => !resolvedIds.has(entry.id))
-        const result = evaluateTargetCompatibility(root, resolved)
+        const result = evaluateTargetCompatibility(root, resolution.packs)
 
-        assert.equal(resolution.resolvedIds.length, 42)
-        assert.equal(inactive.length, 13)
+        // Every catalog pack belongs to the one delivered graph.
+        assert.deepEqual(resolution.resolvedIds, catalog.map((entry) => entry.id).sort())
         assert.equal(result.status, 'verified')
-        assert.equal(result.verifiedPacks.length, 42)
+        assert.equal(result.verifiedPacks.length, catalog.length)
         assert.deepEqual(result.underReviewPacks, [])
         assert.deepEqual(result.reviewRequiredPacks, [])
         assert.doesNotThrow(() => assertTargetVerified(result))
         assert.doesNotThrow(() => assertTargetReviewable(result))
-        assert.deepEqual(
-            inactive.filter((entry) =>
-                entry.targets.pocketrisu.verified.includes('1.10.0')
-            ).map((entry) => entry.id),
-            [],
-        )
-
-        const completeCatalog = evaluateTargetCompatibility(root, catalog)
-        assert.notEqual(completeCatalog.status, 'verified')
     }))
 
 test('an unlisted PocketRisu patch release remains outside the maintainer gate', () =>

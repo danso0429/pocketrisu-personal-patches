@@ -6,7 +6,6 @@ const test = require('node:test')
 const assert = require('node:assert/strict')
 
 const core = require('../patches/kei-chat-render-core/manifest.cjs')
-const base = require('../patches/kei-chat-render-base-adapter/manifest.cjs')
 const bg = require('../patches/kei-chat-render-bg-adapter/manifest.cjs')
 const { loadCatalog } = require('../src/catalog.cjs')
 const { packEtag } = require('../src/manager.cjs')
@@ -16,12 +15,10 @@ const patchRoot = path.join(__dirname, '../patches/kei-chat-render-core')
 const source = (relative) => fs.readFileSync(path.join(patchRoot, relative), 'utf8')
 const unitText = (unit) => unit.managed ?? unit.content ?? ''
 
-test('K14 keeps its pure core and graph-specific adapters internal', () => {
+test('K14 keeps its pure core and bg-preserve adapter internal', () => {
     assert.equal(core.id, 'kei-chat-render-core')
-    assert.equal(base.id, 'kei-chat-render-base-adapter')
     assert.equal(bg.id, 'kei-chat-render-bg-adapter')
     assert.equal(core.userSelectable, false)
-    assert.equal(base.userSelectable, false)
     assert.equal(bg.userSelectable, false)
     for (const pack of [core, bg]) {
         assert.deepEqual(pack.targets, {
@@ -31,37 +28,22 @@ test('K14 keeps its pure core and graph-specific adapters internal', () => {
             },
         })
     }
-    assert.deepEqual(base.targets.pocketrisu, {
-        verified: ['1.8.1', '1.9.0'],
-        reviewing: ['1.10.0'],
-    })
-    assert.deepEqual(base.autoWhen, {
-        all: ['kei-chat-render-core'],
-        none: ['bg-preserve'],
-    })
+    assert.deepEqual(bg.requires, ['kei-chat-render-core', 'bg-preserve'])
     assert.deepEqual(bg.autoWhen, {
         all: ['kei-chat-render-core', 'bg-preserve'],
     })
-    assert.deepEqual(base.conflicts, [
-        'bg-preserve',
-        'kei-chat-render-bg-adapter',
-    ])
-    assert.deepEqual(bg.conflicts, ['kei-chat-render-base-adapter'])
 })
 
-test('K14 selects exactly one adapter and stays absent without its core', () => {
+test('K14 adapter joins only with its core and bg-preserve', () => {
     const catalog = loadCatalog()
     const absent = resolveSelection(catalog, ['bg-preserve'])
     assert.equal(absent.resolvedIds.includes(core.id), false)
-    assert.equal(absent.resolvedIds.includes(base.id), false)
     assert.equal(absent.resolvedIds.includes(bg.id), false)
 
     const standalone = resolveSelection(catalog, ['pocketrisu-kei'])
-    assert.equal(standalone.resolvedIds.includes(base.id), true)
     assert.equal(standalone.resolvedIds.includes(bg.id), false)
 
     const composed = resolveSelection(catalog, ['pocketrisu-kei', 'bg-preserve'])
-    assert.equal(composed.resolvedIds.includes(base.id), false)
     assert.equal(composed.resolvedIds.includes(bg.id), true)
 })
 
@@ -70,7 +52,7 @@ test('K14 owns only the render identity and tests and hooks four chat hosts', ()
         'src/lib/ChatScreens/keiChatRender.ts',
         'src/lib/ChatScreens/keiChatRender.test.ts',
     ])
-    for (const adapter of [base, bg]) {
+    for (const adapter of [bg]) {
         assert.deepEqual(
             [...new Set(adapter.units.map((unit) => unit.file))].sort(),
             [
@@ -110,7 +92,7 @@ test('K14 identity retains structure but removes only streaming churn', () => {
 })
 
 test('K14 updates mounted props and defers translation only for active streaming', () => {
-    for (const adapter of [base, bg]) {
+    for (const adapter of [bg]) {
         const managed = adapter.units.map(unitText).join('\n')
         assert.match(managed, /const props = \$state<ChatMountProps>/)
         assert.match(managed, /entry\.props\.message = message\.data/)
@@ -137,7 +119,7 @@ test('K14 updates mounted props and defers translation only for active streaming
 })
 
 test('K14 reuses the native 1.9 streaming renderer and adds only missing guarantees', () => {
-    for (const adapter of [base, bg]) {
+    for (const adapter of [bg]) {
         const units181 = adapter.units.filter((unit) =>
             unit.targetVersions?.pocketrisu?.includes('1.8.1')
         )
@@ -220,7 +202,7 @@ test('K14 bg adapter explicitly follows existing Chat ownership without touching
 })
 
 test('K14 adapter payloads participate in ETags and retain pinned attribution', () => {
-    for (const adapter of [base, bg]) {
+    for (const adapter of [bg]) {
         const original = packEtag(adapter)
         const changed = {
             ...adapter,

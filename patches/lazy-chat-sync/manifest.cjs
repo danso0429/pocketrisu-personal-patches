@@ -68,7 +68,6 @@ module.exports = {
         },
     },
     userSelectable: true,
-    supersedes: ['startup-cache'],
     units: [
         ...unchangedReplacedFiles.map((relative) => ({
             id: `lazy-chat-sync:replace:${unitId(relative)}`,

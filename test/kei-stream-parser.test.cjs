@@ -6,7 +6,6 @@ const test = require('node:test')
 const assert = require('node:assert/strict')
 
 const core = require('../patches/kei-stream-parser-core/manifest.cjs')
-const base = require('../patches/kei-stream-parser-base-adapter/manifest.cjs')
 const bg = require('../patches/kei-stream-parser-bg-adapter/manifest.cjs')
 const { loadCatalog } = require('../src/catalog.cjs')
 const { packEtag } = require('../src/manager.cjs')
@@ -16,12 +15,10 @@ const patchRoot = path.join(__dirname, '../patches/kei-stream-parser-core')
 const source = (relative) => fs.readFileSync(path.join(patchRoot, relative), 'utf8')
 const unitText = (unit) => unit.managed ?? unit.content ?? ''
 
-test('K13 keeps the pure core and graph-specific adapters internal', () => {
+test('K13 keeps the pure core and its bg-preserve adapter internal', () => {
     assert.equal(core.id, 'kei-stream-parser-core')
-    assert.equal(base.id, 'kei-stream-parser-base-adapter')
     assert.equal(bg.id, 'kei-stream-parser-bg-adapter')
     assert.equal(core.userSelectable, false)
-    assert.equal(base.userSelectable, false)
     assert.equal(bg.userSelectable, false)
     for (const pack of [core, bg]) {
         assert.deepEqual(pack.targets, {
@@ -31,22 +28,10 @@ test('K13 keeps the pure core and graph-specific adapters internal', () => {
             },
         })
     }
-    assert.deepEqual(base.targets.pocketrisu, {
-        verified: ['1.8.1', '1.9.0'],
-        reviewing: ['1.10.0'],
-    })
-    assert.deepEqual(base.autoWhen, {
-        all: ['kei-stream-parser-core'],
-        none: ['bg-preserve'],
-    })
+    assert.deepEqual(bg.requires, ['kei-stream-parser-core', 'bg-preserve'])
     assert.deepEqual(bg.autoWhen, {
         all: ['kei-stream-parser-core', 'bg-preserve'],
     })
-    assert.deepEqual(base.conflicts, [
-        'bg-preserve',
-        'kei-stream-parser-bg-adapter',
-    ])
-    assert.deepEqual(bg.conflicts, ['kei-stream-parser-base-adapter'])
 })
 
 test('K13 owns only its parser/tests and two focused request hosts', () => {
@@ -56,7 +41,7 @@ test('K13 owns only its parser/tests and two focused request hosts', () => {
         'src/ts/process/request/keiSseStream.ts',
         'src/ts/process/request/openAI/requests.stream.test.ts',
     ])
-    for (const adapter of [base, bg]) {
+    for (const adapter of [bg]) {
         assert.deepEqual(
             [...new Set(adapter.units.map((unit) => unit.file))].sort(),
             [
@@ -81,19 +66,16 @@ test('K13 core framing has no provider, database, storage, or side-effect import
     assert.match(runtime, /Replaying the same byte chunks/)
 })
 
-test('K13 selects exactly one adapter and stays absent without its core', () => {
+test('K13 adapter joins only with its core and bg-preserve', () => {
     const catalog = loadCatalog()
     const absent = resolveSelection(catalog, ['bg-preserve'])
     assert.equal(absent.resolvedIds.includes(core.id), false)
-    assert.equal(absent.resolvedIds.includes(base.id), false)
     assert.equal(absent.resolvedIds.includes(bg.id), false)
 
     const standalone = resolveSelection(catalog, ['pocketrisu-kei'])
-    assert.equal(standalone.resolvedIds.includes(base.id), true)
     assert.equal(standalone.resolvedIds.includes(bg.id), false)
 
     const composed = resolveSelection(catalog, ['pocketrisu-kei', 'bg-preserve'])
-    assert.equal(composed.resolvedIds.includes(base.id), false)
     assert.equal(composed.resolvedIds.includes(bg.id), true)
 })
 
@@ -111,7 +93,7 @@ test('K13 bg adapter orders Google parser changes after existing delivery hooks'
 })
 
 test('K13 anchors and managed payloads participate in adapter ETags', () => {
-    for (const adapter of [base, bg]) {
+    for (const adapter of [bg]) {
         const original = packEtag(adapter)
         const changed = {
             ...adapter,

@@ -6,7 +6,6 @@ const test = require('node:test')
 const assert = require('node:assert/strict')
 
 const core = require('../patches/kei-hypa-tools-core/manifest.cjs')
-const base = require('../patches/kei-hypa-tools-base-adapter/manifest.cjs')
 const bg = require('../patches/kei-hypa-tools-bg-adapter/manifest.cjs')
 const meta = require('../patches/pocketrisu-kei/manifest.cjs')
 const { loadCatalog } = require('../src/catalog.cjs')
@@ -18,12 +17,10 @@ const source = (relative) =>
     fs.readFileSync(path.join(patchRoot, relative), 'utf8')
 const unitText = (unit) => unit.managed ?? unit.content ?? ''
 
-test('K11 keeps one internal core and exactly one base/bg adapter', () => {
+test('K11 keeps one internal core and its bg-preserve adapter', () => {
     assert.equal(core.id, 'kei-hypa-tools-core')
-    assert.equal(base.id, 'kei-hypa-tools-base-adapter')
     assert.equal(bg.id, 'kei-hypa-tools-bg-adapter')
     assert.equal(core.userSelectable, false)
-    assert.equal(base.userSelectable, false)
     assert.equal(bg.userSelectable, false)
     for (const pack of [core, bg]) {
         assert.deepEqual(pack.targets, {
@@ -33,40 +30,21 @@ test('K11 keeps one internal core and exactly one base/bg adapter', () => {
             },
         })
     }
-    assert.deepEqual(base.targets.pocketrisu, {
-        verified: ['1.8.1', '1.9.0'],
-        reviewing: ['1.10.0'],
-    })
-    assert.deepEqual(base.requires, ['kei-hypa-tools-core'])
     assert.deepEqual(bg.requires, ['kei-hypa-tools-core', 'bg-preserve'])
-    assert.deepEqual(base.autoWhen, {
-        all: ['kei-hypa-tools-core'],
-        none: ['bg-preserve'],
-    })
     assert.deepEqual(bg.autoWhen, {
         all: ['kei-hypa-tools-core', 'bg-preserve'],
     })
-    assert.deepEqual(base.conflicts, [
-        'bg-preserve',
-        'kei-hypa-tools-bg-adapter',
-    ])
-    assert.deepEqual(bg.conflicts, ['kei-hypa-tools-base-adapter'])
     assert.equal(meta.requires.includes(core.id), true)
-    assert.equal(base.version, '0.2.2')
-    assert.equal(bg.version, '0.2.2')
 
     const catalog = loadCatalog()
     const absent = resolveSelection(catalog, ['bg-preserve'])
     assert.equal(absent.resolvedIds.includes(core.id), false)
-    assert.equal(absent.resolvedIds.includes(base.id), false)
     assert.equal(absent.resolvedIds.includes(bg.id), false)
 
     const standalone = resolveSelection(catalog, ['pocketrisu-kei'])
-    assert.equal(standalone.resolvedIds.includes(base.id), true)
     assert.equal(standalone.resolvedIds.includes(bg.id), false)
 
     const composed = resolveSelection(catalog, ['pocketrisu-kei', 'bg-preserve'])
-    assert.equal(composed.resolvedIds.includes(base.id), false)
     assert.equal(composed.resolvedIds.includes(bg.id), true)
 })
 
@@ -86,7 +64,7 @@ test('K11 owns only its deterministic selection and manual panel code', () => {
         'src/lib/Others/HypaV3Modal/modal-summary-item.svelte',
         'src/lib/Others/HypaV3Modal/utils.ts',
     ]
-    for (const adapter of [base, bg]) {
+    for (const adapter of [bg]) {
         const units181 = adapter.units.filter((unit) =>
             unit.targetVersions?.pocketrisu?.includes('1.8.1')
         )
@@ -185,7 +163,7 @@ test('K11 selection blocks gaps, ambiguous identities, and stale apply', () => {
 })
 
 test('K11 adapters retain existing management surfaces and correct CBS context', () => {
-    for (const adapter of [base, bg]) {
+    for (const adapter of [bg]) {
         const processing181 = adapter.units.find((unit) =>
             unit.id.endsWith(':utils-message-processing'),
         )
@@ -238,14 +216,14 @@ test('K11 adapters retain existing management surfaces and correct CBS context',
         )
     }
 
-    const touchedUnitIds = base.units.map((unit) => unit.id)
+    const touchedUnitIds = bg.units.map((unit) => unit.id)
     assert.equal(touchedUnitIds.some((id) => id.includes('remove-tag')), false)
     assert.equal(touchedUnitIds.some((id) => id.includes('replace-search')), false)
     assert.equal(touchedUnitIds.some((id) => id.includes('replace-bulk')), false)
 })
 
 test('K11 payloads participate in ETags and retain pinned attribution', () => {
-    for (const pack of [core, base, bg]) {
+    for (const pack of [core, bg]) {
         const original = packEtag(pack)
         const changed = {
             ...pack,

@@ -7,7 +7,4 @@ const {
 module.exports = createHypaToolsAdapterManifest({
     id: 'kei-hypa-tools-bg-adapter',
     title: 'PocketRisu Kei HypaMemory tools bg-preserve adapter',
-    adapter: 'bg',
-    bgPreserve: true,
-    verified1100: true,
 })

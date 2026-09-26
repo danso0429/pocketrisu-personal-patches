@@ -6,7 +6,6 @@ const test = require('node:test')
 const assert = require('node:assert/strict')
 
 const core = require('../patches/kei-mobile-navigation-core/manifest.cjs')
-const base = require('../patches/kei-mobile-navigation-base-adapter/manifest.cjs')
 const lazy = require('../patches/kei-mobile-navigation-lazy-adapter/manifest.cjs')
 const { loadCatalog } = require('../src/catalog.cjs')
 const {
@@ -25,15 +24,11 @@ const source = (relative) =>
     fs.readFileSync(path.join(patchRoot, relative), 'utf8')
 const unitText = (unit) => unit.managed ?? unit.content ?? ''
 
-test('K16 keeps its core and base/lazy adapters internal', () => {
+test('K16 keeps its core and lazy-chat adapter internal', () => {
     assert.equal(core.id, 'kei-mobile-navigation-core')
-    assert.equal(base.id, 'kei-mobile-navigation-base-adapter')
     assert.equal(lazy.id, 'kei-mobile-navigation-lazy-adapter')
     assert.equal(core.userSelectable, false)
-    assert.equal(base.userSelectable, false)
     assert.equal(lazy.userSelectable, false)
-    assert.equal(base.version, '0.2.2')
-    assert.equal(lazy.version, '0.2.2')
     for (const pack of [core, lazy]) {
         assert.deepEqual(pack.targets, {
             pocketrisu: {
@@ -42,49 +37,25 @@ test('K16 keeps its core and base/lazy adapters internal', () => {
             },
         })
     }
-    assert.deepEqual(base.targets.pocketrisu, {
-        verified: ['1.8.1', '1.9.0'],
-        reviewing: ['1.10.0'],
-    })
-    assert.deepEqual(base.autoWhen, {
-        all: ['kei-mobile-navigation-core'],
-        none: ['lazy-chat-sync'],
-    })
+    assert.deepEqual(lazy.requires, ['kei-mobile-navigation-core', 'lazy-chat-sync'])
     assert.deepEqual(lazy.autoWhen, {
         all: ['kei-mobile-navigation-core', 'lazy-chat-sync'],
     })
-    assert.deepEqual(base.conflicts, [
-        'lazy-chat-sync',
-        'kei-mobile-navigation-lazy-adapter',
-    ])
-    assert.deepEqual(lazy.conflicts, [
-        'kei-mobile-navigation-base-adapter',
-    ])
 })
 
-test('K16 selects exactly one bootstrap adapter for each storage graph', () => {
+test('K16 adapter joins only with its core and lazy chat storage', () => {
     const catalog = loadCatalog()
     const absent = resolveSelection(catalog, ['lazy-chat-sync'])
     assert.equal(absent.resolvedIds.includes(core.id), false)
-    assert.equal(absent.resolvedIds.includes(base.id), false)
     assert.equal(absent.resolvedIds.includes(lazy.id), false)
 
     const standalone = resolveSelection(catalog, ['pocketrisu-kei'])
-    assert.equal(standalone.resolvedIds.includes(base.id), true)
     assert.equal(standalone.resolvedIds.includes(lazy.id), false)
-
-    const startup = resolveSelection(
-        catalog,
-        ['pocketrisu-kei', 'startup-cache'],
-    )
-    assert.equal(startup.resolvedIds.includes(base.id), true)
-    assert.equal(startup.resolvedIds.includes(lazy.id), false)
 
     const composed = resolveSelection(
         catalog,
         ['pocketrisu-kei', 'lazy-chat-sync'],
     )
-    assert.equal(composed.resolvedIds.includes(base.id), false)
     assert.equal(composed.resolvedIds.includes(lazy.id), true)
 })
 
@@ -109,7 +80,7 @@ test('K16 owns four isolated files and hooks only focused navigation hosts', () 
         'src/ts/setting/accessibilitySettingsData.ts',
         'src/ts/storage/database.svelte.ts',
     ]
-    for (const adapter of [base, lazy]) {
+    for (const adapter of [lazy]) {
         assert.deepEqual(
             [...new Set(adapter.units.map((unit) => unit.file))].sort(),
             expectedHosts,
@@ -177,7 +148,7 @@ test('K16 guard waits for activation and removes only its history entry', () => 
 })
 
 test('K16 adapters preserve existing hotkeys and harden pointer cleanup', () => {
-    for (const adapter of [base, lazy]) {
+    for (const adapter of [lazy]) {
         const units181 = adapter.units.filter((unit) =>
             unit.targetVersions?.pocketrisu?.includes('1.8.1')
         )
@@ -250,7 +221,7 @@ test('K16 adapters preserve existing hotkeys and harden pointer cleanup', () => 
 })
 
 test('K16 1.9 exposes the native Hotkey page on narrow screens', () => {
-    for (const adapter of [base, lazy]) {
+    for (const adapter of [lazy]) {
         const routeUnits181 = adapter.units.filter((unit) =>
             unit.file === 'src/lib/Setting/Settings.svelte'
             && unit.targetVersions?.pocketrisu?.includes('1.8.1')
@@ -315,20 +286,12 @@ test('K16 1.9 exposes the native Hotkey page on narrow screens', () => {
     }
 })
 
-test('K16 bootstrap ordering follows startup-cache or lazy replacement', () => {
-    const baseBootstrap = base.units.filter((unit) =>
-        unit.file === 'src/ts/bootstrap.ts'
-        && unit.targetVersions?.pocketrisu?.includes('1.8.1'),
-    )
+test('K16 bootstrap ordering follows the lazy replacement', () => {
     const lazyBootstrap = lazy.units.filter((unit) =>
         unit.file === 'src/ts/bootstrap.ts'
         && unit.targetVersions?.pocketrisu?.includes('1.8.1'),
     )
-    assert.equal(baseBootstrap.length, 2)
     assert.equal(lazyBootstrap.length, 2)
-    for (const unit of baseBootstrap) {
-        assert.deepEqual(unit.after, ['startup-cache:bootstrap'])
-    }
     for (const unit of lazyBootstrap) {
         assert.deepEqual(unit.after, [
             'lazy-chat-sync:replace:src:ts:bootstrap-ts',
@@ -336,19 +299,11 @@ test('K16 bootstrap ordering follows startup-cache or lazy replacement', () => {
         ])
     }
 
-    const baseBootstrap190 = base.units.filter((unit) =>
-        unit.file === 'src/ts/bootstrap.ts'
-        && unit.targetVersions?.pocketrisu?.includes('1.9.0')
-    )
     const lazyBootstrap190 = lazy.units.filter((unit) =>
         unit.file === 'src/ts/bootstrap.ts'
         && unit.targetVersions?.pocketrisu?.includes('1.9.0')
     )
-    assert.equal(baseBootstrap190.length, 2)
     assert.equal(lazyBootstrap190.length, 2)
-    for (const unit of baseBootstrap190) {
-        assert.deepEqual(unit.after, ['startup-cache:bootstrap'])
-    }
     for (const unit of lazyBootstrap190) {
         assert.deepEqual(unit.after, [
             'lazy-chat-sync:replace:src:ts:bootstrap-ts',
@@ -358,7 +313,7 @@ test('K16 bootstrap ordering follows startup-cache or lazy replacement', () => {
 })
 
 test('K16 adapter payloads participate in ETags and retain attribution', () => {
-    for (const adapter of [base, lazy]) {
+    for (const adapter of [lazy]) {
         const original = packEtag(adapter)
         const changed = {
             ...adapter,

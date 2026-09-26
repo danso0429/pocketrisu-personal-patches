@@ -3,22 +3,14 @@
 const pocketRisu181 = { pocketrisu: ['1.8.1'] }
 const pocketRisu190 = { pocketrisu: ['1.9.0', '1.10.0'] }
 
-function createMobileNavigationAdapterManifest({
-    id,
-    title,
-    adapter,
-    lazyChat,
-    verified1100 = false,
-}) {
+function createMobileNavigationAdapterManifest({ id, title }) {
     const prefix = `${id}:`
     const marker = (name) =>
-        `POCKETRISU-PATCH:kei-mobile-navigation:${adapter}:${name}`
-    const bootstrapAfter = lazyChat
-        ? [
-            'lazy-chat-sync:replace:src:ts:bootstrap-ts',
-            'lazy-chat-sync:replace:src:ts:bootstrap-ts:1.9',
-        ]
-        : ['startup-cache:bootstrap']
+        `POCKETRISU-PATCH:kei-mobile-navigation:lazy:${name}`
+    const bootstrapAfter = [
+        'lazy-chat-sync:replace:src:ts:bootstrap-ts',
+        'lazy-chat-sync:replace:src:ts:bootstrap-ts:1.9',
+    ]
 
     const units181 = [
             {
@@ -1005,27 +997,14 @@ import {
         userSelectable: false,
         targets: {
             pocketrisu: {
-                verified: ['1.8.1', '1.9.0', ...(verified1100 ? ['1.10.0'] : [])],
-                reviewing: verified1100 ? [] : ['1.10.0'],
+                verified: ['1.8.1', '1.9.0', '1.10.0'],
+                reviewing: [],
             },
         },
-        requires: lazyChat
-            ? ['kei-mobile-navigation-core', 'lazy-chat-sync']
-            : ['kei-mobile-navigation-core'],
-        conflicts: lazyChat
-            ? ['kei-mobile-navigation-base-adapter']
-            : [
-                'lazy-chat-sync',
-                'kei-mobile-navigation-lazy-adapter',
-            ],
-        autoWhen: lazyChat
-            ? {
-                all: ['kei-mobile-navigation-core', 'lazy-chat-sync'],
-            }
-            : {
-                all: ['kei-mobile-navigation-core'],
-                none: ['lazy-chat-sync'],
-            },
+        requires: ['kei-mobile-navigation-core', 'lazy-chat-sync'],
+        autoWhen: {
+            all: ['kei-mobile-navigation-core', 'lazy-chat-sync'],
+        },
         units: [
             ...units181.map((unit) => ({
                 ...unit,

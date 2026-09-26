@@ -7,7 +7,4 @@ const {
 module.exports = createMobileNavigationAdapterManifest({
     id: 'kei-mobile-navigation-lazy-adapter',
     title: 'PocketRisu Kei mobile navigation lazy-chat adapter',
-    adapter: 'lazy',
-    lazyChat: true,
-    verified1100: true,
 })

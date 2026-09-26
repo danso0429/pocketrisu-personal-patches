@@ -170,8 +170,8 @@ function resolveSelection(catalog, requestedIds, {
     expandDependencies()
 
     // A superseding pack may enter through a dependency rather than the raw
-    // selection. Normalize that graph too: selecting character-import-ux, for
-    // example, adds lazy-chat-sync, which must still replace startup-cache.
+    // selection. Normalize that graph too: the dependency must still replace
+    // the pack it supersedes.
     // Do not silently remove a pack that another resolved pack explicitly
     // requires; that is an unsatisfiable graph and keeps the existing
     // SUPERSEDED_PACK_REQUIRED failure contract.

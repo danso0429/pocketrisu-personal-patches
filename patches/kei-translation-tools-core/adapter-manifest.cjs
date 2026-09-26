@@ -3,50 +3,30 @@
 const pocketRisu181 = { pocketrisu: ['1.8.1'] }
 const pocketRisu190 = { pocketrisu: ['1.9.0', '1.10.0'] }
 
-function createTranslationToolsAdapterManifest({
-    id,
-    title,
-    adapter,
-    bgPreserve,
-    verified1100 = false,
-}) {
+function createTranslationToolsAdapterManifest({ id, title }) {
+    const adapter = 'bg'
     const prefix = `${id}:`
     const marker = (name) =>
         `POCKETRISU-PATCH:kei-translation-tools:${adapter}:${name}`
     const chatRenderAdapter = `kei-chat-render-${adapter}-adapter`
-    const translatorAfter = bgPreserve
-        ? [
-            'bg-preserve:hook:regex-translator-import',
-            'bg-preserve:hook:regex-translator-edittrans',
-        ]
-        : []
+    const translatorAfter = [
+        'bg-preserve:hook:regex-translator-import',
+        'bg-preserve:hook:regex-translator-edittrans',
+    ]
 
     const manifest181 = {
         id,
         title,
         version: '0.2.1',
         userSelectable: false,
-        requires: bgPreserve
-            ? [
-                'kei-translation-tools-core',
-                'kei-chat-render-bg-adapter',
-                'bg-preserve',
-            ]
-            : [
-                'kei-translation-tools-core',
-                'kei-chat-render-base-adapter',
-            ],
-        conflicts: bgPreserve
-            ? ['kei-translation-tools-base-adapter']
-            : ['bg-preserve', 'kei-translation-tools-bg-adapter'],
-        autoWhen: bgPreserve
-            ? {
-                all: ['kei-translation-tools-core', 'bg-preserve'],
-            }
-            : {
-                all: ['kei-translation-tools-core'],
-                none: ['bg-preserve'],
-            },
+        requires: [
+            'kei-translation-tools-core',
+            'kei-chat-render-bg-adapter',
+            'bg-preserve',
+        ],
+        autoWhen: {
+            all: ['kei-translation-tools-core', 'bg-preserve'],
+        },
         units: [
             {
                 id: `${prefix}language-page-imports`,
@@ -1478,8 +1458,8 @@ export type {
         ...manifest181,
         targets: {
             pocketrisu: {
-                verified: ['1.8.1', '1.9.0', ...(verified1100 ? ['1.10.0'] : [])],
-                reviewing: verified1100 ? [] : ['1.10.0'],
+                verified: ['1.8.1', '1.9.0', '1.10.0'],
+                reviewing: [],
             },
         },
         units: [

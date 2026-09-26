@@ -3,43 +3,33 @@
 const pocketRisu181 = { pocketrisu: ['1.8.1'] }
 const pocketRisu190 = { pocketrisu: ['1.9.0', '1.10.0'] }
 
-function createChatRenderAdapterManifest({
-    id,
-    title,
-    adapter,
-    bgPreserve,
-    verified1100 = false,
-}) {
-    const chatAfter = bgPreserve
-        ? [
-            'bg-preserve:hook:chat-risu-control-touch-import',
-            'bg-preserve:hook:chat-risu-control-touch-bridge',
-            'bg-preserve:hook:chat-standard-risu-control-touch-events',
-            'bg-preserve:hook:chat-themed-risu-control-touch-events',
-        ]
-        : []
-    const defaultChatAfter = bgPreserve
-        ? [
-            'bg-preserve:hook:defaultchatscreen-import-orchestrating',
-            'bg-preserve:hook:defaultchatscreen-import-abort',
-            'bg-preserve:hook:defaultchatscreen-sendmain-orchestrating-gate',
-            'bg-preserve:hook:defaultchatscreen-reroll-orchestrating-gate',
-            'bg-preserve:hook:defaultchatscreen-unreroll-orchestrating-gate',
-            'bg-preserve:hook:defaultchatscreen-register-abort',
-            'bg-preserve:hook:defaultchatscreen-suppress-abort-alert',
-            'bg-preserve:hook:defaultchatscreen-terminal-completion-sound',
-            'bg-preserve:hook:defaultchatscreen-cancel-server-orchestration',
-            'bg-preserve:hook:defaultchatscreen-blank-message-a11y-button',
-            'bg-preserve:hook:defaultchatscreen-sticker-a11y-button',
-            'bg-preserve:hook:defaultchatscreen-composer-orchestrating-gate',
-            'bg-preserve:hook:defaultchatscreen-reroll-blocking-call',
-            'bg-preserve:hook:defaultchatscreen-sendchatmain-nobgorch-arg',
-            'bg-preserve:hook:defaultchatscreen-forward-nobgorch',
-        ]
-        : []
+function createChatRenderAdapterManifest({ id, title }) {
+    const chatAfter = [
+        'bg-preserve:hook:chat-risu-control-touch-import',
+        'bg-preserve:hook:chat-risu-control-touch-bridge',
+        'bg-preserve:hook:chat-standard-risu-control-touch-events',
+        'bg-preserve:hook:chat-themed-risu-control-touch-events',
+    ]
+    const defaultChatAfter = [
+        'bg-preserve:hook:defaultchatscreen-import-orchestrating',
+        'bg-preserve:hook:defaultchatscreen-import-abort',
+        'bg-preserve:hook:defaultchatscreen-sendmain-orchestrating-gate',
+        'bg-preserve:hook:defaultchatscreen-reroll-orchestrating-gate',
+        'bg-preserve:hook:defaultchatscreen-unreroll-orchestrating-gate',
+        'bg-preserve:hook:defaultchatscreen-register-abort',
+        'bg-preserve:hook:defaultchatscreen-suppress-abort-alert',
+        'bg-preserve:hook:defaultchatscreen-terminal-completion-sound',
+        'bg-preserve:hook:defaultchatscreen-cancel-server-orchestration',
+        'bg-preserve:hook:defaultchatscreen-blank-message-a11y-button',
+        'bg-preserve:hook:defaultchatscreen-sticker-a11y-button',
+        'bg-preserve:hook:defaultchatscreen-composer-orchestrating-gate',
+        'bg-preserve:hook:defaultchatscreen-reroll-blocking-call',
+        'bg-preserve:hook:defaultchatscreen-sendchatmain-nobgorch-arg',
+        'bg-preserve:hook:defaultchatscreen-forward-nobgorch',
+    ]
     const prefix = `${id}:`
     const marker = (name) =>
-        `POCKETRISU-PATCH:kei-chat-render:${adapter}:${name}`
+        `POCKETRISU-PATCH:kei-chat-render:bg:${name}`
 
     return {
         id,
@@ -48,24 +38,14 @@ function createChatRenderAdapterManifest({
         userSelectable: false,
         targets: {
             pocketrisu: {
-                verified: ['1.8.1', '1.9.0', ...(verified1100 ? ['1.10.0'] : [])],
-                reviewing: verified1100 ? [] : ['1.10.0'],
+                verified: ['1.8.1', '1.9.0', '1.10.0'],
+                reviewing: [],
             },
         },
-        requires: bgPreserve
-            ? ['kei-chat-render-core', 'bg-preserve']
-            : ['kei-chat-render-core'],
-        conflicts: bgPreserve
-            ? ['kei-chat-render-base-adapter']
-            : ['bg-preserve', 'kei-chat-render-bg-adapter'],
-        autoWhen: bgPreserve
-            ? {
-                all: ['kei-chat-render-core', 'bg-preserve'],
-            }
-            : {
-                all: ['kei-chat-render-core'],
-                none: ['bg-preserve'],
-            },
+        requires: ['kei-chat-render-core', 'bg-preserve'],
+        autoWhen: {
+            all: ['kei-chat-render-core', 'bg-preserve'],
+        },
         units: [
             ...[
             {

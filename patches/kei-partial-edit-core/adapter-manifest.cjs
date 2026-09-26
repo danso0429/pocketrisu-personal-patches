@@ -3,41 +3,24 @@
 const pocketRisu181 = { pocketrisu: ['1.8.1'] }
 const pocketRisu190 = { pocketrisu: ['1.9.0', '1.10.0'] }
 
-function createPartialEditAdapterManifest({
-    id,
-    title,
-    adapter,
-    bgPreserve,
-    verified1100 = false,
-}) {
+function createPartialEditAdapterManifest({ id, title }) {
     const prefix = `${id}:`
     const marker = (name) =>
-        `POCKETRISU-PATCH:kei-partial-edit:${adapter}:${name}`
-    const chatRenderAdapter = `kei-chat-render-${adapter}-adapter`
+        `POCKETRISU-PATCH:kei-partial-edit:bg:${name}`
+    const chatRenderAdapter = 'kei-chat-render-bg-adapter'
     const rootAfter = [
         `${chatRenderAdapter}:chat-body-streaming-prop`,
-        ...(bgPreserve
-            ? [
-            'bg-preserve:hook:chat-standard-risu-control-touch-events',
-            'bg-preserve:hook:chat-themed-risu-control-touch-events',
-            ]
-            : []),
+        'bg-preserve:hook:chat-standard-risu-control-touch-events',
+        'bg-preserve:hook:chat-themed-risu-control-touch-events',
     ]
 
-    const standardRootAnchor = bgPreserve
-        ? `<!-- NodeOnly Standard: 전용 외부 구조 -->
+    const standardRootAnchor = `<!-- NodeOnly Standard: 전용 외부 구조 -->
 <!-- BG-PRESERVE:START risu-control-touch-standard -->
 <div class="flex max-w-full justify-center risu-chat"
      data-chat-index={idx}
      data-chat-id={DBState.db.characters?.[selIdState.selId]?.chats?.[DBState.db.characters?.[selIdState.selId]?.chatPage]?.message?.[idx]?.chatId ?? ''}
 `
-        : `<!-- NodeOnly Standard: 전용 외부 구조 -->
-<div class="flex max-w-full justify-center risu-chat"
-     data-chat-index={idx}
-     data-chat-id={DBState.db.characters?.[selIdState.selId]?.chats?.[DBState.db.characters?.[selIdState.selId]?.chatPage]?.message?.[idx]?.chatId ?? ''}
-`
-    const standardRootManaged = bgPreserve
-        ? `<!-- NodeOnly Standard: 전용 외부 구조 -->
+    const standardRootManaged = `<!-- NodeOnly Standard: 전용 외부 구조 -->
 <!-- BG-PRESERVE:START risu-control-touch-standard -->
 <!-- ${marker('chat-standard-root')} -->
 <div class="flex max-w-full justify-center risu-chat"
@@ -47,39 +30,14 @@ function createPartialEditAdapterManifest({
      data-partial-edit-disabled={editMode || editTranslationMode || translating || retranslate || isStreamingDisplay || (translated && DBState.db.translatorType !== 'llm')}
      data-partial-edit-translated={translated && DBState.db.translatorType === 'llm'}
 `
-        : `<!-- NodeOnly Standard: 전용 외부 구조 -->
-<!-- ${marker('chat-standard-root')} -->
-<div class="flex max-w-full justify-center risu-chat"
-     bind:this={partialEditRoot}
-     data-chat-index={idx}
-     data-chat-id={DBState.db.characters?.[selIdState.selId]?.chats?.[DBState.db.characters?.[selIdState.selId]?.chatPage]?.message?.[idx]?.chatId ?? ''}
-     data-partial-edit-disabled={editMode || editTranslationMode || translating || retranslate || isStreamingDisplay || (translated && DBState.db.translatorType !== 'llm')}
-     data-partial-edit-translated={translated && DBState.db.translatorType === 'llm'}
-`
-    const themedRootAnchor = bgPreserve
-        ? `<!-- 기존 테마: 공유 외부 구조 -->
+    const themedRootAnchor = `<!-- 기존 테마: 공유 외부 구조 -->
 <!-- BG-PRESERVE:START risu-control-touch-themed -->
 <div class="flex max-w-full justify-center risu-chat"
      data-chat-index={idx}
      data-chat-id={DBState.db.characters?.[selIdState.selId]?.chats?.[DBState.db.characters?.[selIdState.selId]?.chatPage]?.message?.[idx]?.chatId ?? ''}
 `
-        : `<!-- 기존 테마: 공유 외부 구조 -->
-<div class="flex max-w-full justify-center risu-chat"
-     data-chat-index={idx}
-     data-chat-id={DBState.db.characters?.[selIdState.selId]?.chats?.[DBState.db.characters?.[selIdState.selId]?.chatPage]?.message?.[idx]?.chatId ?? ''}
-`
-    const themedRootManaged = bgPreserve
-        ? `<!-- 기존 테마: 공유 외부 구조 -->
+    const themedRootManaged = `<!-- 기존 테마: 공유 외부 구조 -->
 <!-- BG-PRESERVE:START risu-control-touch-themed -->
-<!-- ${marker('chat-themed-root')} -->
-<div class="flex max-w-full justify-center risu-chat"
-     bind:this={partialEditRoot}
-     data-chat-index={idx}
-     data-chat-id={DBState.db.characters?.[selIdState.selId]?.chats?.[DBState.db.characters?.[selIdState.selId]?.chatPage]?.message?.[idx]?.chatId ?? ''}
-     data-partial-edit-disabled={editMode || editTranslationMode || translating || retranslate || isStreamingDisplay || (translated && DBState.db.translatorType !== 'llm')}
-     data-partial-edit-translated={translated && DBState.db.translatorType === 'llm'}
-`
-        : `<!-- 기존 테마: 공유 외부 구조 -->
 <!-- ${marker('chat-themed-root')} -->
 <div class="flex max-w-full justify-center risu-chat"
      bind:this={partialEditRoot}
@@ -584,31 +542,18 @@ function createPartialEditAdapterManifest({
         userSelectable: false,
         targets: {
             pocketrisu: {
-                verified: ['1.8.1', '1.9.0', ...(verified1100 ? ['1.10.0'] : [])],
-                reviewing: verified1100 ? [] : ['1.10.0'],
+                verified: ['1.8.1', '1.9.0', '1.10.0'],
+                reviewing: [],
             },
         },
-        requires: bgPreserve
-            ? [
-                'kei-partial-edit-core',
-                'kei-chat-render-bg-adapter',
-                'bg-preserve',
-            ]
-            : [
-                'kei-partial-edit-core',
-                'kei-chat-render-base-adapter',
-            ],
-        conflicts: bgPreserve
-            ? ['kei-partial-edit-base-adapter']
-            : ['bg-preserve', 'kei-partial-edit-bg-adapter'],
-        autoWhen: bgPreserve
-            ? {
-                all: ['kei-partial-edit-core', 'bg-preserve'],
-            }
-            : {
-                all: ['kei-partial-edit-core'],
-                none: ['bg-preserve'],
-            },
+        requires: [
+            'kei-partial-edit-core',
+            'kei-chat-render-bg-adapter',
+            'bg-preserve',
+        ],
+        autoWhen: {
+            all: ['kei-partial-edit-core', 'bg-preserve'],
+        },
         units: [
             ...units181.map((unit) => ({
                 ...unit,

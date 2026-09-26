@@ -7,9 +7,7 @@ const assert = require('node:assert/strict')
 
 const core = require('../patches/client-build-fence/manifest.cjs')
 const bg = require('../patches/client-build-fence-bg-adapter/manifest.cjs')
-const standard = require('../patches/client-build-fence-standard-adapter/manifest.cjs')
 const kei = require('../patches/client-build-fence-kei-adapter/manifest.cjs')
-const keiStandard = require('../patches/client-build-fence-kei-standard-storage-adapter/manifest.cjs')
 const keiLazy = require('../patches/client-build-fence-kei-lazy-storage-adapter/manifest.cjs')
 const serverFence = require('../patches/client-build-fence/files/server/node/clientBuildFence.cjs')
 const { loadCatalog } = require('../src/catalog.cjs')
@@ -20,22 +18,18 @@ const target181 = { packageName: 'pocketrisu', packageVersion: '1.8.1' }
 const target190 = { packageName: 'pocketrisu', packageVersion: '1.9.0' }
 const unitText = (manifest) => manifest.units.map((unit) => unit.managed ?? unit.content ?? '').join('\n')
 
-test('client build fence resolves exactly one storage adapter and the optional BG bridge', () => {
+test('client build fence resolves its BG, Kei, and Kei lazy-storage adapters with their hosts', () => {
     const catalog = loadCatalog()
     const standalone = resolveSelection(catalog, [core.id])
-    assert.equal(standalone.resolvedIds.includes(standard.id), true)
     assert.equal(standalone.resolvedIds.includes(bg.id), false)
     assert.equal(standalone.resolvedIds.includes(kei.id), false)
 
     const bgGraph = resolveSelection(catalog, [core.id, 'bg-preserve'])
     assert.equal(bgGraph.resolvedIds.includes(bg.id), true)
-    assert.equal(bgGraph.resolvedIds.includes(standard.id), true)
 
     const keiGraph = resolveSelection(catalog, [core.id, 'pocketrisu-kei'])
     assert.equal(keiGraph.resolvedIds.includes(kei.id), true)
-    assert.equal(keiGraph.resolvedIds.includes(keiStandard.id), true)
     assert.equal(keiGraph.resolvedIds.includes(keiLazy.id), false)
-    assert.equal(keiGraph.resolvedIds.includes(standard.id), false)
 
     const allGraph = resolveSelection(catalog, [
         core.id,
@@ -45,10 +39,9 @@ test('client build fence resolves exactly one storage adapter and the optional B
     ])
     assert.equal(allGraph.resolvedIds.includes(bg.id), true)
     assert.equal(allGraph.resolvedIds.includes(kei.id), true)
-    assert.equal(allGraph.resolvedIds.includes(keiStandard.id), false)
     assert.equal(allGraph.resolvedIds.includes(keiLazy.id), true)
 
-    for (const hidden of [bg, standard, kei, keiStandard, keiLazy]) {
+    for (const hidden of [bg, kei, keiLazy]) {
         assert.throws(
             () => resolveSelection(catalog, [hidden.id]),
             (error) => error.code === 'INTERNAL_PACK_REQUESTED',
@@ -57,7 +50,7 @@ test('client build fence resolves exactly one storage adapter and the optional B
 })
 
 test('client build fence is exact-1.9 and its adapters declare their owners', () => {
-    for (const manifest of [core, bg, standard, kei, keiStandard, keiLazy]) {
+    for (const manifest of [core, bg, kei, keiLazy]) {
         assert.deepEqual(
             manifest.units.filter((unit) => unitMatchesTarget(unit, target181)),
             [],
@@ -65,9 +58,7 @@ test('client build fence is exact-1.9 and its adapters declare their owners', ()
         assert.ok(manifest.units.some((unit) => unitMatchesTarget(unit, target190)))
     }
     assert.deepEqual(bg.requires, [core.id, 'bg-preserve'])
-    assert.deepEqual(standard.requires, [core.id])
     assert.deepEqual(kei.requires, [core.id, 'kei-backup-restore-safety-core'])
-    assert.deepEqual(keiStandard.requires, [core.id, 'kei-backup-restore-safety-standard-adapter'])
     assert.deepEqual(keiLazy.requires, [core.id, 'kei-backup-restore-safety-lazy-adapter'])
 })
 
@@ -153,7 +144,7 @@ test('build artifact, middleware order, and every manifest payload affect the pa
     assert.match(middleware.anchor, /express\.static/)
     assert.match(middleware.content, /app\.use\(clientBuildFence\.middleware\)/)
 
-    for (const manifest of [core, bg, standard, kei, keiStandard, keiLazy]) {
+    for (const manifest of [core, bg, kei, keiLazy]) {
         const original = packEtag(manifest)
         const mutated = {
             ...manifest,

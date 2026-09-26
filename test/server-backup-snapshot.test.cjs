@@ -6,7 +6,6 @@ const test = require('node:test')
 const assert = require('node:assert/strict')
 
 const core = require('../patches/server-backup-snapshot-core/manifest.cjs')
-const standard = require('../patches/server-backup-snapshot-standard-adapter/manifest.cjs')
 const lazy = require('../patches/server-backup-snapshot-lazy-adapter/manifest.cjs')
 const { loadCatalog } = require('../src/catalog.cjs')
 const { packEtag, unitMatchesTarget } = require('../src/manager.cjs')
@@ -18,25 +17,18 @@ const unitText = (manifest) => manifest.units
     .map((unit) => unit.managed ?? unit.content ?? '')
     .join('\n')
 
-test('P1 admits one hidden P2 storage adapter without adding a user selection bit', () => {
+test('P1 admits the hidden P2 core and lazy-storage adapter without a user selection bit', () => {
     const catalog = loadCatalog()
     const absent = resolveSelection(catalog, ['lazy-chat-sync'])
     assert.equal(absent.resolvedIds.includes(core.id), false)
-    assert.equal(absent.resolvedIds.includes(standard.id), false)
     assert.equal(absent.resolvedIds.includes(lazy.id), false)
-
-    const standardGraph = resolveSelection(catalog, ['client-build-fence'])
-    assert.equal(standardGraph.resolvedIds.includes(core.id), true)
-    assert.equal(standardGraph.resolvedIds.includes(standard.id), true)
-    assert.equal(standardGraph.resolvedIds.includes(lazy.id), false)
 
     const lazyGraph = resolveSelection(catalog, ['client-build-fence', 'lazy-chat-sync'])
     assert.equal(lazyGraph.resolvedIds.includes(core.id), true)
-    assert.equal(lazyGraph.resolvedIds.includes(standard.id), false)
     assert.equal(lazyGraph.resolvedIds.includes(lazy.id), true)
 
     assert.ok(catalog.filter((pack) => pack.userSelectable !== false).length > 0)
-    for (const hidden of [core.id, standard.id, lazy.id]) {
+    for (const hidden of [core.id, lazy.id]) {
         assert.throws(
             () => resolveSelection(catalog, [hidden]),
             (error) => error.code === 'INTERNAL_PACK_REQUESTED',
@@ -44,37 +36,23 @@ test('P1 admits one hidden P2 storage adapter without adding a user selection bi
     }
 })
 
-test('every visible selection resolves P1 to exactly one P2 adapter', () => {
+test('every visible selection resolves the P2 adapter only with P1 and lazy storage', () => {
     const catalog = loadCatalog()
     const visible = catalog
         .filter((pack) => pack.userSelectable !== false)
         .map((pack) => pack.id)
-    const counts = { absent: 0, standard: 0, lazy: 0 }
 
     for (let mask = 0; mask < (2 ** visible.length); mask += 1) {
         const requested = visible.filter((_, index) => mask & (2 ** index))
         const resolved = new Set(resolveSelection(catalog, requested).resolvedIds)
         const hasP1 = resolved.has('client-build-fence')
-        const hasCore = resolved.has(core.id)
-        const hasStandard = resolved.has(standard.id)
-        const hasLazy = resolved.has(lazy.id)
-
-        assert.equal(hasCore, hasP1)
-        assert.equal(Number(hasStandard) + Number(hasLazy), hasP1 ? 1 : 0)
-        if (!hasP1) counts.absent += 1
-        else if (hasLazy) counts.lazy += 1
-        else counts.standard += 1
+        assert.equal(resolved.has(core.id), hasP1)
+        assert.equal(resolved.has(lazy.id), hasP1 && resolved.has('lazy-chat-sync'))
     }
-
-    const selectionCount = 2 ** visible.length
-    assert.equal(counts.absent, selectionCount / 2)
-    assert.equal(counts.standard + counts.lazy, selectionCount / 2)
-    assert.ok(counts.standard > 0)
-    assert.ok(counts.lazy > 0)
 })
 
-test('P2 is exact-1.9 and standard/lazy adapters own the same server semantics', () => {
-    for (const manifest of [core, standard, lazy]) {
+test('P2 owns no 1.8 payload and its lazy adapter requires lazy storage', () => {
+    for (const manifest of [core, lazy]) {
         assert.deepEqual(
             manifest.units.filter((unit) => unitMatchesTarget(unit, target181)),
             [],
@@ -82,18 +60,11 @@ test('P2 is exact-1.9 and standard/lazy adapters own the same server semantics',
         assert.ok(manifest.units.some((unit) => unitMatchesTarget(unit, target190)))
     }
     assert.deepEqual(core.requires, ['client-build-fence'])
-    assert.deepEqual(standard.requires, [core.id])
     assert.deepEqual(lazy.requires, [core.id, 'lazy-chat-sync'])
-    assert.equal(standard.units.length, lazy.units.length)
-    assert.deepEqual(
-        standard.units.map((unit) => unit.file),
-        lazy.units.map((unit) => unit.file),
-    )
 })
 
 test('P2 pins one WAL reader and filesystem source for both backup destinations', () => {
     const coreText = unitText(core)
-    const standardText = unitText(standard)
     const lazyText = unitText(lazy)
 
     assert.match(coreText, /snapshotDb\.exec\('BEGIN'\)/)
@@ -105,7 +76,7 @@ test('P2 pins one WAL reader and filesystem source for both backup destinations'
     assert.match(coreText, /activeCount/)
     assert.match(coreText, /BACKUP_ENTRY_TOO_LARGE/)
 
-    for (const text of [standardText, lazyText]) {
+    for (const text of [lazyText]) {
         assert.match(text, /capturePointInTimeBackupSource/)
         assert.match(text, /queueStorageOperation\(async \(\) =>/)
         assert.match(text, /reader: backupSource\.snapshot/)
@@ -141,7 +112,7 @@ test('exact 1.10 maintenance guard preserves purge, disk-spill, and both checkpo
 })
 
 test('every P2 core and adapter payload contributes to its pack ETag', () => {
-    for (const manifest of [core, standard, lazy]) {
+    for (const manifest of [core, lazy]) {
         const original = packEtag(manifest)
         for (let unitIndex = 0; unitIndex < manifest.units.length; unitIndex += 1) {
             const mutated = {

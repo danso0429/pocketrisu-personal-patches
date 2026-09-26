@@ -6,7 +6,6 @@ const test = require('node:test')
 const assert = require('node:assert/strict')
 
 const core = require('../patches/kei-translation-tools-core/manifest.cjs')
-const base = require('../patches/kei-translation-tools-base-adapter/manifest.cjs')
 const bg = require('../patches/kei-translation-tools-bg-adapter/manifest.cjs')
 const meta = require('../patches/pocketrisu-kei/manifest.cjs')
 const { loadCatalog } = require('../src/catalog.cjs')
@@ -21,12 +20,10 @@ const source = (relative) =>
     fs.readFileSync(path.join(filesRoot, relative), 'utf8')
 const unitText = (unit) => unit.managed ?? unit.content ?? ''
 
-test('K12 keeps one internal core and exactly one base/bg adapter', () => {
+test('K12 keeps one internal core and its bg-preserve adapter', () => {
     assert.equal(core.id, 'kei-translation-tools-core')
-    assert.equal(base.id, 'kei-translation-tools-base-adapter')
     assert.equal(bg.id, 'kei-translation-tools-bg-adapter')
     assert.equal(core.userSelectable, false)
-    assert.equal(base.userSelectable, false)
     assert.equal(bg.userSelectable, false)
     for (const pack of [core, bg]) {
         assert.deepEqual(pack.targets, {
@@ -36,53 +33,33 @@ test('K12 keeps one internal core and exactly one base/bg adapter', () => {
             },
         })
     }
-    assert.deepEqual(base.targets.pocketrisu, {
-        verified: ['1.8.1', '1.9.0'],
-        reviewing: ['1.10.0'],
-    })
-    assert.deepEqual(base.requires, [
-        'kei-translation-tools-core',
-        'kei-chat-render-base-adapter',
-    ])
     assert.deepEqual(bg.requires, [
         'kei-translation-tools-core',
         'kei-chat-render-bg-adapter',
         'bg-preserve',
     ])
-    assert.deepEqual(base.autoWhen, {
-        all: ['kei-translation-tools-core'],
-        none: ['bg-preserve'],
-    })
     assert.deepEqual(bg.autoWhen, {
         all: ['kei-translation-tools-core', 'bg-preserve'],
     })
-    assert.deepEqual(base.conflicts, [
-        'bg-preserve',
-        'kei-translation-tools-bg-adapter',
-    ])
-    assert.deepEqual(bg.conflicts, ['kei-translation-tools-base-adapter'])
     assert.equal(meta.requires.includes(core.id), true)
 
     const catalog = loadCatalog()
     const absent = resolveSelection(catalog, ['bg-preserve'])
     assert.equal(absent.resolvedIds.includes(core.id), false)
-    assert.equal(absent.resolvedIds.includes(base.id), false)
     assert.equal(absent.resolvedIds.includes(bg.id), false)
 
     const standalone = resolveSelection(catalog, ['pocketrisu-kei'])
-    assert.equal(standalone.resolvedIds.includes(base.id), true)
     assert.equal(standalone.resolvedIds.includes(bg.id), false)
 
     const composed = resolveSelection(catalog, [
         'pocketrisu-kei',
         'bg-preserve',
     ])
-    assert.equal(composed.resolvedIds.includes(base.id), false)
     assert.equal(composed.resolvedIds.includes(bg.id), true)
 })
 
 test('K12 selects one exact adapter graph for each supported PocketRisu', () => {
-    for (const adapter of [base, bg]) {
+    for (const adapter of [bg]) {
         assert.equal(adapter.units.length, 92)
         const historical = adapter.units.filter((unit) =>
             unit.targetVersions?.pocketrisu?.includes('1.8.1')
@@ -165,7 +142,7 @@ test('K12 owns only cache/task helpers, focused tests, and its panel', () => {
         'src/lib/Setting/Pages/LanguageSettings.svelte',
         'src/ts/translator/translator.ts',
     ]
-    for (const adapter of [base, bg]) {
+    for (const adapter of [bg]) {
         assert.deepEqual(
             [...new Set(adapter.units.map((unit) => unit.file))].sort(),
             expectedHosts,
@@ -236,7 +213,7 @@ test('K12 cleanup previews candidates before exact-value deletion', () => {
 test('K12 propagates one cancellation signal without replacing bg delivery', () => {
     const batch = source('src/ts/translator/translationChunkBatch.ts')
     const batchTests = source('src/ts/translator/translationChunkBatch.test.ts')
-    for (const adapter of [base, bg]) {
+    for (const adapter of [bg]) {
         const managed = adapter.units.map(unitText).join('\n')
         assert.match(managed, /createTranslationTaskController/)
         assert.match(managed, /translationTasks\.dispose/)
@@ -276,7 +253,7 @@ test('K12 propagates one cancellation signal without replacing bg delivery', () 
 })
 
 test('K12 payloads participate in ETags', () => {
-    for (const pack of [core, base, bg]) {
+    for (const pack of [core, bg]) {
         const original = packEtag(pack)
         const changed = {
             ...pack,
