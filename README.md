@@ -32,6 +32,11 @@ keeps the measured next save-speed candidate.
 
 ## Complete installer
 
+The BG candidate `0.2.4-experimental.7` adds server-shared external request
+header rules under Personal settings. Rules start disabled and affect only
+server-routed requests. See [G1.11 validation](docs/POCKETRISU-G1-11-EXTERNAL-HEADERS-VALIDATION.md)
+for behavior, transport coverage and the remaining device/provider checks.
+
 `pocketrisu-patcher.cjs` applies one complete admitted set or reverts it in
 full. `plan`, `apply`, and `stage` always resolve bg-preserve, lazy storage,
 organizers, import UX, Personal settings, parser/toolchain hardening, CharX

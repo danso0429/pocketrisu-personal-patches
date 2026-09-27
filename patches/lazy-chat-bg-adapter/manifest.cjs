@@ -17,11 +17,12 @@ const bgGlobalApiUnits = [
     'bg-preserve:hook:globalapi-fetchnative-bgsubkey-arg',
     'bg-preserve:hook:globalapi-gemini-main-branch',
 ]
+const externalHeaderBridgeUnits = require('./external-header-units.cjs')
 
 module.exports = {
     id: 'lazy-chat-bg-adapter',
     title: 'BG preserve integration for lazy chat storage',
-    version: '0.7.13',
+    version: '0.7.14',
     targets: {
         pocketrisu: {
             verified: ['1.10.0'],
@@ -3514,3 +3515,10 @@ const serverChatCommitOwner = createServerChatCommitOwner({
         },
     ],
 }
+
+// The bridge wraps the final composed BG fetch/pipeline, after existing owners.
+const priorOrchestratorUnits = module.exports.units
+    .filter(unit => unit.file === 'server/node/bgOrchestrator.cjs').map(unit => unit.id)
+module.exports.units.push(...externalHeaderBridgeUnits.map(unit => ({
+    ...unit, after: priorOrchestratorUnits,
+})))

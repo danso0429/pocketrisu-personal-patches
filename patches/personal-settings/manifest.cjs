@@ -5,11 +5,12 @@ const importNavigationUnits = require('./settings/import-navigation/units.cjs')
 const appearanceUnits = require('./settings/appearance/units.cjs')
 const searchUnits = require('./settings/search/units.cjs')
 const editorUnits = require('./settings/appearance/editor-units.cjs')
+const externalHeaderUnits = require('./settings/external-headers/units.cjs')
 
 module.exports = {
     id: 'personal-settings',
     title: 'Personal settings',
-    version: '0.5.11',
+    version: '0.5.12',
     targets: {
         pocketrisu: {
             verified: ['1.10.0'],
@@ -23,5 +24,6 @@ module.exports = {
         ...appearanceUnits,
         ...searchUnits,
         ...editorUnits,
+        ...externalHeaderUnits,
     ],
 }
