@@ -158,3 +158,33 @@ reason the browser omitted the model at job creation is not yet proven; a
 cached client bundle remains a possible factor. The user's complete-PWA-exit
 timing has not been confirmed, and this return does not qualify the G1
 read-before-reopen/server-commit gate.
+
+### Second iPhone send: older background status and chat-count change
+
+The user refreshed and sent again, then saw the top status text
+"백그라운드 진행 중…" on return. That string belongs to the existing
+model-job recovery request-status path, not the input-v1 pending-input UI.
+The server logged a detached-start rejection and `delegate-not-started`
+fallback for each of the two sends. After the second send there was still no
+new G1 operation state, input command or commit record. One new Gemini main
+model job reached `done` with 15,009 response bytes, but remained unclaimed
+with one pending-send row at the last read. No active job was cancelled.
+
+The same chat's normal API had returned 56 messages after the first recovery,
+but returned 55 after the second send. The second send's server context also
+reported 55 messages, and the durable database snapshot for that chat had
+55 messages. The first model-job recovery log explicitly recorded an inserted
+answer and successful chat save; its claimed job and raw response journal were
+still present. The second job's raw journal was present as well. No current
+chat-write journal record remained for this chat.
+
+This count change is not classified as data loss without the device action:
+rerolling the last answer would deliberately remove it before regenerating,
+whereas sending a distinct new user message should not. The user was asked
+which control was used and whether the first answer remained visible. No
+recovery write, rollback, cancel, additional send or live source edit was made.
+Before further client activity, consistent copies of `risuai.db`,
+`model-jobs.db`, `logs.db` and `request-logs.db` plus an archive of the
+model-job raw journals were stored under the live private directory
+`backups/pocketrisu-g1-second-send-20260927-114115`. The four DB copies
+returned `quick_check=ok`; the originals were not removed or replaced.
