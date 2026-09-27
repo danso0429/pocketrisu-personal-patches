@@ -2,7 +2,7 @@
 
 Date: 2026-09-27 KST
 
-Status: automated candidate verification complete; live application and physical-device qualification are recorded separately below. G1.0 product completion requires the existing preset send to finish through server delegation. G1 plugin hosting and G2 Archive Center are not implemented by this change.
+Status: candidate implemented, pushed and live-applied; physical-device qualification remains open. G1.0 product completion requires the existing preset send to finish through server delegation. G1 plugin hosting and G2 Archive Center are not implemented by this change.
 
 ## Change and compatibility
 
@@ -39,7 +39,15 @@ Structural and runtime review covered normalized admission versus durable identi
 
 ## Delivery and remaining gate
 
-Live source application has not yet been recorded at this checkpoint. No paid provider request was issued for these tests. Unit/route/provider-fixture results are not evidence that the user's actual preset configuration completed while the browser was absent.
+Implementation commit `d405404` was pushed to `codex/pocketrisu-g1-current-main` before delivery. Five consistent SQLite backups passed `quick_check`, and an application/state/intent archive was retained in a restricted operator-only recovery directory. A fresh preflight confirmed no active model jobs or pending sends and no managed-file drift before stopping PM2. The installer applied the planned ten paths; the live build transformed 8,006 modules and the BG bundle loaded `sendChat` successfully.
+
+After restart, HTTP root was 200. Served `/assets/index-DVlfDJHN.js` matched the local 2,163,936-byte file, SHA-256 `e4bc97e89573d3759f41fd281d7c4586eb85f609966af1e1cce10f6c8d12c394`. All 416 managed files matched recorded hash/mode; replan had zero changes. All five live databases returned `quick_check=ok`. PM2 was online, unstable restarts zero, active requests zero. Adapter `0.7.13`, lazy storage `0.5.2` and Personal settings `0.5.11` were read back.
+
+The deployment script's immediate post-restart idle assertion observed a nonzero generic PM2 active-request metric and stopped its verification, after successful restart and HTTP/asset checks. A separate read-only verification observed zero, completed all remaining checks, and made no additional source or process change. Startup repeated the existing retained `awaiting-metadata` journal warning (six records, 2,974 bytes); no journal cleanup was attempted.
+
+No paid provider request was issued for this work. Unit/route/provider-fixture results are not evidence that the user's actual preset configuration completed while the browser was absent.
+
+Read-only comparison with the pre-application backup found 47 prior operation-state rows and 46 afterward: the single absent row was already `delivered`, no new row appeared, and all 46 retained rows were byte-identical. No manual result/operation cleanup was performed.
 
 After safe application, reload the iPhone app to load the new bundle, send once in the existing preset chat, and leave the app while generation is running. Verify server delegation and normal-chat persistence before reopening, then verify one answer on return. A detached-start rejection/client fallback or an answer first saved by model-job recovery does not qualify as G1.0 completion.
 
