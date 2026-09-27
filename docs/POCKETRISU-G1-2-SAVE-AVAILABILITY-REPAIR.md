@@ -2,7 +2,7 @@
 
 Date: 2026-09-28 KST
 Candidate: `0.2.4-experimental.9`
-Status: implemented, automatically validated, reviewed, pushed and live-applied. Physical device observation remains open.
+Status: implemented, automatically validated, reviewed, pushed and live-applied. The user reported the requested device checks normal; scoped L5 is closed.
 
 ## Problem and behavior
 
@@ -54,7 +54,7 @@ Tests cover the original 4.5 MiB and browse/eviction reproductions, actual stora
 
 When both sides changed and no reliable merge basis can be reconstructed, the save still reports a conflict and preserves the local view. The repair does not invent a winner for edit/edit, delete/edit, ambiguous legacy identity or order conflicts. A preparation step racing a new server revision can fail before provider start while generation ownership is active; cleanup and later retry remain available.
 
-Physical iPhone rendering, background suspension, modal timing and perceived latency remain unmeasured. The separate intermittent home-navigation report is not resolved by this work. Question deletion is not reinterpreted as cancellation, and the existing orphan-answer policy is unchanged.
+The user reported the requested iPhone checks normal, as recorded below. Background suspension, adversarial modal races and quantitative latency were not separately measured. The separate intermittent home-navigation report is not resolved by this work. Question deletion is not reinterpreted as cancellation, and the existing orphan-answer policy is unchanged.
 
 The final read-only Opus consultation found no new direct defect in the last preview/input guards or the ID-less-input compatibility handling. It did not rerun the tests. A primitive null display-context value cannot distinguish every overlapping manual/input clear; that possible transient display race remains a limitation. Existing non-conflict exception behavior in developer preview and the save owner's refusal to invent IDs for server-known chats are unchanged.
 
@@ -68,4 +68,10 @@ The live frontend and BG bundle were rebuilt and the service restarted. Root HTT
 
 All 428 managed files matched recorded hash/mode, replan was zero and all five databases passed quick_check. PM2 was online with zero unstable restarts. Operation records remained 48, with no active/pending input or send work at readback. The only new error-log line was the existing retained-journal warning; there were no unclassified new lines. The external-header settings record remained byte-identical, without logging its values. No provider generation request or user-data cleanup was performed by this validation.
 
-The help/i18n check passed. GitHub's workflow runs on main/PR rather than this candidate branch, so no remote CI run is claimed for the push. No tag or stable release was created. The L3 audit is retained until the device gate is complete.
+The help/i18n check passed. GitHub's workflow runs on main/PR rather than this candidate branch, so no remote CI run is claimed for the push. No tag or stable release was created.
+
+## Device confirmation and scoped closeout
+
+On 2026-09-28 KST, after clarification that a chat round trip means opening another conversation and returning to the original one, the user reported “정상” (normal) for the requested checks: edit an earlier message, visit another chat and return, then edit/save again; retain a new draft typed during send preparation; and delete the message selected for confirmation. This is a collective user report, without separate timings, screenshots or bundle-load telemetry.
+
+This closes L5 for the delivered save repair. L6 updates the validation and ordered-goals records, removes the corresponding waiting backlog and completed final L3 audit, and retains version `0.2.4-experimental.9`. No runtime change or redeployment is needed for this documentation-only closeout. G1.1 and the remaining ordered goals, aggregate qualification and stable publication remain open.

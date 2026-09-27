@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.2.4-experimental.9 (BG candidate)
+
+- Repair continued saving after rebase/cache eviction by publishing merged messages before conditional retries and retaining a recoverable acknowledged basis.
+- Preserve late edits and drafts, reconcile internally derived script messages, verify deletion targets after confirmation, and clean up matching generation owners on typed conflicts.
+- Keep immediate script effects and explicit overlap conflicts; input failure does not roll back effects already executed.
+- Record the user's normal result for the requested iPhone chat round-trip/save, draft and deletion checks. See `docs/POCKETRISU-G1-2-SAVE-AVAILABILITY-REPAIR.md`; remaining G1 work and stable qualification are open.
+
 ## 0.2.4-experimental.8 (BG candidate)
 
 - Rebase independent client chat edits after server revision conflicts while retaining server-added answers across subsequent stale-view saves.

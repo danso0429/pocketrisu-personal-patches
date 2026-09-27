@@ -32,10 +32,11 @@ keeps the measured next save-speed candidate.
 
 ## Complete installer
 
-The BG candidate `0.2.4-experimental.8` preserves server-added answers when
-older client edits are saved and rebased. Read-only retrieval is separated
-from actual UI adoption. See [G1.2 validation](docs/POCKETRISU-G1-2-CHAT-SAVE-REBASE-VALIDATION.md)
-for the verified write ordering and the remaining server anchor work.
+The BG candidate `0.2.4-experimental.9` repairs continued saving after rebase
+and cache eviction, publishing merged messages while preserving later edits.
+The user reported the requested chat round-trip/save, draft retention and
+delete-confirmation checks normal. See [G1.2 repair validation](docs/POCKETRISU-G1-2-SAVE-AVAILABILITY-REPAIR.md)
+for evidence and limits. Server anchor work and full G1 qualification remain open.
 
 The BG candidate `0.2.4-experimental.7` adds server-shared external request
 header rules under Personal settings. Rules start disabled and affect only
