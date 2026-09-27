@@ -1,7 +1,7 @@
 # G1.2 client chat-save rebase
 
 Date: 2026-09-27 KST
-Status: implemented and automatically verified candidate; live delivery is recorded below. Server anchor commits (G1.1), expanded N+1 admission and full G1 qualification remain open.
+Status: implemented, automatically verified, pushed and live-applied. Physical device observation remains open. Server anchor commits (G1.1), expanded N+1 admission and full G1 qualification remain open.
 
 ## Result and scope
 
@@ -42,6 +42,12 @@ The full frontend/server/compatibility runs precede a diagnostic-wording-only ch
 
 ## Delivery and limits
 
-Live application has not yet been recorded at this checkpoint. The candidate is delivered independently before changing server commit ownership. Source rollback must preserve user data and existing server settings; this feature introduces no durable database schema.
+Implementation commit `99bb589` was pushed before delivery. Preflight confirmed 420 managed files without drift, zero active requests/pending sends/input records, and 45 operation-state records. Five consistent SQLite backups passed quick_check, and an application/state/intent archive was retained before a fresh idle check and stop/apply/build/restart. The installer changed the planned ten paths. The live frontend build transformed 8,008 modules; the BG bundle loaded sendChat.
+
+Live root returned HTTP 200. Served `index-CXkvh6v2.js` matched the local 2,167,443-byte entry asset, SHA-256 `d1bdb3480ece45545c1dfcb5eb760bd298960e0cf00601beaa61503573993eb5`. The actual storage-code chunk `database.svelte-Buc3VRbG.js` also returned 200 and matched the local 2,488,322 bytes, SHA-256 `662b730f9c042f2aa2457f0c5f048ccd86f19bbbb76a502e7eadf45a364c053e`.
+
+All 423 managed files matched recorded hash/mode; replan had zero changes and all five databases passed quick_check. PM2 was online with zero unstable restarts and active requests; operation-state count remained 45. The existing six-record/2,974-byte retained-journal warning repeated once. The MARP header-settings record was compared in memory before and after deployment and remained byte-identical; its secret/value was not recorded. No provider request or user-data cleanup was performed.
+
+The candidate is delivered independently before changing server commit ownership. Source rollback must preserve user data and existing server settings; this feature introduces no durable database schema. No stable tag or release was created.
 
 Physical iPhone save/adoption timing remains unobserved. Missing merge baselines, ambiguous legacy arrays and overlapping edits remain explicit save failures with the caller's draft untouched. Preserve local edits before any manual view replacement. The separate intermittent home-navigation report is not resolved by this work. Stable release and complete background-edit support are not claimed.
