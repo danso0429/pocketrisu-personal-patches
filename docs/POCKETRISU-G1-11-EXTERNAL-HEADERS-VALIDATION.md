@@ -1,7 +1,7 @@
 # G1.11 external request header rules
 
 Date: 2026-09-27 KST
-Status: implemented, automatically verified, pushed and live-applied. The user confirmed that the settings screen opens. Current-provider OFF/ON probes were performed after authorization; persistent live activation remains blocked by a separate runtime approval requirement. This does not implement the G1.6 server plugin host or complete G1.
+Status: implemented, automatically verified, pushed and live-applied. The user confirmed that the settings screen opens and explicitly authorized persistent activation and a deployed-proxy probe. One MARP destination rule is now enabled and read back through the settings API. Actual MARP analysis and the G1.6 server plugin host remain unqualified; G1 is not complete.
 
 ## User behavior and ownership
 
@@ -45,8 +45,12 @@ No live rule is enabled automatically. No MARP or AC script is changed. The init
 
 Exactly two requests then used the stored default provider configuration, a deliberately nonexistent model and an empty messages array through an isolated instance of the production header owner. OFF returned HTTP 400 with MissingSessionID; ON returned HTTP 400 without that session error. Neither returned a successful generation response. The remaining ON error was not classified as model-not-found by the probe, so no claim about its exact cause or billing is made. Credentials, destination, header values and response bodies were not recorded.
 
-The user also confirmed that the settings page opens but had not configured it. A prepared follow-up would use normal local login/settings APIs to preserve existing rules, enable a destination-specific MARP session rule, and verify the deployed proxy with one further nonexistent-model/empty-message request. Automatic approval review separately rejected persistent activation plus that request as insufficiently specifically authorized. That action was not executed or retried by another route; a more specific approval question is pending. Read-only verification still found zero live settings rows. The isolated provider probe is not evidence of deployed-proxy configuration or MARP's three-analysis integration.
+The user also confirmed that the settings page opens but had not configured it. Automatic approval review separately rejected persistent activation plus a deployed-proxy probe as insufficiently specifically authorized. The action was not executed or retried by another route at that point. The user then explicitly approved both actions, and the same prepared operation ran through normal local login/settings APIs.
 
-Physical UI check: open Personal settings → External requests, add a disabled rule with the intended HTTPS destination and header name, save, navigate away/back, then verify values persisted. Enable only the intended rule and verify provider behavior; pre-existing headers must remain intact. A separate paid MARP analysis requires user authorization. The full server-plugin-host route is deferred to G1.6.
+The prior settings response was retained in a restricted local recovery file. Settings revision advanced from zero to one, with one enabled rule named MARP analysis session, using the saved MARP base URL and `x-opencode-session`. The settings GET readback matched the submitted rules, and an independent read-only database check confirmed one enabled rule. No MARP script, provider credential/model, chat or unrelated rule was changed; no build or restart was needed.
+
+One further nonexistent-model/empty-message request through the actual deployed `/proxy2` returned HTTP 400 without MissingSessionID. The remaining response was not classified by the probe as model rejection or empty-message rejection, so its precise cause remains unverified. This closes the authorization/configuration step and establishes removal of the observed missing-session error, not successful paid analysis or MARP's three-analysis integration.
+
+Usage: Personal settings → External requests now reads the configured rule from the server. Leave it enabled for the stored MARP destination. To pause it, uncheck Enabled and save to the server; no API key or generated session ID belongs in this form. The user observed page entry; direct physical form editing and save interactions remain unobserved. The full server-plugin-host route and actual MARP analysis are deferred to their integration step.
 
 Rollback should disable/remove rules through this settings UI before reverting application source. Do not remove user databases or plugin data. Existing server-stored configuration/secret is retained by source revert and can be reused after reapplication.
