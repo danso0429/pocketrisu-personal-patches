@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.2.4-experimental.7 (BG candidate)
+
+- Add disabled-by-default, server-shared external request header rules under Personal settings.
+- Apply destination-scoped conversation session headers to proxy, WebSocket job and BG proxy paths without changing plugin source; preserve existing headers and prevent injected values from escaping through redirects.
+- See `docs/POCKETRISU-G1-11-EXTERNAL-HEADERS-VALIDATION.md` for validation and remaining device/provider checks. The server plugin host is not included.
+
 ## 0.2.4-experimental.6 (BG candidate)
 
 Lazy chat BG adapter `0.7.13`.

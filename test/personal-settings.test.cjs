@@ -59,7 +59,7 @@ function replacementText(candidate) {
 
 test('personal settings is an independent rolling feature pack', () => {
     assert.equal(manifest.id, 'personal-settings')
-    assert.equal(manifest.version, '0.5.11')
+    assert.equal(manifest.version, '0.5.12')
     assert.deepEqual(manifest.targets, {
         pocketrisu: {
             verified: ['1.10.0'],
@@ -78,6 +78,7 @@ test('the root manifest only aggregates core and setting-owned units', () => {
         ...appearanceUnits,
         ...searchUnits,
         ...editorUnits,
+        ...require('../patches/personal-settings/settings/external-headers/units.cjs'),
     ])
     assert.equal(
         new Set(manifest.units.map((candidate) => candidate.id)).size,
