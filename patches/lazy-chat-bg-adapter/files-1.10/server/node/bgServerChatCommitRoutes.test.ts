@@ -402,7 +402,7 @@ function detachedCommitHarness({
             }
         },
     })
-    const start = async () => {
+    const start = async (submittedChat = baseChat) => {
         const handler = routes.get('POST /api/bg-orchestrate')
         if (!handler) throw new Error('missing detached start route')
         const response = { status: 200, body: null as any }
@@ -415,7 +415,7 @@ function detachedCommitHarness({
                 detached: true,
                 selectedCharId: 'char-1',
                 selectedChatId: 'chat-1',
-                currentChat: baseChat,
+                currentChat: submittedChat,
                 operationId,
                 resultKeyVersion: 1,
                 resultOrderVersion: 1,
@@ -596,6 +596,33 @@ async function startHTTPBridge(harness: ReturnType<typeof detachedCommitHarness>
 }
 
 describe('server chat commit route precedence', () => {
+    it('starts and commits a JSON-round-tripped legacy request with undefined stored fields', async () => {
+        const harness = detachedCommitHarness()
+        const stored: any = harness.runtime.fullStore.get('char-1')!.get('chat-1')
+        stored.activeStreamingDisplayOptimizationMode = undefined
+        stored.message[0].generationInfo = { generationId: 'prior-generation', model: undefined }
+        const response = await harness.start(JSON.parse(JSON.stringify(stored)))
+        expect(response).toMatchObject({ status: 200, body: { started: true, handled: true } })
+        expect(harness.previewCalls()).toBe(1)
+        expect(harness.commitCalls).toHaveLength(1)
+        expect(harness.receipt()).toMatchObject({ chatCommitted: true, storedChatId: 'chat-1' })
+        expect(harness.runtime.fullStore.get('char-1')!.get('chat-1')!.message.at(-1))
+            .toMatchObject({ role: 'char', data: 'answer', chatId: 'assistant-1' })
+    })
+
+    it('rejects a real edit against the same undefined-bearing canonical chat before preview', async () => {
+        const harness = detachedCommitHarness()
+        const stored: any = harness.runtime.fullStore.get('char-1')!.get('chat-1')
+        stored.activeStreamingDisplayOptimizationMode = undefined
+        const submitted = JSON.parse(JSON.stringify(stored))
+        submitted.message[0].data = 'changed'
+        expect(await harness.start(submitted)).toMatchObject({
+            status: 409, body: { started: false, reason: 'server-chat-commit-input-stale' },
+        })
+        expect(harness.previewCalls()).toBe(0)
+        expect(harness.commitCalls).toHaveLength(0)
+    })
+
     it('acknowledges a durable N+1 command without scheduling before its predecessor', async () => {
         const routes = new Map<string, (request: any, response: any) => unknown>()
         const app: Record<string, unknown> = {}
