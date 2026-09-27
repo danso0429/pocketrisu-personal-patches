@@ -229,6 +229,37 @@ describe('hybrid corruption (chat with _stub:true + message)', () => {
 })
 
 describe('lazy chat hydration safety', () => {
+    test('adopts a fetched snapshot only when it is applied, preserving its original revision basis', async () => {
+        const slot = { id: 'chat-1', name: 'placeholder', message: [], _placeholder: true } as any
+        const chats = [slot]
+        const snapshot = { revision: 'revision-1', encodedBytes: 200,
+            chat: { id: 'chat-1', name: 'chat', message: [{ role: 'char', data: 'answer' }], isStreaming: true } }
+        const remember = vi.fn(() => {
+            expect(chats[0]).not.toBe(slot)
+            expect(chats[0].isStreaming).toBe(false)
+        })
+        storageMock.realStorage = { peekChatContentSnapshot: vi.fn(async () => snapshot), rememberChatContentSnapshot: remember }
+        await ensureChatHydrated(chats, 0, 'char-1')
+        expect(remember).toHaveBeenCalledWith('char-1', 'chat-1', snapshot)
+        expect(snapshot.chat.isStreaming).toBe(true)
+        expect(chats[0].isStreaming).toBe(false)
+    })
+
+    test('does not acknowledge a fetched view if its placeholder was replaced before application', async () => {
+        const slot = { id: 'chat-1', name: 'placeholder', message: [], _placeholder: true } as any
+        const chats = [slot]
+        const remember = vi.fn()
+        storageMock.realStorage = {
+            peekChatContentSnapshot: vi.fn(async () => {
+                chats[0] = { id: 'chat-1', name: 'local', message: [{ role: 'user', data: 'local' }] }
+                return { revision: 'revision-1', encodedBytes: 100, chat: { id: 'chat-1', message: [] } }
+            }), rememberChatContentSnapshot: remember,
+        }
+        const current = await ensureChatHydrated(chats, 0, 'char-1')
+        expect(current?.name).toBe('local')
+        expect(remember).not.toHaveBeenCalled()
+    })
+
     const placeholder = (id = 'chat-1'): Chat => ({
         message: [],
         note: '',

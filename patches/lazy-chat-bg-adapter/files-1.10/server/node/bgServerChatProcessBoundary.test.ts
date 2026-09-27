@@ -337,6 +337,7 @@ async function readCounters(server: ServerHarness) {
 async function runBlankClientProcess(
     server: ServerHarness,
     expectedRevision: string,
+    rebase = false,
 ) {
     const vitest = path.join(targetRoot, 'node_modules/vitest/vitest.mjs')
     const clientTest = 'src/ts/storage/bgServerChatProcessAdoption.test.ts'
@@ -345,6 +346,7 @@ async function runBlankClientProcess(
         env: {
             ...process.env,
             POCKETRISU_H1_CLIENT_TEST: '1',
+            POCKETRISU_G12_CLIENT_TEST: rebase ? '1' : '0',
             POCKETRISU_H1_BASE_URL: server.baseURL,
             POCKETRISU_H1_TOKEN: server.token,
             POCKETRISU_H1_EXPECTED_REVISION: expectedRevision,
@@ -374,6 +376,21 @@ afterEach(async () => {
 })
 
 describe('server chat composed process boundary', () => {
+    it('preserves a server answer through conflicting and subsequent stale-view client saves', async () => {
+        const runtimeRoot = makeRuntimeRoot()
+        await seedRuntime(runtimeRoot)
+        const server = await startServer(runtimeRoot)
+        const initial = await readChat(server)
+        await runBlankClientProcess(server, initial.revision, true)
+        const saved = await readChat(server)
+        expect(saved.chat).toMatchObject({ name: 'client edit', note: 'second save' })
+        expect(saved.chat.message.map((message: any) => message.chatId)).toEqual(['user-1', 'remote-answer'])
+        expect(saved.chat.message[0].data).toBe('edited while waiting')
+        expect(saved.chat.message[1].data).toBe('server-side answer')
+        const counts = await readCounters(server)
+        expect(counts.providerCalls).toBe(0)
+    })
+
     it('continues one AC-off turn after the initiating process exits and supports blank-client adoption', async () => {
         const runtimeRoot = makeRuntimeRoot()
         await seedRuntime(runtimeRoot)
