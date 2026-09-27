@@ -1,7 +1,7 @@
 # G1.11 external request header rules
 
 Date: 2026-09-27 KST
-Status: implemented and automatically verified candidate; live delivery, current-provider probe and physical UI observations are recorded separately below. This does not implement the G1.6 server plugin host or complete G1.
+Status: implemented, automatically verified, pushed and live-applied with no configured rules. Current-provider and physical UI checks remain open. This does not implement the G1.6 server plugin host or complete G1.
 
 ## User behavior and ownership
 
@@ -34,6 +34,12 @@ New coverage includes absent/disabled rules, origin/port/path negatives, forbidd
 Node 25.9.0 documentation informed async context and redirect behavior. Svelte 5.55.3 was verified with official Svelte 5 documentation and the installed compiler. No dependency/version configuration changed. Existing build warnings remain.
 
 ## Delivery and open checks
+
+Implementation commit `cf4eaea` was pushed to the existing candidate branch. Live preflight found 416 managed files with no drift, zero active requests/pending sends/input records, and 47 operation-state rows. Five SQLite backups passed quick_check; an application/state/intent archive was retained. A fresh idle check preceded stop/apply/build/restart. Only the planned nine source/test/state paths changed.
+
+Live root returned HTTP 200. `/assets/index-BOS-ch8t.js` was 2,167,443 bytes and matched the local SHA-256 `915cf74a0dc1941cdab0dcef4198591a8a7274410809aedb3265a944f10ef4a6`. All 420 managed files matched hash/mode, replan had zero changes, and all five databases passed quick_check. PM2 was online with zero unstable restarts, active requests and pending sends; the operation-state count remained 47. Error-log growth was the existing retained-journal warning (six records, 2,974 bytes). No journal cleanup was performed.
+
+A read-only check found zero external-header settings rows after deployment. The new unauthenticated settings GET returned PocketRisu's expected 400. No rule or HMAC secret was automatically created, and no destination was enabled. Physical settings interaction remains unobserved; no stable tag or release was created.
 
 No live rule is enabled automatically. No MARP or AC script is changed. Current-provider requests using stored credentials were rejected by automatic approval review pending explicit authorization; no rejected request was executed. Synthetic HTTPS results are not a substitute for the actual provider or MARP's three-analysis integration.
 
