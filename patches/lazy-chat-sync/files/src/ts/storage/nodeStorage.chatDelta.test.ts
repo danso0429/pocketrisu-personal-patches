@@ -50,9 +50,13 @@ function makeStorage(responses: Array<Response | Error>) {
 }
 
 function seedRevision(storage: InstanceType<typeof NodeStorage>, snapshot: any | null) {
+    if (snapshot) {
+        ;(storage as any).rememberChatSyncState('char-1|chat-1', 'revision-1', snapshot, JSON.stringify(snapshot).length)
+        return
+    }
     ;(storage as any).chatSyncStates.set('char-1|chat-1', {
         revision: 'revision-1',
-        snapshot,
+        snapshot: snapshot ? structuredClone(snapshot) : null,
         encodedBytes: snapshot ? JSON.stringify(snapshot).length : 0,
     })
 }
@@ -130,7 +134,7 @@ describe('NodeStorage chat revision safety', () => {
         expect(authFetch).toHaveBeenCalledTimes(2)
     })
 
-    test('rebases an earlier edit onto a server answer and preserves it on the next stale-view save', async () => {
+    test('publishes a rebased server answer and preserves it on the next save', async () => {
         const original = { id: 'chat-1', name: 'Chat', message: [
             { role: 'char', chatId: 'earlier', data: 'before' },
             { role: 'user', chatId: 'input', data: 'x'.repeat(12_000) },
@@ -150,7 +154,7 @@ describe('NodeStorage chat revision safety', () => {
         const first = chatDelta.applyChatDelta(remote, rebasedBody.patch, 'chat-1')
         expect(first.message.map((m: any) => m.chatId)).toEqual(['earlier', 'input', 'answer'])
         expect(first.message[0].data).toBe(local.message[0].data)
-        expect(local.message).toHaveLength(2)
+        expect(local.message).toHaveLength(3)
         local.message[0].data += ' again'
         await storage.saveChatContent('char-1', 0, 'chat-1', local)
         const nextBody = JSON.parse(String(authFetch.mock.calls[3][1].body))
@@ -158,6 +162,45 @@ describe('NodeStorage chat revision safety', () => {
         expect(nextBody.baseRevision).toBe('revision-3')
         expect(second.message.at(-1).chatId).toBe('answer')
         expect(second.message[0].data).toBe(local.message[0].data)
+    })
+
+    test('preserves an in-flight same-field edit after a lost ACK and remote append', async () => {
+        const original = chat([{ role: 'user', data: 'question' }])
+        const local = { ...structuredClone(original), name: 'sent edit' }
+        const remote = { ...structuredClone(local), message: [...original.message, { role: 'char', data: 'answer' }] }
+        const { storage, authFetch } = makeStorage([
+            new Error('lost ACK'), serverChatResponse(remote, 'revision-2'), new Response('{"revision":"revision-3"}'),
+        ])
+        seedRevision(storage, original)
+        ;(storage as any).chatDeltaSupported = false
+        const fetch = authFetch.getMockImplementation()!
+        authFetch.mockImplementation(async (...args) => {
+            if (authFetch.mock.calls.length === 1) local.name = 'newer unsaved edit'
+            return fetch(...args)
+        })
+        await storage.saveChatContent('char-1', 0, 'chat-1', local)
+        expect(local.name).toBe('newer unsaved edit')
+        expect(local.message).toEqual(remote.message)
+        const saved = JSON.parse(new TextDecoder().decode(authFetch.mock.calls[2][1].body as Uint8Array))
+        expect(saved.name).toBe('newer unsaved edit')
+    })
+
+    test.each(['streaming', 'detached slot'])('does not publish into a %s and can retry after it clears', async (condition) => {
+        const original = chat([{ role: 'user', data: 'question' }])
+        const local = { ...structuredClone(original), name: 'edit', isStreaming: condition === 'streaming' }
+        const remote = chat([...original.message, { role: 'char', data: 'answer' }])
+        const { storage } = makeStorage([
+            new Response('{}', { status: 412 }), serverChatResponse(remote, 'revision-2'),
+            new Response('{}', { status: 412 }), serverChatResponse(remote, 'revision-2'), new Response('{"revision":"revision-3"}'),
+        ])
+        seedRevision(storage, original)
+        ;(storage as any).chatDeltaSupported = false
+        await expect(storage.saveChatContent('char-1', 0, 'chat-1', local, 'update', () => condition !== 'detached slot')).rejects.toBeInstanceOf(ChatConflictError)
+        expect(local.message).toEqual(original.message)
+        expect((storage as any).chatSyncStates.get('char-1|chat-1').revision).toBe('revision-1')
+        local.isStreaming = false
+        await storage.saveChatContent('char-1', 0, 'chat-1', local)
+        expect(local.message).toEqual(remote.message)
     })
 
     test('rebases the full-save 412 path while retaining CAS and a server append', async () => {
@@ -209,33 +252,93 @@ describe('NodeStorage chat revision safety', () => {
         expect(saved.message.at(-1).chatId).toBe('answer')
     })
 
-    test('does not turn eviction of a diverged client view into a destructive full save', async () => {
-        const { storage, authFetch } = makeStorage([])
-        const local = chat([{ role: 'user', data: 'old view' }])
-        const remote = chat([...local.message, { role: 'char', data: 'answer' }])
-        ;(storage as any).rememberChatSyncState('char-1|chat-1', 'revision-2', remote, JSON.stringify(remote).length, local)
+    test('continues saving the published answer after opening four other chats evicts the merge snapshot', async () => {
+        const original = chat([{ role: 'user', data: 'old view' }])
+        const local = { ...structuredClone(original), name: 'edit' }
+        const remote = chat([...original.message, { role: 'char', data: 'answer' }])
+        const { storage, authFetch } = makeStorage([
+            new Response('{}', { status: 412 }), serverChatResponse(remote, 'revision-2'),
+            new Response('{"revision":"revision-3"}'), new Response('{"revision":"revision-4"}'),
+        ])
+        seedRevision(storage, original)
+        ;(storage as any).chatDeltaSupported = false
+        await storage.saveChatContent('char-1', 0, 'chat-1', local)
         for (let i = 0; i < 5; i++) {
             const other = { ...local, id: 'other-' + i }
             ;(storage as any).rememberChatSyncState('char-1|other-' + i, 'other-revision', other, JSON.stringify(other).length)
         }
-        expect((storage as any).chatSyncStates.get('char-1|chat-1')).toMatchObject({ snapshot: null, localSnapshot: null, viewDiverged: true })
-        await expect(storage.saveChatContent('char-1', 0, 'chat-1', chat([{ role: 'user', data: 'old view' }])))
-            .rejects.toThrow(/baseline is unavailable/)
-        expect(authFetch).not.toHaveBeenCalled()
+        expect((storage as any).chatSyncStates.get('char-1|chat-1')).toMatchObject({ snapshot: null, revision: 'revision-3' })
+        local.name = 'next edit'
+        await storage.saveChatContent('char-1', 0, 'chat-1', local)
+        const request = authFetch.mock.calls[3][1]
+        expect((request.headers as any)['x-chat-base-revision']).toBe('revision-3')
+        expect(JSON.parse(new TextDecoder().decode(request.body as Uint8Array))).toMatchObject({ name: 'next edit', message: remote.message })
     })
 
-    test('fences a stale view after a successful rebased save without revision metadata', async () => {
+    test('confirms a rebased save without revision metadata and continues saving', async () => {
         const original = chat([{ role: 'user', data: 'question' }])
         const local = { ...original, name: 'edited' }
         const remote = chat([...original.message, { role: 'char', data: 'answer' }])
         const { storage, authFetch } = makeStorage([
             new Response('{}', { status: 412 }), serverChatResponse(remote, 'revision-2'), new Response('{}'),
+            serverChatResponse({ ...remote, name: 'edited' }, 'revision-3'), new Response('{"revision":"revision-4"}'),
         ])
         seedRevision(storage, original)
         ;(storage as any).chatDeltaSupported = false
         await storage.saveChatContent('char-1', 0, 'chat-1', local)
-        await expect(storage.saveChatContent('char-1', 0, 'chat-1', local)).rejects.toThrow(/baseline is unavailable/)
-        expect(authFetch).toHaveBeenCalledTimes(3)
+        local.name = 'again'
+        await storage.saveChatContent('char-1', 0, 'chat-1', local)
+        expect(local.message).toEqual(remote.message)
+        expect(authFetch).toHaveBeenCalledTimes(5)
+    })
+
+    test.each(['create', 'update'] as const)('recovers an evicted unversioned %s acknowledgement after confirmation failed', async (intent) => {
+        const original = chat([{ role: 'user', data: 'question' }])
+        const local = { ...structuredClone(original), name: 'sent edit' }
+        const responses = [new Response('{}'), new Error('confirmation unavailable'), serverChatResponse(local, 'revision-2'), new Response('{"revision":"revision-3"}')]
+        if (intent === 'create') responses.unshift(new Response('{}', { status: 404 }))
+        const { storage, authFetch } = makeStorage(responses)
+        if (intent === 'update') seedRevision(storage, original)
+        ;(storage as any).chatDeltaSupported = false
+        await storage.saveChatContent('char-1', 0, 'chat-1', local, intent)
+        for (let index = 0; index < 4; index++) {
+            const other = { id: `other-${index}`, message: [] }
+            ;(storage as any).rememberChatSyncState(`char-1|${other.id}`, 'other', other, 100)
+        }
+        const evicted = (storage as any).chatSyncStates.get('char-1|chat-1')
+        expect(evicted.snapshot).toBeNull()
+        expect(evicted.unknownAck).toBe(true)
+        expect(evicted.acknowledgedViewFingerprint).toHaveLength(64)
+        local.name = 'later edit'
+        await storage.saveChatContent('char-1', 0, 'chat-1', local)
+        const request = authFetch.mock.calls.at(-1)![1]
+        expect((request.headers as any)['x-chat-base-revision']).toBe('revision-2')
+        expect(JSON.parse(new TextDecoder().decode(request.body as Uint8Array)).name).toBe('later edit')
+    })
+
+    test('confirms an already stored unversioned payload without requiring view publication', async () => {
+        const original = chat([{ role: 'user', data: 'question' }])
+        const { storage, authFetch } = makeStorage([serverChatResponse(original, 'revision-2')])
+        ;(storage as any).rememberChatSyncState('char-1|chat-1', '', original, JSON.stringify(original).length)
+        ;(storage as any).chatSyncStates.get('char-1|chat-1').unknownAck = true
+        await storage.saveChatContent('char-1', 0, 'chat-1', structuredClone(original), 'update', () => false)
+        expect(authFetch).toHaveBeenCalledTimes(1)
+        expect((storage as any).chatSyncStates.get('char-1|chat-1').revision).toBe('revision-2')
+    })
+
+    test('reconstructs an evicted unversioned view from unchanged local content before adopting a remote append', async () => {
+        const original = chat([{ role: 'user', data: 'question' }])
+        const local = { ...structuredClone(original), name: 'sent edit' }
+        const remote = { ...structuredClone(local), message: [...original.message, { role: 'char', data: 'answer' }] }
+        const { storage } = makeStorage([new Response('{}'), new Error('confirmation unavailable'), serverChatResponse(remote, 'revision-2'), new Response('{"revision":"revision-3"}')])
+        seedRevision(storage, original)
+        ;(storage as any).chatDeltaSupported = false
+        await storage.saveChatContent('char-1', 0, 'chat-1', local)
+        for (let index = 0; index < 4; index++) {
+            ;(storage as any).rememberChatSyncState(`char-1|other-${index}`, 'other', { id: `other-${index}`, message: [] }, 100)
+        }
+        await storage.saveChatContent('char-1', 0, 'chat-1', local)
+        expect(local.message).toEqual(remote.message)
     })
 
     test('uses the write acknowledgment rather than a concurrent cache refresh revision', async () => {
@@ -301,7 +404,7 @@ describe('NodeStorage chat revision safety', () => {
 
     test('preserves an intentional deletion after the UI adopts an answer during a save', async () => {
         const original = chat([{ role: 'user', data: 'question' }])
-        const oldView = { ...original, name: 'old edit' }
+        const oldView = { ...structuredClone(original), name: 'old edit' }
         const remote = chat([...original.message, { role: 'char', data: 'answer' }])
         const firstSaved = { ...remote, name: 'old edit' }
         const { storage, authFetch } = makeStorage([

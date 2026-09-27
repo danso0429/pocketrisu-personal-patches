@@ -41,6 +41,8 @@ describe('server-committed chat adoption', () => {
     it('replaces an unchanged full slot and adopts the server revision baseline', async () => {
         const before = chat('before')
         const after = chat('after')
+        after.isStreaming = true
+        after.activeStreamingDisplayOptimizationMode = 'enabled'
         const chats = [before]
         const snapshot = {
             chat: after,
@@ -60,8 +62,10 @@ describe('server-committed chat adoption', () => {
             'stored-revision',
             ['base-revision'],
             (value) => value === before ? 'base-revision' : 'unexpected',
-        )).resolves.toMatchObject({ adopted: true, revision: 'stored-revision', chat: after })
-        expect(chats[0]).toBe(after)
+        )).resolves.toMatchObject({ adopted: true, revision: 'stored-revision', chat: { ...after, isStreaming: false, activeStreamingDisplayOptimizationMode: undefined } })
+        expect(chats[0]).not.toBe(after)
+        expect(after.isStreaming).toBe(true)
+        expect(after.activeStreamingDisplayOptimizationMode).toBe('enabled')
         expect(peekChatContentSnapshot).toHaveBeenCalledWith('char-1', 0, 'chat-1')
         expect(rememberSnapshotMock).toHaveBeenCalledWith('char-1', 'chat-1', snapshot)
         expect(tickMock).toHaveBeenCalledTimes(1)

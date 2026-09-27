@@ -51,7 +51,9 @@ test('script mutation writes the exact clone payload and skips read-only calls',
     const implementation = unit(
         'haejeok-persistence-safety-adapter:durable-chat-payload-impl',
     ).content
-    assert.match(implementation, /liveChat\.message = safeStructuredClone\(chat\.message\)/)
+    assert.match(implementation, /const merged = mergeDerivedChat\(chat, liveChat, \['message'\]\)/)
+    assert.match(implementation, /chat\.message = safeStructuredClone\(merged\.message\)/)
+    assert.match(implementation, /liveChat\.message = safeStructuredClone\(merged\.message\)/)
     assert.match(implementation, /requestDurableSaveImpl\(\{ chat: \[chaId, chatId\] \}\)/)
     assert.doesNotMatch(implementation, /saveChatToServer/)
     assert.match(

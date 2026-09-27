@@ -22,7 +22,7 @@ const externalHeaderBridgeUnits = require('./external-header-units.cjs')
 module.exports = {
     id: 'lazy-chat-bg-adapter',
     title: 'BG preserve integration for lazy chat storage',
-    version: '0.7.15',
+    version: '0.7.16',
     targets: {
         pocketrisu: {
             verified: ['1.10.0'],
@@ -335,8 +335,7 @@ export async function adoptServerCommittedChat(
                 currentRevision: snapshot.revision,
             }
         }
-        snapshot.chat.isStreaming = false
-        snapshot.chat.activeStreamingDisplayOptimizationMode = undefined
+        const displayChat = { ...snapshot.chat, isStreaming: false, activeStreamingDisplayOptimizationMode: undefined }
         await yieldForHydrationPaint()
 
         const currentIndex = chats.findIndex(chat => chat?.id === chatId)
@@ -353,7 +352,7 @@ export async function adoptServerCommittedChat(
 
         acquireHydrationState(hydrationJustApplied, hydrationJustAppliedCounts, key)
         try {
-            chats[currentIndex] = snapshot.chat
+            chats[currentIndex] = displayChat
             forageStorage.realStorage.rememberChatContentSnapshot(chaId, chatId, snapshot)
             await tick()
         } finally {
@@ -362,7 +361,7 @@ export async function adoptServerCommittedChat(
         return {
             adopted: true,
             revision: snapshot.revision,
-            chat: snapshot.chat,
+            chat: displayChat,
         }
     } finally {
         releaseHydrationState(hydrationInFlight, hydrationInFlightCounts, key)

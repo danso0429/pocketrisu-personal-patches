@@ -56,7 +56,7 @@ const defaultChatOwners = [
 module.exports = {
     id: 'haejeok-persistence-safety-adapter',
     title: 'Haejeok persistence safety adapter',
-    version: '0.1.0',
+    version: '0.1.1',
     source: 'Haejeok RisuAI e9d03568 focused persistence ordering adaptation',
     targets: {
         pocketrisu: {
@@ -72,6 +72,19 @@ module.exports = {
         all: ['bg-preserve', 'lazy-chat-sync'],
     },
     units: [
+        {
+            id: 'haejeok-persistence-safety-adapter:variable-compatibility-tests',
+            file: 'src/ts/storage/triggerVariableCompatibility.test.ts',
+            type: 'owned', content: owned('src/ts/storage/triggerVariableCompatibility.test.ts'),
+            targetVersions: pocketRisu1100,
+        },
+        {
+            id: 'haejeok-persistence-safety-adapter:publication-caller-tests',
+            file: 'src/ts/storage/chatSaveCallerPublication.test.ts',
+            type: 'owned', content: owned('src/ts/storage/chatSaveCallerPublication.test.ts'),
+            targetVersions: pocketRisu1100,
+        },
+        ...require('./chat-save-publication-units.cjs')({ globalApiOwners, defaultChatOwners }),
         {
             id: 'haejeok-persistence-safety-adapter:helper',
             file: 'src/ts/haejeokPersistenceSafety.ts',
@@ -184,7 +197,10 @@ export function requestDurableChatPayloadSave(
         // Script APIs mutate messages only. Merge that exact field into the lazy-chat owner before
         // enlisting its existing strict transaction; a parallel direct writer could be overwritten
         // by an older autosave that was already in flight.
-        liveChat.message = safeStructuredClone(chat.message)
+        const merged = mergeDerivedChat(chat, liveChat, ['message'])
+        chat.message = safeStructuredClone(merged.message)
+        liveChat.message = safeStructuredClone(merged.message)
+        acknowledgeDerivedFields(chat)
         await requestDurableSaveImpl({ chat: [chaId, chatId] })
     }
 `,
@@ -290,7 +306,7 @@ export function requestDurableChatPayloadSave(
 `,
             content: `                appendUserMessage({
                     role: 'user',
-                    data: await processScript(char,messageInput,'editinput'),
+                    data: await processScript(char,preparedInput,'editinput'),
                     time: Date.now(),
                     name: null
                 })
@@ -312,7 +328,7 @@ export function requestDurableChatPayloadSave(
 `,
             content: `                appendUserMessage({
                     role: 'user',
-                    data: messageInput,
+                    data: preparedInput,
                     time: Date.now(),
                     name: null
                 })

@@ -1,5 +1,6 @@
 import { forageStorage } from "../globalApi.svelte"
-import { type Chat, type ChatStub, type ChatOrStub, isChatStub } from "./database.svelte"
+import { type Chat, type ChatStub, type ChatOrStub, isChatStub, getDatabase } from "./database.svelte"
+import { isChatGenerating, chatGenKey } from '../process/generationState'
 import { tick } from "svelte"
 import type { ChatSaveIntent } from "./chatSaveIntent"
 
@@ -165,7 +166,11 @@ export async function saveChatToServer(
     intent: ChatSaveIntent = 'update',
 ): Promise<void> {
     const storage = forageStorage.realStorage
-    await storage.saveChatContent(chaId, chatIndex, chatId, chat, intent)
+    await storage.saveChatContent(chaId, chatIndex, chatId, chat, intent, () => {
+        const character = getDatabase().characters?.find(item => item.chaId === chaId)
+        return character?.chats?.find(item => item.id === chatId) === chat
+            && !isChatGenerating(chatGenKey(chatId))
+    })
 }
 
 // ── Hydration ───────────────────────────────────────────────────────────────
