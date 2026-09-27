@@ -102,9 +102,32 @@ all delivered in the pre-apply backup, with no newly added row or outstanding
 result. No provider call or browser test was performed during these checks.
 
 The planned normal-chat API read-before-browser-reopen requires an authorized
-JWT for `/api/chat-content`. An attempt to prepare a temporary JWT directly
-from the live server secret was rejected by the runtime security review as an
-authentication bypass; it was not executed or retried through another path.
-That readback remains unverified pending an approved, supported authentication
-method. The actual iPhone send, complete PWA exit, server completion before
-reopen, answer adoption, effects-once and paid-call count also remain open.
+JWT for `/api/chat-content`. An initial attempt to prepare a temporary JWT
+directly from the live server secret was rejected by runtime security review
+and was not executed or bypassed. The user then explicitly authorized a
+memory-only, short-lived token for read-only normal-chat GETs. Under that
+approval, a missing-chat probe returned 404 and an actual chat GET returned
+200 with a revision header. No key, token, chat ID or content was printed or
+persisted by these probes.
+
+### First iPhone send: non-qualifying provider path
+
+One iPhone send was observed after activation. The request log gained one
+successful direct streaming request, and one Gemini model job reached `done`
+with 22,138 result bytes but remained unclaimed. A pending-send record
+remained. No new G1 operation state, input command or commit record appeared.
+The normal chat API returned 55 messages, the same count reported at the
+server's pre-generation chat-context read, ending in a user message rather
+than a committed assistant answer. This is not evidence that the answer was
+lost: the completed model-job result was still retained for client return.
+
+Read-only settings inspection found preset model mode, module model bindings
+enabled and plugin-model IDs. Each is an explicit reason to retain the older
+client-prepared path instead of input-v1 early admission. This attempt
+therefore does not qualify or refute the G1 server-owned input path. Whether
+the PWA was fully exited before completion and whether return adopted the
+unclaimed result are awaiting device confirmation. A qualifying classic
+cloud-model test would require a deliberate settings change or an isolated
+test environment; the live user's settings were not altered. G1 browser
+exit/read-before-reopen, answer adoption, effects-once and paid-call gates
+remain open.
