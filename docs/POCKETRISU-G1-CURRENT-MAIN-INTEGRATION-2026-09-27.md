@@ -72,9 +72,9 @@ zero result rows; model jobs were 48 done, 2 aborted, zero running, and
 pending sends were zero. The patcher plan reported verified compatibility,
 42 packs, 7 declared collisions and 58 changed paths, with no AC path.
 
-Before stopping the process, a private recovery directory was created at
-`backups/pocketrisu-g1-prelive-20260927-105146` in the live tree (directory
-mode 0700, files 0600). It contains consistent SQLite backups of `risuai.db`
+Before stopping the process, an untracked, operator-only recovery directory
+was created outside this repository (directory mode 0700, files 0600). It
+contains consistent SQLite backups of `risuai.db`
 and `model-jobs.db`, prior patcher state/intent, and a source archive excluding
 `save`, `backups`, `node_modules` and `dist`. Both backed-up databases returned
 `quick_check=ok`; the source archive listed 1,427 entries successfully. The
@@ -178,13 +178,14 @@ answer and successful chat save; its claimed job and raw response journal were
 still present. The second job's raw journal was present as well. No current
 chat-write journal record remained for this chat.
 
-This count change is not classified as data loss without the device action:
-rerolling the last answer would deliberately remove it before regenerating,
-whereas sending a distinct new user message should not. The user was asked
-which control was used and whether the first answer remained visible. No
-recovery write, rollback, cancel, additional send or live source edit was made.
+The user subsequently clarified that they manually deleted the preceding
+message before sending again. The 56-to-55 count change alone is therefore
+not evidence of an unintended overwrite; its exact deletion scope was not
+independently observed. No recovery write, rollback, cancel, additional send
+or live source edit was made.
+
 Before further client activity, consistent copies of `risuai.db`,
 `model-jobs.db`, `logs.db` and `request-logs.db` plus an archive of the
-model-job raw journals were stored under the live private directory
-`backups/pocketrisu-g1-second-send-20260927-114115`. The four DB copies
-returned `quick_check=ok`; the originals were not removed or replaced.
+model-job raw journals were stored in a separate untracked, operator-only
+recovery directory. The four DB copies returned `quick_check=ok`; the
+originals were not removed or replaced.
