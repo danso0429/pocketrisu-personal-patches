@@ -2,8 +2,9 @@
 
 Date: 2026-09-27 KST
 
-Status: isolated automatic candidate. G1 is not complete; no live application,
-real-browser/iPhone qualification, paid-provider test, tag or release is claimed.
+Status: live-applied candidate with automated and HTTP checks. G1 is not
+complete; real-browser/iPhone qualification, paid-provider test, tag and
+release remain open.
 
 ## Source and ownership
 
@@ -35,9 +36,9 @@ real-browser/iPhone qualification, paid-provider test, tag or release is claimed
 | Target type/build | 0 errors, 0 warnings; production build passed; BG bundle built and loaded `sendChat` |
 | Live baseline (read-only) | 370 managed paths matched installed hashes and modes, mismatch 0; installed pack versions above |
 
-No live PocketRisu source, PM2 process, user database, provider or AC runtime
-was changed by this validation. The previous branch's detailed owner/audit
-evidence remains in its
+The automatic validation above did not change live PocketRisu, user data,
+provider or AC runtime. A separate controlled live application is recorded
+below. The previous branch's detailed owner/audit evidence remains in its
 `docs/POCKETRISU-1.10-BG-INDEPENDENT-G1-RUNTIME-AUDIT-2026-09-27.md`;
 the exact generated-product parity is the bridge to this current-engine tree.
 
@@ -61,3 +62,49 @@ the exact generated-product parity is the bridge to this current-engine tree.
   content and effect receipts may have been written after activation; preserve
   and inspect them before any rollback, and do not remove user-created
   conflict copies or recovery records as cleanup.
+
+## Controlled live application (2026-09-27 KST)
+
+The exact installer above was applied to the existing PocketRisu 1.10 live
+tree after a fresh read-only preflight. All 370 prior managed files matched
+their installed hashes and modes. The prior BG states were 52 delivered,
+zero result rows; model jobs were 48 done, 2 aborted, zero running, and
+pending sends were zero. The patcher plan reported verified compatibility,
+42 packs, 7 declared collisions and 58 changed paths, with no AC path.
+
+Before stopping the process, a private recovery directory was created at
+`backups/pocketrisu-g1-prelive-20260927-105146` in the live tree (directory
+mode 0700, files 0600). It contains consistent SQLite backups of `risuai.db`
+and `model-jobs.db`, prior patcher state/intent, and a source archive excluding
+`save`, `backups`, `node_modules` and `dist`. Both backed-up databases returned
+`quick_check=ok`; the source archive listed 1,427 entries successfully. The
+recovery copy has not been used, removed or published.
+
+After the zero-active-work recheck, PM2 was stopped before applying. The
+installer changed the planned 58 paths. The first BG bundle build could not
+resolve `svelte` because the live `node_modules` lacked dev-dependency links;
+`pnpm install --frozen-lockfile --offline` restored 109 cached packages without
+changing the package manifest or lockfile. The subsequent BG bundle build
+loaded `sendChat`; the frontend build completed with 8,005 transformed modules.
+The post-apply patcher status was `current` for 413/413 managed files, all
+42 catalog pack versions were current, and a second plan had zero changes.
+
+PM2 restarted with zero unstable restarts. The live HTTP root returned 200;
+its HTML referenced `/assets/index-Cs1RITL4.js`, and the served file matched
+the local SHA-256
+`f9ae80891afab536ad596548843b2295309878c49f139802257d982d439ddd18`.
+The authenticated capability endpoint returned HTTP 200 and
+`inputCommandVersion=1`, `inputCommandFoundationVersion=4`,
+`serverChatCommitVersion=1`, `chatExecutionProjectionVersion=1`. Live DB
+`quick_check=ok`; the PM2 error log remained at 228 bytes. A subsequent
+retention check found 47 delivered BG state rows: the five removed rows were
+all delivered in the pre-apply backup, with no newly added row or outstanding
+result. No provider call or browser test was performed during these checks.
+
+The planned normal-chat API read-before-browser-reopen requires an authorized
+JWT for `/api/chat-content`. An attempt to prepare a temporary JWT directly
+from the live server secret was rejected by the runtime security review as an
+authentication bypass; it was not executed or retried through another path.
+That readback remains unverified pending an approved, supported authentication
+method. The actual iPhone send, complete PWA exit, server completion before
+reopen, answer adoption, effects-once and paid-call count also remain open.
