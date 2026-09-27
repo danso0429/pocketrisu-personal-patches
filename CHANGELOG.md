@@ -1,5 +1,17 @@
 # Changelog
 
+## 0.2.4-experimental.6 (BG candidate)
+
+Lazy chat BG adapter `0.7.13`.
+
+- Restore detached admission when stored chats contain undefined fields omitted
+  by JSON transport, while retaining the original durable commit revision.
+- Record bounded start-rejection reason codes without response bodies or IDs.
+- Omit unavailable model-job recovery metadata and retain decoded token usage.
+- Automated qualification is recorded in
+  `docs/POCKETRISU-G1-0-ADMISSION-RECOVERY-2026-09-27.md`; physical preset-send
+  qualification remains open. This candidate does not implement server plugin hosting.
+
 ## 0.2.4-experimental.4
 
 Personal settings `0.5.10`.

@@ -21,7 +21,7 @@ const bgGlobalApiUnits = [
 module.exports = {
     id: 'lazy-chat-bg-adapter',
     title: 'BG preserve integration for lazy chat storage',
-    version: '0.7.12',
+    version: '0.7.13',
     targets: {
         pocketrisu: {
             verified: ['1.10.0'],
@@ -34,6 +34,91 @@ module.exports = {
         all: ['bg-preserve', 'lazy-chat-sync'],
     },
     units: [
+        ...['bgOrchestrationStartDiagnostic.ts', 'bgOrchestrationStartDiagnostic.test.ts'].map((name) => ({
+            id: `lazy-chat-bg-adapter:owned:${name}:1.10`,
+            file: `src/ts/${name}`,
+            type: 'owned',
+            content: owned1100(`src/ts/${name}`),
+            targetVersions: pocketRisu1100,
+        })),
+        {
+            id: 'lazy-chat-bg-adapter:start-diagnostic-import:1.10',
+            file: 'src/ts/bgOrchestrate.ts',
+            type: 'insert', where: 'before',
+            anchor: "import { get } from 'svelte/store'\n",
+            content: "import { orchestrationStartDiagnostic } from './bgOrchestrationStartDiagnostic'\n",
+            requires: ['bg-preserve:owned:src/ts/bgOrchestrate.ts:1.9', 'lazy-chat-bg-adapter:owned:bgOrchestrationStartDiagnostic.ts:1.10'],
+            after: ['lazy-chat-bg-adapter:server-chat-commit-client-replay-ambiguity:1.10'],
+            targetVersions: pocketRisu1100,
+        },
+        {
+            id: 'lazy-chat-bg-adapter:start-diagnostic-state:1.10',
+            file: 'src/ts/bgOrchestrate.ts',
+            type: 'insert', where: 'before',
+            anchor: '        void reconcileOrchestrationStart({\n',
+            content: "        let startRejectionReason = 'unknown'\n",
+            requires: ['lazy-chat-bg-adapter:start-diagnostic-import:1.10'],
+            targetVersions: pocketRisu1100,
+        },
+        {
+            id: 'lazy-chat-bg-adapter:start-diagnostic-capture:1.10',
+            file: 'src/ts/bgOrchestrate.ts',
+            type: 'insert', where: 'before',
+            anchor: "                if (res.status === 401 || res.status === 403) return 'rejected'\n",
+            content: '                startRejectionReason = orchestrationStartDiagnostic(res.status, data?.reason)\n',
+            requires: ['lazy-chat-bg-adapter:start-diagnostic-state:1.10'],
+            targetVersions: pocketRisu1100,
+        },
+        {
+            id: 'lazy-chat-bg-adapter:start-diagnostic-log:1.10',
+            file: 'src/ts/bgOrchestrate.ts',
+            type: 'replace',
+            anchor: "                console.error('[bg-orch] detached start rejected')\n",
+            content: "                console.error('[bg-orch] detached start rejected:', startRejectionReason)\n",
+            requires: ['lazy-chat-bg-adapter:start-diagnostic-capture:1.10'],
+            targetVersions: pocketRisu1100,
+        },
+        {
+            id: 'lazy-chat-bg-adapter:recovered-message-usage-argument:1.10',
+            file: 'src/ts/process/request/jobRecovery.ts',
+            type: 'replace',
+            anchor: 'function insertRecoveredMessage(loc: LocatedChat, job: ModelJobRecord, text: string): void {\n',
+            content: 'function insertRecoveredMessage(loc: LocatedChat, job: ModelJobRecord, text: string, usage?: AdapterUsage): void {\n',
+            targetVersions: pocketRisu1100,
+        },
+        {
+            id: 'lazy-chat-bg-adapter:recovered-message-metadata:1.10',
+            file: 'src/ts/process/request/jobRecovery.ts',
+            type: 'replace',
+            anchor: `            generationId: job.generationId ?? undefined,
+            model: job.model ? getGenerationModelString(job.model) : undefined,
+`,
+            content: `            ...(job.generationId ? { generationId: job.generationId } : {}),
+            ...(job.model ? { model: getGenerationModelString(job.model) } : {}),
+            ...(usage?.promptTokens != null ? { inputTokens: usage.promptTokens } : {}),
+            ...(usage?.completionTokens != null ? { outputTokens: usage.completionTokens } : {}),
+`,
+            requires: ['lazy-chat-bg-adapter:recovered-message-usage-argument:1.10'],
+            targetVersions: pocketRisu1100,
+        },
+        {
+            id: 'lazy-chat-bg-adapter:recovered-message-usage-call:1.10',
+            file: 'src/ts/process/request/jobRecovery.ts',
+            type: 'replace',
+            anchor: '            insertRecoveredMessage(loc, job, result.text)\n',
+            content: '            insertRecoveredMessage(loc, job, result.text, result.usage)\n',
+            requires: ['lazy-chat-bg-adapter:recovered-message-metadata:1.10'],
+            targetVersions: pocketRisu1100,
+        },
+        {
+            id: 'lazy-chat-bg-adapter:recovered-message-metadata-tests:1.10',
+            file: 'src/ts/process/request/jobRecovery.test.ts',
+            type: 'insert', where: 'after',
+            anchor: "describe('recoverTerminalJob', () => {\n",
+            content: owned1100('tests/recovered-message-metadata.inc') + '\n',
+            requires: ['lazy-chat-bg-adapter:recovered-message-usage-call:1.10'],
+            targetVersions: pocketRisu1100,
+        },
         {
             id: 'lazy-chat-bg-adapter:asset-upload-retry-import',
             file: 'src/ts/storage/nodeStorage.ts',
@@ -2553,12 +2638,14 @@ const serverChatCommitOwner = createServerChatCommitOwner({
           ? serverInputExecution.record.inputReceipt : null
         let serverInputProviderStarted = false
         if (serverChatCommitVersion === 1 && !serverBaseChatRevision) {
+          console.warn('[bg-orch] detached start rejected: server-chat-commit-base-unavailable')
           return res.status(409).json({
             handled: false, started: false, operationId,
             reason: 'server-chat-commit-base-unavailable',
           })
         }
         if (serverChatCommitVersion === 1 && !serverCommitBase.matches) {
+          console.warn('[bg-orch] detached start rejected: server-chat-commit-input-stale')
           return res.status(409).json({
             handled: false, started: false, operationId,
             reason: 'server-chat-commit-input-stale',

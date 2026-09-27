@@ -624,14 +624,22 @@ function createServerChatCommitOwner({
     }
 
     async function captureBase(charId, chatId, submittedChat) {
-        const revision = await currentRevision(charId, chatId);
+        await ensureCanonicalState();
+        const canonicalChat = getFullChatStore()?.get(charId)?.get(chatId) || null;
+        // Admission crosses JSON transport, which drops undefined object fields and
+        // turns undefined array slots into null. Compare that representation only here;
+        // the durable base revision must still identify the unmodified stored bytes.
+        const revision = canonicalChat ? chatRevision(canonicalChat) : null;
+        const transportRevision = canonicalChat
+            ? chatRevision(JSON.parse(JSON.stringify(canonicalChat)))
+            : null;
         const submittedRevision = submittedChat && typeof submittedChat === 'object'
-            ? chatRevision(submittedChat)
+            ? chatRevision(JSON.parse(JSON.stringify(submittedChat)))
             : null;
         return {
             revision,
             submittedRevision,
-            matches: !!revision && submittedRevision === revision,
+            matches: !!revision && submittedRevision === transportRevision,
         };
     }
 

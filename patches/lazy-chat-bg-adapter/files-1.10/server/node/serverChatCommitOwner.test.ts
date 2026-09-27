@@ -246,6 +246,53 @@ function makeHarness() {
 }
 
 describe('server-owned BG chat commit', () => {
+    it('accepts the JSON transport form without changing the durable base revision', async () => {
+        const harness = makeHarness()
+        const stored: any = baseChat()
+        stored.activeStreamingDisplayOptimizationMode = undefined
+        stored.message[0].generationInfo = { model: undefined, generationId: 'generation-1' }
+        stored.localLore = [{ nested: { optional: undefined, kept: null }, slots: [undefined, 'kept'] }]
+        harness.runtime.fullStore.get('char-1')!.set('chat-1', stored)
+        const submitted = JSON.parse(JSON.stringify(stored))
+        expect(revision(stored)).not.toBe(revision(submitted))
+        const owner = harness.makeOwner()
+        await expect(owner.captureBase('char-1', 'chat-1', submitted)).resolves.toMatchObject({
+            revision: revision(stored),
+            matches: true,
+        })
+        const operationId = 'operation-json-transport-1'
+        harness.primeOperation(operationId, 'chat-1', 'running-result-consumed')
+        const after = withAnswer(submitted, 'answer', 'assistant-1')
+        await expect(owner.commitGenerationResult(
+            harness.commitInput(operationId, result(after, 'old', 'new'), 1, revision(stored)),
+        )).resolves.toMatchObject({ status: 'committed' })
+        expect(harness.runtime.fullStore.get('char-1')!.get('chat-1')).toEqual(after)
+    })
+
+    it.each(['message', 'null', 'array', 'missing'])('still rejects real %s changes across JSON transport', async (change) => {
+        const harness = makeHarness()
+        const stored: any = baseChat()
+        stored.optional = undefined
+        stored.note = null
+        stored.localLore = ['first', 'second']
+        harness.runtime.fullStore.get('char-1')!.set('chat-1', stored)
+        const submitted = JSON.parse(JSON.stringify(stored))
+        if (change === 'message') submitted.message[0].data = 'edited'
+        if (change === 'null') submitted.optional = null
+        if (change === 'array') submitted.localLore.reverse()
+        if (change === 'missing') delete submitted.note
+        await expect(harness.makeOwner().captureBase('char-1', 'chat-1', submitted))
+            .resolves.toMatchObject({ matches: false })
+    })
+
+    it('does not accept a missing canonical chat or malformed submission', async () => {
+        const owner = makeHarness().makeOwner()
+        await expect(owner.captureBase('char-1', 'missing', baseChat()))
+            .resolves.toMatchObject({ revision: null, matches: false })
+        await expect(owner.captureBase('char-1', 'chat-1', null))
+            .resolves.toMatchObject({ matches: false })
+    })
+
     it('stops startup reconciliation after the same pending signature repeats', async () => {
         let inputPasses = 0
         let commitPasses = 0
