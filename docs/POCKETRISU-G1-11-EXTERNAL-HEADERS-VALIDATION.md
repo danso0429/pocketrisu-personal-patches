@@ -1,7 +1,7 @@
 # G1.11 external request header rules
 
 Date: 2026-09-27 KST
-Status: implemented, automatically verified, pushed and live-applied with no configured rules. Current-provider and physical UI checks remain open. This does not implement the G1.6 server plugin host or complete G1.
+Status: implemented, automatically verified, pushed and live-applied. The user confirmed that the settings screen opens. Current-provider OFF/ON probes were performed after authorization; persistent live activation remains blocked by a separate runtime approval requirement. This does not implement the G1.6 server plugin host or complete G1.
 
 ## User behavior and ownership
 
@@ -41,7 +41,11 @@ Live root returned HTTP 200. `/assets/index-BOS-ch8t.js` was 2,167,443 bytes and
 
 A read-only check found zero external-header settings rows after deployment. The new unauthenticated settings GET returned PocketRisu's expected 400. No rule or HMAC secret was automatically created, and no destination was enabled. Physical settings interaction remains unobserved; no stable tag or release was created.
 
-No live rule is enabled automatically. No MARP or AC script is changed. Current-provider requests using stored credentials were rejected by automatic approval review pending explicit authorization; no rejected request was executed. Synthetic HTTPS results are not a substitute for the actual provider or MARP's three-analysis integration.
+No live rule is enabled automatically. No MARP or AC script is changed. The initial current-provider request was rejected by automatic approval review; it was not executed or bypassed. The user subsequently authorized feature usage and the pending probe. A first attempt stopped locally because the saved provider label was OpenCode rather than the probe's expected OpenAI label. Installed MARP source confirmed the chat/completions route, and the probe was corrected to recognize that saved OpenAI-compatible configuration.
+
+Exactly two requests then used the stored default provider configuration, a deliberately nonexistent model and an empty messages array through an isolated instance of the production header owner. OFF returned HTTP 400 with MissingSessionID; ON returned HTTP 400 without that session error. Neither returned a successful generation response. The remaining ON error was not classified as model-not-found by the probe, so no claim about its exact cause or billing is made. Credentials, destination, header values and response bodies were not recorded.
+
+The user also confirmed that the settings page opens but had not configured it. A prepared follow-up would use normal local login/settings APIs to preserve existing rules, enable a destination-specific MARP session rule, and verify the deployed proxy with one further nonexistent-model/empty-message request. Automatic approval review separately rejected persistent activation plus that request as insufficiently specifically authorized. That action was not executed or retried by another route; a more specific approval question is pending. Read-only verification still found zero live settings rows. The isolated provider probe is not evidence of deployed-proxy configuration or MARP's three-analysis integration.
 
 Physical UI check: open Personal settings → External requests, add a disabled rule with the intended HTTPS destination and header name, save, navigate away/back, then verify values persisted. Enable only the intended rule and verify provider behavior; pre-existing headers must remain intact. A separate paid MARP analysis requires user authorization. The full server-plugin-host route is deferred to G1.6.
 
