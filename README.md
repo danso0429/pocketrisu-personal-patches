@@ -7,7 +7,8 @@ PocketRisu `v1.10.0`.
 The BG candidate `0.2.4-experimental.6` repairs JSON-transport admission
 of existing detached requests and preserves available recovered-answer metadata.
 See the [G1.0 validation record](docs/POCKETRISU-G1-0-ADMISSION-RECOVERY-2026-09-27.md)
-for automated evidence and the open device gate. It does not add server plugin hosting.
+for automated evidence and the completed G1.0 recovery check. Full G1 qualification
+remains open; this candidate does not add server plugin hosting.
 
 `v0.2.3` adds an editable Personal CSS manager and imported chat fonts. It was
 promoted by explicit user decision after the experimental.6–8 iPhone checks.

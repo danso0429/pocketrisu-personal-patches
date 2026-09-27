@@ -2,7 +2,7 @@
 
 Date: 2026-09-27 KST
 
-Status: candidate implemented, pushed and live-applied; physical-device qualification remains open. G1.0 product completion requires the existing preset send to finish through server delegation. G1 plugin hosting and G2 Archive Center are not implemented by this change.
+Status: G1.0 recovery completed after server-side persistence readback and the user's confirmation that the answer arrived on return. This closes the existing-delegation regression unit, not full G1 qualification. G1 plugin hosting and G2 Archive Center are not implemented by this change.
 
 ## Change and compatibility
 
@@ -35,9 +35,9 @@ Candidate: patcher `0.2.4-experimental.6`, adapter `0.7.13`; based on the existi
 
 The first full frontend attempt ended with signal 143 without a test result. A rerun with two workers completed; no assertions/configuration were weakened. The initial sandbox server run could not bind loopback; the full run with runtime permission passed. Vitest 4.1.4's installed CLI confirmed `--maxWorkers`; Context7's nearest available 4.1.6 documentation was supplementary. Builds retain existing chunk-size/plugin timing warnings.
 
-Structural and runtime review covered normalized admission versus durable identity, save/claim ordering, diagnostic privacy, generated ownership and cross-piece behavior. The local structural report is retained until the device gate closes. This is not a whole-repository security audit.
+Structural and runtime review covered normalized admission versus durable identity, save/claim ordering, diagnostic privacy, generated ownership and cross-piece behavior. Its findings and remaining limits are retained here; the temporary local structural report was removed at G1.0 closeout. This is not a whole-repository security audit.
 
-## Delivery and remaining gate
+## Delivery and device observation
 
 Implementation commit `d405404` was pushed to `codex/pocketrisu-g1-current-main` before delivery. Five consistent SQLite backups passed `quick_check`, and an application/state/intent archive was retained in a restricted operator-only recovery directory. A fresh preflight confirmed no active model jobs or pending sends and no managed-file drift before stopping PM2. The installer applied the planned ten paths; the live build transformed 8,006 modules and the BG bundle loaded `sendChat` successfully.
 
@@ -45,10 +45,14 @@ After restart, HTTP root was 200. Served `/assets/index-DVlfDJHN.js` matched the
 
 The deployment script's immediate post-restart idle assertion observed a nonzero generic PM2 active-request metric and stopped its verification, after successful restart and HTTP/asset checks. A separate read-only verification observed zero, completed all remaining checks, and made no additional source or process change. Startup repeated the existing retained `awaiting-metadata` journal warning (six records, 2,974 bytes); no journal cleanup was attempted.
 
-No paid provider request was issued for this work. Unit/route/provider-fixture results are not evidence that the user's actual preset configuration completed while the browser was absent.
+No agent-initiated paid provider request was issued during automated verification or deployment. The user subsequently sent one request for the device check recorded below.
 
 Read-only comparison with the pre-application backup found 47 prior operation-state rows and 46 afterward: the single absent row was already `delivered`, no new row appeared, and all 46 retained rows were byte-identical. No manual result/operation cleanup was performed.
 
-After safe application, reload the iPhone app to load the new bundle, send once in the existing preset chat, and leave the app while generation is running. Verify server delegation and normal-chat persistence before reopening, then verify one answer on return. A detached-start rejection/client fallback or an answer first saved by model-job recovery does not qualify as G1.0 completion.
+The user reported leaving after seeing the rotating green indicator. Before asking the user to reopen, read-only inspection found a new `terminal-success` result (`final=true`, serverChatCommitVersion=1), a `chat-committed` operation and an original-chat commit receipt. The durable chat journal contained 56 messages ending in a character answer of 1,760 characters; its encoded SHA-256 matched the receipt's storedRevision. Stats applied delta was one, and readyForNextTurn was true. Native model-job totals remained 48 done/two aborted, with zero pending sends. Client logs in the test window contained zero detached-start-rejection and zero delegate-not-started anchor rows.
 
-G1.11 and the larger G1 implementation follow the G1.0 completion gate. No stable tag or release is authorized by automatic tests alone. Rollback must preserve new chats, receipts, existing conflict copies and other user data; do not restore a pre-delivery database merely to revert source.
+The user then confirmed that the answer arrived successfully. This closes the G1.0 device recovery check. Persistence was checked through the durable database/journal, not an authenticated normal-chat HTTP GET. Full browser process termination was not independently established; duplicate count was not separately reported. These limits remain relevant to full G1 qualification.
+
+An intermittent failure to open chats from the home screen was reported separately and is tracked in [the navigation bug record](POCKETRISU-HOME-CHAT-NAVIGATION-BUG.md). It was not independently reproduced or attributed to this change.
+
+G1.11 is the next implementation unit. No stable tag or release was created at this closeout; the larger G1 remains incomplete. Rollback must preserve new chats, receipts, existing conflict copies and other user data; do not restore a pre-delivery database merely to revert source.
