@@ -11,7 +11,7 @@ import { decodeRisuSave, encodeRisuSaveLegacy } from "./risuSave"
 import { appVer, nodeOnlyVer, normalizeChat } from "./database.svelte"
 import { StartupDatabaseCache } from "./startupDatabaseCache"
 import type { ChatSaveIntent } from "./chatSaveIntent"
-import { isChatMergeValue, rebaseChatSave } from './chatSaveRebase'
+import { isChatMergeValue, rebaseChatSave, snapshotChatView, publishChatView, chatViewFingerprint } from './chatSaveRebase'
 import { jsonValuesEqual } from './conflictRebase'
 
 const DATABASE_KEY = 'database/database.bin'
@@ -102,8 +102,8 @@ interface ChatSyncState {
     revision: string
     snapshot: any | null
     encodedBytes: number
-    localSnapshot?: any | null
-    viewDiverged?: boolean
+    unknownAck?: boolean
+    acknowledgedViewFingerprint?: string
 }
 
 interface ServerChatSnapshot {
@@ -984,28 +984,21 @@ export class NodeStorage{
         revision: string,
         chat: any,
         encodedBytes: number,
-        localSnapshot?: any,
     ): void {
         this.forgetChatSyncState(key)
 
         let snapshot: any | null = null
-        let retainedLocal: any | null = null
         let retainedBytes = 0
-        const viewDiverged = localSnapshot !== undefined && !jsonValuesEqual(localSnapshot, chat)
-        const totalBytes = encodedBytes + (viewDiverged ? encodeRisuSaveLegacy(localSnapshot).byteLength : 0)
         if (
             isChatMergeValue(chat)
-            && (!viewDiverged || isChatMergeValue(localSnapshot))
             && encodedBytes > 0
-            && totalBytes <= NodeStorage.MAX_SINGLE_CHAT_SYNC_BYTES
+            && encodedBytes <= NodeStorage.MAX_SINGLE_CHAT_SYNC_BYTES
         ) {
             try {
                 snapshot = structuredClone(chat)
-                retainedLocal = viewDiverged ? structuredClone(localSnapshot) : null
-                retainedBytes = totalBytes
+                retainedBytes = encodedBytes
             } catch {
                 snapshot = null
-                retainedLocal = null
             }
         }
 
@@ -1013,8 +1006,6 @@ export class NodeStorage{
             revision,
             snapshot,
             encodedBytes: retainedBytes,
-            localSnapshot: retainedLocal,
-            viewDiverged,
         })
         if (snapshot) {
             this.chatSyncStateBytes += retainedBytes
@@ -1037,7 +1028,6 @@ export class NodeStorage{
             this.chatSyncStates.set(oldestKey, {
                 ...state,
                 snapshot: null,
-                localSnapshot: null,
                 encodedBytes: 0,
             })
         }
@@ -1158,6 +1148,7 @@ export class NodeStorage{
         chatId: string,
         chat: any,
         intent: ChatSaveIntent = 'update',
+        canPublish: () => boolean = () => true,
     ): Promise<void> {
         const key = this.chatSyncKey(chaId, chatId)
         const observation = this.chatSaveAdoptions.get(key) ?? { view: {} }
@@ -1170,7 +1161,7 @@ export class NodeStorage{
                 if (observation.view !== view) {
                     throw new ChatConflictError('Chat view changed before this queued save')
                 }
-                return this.saveChatContentSerialized(chaId, chatIndex, chatId, chat, intent)
+                return this.saveChatContentSerialized(chaId, chatIndex, chatId, chat, intent, canPublish)
             })
         this.chatSaveTails.set(key, operation)
         try {
@@ -1190,12 +1181,13 @@ export class NodeStorage{
         chatId: string,
         chat: any,
         intent: ChatSaveIntent,
+        canPublish: () => boolean,
     ): Promise<void> {
         const key = this.chatSyncKey(chaId, chatId)
         const observation = this.chatSaveAdoptions.get(key)!
         observation.activeView = observation.view
         try {
-            await this.saveChatContentRebased(chaId, chatIndex, chatId, chat, intent)
+            await this.saveChatContentRebased(chaId, chatIndex, chatId, chat, intent, canPublish)
         } finally {
             delete observation.activeView
         }
@@ -1214,6 +1206,7 @@ export class NodeStorage{
         chatId: string,
         chat: any,
         intent: ChatSaveIntent,
+        canPublish: () => boolean,
     ): Promise<void> {
         const encoded = encodeRisuSaveLegacy(chat)
         const currentSnapshot = normalizeChat(await decodeRisuSave(encoded))
@@ -1224,34 +1217,49 @@ export class NodeStorage{
         const key = this.chatSyncKey(chaId, chatId)
         this.assertChatSaveView(key)
         const initial = this.chatSyncStates.get(key)
-        if (initial?.viewDiverged && (!initial.snapshot || !initial.localSnapshot)) {
-            throw new ChatConflictError('Chat merge baseline is unavailable; this save was not attempted', initial.revision || null)
-        }
-        const localBase = initial?.localSnapshot ?? initial?.snapshot
         let remoteBase = initial?.snapshot
         let remoteRevision = initial?.revision
         let proposed = currentSnapshot
-        if (initial?.viewDiverged) {
-            const rebased = rebaseChatSave(localBase, currentSnapshot, remoteBase)
-            if (!rebased.ok) throw new ChatConflictError('Concurrent chat edits overlap', initial.revision)
-            proposed = rebased.chat
+        if (initial?.unknownAck) intent = 'update'
+        if (initial?.unknownAck && !remoteBase && initial.acknowledgedViewFingerprint) {
+            // Eviction must not make a missing response header an irreversible
+            // save fence. Either side can reconstruct the acknowledged view,
+            // but a genuinely changed pair still requires conflict resolution.
+            if (chatViewFingerprint(currentSnapshot) === initial.acknowledgedViewFingerprint) {
+                remoteBase = currentSnapshot
+            } else {
+                const fresh = await this.readServerChatSnapshot(chaId, chatIndex, chatId)
+                this.assertChatSaveView(key)
+                if (fresh && chatViewFingerprint(fresh.chat) === initial.acknowledgedViewFingerprint) {
+                    remoteBase = fresh.chat
+                    remoteRevision = fresh.revision
+                    this.rememberChatSyncState(key, fresh.revision, fresh.chat, fresh.encodedBytes)
+                }
+            }
         }
         for (let attempt = 0; ; attempt++) {
             const proposedBytes = jsonValuesEqual(proposed, currentSnapshot) ? encoded : encodeRisuSaveLegacy(proposed)
             try {
-                const accepted = await this.saveChatContentAttempt(chaId, chatIndex, chatId, proposed, proposedBytes, intent)
-                const viewDiverged = !jsonValuesEqual(proposed, currentSnapshot)
-                this.assertChatSaveView(key)
-                if (accepted?.revision && (viewDiverged || initial?.viewDiverged)) {
-                    this.rememberChatSyncState(key, accepted.revision, proposed, proposedBytes.byteLength, currentSnapshot)
-                } else if (!accepted?.revision && viewDiverged) {
-                    // An older response can omit its revision. Do not let the next
-                    // stale-view save establish a fresh baseline and erase unseen data.
-                    this.chatSyncStates.set(key, {
-                        revision: '', snapshot: null, localSnapshot: null,
-                        encodedBytes: 0, viewDiverged: true,
-                    })
+                let accepted = await this.saveChatContentAttempt(chaId, chatIndex, chatId, proposed, proposedBytes, intent)
+                if (!accepted.revision) {
+                    // The positive write response acknowledges this payload,
+                    // but not a revision usable for CAS. Keep its view basis
+                    // through a failed confirmation instead of seeding from a
+                    // future server view that the caller has never observed.
+                    remoteBase = proposed
+                    remoteRevision = undefined
+                    this.rememberChatSyncState(key, '', proposed, proposedBytes.byteLength)
+                    this.chatSyncStates.get(key)!.unknownAck = true
+                    if (isChatMergeValue(proposed)) this.chatSyncStates.get(key)!.acknowledgedViewFingerprint = chatViewFingerprint(proposed)
+                    intent = 'update'
+                    const confirmation = await this.confirmCurrentSnapshotOnServer(chaId, chatIndex, chatId, proposed, proposedBytes.byteLength)
+                    if (confirmation.confirmed) accepted = { revision: confirmation.currentRevision }
+                    else if (confirmation.serverSnapshot) {
+                        throw new ChatConflictError('Chat advanced after an unversioned acknowledgement', confirmation.currentRevision, confirmation.serverSnapshot)
+                    }
                 }
+                this.assertChatSaveView(key)
+                if (accepted.revision) this.rememberChatSyncState(key, accepted.revision, proposed, proposedBytes.byteLength)
                 return
             } catch (error) {
                 if (!(error instanceof ChatConflictError) || intent !== 'update'
@@ -1265,12 +1273,24 @@ export class NodeStorage{
                 delete error.serverSnapshot
                 const rebased = rebaseChatSave(remoteBase, proposed, fresh.chat)
                 if (!rebased.ok) throw error
-                // Keep the caller's previous view separate until this attempt is
-                // acknowledged; a failed write must not consume its unsaved edits.
-                this.rememberChatSyncState(key, fresh.revision, fresh.chat, fresh.encodedBytes, localBase)
+                // First reconcile the submitted payload, then preserve changes
+                // made during the request. Publish before retrying the write so
+                // no hidden stale view depends on an evictable second snapshot.
+                if (chat.isStreaming || !canPublish()) throw error
+                const live = normalizeChat(snapshotChatView(chat))
+                const publication = rebaseChatSave(proposed, live, rebased.chat)
+                if (!publication.ok) throw error
+                // Persisted stream flags describe an earlier runtime. Applying
+                // a remote answer must not start a spinner in this client.
+                for (const field of ['isStreaming', 'activeStreamingDisplayOptimizationMode']) {
+                    if (Object.hasOwn(live, field)) publication.chat[field] = live[field]
+                    else delete publication.chat[field]
+                }
+                publishChatView(chat, publication.chat)
+                this.rememberChatSyncState(key, fresh.revision, fresh.chat, fresh.encodedBytes)
                 remoteBase = fresh.chat
                 remoteRevision = fresh.revision
-                proposed = rebased.chat
+                proposed = publication.chat
             }
         }
     }
@@ -1304,6 +1324,13 @@ export class NodeStorage{
             }
             if (serverSnapshot) {
                 this.assertChatSaveView(syncKey)
+                if (syncState?.unknownAck) {
+                    if (jsonValuesEqual(serverSnapshot.chat, currentSnapshot)) {
+                        this.rememberChatSyncState(syncKey, serverSnapshot.revision, serverSnapshot.chat, serverSnapshot.encodedBytes)
+                        return { revision: serverSnapshot.revision }
+                    }
+                    throw new ChatConflictError('Confirming an unversioned chat creation', serverSnapshot.revision, serverSnapshot)
+                }
                 if (intent === 'create') {
                     throw new ChatConflictError(
                         'A chat with this ID already exists on the server',
@@ -1319,7 +1346,7 @@ export class NodeStorage{
                 this.chatDeltaSupported = true
                 syncState = this.chatSyncStates.get(syncKey)
             }
-            else if (intent === 'create') {
+            else if (intent === 'create' && !syncState?.unknownAck) {
                 createOnly = true
             }
             else {
@@ -1390,9 +1417,6 @@ export class NodeStorage{
                             currentSnapshot,
                             encoded.byteLength,
                         )
-                    }
-                    else {
-                        this.forgetChatSyncState(syncKey)
                     }
                     this.chatDeltaSupported = true
                     return { revision }
@@ -1493,7 +1517,6 @@ export class NodeStorage{
             this.chatDeltaSupported = true
         }
         else {
-            this.forgetChatSyncState(syncKey)
             this.chatDeltaSupported = false
         }
         return { revision }

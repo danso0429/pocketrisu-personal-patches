@@ -1,5 +1,7 @@
 # G1.2 client chat-save rebase
 
+This document records the original experimental.8 delivery. Its hidden-view retention design is superseded by the [save availability and live-view repair](POCKETRISU-G1-2-SAVE-AVAILABILITY-REPAIR.md); use that report for the current candidate and its validation limits.
+
 Date: 2026-09-27 KST
 Status: implemented, automatically verified, pushed and live-applied. Physical device observation remains open. Server anchor commits (G1.1), expanded N+1 admission and full G1 qualification remain open.
 

@@ -54,7 +54,7 @@ function installOriginFetch() {
 
 describeG12('chat rebase against the actual server process', () => {
     afterEach(() => { globalThis.fetch = originalFetch; storageSlot.realStorage = null })
-    it('keeps a concurrent answer across a conflict retry and another save from the old view', async () => {
+    it('publishes a concurrent answer and keeps it through the next client save', async () => {
         expect(baseURL).toMatch(/^http:\/\/127\.0\.0\.1:\d+$/)
         expect(token.length).toBeGreaterThan(0)
         installOriginFetch()
@@ -81,7 +81,7 @@ describeG12('chat rebase against the actual server process', () => {
         expect(saved.message.map((message: any) => message.chatId)).toEqual(['user-1', 'remote-answer'])
         expect(saved.message[0].data).toBe('edited while waiting')
         expect(saved.message[1].data).toBe('server-side answer')
-        expect(local.message).toHaveLength(1)
+        expect(local.message).toEqual(saved.message)
     })
 })
 
