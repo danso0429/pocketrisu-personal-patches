@@ -2,7 +2,7 @@
 
 Date: 2026-09-28 KST
 Candidate: `0.2.4-experimental.9`
-Status: implementation, automated validation and final scoped consultation complete; live delivery pending. Physical device observation remains open.
+Status: implemented, automatically validated, reviewed, pushed and live-applied. Physical device observation remains open.
 
 ## Problem and behavior
 
@@ -59,3 +59,13 @@ Physical iPhone rendering, background suspension, modal timing and perceived lat
 The final read-only Opus consultation found no new direct defect in the last preview/input guards or the ID-less-input compatibility handling. It did not rerun the tests. A primitive null display-context value cannot distinguish every overlapping manual/input clear; that possible transient display race remains a limitation. Existing non-conflict exception behavior in developer preview and the save owner's refusal to invent IDs for server-known chats are unchanged.
 
 G1.1 remains necessary for the reverse ordering in which a client edit reaches the server before generation completion. This repair is not full G1 qualification or a stable release.
+
+## Live delivery
+
+Implementation `aa2f1c4` was pushed to the existing G1 candidate branch before application. Preflight found 423 managed files without drift, zero active requests/pending sends/input records and 48 terminal operation records. The application was stopped after the idle check; five SQLite backups passed quick_check while stopped, and an application/state/intent archive was retained before applying the planned 20 paths. No generation was cancelled.
+
+The live frontend and BG bundle were rebuilt and the service restarted. Root HTTP returned 200. Served `index-Dmd_iTbx.js` matched the local 2,168,820-byte entry, SHA-256 `57736a92ec67c61899e207601d0132c743a61d395240076d50c9ee6369e857e7`. The actual storage-code asset `database.svelte-Cjjdyimc.js` also returned 200 and matched the local 2,492,844 bytes, SHA-256 `5c3692e863beae03cafad8dd4d89903336bbcea2b78efd73fa886ef04a087205`.
+
+All 428 managed files matched recorded hash/mode, replan was zero and all five databases passed quick_check. PM2 was online with zero unstable restarts. Operation records remained 48, with no active/pending input or send work at readback. The only new error-log line was the existing retained-journal warning; there were no unclassified new lines. The external-header settings record remained byte-identical, without logging its values. No provider generation request or user-data cleanup was performed by this validation.
+
+The help/i18n check passed. GitHub's workflow runs on main/PR rather than this candidate branch, so no remote CI run is claimed for the push. No tag or stable release was created. The L3 audit is retained until the device gate is complete.
