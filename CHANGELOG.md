@@ -9,8 +9,9 @@ Lazy chat BG adapter `0.7.13`.
 - Record bounded start-rejection reason codes without response bodies or IDs.
 - Omit unavailable model-job recovery metadata and retain decoded token usage.
 - Automated qualification is recorded in
-  `docs/POCKETRISU-G1-0-ADMISSION-RECOVERY-2026-09-27.md`; physical preset-send
-  qualification remains open. This candidate does not implement server plugin hosting.
+  `docs/POCKETRISU-G1-0-ADMISSION-RECOVERY-2026-09-27.md`; server persistence and
+  user-confirmed answer return close G1.0. Full G1 qualification remains open.
+  This candidate does not implement server plugin hosting.
 
 ## 0.2.4-experimental.5
 
