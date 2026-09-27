@@ -125,9 +125,36 @@ Read-only settings inspection found preset model mode, module model bindings
 enabled and plugin-model IDs. Each is an explicit reason to retain the older
 client-prepared path instead of input-v1 early admission. This attempt
 therefore does not qualify or refute the G1 server-owned input path. Whether
-the PWA was fully exited before completion and whether return adopted the
-unclaimed result are awaiting device confirmation. A qualifying classic
+the PWA was fully exited before completion awaits device confirmation; the
+observed result adoption is recorded below. A qualifying classic
 cloud-model test would require a deliberate settings change or an isolated
 test environment; the live user's settings were not altered. G1 browser
 exit/read-before-reopen, answer adoption, effects-once and paid-call gates
 remain open.
+
+### First iPhone return: answer recovered, metadata incomplete
+
+On client return, the same model job became `claimed=1` and the pending-send
+row cleared. The normal chat API returned 56 messages, with the restored
+assistant answer at zero-based index 55. The answer was therefore saved after
+client return; it was not present in the earlier normal-chat read. No input-v1
+record or G1 server commit appeared, so this is a successful return through
+the older model-job recovery path, not a G1 server-owned completion.
+
+The restored answer's `generationInfo` contained its generation ID but no
+defined model or input/output/context token values. The UI consequently showed
+`Model: Unknown` and `?` for those token fields. Its separate `Tokens` value
+is a local tokenization of the answer text, not recovered provider usage.
+Earlier assistant messages in the same chat have the fuller metadata fields.
+
+The model-job recovery code derives `generationInfo.model` from the persisted
+job model and does not add input/output/context token fields. The new job's
+persisted model was null; all 50 existing Google-Gemini main job rows in this
+live DB also have a null model. Hash comparison against the pre-apply source
+archive found `jobRecovery.ts`, `jobFetch.ts`, `request.ts`, `model-jobs.cjs`
+and `bgStreamPreserve.svelte.ts` unchanged by this G1 application. Thus the
+observed metadata gap is in the existing recovery path, although the exact
+reason the browser omitted the model at job creation is not yet proven; a
+cached client bundle remains a possible factor. The user's complete-PWA-exit
+timing has not been confirmed, and this return does not qualify the G1
+read-before-reopen/server-commit gate.
