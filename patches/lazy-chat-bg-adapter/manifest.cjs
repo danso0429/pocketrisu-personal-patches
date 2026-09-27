@@ -22,7 +22,7 @@ const externalHeaderBridgeUnits = require('./external-header-units.cjs')
 module.exports = {
     id: 'lazy-chat-bg-adapter',
     title: 'BG preserve integration for lazy chat storage',
-    version: '0.7.14',
+    version: '0.7.15',
     targets: {
         pocketrisu: {
             verified: ['1.10.0'],
@@ -238,6 +238,8 @@ module.exports = {
             || serverSnapshot.encodedBytes < 0) {
             throw new Error('cannot remember an invalid server chat snapshot')
         }
+        const observation = this.chatSaveAdoptions.get(this.chatSyncKey(chaId, chatId))
+        if (observation) observation.view = {}
         this.rememberChatSyncState(
             this.chatSyncKey(chaId, chatId),
             serverSnapshot.revision,
@@ -254,7 +256,12 @@ module.exports = {
     ): Promise<ServerChatSnapshot | null> {
         const serverSnapshot = await this.peekChatContentSnapshot(chaId, chatIndex, chatId)
         if (!serverSnapshot) return null
-        this.rememberChatContentSnapshot(chaId, chatId, serverSnapshot)
+        // A read for export or prompt preparation is not adoption by the UI.
+        // Seed a first baseline, but never consume an existing caller view here.
+        const key = this.chatSyncKey(chaId, chatId)
+        if (!this.chatSyncStates.has(key)) {
+            this.rememberChatSyncState(key, serverSnapshot.revision, serverSnapshot.chat, serverSnapshot.encodedBytes)
+        }
         return serverSnapshot
     }
 
@@ -3522,3 +3529,30 @@ const priorOrchestratorUnits = module.exports.units
 module.exports.units.push(...externalHeaderBridgeUnits.map(unit => ({
     ...unit, after: priorOrchestratorUnits,
 })))
+
+module.exports.units.push(
+    {
+        id: 'lazy-chat-bg-adapter:hydration-read-view:1.10',
+        file: 'src/ts/storage/chatStorage.ts', type: 'replace',
+        anchor: '            const full = await fetchChatFromServer(chaId, index, chatId)\n',
+        content: `            const storage = forageStorage.realStorage
+            const hasSnapshotReader = typeof storage.peekChatContentSnapshot === 'function'
+            const hydrationSnapshot = hasSnapshotReader
+                ? await storage.peekChatContentSnapshot(chaId, index, chatId) : null
+            const full = hasSnapshotReader
+                ? (hydrationSnapshot ? { ...hydrationSnapshot.chat } : null)
+                : await fetchChatFromServer(chaId, index, chatId)
+`,
+        requires: ['lazy-chat-bg-adapter:server-committed-chat-adoption:1.10'],
+        targetVersions: pocketRisu1100,
+    },
+    {
+        id: 'lazy-chat-bg-adapter:hydration-adopt-view:1.10',
+        file: 'src/ts/storage/chatStorage.ts', type: 'insert', where: 'after',
+        anchor: '                chats[applyIndex] = full\n',
+        content: `                if (hydrationSnapshot) storage.rememberChatContentSnapshot(chaId, chatId, hydrationSnapshot)
+`,
+        requires: ['lazy-chat-bg-adapter:hydration-read-view:1.10'],
+        targetVersions: pocketRisu1100,
+    },
+)

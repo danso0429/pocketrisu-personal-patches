@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.2.4-experimental.8 (BG candidate)
+
+- Rebase independent client chat edits after server revision conflicts while retaining server-added answers across subsequent stale-view saves.
+- Separate read-only chat retrieval from actual UI adoption, and invalidate queued old-view saves after adoption or database replacement.
+- Keep explicit conflicts, create-only/CAS protection, cache bounds and private retry data handling. See `docs/POCKETRISU-G1-2-CHAT-SAVE-REBASE-VALIDATION.md` for verification and limits; server anchor commits remain pending.
+
 ## 0.2.4-experimental.7 (BG candidate)
 
 - Add disabled-by-default, server-shared external request header rules under Personal settings.

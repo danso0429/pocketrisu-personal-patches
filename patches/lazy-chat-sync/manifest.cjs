@@ -38,6 +38,9 @@ const ownedFiles = [
     'src/ts/plugins/apiV3/pluginChatAccess.ts',
     'src/ts/storage/conflictRebase.test.ts',
     'src/ts/storage/conflictRebase.ts',
+    'src/ts/storage/chatSaveRebase.ts',
+    'src/ts/storage/chatSaveRebase.test.ts',
+    'src/ts/storage/nodeStorage.chatRebaseCodec.test.ts',
     'src/ts/storage/chatIdentityRepair.test.ts',
     'src/ts/storage/chatIdentityRepair.ts',
     'src/ts/storage/chatSaveIntent.test.ts',
@@ -60,7 +63,7 @@ function unitId(relative) {
 module.exports = {
     id: 'lazy-chat-sync',
     title: 'Lazy chat synchronization and startup cache',
-    version: '0.5.2',
+    version: '0.5.3',
     targets: {
         pocketrisu: {
             verified: ['1.10.0'],
