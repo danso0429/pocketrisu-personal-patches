@@ -1,5 +1,16 @@
 # Changelog
 
+## 0.2.4-experimental.11 (BG candidate)
+
+- Truncate the finished-failure notice by code point so an emoji at the limit is not split.
+- Cover superseded and failed acknowledgements in the new finished-operation branches.
+
+## 0.2.4-experimental.10 (BG candidate)
+
+- Close server-owned operations that ended with a final error and no answer: show one notice with the server error summary, acknowledge the result and clear the pending marker instead of warning on every launch.
+- Stop re-polling a committed result after three consecutive permanent adoption refusals; the answer stays in the server chat and one notice says so. Transient refusals keep the existing polling.
+- See `docs/POCKETRISU-G1-12-FINISHED-OPERATION-VALIDATION.md`; finished-operation cancel responses and message-ID merge adoption remain open.
+
 ## 0.2.4-experimental.9 (BG candidate)
 
 - Repair continued saving after rebase/cache eviction by publishing merged messages before conditional retries and retaining a recoverable acknowledged basis.

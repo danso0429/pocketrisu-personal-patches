@@ -32,6 +32,12 @@ keeps the measured next save-speed candidate.
 
 ## Complete installer
 
+The BG candidate `0.2.4-experimental.11` closes server operations that have
+already finished: a final error without an answer is reported once and
+acknowledged, and a committed result that cannot be adopted stops re-polling
+after three permanent refusals while the answer stays in the server chat. See
+[G1.12 validation](docs/POCKETRISU-G1-12-FINISHED-OPERATION-VALIDATION.md).
+
 The BG candidate `0.2.4-experimental.9` repairs continued saving after rebase
 and cache eviction, publishing merged messages while preserving later edits.
 The user reported the requested chat round-trip/save, draft retention and
