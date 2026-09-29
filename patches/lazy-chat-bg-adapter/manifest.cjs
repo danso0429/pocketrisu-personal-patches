@@ -22,7 +22,7 @@ const externalHeaderBridgeUnits = require('./external-header-units.cjs')
 module.exports = {
     id: 'lazy-chat-bg-adapter',
     title: 'BG preserve integration for lazy chat storage',
-    version: '0.7.16',
+    version: '0.7.17',
     targets: {
         pocketrisu: {
             verified: ['1.10.0'],
@@ -494,6 +494,30 @@ export async function adoptServerCommittedChat(
             targetVersions: pocketRisu1100,
         },
         {
+            id: 'lazy-chat-bg-adapter:owned:bg-finished-operation:1.10',
+            file: 'src/ts/bgFinishedOperation.ts',
+            type: 'owned',
+            content: owned1100('src/ts/bgFinishedOperation.ts'),
+            requires: ['lazy-chat-bg-adapter:owned:bg-server-commit-hydration:1.10'],
+            targetVersions: pocketRisu1100,
+        },
+        {
+            id: 'lazy-chat-bg-adapter:owned:bg-finished-operation-test:1.10',
+            file: 'src/ts/bgFinishedOperation.test.ts',
+            type: 'owned',
+            content: owned1100('src/ts/bgFinishedOperation.test.ts'),
+            requires: ['lazy-chat-bg-adapter:owned:bg-finished-operation:1.10'],
+            targetVersions: pocketRisu1100,
+        },
+        {
+            id: 'lazy-chat-bg-adapter:owned:bg-finished-operation-flow-test:1.10',
+            file: 'src/ts/bgFinishedOperationFlow.test.ts',
+            type: 'owned',
+            content: owned1100('src/ts/bgFinishedOperationFlow.test.ts'),
+            requires: ['lazy-chat-bg-adapter:owned:bg-finished-operation:1.10'],
+            targetVersions: pocketRisu1100,
+        },
+        {
             id: 'lazy-chat-bg-adapter:owned:bg-draft-identity:1.10',
             file: 'src/ts/bgDraftIdentity.ts',
             type: 'owned',
@@ -767,6 +791,12 @@ import {
     serverChatDeliveryDisposition,
     serverChatCommitReceipt,
 } from './bgServerCommitHydration'
+import {
+    COMMITTED_RESULT_KEPT_NOTICE,
+    finishedServerFailureNotice,
+    isFinishedServerFailure,
+    recordCommittedAdoptionAttempt,
+} from './bgFinishedOperation'
 import { parseServerPendingInputs, type ServerPendingInput } from './bgServerPendingProjection'
 import { submitServerInputCommand, type ServerInputClientOutcome } from './bgServerInputClient'
 import { adoptAttachedServerInputs } from './bgServerInputAdoption'
@@ -786,6 +816,7 @@ import {
                 'lazy-chat-bg-adapter:owned:bg-server-input-adoption-test:1.10',
                 'lazy-chat-bg-adapter:owned:bg-browser-message-effects-test:1.10',
                 'lazy-chat-bg-adapter:owned:bg-server-input-provider-policy-test:1.10',
+                'lazy-chat-bg-adapter:owned:bg-finished-operation-test:1.10',
             ],
             targetVersions: pocketRisu1100,
         },
@@ -1178,6 +1209,45 @@ function retainUncommittedServerChat(
     } catch { /* best-effort */ }
 }
 
+// Consecutive non-hydrated attempts per committed operation on this page. A permanent reason
+// cannot resolve under the current adoption rule, so polling it until the deadline only keeps
+// the spinner and the marker alive.
+const committedAdoptionAttempts = new Map<string, number>()
+
+async function acknowledgeFinishedServerResult(
+    charId: string,
+    chatId: string,
+    operationId: string,
+    resultKeyVersion: 0 | 1,
+    resultId: string | null,
+): Promise<Exclude<OrchestrationAckState, 'legacy'>> {
+    if (!resultId) return 'unconfirmed'
+    try {
+        return await acknowledgeResultRevision(
+            charId, chatId, operationId, resultKeyVersion, resultId,
+        )
+    } catch {
+        return 'unconfirmed'
+    }
+}
+
+function notifyFinishedServerFailure(operationId: string, data: any): void {
+    console.warn('[bg-orch] server-owned operation finished without an answer; closing', {
+        operationId,
+        kind: data?.kind,
+        error: typeof data?.error === 'string' ? data.error : undefined,
+    })
+    try { alertError(finishedServerFailureNotice(data)) } catch { /* best-effort */ }
+}
+
+function notifyCommittedResultKeptOnServer(operationId: string, reason: unknown): void {
+    console.warn('[bg-orch] committed result cannot be adopted; leaving it in the server chat', {
+        operationId,
+        reason,
+    })
+    try { alertError(COMMITTED_RESULT_KEPT_NOTICE) } catch { /* best-effort */ }
+}
+
 `,
             requires: ['lazy-chat-bg-adapter:server-commit-client-import:1.10'],
             targetVersions: pocketRisu1100,
@@ -1197,9 +1267,18 @@ function retainUncommittedServerChat(
                 )
                 if (pollEpoch !== watchEpoch) return
                 if (!hydration.hydrated) {
+                    if (recordCommittedAdoptionAttempt(
+                        committedAdoptionAttempts, operationId, hydration.reason,
+                    ) === 'stop') {
+                        // No result row remains to acknowledge; the answer stays in the server chat.
+                        notifyCommittedResultKeptOnServer(operationId, hydration.reason)
+                        stopWatch()
+                        return
+                    }
                     console.warn('[bg-orch] committed chat hydrate deferred:', hydration.reason)
                     return
                 }
+                committedAdoptionAttempts.delete(operationId)
                 rememberServerCommittedTarget(operationId, hydration)
                 runServerCompletionEpilogue(operationId, { ...data, chat: hydration.chat })
                 stopWatch()
@@ -1226,6 +1305,17 @@ function retainUncommittedServerChat(
             content: `        if (operationId && data.operationId !== operationId) return
         const serverOwnedDisposition = serverChatDeliveryDisposition(data)
         if (serverOwnedDisposition === 'server-owned-uncommitted') {
+            if (operationId && isFinishedServerFailure(data, watchBaselineMsgs)) {
+                const acknowledgement = await acknowledgeFinishedServerResult(
+                    charId, chatId, operationId, resultKeyVersion,
+                    typeof data.resultId === 'string' ? data.resultId : null,
+                )
+                if (pollEpoch !== watchEpoch || acknowledgement === 'superseded') return
+                notifyFinishedServerFailure(operationId, data)
+                if (isConfirmedOrchestrationAcknowledgement(acknowledgement)) stopWatch()
+                else stopWatch({ preservePendingMarker: true })
+                return
+            }
             retainUncommittedServerChat(operationId, data, 'watch')
             return
         }
@@ -1251,9 +1341,24 @@ function retainUncommittedServerChat(
                 )
                 if (pollEpoch !== watchEpoch) return
                 if (!hydration.hydrated) {
+                    if (recordCommittedAdoptionAttempt(
+                        committedAdoptionAttempts, operationId, hydration.reason,
+                    ) === 'stop') {
+                        // The answer is durable in the server chat and the client save rebase keeps
+                        // a stale local copy from overwriting it. Stop offering the result row.
+                        const acknowledgement = await acknowledgeFinishedServerResult(
+                            charId, chatId, operationId, resultKeyVersion, resultId,
+                        )
+                        if (pollEpoch !== watchEpoch || acknowledgement === 'superseded') return
+                        notifyCommittedResultKeptOnServer(operationId, hydration.reason)
+                        if (isConfirmedOrchestrationAcknowledgement(acknowledgement)) stopWatch()
+                        else stopWatch({ preservePendingMarker: true })
+                        return
+                    }
                     console.warn('[bg-orch] committed result hydrate deferred:', hydration.reason)
                     return
                 }
+                committedAdoptionAttempts.delete(operationId)
                 const acknowledgement = resultId
                     ? await acknowledgeResultRevision(
                         charId, chatId, operationId, resultKeyVersion, resultId,
@@ -1291,12 +1396,20 @@ function retainUncommittedServerChat(
                     )
                     if (epoch !== bootRecoveryEpoch) return
                     if (!hydration.hydrated) {
+                        if (recordCommittedAdoptionAttempt(
+                            committedAdoptionAttempts, operationId, hydration.reason,
+                        ) === 'stop') {
+                            notifyCommittedResultKeptOnServer(operationId, hydration.reason)
+                            finishBootRecovery(operationId)
+                            return
+                        }
                         setTimeout(() => bootRecoverPoll(
                             charId, chatId, baselineMsgs, operationId,
                             resultKeyVersion, deadline, emptyCount, epoch,
                         ), ORCH_POLL_MS)
                         return
                     }
+                    committedAdoptionAttempts.delete(operationId)
                     rememberServerCommittedTarget(operationId, hydration)
                     runServerCompletionEpilogue(operationId, { ...data, chat: hydration.chat })
                     finishBootRecovery(operationId)
@@ -1325,6 +1438,27 @@ function retainUncommittedServerChat(
             chatProcessStage.set(4)
             const serverOwnedDisposition = serverChatDeliveryDisposition(data)
             if (serverOwnedDisposition === 'server-owned-uncommitted') {
+                if (operationId && isFinishedServerFailure(data, baselineMsgs)) {
+                    const acknowledgement = await acknowledgeFinishedServerResult(
+                        charId, chatId, operationId, resultKeyVersion,
+                        typeof data.resultId === 'string' ? data.resultId : null,
+                    )
+                    if (epoch !== bootRecoveryEpoch) return
+                    if (acknowledgement === 'superseded') {
+                        setTimeout(() => bootRecoverPoll(
+                            charId, chatId, baselineMsgs, operationId,
+                            resultKeyVersion, deadline, 0, epoch,
+                        ), ORCH_POLL_MS)
+                        return
+                    }
+                    notifyFinishedServerFailure(operationId, data)
+                    if (isConfirmedOrchestrationAcknowledgement(acknowledgement)) {
+                        finishBootRecovery(operationId)
+                    } else {
+                        deferBootRecovery(operationId)
+                    }
+                    return
+                }
                 retainUncommittedServerChat(operationId, data, 'boot')
                 return
             }
@@ -1349,12 +1483,36 @@ function retainUncommittedServerChat(
                 )
                 if (epoch !== bootRecoveryEpoch) return
                 if (!hydration.hydrated) {
+                    if (recordCommittedAdoptionAttempt(
+                        committedAdoptionAttempts, operationId, hydration.reason,
+                    ) === 'stop') {
+                        const acknowledgement = await acknowledgeFinishedServerResult(
+                            charId, chatId, operationId, resultKeyVersion,
+                            typeof data.resultId === 'string' ? data.resultId : null,
+                        )
+                        if (epoch !== bootRecoveryEpoch) return
+                        if (acknowledgement === 'superseded') {
+                            setTimeout(() => bootRecoverPoll(
+                                charId, chatId, baselineMsgs, operationId,
+                                resultKeyVersion, deadline, 0, epoch,
+                            ), ORCH_POLL_MS)
+                            return
+                        }
+                        notifyCommittedResultKeptOnServer(operationId, hydration.reason)
+                        if (isConfirmedOrchestrationAcknowledgement(acknowledgement)) {
+                            finishBootRecovery(operationId)
+                        } else {
+                            deferBootRecovery(operationId)
+                        }
+                        return
+                    }
                     setTimeout(() => bootRecoverPoll(
                         charId, chatId, baselineMsgs, operationId,
                         resultKeyVersion, deadline, 0, epoch,
                     ), ORCH_POLL_MS)
                     return
                 }
+                committedAdoptionAttempts.delete(operationId)
                 const resultId = typeof data.resultId === 'string' ? data.resultId : null
                 const acknowledgement = resultId
                     ? await acknowledgeResultRevision(
