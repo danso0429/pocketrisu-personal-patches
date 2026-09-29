@@ -17,7 +17,13 @@ const FAILURE_SUMMARY_MAX = 200
 
 export function finishedServerFailureNotice(data: unknown): string {
     const error = data && typeof data === 'object' ? (data as any).error : undefined
-    const summary = typeof error === 'string' ? error.trim().slice(0, FAILURE_SUMMARY_MAX) : ''
+    // Slice by code point so a surrogate pair at the boundary is not split into a broken glyph.
+    // Twice the limit in UTF-16 units always contains the first FAILURE_SUMMARY_MAX code points,
+    // so an unbounded server error string is never expanded in full.
+    const summary = typeof error === 'string'
+        ? Array.from(error.trim().slice(0, FAILURE_SUMMARY_MAX * 2))
+            .slice(0, FAILURE_SUMMARY_MAX).join('')
+        : ''
     return summary
         ? `백그라운드 생성이 답변 없이 끝났어요 (${summary}). 해당 채팅에서 다시 보내주세요.`
         : '백그라운드 생성이 답변 없이 끝났어요. 해당 채팅에서 다시 보내주세요.'
