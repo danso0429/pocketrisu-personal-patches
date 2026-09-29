@@ -1,7 +1,7 @@
 # G1.12 hotfix plan: close finished server operations on the client
 
 Date: 2026-09-29 KST
-Status: implemented on branch `codex/pocketrisu-g1-12-finished-operation` as candidate `0.2.4-experimental.10` (lazy-chat-bg-adapter `0.7.17`). Not yet pushed or live-applied. The call-site list and the no-answer condition below were corrected against the code before implementation.
+Status: implemented on branch `codex/pocketrisu-g1-12-finished-operation`, delivered as `0.2.4-experimental.10` and `.11` (lazy-chat-bg-adapter `0.7.18`), live-applied, device check reported normal. See the [validation record](POCKETRISU-G1-12-FINISHED-OPERATION-VALIDATION.md). The call-site list and the no-answer condition below were corrected against the code before implementation.
 Scope: the two G1.12 items that stop the persistent spinner and repeated warnings. The remaining G1.12 items (finished-operation cancel responses, message-ID merge adoption) stay with G1.1 as planned in the public ordered-goals document.
 
 ## Problem
