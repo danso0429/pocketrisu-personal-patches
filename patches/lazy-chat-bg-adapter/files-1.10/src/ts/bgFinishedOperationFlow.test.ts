@@ -264,6 +264,26 @@ describe('boot recovery of a finished failure without an answer', () => {
         expect(count(isResultPeek)).toBe(1)
     })
 
+    it('keeps polling after a superseded acknowledgement and closes on the next revision', async () => {
+        let acks = 0
+        serve((operationId, method, url) => {
+            if (isResultPeek(method, url)) return { status: 200, body: terminalError(operationId) }
+            if (isResultAck(method, url)) {
+                acks += 1
+                return acks === 1
+                    ? { status: 409, body: { acked: false, reason: 'superseded' } }
+                    : { status: 200, body: { acked: true, state: 'deleted' } }
+            }
+        })
+        await bootWithMarker()
+        expect(h.alerts).toEqual([])
+        expect(markers().map(marker => marker.operationId)).toEqual([BOOT_OPERATION_ID])
+        await vi.advanceTimersByTimeAsync(2_500)
+        expect(count(isResultAck)).toBe(2)
+        expect(h.alerts).toEqual([FAILURE_NOTICE])
+        expect(markers()).toEqual([])
+    })
+
     it('still retains an uncommitted server-owned answer', async () => {
         serve((operationId, method, url) => {
             if (isResultPeek(method, url)) return { status: 200, body: terminalError(operationId, { chat: chatWith(3) }) }
@@ -315,6 +335,36 @@ describe('boot recovery of a committed result that cannot be adopted', () => {
         expect(markers()).toEqual([])
         await vi.advanceTimersByTimeAsync(30_000)
         expect(count(isResultPeek)).toBe(3)
+    })
+
+    it('restarts the attempt count after a superseded acknowledgement', async () => {
+        let acks = 0
+        serve((operationId, method, url) => {
+            if (isResultPeek(method, url)) return { status: 200, body: committedResult(operationId) }
+            if (method === 'GET' && url.startsWith('/api/bg-orchestrate-chat-state/')) {
+                return { status: 200, body: projection(operationId) }
+            }
+            if (isResultAck(method, url)) {
+                acks += 1
+                return acks === 1
+                    ? { status: 409, body: { acked: false, reason: 'superseded' } }
+                    : { status: 200, body: { acked: true, state: 'deleted' } }
+            }
+        })
+        await bootWithMarker()
+        await vi.advanceTimersByTimeAsync(5_000)
+        expect(h.adopt).toHaveBeenCalledTimes(3)
+        expect(count(isResultAck)).toBe(1)
+        expect(h.alerts).toEqual([])
+        expect(markers().map(marker => marker.operationId)).toEqual([BOOT_OPERATION_ID])
+        await vi.advanceTimersByTimeAsync(2_500 * 2)
+        expect(h.adopt).toHaveBeenCalledTimes(5)
+        expect(count(isResultAck)).toBe(1)
+        await vi.advanceTimersByTimeAsync(2_500)
+        expect(h.adopt).toHaveBeenCalledTimes(6)
+        expect(count(isResultAck)).toBe(2)
+        expect(h.alerts).toEqual([COMMITTED_RESULT_KEPT_NOTICE])
+        expect(markers()).toEqual([])
     })
 
     it('keeps polling a possibly transient projection failure', async () => {
@@ -383,6 +433,44 @@ describe('foreground watch of finished server operations', () => {
         expect(count(isResultAck)).toBe(1)
         expect(h.alerts).toEqual([COMMITTED_RESULT_KEPT_NOTICE])
         expect(markers()).toEqual([])
+        await vi.advanceTimersByTimeAsync(30_000)
+        expect(count(isResultPeek)).toBe(3)
+    })
+
+    it('keeps polling after a superseded acknowledgement of a finished failure', async () => {
+        let acks = 0
+        serve((operationId, method, url) => {
+            if (isResultPeek(method, url)) return { status: 200, body: terminalError(operationId) }
+            if (isResultAck(method, url)) {
+                acks += 1
+                return acks === 1
+                    ? { status: 409, body: { acked: false, reason: 'superseded' } }
+                    : { status: 200, body: { acked: true, state: 'deleted' } }
+            }
+        })
+        await startForeground()
+        await vi.advanceTimersByTimeAsync(2_500)
+        expect(h.alerts).toEqual([])
+        expect(markers()).toHaveLength(1)
+        await vi.advanceTimersByTimeAsync(2_500)
+        expect(count(isResultAck)).toBe(2)
+        expect(h.alerts).toEqual([FAILURE_NOTICE])
+        expect(markers()).toEqual([])
+    })
+
+    it('keeps the marker when the committed-result acknowledgement throws', async () => {
+        serve((operationId, method, url) => {
+            if (isResultPeek(method, url)) return { status: 200, body: committedResult(operationId) }
+            if (method === 'GET' && url.startsWith('/api/bg-orchestrate-chat-state/')) {
+                return { status: 200, body: projection(operationId) }
+            }
+            if (isResultAck(method, url)) throw new TypeError('Failed to fetch')
+        })
+        await startForeground()
+        await vi.advanceTimersByTimeAsync(2_500 * 3)
+        expect(count(isResultAck)).toBe(1)
+        expect(h.alerts).toEqual([COMMITTED_RESULT_KEPT_NOTICE])
+        expect(markers()).toHaveLength(1)
         await vi.advanceTimersByTimeAsync(30_000)
         expect(count(isResultPeek)).toBe(3)
     })

@@ -93,6 +93,16 @@ describe('finished server failure notice', () => {
         expect(long).not.toContain('x'.repeat(201))
     })
 
+    it('does not split a surrogate pair at the summary boundary', () => {
+        const notice = finishedServerFailureNotice(terminalError({ error: 'x'.repeat(199) + '😀' + 'y' }))
+        expect(notice).toContain('x'.repeat(199) + '😀)')
+        expect(notice).not.toContain('y')
+        expect(notice).not.toMatch(/[\uD800-\uDBFF](?![\uDC00-\uDFFF])/)
+        const astral = finishedServerFailureNotice(terminalError({ error: '😀'.repeat(300) }))
+        expect(astral).toContain('(' + '😀'.repeat(200) + ')')
+        expect(astral).not.toMatch(/[\uD800-\uDBFF](?![\uDC00-\uDFFF])/)
+    })
+
     it('omits an absent summary', () => {
         expect(finishedServerFailureNotice(terminalError({ error: undefined })))
             .toBe('백그라운드 생성이 답변 없이 끝났어요. 해당 채팅에서 다시 보내주세요.')
