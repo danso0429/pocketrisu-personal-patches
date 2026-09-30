@@ -2,7 +2,7 @@
 
 Date: 2026-09-30 KST
 Candidate: `0.2.4-experimental.12` (lazy-chat-bg-adapter `0.7.19`, lazy-chat-sync `0.5.5`).
-Status: implemented, automatically validated and reviewed; live delivery and device observation pending.
+Status: implemented, automatically validated, reviewed, pushed and live-applied. Device observation remains pending.
 
 ## Behavior
 
@@ -57,3 +57,17 @@ An evicted saved snapshot or later unsaved edits can still prevent direct view a
 The previously reported startup recovery stall was investigated read-only. Existing records/journal hashes and applied receipts validated; a later snapshot found referenced chats absent from current chat metadata. No deleted chat was restored and no recovery/user record was removed. This does not prove that every historical stalled record had the same cause.
 
 The required iPhone observation remains editing an earlier message while generation runs, leaving the app, then returning to the original chat and verifying that both the edit and answer remain and subsequent saving works. Full G1 qualification and stable publication remain open.
+
+## Live delivery
+
+Implementation `852da4a` was pushed to the G1.1 candidate branch. The first backup attempt stopped before application because WAL files were nonempty; the original application was restarted and its patch state was verified unchanged. The resumed delivery used SQLite's documented [WAL checkpoint procedure](https://www.sqlite.org/pragma.html#pragma_wal_checkpoint), also checked in a synthetic SQLite 3.45.1 compressed-backup/restore experiment.
+
+After another idle and source-drift check, the app was stopped. All five checkpoints returned `[0,0,0]`, WAL files were empty and all source databases passed quick_check. A compressed application/state/intent/five-database archive was then created: 3,024,960,451 bytes. Every one of its 1,599 regular files was streamed back and matched source hash, length and mode; sources were checked again while stopped. No old backup was deleted. This is a byte-verified copy of the checked databases, not a claim that a second uncompressed production-size restore was performed.
+
+The planned 21 paths were applied, frontend and BG bundles rebuilt and the app restarted. HTTP root and served assets returned 200. The served entry `index-BwDOcUuw.js` was 2,168,820 bytes, SHA-256 `5015bc14c932921077ef346b84ff6a55f22e910ab54b4a285b57b434320510a2`; the storage chunk `database.svelte-7Twb3_dg.js` was 2,497,048 bytes, SHA-256 `4dcbcf5c1f37b538b6bd3b2b850f717c8af38244d14fd7685c24d26fa7261d9a`. All checked served assets matched local bytes.
+
+All 433 managed paths matched recorded hashes/modes, replan was zero, all five databases passed post-start quick_check, and PM2 was online with zero unstable restarts. Active requests, pending sends and input records were zero before and after. External-header settings remained byte-identical. Operation-state rows were 182 before and 180 after; existing application retention remained enabled and the exact removed identities were not compared. The two new error-log lines were the known retained-journal warning and the existing startup recovery stall (zero inputs, 23 commits); there were no unclassified new lines. No manual result/chat deletion, generation cancellation or provider-generation probe was performed.
+
+The installer was rebuilt after the implementation commit and remained byte-identical. No remote CI run was observed for the candidate branch. No tag or stable release was created. L3 records remain retained until device feedback and L6 closeout.
+
+Available disk space at final readback was 1,235,677,184 bytes; existing backups were retained.
