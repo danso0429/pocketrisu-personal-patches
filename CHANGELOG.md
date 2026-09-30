@@ -6,6 +6,7 @@
 - Restore global descriptors after input execution and reject attachment if an operation was cancelled or timed out, including when a script handles an aborted request normally.
 - Preserve ordinary provider failure handling, main/preview behavior and current model eligibility. This does not include the deferred r3 recovery redesign or expanded preset/module admission.
 - See `docs/POCKETRISU-G1-NATIVE-INPUT-CONTEXT-VALIDATION.md` for tests, the cold Lua reproduction and cooperative-cancellation limits.
+- Delivered live after verified application/state backup, build and readback of 441 managed files, 17 script assets and five database integrity checks. Broader BG/device qualification remains open.
 
 ## 0.2.4-experimental.15 (BG candidate)
 
