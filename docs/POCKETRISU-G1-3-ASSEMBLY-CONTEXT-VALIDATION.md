@@ -2,7 +2,7 @@
 
 Date: 2026-09-30 KST. Baseline: `a070a6b` (device-confirmed G1.1). Candidate: `0.2.4-experimental.13`, lazy-chat-bg-adapter `0.7.20`, lazy-chat-sync `0.5.6`.
 
-Status: implemented, automatically verified and reviewed in an isolated candidate; live delivery awaits backup capacity. No stable release or device qualification is claimed.
+Status: implemented, automatically verified, reviewed and delivered live after the user cleared disk space. iPhone qualification remains pending; no stable release is claimed.
 
 ## Behavior
 
@@ -42,7 +42,7 @@ The final review raised a post-attachment preparation failure. Direct tracing co
 
 The corresponding terminal-error notice maps the known conflict reason to Korean and uses G1.12 acknowledgement/cleanup. A terminal-success/partial insertion conflict still retains its generated result. If recording the failed input itself fails, no terminal result is fabricated: the attached command remains recoverable and can remain pending until storage recovers or restart reports unknown execution. This is the deliberate fail-closed storage-error boundary.
 
-Live application awaits sufficient space for a verified stopped backup. Existing backups and live user data remain untouched. After delivery, verify actual iPhone edit/save during a long generation, close/reopen, retained answer and edit, warning delivery and subsequent save. Stable qualification remains separate.
+Live application completed after the user cleared disk space. The agent did not delete existing backups. Verify actual iPhone edit/save during a long generation, close/reopen, retained answer and edit, warning delivery and subsequent save. Stable qualification remains separate.
 
 Also run a negative device check: open/scroll a long-running chat without editing, close/reopen, and confirm that no context-change warning appears. Placeholder hydration preserves metadata key presence and does not save its empty defaults; no concrete normalization writer causing a false warning was found, but the device case has not been observed.
 
@@ -51,3 +51,13 @@ Warnings use the existing toast and ordinary pending marker, not a general notif
 The warning comparison concerns chat content. Later changes to root settings or global variables alone do not produce this warning. A user-initiated replacement of a blocked, unattached submission is a new submission and can run input effects again; the original operation is never automatically transformed again. Ambiguous duplicated legacy tail messages without IDs remain a conservative conflict.
 
 A permanently stalled commit holds subsequent detached turns; the preview timeout does not release a still-running storage write. Worst-case root/chat-copy memory cost and real iOS suspension behavior are not measured by these tests. The unrelated home-navigation bug and G1.4 onward remain separate goals.
+
+## Live delivery
+
+The preflight found approximately 20.96 GB free, zero active requests/native pending sends and no managed-file drift. The installer remained identical to reviewed commit `c3fc075`. The process was stopped only after the idle checks.
+
+All five databases completed a WAL truncate checkpoint and `quick_check=ok`. A new 3,025,233,281-byte stopped application/database archive was read back and compared with all 1,601 source files by SHA-256, length and mode; all matched. Source bytes were checked again before applying the patch. No prior backup was removed by the agent.
+
+Live apply, frontend build and BG build/load completed. Re-plan reported no changes. All 437 managed files matched their recorded output hashes and modes. The restarted process was online with zero unstable restarts; root HTTP and every checked entry/import asset returned 200 and matched the local build. The entry asset was `index-4K69pqOL.js` (2,168,729 bytes, SHA-256 `1d3270d57da3f5b796c4af6284cffcfb0c657e53b8be0828b0be5387e823f9bb`). The storage asset was `database.svelte-Du8UxxKE.js` (2,498,850 bytes, SHA-256 `d393e94bac00275e2e9274d9e5a6a9d84ec0b012aad100621da8c82f7a6f8e4b`). All five databases passed post-restart checks and external-header settings were unchanged. Before/after operation-state counts were both 163; input-command records, active requests and pending sends were zero.
+
+Startup emitted two existing warning categories: six awaiting-metadata journal records (2,974 bytes), and stalled recovery for 40 commits (previous recorded restart: 23). Read-only chunk-aware metadata inspection found 161 old commit records (160 v1, one v2), with 40 absent metadata targets and 121 present targets; no v3 records existed at readback. The recovery backlog remains a separate investigation. No retained record or missing chat was deleted or restored.

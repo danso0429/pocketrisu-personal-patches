@@ -5,7 +5,7 @@
 - Read the latest saved chat and settings at execution time for prepared and raw server inputs; preserve already-executed input effects.
 - Serialize detached turns through terminal publication, keep newer user edits during input attachment/recovery, and warn when chat context changed after prompt preparation.
 - Keep admission identity and old input-record readability; use opaque settings identities and versioned commit warning metadata.
-- Automated gates are recorded in `docs/POCKETRISU-G1-3-ASSEMBLY-CONTEXT-VALIDATION.md`. Live delivery and device qualification remain pending.
+- Delivered live after a verified stopped backup, build and readback. Automated gates and delivery evidence are recorded in `docs/POCKETRISU-G1-3-ASSEMBLY-CONTEXT-VALIDATION.md`; device qualification remains pending.
 
 ## 0.2.4-experimental.12 (BG candidate)
 

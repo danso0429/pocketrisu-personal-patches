@@ -2,7 +2,7 @@
 
 Date: 2026-09-30 KST
 Baseline: `a070a6b` (G1.1 device-confirmed; experimental.12).
-Status: user policy choices confirmed; implementation, automatic gates and final review complete in an isolated candidate. Backup-capacity resolution precedes live application.
+Status: user policy choices confirmed; implementation, automatic gates and final review complete. Live delivery completed after the user cleared disk space; device checks remain.
 
 ## Required outcome
 
@@ -36,7 +36,7 @@ Use real codec/SQLite/HTTP and process boundaries for receipt identity, old-reco
 
 - Connected `readAssemblyContext` to both prepared and raw-input execution. It samples canonical root/body/metadata in one storage-queue turn, returns an independently owned graph and a random context identity. Raw input captures again after durable input attachment.
 - Wrapped the detached execution closure in a promise chain through terminal commit/publication/finish, preserving the inner preview lock. Actual route tests hold the first commit and verify that a second chat cannot capture before publication, reads the committed statics afterward, and also proceeds after first-commit failure.
-- Full server, frontend, compatibility, type/help, build/load, patcher and exact-revert results are recorded in [the validation record](POCKETRISU-G1-3-ASSEMBLY-CONTEXT-VALIDATION.md). The candidate has not replaced the delivered experimental.12.
+- Full server, frontend, compatibility, type/help, build/load, patcher, exact-revert and live readback results are recorded in [the validation record](POCKETRISU-G1-3-ASSEMBLY-CONTEXT-VALIDATION.md). The candidate replaced experimental.12 after a verified stopped backup.
 - User confirmed both recommended choices: the notice conservatively includes earlier history potentially read by preparation features, and unexecuted input translation/triggers use turn-time latest settings. Already executed input effects must not be replayed. The prior user decision to preserve newer user edits on script overlap remains in force, with a skipped-effect notice rather than silent loss.
 - Source constraints confirmed after consultation: input1 is active; `effectiveBaseRevision` is tied to admission/predecessor identity by the parser and cannot be redefined as transform-time revision. A fresh transform basis must remain separate, and attachment/recovery need coordinated treatment. Global variables use expected-value outcomes. Input transformation may have external effects, so any attachment rebase must reuse the completed transform rather than rerun it.
 - The detached strict save now explicitly enlists root and chat before admission. Server-owned execution ignores stale client globals; legacy execution retains them. The actual save implementation enlists root changes before strict flush, and flow tests assert scope before POST.
