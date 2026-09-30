@@ -4,6 +4,12 @@ Personal, all-or-nothing patch delivery for PocketRisu NodeOnly. The current
 stable release is `v0.2.3`, and its complete manifest graph targets exact
 PocketRisu `v1.10.0`.
 
+The `0.2.4-experimental.15` candidate shares snapshot-based model selection
+between actual dispatch and server-input checks, includes configured fallback
+models, and rechecks settings after input attachment. Preset/module/custom raw
+admission expansion remains a later unit. See the
+[G1.5 validation record](docs/POCKETRISU-G1-5-REQUEST-POLICY-VALIDATION.md).
+
 The `0.2.4-experimental.14` follow-up moves saved-answer notices to the upper
 notification bar. The user confirmed normal app-return behavior. See the
 [validation and delivery record](docs/POCKETRISU-BG-SAVED-ANSWER-NOTICE-VALIDATION.md).

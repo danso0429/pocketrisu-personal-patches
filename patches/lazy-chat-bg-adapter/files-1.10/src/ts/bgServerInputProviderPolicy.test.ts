@@ -1,7 +1,31 @@
-import { describe, expect, it } from 'vitest'
-import { requiresClientOwnedInputPreparation } from './bgServerInputProviderPolicy'
+import { describe, expect, it, vi } from 'vitest'
+vi.mock('src/ts/storage/database.svelte', () => ({ getDatabase: () => {
+    throw new Error('Policy must use its explicit snapshot')
+} }))
+import { evaluateServerInputModels, requiresClientOwnedInputPreparation } from './bgServerInputProviderPolicy'
 
 describe('server-owned input provider boundary', () => {
+    it.each(['model', 'submodel', 'memory', 'emotion', 'translate', 'otherAx'] as const)(
+        'checks forced classic fallbacks for %s without exposing model data', mode => {
+            for (const model of ['reverse_proxy', 'xcustom:::local-1', 'pluginmodel:::plugin-1']) {
+                expect(evaluateServerInputModels({ aiModel: 'novelai', subModel: 'openai',
+                    fallbackModels: { [mode]: [model] },
+                }, null)).toEqual({ kind: 'client-prepared', reason: 'fallback-unqualified' })
+            }
+        },
+    )
+    it('keeps ordinary fallback chains and empty entries eligible', () => {
+        expect(evaluateServerInputModels({ aiModel: 'novelai', subModel: 'openai',
+            fallbackModels: { model: ['', 'gpt-4o'], translate: ['novelai'] },
+        }, null)).toEqual({ kind: 'server-input' })
+    })
+    it('reads current snapshots independently of the execution singleton', () => {
+        const source = { aiModel: 'novelai', subModel: 'openai' }
+        const changed = { ...source, fallbackModels: { model: ['reverse_proxy'] } }
+        expect(requiresClientOwnedInputPreparation(source, null)).toBe(false)
+        expect(requiresClientOwnedInputPreparation(changed, null)).toBe(true)
+        expect(requiresClientOwnedInputPreparation(source, null)).toBe(false)
+    })
     it('keeps ordinary classic cloud models eligible', () => {
         expect(requiresClientOwnedInputPreparation({
             aiModel: 'novelai', subModel: 'openai',
