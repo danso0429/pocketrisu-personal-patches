@@ -15,6 +15,7 @@ const h = vi.hoisted(() => ({
     dbState: { db: {} as any },
     alerts: [] as string[],
     warnings: [] as string[],
+    infos: [] as string[],
     warningFailure: false,
     durableScopes: [] as any[],
     scopesAtStart: [] as any[],
@@ -41,6 +42,7 @@ vi.mock('./storage/chatStorage', () => ({
 }))
 vi.mock('./alert', () => ({
     alertError: (message: unknown) => { h.alerts.push(String(message)) },
+    notifyInfo: (message: unknown) => { h.infos.push(String(message)) },
     notifyWarning: (message: string) => {
         if (h.warningFailure) throw new Error('warning UI unavailable')
         h.warnings.push(message)
@@ -203,6 +205,7 @@ beforeEach(() => {
     h.dbState.db = { characters: [{ chaId: CHAR_ID, chatPage: 0, chats: [chatWith(2)] }], statics: {} }
     h.alerts = []
     h.warnings = []
+    h.infos = []
     h.warningFailure = false
     h.durableScopes = []
     h.scopesAtStart = []
@@ -312,11 +315,13 @@ describe('anchored commit notices preserve finished-operation handling', () => {
         })
         if (mode === 'boot') await bootWithMarker()
         else { await startForeground(); await vi.advanceTimersByTimeAsync(2_500) }
-        expect(h.alerts).toHaveLength(1)
-        expect(h.alerts[0]).toContain('서버 스크립트 수정 일부는 적용하지 않았')
+        expect(h.warnings).toHaveLength(1)
+        expect(h.alerts).toEqual([])
+        expect(h.warnings[0]).toContain('서버 스크립트 수정 일부는 적용하지 않았')
         expect(markers()).toEqual([])
         await vi.advanceTimersByTimeAsync(30_000)
-        expect(h.alerts).toHaveLength(1)
+        expect(h.warnings).toHaveLength(1)
+        expect(h.alerts).toEqual([])
     })
 })
 
@@ -460,11 +465,13 @@ describe('boot recovery of a committed result that cannot be adopted', () => {
         await vi.advanceTimersByTimeAsync(2_500)
         expect(h.adopt).toHaveBeenCalledTimes(3)
         expect(count(isResultAck)).toBe(1)
-        expect(h.alerts).toEqual([COMMITTED_RESULT_KEPT_NOTICE])
+        expect(h.infos).toEqual([COMMITTED_RESULT_KEPT_NOTICE])
+        expect(h.alerts).toEqual([])
         expect(markers()).toEqual([])
         await vi.advanceTimersByTimeAsync(30_000)
         expect(count(isResultPeek)).toBe(3)
-        expect(h.alerts).toHaveLength(1)
+        expect(h.infos).toHaveLength(1)
+        expect(h.alerts).toEqual([])
     })
 
     it('stops after three permanent refusals without a result row and sends no acknowledgement', async () => {
@@ -478,7 +485,8 @@ describe('boot recovery of a committed result that cannot be adopted', () => {
         await vi.advanceTimersByTimeAsync(5_000)
         expect(h.adopt).toHaveBeenCalledTimes(3)
         expect(count(isResultAck)).toBe(0)
-        expect(h.alerts).toEqual([COMMITTED_RESULT_KEPT_NOTICE])
+        expect(h.infos).toEqual([COMMITTED_RESULT_KEPT_NOTICE])
+        expect(h.alerts).toEqual([])
         expect(markers()).toEqual([])
         await vi.advanceTimersByTimeAsync(30_000)
         expect(count(isResultPeek)).toBe(3)
@@ -510,7 +518,8 @@ describe('boot recovery of a committed result that cannot be adopted', () => {
         await vi.advanceTimersByTimeAsync(2_500)
         expect(h.adopt).toHaveBeenCalledTimes(6)
         expect(count(isResultAck)).toBe(2)
-        expect(h.alerts).toEqual([COMMITTED_RESULT_KEPT_NOTICE])
+        expect(h.infos).toEqual([COMMITTED_RESULT_KEPT_NOTICE])
+        expect(h.alerts).toEqual([])
         expect(markers()).toEqual([])
     })
 
@@ -578,7 +587,8 @@ describe('foreground watch of finished server operations', () => {
         await vi.advanceTimersByTimeAsync(2_500)
         expect(h.adopt).toHaveBeenCalledTimes(3)
         expect(count(isResultAck)).toBe(1)
-        expect(h.alerts).toEqual([COMMITTED_RESULT_KEPT_NOTICE])
+        expect(h.infos).toEqual([COMMITTED_RESULT_KEPT_NOTICE])
+        expect(h.alerts).toEqual([])
         expect(markers()).toEqual([])
         await vi.advanceTimersByTimeAsync(30_000)
         expect(count(isResultPeek)).toBe(3)
@@ -616,7 +626,8 @@ describe('foreground watch of finished server operations', () => {
         await startForeground()
         await vi.advanceTimersByTimeAsync(2_500 * 3)
         expect(count(isResultAck)).toBe(1)
-        expect(h.alerts).toEqual([COMMITTED_RESULT_KEPT_NOTICE])
+        expect(h.infos).toEqual([COMMITTED_RESULT_KEPT_NOTICE])
+        expect(h.alerts).toEqual([])
         expect(markers()).toHaveLength(1)
         await vi.advanceTimersByTimeAsync(30_000)
         expect(count(isResultPeek)).toBe(3)
@@ -633,7 +644,8 @@ describe('foreground watch of finished server operations', () => {
         await vi.advanceTimersByTimeAsync(2_500 * 3)
         expect(h.adopt).toHaveBeenCalledTimes(3)
         expect(count(isResultAck)).toBe(0)
-        expect(h.alerts).toEqual([COMMITTED_RESULT_KEPT_NOTICE])
+        expect(h.infos).toEqual([COMMITTED_RESULT_KEPT_NOTICE])
+        expect(h.alerts).toEqual([])
         expect(markers()).toEqual([])
         await vi.advanceTimersByTimeAsync(30_000)
         expect(count(isResultPeek)).toBe(3)
