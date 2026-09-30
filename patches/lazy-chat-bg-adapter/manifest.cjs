@@ -19,11 +19,12 @@ const bgGlobalApiUnits = [
 ]
 const externalHeaderBridgeUnits = require('./external-header-units.cjs')
 const requestPolicyUnits = require('./request-policy-units.cjs')
+const inputExecutionUnits = require('./input-execution-units.cjs')
 
 module.exports = {
     id: 'lazy-chat-bg-adapter',
     title: 'BG preserve integration for lazy chat storage',
-    version: '0.7.22',
+    version: '0.7.23',
     targets: {
         pocketrisu: {
             verified: ['1.10.0'],
@@ -36,6 +37,12 @@ module.exports = {
         all: ['bg-preserve', 'lazy-chat-sync'],
     },
     units: [
+        {
+            id: 'lazy-chat-bg-adapter:owned:input-execution-context-tests:1.10',
+            file: 'server/node/bgInputExecutionContext.test.ts', type: 'owned',
+            content: owned1100('server/node/bgInputExecutionContext.test.ts'),
+            targetVersions: pocketRisu1100,
+        },
         ...requestPolicyUnits,
         {
             id: 'lazy-chat-bg-adapter:assembly-warning-marker-type:1.10',
@@ -3912,3 +3919,5 @@ module.exports.units.push({
     after: priorClientOrchestrationUnits,
     targetVersions: pocketRisu1100,
 })
+
+module.exports.units.push(...inputExecutionUnits(module.exports.units))

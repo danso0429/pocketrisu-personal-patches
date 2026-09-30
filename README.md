@@ -4,6 +4,11 @@ Personal, all-or-nothing patch delivery for PocketRisu NodeOnly. The current
 stable release is `v0.2.3`, and its complete manifest graph targets exact
 PocketRisu `v1.10.0`.
 
+The `0.2.4-experimental.16` candidate extends the existing operation cancellation,
+conversation-header context and node execution environment to server input triggers
+and editinput. Native model admission expansion remains pending. See the
+[native-input context validation](docs/POCKETRISU-G1-NATIVE-INPUT-CONTEXT-VALIDATION.md).
+
 The `0.2.4-experimental.15` candidate shares snapshot-based model selection
 between actual dispatch and server-input checks, includes configured fallback
 models, and rechecks settings after input attachment. Preset/module/custom raw
