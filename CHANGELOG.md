@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.2.4-experimental.15 (BG candidate)
+
+- Share explicit-database model selection between actual request dispatch and server-input preflight, preserving chat/module/global-lock preset context and classic static/auxiliary selection.
+- Include configured custom/plugin/reverse-proxy fallback models in the existing client-preparation boundary. Preserve their existing prepared delegation and endpoint settings.
+- Recheck current model settings when resuming attached input and after input attachment, retaining saved input and avoiding replay when a setting change blocks main dispatch.
+- Keep preset/module/custom raw-input expansion, plugin hosting and N+1 UI as subsequent work. See `docs/POCKETRISU-G1-5-REQUEST-POLICY-VALIDATION.md` for validation, limitations and delivery status.
+
 ## 0.2.4-experimental.14 (BG candidate)
 
 - Show saved-answer notices in the existing upper toast bar instead of blocking dialogs, including preserved-edit warnings.

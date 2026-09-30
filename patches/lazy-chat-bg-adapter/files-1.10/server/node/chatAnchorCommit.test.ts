@@ -15,13 +15,13 @@ const base = () => ({ id: 'chat', name: 'before', scriptstate: { a: '0', b: '0' 
 const result = (chat: any) => ({ ...structuredClone(chat), message: [...structuredClone(chat.message), message('answer', 'response')] })
 
 describe('anchored chat resolution', () => {
-    it.each(['new', 'attached', 'conflict'])('uses fresh input and main contexts without replaying attached input (%s)', async scenario => {
-        const alreadyAttached = scenario === 'attached'
+    it.each(['new', 'attached', 'conflict', 'resumed-policy', 'post-attach-policy'])('uses fresh input and main contexts without replaying attached input (%s)', async scenario => {
+        const alreadyAttached = scenario === 'attached' || scenario === 'resumed-policy'
         const source = readFileSync(new URL('./bgOrchestrator.cjs', import.meta.url), 'utf8')
         const start = source.indexOf('async function runServerPreview(')
         const end = source.indexOf('\n// S2-C:', start)
         expect(start).toBeGreaterThan(0); expect(end).toBeGreaterThan(start)
-        let database: any, triggerCalls = 0, editCalls = 0, attachCalls = 0, committedCalls = 0
+        let database: any, triggerCalls = 0, editCalls = 0, attachCalls = 0, committedCalls = 0, mainCalls = 0
         const command = { userMessageId: 'new-input', rawText: 'raw input', submittedAt: 123 }
         const latest: any = { id: 'chat', message: [message('history', 'latest history')], scriptstate: {} }
         const root: any = { characters: [{ chaId: 'char', type: 'character', description: 'turn-time setting',
@@ -31,6 +31,7 @@ describe('anchored chat resolution', () => {
         const basis = (inputAttachPackage as any).captureInputTransformBase(claimContext.chat, claimContext.metadata, command.userMessageId)
         const record = { admission: command, inputReceipt: { messageId: command.userMessageId } }
         if (alreadyAttached) latest.message.push(message(command.userMessageId, 'previously transformed', 'user'))
+        if (scenario === 'resumed-policy') root.fallbackModels = { model: ['reverse_proxy'] }
         const bg = {
             policy, inputPolicy,
             dbmod: { setDatabase: (value: any) => { database = value }, getDatabase: () => database },
@@ -44,6 +45,7 @@ describe('anchored chat resolution', () => {
                 // A concurrent user save while the trigger is in flight must survive attachment.
                 latest.message[0].data = 'newer user edit'
                 root.characters[0].description = 'main-time setting'
+                if (scenario === 'post-attach-policy') root.fallbackModels = { model: ['reverse_proxy'] }
                 return value
             } },
             scripts: { processScript: async (_character: any, text: string, kind: string) => {
@@ -51,6 +53,7 @@ describe('anchored chat resolution', () => {
             } },
             idx: { chatProcessStage: { set: () => {}, subscribe: () => () => {} },
                 sendChatWithDirectLifecycle: async () => {
+                    mainCalls++
                     const character = database.characters[0], chat = character.chats[0]
                     expect(character.description).toBe(alreadyAttached ? 'turn-time setting' : 'main-time setting')
                     expect(chat.message[0].data).toBe(alreadyAttached ? 'latest history' : 'newer user edit')
@@ -83,9 +86,11 @@ describe('anchored chat resolution', () => {
             onInputCommitted: () => { committedCalls++ },
             readAssemblyContext: async () => scenario === 'conflict' ? { status: 'conflict', reason: 'unknown_suffix' } : capture(),
         })
-        if (scenario === 'conflict') {
-            await expect(running).rejects.toMatchObject({ code: 'BG_ASSEMBLY_CONFLICT', reason: 'unknown_suffix' })
-            expect([triggerCalls, editCalls, attachCalls]).toEqual([1, 1, 1])
+        if (scenario === 'conflict' || scenario.endsWith('-policy')) {
+            await expect(running).rejects.toMatchObject({ code: 'BG_ASSEMBLY_CONFLICT',
+                reason: scenario === 'conflict' ? 'unknown_suffix' : 'latest_settings_require_client' })
+            expect([triggerCalls, editCalls, attachCalls]).toEqual(alreadyAttached ? [0, 0, 0] : [1, 1, 1])
+            expect(mainCalls).toBe(0)
             expect(latest.message).toHaveLength(2)
             return
         }
@@ -168,6 +173,7 @@ describe('anchored chat resolution', () => {
         const latest = structuredClone(initial)
         latest.message[0].data = 'latest history'
         const root = {
+            aiModel: 'reverse_proxy', fallbackModels: { model: ['xcustom:::preserved'] },
             characters: [{ chaId: 'char', chats: [{ id: 'chat', name: 'metadata name', _stub: true }], description: 'latest character' }],
             globalChatVariables: { value: 'latest' }, statics: { messages: 0 },
         }

@@ -18,11 +18,12 @@ const bgGlobalApiUnits = [
     'bg-preserve:hook:globalapi-gemini-main-branch',
 ]
 const externalHeaderBridgeUnits = require('./external-header-units.cjs')
+const requestPolicyUnits = require('./request-policy-units.cjs')
 
 module.exports = {
     id: 'lazy-chat-bg-adapter',
     title: 'BG preserve integration for lazy chat storage',
-    version: '0.7.21',
+    version: '0.7.22',
     targets: {
         pocketrisu: {
             verified: ['1.10.0'],
@@ -35,6 +36,7 @@ module.exports = {
         all: ['bg-preserve', 'lazy-chat-sync'],
     },
     units: [
+        ...requestPolicyUnits,
         {
             id: 'lazy-chat-bg-adapter:assembly-warning-marker-type:1.10',
             file: 'src/ts/bgOrchestrationPending.ts', type: 'replace',
@@ -2530,9 +2532,10 @@ const serverChatCommitOwner = createServerChatCommitOwner({
       currentChat = assemblyContext.chat
       const character = stripped.characters.find(value => value && value.chaId === selectedCharId)
       if (bg.policy.requiresClientGenerationEpilogue(stripped, character)
-        || (control.inputCommandVersion === 1 && inputTransformClaim.status === 'started'
+        || (control.inputCommandVersion === 1
           && bg.inputPolicy.requiresClientOwnedInputPreparation(stripped, currentChat))) {
-        throw new Error('latest settings require client-only preparation or output')
+        throw Object.assign(new Error('latest settings require client-only preparation or output'),
+          { code: 'BG_ASSEMBLY_CONFLICT', reason: 'latest_settings_require_client' })
       }
     }
 `,
@@ -2639,7 +2642,8 @@ const serverChatCommitOwner = createServerChatCommitOwner({
       db.characters[charIdx].chats[chatIdx] = assemblyContext.chat
       db.characters[charIdx].chatPage = chatIdx
       if (Object.prototype.hasOwnProperty.call(db, 'nodeOnlyServerSideRequests')) db.nodeOnlyServerSideRequests = false
-      if (bg.policy.requiresClientGenerationEpilogue(db, db.characters[charIdx])) {
+      if (bg.policy.requiresClientGenerationEpilogue(db, db.characters[charIdx])
+        || bg.inputPolicy.requiresClientOwnedInputPreparation(db, assemblyContext.chat)) {
         throw Object.assign(new Error('latest settings require client-only output'),
           { code: 'BG_ASSEMBLY_CONFLICT', reason: 'latest_settings_require_client' })
       }
