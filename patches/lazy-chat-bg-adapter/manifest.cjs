@@ -22,7 +22,7 @@ const externalHeaderBridgeUnits = require('./external-header-units.cjs')
 module.exports = {
     id: 'lazy-chat-bg-adapter',
     title: 'BG preserve integration for lazy chat storage',
-    version: '0.7.20',
+    version: '0.7.21',
     targets: {
         pocketrisu: {
             verified: ['1.10.0'],
@@ -831,7 +831,7 @@ export async function adoptServerCommittedChat(
             file: 'src/ts/bgOrchestrate.ts',
             type: 'replace',
             anchor: "import { ensureChatHydrated, fetchChatFromServer } from './storage/chatStorage'\n",
-            content: `import { notifyWarning } from './alert'
+            content: `import { notifyInfo, notifyWarning } from './alert'
 import {
     adoptServerCommittedChat,
     ensureChatHydrated,
@@ -1247,7 +1247,7 @@ function rememberServerCommittedTarget(operationId: string, hydration: any): voi
     if (!receipt || !hydration.chat) return
     if (!completionNotifiedOperations.has(operationId)
         && receipt.effects?.chat?.reason === 'concurrent-chat-edit-preserved') {
-        try { alertError('답변은 저장했어요. 생성 중 수정한 내용을 보존하기 위해 겹친 서버 스크립트 수정 일부는 적용하지 않았어요.') } catch { /* best-effort notice */ }
+        try { notifyWarning('답변은 저장했어요. 생성 중 수정한 내용을 보존하기 위해 겹친 서버 스크립트 수정 일부는 적용하지 않았어요.', { source: 'bg-saved-answer' }) } catch { /* best-effort notice */ }
     }
     try {
         const expectedChatRevision = orchestrationChatRevision(hydration.chat)
@@ -1340,7 +1340,7 @@ function notifyCommittedResultKeptOnServer(operationId: string, reason: unknown)
         operationId,
         reason,
     })
-    try { alertError(COMMITTED_RESULT_KEPT_NOTICE) } catch { /* best-effort */ }
+    try { notifyInfo(COMMITTED_RESULT_KEPT_NOTICE, { source: 'bg-saved-answer' }) } catch { /* best-effort */ }
 }
 
 `,

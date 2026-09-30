@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.2.4-experimental.14 (BG candidate)
+
+- Show saved-answer notices in the existing upper toast bar instead of blocking dialogs, including preserved-edit warnings.
+- Preserve notification guards, result adoption, retry and acknowledgement behavior. See `docs/POCKETRISU-BG-SAVED-ANSWER-NOTICE-VALIDATION.md` for validation and delivery status.
+
 ## 0.2.4-experimental.13 (BG candidate)
 
 - Read the latest saved chat and settings at execution time for prepared and raw server inputs; preserve already-executed input effects.

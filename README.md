@@ -4,6 +4,9 @@ Personal, all-or-nothing patch delivery for PocketRisu NodeOnly. The current
 stable release is `v0.2.3`, and its complete manifest graph targets exact
 PocketRisu `v1.10.0`.
 
+The `0.2.4-experimental.14` follow-up moves saved-answer notices to the upper
+notification bar. See the [validation and delivery record](docs/POCKETRISU-BG-SAVED-ANSWER-NOTICE-VALIDATION.md).
+
 The G1.3 candidate `0.2.4-experimental.13` uses assembly-time saved chat and settings,
 preserves user edits and reports context changes after preparation. Automated validation
 and live delivery are complete; device qualification remains pending. See the
