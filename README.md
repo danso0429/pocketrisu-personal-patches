@@ -6,7 +6,7 @@ PocketRisu `v1.10.0`.
 
 The G1.3 candidate `0.2.4-experimental.13` uses assembly-time saved chat and settings,
 preserves user edits and reports context changes after preparation. Automated validation
-is complete; live delivery and device qualification are pending. See the
+and live delivery are complete; device qualification remains pending. See the
 [G1.3 validation record](docs/POCKETRISU-G1-3-ASSEMBLY-CONTEXT-VALIDATION.md).
 
 The BG candidate `0.2.4-experimental.6` repairs JSON-transport admission
