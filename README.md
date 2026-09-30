@@ -35,7 +35,8 @@ keeps the measured next save-speed candidate.
 The BG candidate `0.2.4-experimental.12` saves generated answers after their
 input message in the latest chat while preserving edits saved during generation.
 Overlapping user edits take priority with a skipped-change notice. It includes
-the G1.12 finished-operation fixes. See [G1.1 validation](docs/POCKETRISU-G1-1-ANCHOR-COMMIT-VALIDATION.md)
+the G1.12 finished-operation fixes. The user reported the requested iPhone
+edit-during-generation and app-return/save check normal. See [G1.1 validation](docs/POCKETRISU-G1-1-ANCHOR-COMMIT-VALIDATION.md)
 for verification, device status and commit-record downgrade limitations.
 
 The BG candidate `0.2.4-experimental.11` closes server operations that have

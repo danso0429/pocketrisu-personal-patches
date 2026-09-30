@@ -2,6 +2,7 @@
 
 ## 0.2.4-experimental.12 (BG candidate)
 
+- Record the user's normal result for the requested iPhone edit-during-generation, app exit/return and subsequent-save check. Broader qualification remains open.
 - Resolve server answers against the latest chat by input message identity, preserving edits saved during generation without creating conflict copies.
 - Preserve current user values on script-edit overlap, apply independent effects, and retain replay/transaction/cancellation protections with versioned commit records.
 - Match legacy history before native ID backfill, bridge saved wire revisions to browser view fingerprints, and distinguish generated answers from other script-added messages.

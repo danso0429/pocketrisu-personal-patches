@@ -2,7 +2,7 @@
 
 Date: 2026-09-30 KST
 Candidate: `0.2.4-experimental.12` (lazy-chat-bg-adapter `0.7.19`, lazy-chat-sync `0.5.5`).
-Status: implemented, automatically validated, reviewed, pushed and live-applied. Device observation remains pending.
+Status: implemented, automatically validated, reviewed, pushed and live-applied. The user reported the requested iPhone check normal; scoped L5 is closed.
 
 ## Behavior
 
@@ -56,7 +56,7 @@ An evicted saved snapshot or later unsaved edits can still prevent direct view a
 
 The previously reported startup recovery stall was investigated read-only. Existing records/journal hashes and applied receipts validated; a later snapshot found referenced chats absent from current chat metadata. No deleted chat was restored and no recovery/user record was removed. This does not prove that every historical stalled record had the same cause.
 
-The required iPhone observation remains editing an earlier message while generation runs, leaving the app, then returning to the original chat and verifying that both the edit and answer remain and subsequent saving works. Full G1 qualification and stable publication remain open.
+The user reported the requested iPhone edit-during-generation, app exit/return and subsequent-save check normal, as recorded below. Full G1 qualification and stable publication remain open.
 
 ## Live delivery
 
@@ -68,6 +68,12 @@ The planned 21 paths were applied, frontend and BG bundles rebuilt and the app r
 
 All 433 managed paths matched recorded hashes/modes, replan was zero, all five databases passed post-start quick_check, and PM2 was online with zero unstable restarts. Active requests, pending sends and input records were zero before and after. External-header settings remained byte-identical. Operation-state rows were 182 before and 180 after; existing application retention remained enabled and the exact removed identities were not compared. The two new error-log lines were the known retained-journal warning and the existing startup recovery stall (zero inputs, 23 commits); there were no unclassified new lines. No manual result/chat deletion, generation cancellation or provider-generation probe was performed.
 
-The installer was rebuilt after the implementation commit and remained byte-identical. No remote CI run was observed for the candidate branch. No tag or stable release was created. L3 records remain retained until device feedback and L6 closeout.
+The installer was rebuilt after the implementation commit and remained byte-identical. No remote CI run was observed for the candidate branch. No tag or stable release was created. The completed final L3 audit was removed during scoped L6 closeout after device feedback.
 
 Available disk space at final readback was 1,235,677,184 bytes; existing backups were retained.
+
+## Device confirmation and scoped closeout
+
+On 2026-09-30 KST, the user reported “정상!” (normal) after the requested scenario: send in a test conversation, edit and save an earlier message during generation, close and reopen the app, then verify that both the edit and answer remain and subsequent saving works. This is a collective user report, without per-step timings, screenshots or independent bundle-load telemetry.
+
+This closes L5 for the delivered G1.1 unit. L6 updates the validation, README, changelog, ordered goals and work journal, removes the corresponding waiting item and completed final L3 audit, and retains experimental.12. No application code, deployment or tag changes are needed for this documentation-only closeout. The existing 23-record recovery backlog, broader G1.12 merge adoption, G1.3 onward and stable qualification remain separate work.
