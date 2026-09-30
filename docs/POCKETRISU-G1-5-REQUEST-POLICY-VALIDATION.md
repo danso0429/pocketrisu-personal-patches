@@ -2,7 +2,8 @@
 
 Date: 2026-09-30 KST. Baseline: `027c1f8` (experimental.14).
 Candidate: `0.2.4-experimental.15`, lazy-chat-bg-adapter `0.7.22`.
-Status: implemented, automatically validated and reviewed; live delivery pending.
+Status: implemented, automatically validated, reviewed and delivered live. Device
+confirmation and full G1.5a qualification remain open; no stable release is claimed.
 
 ## Scope and behavior
 
@@ -86,3 +87,29 @@ The next unit must qualify the input-phase preset/module/custom endpoint path,
 dynamic calls, forced fallbacks and operation failure semantics. Plugin hosting,
 plugin participation policy, N+1 UI, G1.12 remaining adoption/cancel behavior,
 general durable notifications and full G1 qualification remain separate.
+
+## Live delivery
+
+Implementation commit `2848750` was pushed before live application. Preflight found
+437 managed files without byte/mode drift and zero active requests, pending sends
+or input commands. The process was stopped after the idle check. All five database
+checkpoints and integrity checks passed. The new stopped application/database
+archive is 3,025,442,093 bytes; all 1,605 regular files were read back and matched
+against source hashes, lengths and modes. Existing backups were retained.
+
+The ten-path plan was applied, frontend and BG bundle builds/load passed, and
+re-plan returned zero changes. After restart, all 440 managed files matched their
+recorded hashes/modes. Root HTTP and 17 entry/import/storage script assets returned
+200 and matched local build hashes. All five databases passed quick_check; external
+header settings were byte-identical. PM2 was online with zero unstable restarts.
+Active requests, pending sends and input commands were zero; operation-state
+records remained 148 before and after delivery.
+
+Two new error-log lines belonged to the existing retained-journal and commit
+recovery-stall categories. No retained record or user chat was deleted/restored.
+The backlog remains separately tracked; this delivery is not its resolution.
+
+Device preservation check: in an existing preset chat, send one ordinary message
+without editing, close and reopen the app, and confirm one saved answer, a cleared
+progress indicator and no context-change warning. This does not qualify newly
+server-owned preset input, module/plugin execution or all earlier G1.3 scenarios.

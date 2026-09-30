@@ -6,6 +6,7 @@
 - Include configured custom/plugin/reverse-proxy fallback models in the existing client-preparation boundary. Preserve their existing prepared delegation and endpoint settings.
 - Recheck current model settings when resuming attached input and after input attachment, retaining saved input and avoiding replay when a setting change blocks main dispatch.
 - Keep preset/module/custom raw-input expansion, plugin hosting and N+1 UI as subsequent work. See `docs/POCKETRISU-G1-5-REQUEST-POLICY-VALIDATION.md` for validation, limitations and delivery status.
+- Delivered live after verified stopped backup, builds and readback of 440 managed files, 17 script assets and five databases. Device confirmation remains pending.
 
 ## 0.2.4-experimental.14 (BG candidate)
 
