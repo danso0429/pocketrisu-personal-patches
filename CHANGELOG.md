@@ -4,7 +4,7 @@
 
 - Show saved-answer notices in the existing upper toast bar instead of blocking dialogs, including preserved-edit warnings.
 - Preserve notification guards, result adoption, retry and acknowledgement behavior. See `docs/POCKETRISU-BG-SAVED-ANSWER-NOTICE-VALIDATION.md` for validation and delivery status.
-- Delivered live after application/state backup verification and build/readback; device confirmation remains pending.
+- Delivered live after application/state backup verification and build/readback; the user confirmed normal app-return notification behavior on 2026-09-30.
 
 ## 0.2.4-experimental.13 (BG candidate)
 
