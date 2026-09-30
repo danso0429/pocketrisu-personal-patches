@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.2.4-experimental.16 (BG candidate)
+
+- Run server input triggers and editinput inside the operation's existing abort and conversation-header context, with the same node environment used by main generation.
+- Restore global descriptors after input execution and reject attachment if an operation was cancelled or timed out, including when a script handles an aborted request normally.
+- Preserve ordinary provider failure handling, main/preview behavior and current model eligibility. This does not include the deferred r3 recovery redesign or expanded preset/module admission.
+- See `docs/POCKETRISU-G1-NATIVE-INPUT-CONTEXT-VALIDATION.md` for tests, the cold Lua reproduction and cooperative-cancellation limits.
+
 ## 0.2.4-experimental.15 (BG candidate)
 
 - Share explicit-database model selection between actual request dispatch and server-input preflight, preserving chat/module/global-lock preset context and classic static/auxiliary selection.
