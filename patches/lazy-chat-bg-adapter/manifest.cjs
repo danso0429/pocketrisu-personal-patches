@@ -22,7 +22,7 @@ const externalHeaderBridgeUnits = require('./external-header-units.cjs')
 module.exports = {
     id: 'lazy-chat-bg-adapter',
     title: 'BG preserve integration for lazy chat storage',
-    version: '0.7.18',
+    version: '0.7.19',
     targets: {
         pocketrisu: {
             verified: ['1.10.0'],
@@ -35,6 +35,13 @@ module.exports = {
         all: ['bg-preserve', 'lazy-chat-sync'],
     },
     units: [
+        ...['chatAnchorCommit.cjs', 'chatAnchorCommit.test.ts'].map((name) => ({
+            id: `lazy-chat-bg-adapter:owned:${name}:1.10`,
+            file: `server/node/${name}`,
+            type: 'owned',
+            content: owned1100(`server/node/${name}`),
+            targetVersions: pocketRisu1100,
+        })),
         ...['bgOrchestrationStartDiagnostic.ts', 'bgOrchestrationStartDiagnostic.test.ts'].map((name) => ({
             id: `lazy-chat-bg-adapter:owned:${name}:1.10`,
             file: `src/ts/${name}`,
@@ -298,6 +305,7 @@ export async function adoptServerCommittedChat(
     expectedServerRevision: string,
     allowedCurrentRevisions: string[],
     revisionOf: (chat: Chat) => string,
+    savedServerRevision?: string,
 ): Promise<{
     adopted: boolean
     reason?: string
@@ -309,6 +317,14 @@ export async function adoptServerCommittedChat(
     if (initialIndex < 0) return { adopted: false, reason: 'chat-missing' }
     const initial = chats[initialIndex]
     const allowed = new Set(allowedCurrentRevisions)
+    if (savedServerRevision) {
+        // The wire SHA-256 is not the browser's display fingerprint. Only a
+        // remembered acknowledged/adopted snapshot can bridge those identities.
+        const savedViewRevision = forageStorage.realStorage.savedChatViewRevision?.(
+            chaId, chatId, savedServerRevision, revisionOf,
+        )
+        if (savedViewRevision) allowed.add(savedViewRevision)
+    }
     if (!initial._placeholder) {
         let currentRevision = ''
         try { currentRevision = revisionOf(initial) } catch { /* invalid local chat */ }
@@ -793,6 +809,7 @@ import {
 } from './bgServerCommitHydration'
 import {
     COMMITTED_RESULT_KEPT_NOTICE,
+    anchoredCommitConflictNotice,
     finishedServerFailureNotice,
     isFinishedServerFailure,
     recordCommittedAdoptionAttempt,
@@ -1140,6 +1157,7 @@ async function hydrateServerCommittedResult(
             chatId: storedChatId,
             expectedServerRevision,
             allowedCurrentRevisions,
+            savedServerRevision,
         }) => {
             const characters: any[] = (DBState as any)?.db?.characters
             const character = Array.isArray(characters)
@@ -1155,6 +1173,7 @@ async function hydrateServerCommittedResult(
                 expectedServerRevision,
                 allowedCurrentRevisions,
                 orchestrationChatRevision,
+                savedServerRevision,
             )
         },
     })
@@ -1163,6 +1182,10 @@ async function hydrateServerCommittedResult(
 function rememberServerCommittedTarget(operationId: string, hydration: any): void {
     const receipt = hydration && hydration.receipt
     if (!receipt || !hydration.chat) return
+    if (!completionNotifiedOperations.has(operationId)
+        && receipt.effects?.chat?.reason === 'concurrent-chat-edit-preserved') {
+        try { alertError('답변은 저장했어요. 생성 중 수정한 내용을 보존하기 위해 겹친 서버 스크립트 수정 일부는 적용하지 않았어요.') } catch { /* best-effort notice */ }
+    }
     try {
         const expectedChatRevision = orchestrationChatRevision(hydration.chat)
         const current = mergeTargetByOperation.get(operationId)
@@ -1197,6 +1220,15 @@ function retainUncommittedServerChat(
     data: any,
     mode: 'watch' | 'boot',
 ): void {
+    const conflictNotice = anchoredCommitConflictNotice(data)
+    if (operationId && conflictNotice) {
+        // A semantic conflict has a retained result but no canonical commit. Do not
+        // ACK/delete that result or repeatedly offer an impossible automatic save.
+        try { alertError(conflictNotice) } catch { /* best-effort notice */ }
+        if (mode === 'boot') finishBootRecovery(operationId)
+        else stopWatch()
+        return
+    }
     console.error('[bg-orch] server-owned chat commit is unresolved; retaining result', {
         operationId,
         state: data?.serverChatCommit?.status || data?.operationState || 'uncommitted',
@@ -2464,6 +2496,15 @@ const serverChatCommitOwner = createServerChatCommitOwner({
           .update(JSON.stringify({ database: db, selectedCharId, selectedChatId }))
           .digest('hex'))
       : null
+    const serverExecutionAnchor = mode === 'full'
+      && control && control.serverChatCommitVersion === 1
+      ? require('./chatAnchorCommit.cjs').captureExecutionChatAnchor(
+          db.characters[charIdx].chats[chatIdx],
+          serverInputAttachment && serverInputAttachment.inputReceipt
+            ? serverInputAttachment.inputReceipt.messageId : null,
+          stripped.characters[charIdx].chats[chatIdx],
+        )
+      : null
 `,
             requires: [
                 'bg-preserve:owned:server/node/bgOrchestrator.cjs:1.9',
@@ -2578,11 +2619,34 @@ const serverChatCommitOwner = createServerChatCommitOwner({
             id: 'lazy-chat-bg-adapter:server-chat-commit-result-context:1.10',
             file: 'server/node/bgOrchestrator.cjs',
             type: 'replace',
-            anchor: `        globalChatVariablesExpected: gvDiff.expected,
+            anchor: `      const gvAfter = (after && after.globalChatVariables) || {}
+      let gvBeforeObj = {}; try { gvBeforeObj = JSON.parse(globalVarsBefore) } catch { /* empty */ }
+      const gvDiff = diffGlobalVariables(gvBeforeObj, gvAfter)
+      return {
+        chat: resultChat,
+        statics: (after && after.statics) || null,
+        staticsMessagesDelta: ((after && after.statics ? (after.statics.messages || 0) : 0) - staticsMsgsBefore),
+        globalChatVariables: gvDiff.changed,
+        globalChatVariablesDeleted: gvDiff.deleted,
+        globalChatVariablesExpected: gvDiff.expected,
         threw: fullThrew ? String((fullThrew && fullThrew.message) || fullThrew) : null,
 `,
-            content: `        globalChatVariablesExpected: gvDiff.expected,
+            content: `      if (serverExecutionAnchor && resultChat && Array.isArray(resultChat.message)) {
+        try { require('./chatAnchorCommit.cjs').assignResultMessageIds(resultChat) }
+        catch (error) { fullThrew = fullThrew || error }
+      }
+      const gvAfter = (after && after.globalChatVariables) || {}
+      let gvBeforeObj = {}; try { gvBeforeObj = JSON.parse(globalVarsBefore) } catch { /* empty */ }
+      const gvDiff = diffGlobalVariables(gvBeforeObj, gvAfter)
+      return {
+        chat: resultChat,
+        statics: (after && after.statics) || null,
+        staticsMessagesDelta: ((after && after.statics ? (after.statics.messages || 0) : 0) - staticsMsgsBefore),
+        globalChatVariables: gvDiff.changed,
+        globalChatVariablesDeleted: gvDiff.deleted,
+        globalChatVariablesExpected: gvDiff.expected,
         settingsDigest: serverChatCommitSettingsDigest,
+        executionAnchor: serverExecutionAnchor,
         threw: fullThrew ? String((fullThrew && fullThrew.message) || fullThrew) : null,
 `,
             requires: ['lazy-chat-bg-adapter:server-input-transform:1.10'],
@@ -2594,6 +2658,9 @@ const serverChatCommitOwner = createServerChatCommitOwner({
             type: 'replace',
             anchor: '    error: record.error, postError: record.postError,\n',
             content: `    error: record.error, postError: record.postError,
+    ...(record.anchorResultVersion === 1 ? {
+      anchorResultVersion: 1, hasGeneratedAnswer: record.hasGeneratedAnswer,
+    } : {}),
     ...(record.serverChatCommitVersion === 1 ? { serverChatCommitVersion: 1 } : {}),
     serverChatCommit: record.serverChatCommit || null,
 `,
@@ -2619,6 +2686,10 @@ const serverChatCommitOwner = createServerChatCommitOwner({
     time: Date.now(),
 `,
             content: `    postError: kind === 'terminal-partial' ? (result.threw || undefined) : undefined,
+    ...(result.executionAnchor ? {
+      anchorResultVersion: 1,
+      hasGeneratedAnswer: require('./chatAnchorCommit.cjs').anchoredAssistantMessages(result.executionAnchor, result.chat).length > 0,
+    } : {}),
     serverChatCommitVersion: opts && opts.serverChatCommitVersion === 1 ? 1 : undefined,
     serverChatCommit: opts && opts.serverChatCommit ? opts.serverChatCommit : undefined,
     time: Date.now(),
@@ -3006,7 +3077,10 @@ const serverChatCommitOwner = createServerChatCommitOwner({
             const msgs = result && result.chat && Array.isArray(result.chat.message) ? result.chat.message.length : -1
             console.log(\`[bg-orch] S4b detached done: msgs=\${msgs} threw=\${result ? result.threw : '?'} TOTAL=\${Date.now() - t0}ms (\${persisted.persisted ? 'kv saved' : 'delivery failed'})\`)
 `,
-            content: `            const terminalKind = inputCommandVersion === 1
+            content: `            const terminalKind = result && result.executionAnchor
+              ? (require('./chatAnchorCommit.cjs').anchoredAssistantMessages(result.executionAnchor, result.chat).length > 0
+                  ? (result.threw ? 'terminal-partial' : 'terminal-success') : 'terminal-error')
+              : inputCommandVersion === 1
               ? (result && result.chat && Array.isArray(result.chat.message)
                 && result.chat.message.length > serverCommitBaselineMessageCount
                   ? (result.threw ? 'terminal-partial' : 'terminal-success')
@@ -3031,13 +3105,15 @@ const serverChatCommitOwner = createServerChatCommitOwner({
                   result,
                   committedAt,
                   inputReceipt: serverInputReceipt,
+                  anchor: result && result.executionAnchor,
                 })
               } catch (error) {
                 console.error(
                   '[bg-orch] server chat commit failed:',
                   (error && (error.code || error.message)) || 'unknown',
                 )
-                serverChatCommit = { status: 'failed', reason: 'commit_failed' }
+                serverChatCommit = { status: 'failed', reason: error && error.code === 'BG_ANCHOR_IDENTITY_INVALID'
+                  ? 'generated_identity_invalid' : 'commit_failed' }
               }
               if (serverChatCommit && serverChatCommit.status === 'cancelled') {
                 if (inputCommandVersion === 1) {

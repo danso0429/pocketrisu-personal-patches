@@ -45,6 +45,18 @@ function terminalError(overrides: Record<string, unknown> = {}) {
 const messages = (count: number) => ({ message: Array.from({ length: count }, (_, i) => ({ chatId: `m${i}` })) })
 
 describe('finished server failure classification', () => {
+    it('uses the versioned server answer identity result instead of total message count', () => {
+        expect(isFinishedServerFailure(terminalError({
+            anchorResultVersion: 1, hasGeneratedAnswer: false, chat: messages(9),
+        }), 4)).toBe(true)
+        expect(isFinishedServerFailure(terminalError({
+            anchorResultVersion: 1, hasGeneratedAnswer: true, chat: messages(2),
+        }), 4)).toBe(false)
+        expect(isFinishedServerFailure(terminalError({
+            anchorResultVersion: 1, chat: null,
+        }), 4)).toBe(false)
+    })
+
     it('closes a final error without a chat payload', () => {
         expect(isFinishedServerFailure(terminalError(), 4)).toBe(true)
         expect(isFinishedServerFailure(terminalError({ chat: undefined }), 4)).toBe(true)

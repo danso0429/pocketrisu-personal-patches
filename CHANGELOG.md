@@ -1,5 +1,13 @@
 # Changelog
 
+## 0.2.4-experimental.12 (BG candidate)
+
+- Resolve server answers against the latest chat by input message identity, preserving edits saved during generation without creating conflict copies.
+- Preserve current user values on script-edit overlap, apply independent effects, and retain replay/transaction/cancellation protections with versioned commit records.
+- Match legacy history before native ID backfill, bridge saved wire revisions to browser view fingerprints, and distinguish generated answers from other script-added messages.
+- Keep G1.12 finished-operation cleanup; insertion conflicts and invalid generated identities stop local retry without deleting the retained result. The current UI does not provide a retained-result viewer.
+- See `docs/POCKETRISU-G1-1-ANCHOR-COMMIT-VALIDATION.md` for evidence, device status, remaining goals and downgrade limits.
+
 ## 0.2.4-experimental.11 (BG candidate)
 
 - Truncate the finished-failure notice by code point so an emoji at the limit is not split.

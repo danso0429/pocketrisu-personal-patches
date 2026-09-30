@@ -225,6 +225,76 @@ async function startForeground() {
     return module
 }
 
+describe('anchored commit notices preserve finished-operation handling', () => {
+    it.each(['boot', 'watch'])('closes a versioned no-answer result with script-added messages in %s', async mode => {
+        serve((operationId, method, url) => {
+            if (isResultPeek(method, url)) return { status: 200, body: terminalError(operationId, {
+                anchorResultVersion: 1, hasGeneratedAnswer: false, chat: chatWith(4),
+            }) }
+            if (isResultAck(method, url)) return { status: 200, body: { acked: true, state: 'deleted' } }
+        })
+        if (mode === 'boot') await bootWithMarker()
+        else { await startForeground(); await vi.advanceTimersByTimeAsync(2_500) }
+        expect(count(isResultAck)).toBe(1)
+        expect(markers()).toEqual([])
+        expect(h.alerts).toEqual([FAILURE_NOTICE])
+    })
+
+    it('stops a deterministic identity failure without acknowledging the generated answer', async () => {
+        serve((operationId, method, url) => {
+            if (isResultPeek(method, url)) return { status: 200, body: terminalError(operationId, {
+                kind: 'terminal-success', outcome: 'success', chat: chatWith(3),
+                anchorResultVersion: 1, hasGeneratedAnswer: true,
+                serverChatCommit: { status: 'failed', reason: 'generated_identity_invalid' },
+            }) }
+        })
+        await bootWithMarker()
+        expect(count(isResultAck)).toBe(0)
+        expect(markers()).toEqual([])
+        expect(h.alerts[0]).toContain('식별정보')
+        await vi.advanceTimersByTimeAsync(30_000)
+        expect(h.alerts).toHaveLength(1)
+    })
+
+    it.each(['boot', 'watch'])('closes a semantic conflict once without deleting its result in %s', async mode => {
+        serve((operationId, method, url) => {
+            if (isResultPeek(method, url)) return { status: 200, body: terminalError(operationId, {
+                kind: 'terminal-success', outcome: 'success', chat: chatWith(3),
+                serverChatCommit: { status: 'conflict', reason: 'input_deleted' },
+            }) }
+        })
+        if (mode === 'boot') await bootWithMarker()
+        else { await startForeground(); await vi.advanceTimersByTimeAsync(2_500) }
+        expect(h.alerts).toHaveLength(1)
+        expect(h.alerts[0]).toContain('입력 메시지가 삭제')
+        expect(markers()).toEqual([])
+        expect(count(isResultAck)).toBe(0)
+        await vi.advanceTimersByTimeAsync(30_000)
+        expect(count(isResultPeek)).toBe(1)
+        expect(h.sendChat).not.toHaveBeenCalled()
+    })
+
+    it.each(['boot', 'watch'])('reports skipped script edits after successful adoption in %s', async mode => {
+        h.adopt.mockResolvedValue({ adopted: true, chat: chatWith(3) })
+        serve((operationId, method, url) => {
+            if (isResultPeek(method, url)) {
+                const data: any = committedResult(operationId)
+                data.serverChatCommit.receipt.effects.chat.reason = 'concurrent-chat-edit-preserved'
+                return { status: 200, body: data }
+            }
+            if (method === 'GET' && url.startsWith('/api/bg-orchestrate-chat-state/')) return { status: 200, body: projection(operationId) }
+            if (isResultAck(method, url)) return { status: 200, body: { acked: true, state: 'deleted' } }
+        })
+        if (mode === 'boot') await bootWithMarker()
+        else { await startForeground(); await vi.advanceTimersByTimeAsync(2_500) }
+        expect(h.alerts).toHaveLength(1)
+        expect(h.alerts[0]).toContain('서버 스크립트 수정 일부는 적용하지 않았')
+        expect(markers()).toEqual([])
+        await vi.advanceTimersByTimeAsync(30_000)
+        expect(h.alerts).toHaveLength(1)
+    })
+})
+
 describe('boot recovery of a finished failure without an answer', () => {
     it('shows one notice, acknowledges the result and clears the marker', async () => {
         serve((operationId, method, url) => {

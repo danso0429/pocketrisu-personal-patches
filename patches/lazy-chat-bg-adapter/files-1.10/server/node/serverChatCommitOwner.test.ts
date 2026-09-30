@@ -246,6 +246,60 @@ function makeHarness() {
 }
 
 describe('server-owned BG chat commit', () => {
+    it('commits over a saved earlier edit and retains variables, metadata and replay identity', async () => {
+        const harness = makeHarness(), owner = harness.makeOwner()
+        const before: any = baseChat()
+        before.message.unshift({ role: 'char', chatId: 'history', data: 'original' })
+        before.scriptstate = { a: '0', b: '0' }
+        harness.runtime.fullStore.get('char-1')!.set('chat-1', structuredClone(before))
+        const captured = await owner.captureBase('char-1', 'chat-1', before)
+        const generated: any = withAnswer(before, 'new answer', 'answer-anchor')
+        generated.scriptstate.a = 'script'; generated.scriptstate.b = 'applied'
+        generated.message[0].data = 'script history'
+        const edited = structuredClone(before)
+        edited.name = 'Renamed'; edited.folderId = 'new-folder'; edited.scriptstate.a = 'user'
+        edited.message[0].data = 'saved user history'
+        harness.runtime.fullStore.get('char-1')!.set('chat-1', edited)
+        const operationId = 'operation-anchor-owner-1'
+        harness.primeOperation(operationId)
+        const request = { ...harness.commitInput(operationId, result(generated, 'old', 'new'), 2, captured.revision), anchor: captured.anchor }
+        const outcome = await owner.commitGenerationResult(request)
+        expect(outcome).toMatchObject({ status: 'committed', receipt: {
+            anchoredBaseRevision: revision(edited), effects: { chat: { reason: 'concurrent-chat-edit-preserved' } },
+        } })
+        const stored: any = harness.runtime.fullStore.get('char-1')!.get('chat-1')
+        expect(stored.message.map((m: any) => m.data)).toEqual(['saved user history', 'hello', 'new answer'])
+        expect(stored.scriptstate).toEqual({ a: 'user', b: 'applied' })
+        expect(harness.runtime.database.characters[0].chats[0]).toMatchObject({ name: 'Renamed', folderId: 'new-folder' })
+        expect(harness.runtime.database.statics.messages).toBe(11)
+        expect(harness.runtime.database.globalChatVariables.mood).toBe('new')
+        stored.message[0].data = 'later edit'
+        expect(await owner.commitGenerationResult(request)).toMatchObject({ status: 'committed', reused: true })
+        expect(harness.runtime.database.statics.messages).toBe(11)
+        expect(await harness.makeOwner().recover(operationId)).toMatchObject({ status: 'committed' })
+        expect(harness.runtime.fullStore.get('char-1')!.get('chat-1')!.message[0].data).toBe('later edit')
+    })
+
+    it.each(['input_deleted', 'chat_deleted', 'unknown_suffix'])('retains the result without writing a chat on %s', async reason => {
+        const harness = makeHarness(), owner = harness.makeOwner(), before = baseChat()
+        const captured = await owner.captureBase('char-1', 'chat-1', before)
+        const operationId = `operation-anchor-${reason}`
+        harness.primeOperation(operationId)
+        const current = structuredClone(before)
+        if (reason === 'input_deleted') current.message = []
+        if (reason === 'unknown_suffix') current.message.push({ role: 'user', chatId: 'unknown', data: 'later input' })
+        if (reason === 'chat_deleted') harness.runtime.fullStore.get('char-1')!.delete('chat-1')
+        else harness.runtime.fullStore.get('char-1')!.set('chat-1', current)
+        const output = await owner.commitGenerationResult({
+            ...harness.commitInput(operationId, result(withAnswer(before, 'answer', 'answer-id'), 'old', 'new'), 1, captured.revision),
+            anchor: captured.anchor,
+        })
+        expect(output).toMatchObject({ status: 'conflict', reason })
+        expect(harness.kvGet(commitStorageKey(operationId))).toBeNull()
+        expect(harness.runtime.database.statics.messages).toBe(10)
+        expect(harness.runtime.database.globalChatVariables.mood).toBe('old')
+    })
+
     it('accepts the JSON transport form without changing the durable base revision', async () => {
         const harness = makeHarness()
         const stored: any = baseChat()
@@ -269,7 +323,7 @@ describe('server-owned BG chat commit', () => {
         expect(harness.runtime.fullStore.get('char-1')!.get('chat-1')).toEqual(after)
     })
 
-    it.each(['message', 'null', 'array', 'missing'])('still rejects real %s changes across JSON transport', async (change) => {
+    it.each(['message', 'null', 'array', 'missing'])('admits %s differences when the input anchor remains', async (change) => {
         const harness = makeHarness()
         const stored: any = baseChat()
         stored.optional = undefined
@@ -282,7 +336,7 @@ describe('server-owned BG chat commit', () => {
         if (change === 'array') submitted.localLore.reverse()
         if (change === 'missing') delete submitted.note
         await expect(harness.makeOwner().captureBase('char-1', 'chat-1', submitted))
-            .resolves.toMatchObject({ matches: false })
+            .resolves.toMatchObject({ matches: true, anchor: { inputId: 'user-1', chat: submitted } })
     })
 
     it('does not accept a missing canonical chat or malformed submission', async () => {
@@ -351,7 +405,7 @@ describe('server-owned BG chat commit', () => {
             'char-1',
             'chat-1',
             { ...before, note: 'stale submission' },
-        )).resolves.toMatchObject({ matches: false })
+        )).resolves.toMatchObject({ matches: true })
 
         const committed = await owner.commitGenerationResult(
             harness.commitInput(operationId, result(after, 'old', 'new'), 1, revision(before)),

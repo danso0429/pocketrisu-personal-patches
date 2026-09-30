@@ -970,6 +970,15 @@ export class NodeStorage{
         return `${chaId}|${chatId}`
     }
 
+    savedChatViewRevision(
+        chaId: string, chatId: string, serverRevision: string,
+        revisionOf: (chat: any) => string,
+    ): string | null {
+        const saved = this.chatSyncStates.get(this.chatSyncKey(chaId, chatId))
+        if (!saved?.snapshot || saved.unknownAck || saved.revision !== serverRevision) return null
+        return revisionOf(saved.snapshot)
+    }
+
     private forgetChatSyncState(key: string): void {
         const previous = this.chatSyncStates.get(key)
         if (previous?.snapshot) {

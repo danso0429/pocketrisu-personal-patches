@@ -40,6 +40,25 @@ function projection() {
 }
 
 describe('server-committed result hydration', () => {
+    it('passes the saved wire revision separately from browser display fingerprints', async () => {
+        const anchoredBaseRevision = 'a'.repeat(64)
+        const committed = { ...receipt(), anchoredBaseRevision }
+        const adoptChat = vi.fn(async (_input: { allowedCurrentRevisions: string[], savedServerRevision?: string }) => (
+            { adopted: false, reason: 'local-revision-conflict' }
+        ))
+        const options = {
+            data: { serverChatCommit: committed }, operationId: committed.operationId,
+            charId: 'char-1', chatId: 'chat-1', allowedCurrentRevisions: ['original-local'],
+            readProjection: async () => projection(), adoptChat,
+        }
+        expect(await hydrateServerCommittedOrchestration(options)).toMatchObject({ hydrated: false })
+        expect(adoptChat.mock.calls[0][0].allowedCurrentRevisions)
+            .toEqual(['original-local'])
+        expect(adoptChat.mock.calls[0][0].savedServerRevision).toBe(anchoredBaseRevision)
+        expect(serverChatCommitReceipt({ serverChatCommit: { ...committed, anchoredBaseRevision: 'invalid' } }))
+            .toBeNull()
+    })
+
     it('accepts both wrapped result and direct status receipt shapes', () => {
         expect(serverChatCommitReceipt({
             serverChatCommit: { status: 'committed', receipt: receipt() },

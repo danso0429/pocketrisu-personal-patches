@@ -1,5 +1,24 @@
 import { serverChatCommitReceipt } from './bgServerCommitHydration'
 
+export function anchoredCommitConflictNotice(data: unknown): string | null {
+    const result = data as any
+    if (!result || result.final !== true
+        || !['terminal-success', 'terminal-partial'].includes(result.kind)) return null
+    if (result.serverChatCommit?.status === 'failed'
+        && result.serverChatCommit.reason === 'generated_identity_invalid') {
+        return '메시지의 식별정보를 확인하지 못해 답변을 채팅에 넣지 못했어요. 자동 재시도는 멈췄고 서버 결과는 삭제하지 않았어요. 현재 화면에는 해당 결과를 여는 기능이 없어요.'
+    }
+    if (result.serverChatCommit?.status !== 'conflict') return null
+    const notices: Record<string, string> = {
+        input_deleted: '입력 메시지가 삭제되어 답변을 원래 채팅에 넣지 못했어요.',
+        chat_deleted: '채팅이 삭제되어 답변을 저장하지 못했어요.',
+        unknown_suffix: '입력 뒤에 다른 메시지가 추가되어 답변을 넣을 위치를 확정하지 못했어요.',
+    }
+    const reason = result.serverChatCommit.reason
+    if (typeof reason !== 'string' || !Object.hasOwn(notices, reason)) return null
+    return notices[reason] + ' 자동 재시도는 멈췄고 서버 결과는 삭제하지 않았어요. 현재 화면에는 해당 결과를 여는 기능이 없어요.'
+}
+
 // A server-owned operation that ended with a final error and no answer has nothing left to
 // commit. Retaining it as an unconfirmed commit would warn on every launch without progress.
 export function isFinishedServerFailure(data: unknown, baselineMsgs: number): boolean {
@@ -8,6 +27,7 @@ export function isFinishedServerFailure(data: unknown, baselineMsgs: number): bo
     if (result.final !== true) return false
     if (result.kind !== 'terminal-error' && result.outcome !== 'error') return false
     if (serverChatCommitReceipt(result)) return false
+    if (result.anchorResultVersion === 1) return result.hasGeneratedAnswer === false
     const messages = result.chat && Array.isArray(result.chat.message)
         ? result.chat.message.length : -1
     return !result.chat || messages <= baselineMsgs
