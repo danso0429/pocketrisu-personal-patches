@@ -1,12 +1,22 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { createRequire } from 'node:module'
+import { orchestrationChatRevision } from '../bgOrchestrationMerge'
+import { NodeStorage } from './nodeStorage'
 
 const storageMock = vi.hoisted(() => ({ realStorage: null as any }))
 const tickMock = vi.hoisted(() => vi.fn(async () => {}))
 const rememberSnapshotMock = vi.hoisted(() => vi.fn())
 
 vi.mock('../globalApi.svelte', () => ({ forageStorage: storageMock }))
+vi.mock('src/lang', () => ({ language: {} }))
+vi.mock('../alert', () => ({ alertInput: vi.fn(), waitAlert: vi.fn(), notifyError: vi.fn() }))
+vi.mock('./risuSave', async () => {
+    const { default: codec } = await import('../../../server/node/utils.cjs')
+    return { encodeRisuSaveLegacy: codec.encodeRisuSaveLegacy, decodeRisuSave: codec.decodeRisuSave }
+})
 vi.mock('svelte', () => ({ tick: tickMock }))
 vi.mock('./database.svelte', () => ({
+    appVer: 'test', nodeOnlyVer: 'test', normalizeChat: (chat: any) => chat,
     isChatStub: (value: any) => value?._stub === true && !Array.isArray(value?.message),
 }))
 
@@ -21,6 +31,31 @@ function chat(data: string) {
 }
 
 describe('server-committed chat adoption', () => {
+    it.each(['saved', 'unsaved', 'evicted', 'during-read'])('bridges actual wire and view revisions only for an acknowledged %s snapshot', async state => {
+        const { chatRevision } = createRequire(import.meta.url)('../../../server/node/chatDelta.cjs')
+        const saved = chat('edited and saved')
+        const before = structuredClone(saved)
+        const after = { ...saved, message: [...saved.message, { role: 'char', chatId: 'answer', data: 'response' }] }
+        const storage = new NodeStorage()
+        storage.rememberChatContentSnapshot('char-1', 'chat-1', { chat: saved, revision: chatRevision(saved), encodedBytes: 200 })
+        expect(orchestrationChatRevision(saved)).not.toBe(chatRevision(saved))
+        if (state === 'unsaved') before.message[0].data = 'later unsaved edit'
+        if (state === 'evicted') for (let i = 0; i < 4; i++) {
+            storage.rememberChatContentSnapshot('char-1', `other-${i}`, { chat: { ...saved, id: `other-${i}` }, revision: `other-${i}`, encodedBytes: 200 })
+        }
+        const peek = vi.spyOn(storage, 'peekChatContentSnapshot').mockImplementation(async () => {
+            if (state === 'during-read') before.message[0].data = 'edited during read'
+            return { chat: after, revision: chatRevision(after), encodedBytes: 300 }
+        })
+        storageMock.realStorage = storage
+        const chats = [before]
+        const outcome = await adoptServerCommittedChat(chats, 'char-1', 'chat-1', chatRevision(after),
+            ['original-delegation-display-revision'], orchestrationChatRevision, chatRevision(saved))
+        expect(outcome.adopted).toBe(state === 'saved')
+        if (state === 'saved') expect(chats[0].message.map((m: any) => m.data)).toEqual(['edited and saved', 'response'])
+        else { expect(chats[0]).toBe(before); if (state !== 'during-read') expect(peek).not.toHaveBeenCalled() }
+    })
+
     beforeEach(() => {
         tickMock.mockClear()
         rememberSnapshotMock.mockClear()

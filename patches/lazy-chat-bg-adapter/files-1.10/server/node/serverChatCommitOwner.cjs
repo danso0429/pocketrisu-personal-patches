@@ -2,6 +2,7 @@
 
 const crypto = require('node:crypto');
 const { isDeepStrictEqual } = require('node:util');
+const { captureChatAnchor, checkChatAnchor, resolveChatAnchor, anchoredAssistantMessages, invalidAnchor } = require('./chatAnchorCommit.cjs');
 const {
     HOST_CHANGE_INTENT_CONTRACT,
     SERVER_CHAT_COMMIT_CONTRACT,
@@ -484,7 +485,11 @@ function createServerChatCommitOwner({
             return {
                 commitSequence: nextCommitSequence(kvGet, kvSet, appliedLedger),
                 effects: {
-                    chat: { status: 'committed' },
+                    chat: {
+                        status: 'committed',
+                        ...(request.anchorResolution?.unreflected
+                            ? { reason: 'concurrent-chat-edit-preserved' } : {}),
+                    },
                     metadata: { status: 'committed' },
                     globals: { status: globalAggregateStatus(outcomes) },
                     stats: staticsDelta === 0
@@ -625,21 +630,20 @@ function createServerChatCommitOwner({
 
     async function captureBase(charId, chatId, submittedChat) {
         await ensureCanonicalState();
-        const canonicalChat = getFullChatStore()?.get(charId)?.get(chatId) || null;
-        // Admission crosses JSON transport, which drops undefined object fields and
-        // turns undefined array slots into null. Compare that representation only here;
-        // the durable base revision must still identify the unmodified stored bytes.
+        const exists = getDbCache()?.[databaseKey]?.characters
+            ?.find(character => character?.chaId === charId)?.chats?.some(chat => chat?.id === chatId);
+        const canonicalChat = exists ? getFullChatStore()?.get(charId)?.get(chatId) || null : null;
         const revision = canonicalChat ? chatRevision(canonicalChat) : null;
-        const transportRevision = canonicalChat
-            ? chatRevision(JSON.parse(JSON.stringify(canonicalChat)))
-            : null;
         const submittedRevision = submittedChat && typeof submittedChat === 'object'
             ? chatRevision(JSON.parse(JSON.stringify(submittedChat)))
             : null;
+        if (!submittedChat || submittedChat.id !== chatId || !Array.isArray(submittedChat.message)) {
+            return { revision, submittedRevision, matches: false, reason: 'input_deleted', anchor: null };
+        }
+        const anchor = captureChatAnchor(submittedChat);
+        const reason = checkChatAnchor(anchor, canonicalChat);
         return {
-            revision,
-            submittedRevision,
-            matches: !!revision && submittedRevision === transportRevision,
+            revision, submittedRevision, matches: !reason, reason, anchor,
         };
     }
 
@@ -655,6 +659,7 @@ function createServerChatCommitOwner({
         result,
         committedAt,
         inputReceipt = null,
+        anchor = null,
     }) {
         const retired = readRetiredReceipt(operationId);
         if (retired.status !== 'missing') {
@@ -668,7 +673,14 @@ function createServerChatCommitOwner({
         if (!result?.chat || result.chat.id !== chatId || !Array.isArray(result.chat.message)) {
             throw new Error('server chat commit result chat is invalid');
         }
-        const { input, assistants } = findCommitMessages(result.chat, baselineMessageCount);
+        const { input, assistants } = anchor
+            ? (() => {
+                const input = result.chat.message.find(message => message?.chatId === anchor.inputId);
+                const assistants = anchoredAssistantMessages(anchor, result.chat);
+                if (input?.role !== 'user' || !assistants.length || assistants.some(message => !message.chatId)) throw invalidAnchor();
+                return { input, assistants };
+            })()
+            : findCommitMessages(result.chat, baselineMessageCount);
         const storedRevision = chatRevision(result.chat);
         const owners = assistants.map((message) => {
             const sourceRevision = messageFingerprint(message);
@@ -746,6 +758,7 @@ function createServerChatCommitOwner({
             baseChatRevision,
             storedRevision,
             settingsDigest,
+            ...(anchor ? { executionAnchorRevision: chatRevision(anchor) } : {}),
             executionContextId: null,
             archiveCenterRequestCorrelationId: null,
             prepareKey: null,
@@ -767,7 +780,19 @@ function createServerChatCommitOwner({
             readyForNextTurn: true,
             awaitingMetadata: false,
             committedAt,
-        });
+        }, anchor ? (request) => {
+            const metadata = getDbCache()?.[databaseKey]?.characters
+                ?.find(character => character?.chaId === charId)?.chats?.find(chat => chat?.id === chatId);
+            const latest = metadata ? getFullChatStore()?.get(charId)?.get(chatId) || null : null;
+            const resolved = resolveChatAnchor(anchor, request.chat, latest, metadata);
+            if (resolved.status === 'conflict') return resolved;
+            return {
+                chat: resolved.chat,
+                metadata: chatMetadata(resolved.chat),
+                baseRevision: chatRevision(latest),
+                unreflected: resolved.unreflected,
+            };
+        } : null);
         if (inputReceipt) {
             await queueStorageOperation(() => finalizeInputCommit(outcome));
         }

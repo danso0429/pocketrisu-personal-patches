@@ -203,6 +203,7 @@ function queuedRetryHarness(
 
 function detachedCommitHarness({
     commitFailure = false,
+    malformedResult = false,
     previewGate = null as Promise<void> | null,
 } = {}) {
     const operationId = 'operation-c2-detached-1'
@@ -352,6 +353,9 @@ function detachedCommitHarness({
             control: any,
         ) => {
             previewCalls += 1
+            let executionAnchor = require('./chatAnchorCommit.cjs').captureChatAnchor(
+                previewChat, null, runtime.database.characters[0].chats[0],
+            )
             if (previewGate) await previewGate
             let resultChat = finalChat
             let settingsDigest = 'a'.repeat(64)
@@ -382,6 +386,7 @@ function detachedCommitHarness({
                     globalIntent: { changed: {}, deleted: [], expected: {} },
                 })
                 control.onInputCommitted(attached.record)
+                executionAnchor = require('./chatAnchorCommit.cjs').captureChatAnchor(inputChat)
                 resultChat = {
                     ...inputChat,
                     message: [
@@ -391,7 +396,9 @@ function detachedCommitHarness({
                 }
             }
             control.onProviderStart?.()
+            if (malformedResult) (resultChat.message as any[]).push(null)
             return {
+                executionAnchor,
                 chat: resultChat,
                 staticsMessagesDelta: 1,
                 globalChatVariables: {},
@@ -596,6 +603,42 @@ async function startHTTPBridge(harness: ReturnType<typeof detachedCommitHarness>
 }
 
 describe('server chat commit route precedence', () => {
+    it('persists the paid answer with a typed identity failure when a script adds malformed data', async () => {
+        const harness = detachedCommitHarness({ malformedResult: true })
+        expect(await harness.start()).toMatchObject({ status: 200 })
+        expect(harness.previewCalls()).toBe(1)
+        const response = await harness.readResult()
+        expect(response.body).toMatchObject({ final: true, anchorResultVersion: 1, hasGeneratedAnswer: true,
+            serverChatCommit: { status: 'failed', reason: 'generated_identity_invalid' } })
+        expect(response.body.chat.message).toContainEqual({ role: 'char', data: 'answer', chatId: 'assistant-1' })
+        expect(harness.receipt()).toBeNull()
+        expect(harness.runtime.fullStore.get('char-1')!.get('chat-1')!.message).toHaveLength(1)
+    })
+
+    it('preserves root metadata and a saved input edit before the paused provider completes', async () => {
+        let release!: () => void
+        const gate = new Promise<void>(resolve => { release = resolve })
+        const harness = detachedCommitHarness({ previewGate: gate })
+        const submitted = structuredClone(harness.runtime.fullStore.get('char-1')!.get('chat-1')!)
+        expect(await harness.start(submitted)).toMatchObject({ status: 200 })
+        harness.runtime.database.characters[0].chats[0].name = 'user rename'
+        harness.runtime.database.characters[0].chats[0].folderId = 'user folder'
+        const current = structuredClone(submitted)
+        current.message[0].data = 'user edit'
+        harness.runtime.fullStore.get('char-1')!.set('chat-1', current)
+        release()
+        for (let attempt = 0; attempt < 50 && !harness.finished(); attempt++) {
+            await new Promise(resolve => setTimeout(resolve, 0))
+        }
+        expect(harness.finished()).toBe(true)
+        expect(harness.receipt()).toMatchObject({ chatCommitted: true })
+        const saved: any = harness.runtime.fullStore.get('char-1')!.get('chat-1')
+        expect(saved).toMatchObject({ name: 'user rename', folderId: 'user folder' })
+        expect(saved.message.map((m: any) => m.data)).toEqual(['user edit', 'answer'])
+        expect(harness.runtime.database.characters[0].chats[0]).toMatchObject({ name: 'user rename', folderId: 'user folder' })
+        expect((await harness.readResult()).body.serverChatCommit.receipt).toMatchObject({ anchoredBaseRevision: expect.any(String) })
+    })
+
     it('starts and commits a JSON-round-tripped legacy request with undefined stored fields', async () => {
         const harness = detachedCommitHarness()
         const stored: any = harness.runtime.fullStore.get('char-1')!.get('chat-1')
@@ -610,12 +653,12 @@ describe('server chat commit route precedence', () => {
             .toMatchObject({ role: 'char', data: 'answer', chatId: 'assistant-1' })
     })
 
-    it('rejects a real edit against the same undefined-bearing canonical chat before preview', async () => {
+    it('rejects an unknown suffix against the same undefined-bearing canonical chat before preview', async () => {
         const harness = detachedCommitHarness()
         const stored: any = harness.runtime.fullStore.get('char-1')!.get('chat-1')
         stored.activeStreamingDisplayOptimizationMode = undefined
         const submitted = JSON.parse(JSON.stringify(stored))
-        submitted.message[0].data = 'changed'
+        stored.message.push({ role: 'user', data: 'other input', chatId: 'unknown-input' })
         expect(await harness.start(submitted)).toMatchObject({
             status: 409, body: { started: false, reason: 'server-chat-commit-input-stale' },
         })

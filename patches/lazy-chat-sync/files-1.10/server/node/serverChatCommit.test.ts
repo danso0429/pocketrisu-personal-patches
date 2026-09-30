@@ -275,6 +275,89 @@ function makeHarness() {
 }
 
 describe('server chat commit primitive', () => {
+    it('resolves under the queue, retains the execution receipt and replays before resolving again', async () => {
+        const harness = makeHarness()
+        const source = { ...request(), executionAnchorRevision: revision('captured-execution-anchor') }
+        harness.prime(source)
+        const editedRevision = revision('independent-client-edit')
+        harness.putRaw(harness.revisionKey(source.requestedCharId, source.requestedChatId), editedRevision)
+        const chat = structuredClone(source.chat)
+        chat.name = 'Edited while generating'
+        let resolves = 0
+        const resolve = () => {
+            resolves += 1
+            return { chat, metadata: { ...source.metadata, name: chat.name }, baseRevision: editedRevision }
+        }
+        const committer = harness.makeCommitter()
+        const first = await committer.commit(source, resolve)
+        expect(first).toMatchObject({ status: 'committed', reused: false, receipt: {
+            baseChatRevision: source.baseChatRevision, anchoredBaseRevision: editedRevision,
+            storedRevision: revision(chat),
+        } })
+        const record = committer.readRecovery(source.operationId)
+        expect(record.recordVersion).toBe(2)
+        expect(record.recovery.inputReceipt).toEqual(source.inputReceipt)
+        expect(record.recovery.hostChangeIntent.beforeRevision).toBe(editedRevision)
+        harness.putRaw(harness.revisionKey(source.requestedCharId, source.requestedChatId), revision('later-edit'))
+        expect(await committer.commit(structuredClone(source), resolve)).toMatchObject({ status: 'committed', reused: true })
+        expect(resolves).toBe(1)
+        expect(await committer.commit({ ...source, resultId: 'different-result' }, resolve))
+            .toMatchObject({ status: 'conflict', reason: 'operation_fingerprint_conflict' })
+        expect(resolves).toBe(1)
+        expect(await committer.commit({ ...source, executionAnchorRevision: revision('different-anchor') }, resolve))
+            .toMatchObject({ status: 'conflict', reason: 'operation_fingerprint_conflict' })
+        expect(resolves).toBe(1)
+        expect(harness.makeCommitter().status(source.operationId).receipt).toEqual(first.receipt)
+        expect(await harness.makeCommitter().recover(source.operationId))
+            .toMatchObject({ status: 'committed', publication: 'published' })
+        expect(harness.published.get(source.storedChatId).chat).toEqual(chat)
+    })
+
+    it('does not write or apply effects when an anchor is missing', async () => {
+        const harness = makeHarness()
+        const source = request()
+        harness.prime(source)
+        const outcome = await harness.makeCommitter().commit(source, () => ({
+            status: 'conflict', reason: 'input_deleted',
+        }))
+        expect(outcome).toMatchObject({ status: 'conflict', reason: 'input_deleted' })
+        expect(harness.kvGet(commitStorageKey(source.operationId))).toBeNull()
+        expect(harness.published.size).toBe(0)
+        expect(harness.readJson(`canonical/effects/${source.operationId}`)).toBeNull()
+    })
+
+    it('checks cancellation before resolving a deleted anchor', async () => {
+        const harness = makeHarness(), source = request()
+        harness.prime(source)
+        const state = harness.readJson(harness.operationKey(source.operationId))
+        harness.putRaw(harness.operationKey(source.operationId), stableJSON({ ...state, state: 'cancelled' }))
+        let resolutions = 0
+        expect(await harness.makeCommitter().commit(source, () => {
+            resolutions++
+            return { status: 'conflict', reason: 'input_deleted' }
+        })).toMatchObject({ status: 'cancelled' })
+        expect(resolutions).toBe(0)
+        expect(harness.kvGet(commitStorageKey(source.operationId))).toBeNull()
+    })
+
+    it('rechecks the resolved revision after asynchronous journal preparation', async () => {
+        const harness = makeHarness(), source = request()
+        harness.prime(source)
+        const committer = harness.makeCommitter({ journal: {
+            ...harness.journal,
+            prepareStage: async (...args: any[]) => {
+                const prepared = await harness.journal.prepareStage(...args)
+                harness.putRaw(harness.revisionKey(source.requestedCharId, source.requestedChatId), revision('racing writer'))
+                return prepared
+            },
+        } })
+        expect(await committer.commit(source, () => ({
+            chat: source.chat, metadata: source.metadata, baseRevision: source.baseChatRevision,
+        }))).toMatchObject({ status: 'conflict', reason: 'base_revision_changed' })
+        expect(harness.kvGet(commitStorageKey(source.operationId))).toBeNull()
+        expect(harness.kvList('canonical/')).toEqual([])
+    })
+
     it('durably commits one immutable envelope and exactly replays it', async () => {
         const harness = makeHarness()
         const commitRequest = request()
@@ -328,15 +411,18 @@ describe('server chat commit primitive', () => {
         expect(committer.status(commitRequest.operationId).receipt).toEqual(first.receipt)
     })
 
-    it('rolls every synchronous write back and permits a clean retry', async () => {
+    it.each([false, true])('rolls every synchronous write back and permits a clean retry (anchored=%s)', async anchored => {
         for (let failAt = 1; failAt <= 9; failAt += 1) {
             const harness = makeHarness()
             const commitRequest = request()
             harness.prime(commitRequest)
             const committer = harness.makeCommitter()
+            const resolve = anchored ? () => ({
+                chat: commitRequest.chat, metadata: commitRequest.metadata, baseRevision: commitRequest.baseChatRevision,
+            }) : null
             harness.resetWriteFailure(failAt)
 
-            await expect(committer.commit(commitRequest)).rejects.toMatchObject({
+            await expect(committer.commit(commitRequest, resolve)).rejects.toMatchObject({
                 commitState: 'not_committed',
             })
             expect(harness.kvGet(commitStorageKey(commitRequest.operationId))).toBeNull()
@@ -348,7 +434,7 @@ describe('server chat commit primitive', () => {
             expect(harness.journal.size()).toBe(0)
 
             harness.resetWriteFailure()
-            await expect(committer.commit(commitRequest)).resolves.toMatchObject({
+            await expect(committer.commit(commitRequest, resolve)).resolves.toMatchObject({
                 status: 'committed',
                 reused: false,
             })

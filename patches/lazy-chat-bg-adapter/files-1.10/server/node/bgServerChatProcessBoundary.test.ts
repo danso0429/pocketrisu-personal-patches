@@ -337,7 +337,7 @@ async function readCounters(server: ServerHarness) {
 async function runBlankClientProcess(
     server: ServerHarness,
     expectedRevision: string,
-    rebase = false,
+    rebase: boolean | 'anchor' = false,
 ) {
     const vitest = path.join(targetRoot, 'node_modules/vitest/vitest.mjs')
     const clientTest = 'src/ts/storage/bgServerChatProcessAdoption.test.ts'
@@ -346,7 +346,8 @@ async function runBlankClientProcess(
         env: {
             ...process.env,
             POCKETRISU_H1_CLIENT_TEST: '1',
-            POCKETRISU_G12_CLIENT_TEST: rebase ? '1' : '0',
+            POCKETRISU_G12_CLIENT_TEST: rebase === true ? '1' : '0',
+            POCKETRISU_G11_CLIENT_TEST: rebase === 'anchor' ? '1' : '0',
             POCKETRISU_H1_BASE_URL: server.baseURL,
             POCKETRISU_H1_TOKEN: server.token,
             POCKETRISU_H1_EXPECTED_REVISION: expectedRevision,
@@ -376,6 +377,16 @@ afterEach(async () => {
 })
 
 describe('server chat composed process boundary', () => {
+    it('adopts the later server answer over an actual acknowledged client edit', async () => {
+        const runtimeRoot = makeRuntimeRoot()
+        await seedRuntime(runtimeRoot)
+        const server = await startServer(runtimeRoot)
+        const initial = await readChat(server)
+        await runBlankClientProcess(server, initial.revision, 'anchor')
+        const saved = await readChat(server)
+        expect(saved.chat.message.map((message: any) => message.data)).toEqual(['edit saved before answer', 'answer after edit'])
+    })
+
     it('preserves a server answer through conflicting and subsequent stale-view client saves', async () => {
         const runtimeRoot = makeRuntimeRoot()
         await seedRuntime(runtimeRoot)
@@ -784,8 +795,8 @@ describe('server chat composed process boundary', () => {
         expect((await readChat(server)).chat.message).toHaveLength(3)
     }, 30_000)
 
-    it.each(['edit', 'delete'])(
-        'keeps an HTTP %s of attached input instead of publishing a late N result',
+    it.each(['edit', 'earlier-edit', 'delete', 'unknown-suffix'])(
+        'preserves an HTTP %s while resolving the late N result by input identity',
         async change => {
             const runtimeRoot = makeRuntimeRoot()
             await seedRuntime(runtimeRoot)
@@ -801,6 +812,8 @@ describe('server chat composed process boundary', () => {
             const attached = await readChat(server)
             const changed = structuredClone(attached.chat)
             if (change === 'edit') changed.message[1].data = 'user-edited input'
+            else if (change === 'earlier-edit') changed.message[0].data = 'user-edited history'
+            else if (change === 'unknown-suffix') changed.message.push({ role: 'user', chatId: 'other-input', data: 'other' })
             else changed.message = changed.message.slice(0, 1)
             const write = await fetch(`${server.baseURL}/api/chat-content/char-1/0`, {
                 method: 'POST',
@@ -815,9 +828,14 @@ describe('server chat composed process boundary', () => {
             })
             expect(write.status).toBe(200)
             server.child.send({ scope: 'pocketrisu-h1', command: 'release-provider' })
-            await server.waitFor('commit-result', message => message.status === 'conflict')
+            const shouldCommit = change === 'edit' || change === 'earlier-edit'
+            const committed = await server.waitFor('commit-result', message => message.status === (shouldCommit ? 'committed' : 'conflict'))
             const stored = await readChat(server)
-            expect(stored.chat.message).toEqual(changed.message)
+            if (shouldCommit) {
+                expect(stored.chat.message.slice(0, -1)).toEqual(changed.message)
+                expect(stored.chat.message.at(-1)).toMatchObject({ role: 'char', data: 'answer:input N' })
+                expect(committed.receipt.anchoredBaseRevision).toBe(write.headers.get('x-chat-revision'))
+            } else expect(stored.chat.message).toEqual(changed.message)
             expect(await readCounters(server)).toMatchObject({
                 providerCalls: 1, commitCalls: 1, fallbackProviderCalls: 0,
             })

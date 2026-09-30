@@ -467,6 +467,7 @@ function normalizeCommitRequest(value) {
         'bindingEpoch', 'hostChangeSeq', 'inputReceipt', 'claimEpoch', 'chat',
         'metadata', 'hostChangeIntent', 'owners', 'effectIntents', 'acOwner',
         'acState', 'readyForNextTurn', 'awaitingMetadata', 'committedAt',
+        'executionAnchorRevision',
     ]));
     if (source.contractVersion !== SERVER_CHAT_COMMIT_CONTRACT) {
         throw invalidCommit('contractVersion is unsupported');
@@ -596,6 +597,9 @@ function normalizeCommitRequest(value) {
         hostChangeIntent,
         owners,
         effectIntents: normalizeEffectIntents(source.effectIntents),
+        ...(source.executionAnchorRevision !== undefined
+            ? { executionAnchorRevision: requireRevision('executionAnchorRevision', source.executionAnchorRevision) }
+            : {}),
         acOwner,
         acState,
         readyForNextTurn: source.readyForNextTurn,
@@ -768,6 +772,9 @@ function createCommitReceipt(material, requestFingerprint, canonicalWrite) {
         requestedChatId: material.requestedChatId,
         storedChatId: material.storedChatId,
         baseChatRevision: material.baseChatRevision,
+        ...(material.anchorResolution
+            ? { anchoredBaseRevision: material.anchorResolution.baseRevision }
+            : {}),
         storedRevision: material.storedRevision,
         bindingEpoch: material.bindingEpoch,
         hostChangeSeq: material.hostChangeSeq,
@@ -790,13 +797,21 @@ function normalizeStoredRecord(value, expectedOperationId = null) {
     try {
         const parsed = JSON.parse(Buffer.isBuffer(value) ? value.toString('utf8') : String(value));
         const record = requirePlainObject('storedRecord', parsed);
-        if (record.recordVersion !== 1 || record.contractVersion !== SERVER_CHAT_COMMIT_CONTRACT
+        if (![1, 2].includes(record.recordVersion) || record.contractVersion !== SERVER_CHAT_COMMIT_CONTRACT
             || !OPERATION_ID.test(record.operationId) || !SHA256.test(record.requestFingerprint)
             || !Number.isSafeInteger(record.commitSequence) || record.commitSequence <= 0) {
             return null;
         }
         if (expectedOperationId && record.operationId !== expectedOperationId) return null;
         const material = requirePlainObject('storedRecord.recovery', record.recovery);
+        if (record.recordVersion === 2) {
+            const anchor = requirePlainObject('anchorResolution', material.anchorResolution);
+            rejectUnexpectedKeys('anchorResolution', anchor, new Set(['sourceFingerprint', 'baseRevision', 'unreflected']));
+            if (!SHA256.test(anchor.sourceFingerprint) || !SHA256.test(anchor.baseRevision)
+                || typeof anchor.unreflected !== 'boolean'
+                || material.hostChangeIntent?.beforeRevision !== anchor.baseRevision
+                || material.hostChangeIntent?.afterRevision !== material.storedRevision) return null;
+        } else if (Object.prototype.hasOwnProperty.call(material, 'anchorResolution')) return null;
         if (material.contractVersion !== SERVER_CHAT_COMMIT_CONTRACT
             || material.operationId !== record.operationId
             || !SHA256.test(material.finalContentHash)
@@ -932,7 +947,8 @@ function createServerChatCommitter({
         if (stored.state !== 'found') {
             return { status: 'conflict', reason: 'commit_record_invalid', receipt: null, reused: false };
         }
-        if (stored.record.requestFingerprint !== fingerprint) {
+        if ((stored.record.recovery.anchorResolution?.sourceFingerprint
+            || stored.record.requestFingerprint) !== fingerprint) {
             return {
                 status: 'conflict',
                 reason: 'operation_fingerprint_conflict',
@@ -967,9 +983,48 @@ function createServerChatCommitter({
         return null;
     }
 
-    async function commitQueued(normalized, material, requestFingerprint) {
-        const outsideExisting = replayOrConflict(readStored(normalized.operationId), requestFingerprint);
+    async function commitQueued(normalized, material, requestFingerprint, resolveAnchor = null) {
+        const sourceFingerprint = requestFingerprint;
+        const outsideExisting = replayOrConflict(readStored(normalized.operationId), sourceFingerprint);
         if (outsideExisting) return outsideExisting;
+
+        if (resolveAnchor) {
+            const gated = operationGate(normalized);
+            if (gated) return gated;
+            const resolved = resolveAnchor(normalized);
+            ensureSynchronous('resolveAnchor', resolved);
+            if (resolved?.status === 'conflict') {
+                return { status: 'conflict', reason: resolved.reason, receipt: null, reused: false };
+            }
+            const baseRevision = requireRevision('anchoredBaseRevision', resolved?.baseRevision);
+            const chat = requirePlainObject('resolvedChat', resolved?.chat);
+            const storedRevision = calculateRevision(chat);
+            ensureSynchronous('calculateRevision', storedRevision);
+            const metadata = normalizeMetadata(resolved?.metadata, chat);
+            const messages = collectChatMessages(chat);
+            if (chat.id !== normalized.storedChatId) throw invalidCommit('resolved chat identity changed');
+            normalizeInputReceipt(normalized.inputReceipt, {
+                operationId: normalized.operationId, charId: normalized.requestedCharId,
+                chatId: normalized.storedChatId, baseChatRevision: normalized.baseChatRevision,
+                hostChangeSeq: normalized.hostChangeSeq,
+            }, messages);
+            for (const [index, owner] of normalized.owners.entries()) {
+                normalizeOwner(owner, index, normalized.operationId, messages);
+            }
+            const hostChangeIntent = normalizeHostChangeIntent({
+                ...normalized.hostChangeIntent, beforeRevision: baseRevision, afterRevision: storedRevision,
+            }, {
+                ...normalized, charId: normalized.requestedCharId, chatId: normalized.storedChatId,
+                baseChatRevision: baseRevision, storedRevision,
+            }, messages, normalized.owners);
+            normalized = {
+                ...normalized, chat, storedRevision, metadata: metadata.metadata,
+                metadataPresence: metadata.presence, hostChangeIntent,
+                anchorResolution: { sourceFingerprint, baseRevision, unreflected: resolved.unreflected === true },
+            };
+            material = fingerprintMaterial(normalized, storedRevision);
+            requestFingerprint = sha256(stableJSON(material));
+        }
 
         const preparedChat = await journal.prepareStage(
             normalized.requestedCharId,
@@ -985,7 +1040,7 @@ function createServerChatCommitter({
         let transactionResult;
         try {
             transactionResult = runTransaction(() => {
-                const existing = replayOrConflict(readStored(normalized.operationId), requestFingerprint);
+                const existing = replayOrConflict(readStored(normalized.operationId), sourceFingerprint);
                 if (existing) return existing;
                 const gated = operationGate(normalized);
                 if (gated) return gated;
@@ -994,7 +1049,7 @@ function createServerChatCommitter({
                     normalized.requestedChatId,
                 );
                 ensureSynchronous('readCurrentRevision', currentRevision);
-                if (currentRevision !== normalized.baseChatRevision) {
+                if (currentRevision !== (normalized.anchorResolution?.baseRevision || normalized.baseChatRevision)) {
                     return {
                         status: 'conflict',
                         reason: 'base_revision_changed',
@@ -1025,7 +1080,7 @@ function createServerChatCommitter({
                     canonicalWrite,
                 );
                 const record = {
-                    recordVersion: 1,
+                    recordVersion: normalized.anchorResolution ? 2 : 1,
                     contractVersion: SERVER_CHAT_COMMIT_CONTRACT,
                     operationId: normalized.operationId,
                     commitSequence: canonicalWrite.commitSequence,
@@ -1120,7 +1175,10 @@ function createServerChatCommitter({
         );
     }
 
-    async function commit(request) {
+    async function commit(request, resolveAnchor = null) {
+        if (resolveAnchor !== null && typeof resolveAnchor !== 'function') {
+            throw invalidCommit('resolveAnchor must be a function');
+        }
         const normalized = normalizeCommitRequest(request);
         const calculatedRevision = calculateRevision(normalized.chat);
         ensureSynchronous('calculateRevision', calculatedRevision);
@@ -1137,6 +1195,7 @@ function createServerChatCommitter({
             normalized,
             material,
             requestFingerprint,
+            resolveAnchor,
         ));
     }
 

@@ -8,12 +8,13 @@ export interface ServerChatCommitReceiptV1 {
     requestedChatId: string
     storedChatId: string
     baseChatRevision: string
+    anchoredBaseRevision?: string
     storedRevision: string
     storageDisposition: 'original'
     chatCommitted: true
     finalContentHash: string
     effects: {
-        chat: { status: 'committed' }
+        chat: { status: 'committed', reason?: string }
         metadata: { status: 'committed' }
     }
 }
@@ -46,6 +47,9 @@ export function serverChatCommitReceipt(data: unknown): ServerChatCommitReceiptV
         || !requiredText(receipt.requestedChatId)
         || !requiredText(receipt.storedChatId)
         || !requiredText(receipt.baseChatRevision)
+        || (receipt.anchoredBaseRevision !== undefined
+            && (typeof receipt.anchoredBaseRevision !== 'string'
+                || !/^[a-f0-9]{64}$/.test(receipt.anchoredBaseRevision)))
         || !requiredText(receipt.storedRevision)
         || receipt.storageDisposition !== 'original'
         || receipt.storedChatId !== receipt.requestedChatId
@@ -110,6 +114,7 @@ export async function hydrateServerCommittedOrchestration(options: {
         chatId: string
         expectedServerRevision: string
         allowedCurrentRevisions: string[]
+        savedServerRevision?: string
     }) => Promise<{ adopted: boolean, reason?: string, chat?: unknown }>
 }) {
     const receipt = serverChatCommitReceipt(options.data)
@@ -147,6 +152,7 @@ export async function hydrateServerCommittedOrchestration(options: {
             chatId: receipt.storedChatId,
             expectedServerRevision: projectionRevision,
             allowedCurrentRevisions,
+            ...(receipt.anchoredBaseRevision ? { savedServerRevision: receipt.anchoredBaseRevision } : {}),
         })
     } catch {
         return { hydrated: false as const, reason: 'chat-readback-failed' }

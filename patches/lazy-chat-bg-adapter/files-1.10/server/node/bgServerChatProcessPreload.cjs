@@ -270,6 +270,7 @@ require.cache[orchestratorPath].exports = function registerInstrumentedOrchestra
             globalIntent: { changed: {}, deleted: [], expected: {} },
         })
         control.onInputCommitted(attached.record)
+        const executionAnchor = require('./chatAnchorCommit.cjs').captureChatAnchor(inputChat)
         send('provider-waiting', {
             operationId: attached.record.operationId,
             settingsContexts: typeof inputOwner?.settingsSnapshotStats === 'function'
@@ -285,6 +286,7 @@ require.cache[orchestratorPath].exports = function registerInstrumentedOrchestra
         providerOperations.add(operationId)
         send('provider-finished', { operationId, counters: { ...counters } })
         return {
+            executionAnchor,
             chat: {
                 ...inputChat,
                 message: [

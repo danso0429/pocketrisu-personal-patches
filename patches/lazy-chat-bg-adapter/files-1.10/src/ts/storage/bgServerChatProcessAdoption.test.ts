@@ -1,4 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+import { orchestrationChatRevision } from '../bgOrchestrationMerge'
 
 const storageSlot = vi.hoisted(() => ({ realStorage: null as any }))
 const tickMock = vi.hoisted(() => vi.fn(async () => {}))
@@ -22,12 +23,14 @@ const { NodeStorage } = await import('./nodeStorage')
 const { adoptServerCommittedChat } = await import('./chatStorage')
 
 const rebaseEnabled = process.env.POCKETRISU_G12_CLIENT_TEST === '1'
-const enabled = process.env.POCKETRISU_H1_CLIENT_TEST === '1' && !rebaseEnabled
+const anchorEnabled = process.env.POCKETRISU_G11_CLIENT_TEST === '1'
+const enabled = process.env.POCKETRISU_H1_CLIENT_TEST === '1' && !rebaseEnabled && !anchorEnabled
 const baseURL = process.env.POCKETRISU_H1_BASE_URL || ''
 const token = process.env.POCKETRISU_H1_TOKEN || ''
 const expectedRevision = process.env.POCKETRISU_H1_EXPECTED_REVISION || ''
 const describeH1 = enabled ? describe : describe.skip
 const describeG12 = rebaseEnabled ? describe : describe.skip
+const describeG11 = anchorEnabled ? describe : describe.skip
 const originalFetch = globalThis.fetch
 
 const fakeStartupCache = {
@@ -51,6 +54,38 @@ function installOriginFetch() {
         return response
     }) as typeof fetch
 }
+
+describeG11('saved-edit adoption against the actual server process', () => {
+    afterEach(() => { globalThis.fetch = originalFetch; storageSlot.realStorage = null })
+    it('bridges an actual save response to the browser view when the answer arrives later', async () => {
+        installOriginFetch()
+        ;(NodeStorage as any).sessionInitialized = false
+        ;(NodeStorage as any).sessionPending = null
+        const make = () => {
+            const storage = new NodeStorage(fakeStartupCache as any)
+            ;(storage as any).authChecked = true
+            ;(storage as any).cachedJwt = { token, expiresAt: Date.now() + 60_000 }
+            return storage
+        }
+        const storage = make()
+        const local = await storage.fetchChatContent('char-1', 0, 'chat-1')
+        local.message[0].data = 'edit saved before answer'
+        await storage.saveChatContent('char-1', 0, 'chat-1', local)
+        const savedRevision = (storage as any).chatSyncStates.get('char-1|chat-1').revision
+        const other = make()
+        const serverChat = await other.fetchChatContent('char-1', 0, 'chat-1')
+        serverChat.message.push({ chatId: 'later-answer', role: 'char', data: 'answer after edit' })
+        await other.saveChatContent('char-1', 0, 'chat-1', serverChat)
+        const answerRevision = (other as any).chatSyncStates.get('char-1|chat-1').revision
+        expect(savedRevision).not.toBe(orchestrationChatRevision(local))
+        storageSlot.realStorage = storage
+        const chats = [local]
+        expect(await adoptServerCommittedChat(chats, 'char-1', 'chat-1', answerRevision,
+            ['prior-delegation-display-revision'], orchestrationChatRevision, savedRevision))
+            .toMatchObject({ adopted: true })
+        expect(chats[0].message.map((message: any) => message.data)).toEqual(['edit saved before answer', 'answer after edit'])
+    })
+})
 
 describeG12('chat rebase against the actual server process', () => {
     afterEach(() => { globalThis.fetch = originalFetch; storageSlot.realStorage = null })
