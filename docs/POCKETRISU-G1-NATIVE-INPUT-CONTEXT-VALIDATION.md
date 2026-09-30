@@ -2,7 +2,8 @@
 
 Date: 2026-09-30 KST. Baseline: d48190e / experimental.15.
 Candidate: 0.2.4-experimental.16, lazy-chat-bg-adapter 0.7.23.
-Status: implemented, automatically verified and reviewed; live delivery pending.
+Status: implemented, automatically verified, reviewed and delivered live. Broader
+native-input admission and aggregate BG/device qualification remain open.
 
 ## Scope
 
@@ -96,3 +97,27 @@ The review also identified the following existing boundaries, which remain expli
   a single transport path; preserve supported local/custom endpoint behavior.
 - Existing SQLite/input record formats are unchanged. No migration or result cleanup
   is required. Existing build/dependency warnings remain.
+
+## Live delivery
+
+Implementation commit `7581aee` was pushed before delivery. The live plan contained
+only bgOrchestrator, the new test file and patcher state. Preflight verified 440
+managed files without drift and zero active requests, pending sends or input records.
+After the idle check the process was stopped and an application/patcher-state backup
+of 91,206,643 bytes was created. All 1,603 regular files were read back and matched
+source hashes, lengths and modes. This archive does not include database payloads;
+the existing full database backups were preserved, and no record/schema migration
+or user-data cleanup was performed.
+
+Apply, frontend/BG build and bundle load completed; re-plan was empty. After restart,
+all 441 managed files matched their hashes/modes and root HTTP plus 17 script assets
+returned 200 with matching local hashes. All five databases passed quick_check;
+external-header settings were byte-identical. PM2 was online with zero unstable
+restarts. Active requests, pending sends and input records were zero; operation
+records remained 130 before and after delivery. The readiness helper waited until
+the post-restart idle/metric condition was satisfied, without cancelling work.
+
+Two new error-log lines were the existing retained-journal and recovery-stall
+categories. No retained result, input or chat was manually deleted or restored.
+No stable tag/release was made. This delivery does not resolve the deferred r3
+navigation/terminal-adoption issue or qualify the next preset/module admission unit.
