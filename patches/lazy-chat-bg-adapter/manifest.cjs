@@ -22,7 +22,7 @@ const externalHeaderBridgeUnits = require('./external-header-units.cjs')
 module.exports = {
     id: 'lazy-chat-bg-adapter',
     title: 'BG preserve integration for lazy chat storage',
-    version: '0.7.19',
+    version: '0.7.20',
     targets: {
         pocketrisu: {
             verified: ['1.10.0'],
@@ -35,7 +35,42 @@ module.exports = {
         all: ['bg-preserve', 'lazy-chat-sync'],
     },
     units: [
-        ...['chatAnchorCommit.cjs', 'chatAnchorCommit.test.ts'].map((name) => ({
+        {
+            id: 'lazy-chat-bg-adapter:assembly-warning-marker-type:1.10',
+            file: 'src/ts/bgOrchestrationPending.ts', type: 'replace',
+            anchor: '    completionNotified?: boolean\n',
+            content: '    completionNotified?: boolean\n    promptChangeNotified?: boolean\n',
+            requires: ['bg-preserve:owned:src/ts/bgOrchestrationPending.ts:1.9'], targetVersions: pocketRisu1100,
+        },
+        {
+            id: 'lazy-chat-bg-adapter:assembly-warning-marker-read:1.10',
+            file: 'src/ts/bgOrchestrationPending.ts', type: 'replace',
+            anchor: '            completionNotified: value.completionNotified === true,\n',
+            content: '            completionNotified: value.completionNotified === true,\n            promptChangeNotified: value.promptChangeNotified === true,\n',
+            requires: ['lazy-chat-bg-adapter:assembly-warning-marker-type:1.10'], targetVersions: pocketRisu1100,
+        },
+        ...[
+            ['assembly-mutable-database', '    const db = JSON.parse(JSON.stringify(stripped))', '    let db = JSON.parse(JSON.stringify(stripped))'],
+            ['assembly-mutable-character-index', '    const charIdx = db.characters.findIndex((c) => c && c.chaId === selectedCharId)', '    let charIdx = db.characters.findIndex((c) => c && c.chaId === selectedCharId)'],
+            ['assembly-drop-client-globals', "    if (mode === 'full' && control && control.globalChatVariablesSnapshotVersion === 1) {", "    if (mode === 'full' && !assemblyRequired && control && control.globalChatVariablesSnapshotVersion === 1) {"],
+        ].map(([id, anchor, content], index) => ({
+            id: `lazy-chat-bg-adapter:${id}:1.10`, file: 'server/node/bgOrchestrator.cjs',
+            type: 'replace', anchor, content,
+            requires: [index === 0 ? 'lazy-chat-bg-adapter:assembly-turn-start:1.10'
+                : index === 1 ? 'lazy-chat-bg-adapter:assembly-mutable-database:1.10'
+                    : 'lazy-chat-bg-adapter:assembly-mutable-character-index:1.10'],
+            targetVersions: pocketRisu1100,
+        })),
+        {
+            id: 'lazy-chat-bg-adapter:assembly-turn-start:1.10',
+            file: 'server/node/bgOrchestrator.cjs',
+            type: 'replace',
+            anchor: '        void (async () => {\n          const t0 = Date.now()\n',
+            content: '        void runDetachedTurn(async () => {\n          const t0 = Date.now()\n',
+            requires: ['lazy-chat-bg-adapter:server-input-retention-sweep:1.10'],
+            targetVersions: pocketRisu1100,
+        },
+        ...['chatAnchorCommit.cjs', 'chatAnchorCommit.test.ts', 'serverChatAssemblyContext.cjs', 'serverChatAssemblyContext.test.ts', 'chatInputAttach.cjs', 'chatInputAttach.test.ts'].map((name) => ({
             id: `lazy-chat-bg-adapter:owned:${name}:1.10`,
             file: `server/node/${name}`,
             type: 'owned',
@@ -796,7 +831,8 @@ export async function adoptServerCommittedChat(
             file: 'src/ts/bgOrchestrate.ts',
             type: 'replace',
             anchor: "import { ensureChatHydrated, fetchChatFromServer } from './storage/chatStorage'\n",
-            content: `import {
+            content: `import { notifyWarning } from './alert'
+import {
     adoptServerCommittedChat,
     ensureChatHydrated,
     fetchChatFromServer,
@@ -1128,12 +1164,39 @@ export async function tryRunServerOwnedInput(
     }
 }
 
+const promptChangeNotifiedOperations = new Set<string>()
+
+function notifyAssemblyChange(charId: string, chatId: string, operationId: string, data: any): void {
+    const receipt = serverChatCommitReceipt(data)
+    if (!receipt || receipt.operationId !== operationId || receipt.requestedCharId !== charId
+        || receipt.requestedChatId !== chatId || receipt.promptInputsChanged !== true
+        || (typeof data?.resultId === 'string' && data.resultId !== receipt.resultId)
+        || (Number.isSafeInteger(data?.publishSeq) && data.publishSeq !== receipt.publishSeq)
+        || promptChangeNotifiedOperations.has(operationId)) return
+    try {
+        const marker = readPendingMarkers(localStorage).find(item => item.operationId === operationId
+            && item.charId === charId && item.chatId === chatId)
+        if (marker?.promptChangeNotified) {
+            promptChangeNotifiedOperations.add(operationId)
+            while (promptChangeNotifiedOperations.size > 128) promptChangeNotifiedOperations.delete(promptChangeNotifiedOperations.values().next().value!)
+            return
+        }
+    } catch { /* Page-local delivery still works when browser storage is unavailable. */ }
+    try { notifyWarning('생성 준비가 시작된 뒤 대화가 수정됐어요. 저장된 답변에는 그 수정이 반영되지 않았으며, 수정 내용은 유지했어요.', { source: 'bg-assembly-context' }) }
+    catch { return }
+    promptChangeNotifiedOperations.add(operationId)
+    while (promptChangeNotifiedOperations.size > 128) promptChangeNotifiedOperations.delete(promptChangeNotifiedOperations.values().next().value!)
+    try { updatePendingMarker(localStorage, operationId, marker => ({ ...marker, promptChangeNotified: true })) }
+    catch { /* Do not block answer delivery on a marker write failure. */ }
+}
+
 async function hydrateServerCommittedResult(
     charId: string,
     chatId: string,
     operationId: string,
     data: any,
 ) {
+    notifyAssemblyChange(charId, chatId, operationId, data)
     const target = mergeTargetByOperation.get(operationId)
     const allowedCurrentRevisions = target
         ? [target.expectedChatRevision, ...(target.acceptedChatRevisions || [])]
@@ -2403,7 +2466,7 @@ const serverChatCommitOwner = createServerChatCommitOwner({
             file: 'server/node/bgOrchBundle.build.cjs',
             type: 'replace',
             anchor: "    contents: `import * as idx from 'src/ts/process/index.svelte';\\nimport * as stores from 'src/ts/stores.svelte';\\nimport * as dbmod from 'src/ts/storage/database.svelte';\\nimport * as status from 'src/ts/status/requestStatus';\\nglobalThis.__bgOrch = { idx, stores, dbmod, status };\\n`,\n",
-            content: "    contents: `import * as idx from 'src/ts/process/index.svelte';\\nimport * as stores from 'src/ts/stores.svelte';\\nimport * as dbmod from 'src/ts/storage/database.svelte';\\nimport * as status from 'src/ts/status/requestStatus';\\nimport * as triggers from 'src/ts/process/triggers';\\nimport * as scripts from 'src/ts/process/scripts';\\nglobalThis.__bgOrch = { idx, stores, dbmod, status, triggers, scripts };\\n`,\n",
+            content: "    contents: `import * as idx from 'src/ts/process/index.svelte';\\nimport * as stores from 'src/ts/stores.svelte';\\nimport * as dbmod from 'src/ts/storage/database.svelte';\\nimport * as status from 'src/ts/status/requestStatus';\\nimport * as triggers from 'src/ts/process/triggers';\\nimport * as scripts from 'src/ts/process/scripts';\\nimport * as policy from 'src/ts/bgOrchestrationPolicy';\\nimport * as inputPolicy from 'src/ts/bgServerInputProviderPolicy';\\nglobalThis.__bgOrch = { idx, stores, dbmod, status, triggers, scripts, policy, inputPolicy };\\n`,\n",
             requires: ['bg-preserve:owned:server/node/bgOrchBundle.build.cjs'],
             targetVersions: pocketRisu1100,
         },
@@ -2418,6 +2481,8 @@ const serverChatCommitOwner = createServerChatCommitOwner({
       && typeof globalThis.__bgOrch.idx.sendChat === 'function'
       && typeof globalThis.__bgOrch.triggers?.runTrigger === 'function'
       && typeof globalThis.__bgOrch.scripts?.processScript === 'function'
+      && typeof globalThis.__bgOrch.policy?.requiresClientGenerationEpilogue === 'function'
+      && typeof globalThis.__bgOrch.inputPolicy?.requiresClientOwnedInputPreparation === 'function'
 `,
             requires: ['lazy-chat-bg-adapter:server-input-bundle-exports:1.10'],
             targetVersions: pocketRisu1100,
@@ -2430,47 +2495,44 @@ const serverChatCommitOwner = createServerChatCommitOwner({
     let stripped = dbCache && deps.DB_HEX_KEY ? dbCache[deps.DB_HEX_KEY] : null
 `,
             content: `    const dbCache = typeof deps.getDbCache === 'function' ? deps.getDbCache() : null
-    const inputSettingsSnapshotRequired = mode === 'full'
-      && control && control.inputCommandVersion === 1
-    let inputSettingsContextDigest = null
+    const assemblyRequired = mode === 'full' && control && control.serverChatCommitVersion === 1
+    let assemblyContext = null
+    let inputTransformClaim = null
     let stripped = dbCache && deps.DB_HEX_KEY ? dbCache[deps.DB_HEX_KEY] : null
-    if (inputSettingsSnapshotRequired) {
-      if (typeof control.readInputSettingsSnapshot !== 'function') {
-        throw new Error('server input settings snapshot owner unavailable')
-      }
-      const settingsSnapshot = control.readInputSettingsSnapshot()
-      if (!settingsSnapshot || settingsSnapshot.status !== 'ready'
-        || !Buffer.isBuffer(settingsSnapshot.bytes)
-        || typeof settingsSnapshot.contextDigest !== 'string'
-        || !/^[a-f0-9]{64}$/.test(settingsSnapshot.contextDigest)) {
-        throw new Error('server input settings context unavailable')
-      }
-      inputSettingsContextDigest = settingsSnapshot.contextDigest
-      const snapshotUtils = require('./utils.cjs')
-      stripped = snapshotUtils.normalizeJSON(
-        await snapshotUtils.decodeRisuSave(settingsSnapshot.bytes),
-      )
-      if (!stripped || !Array.isArray(stripped.characters)) {
-        throw new Error('server input settings snapshot is invalid')
-      }
-      if (settingsSnapshot.record?.predecessorResolution) {
-        const currentStripped = dbCache && deps.DB_HEX_KEY ? dbCache[deps.DB_HEX_KEY] : null
-        const { overlayServerChatDynamicState } = require('./serverChatSettingsContext.cjs')
-        const resolution = settingsSnapshot.record.predecessorResolution
-        try {
-          if (typeof control.readPredecessorEffectLineage !== 'function') {
-            throw new Error('server input predecessor effect owner unavailable')
-          }
-          stripped = overlayServerChatDynamicState(stripped, currentStripped, {
-            resolution,
-            ...control.readPredecessorEffectLineage(resolution.operationId),
-          })
-        } catch (error) {
-          if (typeof control.onInputBlocked === 'function') {
-            control.onInputBlocked('predecessor_effect_lineage_changed')
-          }
-          throw error
+    if (assemblyRequired) {
+      if (control.inputCommandVersion === 1) {
+        inputTransformClaim = await control.beginInputTransform(context => {
+          const character = context.database.characters.find(value => value && value.chaId === selectedCharId)
+          return bg.policy.requiresClientGenerationEpilogue(context.database, character)
+            || bg.inputPolicy.requiresClientOwnedInputPreparation(context.database, context.chat)
+            ? 'latest_settings_require_client' : null
+        })
+        if (inputTransformClaim && inputTransformClaim.status === 'started') {
+          assemblyContext = inputTransformClaim.context
+        } else if (inputTransformClaim && inputTransformClaim.status === 'attached') {
+          control.onInputCommitted(inputTransformClaim.record)
+          assemblyContext = await control.readAssemblyContext()
+        } else {
+          throw new Error('server input preparation context unavailable')
         }
+      } else {
+        assemblyContext = await control.readAssemblyContext()
+      }
+      if (!assemblyContext || assemblyContext.status !== 'ready') {
+        if (assemblyContext?.status === 'conflict') throw Object.assign(
+          new Error('server assembly context conflict: ' + assemblyContext.reason),
+          { code: 'BG_ASSEMBLY_CONFLICT', reason: assemblyContext.reason },
+        )
+        throw new Error('server assembly context unavailable')
+      }
+      if (externalSignal && externalSignal.aborted) throw new Error('orchestration cancelled')
+      stripped = assemblyContext.database
+      currentChat = assemblyContext.chat
+      const character = stripped.characters.find(value => value && value.chaId === selectedCharId)
+      if (bg.policy.requiresClientGenerationEpilogue(stripped, character)
+        || (control.inputCommandVersion === 1 && inputTransformClaim.status === 'started'
+          && bg.inputPolicy.requiresClientOwnedInputPreparation(stripped, currentChat))) {
+        throw new Error('latest settings require client-only preparation or output')
       }
     }
 `,
@@ -2489,12 +2551,7 @@ const serverChatCommitOwner = createServerChatCommitOwner({
             anchor: '    stores.selectedCharID.set(charIdx)\n',
             content: `    const serverChatCommitSettingsDigest = mode === 'full'
       && control && control.serverChatCommitVersion === 1
-      ? (control.inputCommandVersion === 1
-        ? inputSettingsContextDigest
-        : nodeCrypto
-          .createHash('sha256')
-          .update(JSON.stringify({ database: db, selectedCharId, selectedChatId }))
-          .digest('hex'))
+      ? assemblyContext.contextDigest
       : null
     const serverExecutionAnchor = mode === 'full'
       && control && control.serverChatCommitVersion === 1
@@ -2502,7 +2559,7 @@ const serverChatCommitOwner = createServerChatCommitOwner({
           db.characters[charIdx].chats[chatIdx],
           serverInputAttachment && serverInputAttachment.inputReceipt
             ? serverInputAttachment.inputReceipt.messageId : null,
-          stripped.characters[charIdx].chats[chatIdx],
+          assemblyContext.metadata,
         )
       : null
 `,
@@ -2526,7 +2583,7 @@ const serverChatCommitOwner = createServerChatCommitOwner({
         || typeof control.attachInputTransform !== 'function') {
         throw new Error('server input transform owner unavailable')
       }
-      const transform = await control.beginInputTransform()
+      const transform = inputTransformClaim || await control.beginInputTransform()
       if (transform && transform.status === 'attached') {
         serverInputAttachment = transform.record
       } else if (transform && transform.status === 'started') {
@@ -2564,6 +2621,30 @@ const serverChatCommitOwner = createServerChatCommitOwner({
       if (typeof control.onInputCommitted === 'function') {
         control.onInputCommitted(serverInputAttachment)
       }
+      // Input effects have been durably attached. Read again for main assembly;
+      // never rerun input work to obtain the newer root/chat snapshot.
+      assemblyContext = await control.readAssemblyContext()
+      if (!assemblyContext || assemblyContext.status !== 'ready') {
+        if (assemblyContext?.status === 'conflict') throw Object.assign(
+          new Error('server assembly context conflict: ' + assemblyContext.reason),
+          { code: 'BG_ASSEMBLY_CONFLICT', reason: assemblyContext.reason },
+        )
+        throw new Error('attached assembly context unavailable')
+      }
+      if (externalSignal && externalSignal.aborted) throw new Error('orchestration cancelled')
+      stripped = assemblyContext.database
+      db = JSON.parse(JSON.stringify(stripped))
+      charIdx = db.characters.findIndex(character => character && character.chaId === selectedCharId)
+      chatIdx = db.characters[charIdx].chats.findIndex(chat => chat && chat.id === selectedChatId)
+      db.characters[charIdx].chats[chatIdx] = assemblyContext.chat
+      db.characters[charIdx].chatPage = chatIdx
+      if (Object.prototype.hasOwnProperty.call(db, 'nodeOnlyServerSideRequests')) db.nodeOnlyServerSideRequests = false
+      if (bg.policy.requiresClientGenerationEpilogue(db, db.characters[charIdx])) {
+        throw Object.assign(new Error('latest settings require client-only output'),
+          { code: 'BG_ASSEMBLY_CONFLICT', reason: 'latest_settings_require_client' })
+      }
+      dbmod.setDatabase(db)
+      stores.selectedCharID.set(charIdx)
     }
 `,
             requires: [
@@ -2903,6 +2984,12 @@ const serverChatCommitOwner = createServerChatCommitOwner({
             content: `  const runDetachedServerPreview = deps && typeof deps.runServerPreview === 'function'
     ? deps.runServerPreview
     : runServerPreview
+  let detachedTurn = Promise.resolve()
+  const runDetachedTurn = (task) => {
+    const next = detachedTurn.then(task, task)
+    detachedTurn = next.catch(() => {})
+    return next
+  }
 `,
             requires: ['lazy-chat-bg-adapter:server-chat-commit-dependency:1.10'],
             targetVersions: pocketRisu1100,
@@ -2981,6 +3068,13 @@ const serverChatCommitOwner = createServerChatCommitOwner({
                 resultKeyVersion,
                 serverChatCommitVersion,
                 inputCommandVersion,
+                readAssemblyContext: () => serverChatCommitOwner.readAssemblyContext(
+                  selectedCharId, selectedChatId,
+                  serverInputReceipt ? {
+                    inputId: serverInputReceipt.messageId,
+                    chat: { id: selectedChatId, message: [{ role: 'user', chatId: serverInputReceipt.messageId }] },
+                  } : serverCommitBase.anchor,
+                ),
                 readInputSettingsSnapshot: () => serverChatInputOwner.loadSettingsSnapshot(
                   operationId,
                 ),
@@ -2992,7 +3086,7 @@ const serverChatCommitOwner = createServerChatCommitOwner({
                   operationId,
                   reason,
                 ),
-                beginInputTransform: () => serverChatInputOwner.beginTransform(operationId),
+                beginInputTransform: (validateContext) => serverChatInputOwner.beginTransform(operationId, validateContext),
                 attachInputTransform: (value) => serverChatInputOwner.attachTransformed(
                   operationId,
                   value,
@@ -3019,7 +3113,7 @@ const serverChatCommitOwner = createServerChatCommitOwner({
             type: 'replace',
             anchor: `                globalChatVariablesSnapshotVersion: req.body && req.body.globalVariablesVersion === 1 ? 1 : 0,
 `,
-            content: `                globalChatVariablesSnapshotVersion: inputCommandVersion !== 1
+            content: `                globalChatVariablesSnapshotVersion: serverChatCommitVersion !== 1 && inputCommandVersion !== 1
                   && req.body && req.body.globalVariablesVersion === 1 ? 1 : 0,
 `,
             requires: ['lazy-chat-bg-adapter:server-chat-commit-run-context:1.10'],
@@ -3161,14 +3255,23 @@ const serverChatCommitOwner = createServerChatCommitOwner({
             type: 'replace',
             anchor: `              const persisted = persistOrchResult(kvSet, selectedCharId, selectedChatId, { chat: null, statics: null, staticsMessagesDelta: 0, globalChatVariables: {}, threw: String((e && e.message) || e) }, {
 `,
-            content: `              if (inputCommandVersion === 1) {
+            content: `              const assemblyConflict = e && e.code === 'BG_ASSEMBLY_CONFLICT'
+              if (inputCommandVersion === 1) {
                 try {
-                  serverChatInputOwner.markRunFailureSynchronously(
-                    operationId,
-                    serverInputProviderStarted,
-                  )
-                } catch { /* recovery retains command */ }
-                if (!serverInputProviderStarted) {
+                  if (assemblyConflict) {
+                    if (!serverChatInputOwner.settleSynchronously(operationId, 'failed')) {
+                      throw new Error('input failure could not be recorded')
+                    }
+                  } else {
+                    serverChatInputOwner.markRunFailureSynchronously(operationId, serverInputProviderStarted)
+                  }
+                } catch {
+                  if (assemblyConflict) {
+                    terminalState = 'retryable-no-provider'
+                    return // Retain the command if its failure could not be recorded.
+                  }
+                }
+                if (!serverInputProviderStarted && !assemblyConflict) {
                   terminalState = 'retryable-no-provider'
                   console.error('[bg-orch] server input preparation stopped before provider:', (e && e.message) || e)
                   return
@@ -3176,6 +3279,7 @@ const serverChatCommitOwner = createServerChatCommitOwner({
               }
               const persisted = persistOrchResult(kvSet, selectedCharId, selectedChatId, { chat: null, statics: null, staticsMessagesDelta: 0, globalChatVariables: {}, threw: String((e && e.message) || e) }, {
                 serverChatCommitVersion,
+                ...(assemblyConflict ? { serverChatCommit: { status: 'conflict', reason: e.reason } } : {}),
 `,
             requires: ['lazy-chat-bg-adapter:server-chat-commit-terminal:1.10'],
             targetVersions: pocketRisu1100,
@@ -3185,12 +3289,16 @@ const serverChatCommitOwner = createServerChatCommitOwner({
             file: 'server/node/bgOrchestrator.cjs',
             type: 'replace',
             anchor: `            orchestrationRuns.finish(operationId, activeRun, terminalState)
+          }
+        })()
 `,
             content: `            if (terminalState === 'retryable-no-provider') {
               orchestrationRuns.discard(operationId, activeRun)
             } else {
               orchestrationRuns.finish(operationId, activeRun, terminalState)
             }
+          }
+        })
 `,
             requires: ['lazy-chat-bg-adapter:server-input-terminal-error:1.10'],
             targetVersions: pocketRisu1100,
@@ -3789,3 +3897,14 @@ module.exports.units.push(
         targetVersions: pocketRisu1100,
     },
 )
+
+const priorClientOrchestrationUnits = module.exports.units
+    .filter(unit => unit.file === 'src/ts/bgOrchestrate.ts').map(unit => unit.id)
+module.exports.units.push({
+    id: 'lazy-chat-bg-adapter:assembly-root-flush:1.10',
+    file: 'src/ts/bgOrchestrate.ts', type: 'replace',
+    anchor: '                    () => requestDurableSave({ chat: [charId, chatId] }),\n',
+    content: '                    () => requestDurableSave({ root: true, chat: [charId, chatId] }),\n',
+    after: priorClientOrchestrationUnits,
+    targetVersions: pocketRisu1100,
+})

@@ -98,6 +98,21 @@ describe('finished server failure classification', () => {
 })
 
 describe('finished server failure notice', () => {
+    it.each([
+        ['chat_deleted', '채팅이 삭제되어 생성을 시작하지 않았어요.'],
+        ['unknown_suffix', '입력 뒤에 다른 메시지가 추가되어 생성을 시작하지 않았어요.'],
+        ['latest_settings_require_client', '설정이 바뀌어 서버에서 생성을 시작할 수 없어요. 저장된 입력은 유지했어요.'],
+    ])('explains the pre-provider conflict %s', (reason, text) => {
+        const notice = finishedServerFailureNotice(terminalError({ serverChatCommit: { status: 'conflict', reason } }))
+        expect(notice).toContain(text)
+        expect(notice).not.toContain('서버 결과는 삭제하지 않았')
+    })
+
+    it.each(['base_revision_changed', '__proto__', 1, null])('keeps the bounded fallback for an unmapped reason %s', reason => {
+        expect(finishedServerFailureNotice(terminalError({ serverChatCommit: { status: 'conflict', reason } })))
+            .toBe(finishedServerFailureNotice(terminalError()))
+    })
+
     it('includes a bounded server error summary', () => {
         expect(finishedServerFailureNotice(terminalError())).toContain('The operation was aborted due to timeout')
         const long = finishedServerFailureNotice(terminalError({ error: 'x'.repeat(500) }))

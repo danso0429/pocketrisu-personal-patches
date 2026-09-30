@@ -210,4 +210,4 @@ function anchoredAssistantMessages(anchor, chat) {
     ));
 }
 
-module.exports = { captureChatAnchor, captureExecutionChatAnchor, assignResultMessageIds, checkChatAnchor, resolveChatAnchor, anchoredAssistantMessages, invalidAnchor };
+module.exports = { captureChatAnchor, captureExecutionChatAnchor, assignResultMessageIds, alignLegacyMessages, checkChatAnchor, resolveChatAnchor, anchoredAssistantMessages, invalidAnchor };

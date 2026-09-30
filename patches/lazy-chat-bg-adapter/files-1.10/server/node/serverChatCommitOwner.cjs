@@ -3,6 +3,7 @@
 const crypto = require('node:crypto');
 const { isDeepStrictEqual } = require('node:util');
 const { captureChatAnchor, checkChatAnchor, resolveChatAnchor, anchoredAssistantMessages, invalidAnchor } = require('./chatAnchorCommit.cjs');
+const { captureAssemblyContext, promptInputsChanged } = require('./serverChatAssemblyContext.cjs');
 const {
     HOST_CHANGE_INTENT_CONTRACT,
     SERVER_CHAT_COMMIT_CONTRACT,
@@ -487,7 +488,7 @@ function createServerChatCommitOwner({
                 effects: {
                     chat: {
                         status: 'committed',
-                        ...(request.anchorResolution?.unreflected
+                        ...(request.anchorResolution?.unreflected || inputCommand?.inputEffectsSkipped
                             ? { reason: 'concurrent-chat-edit-preserved' } : {}),
                     },
                     metadata: { status: 'committed' },
@@ -647,6 +648,21 @@ function createServerChatCommitOwner({
         };
     }
 
+    async function readAssemblyContext(charId, chatId, admissionAnchor) {
+        await ensureCanonicalState();
+        return queueStorageOperation(() => {
+            const database = getDbCache()?.[databaseKey];
+            const characterIndex = database?.characters?.findIndex(character => character?.chaId === charId) ?? -1;
+            const character = characterIndex >= 0 ? database.characters[characterIndex] : null;
+            const chatIndex = character?.chats?.findIndex(chat => chat?.id === chatId) ?? -1;
+            const current = chatIndex >= 0 ? getFullChatStore()?.get(charId)?.get(chatId) : null;
+            const reason = checkChatAnchor(admissionAnchor, current);
+            if (reason) return { status: 'conflict', reason };
+
+            return captureAssemblyContext(database, current, charId, chatId);
+        });
+    }
+
     async function commitGenerationResult({
         operationId,
         resultId,
@@ -791,6 +807,8 @@ function createServerChatCommitOwner({
                 metadata: chatMetadata(resolved.chat),
                 baseRevision: chatRevision(latest),
                 unreflected: resolved.unreflected,
+                promptInputsChanged: promptInputsChanged(anchor.chat,
+                    metadata && own(metadata, 'modules') ? { ...latest, modules: metadata.modules } : latest),
             };
         } : null);
         if (inputReceipt) {
@@ -958,6 +976,7 @@ function createServerChatCommitOwner({
     return {
         commitGenerationResult,
         captureBase,
+        readAssemblyContext,
         currentRevision,
         discardRecovery,
         preserveDatabaseState,

@@ -275,6 +275,27 @@ function makeHarness() {
 }
 
 describe('server chat commit primitive', () => {
+    it.each([false, true])('persists and replays the v3 prompt-change notice (%s)', async promptInputsChanged => {
+        const harness = makeHarness(), source = { ...request(), executionAnchorRevision: revision('anchor') }
+        harness.prime(source)
+        const currentRevision = revision('canonical assembly chat')
+        harness.putRaw(harness.revisionKey(source.requestedCharId, source.requestedChatId), currentRevision)
+        const committer = harness.makeCommitter()
+        const first = await committer.commit(source, () => ({
+            chat: source.chat, metadata: source.metadata, baseRevision: currentRevision, promptInputsChanged,
+        }))
+        expect(first).toMatchObject({ status: 'committed', receipt: { promptInputsChanged } })
+        const record = committer.readRecovery(source.operationId)
+        expect(record.recordVersion).toBe(3)
+        expect(harness.makeCommitter().status(source.operationId).receipt).toEqual(first.receipt)
+        await expect(committer.commit(source, () => { throw new Error('replayed assembly') }))
+            .resolves.toMatchObject({ status: 'committed', reused: true, receipt: { promptInputsChanged } })
+        const corrupt = JSON.parse(harness.kvGet(commitStorageKey(source.operationId)).toString())
+        corrupt.recovery.anchorResolution.promptInputsChanged = 'true'
+        harness.putRaw(commitStorageKey(source.operationId), stableJSON(corrupt))
+        expect(harness.makeCommitter().status(source.operationId)).toMatchObject({ status: 'conflict', reason: 'commit_record_invalid' })
+    })
+
     it('resolves under the queue, retains the execution receipt and replays before resolving again', async () => {
         const harness = makeHarness()
         const source = { ...request(), executionAnchorRevision: revision('captured-execution-anchor') }

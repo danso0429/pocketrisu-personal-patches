@@ -4,7 +4,7 @@ import { createServer } from 'node:http'
 import { createRequire } from 'node:module'
 import type { AddressInfo } from 'node:net'
 import Database from 'better-sqlite3'
-import { afterEach, describe, expect, it } from 'vitest'
+import { afterEach, describe, expect, it, vi } from 'vitest'
 import { hydrateServerCommittedOrchestration } from '../../src/ts/bgServerCommitHydration'
 
 const require = createRequire(import.meta.url)
@@ -205,6 +205,8 @@ function detachedCommitHarness({
     commitFailure = false,
     malformedResult = false,
     previewGate = null as Promise<void> | null,
+    commitGate = null as Promise<void> | null,
+    rejectAttachedAssembly = false,
 } = {}) {
     const operationId = 'operation-c2-detached-1'
     const sqliteDb = new Database(':memory:')
@@ -306,6 +308,7 @@ function detachedCommitHarness({
     })
     const commitCalls: any[] = []
     const inputSettingsSnapshots: any[] = []
+    const assemblyContexts: any[] = []
     let previewCalls = 0
     let receipt: any = null
     let finished = false
@@ -337,6 +340,7 @@ function detachedCommitHarness({
             ...actualOwner,
             commitGenerationResult: async (value: unknown) => {
                 commitCalls.push(value)
+                if (commitGate) await commitGate
                 if (commitFailure) throw new Error('injected-server-chat-commit-failure')
                 const outcome = await actualOwner.commitGenerationResult(value)
                 receipt = outcome.receipt
@@ -353,12 +357,15 @@ function detachedCommitHarness({
             control: any,
         ) => {
             previewCalls += 1
+            const preparedContext = control.inputCommandVersion !== 1 ? await control.readAssemblyContext() : null
+            if (preparedContext) assemblyContexts.push(preparedContext)
+            if (preparedContext) previewChat = preparedContext.chat
             let executionAnchor = require('./chatAnchorCommit.cjs').captureChatAnchor(
                 previewChat, null, runtime.database.characters[0].chats[0],
             )
             if (previewGate) await previewGate
-            let resultChat = finalChat
-            let settingsDigest = 'a'.repeat(64)
+            let resultChat = { ...previewChat, message: [...previewChat.message, { role: 'char', data: 'answer', chatId: 'assistant-1' }] }
+            let settingsDigest = preparedContext?.contextDigest || 'a'.repeat(64)
             if (control.inputCommandVersion === 1) {
                 const settingsSnapshot = control.readInputSettingsSnapshot()
                 inputSettingsSnapshots.push({
@@ -368,10 +375,11 @@ function detachedCommitHarness({
                 settingsDigest = settingsSnapshot.contextDigest
                 const transform = await control.beginInputTransform()
                 const command = transform.record.admission
+                const transformChat = transform.context?.chat || previewChat
                 const inputChat = {
-                    ...previewChat,
+                    ...transformChat,
                     message: [
-                        ...previewChat.message,
+                        ...transformChat.message,
                         {
                             role: 'user',
                             data: command.rawText,
@@ -386,11 +394,20 @@ function detachedCommitHarness({
                     globalIntent: { changed: {}, deleted: [], expected: {} },
                 })
                 control.onInputCommitted(attached.record)
-                executionAnchor = require('./chatAnchorCommit.cjs').captureChatAnchor(inputChat)
+                if (rejectAttachedAssembly) {
+                    runtime.fullStore.get('char-1')!.get('chat-1')!.message.push({ role: 'user', data: 'later input', chatId: 'later-input' })
+                }
+                const assembly = await control.readAssemblyContext()
+                if (assembly.status === 'conflict') throw Object.assign(new Error('assembly conflict'), {
+                    code: 'BG_ASSEMBLY_CONFLICT', reason: assembly.reason,
+                })
+                assemblyContexts.push(assembly)
+                settingsDigest = assembly.contextDigest
+                executionAnchor = require('./chatAnchorCommit.cjs').captureChatAnchor(assembly.chat)
                 resultChat = {
-                    ...inputChat,
+                    ...assembly.chat,
                     message: [
-                        ...inputChat.message,
+                        ...assembly.chat.message,
                         { role: 'char', data: 'answer', chatId: 'assistant-input-1' },
                     ],
                 }
@@ -409,7 +426,7 @@ function detachedCommitHarness({
             }
         },
     })
-    const start = async (submittedChat = baseChat) => {
+    const start = async (submittedChat = baseChat, requestedOperationId = operationId) => {
         const handler = routes.get('POST /api/bg-orchestrate')
         if (!handler) throw new Error('missing detached start route')
         const response = { status: 200, body: null as any }
@@ -421,9 +438,9 @@ function detachedCommitHarness({
             body: {
                 detached: true,
                 selectedCharId: 'char-1',
-                selectedChatId: 'chat-1',
+                selectedChatId: submittedChat.id,
                 currentChat: submittedChat,
-                operationId,
+                operationId: requestedOperationId,
                 resultKeyVersion: 1,
                 resultOrderVersion: 1,
                 startAckVersion: 1,
@@ -514,6 +531,7 @@ function detachedCommitHarness({
         commitCalls,
         inputBody,
         inputSettingsSnapshots,
+        assemblyContexts,
         inputOwner,
         project,
         readResult,
@@ -603,6 +621,42 @@ async function startHTTPBridge(harness: ReturnType<typeof detachedCommitHarness>
 }
 
 describe('server chat commit route precedence', () => {
+    it('finishes a rejected post-attachment assembly without provider work or input replay', async () => {
+        const harness = detachedCommitHarness({ rejectAttachedAssembly: true })
+        await harness.startInput()
+        await vi.waitFor(() => expect(harness.finished()).toBe(true))
+        expect(harness.commitCalls).toEqual([])
+        expect(harness.inputOwner.read(harness.operationId)).toMatchObject({ inputState: 'failed', transformState: 'completed' })
+        expect(harness.inputOwner.settingsSnapshotStats().contexts).toBe(0)
+        expect(harness.runtime.fullStore.get('char-1')!.get('chat-1')!.message.map(entry => entry.data))
+            .toEqual(['hello', 'next input', 'later input'])
+        const result = JSON.parse(harness.values.get(`bg-orch-result-op:${harness.operationId}`)!.toString())
+        expect(result).toMatchObject({ kind: 'terminal-error', serverChatCommit: { status: 'conflict', reason: 'unknown_suffix' } })
+        await expect(harness.inputOwner.loadExecution(harness.operationId)).resolves.toMatchObject({ status: 'blocked', reason: 'failed' })
+        expect(harness.previewCalls()).toBe(1)
+    })
+
+    it.each([false, true])('holds the next chat until terminal commit finishes and releases after failure=%s', async commitFailure => {
+        let release!: () => void
+        const commitGate = new Promise<void>(resolve => { release = resolve })
+        const harness = detachedCommitHarness({ commitGate, commitFailure })
+        const secondChat = { id: 'chat-2', name: 'Second', message: [{ role: 'user', data: 'second', chatId: 'user-2' }] }
+        harness.runtime.database.characters[0].chats.push({ id: 'chat-2', name: 'Second', _stub: true })
+        harness.runtime.fullStore.get('char-1')!.set('chat-2', secondChat)
+        try {
+            await harness.start()
+            await vi.waitFor(() => expect(harness.commitCalls).toHaveLength(1))
+            await harness.start(secondChat, 'operation-c2-detached-2')
+            expect(harness.previewCalls()).toBe(1)
+            expect(harness.assemblyContexts).toHaveLength(1)
+            release()
+            await vi.waitFor(() => expect(harness.commitCalls).toHaveLength(2))
+            await vi.waitFor(() => expect(harness.values.get('bg-orch-result-op:operation-c2-detached-2')).toBeTruthy())
+            expect(harness.assemblyContexts[1].database.statics.messages).toBe(commitFailure ? 10 : 11)
+            expect(harness.assemblyContexts[1].chat.id).toBe('chat-2')
+        } finally { release() }
+    })
+
     it('persists the paid answer with a typed identity failure when a script adds malformed data', async () => {
         const harness = detachedCommitHarness({ malformedResult: true })
         expect(await harness.start()).toMatchObject({ status: 200 })
@@ -804,7 +858,7 @@ describe('server chat commit route precedence', () => {
         expect(harness.commitCalls).toHaveLength(1)
         expect(harness.commitCalls[0]).toMatchObject({
             baselineMessageCount: 2,
-            settingsDigest: harness.inputSettingsSnapshots[0].contextDigest,
+            settingsDigest: harness.assemblyContexts[0].contextDigest,
             inputReceipt: {
                 contractVersion: 'bg_server_input_receipt.v1',
                 inputCommandId: `input-${harness.operationId}`,
@@ -817,6 +871,7 @@ describe('server chat commit route precedence', () => {
             admissionSeq: 1,
             terminal: { state: 'completed', publication: 'published' },
         })
+        expect(harness.commitCalls[0].settingsDigest).not.toBe(harness.inputSettingsSnapshots[0].contextDigest)
         expect(harness.inputOwner.settingsSnapshotStats()).toMatchObject({ contexts: 0 })
         const projectionResponse = await harness.project(harness.receipt().storedRevision)
         expect(projectionResponse).toMatchObject({
@@ -929,7 +984,7 @@ describe('server chat commit route precedence', () => {
             operationId: harness.operationId,
             baseChatRevision: expect.stringMatching(/^[a-f0-9]{64}$/),
             baselineMessageCount: 1,
-            settingsDigest: 'a'.repeat(64),
+            settingsDigest: harness.assemblyContexts[0].contextDigest,
         })
         const resultRecord = JSON.parse(
             harness.values.get(`bg-orch-result-op:${harness.operationId}`)!.toString(),

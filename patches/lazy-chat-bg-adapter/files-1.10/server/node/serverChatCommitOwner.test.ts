@@ -246,6 +246,31 @@ function makeHarness() {
 }
 
 describe('server-owned BG chat commit', () => {
+    it('samples latest assembly settings and body together without exposing an aliased graph', async () => {
+        const harness = makeHarness(), owner = harness.makeOwner()
+        const admitted = await owner.captureBase('char-1', 'chat-1', baseChat())
+        harness.runtime.database.characters[0].description = 'latest character'
+        harness.runtime.database.characters[0].chats[0].name = 'latest title'
+        harness.runtime.database.globalChatVariables.mood = 'latest value'
+        const current = structuredClone(baseChat())
+        current.message[0].data = 'latest input'
+        harness.runtime.fullStore.get('char-1')!.set('chat-1', current)
+        const first = await owner.readAssemblyContext('char-1', 'chat-1', admitted.anchor)
+        expect(first.status).toBe('ready')
+        expect(first.chat.message[0].data).toBe('latest input')
+        expect(first.chat.name).toBe('latest title')
+        expect(first.database.characters[0].description).toBe('latest character')
+        expect(first.database.globalChatVariables.mood).toBe('latest value')
+        first.chat.message[0].data = 'execution mutation'
+        first.database.globalChatVariables.mood = 'execution value'
+        expect(current.message[0].data).toBe('latest input')
+        expect(harness.runtime.database.globalChatVariables.mood).toBe('latest value')
+        const second = await owner.readAssemblyContext('char-1', 'chat-1', admitted.anchor)
+        expect(first.contextDigest).toMatch(/^[a-f0-9]{64}$/)
+        expect(first.contextDigest).not.toBe(second.contextDigest)
+        expect(harness.kvList('internal/server-chat-commit/')).toEqual([])
+    })
+
     it('commits over a saved earlier edit and retains variables, metadata and replay identity', async () => {
         const harness = makeHarness(), owner = harness.makeOwner()
         const before: any = baseChat()
@@ -265,6 +290,7 @@ describe('server-owned BG chat commit', () => {
         const request = { ...harness.commitInput(operationId, result(generated, 'old', 'new'), 2, captured.revision), anchor: captured.anchor }
         const outcome = await owner.commitGenerationResult(request)
         expect(outcome).toMatchObject({ status: 'committed', receipt: {
+            promptInputsChanged: true,
             anchoredBaseRevision: revision(edited), effects: { chat: { reason: 'concurrent-chat-edit-preserved' } },
         } })
         const stored: any = harness.runtime.fullStore.get('char-1')!.get('chat-1')

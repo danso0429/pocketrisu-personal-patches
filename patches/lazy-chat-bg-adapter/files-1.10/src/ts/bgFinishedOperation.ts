@@ -36,6 +36,19 @@ export function isFinishedServerFailure(data: unknown, baselineMsgs: number): bo
 const FAILURE_SUMMARY_MAX = 200
 
 export function finishedServerFailureNotice(data: unknown): string {
+    const result = data as any
+    if (result?.kind === 'terminal-error' && result.serverChatCommit?.status === 'conflict') {
+        const notices: Record<string, string> = {
+            input_deleted: '입력 메시지가 삭제되어 생성을 시작하지 않았어요.',
+            chat_deleted: '채팅이 삭제되어 생성을 시작하지 않았어요.',
+            unknown_suffix: '입력 뒤에 다른 메시지가 추가되어 생성을 시작하지 않았어요. 대화 내용은 유지했어요.',
+            latest_settings_require_client: '설정이 바뀌어 서버에서 생성을 시작할 수 없어요. 저장된 입력은 유지했어요.',
+        }
+        const reason = result.serverChatCommit.reason
+        if (typeof reason === 'string' && Object.hasOwn(notices, reason)) {
+            return notices[reason] + ' 채팅을 확인한 뒤 필요하면 새로 보내주세요.'
+        }
+    }
     const error = data && typeof data === 'object' ? (data as any).error : undefined
     // Slice by code point so a surrogate pair at the boundary is not split into a broken glyph.
     // Twice the limit in UTF-16 units always contains the first FAILURE_SUMMARY_MAX code points,

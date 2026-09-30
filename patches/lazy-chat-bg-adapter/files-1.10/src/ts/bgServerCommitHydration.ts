@@ -9,6 +9,7 @@ export interface ServerChatCommitReceiptV1 {
     storedChatId: string
     baseChatRevision: string
     anchoredBaseRevision?: string
+    promptInputsChanged?: boolean
     storedRevision: string
     storageDisposition: 'original'
     chatCommitted: true
@@ -47,6 +48,7 @@ export function serverChatCommitReceipt(data: unknown): ServerChatCommitReceiptV
         || !requiredText(receipt.requestedChatId)
         || !requiredText(receipt.storedChatId)
         || !requiredText(receipt.baseChatRevision)
+        || (receipt.promptInputsChanged !== undefined && typeof receipt.promptInputsChanged !== 'boolean')
         || (receipt.anchoredBaseRevision !== undefined
             && (typeof receipt.anchoredBaseRevision !== 'string'
                 || !/^[a-f0-9]{64}$/.test(receipt.anchoredBaseRevision)))
