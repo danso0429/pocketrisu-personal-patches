@@ -14,6 +14,10 @@ import { COMMITTED_RESULT_KEPT_NOTICE } from './bgFinishedOperation'
 const h = vi.hoisted(() => ({
     dbState: { db: {} as any },
     alerts: [] as string[],
+    warnings: [] as string[],
+    warningFailure: false,
+    durableScopes: [] as any[],
+    scopesAtStart: [] as any[],
     requests: [] as Array<{ method: string, url: string }>,
     route: (async () => ({ status: 404, body: null })) as (
         method: string, url: string, body: any,
@@ -26,7 +30,7 @@ vi.mock('./stores.svelte', async () => {
     const { writable } = await import('svelte/store')
     return { DBState: h.dbState, selectedCharID: writable(0), ReloadChatPointer: writable(0) }
 })
-vi.mock('./globalApi.svelte', () => ({ requestDurableSave: async () => {} }))
+vi.mock('./globalApi.svelte', () => ({ requestDurableSave: async (scope: any) => { h.durableScopes.push(scope) } }))
 vi.mock('./storage/chatStorage', () => ({
     adoptServerCommittedChat: (...args: unknown[]) => h.adopt(...args),
     ensureChatHydrated: async () => true,
@@ -35,7 +39,13 @@ vi.mock('./storage/chatStorage', () => ({
     ),
     peekServerChatSnapshot: async () => null,
 }))
-vi.mock('./alert', () => ({ alertError: (message: unknown) => { h.alerts.push(String(message)) } }))
+vi.mock('./alert', () => ({
+    alertError: (message: unknown) => { h.alerts.push(String(message)) },
+    notifyWarning: (message: string) => {
+        if (h.warningFailure) throw new Error('warning UI unavailable')
+        h.warnings.push(message)
+    },
+}))
 vi.mock('./notificationSound', () => ({ playNotificationSound: async () => {} }))
 vi.mock('./process/index.svelte', async () => {
     const { writable } = await import('svelte/store')
@@ -178,6 +188,7 @@ function serve(handler: Handler, options: { serverChatCommit?: boolean } = {}) {
                 }
         }
         if (method === 'POST' && url === '/api/bg-orchestrate') {
+            h.scopesAtStart = structuredClone(h.durableScopes)
             foregroundOperationId = body.operationId
             return { status: 200, body: { started: true, resultKeyVersion: 1 } }
         }
@@ -191,6 +202,10 @@ beforeEach(() => {
     localStorage.clear()
     h.dbState.db = { characters: [{ chaId: CHAR_ID, chatPage: 0, chats: [chatWith(2)] }], statics: {} }
     h.alerts = []
+    h.warnings = []
+    h.warningFailure = false
+    h.durableScopes = []
+    h.scopesAtStart = []
     h.requests = []
     h.adopt = vi.fn(async () => ({ adopted: false, reason: 'local-revision-conflict' }))
     h.sendChat = vi.fn(async () => true)
@@ -226,6 +241,12 @@ async function startForeground() {
 }
 
 describe('anchored commit notices preserve finished-operation handling', () => {
+    it('flushes root settings together with the selected chat before detached admission', async () => {
+        serve(() => undefined)
+        await startForeground()
+        expect(h.scopesAtStart).toContainEqual({ root: true, chat: [CHAR_ID, CHAT_ID] })
+    })
+
     it.each(['boot', 'watch'])('closes a versioned no-answer result with script-added messages in %s', async mode => {
         serve((operationId, method, url) => {
             if (isResultPeek(method, url)) return { status: 200, body: terminalError(operationId, {
@@ -256,19 +277,23 @@ describe('anchored commit notices preserve finished-operation handling', () => {
         expect(h.alerts).toHaveLength(1)
     })
 
-    it.each(['boot', 'watch'])('closes a semantic conflict once without deleting its result in %s', async mode => {
+    it.each([['boot', 'terminal-success'], ['watch', 'terminal-success'],
+        ['boot', 'terminal-error'], ['watch', 'terminal-error']])('closes a semantic conflict once with appropriate acknowledgement in %s/%s', async (mode, kind) => {
         serve((operationId, method, url) => {
             if (isResultPeek(method, url)) return { status: 200, body: terminalError(operationId, {
-                kind: 'terminal-success', outcome: 'success', chat: chatWith(3),
+                kind, outcome: kind === 'terminal-success' ? 'success' : 'error', chat: kind === 'terminal-success' ? chatWith(3) : null,
                 serverChatCommit: { status: 'conflict', reason: 'input_deleted' },
             }) }
+            if (isResultAck(method, url)) return { status: 200, body: { acked: true, state: 'deleted' } }
         })
         if (mode === 'boot') await bootWithMarker()
         else { await startForeground(); await vi.advanceTimersByTimeAsync(2_500) }
         expect(h.alerts).toHaveLength(1)
         expect(h.alerts[0]).toContain('입력 메시지가 삭제')
+        if (kind === 'terminal-error') expect(h.alerts[0]).toContain('생성을 시작하지 않았')
+        else expect(h.alerts[0]).not.toContain('생성을 시작하지 않았')
         expect(markers()).toEqual([])
-        expect(count(isResultAck)).toBe(0)
+        expect(count(isResultAck)).toBe(kind === 'terminal-error' ? 1 : 0)
         await vi.advanceTimersByTimeAsync(30_000)
         expect(count(isResultPeek)).toBe(1)
         expect(h.sendChat).not.toHaveBeenCalled()
@@ -366,6 +391,58 @@ describe('boot recovery of a finished failure without an answer', () => {
 })
 
 describe('boot recovery of a committed result that cannot be adopted', () => {
+    it.each(['boot', 'watch'])('warns once before adoption and preserves the marker on failed ACK in %s', async mode => {
+        serve((operationId, method, url) => {
+            if (isResultPeek(method, url)) {
+                const data: any = committedResult(operationId)
+                data.serverChatCommit.receipt.promptInputsChanged = true
+                return { status: 200, body: data }
+            }
+            if (method === 'GET' && url.startsWith('/api/bg-orchestrate-chat-state/')) return { status: 200, body: projection(operationId) }
+            if (isResultAck(method, url)) return { status: 503, body: {} }
+        })
+        if (mode === 'boot') await bootWithMarker()
+        else { await startForeground(); await vi.advanceTimersByTimeAsync(2_500) }
+        expect(h.warnings).toHaveLength(1)
+        expect(h.warnings[0]).toContain('생성 준비가 시작된 뒤')
+        expect(markers()[0].promptChangeNotified).toBe(true)
+        await vi.advanceTimersByTimeAsync(15_000)
+        expect(h.warnings).toHaveLength(1)
+        expect(markers()).toHaveLength(1)
+        expect(h.sendChat).not.toHaveBeenCalled()
+    })
+
+    it.each([undefined, false, 'true'])('does not warn for absent, false or malformed notice metadata (%s)', async flag => {
+        serve((operationId, method, url) => {
+            if (isResultPeek(method, url)) {
+                const data: any = committedResult(operationId)
+                if (flag !== undefined) data.serverChatCommit.receipt.promptInputsChanged = flag
+                return { status: 200, body: data }
+            }
+            if (method === 'GET' && url.startsWith('/api/bg-orchestrate-chat-state/')) return { status: 200, body: projection(operationId) }
+        })
+        await bootWithMarker()
+        expect(h.warnings).toEqual([])
+    })
+
+    it('does not block adoption and ACK when the warning UI throws', async () => {
+        h.warningFailure = true
+        h.adopt.mockResolvedValue({ adopted: true, chat: chatWith(3) })
+        serve((operationId, method, url) => {
+            if (isResultPeek(method, url)) {
+                const data: any = committedResult(operationId)
+                data.serverChatCommit.receipt.promptInputsChanged = true
+                return { status: 200, body: data }
+            }
+            if (method === 'GET' && url.startsWith('/api/bg-orchestrate-chat-state/')) return { status: 200, body: projection(operationId) }
+            if (isResultAck(method, url)) return { status: 200, body: { acked: true, state: 'deleted' } }
+        })
+        await bootWithMarker()
+        expect(h.adopt).toHaveBeenCalledTimes(1)
+        expect(count(isResultAck)).toBe(1)
+        expect(markers()).toEqual([])
+    })
+
     it('stops after three permanent refusals with a result row', async () => {
         serve((operationId, method, url) => {
             if (isResultPeek(method, url)) return { status: 200, body: committedResult(operationId) }

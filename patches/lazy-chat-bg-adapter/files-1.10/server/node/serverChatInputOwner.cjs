@@ -1,6 +1,8 @@
 'use strict';
 
 const crypto = require('node:crypto');
+const { captureAssemblyContext } = require('./serverChatAssemblyContext.cjs');
+const { captureInputTransformBase, resolveInputAttachment } = require('./chatInputAttach.cjs');
 const {
     SERVER_CHAT_INPUT_RECEIPT_CONTRACT,
     stableJSON,
@@ -196,6 +198,15 @@ function parseRecord(value, expectedOperationId = null) {
             return null;
         }
         const admission = normalizeAdmission(parsed.admission);
+        if (own(parsed, 'attachmentPolicy')) {
+            const revision = value => typeof value === 'string' && /^[a-f0-9]{64}$/.test(value);
+            if (parsed.attachmentPolicy !== 'latest-v1'
+                || typeof parsed.inputEffectsSkipped !== 'boolean'
+                || (parsed.transformBaseRevision !== null && !revision(parsed.transformBaseRevision))
+                || (parsed.attachmentBaseRevision !== null && !revision(parsed.attachmentBaseRevision))
+                || (parsed.transformState !== 'not_run' && !revision(parsed.transformBaseRevision))
+                || (parsed.inputReceipt !== null && !revision(parsed.attachmentBaseRevision))) return null;
+        }
         if (expectedOperationId && admission.operationId !== expectedOperationId) return null;
         if (parsed.operationId !== admission.operationId
             || parsed.requestFingerprint !== requestFingerprint(admission)
@@ -335,19 +346,24 @@ function applyGlobals(database, record) {
         ? { ...database.globalChatVariables }
         : {};
     const intent = record.globalIntent;
+    const skipped = new Set();
     for (const outcome of record.globalOutcomes) {
         if (outcome.status === 'committed'
             && !expectationMatches(current, outcome.key, intent.expected[outcome.key])
             && !desiredMatches(current, outcome.key, intent)) {
-            throw new Error('attached input global variables changed before publication');
+            if (record.attachmentPolicy !== 'latest-v1') {
+                throw new Error('attached input global variables changed before publication');
+            }
+            skipped.add(outcome.key);
         }
     }
     for (const outcome of record.globalOutcomes) {
-        if (outcome.status !== 'committed') continue;
+        if (outcome.status !== 'committed' || skipped.has(outcome.key)) continue;
         if (own(intent.changed, outcome.key)) current[outcome.key] = clone(intent.changed[outcome.key]);
         else delete current[outcome.key];
     }
     database.globalChatVariables = current;
+    return skipped;
 }
 
 function publishMetadata(database, charId, chat) {
@@ -414,7 +430,9 @@ function createServerChatInputOwner({
     const read = (operationId) => parseRecord(kvGet(commandKey(operationId)), operationId);
     const write = (record) => kvSet(commandKey(record.operationId), encodeRecord(record));
     const settingsSnapshots = new Map();
-    const currentChat = (charId, chatId) => getFullChatStore()?.get(charId)?.get(chatId) || null;
+    const currentChat = (charId, chatId) => getDbCache()?.[databaseKey]?.characters
+        ?.find(character => character?.chaId === charId)?.chats?.some(chat => chat?.id === chatId)
+        ? getFullChatStore()?.get(charId)?.get(chatId) || null : null;
     const currentRevision = (charId, chatId) => {
         const chat = currentChat(charId, chatId);
         return chat ? chatRevision(chat) : null;
@@ -425,7 +443,7 @@ function createServerChatInputOwner({
         const matches = chat.message.filter((message) => (
             message?.chatId === record.admission.userMessageId
             && message?.role === 'user'
-            && sha256(stableJSON(message)) === record.inputMessageRevision
+            && (record.attachmentPolicy === 'latest-v1' || sha256(stableJSON(message)) === record.inputMessageRevision)
         ));
         return matches.length === 1;
     }
@@ -613,7 +631,11 @@ function createServerChatInputOwner({
                 record.admission.charId,
                 record.admission.chatId,
             );
-            if (liveRevision !== resolvedRevision) {
+            const publishedChat = currentChat(record.admission.charId, record.admission.chatId);
+            const publishedPredecessor = publishedChat && (predecessor.inputState === 'completed'
+                ? predecessor.terminal?.publication === 'published'
+                : !predecessor.inputReceipt || containsOwnedInput(predecessor, publishedChat));
+            if (liveRevision !== resolvedRevision && !publishedPredecessor) {
                 const publicationPending = predecessor.inputState === 'completed'
                     && liveRevision === predecessor.executionBaseRevision;
                 if (!publicationPending) {
@@ -788,6 +810,10 @@ function createServerChatInputOwner({
             )).at(-1) || null;
             const record = {
                 recordVersion: 4,
+                attachmentPolicy: 'latest-v1',
+                transformBaseRevision: null,
+                attachmentBaseRevision: null,
+                inputEffectsSkipped: false,
                 contractVersion: SERVER_CHAT_INPUT_COMMAND_CONTRACT,
                 operationId: admission.operationId,
                 requestFingerprint: fingerprint,
@@ -840,9 +866,10 @@ function createServerChatInputOwner({
         });
     }
 
-    async function beginTransform(operationId) {
+    async function beginTransform(operationId, validateContext = null) {
         const predecessor = await advancePredecessor(operationId);
         if (predecessor.status !== 'ready') return predecessor;
+        await ensureCanonicalState();
         return queueStorageOperation(() => sqliteDb.transaction(() => {
             const record = read(operationId);
             if (!record) return { status: 'missing' };
@@ -871,23 +898,53 @@ function createServerChatInputOwner({
             if (record.transformState !== 'not_run') {
                 return { status: 'blocked', reason: 'transform_state_invalid' };
             }
-            const next = { ...record, transformState: 'running' };
+            const current = currentChat(record.admission.charId, record.admission.chatId);
+            if (!current) {
+                const blocked = { ...record, inputState: 'blocked_edit',
+                    terminal: { state: 'blocked_edit', reason: 'chat_deleted', at: Date.now() } };
+                write(blocked);
+                settingsSnapshots.delete(operationId);
+                return { status: 'blocked', reason: 'chat_deleted', record: clone(blocked) };
+            }
+            const context = captureAssemblyContext(getDbCache()[databaseKey], current,
+                record.admission.charId, record.admission.chatId);
+            if (validateContext) {
+                const reason = validateContext(context);
+                if (reason) {
+                    if (typeof reason !== 'string' || !/^[a-z][a-z0-9_]{2,63}$/.test(reason)) throw new Error('invalid context rejection');
+                    const blocked = { ...record, inputState: 'blocked_edit',
+                        terminal: { state: 'blocked_edit', reason, at: Date.now() } };
+                    write(blocked);
+                    settingsSnapshots.delete(operationId);
+                    return { status: 'blocked', reason, record: clone(blocked) };
+                }
+            }
+            const basis = captureInputTransformBase(context.chat, context.metadata, record.admission.userMessageId);
+            const next = { ...record, attachmentPolicy: 'latest-v1', transformState: 'running',
+                transformBaseRevision: chatRevision(current), attachmentBaseRevision: null, inputEffectsSkipped: false };
             write(next);
-            return { status: 'started', record: clone(next) };
+            settingsSnapshots.get(operationId).transformBase = basis;
+            return { status: 'started', record: clone(next), context };
         })());
     }
 
-    async function publishAttached(record, suppliedChat = null) {
-        await ensureCanonicalState();
+    async function publishAttached(record, suppliedChat = null, alreadyQueued = false) {
+        if (!alreadyQueued) {
+            await ensureCanonicalState();
+            return queueStorageOperation(() => publishAttached(record, suppliedChat, true));
+        }
+        record = read(record.operationId);
+        if (!record?.inputReceipt) throw new Error('attached input record unavailable');
+        const publicationBase = record.attachmentBaseRevision || record.effectiveBaseRevision;
         const liveChat = currentChat(record.admission.charId, record.admission.chatId);
         const liveRevision = liveChat ? chatRevision(liveChat) : null;
-        if (liveRevision !== record.effectiveBaseRevision
+        if (liveRevision !== publicationBase
             && liveRevision !== record.executionBaseRevision) {
             const liveInput = liveChat?.message?.find((message) => (
                 message?.chatId === record.admission.userMessageId
                 && message?.role === 'user'
             ));
-            if (liveInput && sha256(stableJSON(liveInput)) === record.inputMessageRevision) {
+            if (liveInput && (record.attachmentPolicy === 'latest-v1' || sha256(stableJSON(liveInput)) === record.inputMessageRevision)) {
                 return liveChat;
             }
             throw new Error('attached input publication revision conflict');
@@ -911,7 +968,7 @@ function createServerChatInputOwner({
             chat = currentChat(record.admission.charId, record.admission.chatId);
         }
         if (chatRevision(chat) !== record.executionBaseRevision
-            || (liveRevision !== record.effectiveBaseRevision
+            || (liveRevision !== publicationBase
                 && liveRevision !== record.executionBaseRevision)) {
             throw new Error('attached input publication revision conflict');
         }
@@ -921,7 +978,12 @@ function createServerChatInputOwner({
         }
         const nextDatabase = { ...database };
         publishMetadata(nextDatabase, record.admission.charId, chat);
-        applyGlobals(nextDatabase, record);
+        const skippedGlobals = applyGlobals(nextDatabase, record);
+        if (skippedGlobals.size > 0) {
+            write({ ...record, inputEffectsSkipped: true,
+                globalOutcomes: record.globalOutcomes.map(outcome => skippedGlobals.has(outcome.key)
+                    ? { ...outcome, status: 'conflict' } : outcome) });
+        }
         cacheStrippedDatabase(nextDatabase);
         let chats = getFullChatStore()?.get(record.admission.charId);
         if (!chats) {
@@ -944,125 +1006,167 @@ function createServerChatInputOwner({
                 publication: 'durable',
             };
         }
-        const chat = clone(value?.chat);
-        if (!chat || chat.id !== before.admission.chatId || !Array.isArray(chat.message)) {
-            throw new Error('transformed input chat is invalid');
-        }
-        const matches = chat.message.filter((message) => (
-            message?.chatId === before.admission.userMessageId && message?.role === 'user'
-        ));
-        if (matches.length !== 1) throw new Error('transformed input message identity is invalid');
-        const globalIntent = normalizeGlobalIntent(value?.globalIntent);
-        const prepared = await chatWriteJournal.prepareStage(
-            before.admission.charId,
-            before.admission.chatId,
-            chat,
-            { awaitingMetadata: false, commitOperationId: journalOperationId(operationId) },
-        );
-        const journal = chatWriteJournal.describePreparedStage(prepared);
-        const outcome = await queueStorageOperation(() => sqliteDb.transaction(() => {
-            const record = read(operationId);
-            if (!record) return { status: 'missing' };
-            if (record.inputState === 'attached') {
-                return { status: 'attached', reused: true, record: clone(record) };
+        await ensureCanonicalState();
+        return queueStorageOperation(async () => {
+            const queuedRecord = read(operationId);
+            if (!queuedRecord) return { status: 'missing' };
+            if (queuedRecord.inputState === 'attached') {
+                return { status: 'attached', reused: true, record: clone(queuedRecord), publication: 'durable' };
             }
-            if (record.inputState !== 'queued' || record.transformState !== 'running') {
-                return { status: 'blocked', reason: 'transform_not_owned' };
+            let chat = clone(value?.chat);
+            if (!chat || chat.id !== before.admission.chatId || !Array.isArray(chat.message)) {
+                throw new Error('transformed input chat is invalid');
             }
-            if (currentRevision(record.admission.charId, record.admission.chatId)
-                !== record.effectiveBaseRevision) {
-                const blocked = {
-                    ...record,
-                    transformState: 'completed',
-                    inputState: 'blocked_edit',
-                    terminal: { state: 'blocked_edit', at: Date.now() },
+            const matches = chat.message.filter((message) => (
+                message?.chatId === before.admission.userMessageId && message?.role === 'user'
+            ));
+            if (matches.length !== 1) throw new Error('transformed input message identity is invalid');
+            const globalIntent = normalizeGlobalIntent(value?.globalIntent);
+            let attachmentBaseRevision = before.effectiveBaseRevision;
+            let inputEffectsSkipped = false;
+            if (before.attachmentPolicy === 'latest-v1') {
+                const record = read(operationId);
+                if (!record || record.inputState !== 'queued' || record.transformState !== 'running') {
+                    return { status: 'blocked', reason: 'transform_not_owned' };
+                }
+                const captured = settingsSnapshots.get(operationId)?.transformBase;
+                if (!captured) return { status: 'blocked', reason: 'transform_context_unavailable' };
+                const latest = currentChat(record.admission.charId, record.admission.chatId);
+                const metadata = getDbCache()?.[databaseKey]?.characters
+                    ?.find(character => character?.chaId === record.admission.charId)?.chats
+                    ?.find(candidate => candidate?.id === record.admission.chatId);
+                let resolved;
+                try { resolved = resolveInputAttachment(captured, chat, latest, metadata); }
+                catch { resolved = { status: 'conflict', reason: 'input_identity_invalid' }; }
+                if (resolved.status !== 'resolved') {
+                    const blocked = { ...record, transformState: 'completed', inputState: 'blocked_edit',
+                        terminal: { state: 'blocked_edit', reason: resolved.reason, at: Date.now() } };
+                    sqliteDb.transaction(() => write(blocked))();
+                    settingsSnapshots.delete(operationId);
+                    return { status: 'blocked', reason: resolved.reason, record: clone(blocked) };
+                }
+                chat = resolved.chat;
+                inputEffectsSkipped = resolved.unreflected;
+                attachmentBaseRevision = chatRevision(latest);
+            }
+            const prepared = await chatWriteJournal.prepareStage(
+                before.admission.charId,
+                before.admission.chatId,
+                chat,
+                { awaitingMetadata: false, commitOperationId: journalOperationId(operationId) },
+            );
+            const journal = chatWriteJournal.describePreparedStage(prepared);
+            const outcome = sqliteDb.transaction(() => {
+                const record = read(operationId);
+                if (!record) return { status: 'missing' };
+                if (record.inputState === 'attached') {
+                    return { status: 'attached', reused: true, record: clone(record) };
+                }
+                if (record.inputState !== 'queued' || record.transformState !== 'running') {
+                    return { status: 'blocked', reason: 'transform_not_owned' };
+                }
+                if (currentRevision(record.admission.charId, record.admission.chatId)
+                    !== attachmentBaseRevision) {
+                    const blocked = {
+                        ...record,
+                        transformState: 'completed',
+                        inputState: 'blocked_edit',
+                        terminal: { state: 'blocked_edit', reason: 'base_revision_changed', at: Date.now() },
+                    };
+                    write(blocked);
+                    return { status: 'blocked', reason: 'base_revision_changed', record: clone(blocked) };
+                }
+                const database = getDbCache()?.[databaseKey];
+                if (!database || typeof database !== 'object') throw new Error('input database cache unavailable');
+                const currentGlobals = database.globalChatVariables
+                    && typeof database.globalChatVariables === 'object'
+                    && !Array.isArray(database.globalChatVariables)
+                    ? database.globalChatVariables
+                    : {};
+                const outcomes = globalOutcomes(currentGlobals, globalIntent);
+                if (record.attachmentPolicy !== 'latest-v1' && outcomes.some((entry) => entry.status === 'conflict')) {
+                    const blocked = {
+                        ...record,
+                        transformState: 'completed',
+                        inputState: 'blocked_edit',
+                        globalIntent,
+                        globalOutcomes: outcomes,
+                        terminal: { state: 'blocked_edit', at: Date.now() },
+                    };
+                    write(blocked);
+                    return {
+                        status: 'blocked',
+                        reason: 'global_variables_changed',
+                        record: clone(blocked),
+                    };
+                }
+                const executionBaseRevision = chatRevision(chat);
+                const inputMessageRevision = sha256(stableJSON(matches[0]));
+                const inputReceipt = {
+                    contractVersion: SERVER_CHAT_INPUT_RECEIPT_CONTRACT,
+                    receiptId: sha256(stableJSON({
+                        operationId,
+                        inputCommandId: record.admission.inputCommandId,
+                        messageId: record.admission.userMessageId,
+                        revision: executionBaseRevision,
+                    })),
+                    inputCommandId: record.admission.inputCommandId,
+                    operationId,
+                    charId: record.admission.charId,
+                    chatId: record.admission.chatId,
+                    messageId: record.admission.userMessageId,
+                    role: 'user',
+                    revision: executionBaseRevision,
+                    hostChangeSeq: 1,
                 };
-                write(blocked);
-                return { status: 'blocked', reason: 'base_revision_changed', record: clone(blocked) };
-            }
-            const database = getDbCache()?.[databaseKey];
-            if (!database || typeof database !== 'object') throw new Error('input database cache unavailable');
-            const currentGlobals = database.globalChatVariables
-                && typeof database.globalChatVariables === 'object'
-                && !Array.isArray(database.globalChatVariables)
-                ? database.globalChatVariables
-                : {};
-            const outcomes = globalOutcomes(currentGlobals, globalIntent);
-            if (outcomes.some((entry) => entry.status === 'conflict')) {
-                const blocked = {
+                chatWriteJournal.writePreparedStage(prepared);
+                const next = {
                     ...record,
                     transformState: 'completed',
-                    inputState: 'blocked_edit',
+                    inputState: 'attached',
+                    ...(record.attachmentPolicy === 'latest-v1' ? {
+                        attachmentBaseRevision,
+                        inputEffectsSkipped: inputEffectsSkipped || outcomes.some(entry => entry.status === 'conflict'),
+                    } : {}),
+                    inputReceipt,
+                    executionBaseRevision,
+                    inputMessageRevision,
+                    baselineMessageCount: chat.message.length,
+                    journal,
                     globalIntent,
                     globalOutcomes: outcomes,
-                    terminal: { state: 'blocked_edit', at: Date.now() },
                 };
-                write(blocked);
-                return {
-                    status: 'blocked',
-                    reason: 'global_variables_changed',
-                    record: clone(blocked),
-                };
-            }
-            const executionBaseRevision = chatRevision(chat);
-            const inputMessageRevision = sha256(stableJSON(matches[0]));
-            const inputReceipt = {
-                contractVersion: SERVER_CHAT_INPUT_RECEIPT_CONTRACT,
-                receiptId: sha256(stableJSON({
-                    operationId,
+                write(next);
+                const operation = writeOperationState(kvSet, operationId, {
+                    charId: record.admission.charId,
+                    chatId: record.admission.chatId,
+                    baseChatRevision: record.effectiveBaseRevision,
+                    serverChatCommitVersion: 1,
+                    serverBaseChatRevision: executionBaseRevision,
+                    inputCommandVersion: 1,
                     inputCommandId: record.admission.inputCommandId,
-                    messageId: record.admission.userMessageId,
-                    revision: executionBaseRevision,
-                })),
-                inputCommandId: record.admission.inputCommandId,
-                operationId,
-                charId: record.admission.charId,
-                chatId: record.admission.chatId,
-                messageId: record.admission.userMessageId,
-                role: 'user',
-                revision: executionBaseRevision,
-                hostChangeSeq: 1,
-            };
-            chatWriteJournal.writePreparedStage(prepared);
-            const next = {
-                ...record,
-                transformState: 'completed',
-                inputState: 'attached',
-                inputReceipt,
-                executionBaseRevision,
-                inputMessageRevision,
-                baselineMessageCount: chat.message.length,
-                journal,
-                globalIntent,
-                globalOutcomes: outcomes,
-            };
-            write(next);
-            const operation = writeOperationState(kvSet, operationId, {
-                charId: record.admission.charId,
-                chatId: record.admission.chatId,
-                baseChatRevision: record.effectiveBaseRevision,
-                serverChatCommitVersion: 1,
-                serverBaseChatRevision: executionBaseRevision,
-                inputCommandVersion: 1,
-                inputCommandId: record.admission.inputCommandId,
-                admissionSeq: record.admissionSeq,
-            }, 'queued');
-            if (!operation.written) throw operation.error || new Error('operation state write failed');
-            return { status: 'attached', reused: false, record: clone(next) };
-        })());
-        if (outcome.status !== 'attached' || outcome.reused) {
-            if (outcome.record?.inputState === 'blocked_edit') {
-                settingsSnapshots.delete(operationId);
+                    admissionSeq: record.admissionSeq,
+                }, 'queued');
+                if (!operation.written) throw operation.error || new Error('operation state write failed');
+                return { status: 'attached', reused: false, record: clone(next) };
+            })();
+            if (outcome.status !== 'attached' || outcome.reused) {
+                if (outcome.record?.inputState === 'blocked_edit') {
+                    settingsSnapshots.delete(operationId);
+                }
+                return outcome;
             }
-            return outcome;
-        }
-        const publicationErrors = [];
-        try { chatWriteJournal.publishPreparedStage(prepared); } catch { publicationErrors.push('journal') }
-        try { await publishAttached(outcome.record, chat); } catch { publicationErrors.push('canonical') }
-        return {
-            ...outcome,
-            publication: publicationErrors.length === 0 ? 'published' : 'pending_recovery',
-        };
+            const publicationErrors = [];
+            try { chatWriteJournal.publishPreparedStage(prepared); } catch { publicationErrors.push('journal') }
+            try { await publishAttached(outcome.record, chat, true); } catch { publicationErrors.push('canonical') }
+            const snapshot = settingsSnapshots.get(operationId);
+            if (snapshot) delete snapshot.transformBase;
+            return {
+                ...outcome,
+                record: clone(read(operationId)),
+                publication: publicationErrors.length === 0 ? 'published' : 'pending_recovery',
+            };
+        });
     }
 
     async function loadExecution(operationId) {
@@ -1079,7 +1183,7 @@ function createServerChatInputOwner({
             }
             await ensureCanonicalState();
             const chat = currentChat(record.admission.charId, record.admission.chatId);
-            if (!chat || chatRevision(chat) !== record.effectiveBaseRevision) {
+            if (!chat) {
                 const blocked = await queueStorageOperation(() => sqliteDb.transaction(() => {
                     const latest = read(operationId);
                     if (!latest || latest.inputState !== 'queued'
@@ -1091,12 +1195,12 @@ function createServerChatInputOwner({
                         inputState: 'blocked_edit',
                         terminal: {
                             state: 'blocked_edit',
-                            reason: 'base_revision_changed',
+                            reason: 'chat_deleted',
                             at: Date.now(),
                         },
                     };
                     write(next);
-                    return { status: 'blocked', reason: 'base_revision_changed', record: clone(next) };
+                    return { status: 'blocked', reason: 'chat_deleted', record: clone(next) };
                 })());
                 if (blocked.record?.inputState === 'blocked_edit') {
                     settingsSnapshots.delete(operationId);
@@ -1108,10 +1212,10 @@ function createServerChatInputOwner({
         if (record.inputState === 'attached') {
             await ensureCanonicalState();
             let chat = currentChat(record.admission.charId, record.admission.chatId);
-            if (!chat || chatRevision(chat) !== record.executionBaseRevision) {
+            if (!containsOwnedInput(record, chat)) {
                 try { chat = await publishAttached(record); } catch { /* reported below */ }
             }
-            if (!chat || chatRevision(chat) !== record.executionBaseRevision) {
+            if (!containsOwnedInput(record, chat)) {
                 return { status: 'blocked', reason: 'attached_chat_changed', record: clone(record) };
             }
             if (!readSettingsSnapshotRecord(record)) {

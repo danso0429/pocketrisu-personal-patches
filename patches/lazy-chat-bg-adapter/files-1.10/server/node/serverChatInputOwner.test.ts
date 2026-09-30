@@ -172,6 +172,77 @@ function makeHarness() {
 }
 
 describe('pre-canonical server chat input owner', () => {
+    it('preserves newer globals when recovering a durable input whose cache publication failed', async () => {
+        const h = makeHarness(), owner = h.makeOwner(), id = 'operation-input-recovery-edit'
+        await owner.admit(admission(id))
+        await owner.beginTransform(id)
+        h.runtime.cacheFailures = 1
+        await expect(owner.attachTransformed(id, h.transformed(id)))
+            .resolves.toMatchObject({ status: 'attached', publication: 'pending_recovery' })
+        h.runtime.database.globalChatVariables.mood = 'user after failed publication'
+        await expect(owner.recoverAll()).resolves.toContainEqual({ operationId: id, status: 'attached' })
+        expect(h.runtime.fullStore.get('char-1')!.get('chat-1')!.message).toHaveLength(2)
+        expect(h.runtime.database.globalChatVariables.mood).toBe('user after failed publication')
+        expect(owner.read(id).inputEffectsSkipped).toBe(true)
+        expect(owner.read(id).globalOutcomes).toEqual([{ key: 'mood', status: 'conflict' }])
+    })
+
+    it('reads v4 admissions and upgrades only at a fresh transform claim', async () => {
+        const harness = makeHarness(), owner = harness.makeOwner()
+        const operationId = 'operation-input-v4-upgrade'
+        await owner.admit(admission(operationId))
+        const legacy = JSON.parse(harness.kvGet(commandKey(operationId)).toString())
+        legacy.recordVersion = 4
+        delete legacy.attachmentPolicy
+        delete legacy.transformBaseRevision
+        delete legacy.attachmentBaseRevision
+        delete legacy.inputEffectsSkipped
+        harness.kvSet(commandKey(operationId), JSON.stringify(legacy))
+        expect(owner.read(operationId).recordVersion).toBe(4)
+        const claimed = await owner.beginTransform(operationId)
+        expect(claimed).toMatchObject({ status: 'started', record: { recordVersion: 4,
+            requestFingerprint: legacy.requestFingerprint, effectiveBaseRevision: legacy.effectiveBaseRevision } })
+        expect(claimed.record.transformBaseRevision).toBe(revision(baseChat()))
+        expect(claimed.record.attachmentPolicy).toBe('latest-v1')
+        const outcomes = await Promise.all([
+            owner.attachTransformed(operationId, harness.transformed(operationId)),
+            owner.attachTransformed(operationId, harness.transformed(operationId)),
+        ])
+        expect(outcomes.map(value => value.status)).toEqual(['attached', 'attached'])
+        expect(outcomes.map(value => value.reused)).toEqual([false, true])
+        expect(harness.runtime.fullStore.get('char-1')!.get('chat-1')!.message).toHaveLength(2)
+        expect(harness.runtime.schedules).toBe(1)
+    })
+
+    it('settles a deleted chat without claiming or replaying input effects', async () => {
+        const harness = makeHarness(), owner = harness.makeOwner()
+        const operationId = 'operation-input-deleted-before-claim'
+        await owner.admit(admission(operationId))
+        harness.runtime.database.characters[0].chats = []
+        await expect(owner.beginTransform(operationId)).resolves.toMatchObject({ status: 'blocked', reason: 'chat_deleted' })
+        expect(owner.read(operationId)).toMatchObject({ inputState: 'blocked_edit', transformState: 'not_run' })
+        expect(owner.settingsSnapshotStats().contexts).toBe(0)
+    })
+
+    it('keeps user edits made during input transformation and never runs the transform again', async () => {
+        const harness = makeHarness(), owner = harness.makeOwner()
+        const operationId = 'operation-input-concurrent-edit'
+        await owner.admit(admission(operationId))
+        const claimed = await owner.beginTransform(operationId)
+        const transformed = harness.transformed(operationId, 'transformed once', claimed.context.chat)
+        transformed.chat.message[0].data = 'server edit'
+        harness.runtime.fullStore.get('char-1')!.get('chat-1')!.message[0].data = 'user edit'
+        harness.runtime.database.globalChatVariables.mood = 'user mood'
+        const attached = await owner.attachTransformed(operationId, transformed)
+        expect(attached).toMatchObject({ status: 'attached', publication: 'published', record: { inputEffectsSkipped: true } })
+        expect(harness.runtime.fullStore.get('char-1')!.get('chat-1')!.message.map(value => value.data)).toEqual(['user edit', 'transformed once'])
+        expect(harness.runtime.database.globalChatVariables.mood).toBe('user mood')
+        await expect(owner.beginTransform(operationId)).resolves.toMatchObject({ status: 'attached' })
+        const restarted = harness.makeOwner()
+        await expect(restarted.loadExecution(operationId)).resolves.toMatchObject({ status: 'blocked', reason: 'settings_context_unavailable' })
+        expect(harness.runtime.fullStore.get('char-1')!.get('chat-1')!.message).toHaveLength(2)
+    })
+
     it('admits one immutable command without changing canonical chat', async () => {
         const harness = makeHarness()
         const owner = harness.makeOwner()
@@ -228,29 +299,20 @@ describe('pre-canonical server chat input owner', () => {
         })
     })
 
-    it('records an edited head as blocked instead of leaving a queued pending command', async () => {
-        const harness = makeHarness()
-        const owner = harness.makeOwner()
+    it('samples an edited prefix at claim without changing admission identity', async () => {
+        const harness = makeHarness(), owner = harness.makeOwner()
         const operationId = 'operation-input-edited-head-1'
-        await owner.admit(admission(operationId))
-        const original = harness.runtime.fullStore.get('char-1')?.get('chat-1') as any
-        harness.runtime.fullStore.get('char-1')?.set('chat-1', {
-            ...original,
-            message: [...original.message, { role: 'user', data: 'new edit', chatId: 'user-edit' }],
-        })
-        await expect(owner.loadExecution(operationId)).resolves.toMatchObject({
-            status: 'blocked',
-            reason: 'base_revision_changed',
-        })
-        expect(owner.pendingProjection('char-1', 'chat-1')).toMatchObject([{
-            operationId,
-            state: 'blocked_edit',
-        }])
-        expect(owner.settingsSnapshotStats().contexts).toBe(0)
-        await expect(owner.loadExecution(operationId)).resolves.toMatchObject({
-            status: 'blocked',
-            reason: 'base_revision_changed',
-        })
+        const admitted = await owner.admit(admission(operationId))
+        const current = structuredClone(baseChat())
+        current.message[0].data = 'edited before preparation'
+        harness.runtime.fullStore.get('char-1')!.set('chat-1', current)
+        expect(await owner.loadExecution(operationId)).toMatchObject({ status: 'transform-required' })
+        const started = await owner.beginTransform(operationId)
+        expect(started.context.chat.message[0].data).toBe('edited before preparation')
+        expect(started.record.effectiveBaseRevision).toBe(admitted.record.effectiveBaseRevision)
+        expect(started.record.transformBaseRevision).toBe(revision(current))
+        expect(started.record.requestFingerprint).toBe(admitted.record.requestFingerprint)
+        expect(owner.read(operationId).recordVersion).toBe(4)
     })
 
     it('propagates a blocked head to its waiting successor without starting either', async () => {
@@ -260,14 +322,8 @@ describe('pre-canonical server chat input owner', () => {
         const second = 'operation-input-blocked-chain-2'
         await owner.admit(admission(first))
         await owner.admit(admission(second))
-        const original = harness.runtime.fullStore.get('char-1')?.get('chat-1') as any
-        harness.runtime.fullStore.get('char-1')?.set('chat-1', {
-            ...original,
-            message: [...original.message, { role: 'user', data: 'concurrent edit', chatId: 'user-edit' }],
-        })
-        await expect(owner.loadExecution(first)).resolves.toMatchObject({
-            status: 'blocked', reason: 'base_revision_changed',
-        })
+        expect(await owner.beginTransform(first, () => 'latest_settings_require_client'))
+            .toMatchObject({ status: 'blocked', reason: 'latest_settings_require_client' })
         await expect(owner.loadExecution(second)).resolves.toMatchObject({
             status: 'blocked', reason: 'predecessor_blocked_edit',
         })
@@ -787,7 +843,7 @@ describe('pre-canonical server chat input owner', () => {
         })
     })
 
-    it('blocks an already waiting successor when the completed predecessor revision was edited', async () => {
+    it('uses edits made after its predecessor published before starting the waiting successor', async () => {
         const harness = makeHarness()
         const owner = harness.makeOwner()
         const firstOperation = 'operation-input-waiting-edit-1'
@@ -829,20 +885,13 @@ describe('pre-canonical server chat input owner', () => {
             )),
         })
 
-        await expect(owner.loadExecution(secondOperation)).resolves.toMatchObject({
-            status: 'blocked',
-            reason: 'predecessor_revision_changed',
-            predecessorOperationId: firstOperation,
-        })
-        expect(owner.pendingProjection('char-1', 'chat-1')).toMatchObject([{
-            operationId: secondOperation,
-            state: 'blocked_edit',
-        }])
-        expect(owner.settingsSnapshotStats().contexts).toBe(0)
-        await expect(owner.loadExecution(secondOperation)).resolves.toMatchObject({
-            status: 'blocked',
-            reason: 'predecessor_revision_changed',
-        })
+        const ready = await owner.loadExecution(secondOperation)
+        expect(ready.status).toBe('transform-required')
+        expect(ready.chat.message.at(-1).data).toBe('edited before successor start')
+        const started = await owner.beginTransform(secondOperation)
+        expect(started.context.chat.message.at(-1).data).toBe('edited before successor start')
+        expect(started.record.predecessorResolution.revision).toBe(revision(resultChat))
+        expect(owner.settingsSnapshotStats().contexts).toBe(1)
     })
 
     it('blocks N+1 when its predecessor input outcome is unknown', async () => {
@@ -925,7 +974,7 @@ describe('pre-canonical server chat input owner', () => {
         })
     })
 
-    it('blocks before provider work when input globals changed concurrently', async () => {
+    it('preserves newer input globals and records skipped effects while attaching once', async () => {
         const harness = makeHarness()
         const owner = harness.makeOwner()
         const operationId = 'operation-input-global-conflict-1'
@@ -937,44 +986,43 @@ describe('pre-canonical server chat input owner', () => {
             operationId,
             harness.transformed(operationId),
         )).resolves.toMatchObject({
-            status: 'blocked',
-            reason: 'global_variables_changed',
-            record: { inputState: 'blocked_edit' },
+            status: 'attached',
+            record: { inputState: 'attached', inputEffectsSkipped: true },
         })
-        expect(harness.runtime.fullStore.get('char-1')?.get('chat-1')).toEqual(baseChat())
+        expect(harness.runtime.fullStore.get('char-1')?.get('chat-1')?.message.at(-1)?.chatId)
+            .toBe(`user-${operationId}`)
         expect(harness.runtime.database.globalChatVariables).toEqual({ mood: 'newer-user-value' })
         expect(owner.pendingProjection('char-1', 'chat-1')).toMatchObject([{
-            operationId,
-            state: 'blocked_edit',
-            cancelAllowed: false,
+            operationId, state: 'attached', cancelAllowed: false,
         }])
-        expect(owner.settingsSnapshotStats()).toMatchObject({ contexts: 0, bytes: 0 })
+        expect(owner.settingsSnapshotStats().contexts).toBe(1)
     })
 
-    it('defers provider work when globals change after the durable attach write', async () => {
+    it('preserves globals changed after the durable attach write and records the skipped effect', async () => {
         const harness = makeHarness()
-        const owner = harness.makeOwner()
+        const journal = harness.makeJournal()
+        const owner = harness.makeOwner({ ...journal, publishPreparedStage: (prepared: any) => {
+            journal.publishPreparedStage(prepared)
+            harness.runtime.database.globalChatVariables.mood = 'newer-publication-value'
+        } })
         const operationId = 'operation-input-publication-conflict-1'
         await owner.admit(admission(operationId))
         await owner.beginTransform(operationId)
-        harness.runtime.ensureCanonicalHook = () => {
-            harness.runtime.ensureCanonicalHook = null
-            harness.runtime.database.globalChatVariables.mood = 'newer-publication-value'
-        }
+
 
         await expect(owner.attachTransformed(
             operationId,
             harness.transformed(operationId),
         )).resolves.toMatchObject({
             status: 'attached',
-            publication: 'pending_recovery',
+            publication: 'published',
         })
-        expect(harness.runtime.fullStore.get('char-1')?.get('chat-1')).toEqual(baseChat())
+        expect(harness.runtime.fullStore.get('char-1')?.get('chat-1')?.message).toHaveLength(2)
         expect(harness.runtime.database.globalChatVariables)
             .toEqual({ mood: 'newer-publication-value' })
         await expect(owner.loadExecution(operationId)).resolves.toMatchObject({
-            status: 'blocked',
-            reason: 'attached_chat_changed',
+            status: 'attached',
+            record: { inputEffectsSkipped: true },
         })
     })
 

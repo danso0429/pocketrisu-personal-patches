@@ -775,6 +775,8 @@ function createCommitReceipt(material, requestFingerprint, canonicalWrite) {
         ...(material.anchorResolution
             ? { anchoredBaseRevision: material.anchorResolution.baseRevision }
             : {}),
+        ...(typeof material.anchorResolution?.promptInputsChanged === 'boolean'
+            ? { promptInputsChanged: material.anchorResolution.promptInputsChanged } : {}),
         storedRevision: material.storedRevision,
         bindingEpoch: material.bindingEpoch,
         hostChangeSeq: material.hostChangeSeq,
@@ -797,17 +799,19 @@ function normalizeStoredRecord(value, expectedOperationId = null) {
     try {
         const parsed = JSON.parse(Buffer.isBuffer(value) ? value.toString('utf8') : String(value));
         const record = requirePlainObject('storedRecord', parsed);
-        if (![1, 2].includes(record.recordVersion) || record.contractVersion !== SERVER_CHAT_COMMIT_CONTRACT
+        if (![1, 2, 3].includes(record.recordVersion) || record.contractVersion !== SERVER_CHAT_COMMIT_CONTRACT
             || !OPERATION_ID.test(record.operationId) || !SHA256.test(record.requestFingerprint)
             || !Number.isSafeInteger(record.commitSequence) || record.commitSequence <= 0) {
             return null;
         }
         if (expectedOperationId && record.operationId !== expectedOperationId) return null;
         const material = requirePlainObject('storedRecord.recovery', record.recovery);
-        if (record.recordVersion === 2) {
+        if (record.recordVersion === 2 || record.recordVersion === 3) {
             const anchor = requirePlainObject('anchorResolution', material.anchorResolution);
-            rejectUnexpectedKeys('anchorResolution', anchor, new Set(['sourceFingerprint', 'baseRevision', 'unreflected']));
+            rejectUnexpectedKeys('anchorResolution', anchor, new Set(['sourceFingerprint', 'baseRevision', 'unreflected',
+                ...(record.recordVersion === 3 ? ['promptInputsChanged'] : [])]));
             if (!SHA256.test(anchor.sourceFingerprint) || !SHA256.test(anchor.baseRevision)
+                || (record.recordVersion === 3 && typeof anchor.promptInputsChanged !== 'boolean')
                 || typeof anchor.unreflected !== 'boolean'
                 || material.hostChangeIntent?.beforeRevision !== anchor.baseRevision
                 || material.hostChangeIntent?.afterRevision !== material.storedRevision) return null;
@@ -1020,7 +1024,8 @@ function createServerChatCommitter({
             normalized = {
                 ...normalized, chat, storedRevision, metadata: metadata.metadata,
                 metadataPresence: metadata.presence, hostChangeIntent,
-                anchorResolution: { sourceFingerprint, baseRevision, unreflected: resolved.unreflected === true },
+                anchorResolution: { sourceFingerprint, baseRevision, unreflected: resolved.unreflected === true,
+                    ...(typeof resolved.promptInputsChanged === 'boolean' ? { promptInputsChanged: resolved.promptInputsChanged } : {}) },
             };
             material = fingerprintMaterial(normalized, storedRevision);
             requestFingerprint = sha256(stableJSON(material));
@@ -1080,7 +1085,7 @@ function createServerChatCommitter({
                     canonicalWrite,
                 );
                 const record = {
-                    recordVersion: normalized.anchorResolution ? 2 : 1,
+                    recordVersion: typeof normalized.anchorResolution?.promptInputsChanged === 'boolean' ? 3 : normalized.anchorResolution ? 2 : 1,
                     contractVersion: SERVER_CHAT_COMMIT_CONTRACT,
                     operationId: normalized.operationId,
                     commitSequence: canonicalWrite.commitSequence,

@@ -64,7 +64,7 @@ function unitId(relative) {
 module.exports = {
     id: 'lazy-chat-sync',
     title: 'Lazy chat synchronization and startup cache',
-    version: '0.5.5',
+    version: '0.5.6',
     targets: {
         pocketrisu: {
             verified: ['1.10.0'],

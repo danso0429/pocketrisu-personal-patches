@@ -3,7 +3,11 @@ import { readFileSync } from 'node:fs'
 import { createRequire } from 'node:module'
 import crypto from 'node:crypto'
 import { AsyncLocalStorage } from 'node:async_hooks'
+import * as policy from '../../src/ts/bgOrchestrationPolicy'
+import * as inputPolicy from '../../src/ts/bgServerInputProviderPolicy'
+import contextPackage from './serverChatAssemblyContext.cjs'
 import anchorPackage from './chatAnchorCommit.cjs'
+import inputAttachPackage from './chatInputAttach.cjs'
 const { captureChatAnchor, captureExecutionChatAnchor, resolveChatAnchor, checkChatAnchor, anchoredAssistantMessages } = anchorPackage as any
 const message = (chatId: string, data: string, role = 'char') => ({ chatId, data, role })
 const base = () => ({ id: 'chat', name: 'before', scriptstate: { a: '0', b: '0' },
@@ -11,6 +15,89 @@ const base = () => ({ id: 'chat', name: 'before', scriptstate: { a: '0', b: '0' 
 const result = (chat: any) => ({ ...structuredClone(chat), message: [...structuredClone(chat.message), message('answer', 'response')] })
 
 describe('anchored chat resolution', () => {
+    it.each(['new', 'attached', 'conflict'])('uses fresh input and main contexts without replaying attached input (%s)', async scenario => {
+        const alreadyAttached = scenario === 'attached'
+        const source = readFileSync(new URL('./bgOrchestrator.cjs', import.meta.url), 'utf8')
+        const start = source.indexOf('async function runServerPreview(')
+        const end = source.indexOf('\n// S2-C:', start)
+        expect(start).toBeGreaterThan(0); expect(end).toBeGreaterThan(start)
+        let database: any, triggerCalls = 0, editCalls = 0, attachCalls = 0, committedCalls = 0
+        const command = { userMessageId: 'new-input', rawText: 'raw input', submittedAt: 123 }
+        const latest: any = { id: 'chat', message: [message('history', 'latest history')], scriptstate: {} }
+        const root: any = { characters: [{ chaId: 'char', type: 'character', description: 'turn-time setting',
+            chats: [{ id: 'chat', _stub: true }] }], globalChatVariables: { value: 'fresh' }, statics: { messages: 0 } }
+        const capture = () => (contextPackage as any).captureAssemblyContext(root, latest, 'char', 'chat')
+        const claimContext = capture()
+        const basis = (inputAttachPackage as any).captureInputTransformBase(claimContext.chat, claimContext.metadata, command.userMessageId)
+        const record = { admission: command, inputReceipt: { messageId: command.userMessageId } }
+        if (alreadyAttached) latest.message.push(message(command.userMessageId, 'previously transformed', 'user'))
+        const bg = {
+            policy, inputPolicy,
+            dbmod: { setDatabase: (value: any) => { database = value }, getDatabase: () => database },
+            stores: { selectedCharID: { set: () => {} } },
+            triggers: { runTrigger: async (character: any, kind: string, value: any) => {
+                triggerCalls++
+                expect(kind).toBe('input')
+                expect(character.description).toBe('turn-time setting')
+                expect(value.chat.message[0].data).toBe('latest history')
+                value.chat.message[0].data = 'trigger edit'
+                // A concurrent user save while the trigger is in flight must survive attachment.
+                latest.message[0].data = 'newer user edit'
+                root.characters[0].description = 'main-time setting'
+                return value
+            } },
+            scripts: { processScript: async (_character: any, text: string, kind: string) => {
+                editCalls++; expect(kind).toBe('editinput'); return `${text} transformed`
+            } },
+            idx: { chatProcessStage: { set: () => {}, subscribe: () => () => {} },
+                sendChatWithDirectLifecycle: async () => {
+                    const character = database.characters[0], chat = character.chats[0]
+                    expect(character.description).toBe(alreadyAttached ? 'turn-time setting' : 'main-time setting')
+                    expect(chat.message[0].data).toBe(alreadyAttached ? 'latest history' : 'newer user edit')
+                    expect(chat.message.at(-1).data).toBe(alreadyAttached ? 'previously transformed' : 'raw input transformed')
+                    chat.message.push(message('answer', 'response'))
+                } },
+        }
+        const run = new Function('loadBundle', 'nodeCrypto', 'require', 'orchestrationAbortContext',
+            'withExternalHeaderConversation', 'diffGlobalVariables', `
+            let _previewLock = Promise.resolve(); const _orchStage = {}, _orchStatus = {};
+            const stageKey = (a, b) => a + ':' + b;
+            ${source.slice(start, end)}
+            return runServerPreview;
+        `)(async () => bg, crypto, createRequire(import.meta.url), new AsyncLocalStorage(),
+            (_key: string, task: () => unknown) => task(), () => ({ changed: {}, deleted: [], expected: {} }))
+        const running = run({ getDbCache: () => null }, 'char', 'chat', base(), 'full', {
+            serverChatCommitVersion: 1, inputCommandVersion: 1,
+            readInputSettingsSnapshot: () => { throw new Error('admission settings used for execution') },
+            beginInputTransform: async (validate: any) => {
+                expect(validate(claimContext)).toBeNull()
+                return alreadyAttached ? { status: 'attached', record } : { status: 'started', record, context: claimContext }
+            },
+            attachInputTransform: async ({ chat }: any) => {
+                attachCalls++
+                const merged = (inputAttachPackage as any).resolveInputAttachment(basis, chat, latest, {})
+                expect(merged.status).toBe('resolved'); expect(merged.unreflected).toBe(true)
+                Object.assign(latest, merged.chat)
+                return { status: 'attached', record }
+            },
+            onInputCommitted: () => { committedCalls++ },
+            readAssemblyContext: async () => scenario === 'conflict' ? { status: 'conflict', reason: 'unknown_suffix' } : capture(),
+        })
+        if (scenario === 'conflict') {
+            await expect(running).rejects.toMatchObject({ code: 'BG_ASSEMBLY_CONFLICT', reason: 'unknown_suffix' })
+            expect([triggerCalls, editCalls, attachCalls]).toEqual([1, 1, 1])
+            expect(latest.message).toHaveLength(2)
+            return
+        }
+        const output = await running
+        expect(output.threw).toBeNull()
+        expect(output.executionAnchor.inputId).toBe(command.userMessageId)
+        expect(output.chat.message.filter((entry: any) => entry.chatId === command.userMessageId)).toHaveLength(1)
+        expect(output.chat.message.at(-1).chatId).toBe('answer')
+        expect([triggerCalls, editCalls, attachCalls]).toEqual(alreadyAttached ? [0, 0, 0] : [1, 1, 1])
+        expect(committedCalls).toBeGreaterThan(0)
+    })
+
     it.each([false, true])('does not duplicate legacy history when native generation assigns IDs (edited=%s)', edited => {
         const canonical: any = base()
         delete canonical.message[0].chatId
@@ -55,6 +142,7 @@ describe('anchored chat resolution', () => {
         expect(start).toBeGreaterThan(0); expect(end).toBeGreaterThan(start)
         let database: any
         const bg = {
+            policy, inputPolicy,
             dbmod: { setDatabase: (value: any) => { database = value }, getDatabase: () => database },
             stores: { selectedCharID: { set: () => {} } },
             idx: {
@@ -77,13 +165,23 @@ describe('anchored chat resolution', () => {
             (_key: string, task: () => unknown) => task(), () => ({ changed: {}, deleted: [], expected: {} }))
         const initial: any = base()
         delete initial.message[0].chatId
-        const snapshot = structuredClone(initial)
+        const latest = structuredClone(initial)
+        latest.message[0].data = 'latest history'
+        const root = {
+            characters: [{ chaId: 'char', chats: [{ id: 'chat', name: 'metadata name', _stub: true }], description: 'latest character' }],
+            globalChatVariables: { value: 'latest' }, statics: { messages: 0 },
+        }
+        const snapshot = { ...structuredClone(latest), name: 'metadata name' }
         const output = await run({
-            DB_HEX_KEY: 'db', getDbCache: () => ({ db: {
-                characters: [{ chaId: 'char', chats: [{ id: 'chat', name: 'metadata name', _stub: true }] }],
-                globalChatVariables: {}, statics: { messages: 0 },
-            } }),
-        }, 'char', 'chat', initial, 'full', { serverChatCommitVersion: 1, inputCommandVersion: 0 })
+            DB_HEX_KEY: 'db', getDbCache: () => ({ db: root }),
+        }, 'char', 'chat', initial, 'full', {
+            serverChatCommitVersion: 1, inputCommandVersion: 0,
+            globalChatVariablesSnapshotVersion: 1, globalChatVariablesSnapshot: { value: 'stale client' },
+            readAssemblyContext: async () => (contextPackage as any).captureAssemblyContext(root, latest, 'char', 'chat'),
+        })
+        expect(database.globalChatVariables.value).toBe('latest')
+        expect(database.characters[0].description).toBe('latest character')
+        expect(initial.message[0].data).toBe('before')
         expect(output.executionAnchor.chat).toEqual({ ...snapshot, message: [
             { ...snapshot.message[0], chatId: expect.any(String) }, snapshot.message[1],
         ] })

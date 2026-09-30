@@ -252,10 +252,11 @@ require.cache[orchestratorPath].exports = function registerInstrumentedOrchestra
         }
         const transform = await control.beginInputTransform()
         const command = transform.record.admission
+        const transformChat = transform.context?.chat || previewChat
         const inputChat = {
-            ...previewChat,
+            ...transformChat,
             message: [
-                ...previewChat.message,
+                ...transformChat.message,
                 {
                     role: 'user',
                     data: command.rawText,
@@ -270,7 +271,9 @@ require.cache[orchestratorPath].exports = function registerInstrumentedOrchestra
             globalIntent: { changed: {}, deleted: [], expected: {} },
         })
         control.onInputCommitted(attached.record)
-        const executionAnchor = require('./chatAnchorCommit.cjs').captureChatAnchor(inputChat)
+        const assembly = await control.readAssemblyContext()
+        const assemblyChat = assembly.chat
+        const executionAnchor = require('./chatAnchorCommit.cjs').captureChatAnchor(assemblyChat)
         send('provider-waiting', {
             operationId: attached.record.operationId,
             settingsContexts: typeof inputOwner?.settingsSnapshotStats === 'function'
@@ -288,9 +291,9 @@ require.cache[orchestratorPath].exports = function registerInstrumentedOrchestra
         return {
             executionAnchor,
             chat: {
-                ...inputChat,
+                ...assemblyChat,
                 message: [
-                    ...inputChat.message,
+                    ...assemblyChat.message,
                     {
                         role: 'char',
                         data: `answer:${command.rawText}`,
@@ -302,7 +305,7 @@ require.cache[orchestratorPath].exports = function registerInstrumentedOrchestra
             globalChatVariables: {},
             globalChatVariablesDeleted: [],
             globalChatVariablesExpected: {},
-            settingsDigest: settingsSnapshot.contextDigest,
+            settingsDigest: assembly.contextDigest,
             threw: null,
         }
     }
