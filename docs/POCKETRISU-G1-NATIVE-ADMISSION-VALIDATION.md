@@ -1,6 +1,6 @@
 # G1.5a native admission and explicit client input recovery
 
-Candidate: `0.2.4-experimental.17`, adapter `0.7.24`. Automated implementation validation completed; live delivery pending. Updated 2026-10-03 KST. Physical-device qualification is separate.
+Candidate: `0.2.4-experimental.17`, adapter `0.7.24`, implementation `8f6627b`. Implemented, pushed and delivered live on 2026-10-03 KST. Physical-device qualification is separate.
 
 ## Scope and user decisions
 
@@ -53,6 +53,10 @@ Input marker v1 entries migrate to v2. Native command/claim records retain the e
 
 ## Delivery and device boundary
 
-Before delivery, check active work without cancelling it, verify the stopped application/state/database backup, apply/build/restart, and compare served assets and managed source hashes. No stable release tag is authorized by automated checks alone.
+Delivery checked zero active requests/model jobs/pending sends and zero input records without cancelling work. The stopped application/state/five-database archive is 3,139,655,733 bytes; all 1,614 regular files were verified by hash, size and mode. Existing backups were retained. Database bytes remained unchanged during source application and builds.
+
+After apply/build/restart, all 447 managed files matched their expected hashes/modes and all 17 discovered script assets matched served/local bytes. Root HTTP returned 200, all five databases passed `quick_check`, external header settings were byte-identical, and PM2 was online with zero unstable restarts. Active/pending/input work remained zero and operation-state count was 117 before and after. Two new error-log lines were the existing retained-journal warning and recovery-stall category; no unclassified line was introduced.
+
+No stable tag/release was created. No real-provider generation, user-record deletion or generation cancellation was performed for delivery. The implementation and delivery records are on the candidate branch; stable publication remains subject to the existing device/aggregate gates.
 
 Device scenarios for the aggregate BG gate: send with a qualified native preset, return after leaving the app, and verify exactly one input/answer; for a chat with an input dialog, use the explicit recovery button, answer in the app, wait for server generation, then leave and return. The original text must remain available on interruption. Existing plugin combinations retain their preparation boundary until G1.5b.

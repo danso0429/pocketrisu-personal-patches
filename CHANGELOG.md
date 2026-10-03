@@ -7,6 +7,7 @@
 - Keep claim ownership, cancellation, restart recovery and never-executed cascade handling in the existing input owner. Preserve preparation for unqualified plugin/MCP combinations.
 - Separate semantic chat-view fingerprints from SHA-256 storage revisions across admission, marker storage and adoption. Migrate input markers to v2 so old tabs cannot reject the new marker format.
 - See `docs/POCKETRISU-G1-NATIVE-ADMISSION-VALIDATION.md` for qualification, remaining gates and delivery status. This does not implement G1.5b plugin hosting or r3.
+- Delivered live after verified application/state/five-database backup, builds and readback of 447 managed files and 17 script assets. Device/aggregate qualification remains pending.
 
 ## 0.2.4-experimental.16 (BG candidate)
 

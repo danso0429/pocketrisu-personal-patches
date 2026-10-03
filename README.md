@@ -10,6 +10,7 @@ It separates semantic view fingerprints from server storage revisions and retain
 original input when preparation stops. Plugin-host qualification and r3 remain separate.
 See the [G1.5a implementation record](docs/POCKETRISU-G1-NATIVE-ADMISSION-VALIDATION.md)
 for current verification and delivery status.
+It is delivered live; device/aggregate qualification remains pending.
 
 The `0.2.4-experimental.16` checkpoint extends the existing operation cancellation,
 conversation-header context and node execution environment to server input triggers
