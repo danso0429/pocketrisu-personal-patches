@@ -1,6 +1,6 @@
 # PocketRisu Personal Font Targets Plan
 
-Status: implemented as candidate `0.2.4-experimental.5` (feature `35ef255`, installer `48f53b5`); automated gates passed, iPhone L5 pending. Not pushed or applied live. See §9 for deviations and observed validation.
+Status: implemented as candidate `0.2.4-experimental.5` (feature `35ef255`, installer `48f53b5`) and pushed to `main`. Live runs a local combination with the unmerged BG line for L5 (§9.3). iPhone L5 pending. See §9 for deviations and observed validation.
 Base: patcher `origin/main` `d2bca03` (`package.json` `0.2.4-experimental.4`, `version.json` stable `0.2.3`).
 Candidate: `0.2.4-experimental.5`.
 
@@ -254,3 +254,13 @@ Physical iPhone rendering and CDN availability of the two built-in fonts are not
   - 320px and 390px: the two apply switches share one row at 44px height; no horizontal page overflow.
 - Environment limitation: on a fresh empty scratch database every `/api/patch` after the first full write returned 409 with client `expectedHash=0`; the same sequence reproduced with the `origin/main` installer. The browser flows above used a scratch-only server edit that accepts `expectedHash === '0'`. The product server is unchanged.
 - Not covered: physical iPhone rendering, Safe Mode toggling in the browser, CDN availability of the two built-in fonts, and an older installer reading the new data.
+
+### 9.3 Live delivery for L5 (2026-10-04 KST)
+
+Live did not run `main`: it ran the unmerged BG line `codex/pocketrisu-g18-notifications` (`493fceb`, package `0.2.4-experimental.19`, Personal settings `0.5.12`). The `main` installer would have changed 138 live files, including BG files, so it was not applied.
+
+- The `493fceb` installer planned 0 live changes, confirming the live composition and serving as the rollback installer.
+- A local-only branch `tmp/live-font-on-g18` cherry-picks the feature onto `493fceb` (Personal settings `0.5.13`; the only conflicts were the version lines) and builds a combined installer (SHA-256 `dc46f686…55de`). It is not pushed. Patcher 329/329; on a scratch exact `v1.10.0`: vitest 12 files / 122 tests, svelte-check 0 / 0 (6,055 files), build 8,017 modules. Its live plan changed 24 paths: the Personal font files, the four language files and the patch state, with no BG file.
+- Delivery: preflight PM2 active requests 0, 213 BG operation states all `delivered`/`cancelled`, result records 0; source, `dist` and patch state copied aside; PM2 stopped, combined installer applied, `pnpm build` (8,017 modules), BG bundle rebuilt with `sendChat=function` load check, PM2 started. Downtime about 56 seconds.
+- Readback: PM2 online, 0 unstable restarts; root HTTP 200; served main JS and CSS match the local build by SHA-256, and the CSS contains the `ui-font-` override; five SQLite databases `quick_check=ok`; re-plan 0. The only new error-log lines are the existing tokenizer fallback warning.
+- Until the BG line rebases onto `main`, a live delivery from a BG-only installer removes the font change. The BG line should rebase onto `main` (`41c9f0e` or later) before its next live delivery; the expected conflict is the Personal settings version line and its test assertion.
