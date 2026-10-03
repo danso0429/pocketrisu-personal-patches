@@ -4,7 +4,14 @@ Personal, all-or-nothing patch delivery for PocketRisu NodeOnly. The current
 stable release is `v0.2.3`, and its complete manifest graph targets exact
 PocketRisu `v1.10.0`.
 
-The `0.2.4-experimental.18` candidate adds server-aware reroll, Continue Response
+The `0.2.4-experimental.19` candidate stores new unsupported-input notifications
+on the server and delivers them on app return, including the home screen. It preserves
+the original input/recovery control when notification storage fails and suppresses
+ordinary redelivery with leases and separate notification acknowledgements. The current
+toast rules remain; notification expiry is 48 hours and ACK means UI enqueue, not read.
+Plugin writers remain for G1.6. See the [G1.8 foundation record](docs/POCKETRISU-G1-8-NOTIFICATION-FOUNDATION-VALIDATION.md).
+
+The `0.2.4-experimental.18` checkpoint adds server-aware reroll, Continue Response
 and empty-resend controls while retaining the existing N+1 input queue. It excludes
 competing legacy/native main requests at server admission, preserves auxiliary calls,
 and recognizes completed work when cancellation arrives late. See the

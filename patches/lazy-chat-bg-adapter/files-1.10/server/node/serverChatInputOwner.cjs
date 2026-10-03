@@ -408,6 +408,7 @@ function createServerChatInputOwner({
     scheduleChatStorePersist,
     encodeSettingsSnapshot,
     isExternalGenerationActive = () => false,
+    publishNotification = null,
 }) {
     const dependencies = {
         chatWriteJournal,
@@ -1432,6 +1433,35 @@ function createServerChatInputOwner({
         })());
     }
 
+    function publishUnsupportedInputNotice(record) {
+        if (typeof publishNotification !== 'function' || record.terminal?.notificationVersion !== 1
+            || record.terminal.reason !== 'server_host_unsupported'
+            || record.terminal.notificationSettled || record.userResolvedAt) return;
+        try {
+            // The primary stop has already committed. Only dispatch and its receipt
+            // share this transaction; a notification failure cannot undo the stop.
+            sqliteDb.transaction(() => {
+                const current = read(record.operationId);
+                if (!current || current.userResolvedAt || current.terminal?.notificationSettled) return;
+                const outcome = publishNotification({
+                    operationId: current.operationId, eventKey: 'input-host-unsupported', code: 'input_host_unsupported',
+                    charId: current.admission.charId, chatId: current.admission.chatId,
+                    createdAt: current.terminal.at, api: current.terminal.api, effectsMayHaveOccurred: true,
+                });
+                if (!['stored', 'duplicate', 'expired'].includes(outcome?.status)) throw new Error('notification_deferred');
+                write({ ...current, terminal: { ...current.terminal,
+                    notificationSettled: outcome.status === 'expired' ? 'expired' : 'published' } });
+            })();
+        } catch {
+            // Retry from the existing durable input record, independently of generation ACK.
+            try { console.warn('[BGNotification] input notice publication deferred'); } catch { /* best-effort */ }
+        }
+    }
+
+    function retryNotifications() {
+        for (const record of allRecords()) publishUnsupportedInputNotice(record);
+    }
+
     function stopUnsupportedInputSynchronously(operationId, api) {
         const record = read(operationId);
         if (!record || record.inputState !== 'queued' || record.transformState !== 'running'
@@ -1439,10 +1469,13 @@ function createServerChatInputOwner({
         // The transformer has returned and cannot resume. 'completed' records
         // that known termination; it does not claim external effects rolled back.
         // No receipt exists and the blocked input retains its original text.
-        write({ ...record, transformState: 'completed', inputState: 'blocked_edit',
+        const stopped = { ...record, transformState: 'completed', inputState: 'blocked_edit',
             terminal: { state: 'blocked_edit', reason: 'server_host_unsupported', api,
-                effectsMayHaveOccurred: true, at: Date.now() } });
+                effectsMayHaveOccurred: true, at: Date.now(),
+                ...(typeof publishNotification === 'function' ? { notificationVersion: 1 } : {}) } };
+        write(stopped);
         settingsSnapshots.delete(operationId);
+        publishUnsupportedInputNotice(stopped);
         return true;
     }
 
@@ -1656,6 +1689,7 @@ function createServerChatInputOwner({
         interruptClientPreparation,
         pendingProjection,
         hasPendingGeneration,
+        retryNotifications,
         read: (operationId) => clone(read(operationId)),
         recoverAll,
         retireTerminal,
