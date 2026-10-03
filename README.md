@@ -10,6 +10,7 @@ competing legacy/native main requests at server admission, preserves auxiliary c
 and recognizes completed work when cancellation arrives late. See the
 [G1.4 validation record](docs/POCKETRISU-G1-4-QUEUE-VALIDATION.md) for evidence,
 direct-provider limitations and delivery/device status.
+It is delivered live; physical-device and aggregate BG qualification remain pending.
 
 The `0.2.4-experimental.17` checkpoint adds qualified native preset/module/custom
 server-input admission and explicit app preparation for unsupported input operations.

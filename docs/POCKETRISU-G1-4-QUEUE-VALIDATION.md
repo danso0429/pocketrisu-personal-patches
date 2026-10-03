@@ -1,6 +1,6 @@
 # G1.4 queue and generation controls
 
-Candidate: `0.2.4-experimental.18`, lazy-chat BG adapter `0.7.25`, based on `34d9211`. Implementation and automated validation completed; live delivery and device results are recorded separately below.
+Candidate: `0.2.4-experimental.18`, lazy-chat BG adapter `0.7.25`, implementation `152aec3`, based on `34d9211`. Implemented, pushed and delivered live on 2026-10-03 KST. Physical-device and aggregate qualification remain separate.
 
 ## Behavior and scope
 
@@ -73,4 +73,10 @@ For physical validation, send a native preset request, type/send a second messag
 
 ## Delivery and release
 
-Pending final consultation and safe live delivery. No stable release or tag is authorized by automated checks alone. G1.6/7, G1.5b, broader G1.8/9/10 and G2 remain separate work.
+Implementation `152aec3` was pushed to the candidate branch before delivery. Idle preflight found no active requests, native model jobs, pending sends or input records. The stopped application/state/five-database backup contained 1,618 regular files and 3,139,942,428 compressed bytes; every file was compared by hash, size and mode with zero mismatch. Previous backups were retained.
+
+The generated installer applied 17 application/test paths plus patch state. Frontend and BG builds succeeded, re-plan was empty and database bytes remained unchanged during application/build. After restart, all 450 managed files and 17 served script assets matched local hashes/modes or bytes as applicable. Root HTTP returned 200, five databases passed `quick_check`, external-header settings were unchanged and PM2 was online with zero unstable restarts. Operation-state records remained 117 before/after, with zero pending/input/active work. Two new error-log lines were the existing retained-journal and recovery-stall warnings.
+
+The probe's own working directory is isolated before importing server codecs, so codec logger initialization also remains under the synthetic runtime. Its final two-context run passed after that harness-only adjustment. The installer rebuilt identically after the implementation commit. The repository CI workflow runs on main/PR, so there was no candidate-branch GitHub Actions run; local checks above are the executed evidence.
+
+No user record was deleted, no live generation was cancelled, and no paid provider was called for verification. No stable release or tag was created. Next canonical work is the G1.8 minimum notification foundation followed by G1.6/7 and G1.5b; aggregate/browser-device qualification, broader G1.8/9/10 and G2 remain open.
