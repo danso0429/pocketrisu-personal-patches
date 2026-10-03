@@ -1,5 +1,13 @@
 # Changelog
 
+## 0.2.4-experimental.17 (BG candidate)
+
+- Admit qualified native presets, module bindings and custom OpenAI/Anthropic/Gemini endpoints to server input execution, preserving fallback order, endpoint overrides and credential selection.
+- Retain original input and a visible reason for unsupported host operations; permit explicit app input preparation followed by server attachment and generation without automatically replaying effects.
+- Keep claim ownership, cancellation, restart recovery and never-executed cascade handling in the existing input owner. Preserve preparation for unqualified plugin/MCP combinations.
+- Separate semantic chat-view fingerprints from SHA-256 storage revisions across admission, marker storage and adoption. Migrate input markers to v2 so old tabs cannot reject the new marker format.
+- See `docs/POCKETRISU-G1-NATIVE-ADMISSION-VALIDATION.md` for qualification, remaining gates and delivery status. This does not implement G1.5b plugin hosting or r3.
+
 ## 0.2.4-experimental.16 (BG candidate)
 
 - Run server input triggers and editinput inside the operation's existing abort and conversation-header context, with the same node environment used by main generation.

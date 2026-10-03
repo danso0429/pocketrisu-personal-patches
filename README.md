@@ -4,15 +4,22 @@ Personal, all-or-nothing patch delivery for PocketRisu NodeOnly. The current
 stable release is `v0.2.3`, and its complete manifest graph targets exact
 PocketRisu `v1.10.0`.
 
-The `0.2.4-experimental.16` candidate extends the existing operation cancellation,
+The `0.2.4-experimental.17` candidate adds qualified native preset/module/custom
+server-input admission and explicit app preparation for unsupported input operations.
+It separates semantic view fingerprints from server storage revisions and retains
+original input when preparation stops. Plugin-host qualification and r3 remain separate.
+See the [G1.5a implementation record](docs/POCKETRISU-G1-NATIVE-ADMISSION-VALIDATION.md)
+for current verification and delivery status.
+
+The `0.2.4-experimental.16` checkpoint extends the existing operation cancellation,
 conversation-header context and node execution environment to server input triggers
-and editinput. Native model admission expansion remains pending. See the
+and editinput. Native model admission was not expanded at that checkpoint. See the
 [native-input context validation](docs/POCKETRISU-G1-NATIVE-INPUT-CONTEXT-VALIDATION.md).
 
 The `0.2.4-experimental.15` candidate shares snapshot-based model selection
 between actual dispatch and server-input checks, includes configured fallback
 models, and rechecks settings after input attachment. Preset/module/custom raw
-admission expansion remains a later unit. See the
+admission expansion was left for the following units. See the
 [G1.5 validation record](docs/POCKETRISU-G1-5-REQUEST-POLICY-VALIDATION.md).
 
 The `0.2.4-experimental.14` follow-up moves saved-answer notices to the upper

@@ -88,6 +88,40 @@ function harness(input: (signal: AbortSignal | undefined) => Promise<void> = asy
 }
 
 describe('server input shares the operation execution context', () => {
+    it('limits a failed input fetch latch to its own async operation', async () => {
+        const source = readFileSync(new URL('./bgOrchestrator.cjs', import.meta.url), 'utf8')
+        const start = source.indexOf('function patchFetch(')
+        const end = source.indexOf('// DBState / selectedCharID', start)
+        expect(start).toBeGreaterThan(0)
+        expect(end).toBeGreaterThan(start)
+        const context = abortPackage.createOrchestrationAbortContext()
+        const realFetch = vi.fn(async () => new Response('outside'))
+        vi.stubGlobal('fetch', realFetch)
+        vi.stubGlobal('__bgOrchFetchPatched', false)
+        const failed = new Error('unsupported input')
+        const signal = new AbortController().signal
+        vi.stubGlobal('__bgGetServerInputExecution', () => ({ signal, failure: failed }))
+        const install = new Function('orchestrationAbortContext', source.slice(start, end) + '; return patchFetch;')(context)
+        install()
+        await expect(context.run(signal, () => fetch('https://synthetic.example.test/request'))).rejects.toBe(failed)
+        expect(realFetch).not.toHaveBeenCalled()
+        expect(await (await fetch('https://synthetic.example.test/unrelated')).text()).toBe('outside')
+        const otherSignal = new AbortController().signal
+        await context.run(otherSignal, () => fetch('https://synthetic.example.test/other-operation'))
+        expect(realFetch).toHaveBeenCalledTimes(2)
+    })
+
+    it('keeps cancellation ahead of a later swallowed unsupported-host error', async () => {
+        const external = new AbortController()
+        const h = harness(async () => {
+            external.abort()
+            try { (globalThis as any).__bgGetServerInputExecution().reject('interactive_ui') } catch {}
+        })
+        await expect(h.execute(external.signal)).rejects.toMatchObject({ code: 'BG_INPUT_ABORTED' })
+        expect(h.attachments()).toBe(0)
+        expect(h.mains()).toBe(0)
+    })
+
     it('creates an actual Lua engine in the input node environment without a browser URL or network fetch', async () => {
         Object.defineProperty(globalThis, 'document', { value: { baseURI: () => 0, currentScript: null }, configurable: true })
         vi.stubGlobal('fetch', vi.fn(async () => { throw new Error('unexpected Lua probe network request') }))

@@ -7,6 +7,16 @@ export type ModelRequestSelection =
     | Exclude<ResolvedBindingWithContext, { kind: 'classic' }>
     | { kind: 'classic'; modelId: string }
 
+// Preserve the dispatcher's existing sentinel/index semantics. In particular,
+// a configured nonempty first fallback does not also attempt the chat binding.
+export function modelRequestFallbacks(database: Database, mode: ModelModeExtended): string[] {
+    return [...(database.fallbackModels?.[mode] ?? []), '']
+}
+
+export function isModelRequestAttempt(index: number, staticModel: string): boolean {
+    return index === 0 || !!staticModel
+}
+
 // Shared by the real dispatcher and preflight. Never consult the database
 // singleton: server preflight runs before the execution snapshot is installed.
 export function resolveModelRequestSelection(

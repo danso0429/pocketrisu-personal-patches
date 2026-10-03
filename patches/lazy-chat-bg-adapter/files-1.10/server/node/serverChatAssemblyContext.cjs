@@ -4,6 +4,16 @@ const crypto = require('node:crypto');
 const { stableJSON } = require('./serverChatCommit.cjs');
 const own = (value, key) => Object.prototype.hasOwnProperty.call(value, key);
 
+function captureAssemblyChat(currentChat, metadata) {
+    const chat = structuredClone(currentChat);
+    for (const field of ['name', 'lastDate', 'folderId', 'modules']) {
+        if (own(metadata, field)) Object.defineProperty(chat, field, {
+            value: structuredClone(metadata[field]), enumerable: true, configurable: true, writable: true,
+        });
+    }
+    return chat;
+}
+
 // Call inside the storage queue. No secret-bearing graph or content-derived
 // settings identity is returned to a durable store by this helper.
 function captureAssemblyContext(database, currentChat, charId, chatId) {
@@ -16,12 +26,7 @@ function captureAssemblyContext(database, currentChat, charId, chatId) {
     }
     const ownedDatabase = structuredClone(database);
     const metadata = structuredClone(character.chats[chatIndex]);
-    const chat = structuredClone(currentChat);
-    for (const field of ['name', 'lastDate', 'folderId', 'modules']) {
-        if (own(metadata, field)) Object.defineProperty(chat, field, {
-            value: structuredClone(metadata[field]), enumerable: true, configurable: true, writable: true,
-        });
-    }
+    const chat = captureAssemblyChat(currentChat, metadata);
     ownedDatabase.characters[characterIndex].chats[chatIndex] = chat;
     ownedDatabase.characters[characterIndex].chatPage = chatIndex;
     return { status: 'ready', database: ownedDatabase, chat, metadata,
@@ -45,4 +50,4 @@ function promptInputsChanged(before, current) {
     return stableJSON(select(before)) !== stableJSON(select(current));
 }
 
-module.exports = { captureAssemblyContext, promptInputsChanged };
+module.exports = { captureAssemblyChat, captureAssemblyContext, promptInputsChanged };

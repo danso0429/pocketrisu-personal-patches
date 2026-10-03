@@ -32,6 +32,18 @@
         }
     }
 
+    function unsupportedLabel(api?: string): string {
+        switch (api) {
+            case 'interactive_ui': return '입력창·선택창'
+            case 'notification_ui': return '화면 알림'
+            case 'image_generation': return '이미지 생성'
+            case 'image_access': return '이미지 읽기'
+            case 'browser_model_provider': return '앱 전용 모델'
+            case 'preset_adapter': return '앱에서 준비해야 하는 모델 경로'
+            default: return '앱에서 처리해야 하는 입력 동작'
+        }
+    }
+
     $effect(() => {
         const currentCharId = charId
         const currentChatId = chatId
@@ -93,13 +105,21 @@
     <div class="mb-1 rounded-xl border border-darkborderc px-3 py-2 text-xs text-textcolor2" aria-live="polite">
         {#each pending as input (input.operationId)}
             <div>
-                <div>{label(input.state)}</div>
+                <div>{input.clientPreparation === 'running' ? '앱 입력 처리 완료를 기다리는 중: 처리 중인 앱을 열어 두세요.'
+                    : input.clientPreparation === 'waiting' ? '앱 입력 처리를 기다리는 중'
+                    : input.reason === 'server_host_unsupported'
+                    ? `서버 입력 중단: ${unsupportedLabel(input.unsupportedApi)}`
+                    : input.reason === 'client_preparation_interrupted' ? '앱 입력 처리가 중단되었거나 완료 여부를 확인할 수 없음'
+                    : label(input.state)}</div>
                 {#if input.state === 'blocked_edit' && input.rawText && input.inputCommandId}
-                    <div class="line-clamp-2 break-all">{input.rawText}</div>
+                    <div class:line-clamp-2={!input.reason} class="max-h-32 overflow-y-auto break-all">{input.rawText}</div>
+                    {#if input.reason}
+                        <div>원문을 보존했어요. 앞서 실행한 모델 호출이나 외부 작업은 취소되지 않았을 수 있어요. 결과를 확인한 뒤 직접 다시 보내 주세요. 앱에서 입력 처리를 마치면 서버가 답변을 생성해요.</div>
+                    {/if}
                     {#if input.retryAllowed}
                         <button type="button" class="underline" disabled={!!retryingId || !onRetryBlocked}
                             onclick={() => void retry(input)}>
-                            이 입력을 새로 생성하기 (모델 호출 가능)
+                            {input.reason ? '앱에서 입력 처리 후 서버 생성 (모델 재호출 가능)' : '이 입력을 새로 생성하기 (모델 호출 가능)'}
                         </button>
                     {/if}
                 {/if}

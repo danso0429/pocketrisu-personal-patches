@@ -24,7 +24,7 @@ const inputExecutionUnits = require('./input-execution-units.cjs')
 module.exports = {
     id: 'lazy-chat-bg-adapter',
     title: 'BG preserve integration for lazy chat storage',
-    version: '0.7.23',
+    version: '0.7.24',
     targets: {
         pocketrisu: {
             verified: ['1.10.0'],
@@ -3921,3 +3921,5 @@ module.exports.units.push({
 })
 
 module.exports.units.push(...inputExecutionUnits(module.exports.units))
+module.exports.units.push(...require('./native-admission-units.cjs')(module.exports.units))
+module.exports.units.push(...require('./client-input-recovery-units.cjs')(module.exports.units))

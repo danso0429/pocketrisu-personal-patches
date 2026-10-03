@@ -8,6 +8,10 @@ export interface ServerPendingInput {
     rawText?: string
     inputCommandId?: string
     retryAllowed?: boolean
+    reason?: 'server_host_unsupported' | 'client_preparation_interrupted'
+    unsupportedApi?: string
+    blockedByOperationId?: string
+    clientPreparation?: 'waiting' | 'running'
 }
 
 const states = new Set<ServerPendingInput['state']>([
@@ -37,6 +41,10 @@ export function parseServerPendingInputs(projection: unknown): ServerPendingInpu
             || !Number.isSafeInteger(row.admissionSeq) || Number(row.admissionSeq) <= 0
             || !states.has(row.state as ServerPendingInput['state'])
             || (row.retryAllowed !== undefined && typeof row.retryAllowed !== 'boolean')
+            || (row.blockedByOperationId !== undefined && (typeof row.blockedByOperationId !== 'string'
+                || !/^[A-Za-z0-9_-]{8,128}$/.test(row.blockedByOperationId)))
+            || (row.reason !== undefined && row.reason !== 'client_preparation_interrupted' && (row.reason !== 'server_host_unsupported'
+                || typeof row.unsupportedApi !== 'string' || !/^[a-z][a-z0-9_]{2,63}$/.test(row.unsupportedApi)))
             || (row.state === 'blocked_edit'
                 && (row.rawText !== undefined || row.inputCommandId !== undefined)
                 && (typeof row.rawText !== 'string' || row.rawText.length === 0
@@ -55,6 +63,13 @@ export function parseServerPendingInputs(projection: unknown): ServerPendingInpu
             operationId: row.operationId,
             admissionSeq: Number(row.admissionSeq),
             state: row.state as ServerPendingInput['state'],
+            ...((row.clientPreparation === 'waiting' || row.clientPreparation === 'running')
+                ? { clientPreparation: row.clientPreparation } : {}),
+            ...(typeof row.blockedByOperationId === 'string' ? { blockedByOperationId: row.blockedByOperationId } : {}),
+            ...(row.reason === 'client_preparation_interrupted' ? { reason: row.reason } : {}),
+            ...(row.reason === 'server_host_unsupported' ? {
+                reason: row.reason, unsupportedApi: row.unsupportedApi as string,
+            } : {}),
             ...(typeof row.attachedRevision === 'string' ? {
                 attachedRevision: row.attachedRevision,
                 inputReceiptId: row.inputReceiptId as string,

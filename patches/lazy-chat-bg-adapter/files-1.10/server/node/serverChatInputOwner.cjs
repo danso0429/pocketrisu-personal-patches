@@ -1,7 +1,7 @@
 'use strict';
 
 const crypto = require('node:crypto');
-const { captureAssemblyContext } = require('./serverChatAssemblyContext.cjs');
+const { captureAssemblyContext, captureAssemblyChat } = require('./serverChatAssemblyContext.cjs');
 const { captureInputTransformBase, resolveInputAttachment } = require('./chatInputAttach.cjs');
 const {
     SERVER_CHAT_INPUT_RECEIPT_CONTRACT,
@@ -85,11 +85,13 @@ function normalizeCommand(value) {
         || !/^[a-f0-9]{64}$/.test(command.submittedBaseRevision)
         || !Number.isSafeInteger(command.submittedAt) || command.submittedAt <= 0
         || (value.replaceBlockedOperationId !== undefined
-            && !validOperationId(value.replaceBlockedOperationId))) {
+            && !validOperationId(value.replaceBlockedOperationId))
+        || (value.inputPreparation !== undefined && value.inputPreparation !== 'client')) {
         throw new Error('server input command identity is invalid');
     }
     return {
         ...command,
+        ...(value.inputPreparation === 'client' ? { inputPreparation: 'client' } : {}),
         ...(value.replaceBlockedOperationId !== undefined ? {
             replaceBlockedOperationId: text(
                 'replaceBlockedOperationId', value.replaceBlockedOperationId, 128,
@@ -198,6 +200,9 @@ function parseRecord(value, expectedOperationId = null) {
             return null;
         }
         const admission = normalizeAdmission(parsed.admission);
+        if (admission.inputPreparation === 'client' && (!parsed.clientClaim
+            || (parsed.clientClaim.tokenHash !== null && !/^[a-f0-9]{64}$/.test(parsed.clientClaim.tokenHash))
+            || !Number.isSafeInteger(parsed.clientClaim.expiresAt) || parsed.clientClaim.expiresAt <= 0)) return null;
         if (own(parsed, 'attachmentPolicy')) {
             const revision = value => typeof value === 'string' && /^[a-f0-9]{64}$/.test(value);
             if (parsed.attachmentPolicy !== 'latest-v1'
@@ -465,6 +470,42 @@ function createServerChatInputOwner({
         return false;
     }
 
+    function latestReplacement(record) {
+        const seen = new Set();
+        while (record?.userResolvedAt) {
+            if (seen.has(record.operationId)) return null;
+            seen.add(record.operationId);
+            const next = read(record.replacedByOperationId);
+            if (!next || next.admission.replaceBlockedOperationId !== record.operationId
+                || next.admission.inputCommandId !== record.admission.inputCommandId
+                || next.admission.charId !== record.admission.charId
+                || next.admission.chatId !== record.admission.chatId) return null;
+            record = next;
+        }
+        return record;
+    }
+
+    function cascadeOf(candidate, rootId) {
+        const root = rootId ? latestReplacement(read(rootId)) : null;
+        return !!root && cascadeRoot(candidate) === root.operationId;
+    }
+
+    function cascadeRoot(record) {
+        const seen = new Set();
+        let current = record;
+        while (current?.terminal?.reason === 'predecessor_blocked_edit'
+            && current.inputState === 'blocked_edit' && !current.userResolvedAt
+            && current.transformState === 'not_run' && current.inputReceipt === null
+            && !seen.has(current.operationId)) {
+            seen.add(current.operationId);
+            if (!current.executionPredecessorId) return null;
+            const predecessor = latestReplacement(read(current.executionPredecessorId));
+            if (!predecessor) return null;
+            current = predecessor;
+        }
+        return current && current !== record && !seen.has(current.operationId) ? current.operationId : null;
+    }
+
     function allRecords() {
         const records = [];
         for (const key of kvList(SERVER_CHAT_INPUT_COMMAND_PREFIX)) {
@@ -555,6 +596,7 @@ function createServerChatInputOwner({
                 candidate.admission.charId === record.admission.charId
                 && candidate.admission.chatId === record.admission.chatId
                 && candidate.admissionSeq < record.admissionSeq
+                && !cascadeOf(candidate, record.admission.replaceBlockedOperationId)
                 && requiresExecutionPredecessor(candidate, liveChat)
             )).sort((left, right) => left.admissionSeq - right.admissionSeq).at(-1) || null;
             if (unresolvedPredecessor
@@ -719,11 +761,17 @@ function createServerChatInputOwner({
             const replacement = command.replaceBlockedOperationId
                 ? records.find((record) => record.operationId === command.replaceBlockedOperationId)
                 : null;
+            const clientRecovery = command.inputPreparation === 'client';
+            if (clientRecovery && (!replacement || (replacement.terminal?.reason !== 'server_host_unsupported'
+                && replacement.admission.inputPreparation !== 'client'))) {
+                return { status: 'conflict', reason: 'client_preparation_unavailable' };
+            }
             if (command.replaceBlockedOperationId && (
                 !replacement || replacement.recordVersion !== 4
                 || replacement.inputState !== 'blocked_edit'
                 || replacement.userResolvedAt
-                || !['not_run', 'completed'].includes(replacement.transformState)
+                || (!['not_run', 'completed'].includes(replacement.transformState)
+                    && !(clientRecovery && replacement.transformState === 'unknown'))
                 || replacement.inputReceipt !== null
                 || replacement.admission.charId !== command.charId
                 || replacement.admission.chatId !== command.chatId
@@ -735,6 +783,7 @@ function createServerChatInputOwner({
             }
             const duplicateCommands = records.filter((record) => (
                 record.admission.inputCommandId === command.inputCommandId
+                && !record.userResolvedAt
             ));
             if (duplicateCommands.length > 0 && (
                 !replacement || duplicateCommands.length !== 1
@@ -806,6 +855,7 @@ function createServerChatInputOwner({
             const canonicalChat = currentChat(command.charId, command.chatId);
             const executionPredecessor = matching.filter((record) => (
                 record.operationId !== replacement?.operationId
+                && !cascadeOf(record, replacement?.operationId)
                 && requiresExecutionPredecessor(record, canonicalChat)
             )).at(-1) || null;
             const record = {
@@ -834,6 +884,7 @@ function createServerChatInputOwner({
                 globalIntent: null,
                 globalOutcomes: null,
                 terminal: null,
+                ...(clientRecovery ? { clientClaim: { tokenHash: null, expiresAt: Date.now() + 600000 } } : {}),
             };
             if (replacement) write({
                 ...replacement,
@@ -866,7 +917,20 @@ function createServerChatInputOwner({
         });
     }
 
-    async function beginTransform(operationId, validateContext = null) {
+    async function readPreparationBase(charId, chatId) {
+        await ensureCanonicalState();
+        return queueStorageOperation(() => {
+            const chat = currentChat(charId, chatId);
+            const metadata = getDbCache()?.[databaseKey]?.characters
+                ?.find(character => character?.chaId === charId)?.chats?.find(value => value?.id === chatId);
+            if (!metadata || !chat || !Array.isArray(chat.message) || chat._placeholder || chat._stub) return null;
+            // Keep the persisted-byte revision for admission, but compare the
+            // same metadata-overlaid chat that actual preparation will read.
+            return { revision: chatRevision(chat), chat: captureAssemblyChat(chat, metadata) };
+        });
+    }
+
+    async function beginTransform(operationId, validateContext = null, clientToken = null) {
         const predecessor = await advancePredecessor(operationId);
         if (predecessor.status !== 'ready') return predecessor;
         await ensureCanonicalState();
@@ -879,6 +943,12 @@ function createServerChatInputOwner({
             if (record.inputState !== 'queued') {
                 return { status: 'blocked', reason: record.inputState };
             }
+            if (record.admission.inputPreparation === 'client') {
+                if (!validOperationId(clientToken) || !record.clientClaim
+                    || record.clientClaim.expiresAt <= Date.now()) {
+                    return { status: 'waiting', reason: 'client_input_pending', record: clone(record) };
+                }
+            } else if (clientToken !== null) return { status: 'blocked', reason: 'client_preparation_unavailable' };
             if (readOperationState(kvGet, operationId)?.state === 'cancelled') {
                 const cancelled = {
                     ...record,
@@ -921,7 +991,8 @@ function createServerChatInputOwner({
             }
             const basis = captureInputTransformBase(context.chat, context.metadata, record.admission.userMessageId);
             const next = { ...record, attachmentPolicy: 'latest-v1', transformState: 'running',
-                transformBaseRevision: chatRevision(current), attachmentBaseRevision: null, inputEffectsSkipped: false };
+                transformBaseRevision: chatRevision(current), attachmentBaseRevision: null, inputEffectsSkipped: false,
+                ...(clientToken ? { clientClaim: { tokenHash: sha256(clientToken), expiresAt: Date.now() + 600000 } } : {}) };
             write(next);
             settingsSnapshots.get(operationId).transformBase = basis;
             return { status: 'started', record: clone(next), context };
@@ -995,9 +1066,14 @@ function createServerChatInputOwner({
         return chat;
     }
 
-    async function attachTransformed(operationId, value) {
+    async function attachTransformed(operationId, value, clientToken = null) {
         const before = read(operationId);
         if (!before) return { status: 'missing' };
+        const validClientClaim = record => record?.admission.inputPreparation !== 'client'
+            ? clientToken === null
+            : validOperationId(clientToken) && record.clientClaim?.tokenHash === sha256(clientToken)
+                && (record.inputReceipt !== null || record.clientClaim.expiresAt > Date.now());
+        if (!validClientClaim(before)) return { status: 'blocked', reason: 'client_claim_unavailable' };
         if (before.inputState === 'attached') {
             return {
                 status: 'attached',
@@ -1010,6 +1086,10 @@ function createServerChatInputOwner({
         return queueStorageOperation(async () => {
             const queuedRecord = read(operationId);
             if (!queuedRecord) return { status: 'missing' };
+            if (!validClientClaim(queuedRecord)
+                || readOperationState(kvGet, operationId)?.state === 'cancelled') {
+                return { status: 'blocked', reason: 'client_claim_unavailable' };
+            }
             if (queuedRecord.inputState === 'attached') {
                 return { status: 'attached', reused: true, record: clone(queuedRecord), publication: 'durable' };
             }
@@ -1059,6 +1139,10 @@ function createServerChatInputOwner({
             const outcome = sqliteDb.transaction(() => {
                 const record = read(operationId);
                 if (!record) return { status: 'missing' };
+                if (!validClientClaim(record)
+                    || readOperationState(kvGet, operationId)?.state === 'cancelled') {
+                    return { status: 'blocked', reason: 'client_claim_unavailable' };
+                }
                 if (record.inputState === 'attached') {
                     return { status: 'attached', reused: true, record: clone(record) };
                 }
@@ -1173,6 +1257,21 @@ function createServerChatInputOwner({
         const predecessor = await advancePredecessor(operationId);
         if (predecessor.status !== 'ready') return predecessor;
         const record = predecessor.record;
+        if (record.inputState === 'queued' && record.admission.inputPreparation === 'client') {
+            if (record.transformState === 'unknown' || !readSettingsSnapshotRecord(record)
+                || record.clientClaim?.expiresAt <= Date.now()) {
+                await queueStorageOperation(() => sqliteDb.transaction(() => {
+                    const latest = read(operationId);
+                    if (latest?.inputState !== 'queued') return;
+                    write({ ...latest, inputState: 'blocked_edit',
+                        transformState: latest.transformState === 'running' ? 'unknown' : latest.transformState,
+                        terminal: { state: 'blocked_edit', reason: 'client_preparation_interrupted', at: Date.now() } });
+                    settingsSnapshots.delete(operationId);
+                })());
+                return { status: 'blocked', reason: 'client_preparation_interrupted', record: read(operationId) };
+            }
+            return { status: 'waiting', reason: 'client_input_pending', record: clone(record) };
+        }
         if (record.inputState === 'queued' && record.transformState === 'not_run') {
             if (!readSettingsSnapshotRecord(record)) {
                 return {
@@ -1255,6 +1354,9 @@ function createServerChatInputOwner({
             inputState: state,
             terminal: {
                 state,
+                ...(record.admission.inputPreparation === 'client' && record.inputState === 'queued' ? {
+                    clientPreparation: record.transformState === 'running' ? 'running' : 'waiting',
+                } : {}),
                 resultRevision,
                 publication: state === 'completed' ? 'pending' : 'not_applicable',
                 at: Date.now(),
@@ -1311,6 +1413,35 @@ function createServerChatInputOwner({
         return settled;
     }
 
+    async function interruptClientPreparation(operationId, token) {
+        if (!validOperationId(token)) return false;
+        return queueStorageOperation(() => sqliteDb.transaction(() => {
+            const record = read(operationId);
+            if (record?.admission.inputPreparation !== 'client' || record.inputState !== 'queued'
+                || record.inputReceipt !== null || (record.clientClaim?.tokenHash !== null
+                    && record.clientClaim?.tokenHash !== sha256(token))) return false;
+            write({ ...record, inputState: 'blocked_edit',
+                transformState: record.transformState === 'running' ? 'unknown' : record.transformState,
+                terminal: { state: 'blocked_edit', reason: 'client_preparation_interrupted', at: Date.now() } });
+            settingsSnapshots.delete(operationId);
+            return true;
+        })());
+    }
+
+    function stopUnsupportedInputSynchronously(operationId, api) {
+        const record = read(operationId);
+        if (!record || record.inputState !== 'queued' || record.transformState !== 'running'
+            || typeof api !== 'string' || !/^[a-z][a-z0-9_]{2,63}$/.test(api)) return false;
+        // The transformer has returned and cannot resume. 'completed' records
+        // that known termination; it does not claim external effects rolled back.
+        // No receipt exists and the blocked input retains its original text.
+        write({ ...record, transformState: 'completed', inputState: 'blocked_edit',
+            terminal: { state: 'blocked_edit', reason: 'server_host_unsupported', api,
+                effectsMayHaveOccurred: true, at: Date.now() } });
+        settingsSnapshots.delete(operationId);
+        return true;
+    }
+
     function markRunFailureSynchronously(operationId, providerStarted = false) {
         const record = read(operationId);
         if (!record || TERMINAL_INPUT_STATES.has(record.inputState)) return !!record;
@@ -1361,9 +1492,18 @@ function createServerChatInputOwner({
                 rawText: record.admission.rawText,
                 cancelAllowed: record.inputState === 'queued',
                 retryAllowed: record.inputState === 'blocked_edit'
-                    && ['not_run', 'completed'].includes(record.transformState)
+                    && (['not_run', 'completed'].includes(record.transformState)
+                        || (record.admission.inputPreparation === 'client'
+                            && record.transformState === 'unknown'))
                     && record.inputReceipt === null,
                 state,
+                ...(cascadeRoot(record) ? { blockedByOperationId: cascadeRoot(record) } : {}),
+                ...(record.admission.inputPreparation === 'client' && record.inputState === 'blocked_edit' ? {
+                    reason: 'client_preparation_interrupted',
+                } : {}),
+                ...(record.terminal?.reason === 'server_host_unsupported' ? {
+                    reason: 'server_host_unsupported', unsupportedApi: record.terminal.api,
+                } : {}),
                 ...(record.inputReceipt && record.executionBaseRevision ? {
                     attachedRevision: record.executionBaseRevision,
                     inputReceiptId: record.inputReceipt.receiptId,
@@ -1385,7 +1525,17 @@ function createServerChatInputOwner({
         if (attached.length > 0) await ensureCanonicalState();
         const results = [];
         for (const record of records) {
-            if (record.transformState === 'running' && record.inputState === 'queued') {
+            if (record.admission.inputPreparation === 'client' && record.inputState === 'queued'
+                && !readSettingsSnapshotRecord(record)) {
+                const updated = { ...record, inputState: 'blocked_edit',
+                    transformState: record.transformState === 'running' ? 'unknown' : record.transformState,
+                    terminal: { state: 'blocked_edit', reason: 'client_preparation_interrupted', at: Date.now() } };
+                sqliteDb.transaction(() => write(updated))();
+                results.push({ operationId: record.operationId, status: 'blocked', reason: 'client_preparation_interrupted' });
+                continue;
+            }
+            if (record.transformState === 'running' && record.inputState === 'queued'
+                && record.admission.inputPreparation !== 'client') {
                 const updated = { ...record, transformState: 'unknown' };
                 sqliteDb.transaction(() => write(updated))();
                 settingsSnapshots.delete(record.operationId);
@@ -1486,6 +1636,9 @@ function createServerChatInputOwner({
         loadSettingsSnapshot,
         markResultPublishedSynchronously,
         markRunFailureSynchronously,
+        stopUnsupportedInputSynchronously,
+        readPreparationBase,
+        interruptClientPreparation,
         pendingProjection,
         read: (operationId) => clone(read(operationId)),
         recoverAll,

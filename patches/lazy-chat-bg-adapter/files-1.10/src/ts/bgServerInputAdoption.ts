@@ -1,5 +1,7 @@
 import {
     advanceServerInputMarkerRevisions,
+    updateServerInputMarker,
+    isInputViewRevision,
     readServerInputMarkers,
     type ServerInputMarker,
 } from './bgServerInputLedger'
@@ -30,23 +32,21 @@ export async function adoptAttachedServerInputs(options: {
         if (!marker || !input.attachedRevision || !input.inputReceiptId
             || (input.state !== 'attached' && input.state !== 'generating')) continue
         const localRevision = options.readLocalRevision()
-        if (localRevision === input.attachedRevision) {
-            advanceServerInputMarkerRevisions(
-                options.storage, options.charId, options.chatId,
-                marker.localRevision, input.attachedRevision, now(),
-            )
-            continue
-        }
+        if (marker.adoptedRevision === input.attachedRevision) continue
         if (localRevision !== marker.localRevision) continue
         let result: { adopted: boolean, revision?: string }
         try { result = await options.adopt(input.attachedRevision, localRevision) }
         catch { continue }
         if (!options.isCurrent() || !result.adopted
             || result.revision !== input.attachedRevision) continue
+        const adoptedView = options.readLocalRevision()
+        if (!isInputViewRevision(adoptedView)) continue
         advanceServerInputMarkerRevisions(
             options.storage, options.charId, options.chatId,
-            localRevision, input.attachedRevision, now(),
+            localRevision, adoptedView, now(),
         )
+        updateServerInputMarker(options.storage, input.operationId,
+            current => ({ ...current, adoptedRevision: input.attachedRevision }))
         adopted += 1
     }
     return adopted
