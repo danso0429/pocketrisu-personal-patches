@@ -59,7 +59,7 @@ function replacementText(candidate) {
 
 test('personal settings is an independent rolling feature pack', () => {
     assert.equal(manifest.id, 'personal-settings')
-    assert.equal(manifest.version, '0.5.10')
+    assert.equal(manifest.version, '0.5.11')
     assert.deepEqual(manifest.targets, {
         pocketrisu: {
             verified: ['1.10.0'],
@@ -380,6 +380,40 @@ test('personal settings never writes the database plugin array', () => {
     // This exact read is not a database plugin-array write; other uses remain blocked.
     assert.doesNotMatch(patchText.replaceAll('|| toSave.plugins ||', '|| false ||'), /\bplugins\b/)
     assert.doesNotMatch(patchText, /setDatabase(?:Lite)?\s*\(/)
+})
+
+test('editor font targets replace the legacy chat font surface only in the editor overlay', () => {
+    const editorCss = read('settings/appearance/editor-files/src/styles/personal-appearance.css')
+    const editorSettingsData = read('settings/appearance/editor-files/src/ts/setting/personalAppearanceSettingsData.ts')
+    for (const token of ['chat-font-paperlogy', 'chat-font-galmuri14', 'chat-font-custom', 'ui-font-paperlogy', 'ui-font-galmuri14', 'ui-font-custom']) {
+        assert.match(editorCss, new RegExp(`data-pocketrisu-css~="${token}"`))
+    }
+    assert.match(editorCss, /html\[data-pocketrisu-css\*="ui-font-"\] \{\n  --risu-font-family: var\(--personal-ui-font-family\) !important;/)
+    assert.match(editorCss, /var\(--personal-chat-custom-font-family, sans-serif\)/)
+    assert.match(editorCss, /var\(--personal-ui-custom-font-family, sans-serif\)/)
+    assert.doesNotMatch(editorCss, /fonts\.googleapis\.com|Noto|IBM Plex|Gowun|Hahmlet/)
+    assert.match(editorSettingsData, /fontToggle\('chat', 'personalAppearanceChatFontEnabled'/)
+    assert.match(editorSettingsData, /fontToggle\('ui', 'personalAppearanceUiFontEnabled'/)
+    assert.doesNotMatch(editorSettingsData, /personal\.appearance\.chatFont'/)
+
+    for (const [file, owner] of [
+        ['src/ts/setting/personalAppearanceSettingsData.ts', 'appearance-settings-data-1.9'],
+        ['src/ts/personalSettings/appearance.test.ts', 'appearance-logic-tests-1.9'],
+    ]) {
+        const replacement = unit(`personal-settings:editor-replace-${owner}`)
+        assert.equal(replacement.file, file)
+        assert.equal(replacement.anchor, read(`settings/appearance/files/${file}`))
+        assert.equal(replacement.managed, read(`settings/appearance/editor-files/${file}`))
+    }
+    const searchHit = unit('personal-settings:editor-replace-appearance-search-font-hit')
+    assert.match(unit('personal-settings:appearance-search-tests-1.9').managed, new RegExp(searchHit.anchor.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')))
+    assert.match(searchHit.managed, /'personal\.appearance\.chatFontEnabled'/)
+
+    // The compatibility rollback still installs the legacy files, so their keys stay.
+    const languageKorean = unit('personal-settings:appearance-language-ko-1.9')
+    assert.match(languageKorean.content, /personalAppearanceChatFontEnabled: "채팅 폰트 적용"/)
+    assert.match(languageKorean.content, /personalAppearanceUiFontEnabled: "UI 폰트 적용"/)
+    assert.match(languageKorean.content, /personalAppearanceOptionAppFont: "앱 폰트 사용"/)
 })
 
 test('Personal CSS UI rollback plan lists the paths it would change', () => {

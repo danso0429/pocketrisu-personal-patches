@@ -1,8 +1,10 @@
 import { verifyFontBytes, type CustomFont } from './customFonts'
-import { validPersonalId } from './cssToggles'
+import { fontReadyAttribute, validPersonalId } from './cssToggles'
+import type { PersonalFontTarget } from './appearanceValues'
 import { writable } from 'svelte/store'
 
-export const customFontLoadStatus = writable('')
+export const customFontLoadStatus = writable<Partial<Record<PersonalFontTarget, string>>>({})
+export const setCustomFontLoadStatus = (target: PersonalFontTarget, message: string) => customFontLoadStatus.update(status => ({ ...status, [target]: message }))
 const preparedFaces = new WeakMap<Document, Map<string, Set<FontFace>>>()
 const faceOwners = new WeakMap<FontFace, Set<CustomFontRuntime>>()
 export const customFontIdentity = (font: CustomFont) => JSON.stringify([font.id, font.sha256, font.assetPath, font.byteLength, font.format])
@@ -16,7 +18,9 @@ export class CustomFontRuntime {
     private generation = 0
     private active: { font: CustomFont; face: FontFace } | undefined
     private owned = new Map<FontFace, string>()
-    constructor(readonly doc: Document) {}
+    /** Preview owners omit the target; only a target owner can activate a face. */
+    constructor(readonly doc: Document, readonly target?: PersonalFontTarget) {}
+    private get variable(): string { return `--personal-${this.target}-custom-font-family` }
     get supported(): boolean { return !!this.doc.defaultView?.FontFace && !!this.doc.fonts }
     get hasActive(): boolean { return !!this.active }
     private claim(face: FontFace, key: string): void {
@@ -56,12 +60,13 @@ export class CustomFontRuntime {
         return face
     }
     activate(font: CustomFont, face: FontFace): void {
+        if (!this.target) throw new Error('폰트 적용 대상이 없습니다.')
         if (!this.owned.has(face)) throw new Error('폰트가 준비되지 않았습니다.')
         this.doc.fonts.add(face)
         const previous = this.active
         this.active = { font: { ...font }, face }
-        this.doc.documentElement.style.setProperty('--personal-custom-font-family', `"${customFontFamily(font)}", sans-serif`)
-        this.doc.documentElement.setAttribute('data-personal-custom-font-ready', font.id)
+        this.doc.documentElement.style.setProperty(this.variable, `"${customFontFamily(font)}", sans-serif`)
+        this.doc.documentElement.setAttribute(fontReadyAttribute(this.target), font.id)
         if (previous && previous.face !== face) this.release(previous.face)
     }
     matches(font: CustomFont): boolean { return this.active?.font.id === font.id && this.active.font.sha256 === font.sha256 }
@@ -79,12 +84,12 @@ export class CustomFontRuntime {
                 if (!faces?.size) pool?.delete(key)
             }
         }
-        if (this.active?.face === face) {
+        if (this.active?.face === face && this.target) {
             const family = `"${customFontFamily(this.active.font)}", sans-serif`
             this.active = undefined
-            if (this.doc.documentElement.style.getPropertyValue('--personal-custom-font-family') === family) {
-                this.doc.documentElement.style.removeProperty('--personal-custom-font-family')
-                this.doc.documentElement.removeAttribute('data-personal-custom-font-ready')
+            if (this.doc.documentElement.style.getPropertyValue(this.variable) === family) {
+                this.doc.documentElement.style.removeProperty(this.variable)
+                this.doc.documentElement.removeAttribute(fontReadyAttribute(this.target))
             }
         }
     }

@@ -140,11 +140,24 @@ for (const [file, owner] of [
     ['src/styles/personal-appearance.css', 'appearance-css-1.9'],
     ['src/lib/Setting/Pages/PersonalSettings/AppearanceSettings.svelte', 'appearance-section-1.9'],
     ['src/lib/Others/PersonalAppearanceRuntime.svelte', 'appearance-runtime-component-1.9'],
+    ['src/ts/setting/personalAppearanceSettingsData.ts', 'appearance-settings-data-1.9'],
+    ['src/ts/personalSettings/appearance.test.ts', 'appearance-logic-tests-1.9'],
 ]) {
     units.push({ id: `personal-settings:editor-replace-${owner}`, file, type: 'replace',
         anchor: owned(__dirname, file), managed: fs.readFileSync(path.join(__dirname, 'editor-files', file), 'utf8'),
         requires: [`personal-settings:${owner}`], targetVersions })
 }
+// The editor settings data replaces the chat font select with per-target toggles.
+const legacyFontSearchHit = `            .find((result) => result.itemId === 'personal.appearance.chatFont')
+        expect(hit).toMatchObject({
+            route: SettingsRoute.Personal,
+            subTab: 1,
+            itemId: 'personal.appearance.chatFont',
+        })
+`
+units.push({ id: 'personal-settings:editor-replace-appearance-search-font-hit', file: 'src/ts/setting/searchIndex.test.ts', type: 'replace',
+    anchor: legacyFontSearchHit, managed: legacyFontSearchHit.replaceAll("'personal.appearance.chatFont'", "'personal.appearance.chatFontEnabled'"),
+    requires: ['personal-settings:appearance-search-tests-1.9'], targetVersions })
 function insert(id, file, anchor, content, after = [], where = 'before') {
     const fullId = `personal-settings:editor-${id}`
     const payload = file.endsWith('.svelte')
@@ -294,41 +307,6 @@ insert('jailbreak-second-close', 'src/lib/SideBars/Toggles.svelte', '    {/if}\n
     '    </div>\n', ['personal-settings:editor-hook-jailbreak-render-second', 'personal-settings:editor-jailbreak-first-close'])
 
 const previousByHost = new Map()
-units.push({
-    id: 'personal-settings:editor-root-dom-test',
-    file: 'src/ts/personalSettings/appearance.test.ts', type: 'replace',
-    anchor: `        const attributes = new Map<string, string>([[PERSONAL_APPEARANCE_ATTRIBUTE, 'stale']])
-        const root = {
-            hasAttribute: (name: string) => attributes.has(name),
-            getAttribute: (name: string) => attributes.get(name) ?? null,
-            setAttribute: (name: string, value: string) => attributes.set(name, value),
-            removeAttribute: (name: string) => attributes.delete(name),
-        } as unknown as HTMLElement
-
-        syncPersonalAppearance(db(), false, root)
-        expect(attributes.has(PERSONAL_APPEARANCE_ATTRIBUTE)).toBe(false)`,
-    content: `        const root = document.documentElement
-        root.setAttribute(PERSONAL_APPEARANCE_ATTRIBUTE, 'stale')
-        syncPersonalAppearance(db(), false, root)
-        expect(root.hasAttribute(PERSONAL_APPEARANCE_ATTRIBUTE)).toBe(false)`,
-    requires: ['personal-settings:appearance-logic-tests-1.9'], targetVersions,
-})
-units.push({
-    id: 'personal-settings:editor-theme-independent-test',
-    file: 'src/ts/personalSettings/appearance.test.ts', type: 'replace',
-    anchor: `    test('Safe Mode, master off, and unsupported themes remove all effects', () => {
-        const value = enabledDb()
-        expect(resolvePersonalAppearanceTokens(value, true)).toEqual([])
-        ;(value as any).theme = 'waifu'
-        expect(resolvePersonalAppearanceTokens(value, false)).toEqual([])`,
-    content: `    test('Safe Mode and master off remove all effects under every theme', () => {
-        const value = enabledDb()
-        expect(resolvePersonalAppearanceTokens(value, true)).toEqual([])
-        ;(value as any).theme = 'waifu'
-        expect(resolvePersonalAppearanceTokens(value, false)).not.toEqual([])
-        expect(resolvePersonalAppearanceTokens(value, true)).toEqual([])`,
-    requires: ['personal-settings:appearance-logic-tests-1.9'], targetVersions,
-})
 for (const unit of units) {
     const previous = previousByHost.get(unit.file)
     if (previous) unit.after = [...(unit.after ?? []), previous]

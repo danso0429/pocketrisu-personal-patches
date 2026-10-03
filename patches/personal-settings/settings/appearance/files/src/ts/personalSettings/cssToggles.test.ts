@@ -24,6 +24,22 @@ describe('CSS editor storage and snapshot contract', () => {
         expect(draft.pocketRisuPersonalSettings).toMatchObject({ futureRoot: 2, appearance: { futureAppearance: 3 } })
         expect((draft as any).plugins).toBeUndefined()
     })
+    test('each font target holds its custom token until that target is ready', () => {
+        const source = db()
+        ;(source as any).pocketRisuPersonalSettings.appearance.chat = { font: 'custom:a', fontEnabled: true }
+        ;(source as any).pocketRisuPersonalSettings.appearance.ui = { font: 'custom:b', fontEnabled: true }
+        const fontTokens = (ready: Parameters<typeof cssSnapshot>[2]) => cssSnapshot(source, false, ready).tokens.filter(token => token.includes('-font-'))
+        expect(fontTokens({})).toEqual([])
+        expect(fontTokens({ chat: 'a' })).toEqual(['chat-font-custom'])
+        expect(fontTokens({ ui: 'b' })).toEqual(['ui-font-custom'])
+        expect(fontTokens({ chat: 'b', ui: 'a' })).toEqual([])
+        expect(fontTokens({ chat: 'a', ui: 'b' })).toEqual(['chat-font-custom', 'ui-font-custom'])
+        expect(cssSnapshot(source, false).customFontIds).toEqual({ chat: 'a', ui: 'b' })
+        ;(source as any).pocketRisuPersonalSettings.appearance.ui.fontEnabled = false
+        const disabled = cssSnapshot(source, false, { chat: 'a', ui: 'b' })
+        expect(disabled.tokens.filter(token => token.includes('-font-'))).toEqual(['chat-font-custom'])
+        expect(disabled.gates).not.toEqual(cssSnapshot(db(), false).gates)
+    })
     test('first enable changes activation tokens and exact style sequence', () => {
         const source = db()
         const shipped = effectiveCssToggles(source)[0]

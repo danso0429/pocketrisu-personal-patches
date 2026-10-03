@@ -1,6 +1,7 @@
 import type { Database } from '../storage/database.svelte'
 import { isRecord, rawAppearance, utf8Bytes, validPersonalId, writeAppearanceGroup } from './cssToggles'
 import { readFontStream } from './fontBytes'
+import { DEFAULT_PERSONAL_FONT } from './appearanceValues'
 
 export const FONT_LIMITS = Object.freeze({ count: 16, name: 256, filename: 512, file: 24_000_000, total: 64_000_000, warningCount: 8, warningFile: 12_000_000, warningTotal: 32_000_000 })
 export type FontFormat = 'woff2' | 'woff' | 'truetype' | 'opentype'
@@ -101,5 +102,12 @@ export function writeFontEntry(db: Database, entry: CustomFont | undefined, id: 
     else throw new Error('폰트 항목을 찾을 수 없습니다.')
     writeAppearanceGroup(db, 'fonts', { ...read.value, custom })
     if (!readCustomFonts(db).valid) throw new Error('폰트 개수 또는 저장 한도를 초과했습니다.')
-    if (!entry && rawAppearance(db).chat?.font === `custom:${id}`) writeAppearanceGroup(db, 'chat', { ...rawAppearance(db).chat, font: 'app' })
+    if (!entry) resetCustomFontAssignments(db, font => font === `custom:${id}`)
+}
+/** Reassigns matching targets to the default font; each target keeps its toggle. */
+export function resetCustomFontAssignments(db: Database, matches: (font: string) => boolean): void {
+    for (const target of ['chat', 'ui'] as const) {
+        const group = rawAppearance(db)[target]
+        if (typeof group?.font === 'string' && matches(group.font)) writeAppearanceGroup(db, target, { ...group, font: DEFAULT_PERSONAL_FONT })
+    }
 }

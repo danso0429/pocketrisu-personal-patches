@@ -1,6 +1,6 @@
 import { writable } from 'svelte/store'
 import type { Database } from '../storage/database.svelte'
-import { CSS_LIMITS, cssSnapshot, readCssToggles, sameValue, type CssSnapshot } from './cssToggles'
+import { CSS_LIMITS, cssSnapshot, readCssToggles, readyCustomFonts, sameValue, type CssSnapshot } from './cssToggles'
 
 export const recoveryKey = 'pocketrisu-personal-css-recovery'
 const validationKey = 'pocketrisu-personal-css-validation'
@@ -60,7 +60,7 @@ export class PersonalCssRuntime {
     get suppressed(): boolean { return this.recovery || this.validation || !this.active() }
     private snapshot(): CssSnapshot {
         const current = this.current()
-        return cssSnapshot(current.db, current.safeMode, this.doc.documentElement.getAttribute('data-personal-custom-font-ready'))
+        return cssSnapshot(current.db, current.safeMode, readyCustomFonts(this.doc))
     }
     private active(): boolean {
         const { db, safeMode } = this.current()

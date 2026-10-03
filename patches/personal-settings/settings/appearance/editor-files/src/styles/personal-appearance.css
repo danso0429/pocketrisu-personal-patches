@@ -1,5 +1,3 @@
-@import url("https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@100..900&family=Noto+Serif+KR:wght@200..900&display=swap");
-
 /* Personal appearance features are inert unless their exact root token exists.
  * This sheet is intentionally unlayered. User customCSS is injected later and
  * has later source order when the other cascade axes are equal. */
@@ -28,8 +26,8 @@
   font-display: swap;
 }
 
-/* Galmuri14 is also registered here so the existing app-level custom font
- * remains resolvable after the separately-approved customCSS migration. */
+/* Built-in choice for both font targets. The same family name also keeps an
+ * app-level Display custom font named "Galmuri14" resolvable. */
 @font-face {
   font-family: "Galmuri14";
   src: url("https://cdn.jsdelivr.net/gh/projectnoonnu/2506-1@1.0/Galmuri14.woff2") format("woff2");
@@ -42,28 +40,34 @@ html[data-pocketrisu-css~="chat-font-paperlogy"] {
   --personal-chat-font-family: "Paperlogy", sans-serif;
 }
 
-html[data-pocketrisu-css~="chat-font-noto-sans-kr"] {
-  --personal-chat-font-family: "Noto Sans KR", sans-serif;
+html[data-pocketrisu-css~="chat-font-galmuri14"] {
+  --personal-chat-font-family: "Galmuri14", sans-serif;
 }
 
-html[data-pocketrisu-css~="chat-font-noto-serif-kr"] {
-  --personal-chat-font-family: "Noto Serif KR", serif;
+html[data-pocketrisu-css~="chat-font-custom"] {
+  --personal-chat-font-family: var(--personal-chat-custom-font-family, sans-serif);
 }
 
-html[data-pocketrisu-css~="chat-font-ibm-plex-sans-kr"] {
-  --personal-chat-font-family: "IBM Plex Sans KR", "Noto Sans KR", sans-serif;
+html[data-pocketrisu-css~="ui-font-paperlogy"] {
+  --personal-ui-font-family: "Paperlogy", sans-serif;
 }
 
-html[data-pocketrisu-css~="chat-font-gowun-dodum"] {
-  --personal-chat-font-family: "Gowun Dodum", "Noto Sans KR", sans-serif;
+html[data-pocketrisu-css~="ui-font-galmuri14"] {
+  --personal-ui-font-family: "Galmuri14", sans-serif;
 }
 
-html[data-pocketrisu-css~="chat-font-gowun-batang"] {
-  --personal-chat-font-family: "Gowun Batang", "Noto Serif KR", serif;
+html[data-pocketrisu-css~="ui-font-custom"] {
+  --personal-ui-font-family: var(--personal-ui-custom-font-family, sans-serif);
 }
 
-html[data-pocketrisu-css~="chat-font-hahmlet"] {
-  --personal-chat-font-family: "Hahmlet", "Noto Serif KR", serif;
+/*
+ * The UI font replaces the app-wide base font. PocketRisu writes
+ * --risu-font-family as a non-important inline declaration on the root, which
+ * an important author declaration overrides. Message bodies follow this value
+ * unless the chat font rule below sets their own.
+ */
+html[data-pocketrisu-css*="ui-font-"] {
+  --risu-font-family: var(--personal-ui-font-family) !important;
 }
 
 /*
@@ -78,9 +82,11 @@ html[data-pocketrisu-css*="chat-font-"]
   font-family: var(--personal-chat-font-family) !important;
 }
 
-html[data-pocketrisu-css*="chat-font-"] .personal-font-preview__sample,
-html[data-pocketrisu-css*="chat-font-"] .personal-font-preview__sample :where(*) {
-  font-family: var(--personal-chat-font-family) !important;
+/* The settings preview sets its family inline; descendants need the rule
+ * because the app-wide `*` font rule would otherwise replace inheritance. */
+.personal-font-preview__sample,
+.personal-font-preview__sample :where(*) {
+  font-family: var(--personal-preview-font-family, inherit) !important;
 }
 
 /* Zero-specificity default: any explicit code font from a theme still wins. */
@@ -95,4 +101,3 @@ html[data-pocketrisu-css*="chat-font-"] .personal-font-preview__sample :where(*)
 [data-personal-send-text] { display: none; }
 [data-personal-jailbreak] { display: contents; }
 .personal-send-glyph { font-family: ui-sans-serif, system-ui, sans-serif; font-size: 1rem; line-height: 1; }
-html[data-pocketrisu-css~="chat-font-custom"] { --personal-chat-font-family: var(--personal-custom-font-family, sans-serif); }

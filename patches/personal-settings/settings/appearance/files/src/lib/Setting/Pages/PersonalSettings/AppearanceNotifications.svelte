@@ -4,7 +4,7 @@
     import { DBState } from 'src/ts/stores.svelte'
     import { personalCssStatus } from 'src/ts/personalSettings/cssToggleRuntime'
     import { customFontLoadStatus } from 'src/ts/personalSettings/customFontRuntime'
-    import { rawAppearance } from 'src/ts/personalSettings/cssToggles'
+    import { readPersonalAppearance } from 'src/ts/personalSettings/appearanceValues'
     import { appearanceNotice, dismissAppearanceNotice } from 'src/ts/personalSettings/appearanceNotices'
     import { appearanceSaveStage } from 'src/ts/personalSettings/appearancePersistence'
 
@@ -34,9 +34,13 @@
             else if (!initial && state.phase === 'idle') appearanceNotice(state.scope, 'info', state.message)
         })
         const stopStage = appearanceSaveStage.subscribe(value => { stage = value; if (current.phase === 'saving' && stage !== 'idle') savingNotice() })
-        const stopFont = customFontLoadStatus.subscribe(message => {
-            const custom = String(rawAppearance(DBState.db).chat?.font ?? '').startsWith('custom:')
-            if (custom && /불러올 수 없|찾을 수 없/.test(message)) appearanceNotice('font-load', 'error', message)
+        const stopFont = customFontLoadStatus.subscribe(status => {
+            const appearance = readPersonalAppearance(DBState.db)
+            const failed = (['chat', 'ui'] as const)
+                .filter(target => appearance[target].fontEnabled && appearance[target].font.startsWith('custom:'))
+                .map(target => status[target] ?? '')
+                .filter(message => /불러올 수 없|찾을 수 없/.test(message))
+            if (failed.length) appearanceNotice('font-load', 'error', failed.join('\n'))
             else dismissAppearanceNotice('font-load')
         })
         return () => {
