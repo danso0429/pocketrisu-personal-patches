@@ -21,6 +21,7 @@ export function chooseServerInputBase(options: {
     chatId: string
     localRevision: string
     serverRevision: string | null
+    serverViewRevision: string | null
     pendingInputs: ServerPendingInput[]
     knownInput: KnownServerInput | null
 }): ServerInputBaseDecision {
@@ -32,7 +33,7 @@ export function chooseServerInputBase(options: {
     ))) {
         return { ready: false, reason: 'unresolved-server-input' }
     }
-    if (options.localRevision === options.serverRevision) {
+    if (options.serverViewRevision && options.localRevision === options.serverViewRevision) {
         return { ready: true, baseRevision: options.serverRevision }
     }
     const known = options.knownInput

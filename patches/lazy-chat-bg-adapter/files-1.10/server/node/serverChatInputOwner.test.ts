@@ -172,6 +172,188 @@ function makeHarness() {
 }
 
 describe('pre-canonical server chat input owner', () => {
+    async function clientRecovery(h: ReturnType<typeof makeHarness>, owner: any, id = 'operation-manual-client') {
+        const original = id + '-original'
+        await owner.admit(admission(original, 'preserved original'))
+        await owner.beginTransform(original)
+        owner.stopUnsupportedInputSynchronously(original, 'interactive_ui')
+        const result = await owner.admit({ ...admission(id, 'preserved original'),
+            inputCommandId: `input-${original}`, replaceBlockedOperationId: original, inputPreparation: 'client' })
+        expect(result.status).toBe('admitted')
+        return id
+    }
+
+    it('reads the same metadata-overlaid view for preflight and claim without changing the wire revision', async () => {
+        const h = makeHarness(), owner = h.makeOwner()
+        Object.assign(h.runtime.database.characters[0].chats[0], { name: 'new metadata name',
+            lastDate: 1234, folderId: 'folder-new', modules: ['module-new'] })
+        const base = await owner.readPreparationBase('char-1', 'chat-1')
+        expect(base.revision).toBe(revision(baseChat()))
+        expect(base.chat).toMatchObject({ name: 'new metadata name', lastDate: 1234,
+            folderId: 'folder-new', modules: ['module-new'] })
+        expect(h.runtime.fullStore.get('char-1')!.get('chat-1')!.name).toBe('Chat')
+        const id = await clientRecovery(h, owner)
+        const claimed = await owner.beginTransform(id, null, 'client-metadata-token')
+        expect(claimed.context.chat).toEqual(base.chat)
+    })
+
+    it('claims browser preparation once and attaches once without server input replay', async () => {
+        const h = makeHarness(), owner = h.makeOwner()
+        const id = await clientRecovery(h, owner)
+        expect(await owner.loadExecution(id)).toMatchObject({ status: 'waiting', reason: 'client_input_pending' })
+        expect(await owner.beginTransform(id)).toMatchObject({ status: 'waiting' })
+        const claims = await Promise.all(['client-token-one', 'client-token-two']
+            .map(token => owner.beginTransform(id, null, token)))
+        expect(claims.map(result => result.status).sort()).toEqual(['blocked', 'started'])
+        const token = claims[0].status === 'started' ? 'client-token-one' : 'client-token-two'
+        await owner.recoverAll()
+        expect(owner.read(id).transformState).toBe('running')
+        expect(await owner.attachTransformed(id, h.transformed(id))).toMatchObject({ status: 'blocked' })
+        expect(await owner.attachTransformed(id, h.transformed(id), 'wrong-client-token')).toMatchObject({ status: 'blocked' })
+        const attached = await owner.attachTransformed(id, h.transformed(id), token)
+        expect(attached).toMatchObject({ status: 'attached', reused: false })
+        expect(await owner.attachTransformed(id, h.transformed(id), token)).toMatchObject({ status: 'attached', reused: true })
+        expect((await owner.loadExecution(id)).status).toBe('attached')
+        expect(h.runtime.fullStore.get('char-1')!.get('chat-1')!.message.filter((m: any) => m.chatId === `user-${id}`)).toHaveLength(1)
+    })
+
+    it('retains the original after an abandoned client claim and permits only explicit fresh recovery', async () => {
+        const h = makeHarness(), owner = h.makeOwner(), id = await clientRecovery(h, owner)
+        await owner.beginTransform(id, null, 'client-abandon-token')
+        expect(await owner.interruptClientPreparation(id, 'wrong-client-token')).toBe(false)
+        expect(await owner.interruptClientPreparation(id, 'client-abandon-token')).toBe(true)
+        expect(owner.pendingProjection('char-1', 'chat-1')[0]).toMatchObject({ rawText: 'preserved original',
+            state: 'blocked_edit', reason: 'client_preparation_interrupted', retryAllowed: true })
+        expect(await owner.attachTransformed(id, h.transformed(id), 'client-abandon-token')).toMatchObject({ status: 'blocked' })
+        const next = id + '-next'
+        expect(await owner.admit({ ...admission(next, 'preserved original'),
+            inputCommandId: owner.read(id).admission.inputCommandId, replaceBlockedOperationId: id,
+            inputPreparation: 'client' })).toMatchObject({ status: 'admitted' })
+    })
+
+    it('keeps a blocked app preparation on the app path after a revision conflict', async () => {
+        const h = makeHarness(), owner = h.makeOwner(), id = await clientRecovery(h, owner)
+        expect(owner.blockEditSynchronously(id, 'base_revision_changed')).toBe(true)
+        expect(owner.pendingProjection('char-1', 'chat-1')[0]).toMatchObject({
+            reason: 'client_preparation_interrupted', retryAllowed: true,
+        })
+        const retry = id + '-conflict-retry'
+        expect(await owner.admit({ ...admission(retry, 'preserved original'),
+            inputCommandId: owner.read(id).admission.inputCommandId, replaceBlockedOperationId: id,
+            inputPreparation: 'client' })).toMatchObject({ status: 'admitted' })
+        expect(await owner.loadExecution(retry)).toMatchObject({ status: 'waiting', reason: 'client_input_pending' })
+    })
+
+    it.each([false, true])('makes interrupted browser preparation manually recoverable after boot, claimed=%s', async claimed => {
+        const h = makeHarness(), owner = h.makeOwner(), id = await clientRecovery(h, owner)
+        if (claimed) await owner.beginTransform(id, null, 'client-restart-token')
+        const restarted = h.makeOwner()
+        await restarted.recoverAll()
+        expect(restarted.pendingProjection('char-1', 'chat-1')[0]).toMatchObject({
+            reason: 'client_preparation_interrupted', retryAllowed: true,
+        })
+        expect(restarted.read(id).admission.rawText).toBe('preserved original')
+        expect(await restarted.beginTransform(id, null, 'client-restart-token')).toMatchObject({ status: 'blocked' })
+    })
+
+    it.each(['expiry', 'cancel'] as const)('rejects a late client attachment after %s', async reason => {
+        const h = makeHarness(), owner = h.makeOwner(), id = await clientRecovery(h, owner)
+        await owner.beginTransform(id, null, 'client-late-token')
+        if (reason === 'expiry') {
+            const record = owner.read(id)
+            h.kvSet(commandKey(id), JSON.stringify({ ...record,
+                clientClaim: { ...record.clientClaim, expiresAt: Date.now() - 1 } }))
+            expect(await owner.loadExecution(id)).toMatchObject({ status: 'blocked', reason: 'client_preparation_interrupted' })
+        } else expect(owner.settleSynchronously(id, 'cancelled')).toBe(true)
+        expect(await owner.attachTransformed(id, h.transformed(id), 'client-late-token')).toMatchObject({ status: 'blocked' })
+        expect(h.runtime.fullStore.get('char-1')!.get('chat-1')!.message).toEqual(baseChat().message)
+        expect(owner.read(id).admission.rawText).toBe('preserved original')
+    })
+
+    it('recovers the root after a reverse-order attempt was also cascade-blocked', async () => {
+        const h = makeHarness(), owner = h.makeOwner()
+        const root = 'operation-reverse-root', follower = 'operation-reverse-follower'
+        await owner.admit(admission(root, 'first'))
+        await owner.admit(admission(follower, 'second'))
+        await owner.beginTransform(root)
+        owner.stopUnsupportedInputSynchronously(root, 'interactive_ui')
+        await owner.loadExecution(follower)
+        const premature = follower + '-retry'
+        expect(await owner.admit({ ...admission(premature, 'second'), inputCommandId: `input-${follower}`,
+            replaceBlockedOperationId: follower })).toMatchObject({ status: 'admitted' })
+        expect(await owner.loadExecution(premature)).toMatchObject({ status: 'blocked' })
+        const replacement = root + '-retry'
+        expect(await owner.admit({ ...admission(replacement, 'first'), inputCommandId: `input-${root}`,
+            replaceBlockedOperationId: root, inputPreparation: 'client' }))
+            .toMatchObject({ status: 'admitted', record: { executionPredecessorId: null } })
+        expect(await owner.beginTransform(replacement, null, 'client-reverse-token')).toMatchObject({ status: 'started' })
+        expect(owner.read(premature).transformState).toBe('not_run')
+    })
+
+    it('lets a blocked root recover without depending on its never-executed cascade', async () => {
+        const h = makeHarness(), owner = h.makeOwner()
+        const root = 'operation-cascade-root', follower = 'operation-cascade-follower'
+        await owner.admit(admission(root, 'first'))
+        await owner.admit(admission(follower, 'second'))
+        await owner.beginTransform(root)
+        owner.stopUnsupportedInputSynchronously(root, 'interactive_ui')
+        expect(await owner.loadExecution(follower)).toMatchObject({ status: 'blocked' })
+        expect(owner.pendingProjection('char-1', 'chat-1').find((row: any) => row.operationId === follower))
+            .toMatchObject({ blockedByOperationId: root })
+        const replacement = root + '-retry'
+        expect(await owner.admit({ ...admission(replacement, 'first'), inputCommandId: `input-${root}`,
+            replaceBlockedOperationId: root, inputPreparation: 'client' }))
+            .toMatchObject({ status: 'admitted', record: { executionPredecessorId: null } })
+        expect(await owner.beginTransform(replacement, null, 'client-cascade-token')).toMatchObject({ status: 'started' })
+        expect(owner.read(follower).transformState).toBe('not_run')
+        expect(await owner.interruptClientPreparation(replacement, 'client-cascade-token')).toBe(true)
+        expect(owner.pendingProjection('char-1', 'chat-1').find((row: any) => row.operationId === follower))
+            .toMatchObject({ blockedByOperationId: replacement })
+        const retry = replacement + '-again'
+        expect(await owner.admit({ ...admission(retry, 'first'), inputCommandId: `input-${root}`,
+            replaceBlockedOperationId: replacement, inputPreparation: 'client' }))
+            .toMatchObject({ status: 'admitted', record: { executionPredecessorId: null } })
+        expect(await owner.beginTransform(retry, null, 'client-repeat-token')).toMatchObject({ status: 'started' })
+        expect(owner.read(follower).transformState).toBe('not_run')
+    })
+
+    it('preserves a known unsupported stop across restart and requires explicit replacement', async () => {
+        const h = makeHarness(), owner = h.makeOwner()
+        const oldId = 'operation-unsupported-input-old'
+        const newId = 'operation-unsupported-input-new'
+        await owner.admit(admission(oldId, 'preserved original'))
+        await owner.beginTransform(oldId)
+        expect(owner.stopUnsupportedInputSynchronously(oldId, 'interactive_ui')).toBe(true)
+        expect(owner.pendingProjection('char-1', 'chat-1')).toMatchObject([{
+            operationId: oldId, state: 'blocked_edit', rawText: 'preserved original',
+            reason: 'server_host_unsupported', unsupportedApi: 'interactive_ui', retryAllowed: true,
+        }])
+        const restarted = h.makeOwner()
+        await expect(restarted.beginTransform(oldId)).resolves.toMatchObject({ status: 'blocked' })
+        expect(restarted.read(oldId).terminal.effectsMayHaveOccurred).toBe(true)
+        expect(h.runtime.fullStore.get('char-1')!.get('chat-1')!.message).toEqual(baseChat().message)
+        await expect(restarted.admit({ ...admission(newId, 'preserved original'),
+            inputCommandId: `input-${oldId}`, replaceBlockedOperationId: oldId,
+        })).resolves.toMatchObject({ status: 'admitted', record: { executionPredecessorId: null } })
+        expect(restarted.read(oldId).replacedByOperationId).toBe(newId)
+        expect(restarted.read(oldId).admission.rawText).toBe('preserved original')
+    })
+
+    it('keeps an unrecorded unsupported stop non-replayable after a storage failure', async () => {
+        const h = makeHarness(), owner = h.makeOwner(), id = 'operation-input-stop-write-failure'
+        await owner.admit(admission(id, 'retained raw input'))
+        await owner.beginTransform(id)
+        h.failWriteAt(1)
+        expect(() => owner.stopUnsupportedInputSynchronously(id, 'interactive_ui'))
+            .toThrow('injected-input-write-failure')
+        h.failWriteAt(0)
+        owner.markRunFailureSynchronously(id, false)
+        await expect(owner.beginTransform(id)).resolves.toMatchObject({ status: 'blocked' })
+        const restarted = h.makeOwner()
+        expect(restarted.read(id)).toMatchObject({ transformState: 'unknown', admission: { rawText: 'retained raw input' } })
+        expect(restarted.pendingProjection('char-1', 'chat-1')[0].retryAllowed).toBe(false)
+    })
+
     it('preserves newer globals when recovering a durable input whose cache publication failed', async () => {
         const h = makeHarness(), owner = h.makeOwner(), id = 'operation-input-recovery-edit'
         await owner.admit(admission(id))

@@ -43,51 +43,52 @@ describe('delete confirmation across publication', () => {
 const inputSource = readFileSync('src/lib/ChatScreens/DefaultChatScreen.svelte', 'utf8')
 const inputMarker = 'POCKETRISU-PATCH:haejeok-persistence-safety-adapter:chat-publication-input-merge'
 const inputBody = inputSource.split(`/* ${inputMarker}:START */`)[1].split(`/* ${inputMarker}:END */`)[0].replace(' as const', '')
-const applyInput = new Function('DBState', 'inputBase', 'cha', 'notifyError', 'removeChatDraft', 'snapshotChatView', 'rebaseChatInput', 'publishChatView', 'lateDraft', 'inputTriggerChat', 'activeChat', `
+const applyInput = new AsyncFunction('DBState', 'inputBase', 'cha', 'notifyError', 'removeChatDraft', 'snapshotChatView', 'rebaseChatInput', 'publishChatView', 'lateDraft', 'inputTriggerChat', 'activeChat', `
+    const recovery = undefined;
     const selectedChar = 0, activeChaId = 'char', draftChaId = 'char', draftChatId = 'chat';
     let messageInput = 'pending input', messageInputTranslate = 'translated';
     activeChat ||= DBState.db.characters[0].chats[0];
     const preparedInput = messageInput, preparedTranslation = messageInputTranslate, preparedDraftId = 'draft', draftInputId = 'draft';
     if (lateDraft) messageInput = lateDraft;
-    const apply = () => { ${inputBody} };
-    apply(); return { messageInput, messageInputTranslate };
+    const apply = async () => { ${inputBody} };
+    await apply(); return { messageInput, messageInputTranslate };
 `)
 
 describe('input preparation across publication', () => {
-    it.each(['unassigned', 'assigned during preparation', 'replaced slot'])('keeps persistent identity repair with its existing owner: %s', state => {
+    it.each(['unassigned', 'assigned during preparation', 'replaced slot'])('keeps persistent identity repair with its existing owner: %s', async state => {
         const original: any = { message: [message('q')] }, inputBase = snapshotChatView(original)
         const chat = state === 'replaced slot' ? { message: [message('different')] } : original
         if (state === 'assigned during preparation') chat.id = 'new-persistent-id'
         const notify = vi.fn(), clear = vi.fn()
-        applyInput({ db: { characters: [{ chaId: 'char', chatPage: 0, chats: [chat] }] } }, inputBase, [...inputBase.message, message('next')], notify, clear, snapshotChatView, rebaseChatInput, publishChatView, undefined, undefined, original)
+        await applyInput({ db: { characters: [{ chaId: 'char', chatPage: 0, chats: [chat] }] } }, inputBase, [...inputBase.message, message('next')], notify, clear, snapshotChatView, rebaseChatInput, publishChatView, undefined, undefined, original)
         expect(chat.message.at(-1)?.chatId).toBe(state === 'replaced slot' ? 'different' : 'next')
         expect(notify).toHaveBeenCalledTimes(state === 'replaced slot' ? 1 : 0)
         if (state === 'unassigned') expect(chat.id).toBeUndefined()
         if (state === 'assigned during preparation') expect(chat.id).toBe('new-persistent-id')
     })
-    it.each([Object.freeze({ value: 1 }), new Uint8Array([1, 2])])('preserves an unchanged extension field while applying input', extra => {
+    it.each([Object.freeze({ value: 1 }), new Uint8Array([1, 2])])('preserves an unchanged extension field while applying input', async extra => {
         const chat = { id: 'chat', message: [message('q')], extra }
         const inputBase = { id: chat.id, message: snapshotChatView(chat.message) }
-        applyInput({ db: { characters: [{ chaId: 'char', chatPage: 0, chats: [chat] }] } }, inputBase, [...inputBase.message, message('next')], vi.fn(), vi.fn(), snapshotChatView, rebaseChatInput, publishChatView)
+        await applyInput({ db: { characters: [{ chaId: 'char', chatPage: 0, chats: [chat] }] } }, inputBase, [...inputBase.message, message('next')], vi.fn(), vi.fn(), snapshotChatView, rebaseChatInput, publishChatView)
         expect(chat.extra).toBe(extra)
         expect(chat.message.map(item => item.chatId)).toEqual(['q', 'next'])
     })
-    it('keeps text typed while the trigger was waiting', () => {
+    it('keeps text typed while the trigger was waiting', async () => {
         const chat = { id: 'chat', message: [message('q')] }, inputBase = snapshotChatView(chat)
         const clear = vi.fn()
-        const result = applyInput({ db: { characters: [{ chaId: 'char', chatPage: 0, chats: [chat] }] } }, inputBase, [...inputBase.message, message('next')], vi.fn(), clear, snapshotChatView, rebaseChatInput, publishChatView, 'new draft')
+        const result = await applyInput({ db: { characters: [{ chaId: 'char', chatPage: 0, chats: [chat] }] } }, inputBase, [...inputBase.message, message('next')], vi.fn(), clear, snapshotChatView, rebaseChatInput, publishChatView, 'new draft')
         expect(result.messageInput).toBe('new draft')
         expect(clear).not.toHaveBeenCalled()
         expect(chat.message.map(item => item.chatId)).toEqual(['q', 'next'])
     })
-    it.each([false, true])('preserves live message identity and remote additions, overlap=%s', overlap => {
+    it.each([false, true])('preserves live message identity and remote additions, overlap=%s', async overlap => {
         const chat = { id: 'chat', message: [message('q')] }, first = chat.message[0]
         const inputBase = snapshotChatView(chat), draft = snapshotChatView(chat.message)
         draft.push(message('next'))
         chat.message.push(message('a'))
         if (overlap) { draft[0].data = 'trigger edit'; chat.message[0].data = 'user edit' }
         const notify = vi.fn(), clear = vi.fn()
-        const result = applyInput({ db: { characters: [{ chaId: 'char', chatPage: 0, chats: [chat] }] } }, inputBase, draft, notify, clear, snapshotChatView, rebaseChatInput, publishChatView)
+        const result = await applyInput({ db: { characters: [{ chaId: 'char', chatPage: 0, chats: [chat] }] } }, inputBase, draft, notify, clear, snapshotChatView, rebaseChatInput, publishChatView)
         expect(chat.message[0]).toBe(first)
         expect(chat.message.map(item => item.chatId)).toEqual(overlap ? ['q', 'a'] : ['q', 'a', 'next'])
         expect(result.messageInput).toBe(overlap ? 'pending input' : '')
@@ -220,7 +221,7 @@ it.each(['edit', 'append'])('accepts a later input-script change after an interm
     if (kind === 'edit') live.message.push(message('a'))
     expect(rebaseChatSave(inputBase, { id: 'chat', message: draft.message }, snapshotChatView(live)).ok).toBe(false)
     const notify = vi.fn(), clear = vi.fn()
-    const result = applyInput({ db: database }, inputBase, draft.message, notify, clear, snapshotChatView, rebaseChatInput, publishChatView, undefined, draft)
+    const result = await applyInput({ db: database }, inputBase, draft.message, notify, clear, snapshotChatView, rebaseChatInput, publishChatView, undefined, draft)
     expect(notify).not.toHaveBeenCalled()
     expect(result.messageInput).toBe('')
     expect(live.message.some(item => item.data === 'v2')).toBe(true)

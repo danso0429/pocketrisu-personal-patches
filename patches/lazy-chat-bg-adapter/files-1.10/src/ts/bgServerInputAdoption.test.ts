@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import { adoptAttachedServerInputs } from './bgServerInputAdoption'
-import { readServerInputMarkers, writeServerInputMarker } from './bgServerInputLedger'
+import { readServerInputMarkers, writeServerInputMarker, advanceServerInputMarkerRevisions } from './bgServerInputLedger'
+import { orchestrationChatRevision } from './bgOrchestrationMerge'
 import type { ServerPendingInput } from './bgServerPendingProjection'
 
 const a = 'a'.repeat(64)
@@ -68,11 +69,21 @@ describe('server input attached chat adoption', () => {
 
     it('recovers an already-adopted revision without writing the chat again', async () => {
         const storage = fixture()
-        expect(await adoptAttachedServerInputs({
+        const before = orchestrationChatRevision({ id: 'chat', message: [] })
+        const after = orchestrationChatRevision({ id: 'chat', message: [{ role: 'user', data: 'input' }] })
+        advanceServerInputMarkerRevisions(storage, 'char', 'chat', a, before, 1002)
+        let local = before, calls = 0
+        const options = {
             storage, charId: 'char', chatId: 'chat', now: () => 1002,
-            pendingInputs: [pending('n', 1, b)], readLocalRevision: () => b,
-            isCurrent: () => true, adopt: async () => { throw new Error('unexpected') },
-        })).toBe(0)
-        expect(readServerInputMarkers(storage, 1002).map(row => row.localRevision)).toEqual([b, b])
+            pendingInputs: [pending('n', 1, b)], readLocalRevision: () => local,
+            isCurrent: () => true, adopt: async () => {
+                calls++; local = after; return { adopted: true, revision: b }
+            },
+        }
+        expect(await adoptAttachedServerInputs(options)).toBe(1)
+        expect(await adoptAttachedServerInputs(options)).toBe(0)
+        expect(calls).toBe(1)
+        expect(readServerInputMarkers(storage, 1002).map(row => row.localRevision)).toEqual([after, after])
+        expect(readServerInputMarkers(storage, 1002).find(row => row.operationId === 'n')?.adoptedRevision).toBe(b)
     })
 })

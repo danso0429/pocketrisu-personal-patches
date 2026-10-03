@@ -6,6 +6,8 @@ const state = vi.hoisted(() => ({ db: {} as any, chat: null as any }))
 vi.mock('src/ts/storage/database.svelte', () => ({ getDatabase: () => state.db }))
 import { resolveModelRequestSelection } from './modelRequestSelection'
 import { resolveChatModelBindingWithContext } from './modelPresetBinding'
+import { assertServerInputCanContinue, rejectUnsupportedServerInput } from '../../bgServerInputExecution'
+import { supportsNativeInputPresetAdapter } from '../../bgServerInputProviderPolicy'
 
 const modes = ['model', 'submodel', 'memory', 'emotion', 'translate', 'otherAx'] as const
 const main = { id: 'main-preset', name: 'Main' } as any
@@ -77,6 +79,9 @@ function dispatcher() {
         getDatabase: () => state.db,
         getCurrentChat: () => state.chat,
         resolveModelRequestSelection,
+        assertServerInputCanContinue,
+        rejectUnsupportedServerInput,
+        supportsNativeInputPresetAdapter,
         // Both names are supplied so the same harness can run the baseline.
         resolveChatModelBindingWithContext,
         applyPromptPresetParams: (preset: any) => preset,

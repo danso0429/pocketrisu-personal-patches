@@ -17,6 +17,8 @@ interface HttpOutcome {
 }
 
 interface Capability {
+    serverInputBaseVersion?: unknown
+    clientInputPreparationVersion?: unknown
     contract?: unknown
     inputCommandVersion?: unknown
     serverChatCommitVersion?: unknown
@@ -28,7 +30,7 @@ export interface ServerInputClientDependencies {
     readCapability: () => Promise<Capability | null>
     flushSettings: () => Promise<void>
     readLocalRevision: () => string
-    peekServerChat: () => Promise<{ revision: string } | null>
+    peekServerChat: () => Promise<{ revision: string; viewRevision: string } | null>
     readPendingInputs: (revision: string) => Promise<ServerPendingInput[]>
     start: (body: Record<string, unknown>, signal: AbortSignal) => Promise<HttpOutcome>
     status: (operationId: string, signal: AbortSignal) => Promise<HttpOutcome>
@@ -63,6 +65,7 @@ export async function submitServerInputCommand(
         rawText: string
         draftId?: string
         replaceBlockedOperationId?: string
+        inputPreparation?: 'client'
     },
 ): Promise<ServerInputClientOutcome> {
     const now = deps.now || Date.now
@@ -86,13 +89,15 @@ export async function submitServerInputCommand(
         if (status !== 'accepted') {
             return { kind: 'blocked', reason: 'prior-operation-unknown' }
         }
-        const body = outcome.body as { state?: unknown }
+        const body = outcome.body as { state?: unknown; blockedByOperationId?: unknown }
         if (body.state === 'input-retried') {
             clearServerInputMarker(deps.storage, marker.operationId)
             continue
         }
         if (marker.operationId === request.replaceBlockedOperationId
             && body.state === 'input-blocked_edit') continue
+        if (request.replaceBlockedOperationId && body.state === 'input-blocked_edit'
+            && body.blockedByOperationId === request.replaceBlockedOperationId) continue
         if (typeof body.state !== 'string' || !activeInputStates.has(body.state)) {
             return { kind: 'blocked', reason: 'prior-operation-needs-reconciliation' }
         }
@@ -110,6 +115,8 @@ export async function submitServerInputCommand(
     catch { return { kind: 'blocked', reason: 'capability-unavailable' } }
     if (!capability || capability.contract !== 'bg_orchestration_capabilities.v1'
         || capability.inputCommandVersion !== 1
+        || capability.serverInputBaseVersion !== 1
+        || (request.inputPreparation === 'client' && capability.clientInputPreparationVersion !== 1)
         || capability.serverChatCommitVersion !== 1
         || capability.chatExecutionProjectionVersion !== 1) {
         return active.length > 0
@@ -126,7 +133,7 @@ export async function submitServerInputCommand(
     if (!deps.isCurrent()) return { kind: 'blocked', reason: 'selection-changed' }
 
     let localRevision: string
-    let server: { revision: string } | null
+    let server: { revision: string; viewRevision: string } | null
     let pendingInputs: ServerPendingInput[]
     try {
         localRevision = deps.readLocalRevision()
@@ -150,7 +157,8 @@ export async function submitServerInputCommand(
             && input.inputCommandId === request.draftId
         ))
         if (!blocked) return { kind: 'blocked', reason: 'blocked-input-unavailable' }
-        pendingInputs = pendingInputs.filter(input => input !== blocked)
+        pendingInputs = pendingInputs.filter(input => input !== blocked
+            && input.blockedByOperationId !== blocked.operationId)
     }
     const known = active.slice().reverse().find(marker => (
         marker.localRevision === localRevision
@@ -161,6 +169,7 @@ export async function submitServerInputCommand(
         chatId: request.chatId,
         localRevision,
         serverRevision: server?.revision || null,
+        serverViewRevision: server?.viewRevision || null,
         pendingInputs,
         knownInput: known,
     })
@@ -182,6 +191,7 @@ export async function submitServerInputCommand(
         serverChatCommitVersion: 1,
         inputCommandVersion: 1,
         inputCommand: {
+            ...(request.inputPreparation === 'client' ? { inputPreparation: 'client' } : {}),
             inputCommandId: request.draftId,
             userMessageId: deps.newId(),
             rawText: request.rawText,

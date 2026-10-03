@@ -30,6 +30,18 @@ function marker(operationId: string, createdAt = 1000) {
 }
 
 describe('server input operation marker', () => {
+    it('migrates v1 metadata and isolates semantic v2 markers from old-tab cleanup', () => {
+        const state = storage()
+        state.setItem('bg-server-input-v1:legacy-operation', JSON.stringify(marker('legacy-operation')))
+        expect(readServerInputMarkers(state, 1000)).toEqual([marker('legacy-operation')])
+        expect(state.getItem('bg-server-input-v1:legacy-operation')).toBeNull()
+        expect(state.getItem(SERVER_INPUT_MARKER_PREFIX + 'legacy-operation')).not.toBeNull()
+        writeServerInputMarker(state, { ...marker('semantic-operation'), localRevision: '3s-abc-def' })
+        expect(SERVER_INPUT_MARKER_PREFIX).toBe('bg-server-input-v2:')
+        expect(readServerInputMarkers(state, 1000).find(row => row.operationId === 'semantic-operation')?.localRevision)
+            .toBe('3s-abc-def')
+    })
+
     it('stores no prompt text and updates only the exact operation', () => {
         const state = storage()
         writeServerInputMarker(state, marker('operation-1'))

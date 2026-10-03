@@ -1,6 +1,7 @@
 import { describe, expect, it, vi } from 'vitest'
 import { submitServerInputCommand, type ServerInputClientDependencies } from './bgServerInputClient'
 import { readServerInputMarkers } from './bgServerInputLedger'
+import { orchestrationChatRevision } from './bgOrchestrationMerge'
 
 const base = 'a'.repeat(64)
 const next = 'b'.repeat(64)
@@ -9,6 +10,7 @@ const request = {
     draftId: 'draft-original-1',
 }
 const capability = {
+    serverInputBaseVersion: 1,
     contract: 'bg_orchestration_capabilities.v1',
     inputCommandVersion: 1,
     serverChatCommitVersion: 1,
@@ -42,7 +44,7 @@ function makeHarness() {
         readCapability: async () => capability,
         flushSettings,
         readLocalRevision: () => localRevision,
-        peekServerChat: async () => ({ revision: serverRevision }),
+        peekServerChat: async () => ({ revision: serverRevision, viewRevision: serverRevision }),
         readPendingInputs: async () => pendingInputs,
         start,
         status,
@@ -60,6 +62,15 @@ function makeHarness() {
 }
 
 describe('server-owned input client admission', () => {
+    it('persists the real semantic fingerprint separately from the server SHA-256 revision', async () => {
+        const harness = makeHarness()
+        const view = orchestrationChatRevision({ id: 'chat-1', message: [] })
+        harness.deps.readLocalRevision = () => view
+        harness.deps.peekServerChat = async () => ({ revision: base, viewRevision: view })
+        expect(await submitServerInputCommand(harness.deps, request)).toMatchObject({ kind: 'accepted' })
+        expect(harness.start.mock.calls[0][0].baseChatRevision).toBe(base)
+        expect(readServerInputMarkers(harness.deps.storage, 1002)[0]).toMatchObject({ localRevision: view, baseRevision: base })
+    })
     it('persists only an operation marker before the paid start and accepts 202 N+1', async () => {
         const harness = makeHarness()
         await expect(submitServerInputCommand(harness.deps, request)).resolves.toEqual({
