@@ -6,6 +6,7 @@
 - Exclude competing native main jobs and legacy whole-pipeline starts from raw server inputs at their existing insertion boundaries. Preserve auxiliary calls and configured browser transports.
 - Return a finished state for late cancellation of committed or delivered results and retain normal hydration/ACK ownership.
 - See `docs/POCKETRISU-G1-4-QUEUE-VALIDATION.md` for automated/browser evidence, old direct-provider limitations and delivery status. Broader G1.12/r3 and plugin hosting remain separate.
+- Delivered live after a verified 1,618-file application/state/database backup, builds and readback of 450 managed files, 17 script assets and five databases. Device/aggregate qualification remains open.
 
 ## 0.2.4-experimental.17 (BG candidate)
 

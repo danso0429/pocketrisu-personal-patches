@@ -7,7 +7,7 @@ import { once } from 'node:events'
 import { createRequire } from 'node:module'
 import { createHash } from 'node:crypto'
 import assert from 'node:assert/strict'
-const [root, dependencyRoot, browserPath, fixturePath] = process.argv.slice(2)
+const [root, dependencyRoot, browserPath, fixturePath] = process.argv.slice(2, 6).map(value => path.resolve(value))
 if (!root || !dependencyRoot || !browserPath || !fixturePath) throw new Error('Expected target, playwright root, chromium, synthetic fixture')
 assert.ok(fs.existsSync(browserPath), 'Chromium executable must exist before server startup')
 const checkGuards = process.argv.includes('--check-guards')
@@ -22,8 +22,9 @@ fixture.characters[0].chats[0].message = [
   { role: 'char', data: 'Synthetic earlier answer', chatId: 'earlier-answer' },
 ]
 const { chromium } = createRequire(path.join(dependencyRoot, 'package.json'))('playwright')
-const { decodeRisuSave } = createRequire(path.join(root, 'package.json'))('./server/node/utils.cjs')
 const runtime = fs.mkdtempSync(path.join(os.tmpdir(), 'pocketrisu-queue-browser-'))
+process.chdir(runtime)
+const { decodeRisuSave } = createRequire(path.join(root, 'package.json'))('./server/node/utils.cjs')
 fs.symlinkSync(path.join(root, 'dist'), path.join(runtime, 'dist'))
 fs.writeFileSync(path.join(runtime, 'package.json'), JSON.stringify({ name: 'pocketrisu', version: '1.10.0' }))
 const password = createHash('sha256').update('synthetic-browser-password').digest('hex')
