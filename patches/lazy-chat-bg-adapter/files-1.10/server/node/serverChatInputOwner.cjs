@@ -407,6 +407,7 @@ function createServerChatInputOwner({
     cacheStrippedDatabase,
     scheduleChatStorePersist,
     encodeSettingsSnapshot,
+    isExternalGenerationActive = () => false,
 }) {
     const dependencies = {
         chatWriteJournal,
@@ -756,6 +757,9 @@ function createServerChatInputOwner({
             }
             if (kvGet(commandKey(command.operationId))) {
                 return { status: 'conflict', reason: 'command_record_invalid' };
+            }
+            if (isExternalGenerationActive(command.charId, command.chatId)) {
+                return { status: 'conflict', reason: 'chat_generation_active' };
             }
             const records = allRecords();
             const replacement = command.replaceBlockedOperationId
@@ -1457,6 +1461,17 @@ function createServerChatInputOwner({
         return true;
     }
 
+    function hasPendingGeneration(charId, chatId) {
+        return allRecords().some(record => (
+            (charId === null || record.admission.charId === charId)
+            && record.admission.chatId === chatId
+            && (record.inputState === 'queued' || record.inputState === 'attached'
+                || (record.inputState === 'completed' && requiresExecutionPredecessor(
+                    record, currentChat(record.admission.charId, record.admission.chatId),
+                )))
+        ));
+    }
+
     function pendingProjection(charId, chatId) {
         return allRecords().filter((record) => (
             record.admission.charId === charId
@@ -1640,6 +1655,7 @@ function createServerChatInputOwner({
         readPreparationBase,
         interruptClientPreparation,
         pendingProjection,
+        hasPendingGeneration,
         read: (operationId) => clone(read(operationId)),
         recoverAll,
         retireTerminal,

@@ -4,7 +4,14 @@ Personal, all-or-nothing patch delivery for PocketRisu NodeOnly. The current
 stable release is `v0.2.3`, and its complete manifest graph targets exact
 PocketRisu `v1.10.0`.
 
-The `0.2.4-experimental.17` candidate adds qualified native preset/module/custom
+The `0.2.4-experimental.18` candidate adds server-aware reroll, Continue Response
+and empty-resend controls while retaining the existing N+1 input queue. It excludes
+competing legacy/native main requests at server admission, preserves auxiliary calls,
+and recognizes completed work when cancellation arrives late. See the
+[G1.4 validation record](docs/POCKETRISU-G1-4-QUEUE-VALIDATION.md) for evidence,
+direct-provider limitations and delivery/device status.
+
+The `0.2.4-experimental.17` checkpoint adds qualified native preset/module/custom
 server-input admission and explicit app preparation for unsupported input operations.
 It separates semantic view fingerprints from server storage revisions and retains
 original input when preparation stops. Plugin-host qualification and r3 remain separate.

@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.2.4-experimental.18 (BG candidate)
+
+- Disable reroll, Continue Response and empty resend while server work is pending, including another tab with no local input markers; retain raw N+1 admission and drafts rejected by a full queue.
+- Exclude competing native main jobs and legacy whole-pipeline starts from raw server inputs at their existing insertion boundaries. Preserve auxiliary calls and configured browser transports.
+- Return a finished state for late cancellation of committed or delivered results and retain normal hydration/ACK ownership.
+- See `docs/POCKETRISU-G1-4-QUEUE-VALIDATION.md` for automated/browser evidence, old direct-provider limitations and delivery status. Broader G1.12/r3 and plugin hosting remain separate.
+
 ## 0.2.4-experimental.17 (BG candidate)
 
 - Admit qualified native presets, module bindings and custom OpenAI/Anthropic/Gemini endpoints to server input execution, preserving fallback order, endpoint overrides and credential selection.
