@@ -1,5 +1,30 @@
 # Changelog
 
+## 0.2.4-experimental.5
+
+Personal settings `0.5.11`.
+
+- Split the Personal font into a chat target (message bodies) and a UI target
+  (every other element). Each target keeps its own assigned font and its own
+  apply switch; turning a switch off keeps the assignment. With the chat
+  switch off, message bodies follow the UI font; with the UI switch off, the
+  Display font setting applies.
+- Built-in fonts are Paperlogy and Galmuri14. `Use app font`, Noto Sans KR,
+  Noto Serif KR, IBM Plex Sans KR, Gowun Dodum, Gowun Batang and Hahmlet are
+  removed from the installed UI. Saved legacy values read as Galmuri14 with
+  the switch off; a saved valid chat font keeps its applied state.
+- The font list title shows both assignments. Expanding it shows a bordered,
+  smaller preview of the selected target, a chat/UI target switch and badges
+  for each assignment. The two apply switches sit on one row below the list.
+- Adding a user font previews it as soon as a file is picked or a URL field
+  loses focus. `Apply` adds it to the list without assigning it; the file
+  picker has a visible border.
+- Chat and UI can use different user fonts at the same time, and share one
+  loaded face when they use the same one. Deleting an assigned user font
+  returns those targets to Galmuri14.
+- The compatibility rollback (`scripts/rollback-personal-css-ui.cjs`) still
+  restores the earlier chat-font selector unchanged.
+
 ## 0.2.4-experimental.4
 
 Personal settings `0.5.10`.
