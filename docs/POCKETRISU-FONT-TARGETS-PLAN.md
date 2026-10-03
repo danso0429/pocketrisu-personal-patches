@@ -48,60 +48,173 @@ Split the Personal settings font feature into two independent targets and simpli
 - Runtime: `syncPersonalAppearance` writes `html[data-pocketrisu-css]` tokens (`chat-font-<x>`, `chat-font-custom`). `CustomFontRuntime.activate` sets one `--personal-custom-font-family`. The CSS rule on `.chattext` sets `--risu-font-family` and `font-family` with `!important`.
 - Native app font: `updateTextThemeAndCSS` sets `--risu-font-family` inline on `:root`; `* { font-family: var(--risu-font-family) }`.
 
-## 4. Design
 
-### 4.1 Data model (schema stays v1, additive)
+## 4. Detailed implementation
 
-- `chat.font`: assigned chat font, `'paperlogy' | 'galmuri14' | custom:<id>`.
-- `chat.fontEnabled`: boolean (new).
-- `ui.font`, `ui.fontEnabled`: new `ui` group with the same value set.
-- Read normalization:
-  - `chat.font === 'app'` or missing → `fontEnabled: false`, `font: 'galmuri14'`.
-  - Any other legacy value (Noto, IBM Plex, Gowun, Hahmlet) or unknown value → `fontEnabled: false`, `font: 'galmuri14'`. The user confirmed these are unused.
-  - `fontEnabled` missing with a valid non-`app` `chat.font` → `true` (preserves current visible state).
-  - Missing `ui` group → `fontEnabled: false`, `font: 'galmuri14'`.
-- Deleting a user font resets every target assigned to it to `galmuri14` and keeps that target's toggle state.
-- Rollback note: an older installer reads `galmuri14` as `app`; this is acceptable for rollback.
+Paths below are relative to `patches/personal-settings/settings/appearance/`. `files/` and `editor-files/` are named explicitly; the four `files/` replace anchors (§3) are never edited.
 
-Decision D1: the UI target uses a new `ui` group rather than leaves inside `chat`, because `writeAppearanceGroup` already writes whole groups and the target names map one-to-one.
+### P1. Data model — `files/src/ts/personalSettings/appearanceValues.ts`
 
-### 4.2 Runtime and CSS
+Types:
 
-- Tokens: `chat-font-paperlogy | chat-font-galmuri14 | chat-font-custom` and `ui-font-paperlogy | ui-font-galmuri14 | ui-font-custom`, emitted only when the target toggle is on.
-- CSS:
-  - Keep Paperlogy and Galmuri14 `@font-face`; remove the Noto `@import` and the removed token rules.
-  - UI: `html[data-pocketrisu-css*="ui-font-"] { --risu-font-family: var(--personal-ui-font-family) !important; }`. The stylesheet `!important` declaration overrides the native inline non-important value.
-  - Chat: existing `.chattext` rule keyed on `chat-font-` with `--personal-chat-font-family`. With the chat toggle off, `.chattext` inherits the UI value through `var(--risu-font-family)`.
-  - Custom fonts: separate variables `--personal-chat-custom-font-family` and `--personal-ui-custom-font-family`.
-- `CustomFontRuntime`: one runtime instance per target, each with a target-specific variable name and ready attribute, so chat and UI can use different user fonts at the same time. Shared `FontFace` reuse (existing `preparedFaces` pool) covers the case where both targets use the same user font.
-- `cssToggles.ts`: hold back `chat-font-custom` / `ui-font-custom` per target until that target's font is ready.
+- Replace `PersonalChatFont` with `PersonalFont = 'paperlogy' | 'galmuri14' | `custom:${string}``. All importers are updated in the same commit; no alias is kept.
+- Add `PersonalFontTarget = 'chat' | 'ui'`.
+- `NormalizedPersonalAppearance.chat` gains `fontEnabled: boolean`; add `ui: { font: PersonalFont; fontEnabled: boolean }`.
+- `PersonalAppearanceLeafPath` gains `'chat.fontEnabled' | 'ui.font' | 'ui.fontEnabled'`.
+- `groupNames` gains `'ui'`, so a non-record `ui` value makes the schema `unsupported` like other groups.
 
-### 4.3 Settings UI
+Read normalization (`readPersonalAppearance`), per target:
 
-- `CustomFontManager.svelte`: summary, preview block, target switch, badges, built-in list, add flow (§2.3).
-- `AppearanceSettings.svelte` (editor-files): remove the separate built-in preview section and `FontLoadStatus 'app'`; render the toggle row below `CustomFontManager`.
-- `FontNamePreview.svelte`: drop the `app` early return.
-- `personalAppearanceSettingsData.ts`: replace the 8-option `chat.font` select (search-only) with entries for the two toggles and the font list; update keywords.
-- Language/help strings in `units.cjs`: remove `personalAppearanceOptionAppFont`, Noto option labels and `…FontStatusApp`; add toggle labels and help (UI font = all UI except message bodies).
+| raw `font` | raw `fontEnabled` | normalized `font` | normalized `fontEnabled` |
+| --- | --- | --- | --- |
+| `paperlogy` / `galmuri14` / valid `custom:<id>` | boolean | raw | raw |
+| same | missing | raw | `true` for `chat`; `false` for `ui` |
+| `app`, removed built-in, unknown, missing | boolean | `galmuri14` | raw |
+| same | missing | `galmuri14` | `false` |
 
-## 5. Change units and commits
+The `chat` + missing `fontEnabled` + valid font row keeps today's visible state for existing data. Defaults: both targets `galmuri14`, disabled.
 
-Each step is a separate commit on branch `feat/personal-font-targets`, branched from `origin/main` `d2bca03`. Other worktrees, including the BG worktrees, are not touched.
+Write (`validLeafValue`, `setPersonalAppearanceValue`, `getPersonalAppearanceValue`):
 
-1. Data model: `appearanceValues.ts`, `cssToggles.ts`, `customFonts.ts`, `appearanceEditor.ts` + their tests.
-2. Runtime/CSS: `appearance.ts` (editor-files), `PersonalAppearanceRuntime.svelte` (editor-files), `customFontRuntime.ts`, `personal-appearance.css` (editor-files) + tests.
-3. Built-in reduction: remove font maps, stylesheet URLs, CSS rules, strings; update `test/personal-settings.test.cjs`, `appearance.test.ts`, `cssToggleRuntime.test.ts`, `scripts/verify-personal-css.cjs` expectations where they cover the effective copies. Legacy `files/` copies and `test/fixtures/personal-appearance-v022.json` stay as replace anchors / historical fixtures.
-4. Settings UI: `CustomFontManager.svelte`, `FontNamePreview.svelte`, `AppearanceSettings.svelte` (editor-files), `personalAppearanceSettingsData.ts`, strings.
-5. Docs: README font sections, `THIRD_PARTY_NOTICES.md` (remove notices for fonts no longer loaded), CHANGELOG `0.2.4-experimental.5`, `package.json` version.
-6. Generated installer: rebuild `dist/pocketrisu-patcher.cjs`.
+- `chat.font` / `ui.font` accept only `PersonalFont`; `app` and removed names are rejected.
+- `chat.fontEnabled` / `ui.fontEnabled` accept booleans.
+- A toggle write also writes the normalized font of the same target when the raw value is not a valid `PersonalFont`, so stored data never pairs `fontEnabled: true` with a legacy value. Implemented as a helper `setPersonalFontEnabled(db, target, enabled)` used by the UI and settings items.
+
+Tokens:
+
+- `featureOrder` gains `'ui.font'`. `chat.fontEnabled` and `ui.fontEnabled` are not token features.
+- `resolveFeatureToken('chat.font' | 'ui.font')` returns `null` when the target is disabled, `<target>-font-custom` for custom fonts, otherwise `<target>-font-paperlogy | <target>-font-galmuri14`.
+- The master `enabled` switch and Safe Mode still suppress every token (unchanged `resolvePersonalAppearanceTokens`).
+- `PersonalAppearanceFeature` keeps excluding only `enabled`; `cssToggleDefinitions.ts` widens its `Exclude` to the four font leaves.
+
+Font families and loading:
+
+- `getPersonalChatFontFamily` → `getPersonalFontFamily(font)`: `Paperlogy`, `Galmuri14`, `null` for custom.
+- Remove `chatFontStylesheetUrls`, `stylesheetLoads` and `ensurePersonalChatFontStylesheet`. Both built-ins come from `@font-face` in the personal stylesheet.
+
+### P2. Snapshot and custom-font readiness — `files/src/ts/personalSettings/cssToggles.ts`, `cssToggleRuntime.ts`
+
+- `cssSnapshot(db, safeMode, ready: { chat: string | null; ui: string | null })`.
+  - `gates` include `chat.font`, `chat.fontEnabled`, `ui.font`, `ui.fontEnabled`.
+  - `tokens` drop `<target>-font-custom` until `custom:${ready[target]}` equals that target's font.
+  - `customFontId?: string` becomes `customFontIds: { chat?: string; ui?: string }`.
+- Both callers (`cssToggleRuntime.ts:63`, `appearanceEditor.ts:22`) read `data-personal-chat-font-ready` and `data-personal-ui-font-ready` from `documentElement`.
+
+### P3. Custom font runtime — `files/src/ts/personalSettings/customFontRuntime.ts`
+
+- `new CustomFontRuntime(doc, target?: PersonalFontTarget)`. Preview instances omit `target`; `activate` throws without one.
+- `activate` / `release` write and clear `--personal-<target>-custom-font-family` and `data-personal-<target>-font-ready` instead of the single global names.
+- The `preparedFaces` / `faceOwners` pools are unchanged: when both targets use the same user font, each runtime claims the same loaded `FontFace`, and releasing one target keeps the face registered for the other.
+
+### P4. Font editor orchestration — `files/src/ts/personalSettings/appearanceEditor.ts`, `customFonts.ts`
+
+- `fontRuntime(doc, target)`: one owner per document and target.
+- `fontEditBase()` / `commitFont` expected value: `{ fonts, chat: { font, fontEnabled }, ui: { font, fontEnabled } }` from raw appearance, so concurrent changes to either target are detected.
+- `syncCustomFont()`: runs the existing per-selection logic once per target with independent generation and key. A target loads its user font only when that target is enabled and its font is `custom:<id>`. Status messages name the target (`채팅 폰트`, `UI 폰트`).
+- `selectFont(target, value, base)`: replaces `selectCustomFont` and the built-in branch of `choose`. Writes `<target>.font`; for a custom font on an enabled target it pre-loads the face before commit and activates it after save (existing flash-free path).
+- `setFontEnabled(target, enabled, base)`: writes through `setPersonalFontEnabled`; when enabling a target whose font is custom, it uses the same pre-load/activate path. Disabling releases that target's face after save.
+- `trialAppearanceActivation()`: prepares the enabled custom font of each target before the trial and releases both on failure.
+- `writeFontEntry(db, undefined, id)` (`customFonts.ts`): every target whose font is `custom:<id>` is reset to `galmuri14`; `fontEnabled` is kept. The `reset` action in the manager does the same for all custom assignments.
+
+### P5. Runtime wiring and CSS — `editor-files/src/ts/personalSettings/appearance.ts`, `editor-files/src/styles/personal-appearance.css`
+
+- `syncPersonalAppearance` drops the stylesheet loader call. `PersonalAppearanceRuntime.svelte` is unchanged (it already calls `syncPersonalAppearance` and `syncCustomFont`).
+- CSS removals: the Noto `@import`; rules for `chat-font-noto-*`, `ibm-plex-sans-kr`, `gowun-*`, `hahmlet`; the old `chat-font-custom` rule on `--personal-custom-font-family`.
+- CSS additions:
+
+  ```css
+  html[data-pocketrisu-css~="chat-font-galmuri14"] { --personal-chat-font-family: "Galmuri14", sans-serif; }
+  html[data-pocketrisu-css~="chat-font-custom"] { --personal-chat-font-family: var(--personal-chat-custom-font-family, sans-serif); }
+  html[data-pocketrisu-css~="ui-font-paperlogy"] { --personal-ui-font-family: "Paperlogy", sans-serif; }
+  html[data-pocketrisu-css~="ui-font-galmuri14"] { --personal-ui-font-family: "Galmuri14", sans-serif; }
+  html[data-pocketrisu-css~="ui-font-custom"] { --personal-ui-font-family: var(--personal-ui-custom-font-family, sans-serif); }
+  html[data-pocketrisu-css*="ui-font-"] { --risu-font-family: var(--personal-ui-font-family) !important; }
+  ```
+
+  The native app sets `--risu-font-family` as a non-important inline declaration on `:root`; an important author declaration wins over it. With the chat toggle off, `.chattext` keeps using `var(--risu-font-family)` and therefore the UI font.
+- The Galmuri14 `@font-face` comment is rewritten to describe it as a built-in choice.
+- Preview sample: `.personal-font-preview__sample` and its descendants use `var(--personal-preview-font-family)` set inline by the preview block, replacing the rule tied to `chat-font-*`. Descendants need the explicit rule because `* { font-family: var(--risu-font-family) }` would otherwise override inheritance.
+- Code-block monospace and the `.chattext` override keep their selectors.
+
+### P6. Settings UI — `files/.../CustomFontManager.svelte`, `FontNamePreview.svelte`, `editor-files/.../AppearanceSettings.svelte`
+
+`CustomFontManager.svelte`:
+
+- `builtins = [['paperlogy', 'Paperlogy'], ['galmuri14', 'Galmuri14']]`.
+- State `target: PersonalFontTarget = 'chat'` (view state only, not persisted).
+- Summary: `폰트 목록 · 채팅 {chat name} · UI {UI name}`; an unresolvable custom id shows `Galmuri14`, matching normalization.
+- Expanded content order: preview block → target switch → rows.
+  - Preview block: separate border (`border-darkborderc`, inner padding), `text-sm`, sample with the existing `lang` spans, font = the assigned font of `target`. Custom fonts load through a preview-only `CustomFontRuntime` like `FontNamePreview`.
+  - Target switch: two buttons with `aria-pressed`, min 44px height.
+  - Rows: tap assigns to `target` via `selectFont`. The ✓ mark shows the assignment of `target`; small `채팅` / `UI` badges show both assignments. User-font actions unchanged.
+- Toggle row after `</details>`: two `CheckInput`-style switches on one line (`flex`, each `flex-1`, wrapping only below 320px), labels `채팅 폰트 적용` / `UI 폰트 적용`, calling `setFontEnabled`. Each carries `data-setting-id` for search.
+- Add form:
+  - Inputs stay enabled after a preview so a different file or URL can be tried; only `pending` disables them.
+  - File input: `on:change` → `preview()`; bordered (`border border-darkborderc rounded p-2 w-full min-h-[44px]`).
+  - URL input: `preview()` on blur or Enter (form submit), not on each keystroke.
+  - `preview()` no longer requires a name. `적용` requires a non-empty name within `FONT_LIMITS.name` and a ready candidate, then calls `persistImportedFont`; it never assigns the font to a target.
+  - Candidate preview text: `text-sm`. Buttons: `적용`, `취소`.
+  - Removal confirm text: `선택 중인 폰트라면 Galmuri14로 변경됩니다.`
+
+`FontNamePreview.svelte`: drop the `app` early return and the stylesheet loader; built-ins resolve through `getPersonalFontFamily` and `document.fonts.load`.
+
+`AppearanceSettings.svelte` (editor-files): remove `FontLoadStatus`, the status effect, the built-in preview `<section>` and their imports. The intro paragraph describes both targets: chat font changes message-body base text; UI font changes the rest of the app; theme-specified fonts are kept.
+
+### P7. Settings data and strings — `files/src/ts/setting/personalAppearanceSettingsData.ts`, `units.cjs`
+
+- Replace the `personal.appearance.chatFont` select with two `check` items, `personal.appearance.chatFontEnabled` and `personal.appearance.uiFontEnabled`, bound through `setPersonalFontEnabled`. Keywords: `font`, `폰트`, `paperlogy`, `페이퍼로지`, `galmuri`, `갈무리`, plus `채팅 폰트` / `UI 폰트`.
+- The font list section keeps `data-setting-id="personal.appearance.chatFont"` renamed to `personal.appearance.fonts`; the search test in `units.cjs` moves to the new ids.
+- Language (en/ko) via `units.cjs`: remove `personalAppearanceChatFont`, `personalAppearanceOptionAppFont`, `personalAppearanceOptionNotoSansKr`, `personalAppearanceOptionNotoSerifKr`, `personalAppearanceFontPreview`, `personalAppearanceFontStatus*`; add `personalAppearanceChatFontEnabled`, `personalAppearanceUiFontEnabled` and matching help entries (UI font = every element except message bodies).
+
+### P8. Tests and verification scripts
+
+- `files/src/ts/personalSettings/appearance.test.ts` (effective `appearanceValues` behaviour): normalization table above, legacy `app`/removed values, toggle write pairing, token emission per target, master/Safe Mode suppression, rejection of `app` writes.
+- `cssToggleRuntime.test.ts`: per-target custom readiness filtering; both targets custom; same custom font on both targets.
+- `customFontRuntime.test.ts`: target-specific variables/attributes; shared face survives release of one target.
+- `customFonts.test.ts`: deletion resets both assigned targets to `galmuri14` and keeps `fontEnabled`.
+- `appearanceNotices.test.ts`: update the `미리보기 준비 완료` message if the notice text changes.
+- `test/personal-settings.test.cjs`: update assertions that read effective copies (select options, `!== 'app'`, Noto import, token rules, help strings) and add assertions for the new CSS rules and strings. Assertions that read the legacy `files/` anchors stay unchanged.
+- `scripts/verify-personal-css.cjs`: legacy-module expectations stay; effective-module expectations follow P1.
+- `test/fixtures/personal-appearance-v022.json`: historical, unchanged.
+
+### P9. Docs, version, installer
+
+- `README.md` font sections and the feature table; `THIRD_PARTY_NOTICES.md` keeps Paperlogy and Galmuri14 and drops Noto, IBM Plex, Gowun and Hahmlet (no longer loaded); `CHANGELOG.md` `0.2.4-experimental.5`; `package.json` version.
+- Rebuild `dist/pocketrisu-patcher.cjs` with `npm run build`; check that a second build is byte-identical.
+
+## 5. Commits
+
+On branch `feat/personal-font-targets` from `origin/main` `d2bca03`. Other worktrees, including the BG worktrees, are not touched. Each commit keeps the patcher test suite green.
+
+1. `feat(personal-settings): store chat and UI font targets` — P1, P2, P4 data parts, `customFonts.ts`, `cssToggleDefinitions.ts` + P8 unit tests.
+2. `feat(personal-settings): apply per-target fonts at runtime` — P3, P4 runtime parts, P5 + tests.
+3. `refactor(personal-settings): reduce built-in fonts to Paperlogy and Galmuri14` — remaining removals in P1/P5/P7 + `test/personal-settings.test.cjs`.
+4. `feat(personal-settings): rework the font list and add flow` — P6, P7 strings and search items.
+5. `docs: document font targets for 0.2.4-experimental.5` — P9 docs and version.
+6. `build(patcher): generate font-target candidate 0.2.4-experimental.5` — P9 installer.
+
+If commits 1 and 2 cannot be separated without a broken intermediate state (P1 token changes require P5 CSS), they are merged into one commit and the reason is recorded in the commit body.
 
 ## 6. Verification
 
-- Patcher unit and integration tests; complete graph plan; apply/revert round trip on an exact 1.10.0 tree; installer reproducibility.
-- PocketRisu side on the applied tree: type check, focused vitest for the touched modules, production build.
-- L3 structural audit and L4 runtime audit over the diff (font targets, migration, custom font lifecycle with two targets, delete-while-assigned).
-- L5 on iPhone (scenarios written at L5 time): toggles on/off per target, different fonts per target, user font add via file and URL with immediate preview, delete of an assigned font, Galmuri14 default, native Display font when UI toggle is off.
+Per commit: `npm test` in the patcher worktree.
 
+Candidate (after commit 6):
+
+1. Patcher: full `npm test`; complete graph plan; apply to a scratch exact `v1.10.0` checkout outside the project tree; zero-change reapply; exact byte/mode revert; second installer build identical.
+2. Applied tree: Svelte diagnostics, the Personal settings vitest suite (`src/ts/personalSettings`), production build.
+3. Browser on the applied tree with isolated storage at 320px and 390px:
+   - chat on / UI off, chat off / UI on, both on with different fonts, both on with the same user font;
+   - computed `font-family` of a message body, a button, the composer and the settings page for each case;
+   - native Display font returns when the UI toggle is off;
+   - user font add by file and by URL with immediate preview, `적용` adds without assigning, `취소` leaves no face registered;
+   - delete of a font assigned to both targets;
+   - legacy data seeds: `chat.font` = `app`, `noto-sans-kr`, `custom:<id>`, no `ui` group;
+   - Safe Mode and master switch off remove all font tokens.
+4. L3 structural audit and L4 runtime audit over the diff, with the report kept outside the repository.
+5. L5 on iPhone with concrete finger scenarios written at that point.
+
+Physical iPhone rendering and CDN availability of the two built-in fonts are not covered by steps 1–4.
 ## 7. Delivery boundary
 
 - Commits proceed with the implementation.
@@ -110,6 +223,6 @@ Each step is a separate commit on branch `feat/personal-font-targets`, branched 
 
 ## 8. Decisions
 
-- D1: the UI target is stored in a new `ui` group (§4.1).
+- D1: the UI target is stored in a new `ui` group (P1).
 - D2: the default assignment is `Galmuri14` for both the chat and the UI target.
 - D3: the native Display → Custom `Galmuri14` entry is unchanged. With the UI toggle on it is overridden; with the UI toggle off it remains the app font.
