@@ -1,6 +1,6 @@
 # PocketRisu Personal Font Targets Plan
 
-Status: plan approved; implementation not started. No code, installer or live state has been changed.
+Status: implemented as candidate `0.2.4-experimental.5` (feature `35ef255`, installer `48f53b5`); automated gates passed, iPhone L5 pending. Not pushed or applied live. See §9 for deviations and observed validation.
 Base: patcher `origin/main` `d2bca03` (`package.json` `0.2.4-experimental.4`, `version.json` stable `0.2.3`).
 Candidate: `0.2.4-experimental.5`.
 
@@ -226,3 +226,31 @@ Physical iPhone rendering and CDN availability of the two built-in fonts are not
 - D1: the UI target is stored in a new `ui` group (P1).
 - D2: the default assignment is `Galmuri14` for both the chat and the UI target.
 - D3: the native Display → Custom `Galmuri14` entry is unchanged. With the UI toggle on it is overridden; with the UI toggle off it remains the app font.
+
+## 9. Implementation record
+
+### 9.1 Deviations from §4–§5
+
+- Compatibility rollback. `scripts/rollback-personal-css-ui.cjs` removes the editor units and keeps the legacy `files/` copies, so those copies must keep working. Consequences:
+  - `personalAppearanceSettingsData.ts` and `appearance.test.ts` are not edited in `files/`; the editor overlay replaces them with `editor-files/` copies (`personal-settings:editor-replace-appearance-settings-data-1.9`, `…-appearance-logic-tests-1.9`). The two former partial replace units for `appearance.test.ts` are folded into the editor copy.
+  - The search test hit moves to `personal.appearance.chatFontEnabled` through `personal-settings:editor-replace-appearance-search-font-hit`.
+  - Legacy language keys (`personalAppearanceChatFont`, option and font-status keys) are kept; only the two toggle keys and their help entries are added. P7's key removal is not done.
+- Commits. Data, runtime and UI depend on each other (removed exports, snapshot shape), so §5 commits 1–4 are one feature commit. README is not edited for an experimental candidate, following the existing release pattern; it is updated at the next stable release.
+- Custom-font load status is kept per target (`customFontLoadStatus` is a record); the load-error notice lists only enabled targets with a user font.
+- A custom assignment whose entry no longer exists shows `저장된 폰트를 찾을 수 없음` in the summary instead of `Galmuri14`, because the stored value stays `custom:<id>` and the runtime then shows the fallback font, not Galmuri14.
+
+### 9.2 Observed validation (2026-10-04 KST)
+
+- Patcher `npm test`: 327/327.
+- Scratch exact PocketRisu `v1.10.0`, complete graph applied (42 packs, 992 units, 6 collisions): vitest `src/ts/personalSettings` + `searchIndex.test.ts` 12 files / 121 tests; svelte-check 0 errors / 0 warnings (6,009 files); production build 7,994 modules.
+- Zero-change re-plan; exact revert restored every file's bytes and mode (four empty directories remain). Compatibility rollback applied: vitest 4 files / 28 tests, svelte-check 0 / 0 (5,963 files).
+- Installer: two builds identical, 4,651,205 bytes, mode 0755, SHA-256 `08506ff8e14ab069ce6bd727b1e4bfeb991509d7a87cd32b80331c1c7772300f`; applying it gives the same tree as the source CLI.
+- Headless Chromium against the scratch server (loopback only, fresh data), 390px:
+  - UI on → UI and message body Galmuri14; chat on with Paperlogy → body Paperlogy, UI Galmuri14; UI off → UI returns to the Display font value (`Arial, sans-serif`), body keeps the chat font; state kept after reload.
+  - Panel order preview → target switch → rows; preview 14px and follows the selected target; summary shows both assignments.
+  - File picker bordered, 44px high; picking a TTF shows a 14px preview immediately; `적용` stays disabled until the preview is ready and requires a name; after `적용` the assignments are unchanged.
+  - One user font on UI, then also on chat: both ready attributes set, one family; badges `채팅`, `UI`; deleting it returns both targets to Galmuri14 and clears both attributes.
+  - URL source: no request while typing, one request on blur, CORS/network notice shown.
+  - 320px and 390px: the two apply switches share one row at 44px height; no horizontal page overflow.
+- Environment limitation: on a fresh empty scratch database every `/api/patch` after the first full write returned 409 with client `expectedHash=0`; the same sequence reproduced with the `origin/main` installer. The browser flows above used a scratch-only server edit that accepts `expectedHash === '0'`. The product server is unchanged.
+- Not covered: physical iPhone rendering, Safe Mode toggling in the browser, CDN availability of the two built-in fonts, and an older installer reading the new data.
