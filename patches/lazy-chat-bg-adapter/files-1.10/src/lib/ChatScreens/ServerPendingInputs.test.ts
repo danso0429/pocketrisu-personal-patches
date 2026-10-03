@@ -4,6 +4,9 @@ import { afterEach, describe, expect, it, vi } from 'vitest'
 import { mount, unmount } from 'svelte'
 import ServerPendingInputs from './ServerPendingInputs.svelte'
 import { reconcileServerPendingInputCommands } from 'src/ts/bgOrchestrate'
+import { readServerChatActivity } from 'src/ts/bgChatActivity'
+
+vi.mock('src/ts/bgChatActivity', () => ({ readServerChatActivity: vi.fn(async () => false) }))
 
 vi.mock('src/ts/bgOrchestrate', () => ({
     hasServerOwnedInputMarker: () => false,
@@ -21,18 +24,27 @@ afterEach(async () => {
     vi.restoreAllMocks()
 })
 
-function render(onRetryBlocked: (input: any) => Promise<void>) {
+function render(onRetryBlocked: (input: any) => Promise<void>, onActivity?: (activity: any) => void) {
     const target = document.createElement('div')
     document.body.appendChild(target)
     const component = mount(ServerPendingInputs, {
         target,
-        props: { charId: 'char-1', chatId: 'chat-1', chat: { id: 'chat-1' }, onRetryBlocked },
+        props: { charId: 'char-1', chatId: 'chat-1', chat: { id: 'chat-1' }, onRetryBlocked, onActivity },
     })
     mounted.push({ component, target })
     return target
 }
 
 describe('blocked server input recovery control', () => {
+    it('reports server activity without a local marker and fails closed when refresh fails', async () => {
+        vi.mocked(reconcileServerPendingInputCommands).mockResolvedValue([])
+        vi.mocked(readServerChatActivity).mockResolvedValueOnce(true).mockRejectedValueOnce(new Error('offline'))
+        const onActivity = vi.fn()
+        render(vi.fn(async () => {}), onActivity)
+        await vi.waitFor(() => expect(onActivity).toHaveBeenLastCalledWith({ charId: 'char-1', chatId: 'chat-1', busy: true }))
+        window.dispatchEvent(new Event('bg-server-input-updated'))
+        await vi.waitFor(() => expect(onActivity).toHaveBeenLastCalledWith({ charId: 'char-1', chatId: 'chat-1', busy: null }))
+    })
     it('shows the exact blocked text and invokes only the explicit retry button', async () => {
         const blocked = {
             operationId: 'operation-blocked-1', admissionSeq: 2,

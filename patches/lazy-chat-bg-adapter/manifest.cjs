@@ -20,11 +20,12 @@ const bgGlobalApiUnits = [
 const externalHeaderBridgeUnits = require('./external-header-units.cjs')
 const requestPolicyUnits = require('./request-policy-units.cjs')
 const inputExecutionUnits = require('./input-execution-units.cjs')
+const queueUnits = require('./queue-units.cjs')
 
 module.exports = {
     id: 'lazy-chat-bg-adapter',
     title: 'BG preserve integration for lazy chat storage',
-    version: '0.7.24',
+    version: '0.7.25',
     targets: {
         pocketrisu: {
             verified: ['1.10.0'],
@@ -3923,3 +3924,14 @@ module.exports.units.push({
 module.exports.units.push(...inputExecutionUnits(module.exports.units))
 module.exports.units.push(...require('./native-admission-units.cjs')(module.exports.units))
 module.exports.units.push(...require('./client-input-recovery-units.cjs')(module.exports.units))
+const queueUiOwners = [
+    ...require('../personal-settings/manifest.cjs').units,
+    ...require('../haejeok-persistence-safety-adapter/manifest.cjs').units,
+    ...require('../kei-chat-render-bg-adapter/manifest.cjs').units,
+    ...require('../kei-partial-edit-bg-adapter/manifest.cjs').units,
+]
+module.exports.units.push(...queueUnits.map((unit, index) => ({
+    ...unit,
+    after: [...module.exports.units, ...queueUiOwners, ...queueUnits.slice(0, index)]
+        .filter(prior => prior.file === unit.file).map(prior => prior.id),
+})))

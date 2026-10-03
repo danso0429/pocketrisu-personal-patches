@@ -1,12 +1,14 @@
 <script lang="ts">
     import { hasServerOwnedInputMarker, reconcileServerPendingInputCommands } from 'src/ts/bgOrchestrate'
     import type { ServerPendingInput } from 'src/ts/bgServerPendingProjection'
+    import { readServerChatActivity, type ChatActivity } from 'src/ts/bgChatActivity'
 
-    let { charId, chatId, chat, onRetryBlocked }: {
+    let { charId, chatId, chat, onRetryBlocked, onActivity }: {
         charId: string
         chatId: string
         chat: unknown
         onRetryBlocked?: (input: ServerPendingInput) => Promise<void>
+        onActivity?: (activity: ChatActivity) => void
     } = $props()
 
     let pending = $state<ServerPendingInput[]>([])
@@ -48,6 +50,8 @@
         const currentCharId = charId
         const currentChatId = chatId
         const currentChat = chat
+        const report = onActivity
+        report?.({ charId: currentCharId, chatId: currentChatId, busy: null })
         if (!currentCharId || !currentChatId || !currentChat) {
             pending = []
             unavailable = false
@@ -61,23 +65,28 @@
             inFlight = true
             if (timer) { clearTimeout(timer); timer = null }
             try {
-                const result = await reconcileServerPendingInputCommands(
-                    currentCharId, currentChatId, currentChat,
-                )
+                const [result, busy] = await Promise.all([
+                    reconcileServerPendingInputCommands(currentCharId, currentChatId, currentChat),
+                    readServerChatActivity(currentCharId, currentChatId),
+                ])
                 if (!disposed) {
                     pending = result
                     unavailable = false
+                    report?.({ charId: currentCharId, chatId: currentChatId, busy })
                 }
             } catch {
-                if (!disposed) unavailable = true
+                if (!disposed) {
+                    unavailable = true
+                    report?.({ charId: currentCharId, chatId: currentChatId, busy: null })
+                }
             } finally {
                 inFlight = false
                 const activePending = pending.some(input => (
                     input.state !== 'blocked_edit' && input.state !== 'execution_unknown'
                 ))
-                if (!disposed && (activePending || (pending.length === 0
-                    && hasServerOwnedInputMarker(currentCharId, currentChatId)))) {
-                    timer = setTimeout(refresh, 2000)
+                if (!disposed && document.visibilityState === 'visible') {
+                    const active = activePending || hasServerOwnedInputMarker(currentCharId, currentChatId)
+                    timer = setTimeout(refresh, active ? 2000 : 5000)
                 }
             }
         }

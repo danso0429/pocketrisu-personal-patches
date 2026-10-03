@@ -32,6 +32,7 @@ afterEach(async () => {
 })
 
 function routeHarness() {
+    const activity = { busy: false, unavailable: false }
     const operationId = 'operation-c2-route-1'
     const receipt = {
         contractVersion: 'bg_server_chat_commit.v1',
@@ -67,6 +68,7 @@ function routeHarness() {
         kvList: (prefix: string) => [...values.keys()].filter(key => key.startsWith(prefix)),
         kvGetUpdatedAt: () => Date.now(),
         orchestrationRuns: {
+            hasChatRun: () => false,
             get: () => null,
             status: () => null,
             cancel: () => { cancelCalls += 1; return { cancelled: false, run: null } },
@@ -82,6 +84,12 @@ function routeHarness() {
             readGenerationCommit: (candidate: string) => candidate === operationId
                 ? { status: 'committed', receipt }
                 : { status: 'missing', receipt: null },
+        },
+        serverChatInputOwner: {
+            hasPendingGeneration: () => {
+                if (activity.unavailable) throw new Error('activity unavailable')
+                return activity.busy
+            },
         },
     })
     const invoke = (method: string, route: string, request: Record<string, unknown>) => {
@@ -110,7 +118,7 @@ function routeHarness() {
         await handler(request, response)
         return result
     }
-    return { operationId, receipt, invoke, invokeAsync, cancelCalls: () => cancelCalls }
+    return { operationId, receipt, invoke, invokeAsync, activity, cancelCalls: () => cancelCalls }
 }
 
 function queuedRetryHarness(
@@ -621,6 +629,34 @@ async function startHTTPBridge(harness: ReturnType<typeof detachedCommitHarness>
 }
 
 describe('server chat commit route precedence', () => {
+    it('reports busy and unavailable activity without needing a local input marker', () => {
+        const h = routeHarness()
+        const request = { params: { charId: 'char-1', chatId: 'chat-1' } }
+        expect(h.invoke('get', '/api/bg-chat-activity/:charId/:chatId', request)).toMatchObject({
+            status: 200, body: { charId: 'char-1', chatId: 'chat-1', busy: false },
+        })
+        h.activity.busy = true
+        expect(h.invoke('get', '/api/bg-chat-activity/:charId/:chatId', request).body.busy).toBe(true)
+        h.activity.unavailable = true
+        expect(h.invoke('get', '/api/bg-chat-activity/:charId/:chatId', request).status).toBe(503)
+        expect(h.invoke('get', '/api/bg-chat-activity/:charId/:chatId', {
+            params: { charId: '', chatId: 'chat-1' },
+        }).status).toBe(400)
+    })
+
+    it('rejects an old whole-pipeline start before registry insertion when raw input is active', async () => {
+        const h = routeHarness()
+        h.activity.busy = true
+        const result = await h.invokeAsync('post', '/api/bg-orchestrate', { body: {
+            selectedCharId: 'char-1', selectedChatId: 'chat-1',
+            currentChat: { id: 'chat-1', message: [] }, chatProcessIndex: -1,
+            detached: true, startAckVersion: 1, resultKeyVersion: 1,
+            operationId: 'operation-legacy-busy-rejected',
+        } })
+        expect(result).toMatchObject({ status: 409, body: {
+            handled: false, started: false, reason: 'chat-generation-active',
+        } })
+    })
     it('finishes a rejected post-attachment assembly without provider work or input replay', async () => {
         const harness = detachedCommitHarness({ rejectAttachedAssembly: true })
         await harness.startInput()
@@ -1220,8 +1256,8 @@ describe('server chat commit route precedence', () => {
             query,
         })
         expect(cancel).toMatchObject({
-            status: 409,
-            body: { cancelled: false, reason: 'already-committed' },
+            status: 200,
+            body: { cancelled: false, finished: true, state: 'chat-committed', reason: 'already-committed' },
         })
         expect(harness.cancelCalls()).toBe(0)
 

@@ -685,4 +685,40 @@ describe('foreground watch of finished server operations', () => {
         await vi.advanceTimersByTimeAsync(30_000)
         expect(count(isResultPeek)).toBe(1)
     })
+
+    it('does not fall back to paid client work after authoritative same-chat rejection', async () => {
+        serve(() => undefined)
+        const previous = h.route
+        h.route = async (method, url, body) => {
+            if (method === 'POST' && url === '/api/bg-orchestrate') {
+                return { status: 409, body: { handled: false, started: false,
+                    operationId: body.operationId, reason: 'chat-generation-active' } }
+            }
+            return previous(method, url, body)
+        }
+        const module = await import('./bgOrchestrate')
+        expect((await module.runServerOrchestratedChat(0, {})).handled).toBe(true)
+        await vi.advanceTimersByTimeAsync(10_000)
+        expect(h.sendChat).not.toHaveBeenCalled()
+        expect(markers()).toEqual([])
+        expect(h.warnings).toHaveLength(1)
+        expect(h.warnings[0]).toContain('추가 생성을 시작하지 않았')
+        expect(count(isResultPeek)).toBe(0)
+    })
+
+    it('reconciles an already-finished cancellation response through the normal result ACK', async () => {
+        serve((operationId, method, url) => {
+            if (isResultPeek(method, url)) return { status: 200, body: terminalError(operationId) }
+            if (isResultAck(method, url)) return { status: 200, body: { acked: true, state: 'deleted' } }
+            if (method === 'DELETE' && url.startsWith('/api/bg-orchestrate/')) {
+                return { status: 200, body: { cancelled: false, finished: true, operationId, state: 'result-ready' } }
+            }
+        })
+        const module = await startForeground()
+        await expect(module.cancelServerOrchestratedChat()).resolves.toBe(false)
+        expect(count(isResultAck)).toBe(1)
+        expect(markers()).toEqual([])
+        expect(h.alerts.some(message => message.includes('취소 대상을'))).toBe(false)
+        expect(h.sendChat).not.toHaveBeenCalled()
+    })
 })

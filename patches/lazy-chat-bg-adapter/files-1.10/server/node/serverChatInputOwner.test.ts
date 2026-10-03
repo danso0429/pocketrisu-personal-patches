@@ -92,6 +92,7 @@ function makeHarness() {
         fullStore: new Map([['char-1', new Map([['chat-1', baseChat()]])]]),
         schedules: 0,
         cacheFailures: 0,
+        externalGeneration: false,
         ensureCanonicalHook: null as null | (() => void | Promise<void>),
     }
     let queue = Promise.resolve<unknown>(undefined)
@@ -132,6 +133,7 @@ function makeHarness() {
         },
         scheduleChatStorePersist: () => { runtime.schedules += 1 },
         encodeSettingsSnapshot: encodeRisuSaveLegacy,
+        isExternalGenerationActive: () => runtime.externalGeneration,
     })
     const transformed = (operationId: string, rawText = 'hello', sourceChat = baseChat()) => ({
         chat: {
@@ -172,6 +174,36 @@ function makeHarness() {
 }
 
 describe('pre-canonical server chat input owner', () => {
+    it('uses canonical publication evidence if the completed-input publication marker was not written', async () => {
+        const h = makeHarness(), owner = h.makeOwner()
+        const operationId = 'operation-published-marker-missing'
+        await owner.admit(admission(operationId))
+        await owner.beginTransform(operationId)
+        await owner.attachTransformed(operationId, h.transformed(operationId))
+        const chat = h.runtime.fullStore.get('char-1')!.get('chat-1')
+        const final = { ...chat, message: [...chat.message, { role: 'char', data: 'answer', chatId: 'answer-marker-missing' }] }
+        expect(owner.settleSynchronously(operationId, 'completed', revision(final))).toBe(true)
+        expect(owner.hasPendingGeneration('char-1', 'chat-1')).toBe(true)
+        h.runtime.fullStore.get('char-1')!.set('chat-1', final)
+        expect(owner.read(operationId).terminal.publication).toBe('pending')
+        expect(owner.hasPendingGeneration('char-1', 'chat-1')).toBe(false)
+    })
+    it('checks external generation inside admission after canonical-state awaits', async () => {
+        const h = makeHarness(), owner = h.makeOwner()
+        h.runtime.ensureCanonicalHook = () => { h.runtime.externalGeneration = true }
+        expect(await owner.admit(admission('operation-busy-main'))).toMatchObject({
+            status: 'conflict', reason: 'chat_generation_active',
+        })
+        expect(owner.read('operation-busy-main')).toBeNull()
+        h.runtime.ensureCanonicalHook = null
+        h.runtime.externalGeneration = false
+        expect((await owner.admit(admission('operation-busy-main'))).status).toBe('admitted')
+        expect(owner.hasPendingGeneration('char-1', 'chat-1')).toBe(true)
+        expect(owner.hasPendingGeneration(null, 'chat-1')).toBe(true)
+        expect(owner.hasPendingGeneration('char-2', 'chat-1')).toBe(false)
+        owner.settleSynchronously('operation-busy-main', 'cancelled')
+        expect(owner.hasPendingGeneration('char-1', 'chat-1')).toBe(false)
+    })
     async function clientRecovery(h: ReturnType<typeof makeHarness>, owner: any, id = 'operation-manual-client') {
         const original = id + '-original'
         await owner.admit(admission(original, 'preserved original'))
