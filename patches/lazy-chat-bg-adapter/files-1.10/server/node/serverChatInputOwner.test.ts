@@ -8,6 +8,7 @@ import inputPackage from './serverChatInputOwner.cjs'
 import journalPackage from './chatWriteJournal.cjs'
 import operationPackage from './bgOrchestrationOperationStore.cjs'
 import utilsPackage from './utils.cjs'
+import notificationPackage from './bgNotifications.cjs'
 
 const {
     SERVER_CHAT_INPUT_COMMAND_PREFIX,
@@ -93,6 +94,7 @@ function makeHarness() {
         schedules: 0,
         cacheFailures: 0,
         externalGeneration: false,
+        notificationPublisher: null as null | ((event: any) => any),
         ensureCanonicalHook: null as null | (() => void | Promise<void>),
     }
     let queue = Promise.resolve<unknown>(undefined)
@@ -134,6 +136,7 @@ function makeHarness() {
         scheduleChatStorePersist: () => { runtime.schedules += 1 },
         encodeSettingsSnapshot: encodeRisuSaveLegacy,
         isExternalGenerationActive: () => runtime.externalGeneration,
+        ...(runtime.notificationPublisher ? { publishNotification: runtime.notificationPublisher } : {}),
     })
     const transformed = (operationId: string, rawText = 'hello', sourceChat = baseChat()) => ({
         chat: {
@@ -174,6 +177,62 @@ function makeHarness() {
 }
 
 describe('pre-canonical server chat input owner', () => {
+    it('atomically rolls back a dispatched notice if its source receipt cannot be written, without undoing the stop', async () => {
+        const h = makeHarness()
+        const notifications = (notificationPackage as any).createBgNotifications({ db: h.db,
+            kvGet: h.kvGet, kvSet: h.kvSet, kvDel: h.kvDel, kvList: h.kvList })
+        h.runtime.notificationPublisher = event => notifications.publish(event)
+        const owner = h.makeOwner(), id = 'operation-notification-receipt-failure'
+        await owner.admit(admission(id)); await owner.beginTransform(id)
+        h.failWriteAt(3)
+        expect(owner.stopUnsupportedInputSynchronously(id, 'interactive_ui')).toBe(true)
+        expect(owner.pendingProjection('char-1', 'chat-1')[0].retryAllowed).toBe(true)
+        expect(h.kvList((notificationPackage as any).PREFIX)).toEqual([])
+        expect(owner.read(id).terminal.notificationSettled).toBeUndefined()
+        h.failWriteAt(0)
+        owner.retryNotifications()
+        expect(h.kvList((notificationPackage as any).PREFIX)).toHaveLength(1)
+        expect(owner.read(id).terminal.notificationSettled).toBe('published')
+    })
+    it('preserves the retryable stop when notification publication fails, then retries without canonical access', async () => {
+        const h = makeHarness(), notices: any[] = []
+        let fail = true
+        h.runtime.notificationPublisher = event => {
+            if (fail) throw new Error('notification store unavailable')
+            notices.push(event); return { status: 'stored' }
+        }
+        const owner = h.makeOwner(), id = 'operation-notification-retry'
+        await owner.admit(admission(id)); await owner.beginTransform(id)
+        expect(owner.stopUnsupportedInputSynchronously(id, 'interactive_ui')).toBe(true)
+        expect(owner.pendingProjection('char-1', 'chat-1')[0]).toMatchObject({ retryAllowed: true,
+            reason: 'server_host_unsupported', rawText: 'hello' })
+        expect(owner.read(id).terminal.notificationSettled).toBeUndefined()
+        fail = false
+        h.runtime.ensureCanonicalHook = () => { throw new Error('canonical unavailable') }
+        const restarted = h.makeOwner()
+        restarted.retryNotifications(); restarted.retryNotifications()
+        expect(notices).toHaveLength(1)
+        expect(notices[0].createdAt).toBe(owner.read(id).terminal.at)
+        expect(restarted.read(id).terminal.notificationSettled).toBe('published')
+    })
+
+    it('does not backfill old stops or notify a failure that the user already resolved', async () => {
+        const h = makeHarness(), old = h.makeOwner(), oldId = 'operation-old-no-notice'
+        await old.admit(admission(oldId)); await old.beginTransform(oldId)
+        old.stopUnsupportedInputSynchronously(oldId, 'interactive_ui')
+        const notices: any[] = []
+        h.runtime.notificationPublisher = event => { notices.push(event); return { status: 'capacity' } }
+        const current = h.makeOwner()
+        current.retryNotifications()
+        expect(notices).toEqual([])
+        const id = 'operation-notice-resolved'
+        await current.admit({ ...admission(id), replaceBlockedOperationId: oldId, inputCommandId: `input-${oldId}` })
+        await current.beginTransform(id); current.stopUnsupportedInputSynchronously(id, 'interactive_ui')
+        expect(notices).toHaveLength(1)
+        await current.admit({ ...admission('operation-notice-replacement'), replaceBlockedOperationId: id, inputCommandId: `input-${oldId}` })
+        current.retryNotifications()
+        expect(notices).toHaveLength(1)
+    })
     it('uses canonical publication evidence if the completed-input publication marker was not written', async () => {
         const h = makeHarness(), owner = h.makeOwner()
         const operationId = 'operation-published-marker-missing'

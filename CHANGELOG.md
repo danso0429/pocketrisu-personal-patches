@@ -1,5 +1,13 @@
 # Changelog
 
+## 0.2.4-experimental.19 (BG candidate)
+
+- Persist notifications for newly unsupported raw server-input operations and deliver them through the existing upper toast on return, including home or another chat.
+- Preserve the primary stop, original text and manual recovery when notification dispatch fails. Retry durable intents independently of generation/result ACK and canonical hydration.
+- Add bounded leases, exact notification ACK and local receipt deduplication; retain malformed rows while continuing healthy delivery, with fixed 48-hour v1 expiry.
+- Keep current toast timing and unrelated dialogs. Use the existing UUID implementation in HTTP environments. Plugin permission/hook/provider writers remain unimplemented until G1.6.
+- See `docs/POCKETRISU-G1-8-NOTIFICATION-FOUNDATION-VALIDATION.md` for tests, enqueue-not-read limitations and delivery status.
+
 ## 0.2.4-experimental.18 (BG candidate)
 
 - Disable reroll, Continue Response and empty resend while server work is pending, including another tab with no local input markers; retain raw N+1 admission and drafts rejected by a full queue.

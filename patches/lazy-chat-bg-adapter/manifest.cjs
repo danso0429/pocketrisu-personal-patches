@@ -25,7 +25,7 @@ const queueUnits = require('./queue-units.cjs')
 module.exports = {
     id: 'lazy-chat-bg-adapter',
     title: 'BG preserve integration for lazy chat storage',
-    version: '0.7.25',
+    version: '0.7.26',
     targets: {
         pocketrisu: {
             verified: ['1.10.0'],
@@ -3935,3 +3935,4 @@ module.exports.units.push(...queueUnits.map((unit, index) => ({
     after: [...module.exports.units, ...queueUiOwners, ...queueUnits.slice(0, index)]
         .filter(prior => prior.file === unit.file).map(prior => prior.id),
 })))
+module.exports.units.push(...require('./notification-units.cjs')(module.exports.units))
