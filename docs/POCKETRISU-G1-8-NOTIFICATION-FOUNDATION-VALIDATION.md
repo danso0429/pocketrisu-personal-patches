@@ -1,6 +1,6 @@
 # G1.8 minimum notification foundation
 
-Candidate: `0.2.4-experimental.19`, adapter `0.7.26`, based on `c50e996`. Implementation and automatic qualification are complete; final review and delivery are recorded below when observed. This is the minimum foundation before the server plugin host, not completion of all G1.8 producers.
+Candidate: `0.2.4-experimental.19`, adapter `0.7.26`, implementation `fcbed6a`, based on `c50e996`. Implemented, pushed and delivered live on 2026-10-03 KST. This is the minimum foundation before the server plugin host, not completion of all G1.8 producers. Device/aggregate qualification remains separate.
 
 ## User result and scope
 
@@ -24,6 +24,8 @@ Only `input_host_unsupported` has a live producer in this unit. Permission-missi
 - There is no exactly-once human-observation guarantee. A crash between enqueue and receipt recording or a lease handoff can repeat a notice; enqueue followed by immediate app closure can go unread. Failed local storage weakens cross-reload deduplication but preserves same-page and server-ACK behavior.
 
 Payloads contain fixed codes, bounded identities/API names and, for future plugin notices, bounded plugin metadata. Arbitrary prompt text, raw input, provider error bodies and credentials are not copied into the outbox. Hook output rejection is distinct from external effects already performed; the notification protocol never claims those effects were rolled back. Provider failure is a different kind from a skipped hook or missing permission. Actual stream/after-hook execution ordering belongs to G1.6.
+
+For future writers, `plugin_permission_missing` denotes refusal before effects and requires `effectsMayHaveOccurred:false`. A denial encountered after effects must be treated as a hook/provider failure with the conservative effects flag, not mislabeled as a never-applied plugin. API fields use normalized identifiers; the actual host must qualify and map its RPC names when connected. These are contract requirements, not evidence that a plugin writer has been implemented.
 
 ## Executed evidence
 
@@ -73,4 +75,10 @@ Plan consultation changed notification failure isolation: dispatch failure canno
 
 Final consultation identified whole-store blockage by one malformed notification and coupling to another module's TTL. Corruption is now isolated without deletion, and the v1 TTL is fixed. The follow-up review found no additional correctness defect in that delta and retained the explicit normalization/ACK-corruption/observability limits above. The agent independently found and corrected the native-UUID secure-context dependency. Review did not substitute the executed tests.
 
-Final consultation, live readback and source commits will be recorded after completion. Preserve the previous verified full backup and create a new application/state plus targeted notification-namespace backup for the additive deployment. Do not delete old backups or data on code revert. Stable release remains gated on device/aggregate verification.
+Implementation `fcbed6a` was pushed before live application. Idle preflight found zero active requests, native model jobs, pending sends and input records, with 450 managed files matching their recorded hashes/modes. The existing full stopped backup was independently rechecked: 1,618 regular files, 3,139,942,428 compressed bytes, zero byte/size/mode mismatches, archive SHA-256 `f904c9ade4eaec48d7bbb4fc37cfeb33de27e41f38ccc6d9430a6e8c85471211`.
+
+This additive deployment used a new stopped application/patcher-state archive, 91,295,980 bytes and 1,610 verified files, plus a verified export of the empty notification namespace. It did not replace the existing full backup or imply that the old full backup represented current user data. No existing schema migration or notification backfill was run. Database bytes remained unchanged during source application and both builds.
+
+After restart, all 455 managed files matched, re-plan was empty, and 17 discovered served script assets matched local bytes. Root HTTP returned 200; all five databases passed `quick_check`; header settings were unchanged; PM2 was online with zero unstable restarts. Operation records remained 117 before/after, active/pending/input work remained zero, and notification rows remained zero. Two new error-log lines were the existing retained-journal and recovery-stall warnings. The installer rebuilt identically after commit.
+
+No user record or old backup was deleted, no live generation was cancelled and no paid provider was used for verification. Code revert leaves notification/input records intact; the prior owner compatibility test does not authorize a data rollback. No stable release or tag was created. Next implementation is G1.6 server plugin hosting; physical iPhone, actual plugin producer and broader G1.8/aggregate gates remain open.

@@ -10,6 +10,7 @@ the original input/recovery control when notification storage fails and suppress
 ordinary redelivery with leases and separate notification acknowledgements. The current
 toast rules remain; notification expiry is 48 hours and ACK means UI enqueue, not read.
 Plugin writers remain for G1.6. See the [G1.8 foundation record](docs/POCKETRISU-G1-8-NOTIFICATION-FOUNDATION-VALIDATION.md).
+It is delivered live; iPhone and aggregate qualification remain pending.
 
 The `0.2.4-experimental.18` checkpoint adds server-aware reroll, Continue Response
 and empty-resend controls while retaining the existing N+1 input queue. It excludes

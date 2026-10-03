@@ -7,6 +7,7 @@
 - Add bounded leases, exact notification ACK and local receipt deduplication; retain malformed rows while continuing healthy delivery, with fixed 48-hour v1 expiry.
 - Keep current toast timing and unrelated dialogs. Use the existing UUID implementation in HTTP environments. Plugin permission/hook/provider writers remain unimplemented until G1.6.
 - See `docs/POCKETRISU-G1-8-NOTIFICATION-FOUNDATION-VALIDATION.md` for tests, enqueue-not-read limitations and delivery status.
+- Delivered live after verified application/state/empty-namespace backup and independent verification of the retained full backup; 455 managed files, 17 served assets and five database checks passed. Device/aggregate qualification remains open.
 
 ## 0.2.4-experimental.18 (BG candidate)
 
