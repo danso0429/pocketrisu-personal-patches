@@ -1,6 +1,6 @@
 # PocketRisu Personal Font Targets Plan
 
-Status: implemented as candidate `0.2.4-experimental.5` (feature `35ef255`, installer `48f53b5`) and pushed to `main`. Live runs a local combination with the unmerged BG line for L5 (§9.3). iPhone L5 pending. See §9 for deviations and observed validation.
+Status: implemented as candidate `0.2.4-experimental.5` (feature `35ef255`, installer `48f53b5`) and pushed to `main`. Live runs a local combination with the unmerged BG line for L5 (§9.3). iPhone L5 passed on 2026-10-06 KST (§9.4). See §9 for deviations and observed validation.
 Base: patcher `origin/main` `d2bca03` (`package.json` `0.2.4-experimental.4`, `version.json` stable `0.2.3`).
 Candidate: `0.2.4-experimental.5`.
 
@@ -264,3 +264,7 @@ Live did not run `main`: it ran the unmerged BG line `codex/pocketrisu-g18-notif
 - Delivery: preflight PM2 active requests 0, 213 BG operation states all `delivered`/`cancelled`, result records 0; source, `dist` and patch state copied aside; PM2 stopped, combined installer applied, `pnpm build` (8,017 modules), BG bundle rebuilt with `sendChat=function` load check, PM2 started. Downtime about 56 seconds.
 - Readback: PM2 online, 0 unstable restarts; root HTTP 200; served main JS and CSS match the local build by SHA-256, and the CSS contains the `ui-font-` override; five SQLite databases `quick_check=ok`; re-plan 0. The only new error-log lines are the existing tokenizer fallback warning.
 - Until the BG line rebases onto `main`, a live delivery from a BG-only installer removes the font change. The BG line should rebase onto `main` (`41c9f0e` or later) before its next live delivery; the expected conflict is the Personal settings version line and its test assertion.
+
+### 9.4 iPhone L5 (2026-10-06 KST)
+
+The user reported all eight scenarios as passing on the live combination: initial state and the one-row switches; UI font on/off; panel order, preview and target switch; different chat and UI fonts with badges; chat switch off following the UI font; user font add with bordered picker, immediate preview, `적용` without assignment and `취소`; user font on both targets and deletion back to Galmuri14; persistence after a cold app restart.
