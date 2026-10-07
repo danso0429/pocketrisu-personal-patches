@@ -19,7 +19,7 @@
             return response.json()
         }
         const delivery = createBgNotificationDelivery({
-            claim: signal => request('claim', { consumerId }, signal),
+            claim: signal => request('claim', { consumerId, messageVersion: 2 }, signal),
             acknowledge: async (claims, signal) => { await request('ack', { consumerId, claims }, signal) },
             visible: () => document.visibilityState === 'visible',
             storage: {
@@ -34,8 +34,9 @@
                 const description = location + (notice.event.effectsMayHaveOccurred
                     ? ' — 이미 실행된 모델 호출이나 외부 작업은 되돌리지 않았어요.' : '')
                 // Do not clear an unrelated input/progress modal via notify* helpers.
-                toast.warning(message, { id: 'bg-notification-' + notice.id, description })
-                try { addLog({ level: 'warning', message, source: 'bg-notification' }) }
+                const level = notice.event.code === 'plugin_message' ? notice.event.level ?? 'info' : 'warning'
+                toast[level](message, { id: 'bg-notification-' + notice.id, description })
+                try { addLog({ level, message, source: 'bg-notification' }) }
                 catch { /* Logging failure must not turn an enqueued toast into another render. */ }
             },
         })

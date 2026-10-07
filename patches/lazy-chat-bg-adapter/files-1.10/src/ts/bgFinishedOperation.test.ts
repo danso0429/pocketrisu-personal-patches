@@ -98,6 +98,20 @@ describe('finished server failure classification', () => {
 })
 
 describe('finished server failure notice', () => {
+    it('explains a lost plugin execution context without inviting duplicate submission', () => {
+        const result = terminalError({ serverChatCommit: {
+            status: 'conflict', reason: 'plugin_execution_context_unavailable',
+        } })
+        expect(isFinishedServerFailure(result, 4)).toBe(true)
+        const notice = finishedServerFailureNotice(result)
+        expect(notice).toContain('입력은 서버에 보존')
+        expect(notice).toContain('채팅 반영은 복구 대기 중일 수')
+        expect(notice).toContain('플러그인 실행을 중복하지 않도록 자동 재시도를 멈췄')
+        expect(notice).toContain('이미 실행된 외부 작업은 되돌리지 않았')
+        expect(notice).not.toContain('다시 보내')
+        expect(notice).not.toContain('새로 보내')
+    })
+
     it.each([
         ['chat_deleted', '채팅이 삭제되어 생성을 시작하지 않았어요.'],
         ['unknown_suffix', '입력 뒤에 다른 메시지가 추가되어 생성을 시작하지 않았어요.'],
