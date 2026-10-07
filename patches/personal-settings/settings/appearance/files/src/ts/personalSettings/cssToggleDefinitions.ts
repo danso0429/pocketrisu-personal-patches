@@ -1,7 +1,7 @@
 import type { PersonalAppearanceFeature } from "./appearanceValues"
 
 export interface CssToggleDefinition {
-    id: Exclude<PersonalAppearanceFeature, "chat.font">
+    id: Exclude<PersonalAppearanceFeature, "chat.font" | "chat.fontEnabled" | "ui.font" | "ui.fontEnabled">
     token: string
     settingId: string
     revision: number

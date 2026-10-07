@@ -1,6 +1,6 @@
 import type { Database } from '../storage/database.svelte'
 import { cssToggleDefinitions } from './cssToggleDefinitions'
-import { readPersonalAppearance, resolvePersonalAppearanceTokens, setPersonalAppearanceValue } from './appearanceValues'
+import { readPersonalAppearance, resolvePersonalAppearanceTokens, setPersonalAppearanceValue, type PersonalFontTarget } from './appearanceValues'
 
 // Candidate limits; device admission is recorded separately from desktop measurements.
 export const CSS_LIMITS = Object.freeze({ count: 100, name: 256, description: 2048, item: 100_000, total: 1_000_000, warningCount: 50, warningItem: 50_000, warningTotal: 500_000, trialMs: 15_000 })
@@ -85,16 +85,28 @@ export function storedCssBytes(db: Database): number {
     return Object.values(value.overrides ?? {}).reduce((sum, item) => sum + utf8Bytes(item.css ?? ''), 0)
         + (value.custom ?? []).reduce((sum, item) => sum + utf8Bytes(item.css), 0)
 }
-export interface CssSnapshot { gates: unknown[]; tokens: string[]; nodes: { key: string; css: string }[]; revisions: number[]; customFontId?: string }
-export function cssSnapshot(db: Database, safeMode: boolean, readyCustomFontId?: string | null): CssSnapshot {
+export type ReadyCustomFonts = Partial<Record<PersonalFontTarget, string | null>>
+export interface CssSnapshot { gates: unknown[]; tokens: string[]; nodes: { key: string; css: string }[]; revisions: number[]; customFontIds?: Partial<Record<PersonalFontTarget, string>> }
+export const fontReadyAttribute = (target: PersonalFontTarget) => `data-personal-${target}-font-ready`
+export const readyCustomFonts = (doc: Document): ReadyCustomFonts => ({
+    chat: doc.documentElement.getAttribute(fontReadyAttribute('chat')),
+    ui: doc.documentElement.getAttribute(fontReadyAttribute('ui')),
+})
+export function cssSnapshot(db: Database, safeMode: boolean, ready: ReadyCustomFonts = {}): CssSnapshot {
     const appearance = readPersonalAppearance(db)
     const active = !safeMode && appearance.schemaStatus !== 'unsupported' && appearance.enabled
     const read = readCssToggles(db)
     const items = effectiveCssToggles(db)
+    const customFontIds: Partial<Record<PersonalFontTarget, string>> = {}
+    for (const target of ['chat', 'ui'] as const) {
+        if (appearance[target].font.startsWith('custom:')) customFontIds[target] = appearance[target].font.slice(7)
+    }
+    // A target's custom token waits until that target's face is active.
+    const held = (['chat', 'ui'] as const).filter(target => `custom:${ready[target]}` !== appearance[target].font).map(target => `${target}-font-custom`)
     // Invalid additive data never disables unrelated, code-owned defaults.
-    return { gates: [safeMode, db.theme, appearance.schemaStatus, appearance.enabled, read.valid, appearance.chat.font],
-        tokens: resolvePersonalAppearanceTokens(db, safeMode).filter(token => token !== 'chat-font-custom' || `custom:${readyCustomFontId}` === appearance.chat.font),
-        customFontId: appearance.chat.font.startsWith('custom:') ? appearance.chat.font.slice(7) : undefined,
+    return { gates: [safeMode, db.theme, appearance.schemaStatus, appearance.enabled, read.valid, appearance.chat.font, appearance.chat.fontEnabled, appearance.ui.font, appearance.ui.fontEnabled],
+        tokens: resolvePersonalAppearanceTokens(db, safeMode).filter(token => !held.includes(token)),
+        customFontIds,
         nodes: active ? items.filter(d => d.enabled).map(d => ({ key: `${d.shipped ? 'shipped' : 'custom'}:${d.id}`, css: d.css })) : [],
         revisions: cssToggleDefinitions.map(d => d.revision) }
 }

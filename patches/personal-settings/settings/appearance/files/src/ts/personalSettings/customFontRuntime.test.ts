@@ -9,7 +9,7 @@ async function sharedFaceHarness(run: (font: any, read: () => Promise<Uint8Array
     class Face { status = 'loaded'; constructor(readonly family: string) {} async load() { return this } }
     Object.defineProperty(window, 'FontFace', { configurable: true, value: Face })
     Object.defineProperty(document, 'fonts', { configurable: true, value: faces })
-    const preview = new CustomFontRuntime(document), selected = new CustomFontRuntime(document)
+    const preview = new CustomFontRuntime(document), selected = new CustomFontRuntime(document, 'chat')
     const font = { id: 'shared-face', name: 'sample', originalFileName: '', assetPath: 'assets/sample.woff2', format: 'woff2', byteLength: bytes.length, sha256: await fontDigest(bytes) }
     try { await run(font, vi.fn(async () => bytes), faces, preview, selected) }
     finally {
@@ -31,6 +31,36 @@ test('selection borrows a verified preview without another read and survives pre
         expect(faces.size).toBe(0)
         await preview.load(font, read)
         expect(read).toHaveBeenCalledTimes(2)
+    })
+})
+test('chat and UI owners keep separate variables and share one face', async () => {
+    await sharedFaceHarness(async (font, read, faces, _preview, chat) => {
+        const ui = new CustomFontRuntime(document, 'ui')
+        const root = document.documentElement
+        try {
+            const face = await chat.load(font, read)
+            chat.activate(font, face)
+            expect(await ui.load(font, read)).toBe(face)
+            ui.activate(font, face)
+            expect(read).toHaveBeenCalledTimes(1)
+            expect(root.style.getPropertyValue('--personal-chat-custom-font-family')).toBe(`"${customFontFamily(font)}", sans-serif`)
+            expect(root.style.getPropertyValue('--personal-ui-custom-font-family')).toBe(`"${customFontFamily(font)}", sans-serif`)
+            expect(root.getAttribute('data-personal-ui-font-ready')).toBe(font.id)
+            chat.clear()
+            expect(faces.has(face)).toBe(true)
+            expect(root.hasAttribute('data-personal-chat-font-ready')).toBe(false)
+            expect(root.style.getPropertyValue('--personal-chat-custom-font-family')).toBe('')
+            expect(root.getAttribute('data-personal-ui-font-ready')).toBe(font.id)
+            ui.clear()
+            expect(faces.size).toBe(0)
+            expect(root.hasAttribute('data-personal-ui-font-ready')).toBe(false)
+        } finally { ui.clear() }
+    })
+})
+test('a preview owner cannot activate a face', async () => {
+    await sharedFaceHarness(async (font, read, _faces, preview) => {
+        const face = await preview.load(font, read)
+        expect(() => preview.activate(font, face)).toThrow('대상')
     })
 })
 test('same-owner preparation retains independent rollback handles', async () => {
@@ -62,7 +92,7 @@ test('waits for load, uses only code-owned family, and deletes only owned faces'
     const original = window.FontFace
     Object.defineProperty(window, 'FontFace', { configurable: true, value: Face })
     try {
-        owner = new CustomFontRuntime(document)
+        owner = new CustomFontRuntime(document, 'chat')
         const font = { id: 'safe-id', name: '";bad{}', originalFileName: 'bad.woff2', assetPath: 'assets/font.woff2', format: 'woff2' as const, byteLength: bytes.length, sha256: await fontDigest(bytes) }
         const pending = owner.prepare(font, bytes)
         await vi.waitFor(() => expect(finish).toBeTypeOf('function'))
@@ -72,7 +102,7 @@ test('waits for load, uses only code-owned family, and deletes only owned faces'
         expect(face.family).toBe(customFontFamily(font))
         expect(face.family).not.toContain('bad')
         owner.clear(); expect(remove).toHaveBeenCalledWith(face)
-        expect(document.documentElement.hasAttribute('data-personal-custom-font-ready')).toBe(false)
+        expect(document.documentElement.hasAttribute('data-personal-chat-font-ready')).toBe(false)
     } finally { Object.defineProperty(window, 'FontFace', { configurable: true, value: original }) }
 })
 test('unsupported browsers reject custom fonts without injecting CSS font faces', async () => {
@@ -100,7 +130,7 @@ test('preview teardown preserves the active font owned by another runtime', asyn
     Object.defineProperty(window, 'FontFace', { configurable: true, value: Face })
     const preview = new CustomFontRuntime(document)
     try {
-        owner = new CustomFontRuntime(document)
+        owner = new CustomFontRuntime(document, 'chat')
         const font = { id: 'active', name: 'Active', originalFileName: '', assetPath: 'assets/font.woff2', format: 'woff2' as const, byteLength: bytes.length, sha256: await fontDigest(bytes) }
         const active = await owner.prepare(font, bytes)
         owner.activate(font, active)
@@ -108,6 +138,6 @@ test('preview teardown preserves the active font owned by another runtime', asyn
         preview.clear()
         expect(faces.has(active)).toBe(true)
         expect(faces.has(candidate)).toBe(false)
-        expect(document.documentElement.getAttribute('data-personal-custom-font-ready')).toBe('active')
+        expect(document.documentElement.getAttribute('data-personal-chat-font-ready')).toBe('active')
     } finally { preview.clear(); Object.defineProperty(window, 'FontFace', { configurable: true, value: original }) }
 })

@@ -3,7 +3,7 @@ import { acquireFont, detectFontFormat, FONT_LIMITS, fontDigest, fontSourceUrl, 
 import type { Database } from '../storage/database.svelte'
 const bytes = (magic = 'wOF2') => new Uint8Array([...magic].map(c => c.charCodeAt(0)).concat(Array(12).fill(0)))
 const entry = { id: 'font-a', name: 'Font', originalFileName: '', format: 'woff2' as const, byteLength: 16, sha256: 'a'.repeat(64), assetPath: 'assets/font-a.woff2' }
-const db = (fonts?: unknown) => ({ pocketRisuPersonalSettings: { appearance: { version: 1, fonts, chat: { font: 'custom:font-a', keepKoreanWords: true } } } } as unknown as Database)
+const db = (fonts?: unknown) => ({ pocketRisuPersonalSettings: { appearance: { version: 1, fonts, chat: { font: 'custom:font-a', keepKoreanWords: true }, ui: { font: 'custom:font-a', fontEnabled: false } } } } as unknown as Database)
 afterEach(() => vi.unstubAllGlobals())
 test.each([['wOF2', 'woff2'], ['wOFF', 'woff'], ['OTTO', 'opentype'], ['\x00\x01\x00\x00', 'truetype']])('detects binary signature %s without MIME/extension trust', (magic, format) => expect(detectFontFormat(bytes(magic))).toBe(format))
 test.each(['http://example.com/a.woff', 'data:font/woff;base64,a', 'https://name:password@example.com/font.woff2', 'https://example.com/fonts.css', 'not-a-url'])('rejects non-direct or credentialed URL %s', url => expect(() => fontSourceUrl(url)).toThrow())
@@ -11,7 +11,10 @@ test('deduplicates unique asset budgets and selected removal changes only metada
     const source = db({ version: 1, future: 9, custom: [entry, { ...entry, id: 'font-b' }] })
     expect(readCustomFonts(source).valid).toBe(true)
     writeFontEntry(source, undefined, entry.id)
-    expect(source.pocketRisuPersonalSettings).toMatchObject({ appearance: { fonts: { future: 9, custom: [{ id: 'font-b' }] }, chat: { font: 'app', keepKoreanWords: true } } })
+    expect(source.pocketRisuPersonalSettings).toEqual({ appearance: { version: 1, fonts: { version: 1, future: 9, custom: [{ ...entry, id: 'font-b' }] },
+        chat: { font: 'galmuri14', keepKoreanWords: true }, ui: { font: 'galmuri14', fontEnabled: false } } })
+    writeFontEntry(source, undefined, 'font-b')
+    expect(source.pocketRisuPersonalSettings).toMatchObject({ appearance: { chat: { font: 'galmuri14' }, ui: { font: 'galmuri14', fontEnabled: false } } })
 })
 test.each([{ version: 2, custom: [entry] }, { version: 1, custom: [entry, entry] }, { version: 1, custom: [{ ...entry, assetPath: '../font.ttf' }] }])('preserves malformed/future font metadata %j', raw => {
     const source = db(raw); const before = JSON.stringify(source)

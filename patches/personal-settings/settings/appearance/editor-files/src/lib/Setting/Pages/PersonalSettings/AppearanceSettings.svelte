@@ -8,73 +8,13 @@
     import {
         personalAppearanceFontSettingsItems,
     } from 'src/ts/setting/personalAppearanceSettingsData'
-    import {
-        ensurePersonalChatFontStylesheet,
-        getPersonalChatFontFamily,
-        isPersonalAppearanceFeatureEffective,
-        readPersonalAppearance,
-    } from 'src/ts/personalSettings/appearance'
-
-    type FontLoadStatus = 'app' | 'inactive' | 'loading' | 'ready' | 'failed' | 'unavailable'
+    import { readPersonalAppearance } from 'src/ts/personalSettings/appearance'
 
     let appearance = $derived(readPersonalAppearance(DBState.db))
-    let fontLoadStatus: FontLoadStatus = $state('app')
-    let fontLoadGeneration = 0
-
-    const fontPreviewText = '가나다라마바사 ABC xyz 日本語の文章 简体中文 繁體中文 Français été cœur'
-
-    function fontStatusLabel(status: FontLoadStatus): string {
-        switch (status) {
-            case 'app': return language.personalAppearanceFontStatusApp
-            case 'inactive': return language.personalAppearanceFontStatusInactive
-            case 'loading': return language.personalAppearanceFontStatusLoading
-            case 'ready': return language.personalAppearanceFontStatusReady
-            case 'failed': return language.personalAppearanceFontStatusFailed
-            case 'unavailable': return language.personalAppearanceFontStatusUnavailable
-        }
-    }
-
-    $effect(() => {
-        const font = appearance.chat.font
-        const family = getPersonalChatFontFamily(font)
-        const effective = isPersonalAppearanceFeatureEffective(
-            DBState.db,
-            $SafeModeStore,
-            'chat.font',
-        )
-        const generation = ++fontLoadGeneration
-
-        if (family === null) {
-            fontLoadStatus = 'app'
-            return
-        }
-        if (!effective) {
-            fontLoadStatus = 'inactive'
-            return
-        }
-        if (typeof document === 'undefined' || document.fonts === undefined) {
-            fontLoadStatus = 'unavailable'
-            return
-        }
-
-        fontLoadStatus = 'loading'
-        void ensurePersonalChatFontStylesheet(font, document)
-            .then((stylesheetReady) => stylesheetReady
-                ? document.fonts.load(`400 1.25rem "${family}"`, fontPreviewText)
-                : [])
-            .then((faces) => {
-                if (generation === fontLoadGeneration) {
-                    fontLoadStatus = faces.length > 0 ? 'ready' : 'failed'
-                }
-            })
-            .catch(() => {
-                if (generation === fontLoadGeneration) fontLoadStatus = 'failed'
-            })
-    })
 </script>
 
 <div class="mb-3 rounded-md border border-darkborderc/70 bg-darkbg/30 p-3 text-xs text-textcolor2 space-y-2" aria-label="꾸미기 안내 및 복구">
-    <p>꾸미기는 모든 테마에 적용됩니다. 채팅 폰트는 본문 기본 글꼴만 바꾸고, 테마가 직접 지정한 제목·대사 등의 글꼴은 유지합니다. 심플 입력창은 PocketRisu Standard 입력창에만 적용됩니다. Safe Mode에서는 저장값을 바꾸지 않고 모두 잠시 꺼집니다.</p>
+    <p>꾸미기는 모든 테마에 적용됩니다. 채팅 폰트는 메시지 본문의 기본 글꼴을, UI 폰트는 본문을 제외한 나머지 화면의 기본 글꼴을 바꾸며, 테마가 직접 지정한 제목·대사 등의 글꼴은 유지합니다. UI 폰트를 끄면 디스플레이 설정의 폰트를 사용합니다. 심플 입력창은 PocketRisu Standard 입력창에만 적용됩니다. Safe Mode에서는 저장값을 바꾸지 않고 모두 잠시 꺼집니다.</p>
     {#if appearance.schemaStatus !== 'unsupported'}<CssRecoveryNotice />{/if}
 </div>
 
@@ -98,30 +38,6 @@
 
     <SettingRenderer items={personalAppearanceFontSettingsItems.slice(0, 1)} layout="row" />
     <CustomFontManager />
-
-    {#if appearance.chat.font !== 'app' && !appearance.chat.font.startsWith('custom:')}
-        <section
-            class="mt-3 rounded-md border border-darkborderc/70 bg-darkbg/20 p-3"
-            aria-labelledby="personal-font-preview-label"
-        >
-            <div class="flex flex-wrap items-center justify-between gap-2 text-xs">
-                <span id="personal-font-preview-label" class="font-semibold text-textcolor">
-                    {language.personalAppearanceFontPreview}
-                </span>
-                <span class="text-textcolor2" role="status" aria-live="polite">
-                    {fontStatusLabel(fontLoadStatus)}
-                </span>
-            </div>
-            <p class="personal-font-preview__sample mt-2 text-xl leading-relaxed text-textcolor">
-                <span lang="ko">가나다라마바사</span>
-                <span lang="en">ABC xyz</span>
-                <span lang="ja">日本語の文章</span>
-                <span lang="zh-Hans">简体中文</span>
-                <span lang="zh-Hant">繁體中文</span>
-                <span lang="fr">Français été cœur</span>
-            </p>
-        </section>
-    {/if}
 
     <div class="mt-1">
         <CssToggleManager />

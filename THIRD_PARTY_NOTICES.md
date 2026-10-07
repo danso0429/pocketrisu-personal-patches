@@ -103,21 +103,25 @@ does not incorporate source code from the supplied PageFold artifact.
 
 ## Optional web fonts
 
-The PocketRisu 1.9 Personal appearance feature declares optional web-font
-faces. Paperlogy and Galmuri14 load from jsDelivr. Noto Sans KR and Noto Serif
-KR load as unicode-range WOFF2 subsets through the official Google Fonts CSS
-API and `fonts.gstatic.com`. IBM Plex Sans KR, Gowun Dodum, Gowun Batang, and
-Hahmlet use the same Google Fonts service, but their stylesheet links are
-created only after the user selects that face. No font binary is copied into
-or redistributed by this repository.
+The Personal appearance feature declares optional web-font faces. In the
+installed editor UI, the chat and UI font targets offer two built-in faces,
+Paperlogy and Galmuri14, which load from jsDelivr. The source-only
+compatibility rollback UI (`scripts/rollback-personal-css-ui.cjs`) restores the
+earlier chat-font selector: it also loads Noto Sans KR and Noto Serif KR as
+unicode-range WOFF2 subsets through the official Google Fonts CSS API and
+`fonts.gstatic.com`, and creates IBM Plex Sans KR, Gowun Dodum, Gowun Batang,
+and Hahmlet stylesheet links only after the user selects that face. No font
+binary is copied into or redistributed by this repository.
 
 - Paperlogy: https://www.sandollcloud.com/free-font/21071/Paperlogy
   (SIL Open Font License 1.1; the appearance switch uses regular, semibold,
   and bold weights only).
 - Galmuri14: https://quiple.dev/font/galmuri
-  (SIL Open Font License 1.1; declared so an existing app-level custom-font
-  choice can continue resolving after a separately approved custom-CSS
-  migration).
+  (SIL Open Font License 1.1; a built-in choice for both font targets, and
+  the same family name keeps an app-level Display custom font named
+  `Galmuri14` resolvable).
+The remaining faces are used only by the compatibility rollback UI:
+
 - Noto Sans CJK and Noto Serif CJK:
   https://github.com/notofonts/noto-cjk
   (SIL Open Font License 1.1; the selectable KR instances cover CJK and Latin

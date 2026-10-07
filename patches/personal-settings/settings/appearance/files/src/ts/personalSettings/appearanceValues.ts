@@ -4,16 +4,12 @@ export const PERSONAL_APPEARANCE_SCHEMA_VERSION = 1 as const
 export const PERSONAL_APPEARANCE_ATTRIBUTE = 'data-pocketrisu-css'
 
 export type PersonalAppearanceSchemaStatus = 'empty' | 'supported' | 'unsupported'
-export type PersonalChatFont =
+export type PersonalFont =
     | `custom:${string}`
-    | 'app'
     | 'paperlogy'
-    | 'noto-sans-kr'
-    | 'noto-serif-kr'
-    | 'ibm-plex-sans-kr'
-    | 'gowun-dodum'
-    | 'gowun-batang'
-    | 'hahmlet'
+    | 'galmuri14'
+export type PersonalFontTarget = 'chat' | 'ui'
+export const DEFAULT_PERSONAL_FONT: PersonalFont = 'galmuri14'
 export type PersonalChatAlignment = 'left' | 'center'
 
 export interface NormalizedPersonalAppearance {
@@ -21,10 +17,15 @@ export interface NormalizedPersonalAppearance {
     rawVersion?: unknown
     enabled: boolean
     chat: {
-        font: PersonalChatFont
+        font: PersonalFont
+        fontEnabled: boolean
         alignment: PersonalChatAlignment
         keepKoreanWords: boolean
         wrapCodeBlocks: boolean
+    }
+    ui: {
+        font: PersonalFont
+        fontEnabled: boolean
     }
     composer: {
         minimal: boolean
@@ -46,9 +47,12 @@ export interface NormalizedPersonalAppearance {
 export type PersonalAppearanceLeafPath =
     | 'enabled'
     | 'chat.font'
+    | 'chat.fontEnabled'
     | 'chat.alignment'
     | 'chat.keepKoreanWords'
     | 'chat.wrapCodeBlocks'
+    | 'ui.font'
+    | 'ui.fontEnabled'
     | 'composer.minimal'
     | 'composer.textSendIcon'
     | 'sidebar.compact'
@@ -66,15 +70,20 @@ interface AppearanceCarrier {
     theme?: unknown
 }
 
-const groupNames = ['chat', 'composer', 'sidebar', 'settings', 'visibility'] as const
+const groupNames = ['chat', 'ui', 'composer', 'sidebar', 'settings', 'visibility'] as const
 
 const defaults: Omit<NormalizedPersonalAppearance, 'schemaStatus' | 'rawVersion'> = {
     enabled: false,
     chat: {
-        font: 'app',
+        font: DEFAULT_PERSONAL_FONT,
+        fontEnabled: false,
         alignment: 'left',
         keepKoreanWords: false,
         wrapCodeBlocks: false,
+    },
+    ui: {
+        font: DEFAULT_PERSONAL_FONT,
+        fontEnabled: false,
     },
     composer: {
         minimal: false,
@@ -105,19 +114,22 @@ function readBoolean(value: unknown): boolean {
     return value === true
 }
 
-function readChatFont(value: unknown): PersonalChatFont {
-    if (typeof value === 'string' && /^custom:[a-zA-Z0-9_-]{1,64}$/.test(value)) return value as PersonalChatFont
-    switch (value) {
-        case 'paperlogy':
-        case 'noto-sans-kr':
-        case 'noto-serif-kr':
-        case 'ibm-plex-sans-kr':
-        case 'gowun-dodum':
-        case 'gowun-batang':
-        case 'hahmlet':
-            return value
-        default:
-            return 'app'
+export function isPersonalFont(value: unknown): value is PersonalFont {
+    return value === 'paperlogy'
+        || value === 'galmuri14'
+        || (typeof value === 'string' && /^custom:[a-zA-Z0-9_-]{1,64}$/.test(value))
+}
+
+/**
+ * Legacy values ('app' and removed built-ins) read as the default font. A
+ * missing toggle keeps the visible state of data written before targets existed:
+ * a valid chat font was applied, and the UI target did not exist.
+ */
+function readFontTarget(group: UnknownRecord, target: PersonalFontTarget): { font: PersonalFont; fontEnabled: boolean } {
+    const valid = isPersonalFont(group.font)
+    return {
+        font: valid ? group.font as PersonalFont : DEFAULT_PERSONAL_FONT,
+        fontEnabled: typeof group.fontEnabled === 'boolean' ? group.fontEnabled : target === 'chat' && valid,
     }
 }
 
@@ -152,6 +164,7 @@ export function readPersonalAppearance(db: Database): NormalizedPersonalAppearan
     }
 
     const chat = (raw.chat ?? {}) as UnknownRecord
+    const ui = (raw.ui ?? {}) as UnknownRecord
     const composer = (raw.composer ?? {}) as UnknownRecord
     const sidebar = (raw.sidebar ?? {}) as UnknownRecord
     const settings = (raw.settings ?? {}) as UnknownRecord
@@ -162,11 +175,12 @@ export function readPersonalAppearance(db: Database): NormalizedPersonalAppearan
         rawVersion: raw.version,
         enabled: readBoolean(raw.enabled),
         chat: {
-            font: readChatFont(chat.font),
+            ...readFontTarget(chat, 'chat'),
             alignment: readChatAlignment(chat.alignment),
             keepKoreanWords: readBoolean(chat.keepKoreanWords),
             wrapCodeBlocks: readBoolean(chat.wrapCodeBlocks),
         },
+        ui: readFontTarget(ui, 'ui'),
         composer: {
             minimal: readBoolean(composer.minimal),
             textSendIcon: readBoolean(composer.textSendIcon),
@@ -192,11 +206,14 @@ export function canWritePersonalAppearance(db: Database): boolean {
 export function getPersonalAppearanceValue(
     db: Database,
     path: PersonalAppearanceLeafPath,
-): boolean | PersonalChatFont | PersonalChatAlignment {
+): boolean | PersonalFont | PersonalChatAlignment {
     const appearance = readPersonalAppearance(db)
     switch (path) {
         case 'enabled': return appearance.enabled
         case 'chat.font': return appearance.chat.font
+        case 'chat.fontEnabled': return appearance.chat.fontEnabled
+        case 'ui.font': return appearance.ui.font
+        case 'ui.fontEnabled': return appearance.ui.fontEnabled
         case 'chat.alignment': return appearance.chat.alignment
         case 'chat.keepKoreanWords': return appearance.chat.keepKoreanWords
         case 'chat.wrapCodeBlocks': return appearance.chat.wrapCodeBlocks
@@ -211,17 +228,7 @@ export function getPersonalAppearanceValue(
 }
 
 function validLeafValue(path: PersonalAppearanceLeafPath, value: unknown): boolean {
-    if (path === 'chat.font') {
-        return (typeof value === 'string' && /^custom:[a-zA-Z0-9_-]{1,64}$/.test(value))
-            || value === 'app'
-            || value === 'paperlogy'
-            || value === 'noto-sans-kr'
-            || value === 'noto-serif-kr'
-            || value === 'ibm-plex-sans-kr'
-            || value === 'gowun-dodum'
-            || value === 'gowun-batang'
-            || value === 'hahmlet'
-    }
+    if (path === 'chat.font' || path === 'ui.font') return isPersonalFont(value)
     if (path === 'chat.alignment') return value === 'left' || value === 'center'
     return typeof value === 'boolean'
 }
@@ -277,8 +284,20 @@ export function setPersonalAppearanceValue(
     return true
 }
 
+/**
+ * Writes a target toggle together with its normalized font, so an enabled
+ * target is never stored next to a legacy font value.
+ */
+export function setPersonalFontEnabled(db: Database, target: PersonalFontTarget, enabled: boolean): boolean {
+    const appearance = readPersonalAppearance(db)
+    if (appearance.schemaStatus === 'unsupported') return false
+    return setPersonalAppearanceValue(db, `${target}.font`, appearance[target].font)
+        && setPersonalAppearanceValue(db, `${target}.fontEnabled`, enabled)
+}
+
 const featureOrder: readonly PersonalAppearanceFeature[] = [
     'chat.font',
+    'ui.font',
     'chat.alignment',
     'chat.keepKoreanWords',
     'chat.wrapCodeBlocks',
@@ -291,91 +310,14 @@ const featureOrder: readonly PersonalAppearanceFeature[] = [
     'visibility.hideJailbreakToggle',
 ]
 
-const chatFontTokens: Readonly<Partial<Record<PersonalChatFont, string>>> = {
-    paperlogy: 'chat-font-paperlogy',
-    'noto-sans-kr': 'chat-font-noto-sans-kr',
-    'noto-serif-kr': 'chat-font-noto-serif-kr',
-    'ibm-plex-sans-kr': 'chat-font-ibm-plex-sans-kr',
-    'gowun-dodum': 'chat-font-gowun-dodum',
-    'gowun-batang': 'chat-font-gowun-batang',
-    hahmlet: 'chat-font-hahmlet',
-}
-
-const chatFontFamilies: Readonly<Partial<Record<PersonalChatFont, string>>> = {
+const builtinFontFamilies: Readonly<Record<'paperlogy' | 'galmuri14', string>> = {
     paperlogy: 'Paperlogy',
-    'noto-sans-kr': 'Noto Sans KR',
-    'noto-serif-kr': 'Noto Serif KR',
-    'ibm-plex-sans-kr': 'IBM Plex Sans KR',
-    'gowun-dodum': 'Gowun Dodum',
-    'gowun-batang': 'Gowun Batang',
-    hahmlet: 'Hahmlet',
+    galmuri14: 'Galmuri14',
 }
 
-const chatFontStylesheetUrls: Partial<Record<PersonalChatFont, string>> = {
-    'ibm-plex-sans-kr': 'https://fonts.googleapis.com/css2?family=IBM+Plex+Sans+KR:wght@400;600;700&display=swap',
-    'gowun-dodum': 'https://fonts.googleapis.com/css2?family=Gowun+Dodum&display=swap',
-    'gowun-batang': 'https://fonts.googleapis.com/css2?family=Gowun+Batang:wght@400;700&display=swap',
-    hahmlet: 'https://fonts.googleapis.com/css2?family=Hahmlet:wght@100..900&display=swap',
-}
-
-const stylesheetLoads = new WeakMap<Document, Map<PersonalChatFont, Promise<boolean>>>()
-
-export function getPersonalChatFontFamily(font: PersonalChatFont): string | null {
-    return font === 'app' ? null : chatFontFamilies[font] ?? null
-}
-
-/** Loads optional web-font metadata when selected or visibly previewed. */
-export function ensurePersonalChatFontStylesheet(
-    font: PersonalChatFont,
-    targetDocument: Document | null = typeof document === 'undefined' ? null : document,
-): Promise<boolean> {
-    const href = chatFontStylesheetUrls[font]
-    if (!href) return Promise.resolve(true)
-    if (!targetDocument) return Promise.resolve(false)
-
-    let loads = stylesheetLoads.get(targetDocument)
-    if (!loads) {
-        loads = new Map()
-        stylesheetLoads.set(targetDocument, loads)
-    }
-    const cached = loads.get(font)
-    if (cached) return cached
-
-    const selector = `link[data-pocketrisu-font-stylesheet="${font}"]`
-    let link = targetDocument.head.querySelector<HTMLLinkElement>(selector)
-    if (link?.dataset.pocketrisuFontLoaded === 'true' || link?.sheet) {
-        const ready = Promise.resolve(true)
-        loads.set(font, ready)
-        return ready
-    }
-    if (!link) {
-        link = targetDocument.createElement('link')
-        link.rel = 'stylesheet'
-        link.href = href
-        link.dataset.pocketrisuFontStylesheet = font
-    }
-
-    const pendingLink = link
-    const pending = new Promise<boolean>((resolve) => {
-        const finish = (loaded: boolean) => {
-            pendingLink.removeEventListener('load', onLoad)
-            pendingLink.removeEventListener('error', onError)
-            if (loaded) {
-                pendingLink.dataset.pocketrisuFontLoaded = 'true'
-            } else {
-                pendingLink.remove()
-                loads?.delete(font)
-            }
-            resolve(loaded)
-        }
-        const onLoad = () => finish(true)
-        const onError = () => finish(false)
-        pendingLink.addEventListener('load', onLoad, { once: true })
-        pendingLink.addEventListener('error', onError, { once: true })
-        if (!pendingLink.isConnected) targetDocument.head.append(pendingLink)
-    })
-    loads.set(font, pending)
-    return pending
+/** CSS family of a built-in font; user fonts resolve through CustomFontRuntime. */
+export function getPersonalFontFamily(font: PersonalFont): string | null {
+    return font === 'paperlogy' || font === 'galmuri14' ? builtinFontFamilies[font] : null
 }
 
 function resolveFeatureToken(
@@ -383,15 +325,20 @@ function resolveFeatureToken(
     feature: PersonalAppearanceFeature,
 ): string | null {
     const value = getPersonalAppearanceValueFromNormalized(appearance, feature)
-    if (feature === 'chat.font') {
-        const font = value as PersonalChatFont
-        return font === 'app' ? null : font.startsWith('custom:') ? 'chat-font-custom' : chatFontTokens[font] ?? null
+    if (feature === 'chat.font' || feature === 'ui.font') {
+        const target = feature === 'chat.font' ? 'chat' : 'ui'
+        if (!appearance[target].fontEnabled) return null
+        const font = value as PersonalFont
+        return `${target}-font-${font.startsWith('custom:') ? 'custom' : font}`
     }
     if (feature === 'chat.alignment') {
         return value === 'center' ? 'chat-align-center' : null
     }
     if (value !== true) return null
     switch (feature) {
+        case 'chat.fontEnabled':
+        case 'ui.fontEnabled':
+            return null
         case 'chat.keepKoreanWords': return 'chat-keep-korean-words'
         case 'chat.wrapCodeBlocks': return 'chat-wrap-code-blocks'
         case 'composer.minimal': return 'composer-minimal'
@@ -407,9 +354,12 @@ function resolveFeatureToken(
 function getPersonalAppearanceValueFromNormalized(
     appearance: NormalizedPersonalAppearance,
     path: PersonalAppearanceFeature,
-): boolean | PersonalChatFont | PersonalChatAlignment {
+): boolean | PersonalFont | PersonalChatAlignment {
     switch (path) {
         case 'chat.font': return appearance.chat.font
+        case 'chat.fontEnabled': return appearance.chat.fontEnabled
+        case 'ui.font': return appearance.ui.font
+        case 'ui.fontEnabled': return appearance.ui.fontEnabled
         case 'chat.alignment': return appearance.chat.alignment
         case 'chat.keepKoreanWords': return appearance.chat.keepKoreanWords
         case 'chat.wrapCodeBlocks': return appearance.chat.wrapCodeBlocks
