@@ -10,7 +10,7 @@ const externalHeaderUnits = require('./settings/external-headers/units.cjs')
 module.exports = {
     id: 'personal-settings',
     title: 'Personal settings',
-    version: '0.5.12',
+    version: '0.5.13',
     targets: {
         pocketrisu: {
             verified: ['1.10.0'],

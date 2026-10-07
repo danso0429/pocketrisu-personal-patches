@@ -2,6 +2,7 @@
 
 ## 0.2.4-experimental.20 (BG candidate)
 
+- Personal settings `0.5.13` combines the existing BG `0.5.12` and font-target `0.5.11` lines, preserving the delivered font behavior.
 - Add an internal, default-off generic server plugin host with one isolated process per plugin per operation, without provider-specific branches or script-hash allowlists.
 - Bridge callbacks, cancellation, streaming responses and native hook/provider execution through parent-owned invocation contexts. Preserve configured model retry/fallback handling and reject late API calls without transferring authority to a later callback.
 - Add per-key canonical storage comparisons, local-storage sidecars, saved permission checks, bounded non-mutating cold-chat reads and server conversation-header propagation.
