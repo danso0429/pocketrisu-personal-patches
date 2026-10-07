@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.2.4-experimental.21 (BG measurement candidate)
+
+- Add temporary bounded boot/watch request timing for G1.12a, separating response headers, original body consumption, snapshot/transfer measurements and visibility transitions.
+- Preserve result decisions, existing timeouts, notices, ACKs, admission and generation ownership. No response cloning or new diagnostic persistence store is added.
+- Retain early and recent request samples, bound UTF-8 rows below the native logger limit, and distinguish native timer aborts from unclassified transport errors. Missing offline/process-death logs remain an observation limitation.
+- Keep personal-settings `0.5.13` and server plugin host OFF. Device observations, the actual G1.12a decision repair and G1.12b ownership changes remain separate.
+
 ## 0.2.4-experimental.20 (BG candidate)
 
 - Personal settings `0.5.13` combines the existing BG `0.5.12` and font-target `0.5.11` lines, preserving the delivered font behavior.

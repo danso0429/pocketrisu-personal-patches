@@ -4,6 +4,12 @@ Personal, all-or-nothing patch delivery for PocketRisu NodeOnly. The current
 stable release is `v0.2.3`, and its complete manifest graph targets exact
 PocketRisu `v1.10.0`.
 
+The `0.2.4-experimental.21` candidate starts G1.12a with temporary recovery timing
+observations. It measures original control-body and BG snapshot reads without
+changing current result decisions, retries or timeouts. Phone observations are
+required before selecting new body-read bounds; this is not the completed G1.12a
+repair. See the [G1.12a plan and measurement boundary](docs/POCKETRISU-G1-12A-TERMINAL-RESULTS-PLAN.md).
+
 The `0.2.4-experimental.20` candidate adds the G1.6 generic server plugin host:
 one isolated process per plugin per operation, scoped RPC, native hook/provider
 adapters, guarded shared storage and versioned notifications. It does not select
