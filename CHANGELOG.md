@@ -7,6 +7,7 @@
 - Add per-key canonical storage comparisons, local-storage sidecars, saved permission checks, bounded non-mutating cold-chat reads and server conversation-header propagation.
 - Extend notifications with capability-negotiated v2 plugin messages and host-limit/late-call notices. Keep frozen v1 failure receipts, reserve failure capacity and avoid aborting generation for informational-message overflow.
 - Keep original MARP qualification, broader plugin admission, device/aggregate checks and stable release separate. See `docs/POCKETRISU-G1-6-PLUGIN-HOST-WIP.md` for observed tests, limits and delivery status.
+- Delivered default-OFF after backup, build and readback of462 managed files,17 served scripts and five databases. Existing font-target behavior and external-header settings were preserved.
 
 ## 0.2.4-experimental.19 (BG candidate)
 

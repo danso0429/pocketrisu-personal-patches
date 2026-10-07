@@ -11,6 +11,8 @@ providers by plugin name or script hash. Execution is internal opt-in and remain
 off by default pending original-plugin qualification; installing this candidate
 does not activate MARP or widen G1.5b admission. See the
 [G1.6 implementation and limits](docs/POCKETRISU-G1-6-PLUGIN-HOST-WIP.md).
+The default-OFF foundation is delivered live, including the existing font-target
+changes. Original MARP activation and device/aggregate qualification remain separate.
 
 The `0.2.4-experimental.19` checkpoint stores new unsupported-input notifications
 on the server and delivers them on app return, including the home screen. It preserves
