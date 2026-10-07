@@ -38,6 +38,9 @@ const FAILURE_SUMMARY_MAX = 200
 export function finishedServerFailureNotice(data: unknown): string {
     const result = data as any
     if (result?.kind === 'terminal-error' && result.serverChatCommit?.status === 'conflict') {
+        if (result.serverChatCommit.reason === 'plugin_execution_context_unavailable') {
+            return '입력은 서버에 보존했지만 이후 준비가 실패했어요. 채팅 반영은 복구 대기 중일 수 있어요. 플러그인 실행을 중복하지 않도록 자동 재시도를 멈췄어요. 이미 실행된 외부 작업은 되돌리지 않았으니 채팅을 확인해 주세요.'
+        }
         const notices: Record<string, string> = {
             input_deleted: '입력 메시지가 삭제되어 생성을 시작하지 않았어요.',
             chat_deleted: '채팅이 삭제되어 생성을 시작하지 않았어요.',

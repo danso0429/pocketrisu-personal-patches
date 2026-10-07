@@ -28,6 +28,94 @@ function harness() {
 }
 
 describe('durable BG notification owner', () => {
+    it('retains unrelated corrupt failure receipts without blocking healthy groups', () => {
+        const h = harness(), prefix = 'internal/bg-plugin-failure-receipts/v1/'
+        const brokenKey = prefix + 'f'.repeat(64)
+        h.deps.kvSet(brokenKey, '{broken json')
+        const event = { ...h.event(), code: 'plugin_hook_failed', pluginName: 'synthetic', pluginVersion: '1', phase: 'input' }
+        expect(h.owner.publishPluginFailure(event, 'a'.repeat(64)).status).toBe('stored')
+        expect(h.deps.kvGet(brokenKey)).toBe('{broken json')
+        const ownKey = h.deps.kvList(prefix).find(key => key !== brokenKey)!
+        h.deps.kvSet(ownKey, '{broken own receipt')
+        expect(() => h.owner.publishPluginFailure(event, 'a'.repeat(64))).toThrow()
+        for (let index = 2; index < MAX_ROWS; index++) h.deps.kvSet(prefix + `broken-${index}`, 'retained')
+        expect(h.owner.publishPluginFailure({ ...event, operationId: 'another-operation' }, 'b'.repeat(64)).status).toBe('capacity')
+    })
+
+    it('coalesces recurring plugin failures across operations without changing v1 input receipts', () => {
+        const h = harness(), identity = 'a'.repeat(64)
+        const event = { ...h.event(), code: 'plugin_api_unsupported', pluginName: 'synthetic',
+            pluginVersion: '1', phase: 'load', api: 'plugin_runtime', effectsMayHaveOccurred: false }
+        const first = h.owner.publishPluginFailure(event, identity)
+        h.owner.acknowledge('consumer-one', h.owner.claim('consumer-one'))
+        const restarted = createBgNotifications(h.deps)
+        for (let index = 0; index < 1100; index++) {
+            expect(restarted.publishPluginFailure({ ...event, operationId: `operation-repeat-${index}` }, identity))
+                .toEqual({ status: 'duplicate', id: first.id })
+        }
+        expect(h.deps.kvList(PREFIX)).toHaveLength(1)
+        expect(h.deps.kvList('internal/bg-plugin-failure-receipts/v1/')).toHaveLength(1)
+        expect(h.owner.publish(h.event('ordinary-input-operation')).status).toBe('stored')
+        expect(restarted.publishPluginFailure({ ...event, operationId: 'new-script-operation' }, 'b'.repeat(64)).status).toBe('stored')
+        expect(restarted.publishPluginFailure({ ...event, operationId: 'partial-effect-operation', effectsMayHaveOccurred: true }, identity).status).toBe('stored')
+        h.advance(48 * 60 * 60 * 1000 + 1)
+        expect(restarted.publishPluginFailure({ ...event, operationId: 'expired-group-operation', createdAt: h.event().createdAt }, identity).status).toBe('stored')
+    })
+
+    it('atomically writes the first plugin failure and its coalescing receipt', () => {
+        const h = harness()
+        const event = { ...h.event(), code: 'plugin_hook_failed', pluginName: 'synthetic', pluginVersion: '1', phase: 'input' }
+        h.fail(2)
+        expect(() => h.owner.publishPluginFailure(event, 'a'.repeat(64))).toThrow('injected write failure')
+        expect(h.deps.kvList(PREFIX)).toEqual([])
+        expect(h.deps.kvList('internal/bg-plugin-failure-receipts/v1/')).toEqual([])
+        h.fail(0)
+        expect(h.owner.publishPluginFailure(event, 'a'.repeat(64)).status).toBe('stored')
+    })
+
+    it('reserves capacity for failures when informational messages reach their sub-cap', () => {
+        const h = harness()
+        const event = { ...h.event(), code: 'plugin_message', pluginName: 'synthetic', pluginVersion: '1',
+            phase: 'load', message: 'synthetic', level: 'info' }
+        for (let index = 0; index < 256; index++) {
+            expect(h.owner.publish({ ...event, eventKey: `message-${index}` }).status).toBe('stored')
+        }
+        expect(h.owner.publish({ ...event, eventKey: 'over-limit' }).status).toBe('capacity')
+        expect(h.owner.publish(h.event()).status).toBe('stored')
+        expect(h.owner.claim('legacy-consumer').map((row: any) => row.event.code)).toEqual(['input_host_unsupported'])
+    })
+
+    it('reclaims only acknowledged v2 receipts at total capacity', () => {
+        const h = harness()
+        const v2 = h.owner.publish({ ...h.event(), eventKey: 'message', code: 'plugin_message', pluginName: 'synthetic',
+            pluginVersion: '1', phase: 'load', message: 'synthetic', level: 'info' })
+        h.owner.acknowledge('modern-consumer', h.owner.claim('modern-consumer', 2))
+        const v1 = h.owner.publish(h.event())
+        h.owner.acknowledge('legacy-consumer', h.owner.claim('legacy-consumer'))
+        for (let index = 0; index < MAX_ROWS - 2; index++) h.deps.kvSet(PREFIX + `malformed-${index}`, 'retained')
+        expect(h.owner.publish(h.event('new-failure-operation')).status).toBe('stored')
+        expect(h.deps.kvGet(PREFIX + v2.id)).toBeNull()
+        expect(h.deps.kvGet(PREFIX + v1.id)).not.toBeNull()
+        expect(h.deps.kvGet(PREFIX + 'malformed-0')).toBe('retained')
+        expect(h.owner.publish(h.event('another-failure-operation')).status).toBe('capacity')
+    })
+
+    it('keeps v1 delivery compatible while v2 messages require an explicit reader capability', () => {
+        const h = harness()
+        h.owner.publish(h.event())
+        const message = { ...h.event(), eventKey: 'plugin-message', code: 'plugin_message',
+            pluginName: 'synthetic', pluginVersion: '1', phase: 'before_request',
+            message: 'line one\nline two', level: 'info' }
+        const published = h.owner.publish(message)
+        expect(JSON.parse(h.deps.kvGet(PREFIX + published.id)!).version).toBe(2)
+        expect(h.owner.claim('legacy-consumer').map((row: any) => row.event.code)).toEqual(['input_host_unsupported'])
+        const modern = h.owner.claim('modern-consumer', 2)
+        expect(modern.map((row: any) => row.event.message)).toEqual(['line one\nline two'])
+        expect(h.owner.acknowledge('modern-consumer', modern)).toEqual([published.id])
+        expect(createBgNotifications(h.deps).claim('another-modern', 2)).toEqual([])
+        expect(() => h.owner.publish({ ...message, eventKey: 'bad-message', message: '\u0000' })).toThrow()
+    })
+
     it('preserves corrupted records while claiming and publishing healthy notices', () => {
         const h = harness(), brokenKey = PREFIX + 'f'.repeat(64)
         h.deps.kvSet(brokenKey, '{broken json')

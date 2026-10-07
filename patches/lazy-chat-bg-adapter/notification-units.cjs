@@ -29,7 +29,7 @@ const serverChatInputOwner = createServerChatInputOwner({
     if (typeof req.body?.consumerId !== 'string' || !/^[A-Za-z0-9_-]{8,128}$/.test(req.body.consumerId)) {
         return res.status(400).json({ error: 'invalid-consumer' });
     }
-    try { return res.json({ notifications: bgNotifications.claim(req.body.consumerId) }); }
+    try { return res.json({ notifications: bgNotifications.claim(req.body.consumerId, req.body.messageVersion ?? 1) }); }
     catch { return res.status(503).json({ error: 'notification-store-unavailable' }); }
 });
 app.post('/api/bg-notifications/ack', sessionAuthMiddleware, (req, res) => {

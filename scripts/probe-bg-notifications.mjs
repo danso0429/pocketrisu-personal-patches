@@ -20,6 +20,9 @@ const runtime = fs.mkdtempSync(path.join(os.tmpdir(), 'pocketrisu-notification-b
 process.chdir(runtime)
 const { chromium } = createRequire(path.join(dependencyRoot, 'package.json'))('playwright')
 const Database = createRequire(path.join(root, 'package.json'))('better-sqlite3')
+const includeMessages = process.argv.includes('--plugin-messages')
+const messageText = 'Synthetic <b>plain text</b>'
+const expectedNotices = includeMessages ? 4 : 1
 fs.symlinkSync(path.join(root, 'dist'), path.join(runtime, 'dist'))
 fs.writeFileSync(path.join(runtime, 'package.json'), JSON.stringify({ name: 'pocketrisu', version: '1.10.0' }))
 const worker = fork(root + '/server/node/bgServerChatProcessClient.cjs', [], { cwd: runtime, stdio: ['ignore', 'pipe', 'pipe', 'ipc'] })
@@ -92,6 +95,26 @@ try {
   assert.equal(rows().length, 1)
   assert.equal(rows()[0].deliveredAt, null)
   server.kill('SIGTERM'); await once(server, 'exit')
+  if (includeMessages) {
+    // Exercise the real durable writer and browser delivery; do not synthesize
+    // HTTP claim responses or bypass client parsing/rendering.
+    const db = new Database(path.join(runtime, 'save/risuai.db'))
+    const { createBgNotifications } = createRequire(path.join(root, 'package.json'))('./server/node/bgNotifications.cjs')
+    const owner = createBgNotifications({ db,
+      kvGet: key => db.prepare('SELECT value FROM kv WHERE key=?').get(key)?.value ?? null,
+      kvSet: (key, value) => db.prepare('INSERT OR REPLACE INTO kv (key,value,updated_at) VALUES (?,?,?)').run(key, value, Date.now()),
+      kvDel: key => db.prepare('DELETE FROM kv WHERE key=?').run(key),
+      kvList: prefix => db.prepare('SELECT key FROM kv WHERE substr(key,1,?)=?').all(prefix.length, prefix).map(row => row.key),
+    })
+    try {
+      for (const level of ['info', 'warning', 'error']) assert.equal(owner.publish({
+        operationId: 'synthetic-plugin-operation', eventKey: 'message-' + level, code: 'plugin_message',
+        charId: 'synthetic-character', chatId: 'synthetic-chat', createdAt: Date.now(),
+        effectsMayHaveOccurred: false, pluginName: 'Synthetic', pluginVersion: '1', phase: 'load',
+        message: messageText + ' ' + level, level,
+      }).status, 'stored')
+    } finally { db.close() }
+  }
   await startServer()
   let ackRequests = 0
   const second = await openHome(page => page.route('**/api/bg-notifications/ack', route => {
@@ -100,16 +123,22 @@ try {
   }))
   await second.page.getByText('서버에서 처리할 수 없는 입력 동작으로 멈췄어요. 원문은 해당 채팅에 보존했어요.', { exact: true }).waitFor()
   assert.equal(await second.page.locator('textarea').count(), 0, 'must notify on home without selecting the chat')
-  await until(() => rows()[0].deliveredAt !== null && ackRequests >= 2, 'ACK retry after lost first request')
+  if (includeMessages) for (const level of ['info', 'warning', 'error']) {
+    await second.page.getByText('Synthetic (1): ' + messageText + ' ' + level, { exact: true }).waitFor()
+  }
+  assert.equal(await second.page.locator('[data-sonner-toast] b').count(), 0, 'message markup must remain text')
+  await until(() => rows().length === expectedNotices && rows().every(row => row.deliveredAt !== null)
+    && ackRequests >= 2, 'ACK retry after lost first request')
   const logs = new Database(path.join(runtime, 'save/logs.db'), { readonly: true })
   const notificationsLogged = logs.prepare("SELECT count(*) AS count FROM logs WHERE source='bg-notification'").get().count
   logs.close()
-  assert.equal(notificationsLogged, 1, 'ACK retry must not enqueue/log the toast twice')
+  assert.equal(notificationsLogged, expectedNotices, 'ACK retry must not enqueue/log the toast twice')
   await second.context.close()
   const third = await openHome()
   await third.page.waitForTimeout(5500)
   assert.equal(await third.page.getByText('서버에서 처리할 수 없는 입력 동작으로 멈췄어요. 원문은 해당 채팅에 보존했어요.', { exact: true }).count(), 0)
-  assert.equal(rows().length, 1)
+  assert.equal(rows().length, expectedNotices)
+  if (includeMessages) assert.equal(await third.page.getByText('Synthetic (1):', { exact: false }).count(), 0)
   assert.equal(providerCalls, 0)
   assert.deepEqual(pageErrors, [])
   await third.context.close()

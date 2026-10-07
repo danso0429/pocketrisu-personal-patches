@@ -1,5 +1,6 @@
 export type NotificationCode = 'input_host_unsupported' | 'plugin_permission_missing'
-    | 'plugin_api_unsupported' | 'plugin_hook_failed' | 'plugin_provider_failed'
+    | 'plugin_api_unsupported' | 'plugin_hook_failed' | 'plugin_provider_failed' | 'plugin_message'
+    | 'plugin_host_limit' | 'plugin_late_call'
 export interface BgNotification {
     id: string
     token: string
@@ -16,10 +17,13 @@ export interface BgNotification {
         pluginName?: string
         pluginVersion?: string
         phase?: string
+        message?: string
+        level?: 'info' | 'warning' | 'error'
+        reason?: 'notification_capacity' | 'operation_budget'
     }
 }
 const CODES = new Set<NotificationCode>(['input_host_unsupported', 'plugin_permission_missing',
-    'plugin_api_unsupported', 'plugin_hook_failed', 'plugin_provider_failed'])
+    'plugin_api_unsupported', 'plugin_hook_failed', 'plugin_provider_failed', 'plugin_message', 'plugin_host_limit', 'plugin_late_call'])
 const SEEN_KEY = 'bg-notification-seen-v1'
 const RETAIN_MS = 48 * 60 * 60 * 1000
 const identifier = (value: unknown): value is string => typeof value === 'string' && /^[A-Za-z0-9_-]{8,128}$/.test(value)
@@ -43,7 +47,11 @@ export function parseBgNotifications(value: unknown): BgNotification[] {
                 && (typeof event.api !== 'string' || !/^[a-z][a-z0-9_]{2,63}$/.test(event.api)))
             || (event.code.startsWith('plugin_') && (!text(event.pluginName, 120) || !text(event.pluginVersion, 80)
                 || !['load', 'input', 'before_request', 'after_request', 'provider'].includes(event.phase || '')))
-            || (event.code === 'plugin_permission_missing' && event.effectsMayHaveOccurred)) {
+            || (event.code === 'plugin_permission_missing' && event.effectsMayHaveOccurred)
+            || (event.code === 'plugin_host_limit' && !['notification_capacity', 'operation_budget'].includes(event.reason ?? ''))
+            || (event.code === 'plugin_message' && (typeof event.message !== 'string' || event.message.length < 1
+                || event.message.length > 4096 || /[\u0000-\u0008\u000b\u000c\u000e-\u001f\u007f]/.test(event.message)
+                || !['info', 'warning', 'error'].includes(event.level ?? '')))) {
             throw new Error('Invalid notification record')
         }
         ids.add(row.id)
@@ -56,10 +64,15 @@ export function notificationMessage(notification: BgNotification): string {
     const plugin = `${event.pluginName} (${event.pluginVersion})`
     switch (event.code) {
         case 'input_host_unsupported': return '서버에서 처리할 수 없는 입력 동작으로 멈췄어요. 원문은 해당 채팅에 보존했어요.'
-        case 'plugin_permission_missing': return `${plugin}: 저장된 권한이 없어 플러그인을 적용하지 않았어요.`
-        case 'plugin_api_unsupported': return `${plugin}: 서버에서 지원하지 않는 API를 요청했어요.`
+        case 'plugin_permission_missing': return `${plugin}: 저장된 권한이 없거나 재확인이 필요해 플러그인을 적용하지 않았어요. 앱에서 권한을 확인해 주세요.`
+        case 'plugin_api_unsupported': return `${plugin}: 서버에서 지원하지 않는 API를 요청했어요 (${event.api}).`
         case 'plugin_hook_failed': return `${plugin}: 요청 처리 중 플러그인 오류가 발생했어요.`
         case 'plugin_provider_failed': return `${plugin}: 모델 공급자 실행이 실패했어요.`
+        case 'plugin_message': return `${plugin}: ${event.message}`
+        case 'plugin_host_limit': return event.reason === 'notification_capacity'
+            ? '서버 알림 보관 한도로 일부 플러그인 알림을 생략했어요. 생성 작업은 계속 진행해요.'
+            : `${plugin}: 서버 플러그인 실행 한도에 도달해 이 플러그인의 요청을 중단했어요.`
+        case 'plugin_late_call': return `${plugin}: 완료된 콜백에서 뒤늦게 도착한 API 요청을 거부했어요. 다른 콜백은 유지해요.`
     }
 }
 

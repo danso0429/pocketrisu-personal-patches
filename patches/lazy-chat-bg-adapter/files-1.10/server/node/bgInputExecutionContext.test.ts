@@ -101,7 +101,7 @@ describe('server input shares the operation execution context', () => {
         const failed = new Error('unsupported input')
         const signal = new AbortController().signal
         vi.stubGlobal('__bgGetServerInputExecution', () => ({ signal, failure: failed }))
-        const install = new Function('orchestrationAbortContext', source.slice(start, end) + '; return patchFetch;')(context)
+        const install = new Function('orchestrationAbortContext', 'require', source.slice(start, end) + '; return patchFetch;')(context, require)
         install()
         await expect(context.run(signal, () => fetch('https://synthetic.example.test/request'))).rejects.toBe(failed)
         expect(realFetch).not.toHaveBeenCalled()
