@@ -1,5 +1,13 @@
 # Changelog
 
+## 0.2.4-experimental.20 (BG candidate)
+
+- Add an internal, default-off generic server plugin host with one isolated process per plugin per operation, without provider-specific branches or script-hash allowlists.
+- Bridge callbacks, cancellation, streaming responses and native hook/provider execution through parent-owned invocation contexts. Preserve configured model retry/fallback handling and reject late API calls without transferring authority to a later callback.
+- Add per-key canonical storage comparisons, local-storage sidecars, saved permission checks, bounded non-mutating cold-chat reads and server conversation-header propagation.
+- Extend notifications with capability-negotiated v2 plugin messages and host-limit/late-call notices. Keep frozen v1 failure receipts, reserve failure capacity and avoid aborting generation for informational-message overflow.
+- Keep original MARP qualification, broader plugin admission, device/aggregate checks and stable release separate. See `docs/POCKETRISU-G1-6-PLUGIN-HOST-WIP.md` for observed tests, limits and delivery status.
+
 ## 0.2.4-experimental.19 (BG candidate)
 
 - Persist notifications for newly unsupported raw server-input operations and deliver them through the existing upper toast on return, including home or another chat.

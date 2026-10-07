@@ -4,12 +4,20 @@ Personal, all-or-nothing patch delivery for PocketRisu NodeOnly. The current
 stable release is `v0.2.3`, and its complete manifest graph targets exact
 PocketRisu `v1.10.0`.
 
-The `0.2.4-experimental.19` candidate stores new unsupported-input notifications
+The `0.2.4-experimental.20` candidate adds the G1.6 generic server plugin host:
+one isolated process per plugin per operation, scoped RPC, native hook/provider
+adapters, guarded shared storage and versioned notifications. It does not select
+providers by plugin name or script hash. Execution is internal opt-in and remains
+off by default pending original-plugin qualification; installing this candidate
+does not activate MARP or widen G1.5b admission. See the
+[G1.6 implementation and limits](docs/POCKETRISU-G1-6-PLUGIN-HOST-WIP.md).
+
+The `0.2.4-experimental.19` checkpoint stores new unsupported-input notifications
 on the server and delivers them on app return, including the home screen. It preserves
 the original input/recovery control when notification storage fails and suppresses
 ordinary redelivery with leases and separate notification acknowledgements. The current
 toast rules remain; notification expiry is 48 hours and ACK means UI enqueue, not read.
-Plugin writers remain for G1.6. See the [G1.8 foundation record](docs/POCKETRISU-G1-8-NOTIFICATION-FOUNDATION-VALIDATION.md).
+Plugin writers were not included in that checkpoint. See the [G1.8 foundation record](docs/POCKETRISU-G1-8-NOTIFICATION-FOUNDATION-VALIDATION.md).
 It is delivered live; iPhone and aggregate qualification remain pending.
 
 The `0.2.4-experimental.18` checkpoint adds server-aware reroll, Continue Response
