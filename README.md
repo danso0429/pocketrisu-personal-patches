@@ -9,6 +9,9 @@ observations. It measures original control-body and BG snapshot reads without
 changing current result decisions, retries or timeouts. Phone observations are
 required before selecting new body-read bounds; this is not the completed G1.12a
 repair. See the [G1.12a plan and measurement boundary](docs/POCKETRISU-G1-12A-TERMINAL-RESULTS-PLAN.md).
+The always-on timing candidate is delivered live; phone observations and the
+functional correction remain pending. Do not resend in response to the existing
+timeout notice during observation—check the conversation first.
 
 The `0.2.4-experimental.20` candidate adds the G1.6 generic server plugin host:
 one isolated process per plugin per operation, scoped RPC, native hook/provider

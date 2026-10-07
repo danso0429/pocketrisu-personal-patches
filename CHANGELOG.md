@@ -6,6 +6,7 @@
 - Preserve result decisions, existing timeouts, notices, ACKs, admission and generation ownership. No response cloning or new diagnostic persistence store is added.
 - Retain early and recent request samples, bound UTF-8 rows below the native logger limit, and distinguish native timer aborts from unclassified transport errors. Missing offline/process-death logs remain an observation limitation.
 - Keep personal-settings `0.5.13` and server plugin host OFF. Device observations, the actual G1.12a decision repair and G1.12b ownership changes remain separate.
+- Deliver the always-on timing candidate after backup and readback of464 managed files,17 served scripts and five databases. Phone sampling is pending; the existing false-timeout notice must not be treated as a request to resend.
 
 ## 0.2.4-experimental.20 (BG candidate)
 
