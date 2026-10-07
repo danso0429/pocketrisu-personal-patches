@@ -243,6 +243,18 @@ async function startForeground() {
     return module
 }
 
+describe.each([false, true])('existing behavior with recovery timing enabled=%s', enabled => {
+    let timing: typeof import('./bgRecoveryTiming').bgRecoveryTiming
+    let restoreStart: (() => void) | undefined
+    beforeEach(async () => {
+        timing = (await import('./bgRecoveryTiming')).bgRecoveryTiming
+        if (!enabled) {
+            const spy = vi.spyOn(timing, 'start').mockImplementation(() => {})
+            restoreStart = () => spy.mockRestore()
+        }
+    })
+    afterEach(() => { timing?.dispose(); restoreStart?.(); restoreStart = undefined })
+
 describe('anchored commit notices preserve finished-operation handling', () => {
     it('flushes root settings together with the selected chat before detached admission', async () => {
         serve(() => undefined)
@@ -557,6 +569,34 @@ describe('boot recovery of a committed result that cannot be adopted', () => {
 })
 
 describe('foreground watch of finished server operations', () => {
+    it.each([false, true])('does not apply a late body after cancellation with newer watch=%s', async newer => {
+        let resolveBody!: (body: unknown) => void
+        let oldOperation = ''
+        serve((operationId, method, url) => {
+            if (isResultPeek(method, url)) {
+                oldOperation = operationId
+                return { status: 200, body: new Promise(resolve => { resolveBody = resolve }) }
+            }
+            if (method === 'DELETE' && url.startsWith('/api/bg-orchestrate/')) {
+                return { status: 200, body: { cancelled: true } }
+            }
+        })
+        const module = await startForeground()
+        await vi.advanceTimersByTimeAsync(2_500)
+        expect(resolveBody).toBeTypeOf('function')
+        expect(await module.cancelServerOrchestratedChat()).toBe(true)
+        if (newer) await startForeground()
+        const before = structuredClone(markers())
+        resolveBody(committedResult(oldOperation))
+        await vi.advanceTimersByTimeAsync(1)
+        expect(markers()).toEqual(before)
+        expect(markers()).toHaveLength(newer ? 1 : 0)
+        expect(h.adopt).not.toHaveBeenCalled()
+        expect(count(isResultAck)).toBe(0)
+        expect(h.alerts).toEqual([])
+        expect(h.sendChat).not.toHaveBeenCalled()
+    })
+
     it('closes a finished failure without an answer once', async () => {
         serve((operationId, method, url) => {
             if (isResultPeek(method, url)) return { status: 200, body: terminalError(operationId) }
@@ -721,4 +761,5 @@ describe('foreground watch of finished server operations', () => {
         expect(h.alerts.some(message => message.includes('취소 대상을'))).toBe(false)
         expect(h.sendChat).not.toHaveBeenCalled()
     })
+})
 })
