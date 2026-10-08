@@ -1,6 +1,6 @@
 # BG capability and pre-admission correction plan
 
-2026-10-08 KST. Status: **CAP implementation authorized after detailed planning review; execution in progress**. Baseline is delivered experimental.22 (`ab14579`, documentation checkpoint `8240f77`). The user subsequently requested executing the full CAP plan, including normal verification and safe delivery. Preserve the uncommitted G1.12b candidate without shipping its generated installer. Earlier planning-only boundaries below record the preceding stage; this authorization covers CAP, not G1.12b implementation, paid probes, plugin-host activation or stable release.
+2026-10-09 KST. Status: **CAP automatic implementation, validation and live delivery complete; physical-device/aggregate gates remain open**. Baseline is delivered experimental.22 (`ab14579`, documentation checkpoint `8240f77`). The user subsequently requested executing the full CAP plan, including normal verification and safe delivery. Preserve the uncommitted G1.12b candidate without shipping its generated installer. Earlier planning-only boundaries below record the preceding stage; this authorization covers CAP, not G1.12b implementation, paid probes, plugin-host activation or stable release. See [the execution and delivery record](POCKETRISU-BG-CAP-ADMISSION-VALIDATION.md).
 
 ## 1. Outcome and boundaries
 
