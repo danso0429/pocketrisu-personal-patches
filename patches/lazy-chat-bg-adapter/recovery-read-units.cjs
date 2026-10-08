@@ -36,8 +36,14 @@ async function fetchOrchestrationControl(url: string, init: RequestInit = {}): P
     return fetchRecoveryControl(clientBuildFetch, url, init, ORCH_CONTROL_FETCH_TIMEOUT_MS)
 }`);
     for (const [variable, count] of [['res', 7], ['response', 7], ['statusResponse', 1]]) {
-        for (let index = 0; index < count; index++) add(`body-${variable}-${index}`, orch,
-            `await ${variable}.json()`, `await readRecoveryJson(${variable})`, true);
+        for (let index = 0; index < count; index++) {
+            // This occurrence is a complete return statement. A multiline marker
+            // around only its expression would turn it into a bare return (ASI).
+            const wholeReturn = variable === 'response' && index === 2;
+            const prefix = wholeReturn ? 'return ' : '';
+            add(`body-${variable}-${index}`, orch,
+                `${prefix}await ${variable}.json()`, `${prefix}await readRecoveryJson(${variable})`, !wholeReturn);
+        }
     }
     const node = 'src/ts/storage/nodeStorage.ts';
     add('pending-save-proof', node, '    savedChatViewRevision(\n', `    chatReadProofToken(chaId: string, chatId: string): unknown {
