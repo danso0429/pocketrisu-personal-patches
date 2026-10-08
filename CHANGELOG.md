@@ -6,7 +6,7 @@
 - Bound the original raw input-base import/body/decode observation and prior-input status observation; retain drafts, markers and exact admission identity on unavailable results.
 - Connect prepared capability headers/body to native Stop. Preserve normal v1 negotiation and the existing non-aborted legacy fallback.
 - Verify actual .22 upgrade, clean composition/re-plan/exact revert, native storage interleavings and synthetic real-browser timeout/Stop/claim/attach/queue paths. Keep personal-settings0.5.13, plugin host OFF and G1.12b/MARP qualification separate.
-- Physical-device and aggregate/stable gates remain open; this is an experimental correction candidate.
+- Ordinary-use device preservation was subsequently reported normal. Preparation-only Stop was withdrawn as a required user test because its phase is not reliably distinguishable on screen. Route-specific device and aggregate/stable gates remain open; this is an experimental correction candidate.
 - Delivered after verified application/state backup and readback of466 managed files,175 served scripts and five databases. Header settings and operation records were preserved; no generation was cancelled and new error-log lines were0.
 
 ## 0.2.4-experimental.22 (BG terminal recovery candidate)
