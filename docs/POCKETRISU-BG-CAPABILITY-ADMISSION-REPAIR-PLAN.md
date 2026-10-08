@@ -1,6 +1,6 @@
 # BG capability and pre-admission correction plan
 
-2026-10-08 KST. Status: **planning only; BG implementation paused by the user**. Baseline is delivered experimental.22 (`ab14579`, documentation checkpoint `8240f77`). Preserve the uncommitted G1.12b candidate without shipping its generated installer. This plan adds a correction checkpoint after G1.12a and before G1.12b; it does not authorize immediate implementation, provider probes, live application or plugin-host activation.
+2026-10-08 KST. Status: **CAP implementation authorized after detailed planning review; execution in progress**. Baseline is delivered experimental.22 (`ab14579`, documentation checkpoint `8240f77`). The user subsequently requested executing the full CAP plan, including normal verification and safe delivery. Preserve the uncommitted G1.12b candidate without shipping its generated installer. Earlier planning-only boundaries below record the preceding stage; this authorization covers CAP, not G1.12b implementation, paid probes, plugin-host activation or stable release.
 
 ## 1. Outcome and boundaries
 
@@ -146,3 +146,97 @@ Use `bg/candidates/g112a-candidate` for the generated integration environment an
 Old temporary directory names remain compatibility symlinks for historical scripts, caches and virtual-environment launchers;89 absolute internal links were updated. New commands must use the canonical workspace. Do not remove compatibility links by an age-based sweep. The workspace is preserved task state, not an L3 report slated for cleanup.
 
 Fifteen original-equivalent roundtrip trees were removed after comparison, with13 differing intent records retained separately. Logs and scripts were not removed. This maintenance neither deploys the dirty G1.12b candidate nor resumes BG implementation.
+
+## 8. Detailed execution plan
+ and direction review (2026-10-08 KST)
+
+The user requested further planning, not implementation. Keep the CAP checkpoint and the existing behavior contracts in sections1–5. This section refines source ownership, tests, commit boundaries and conditional work. No runtime fix, live change, provider call, plugin-host activation or stable release is authorized by this planning update.
+
+### 8.1 Direction and evidence
+
+Treat the generated return, raw input-base read, and prepared negotiation cancellation as three separate defects. Fix their maintained owners and test the resulting composition. Keep policy, native persistence/CAS/rebase, current base/projection checks, marker-before-start and exact POST/status reconciliation intact. Preserve raw failure as blocked and prepared negotiation failure as legacy server ownership unless cancelled. Legacy negotiation is not permission for a second browser model call after uncertain admission.
+
+Do not merge the broad G1.12b ownership/readiness change into CAP. Shared interleavings are regression gates; add shared protection only for a reproduced failure. A stalled strict save remains a conditional follow-up, so CAP completion must not claim every pre-admission wait has become bounded.
+
+New direct check: the maintained composer's actual `applyUnit`/`revertUnit` was executed on an isolated async return fixture. An expression-only replacement consumed the body zero times and returned undefined; a whole-return replacement consumed it once and returned the supplied object. Both applied idempotently and reverted exactly. This establishes that correct apply/revert does not establish generated-code behavior; it is not a full-target or browser pass.
+
+Additional source inspection found a pre-capability observation gap: `submitServerInputCommand` queries existing markers with a fresh signal that has no owner to abort it. Its `status` wrapper uses `clientBuildFetch` directly; that helper has no timer. This is distinct from post-POST reconciliation, whose existing per-attempt controller aborts after10s and whose raw overall budget is60s. Reproduce the prior-marker gap at the actual caller before adding the conditional unit in8.4.
+
+Client capacity checks span awaits, but the server checks its two-nonterminal-input limit inside `queueStorageOperation` and a SQLite transaction. Concurrent client entry is a test surface, not established server over-admission. Validate server outcomes and subsequent reconciliation before proposing a client lock.
+
+### 8.2 CAP-0: isolate the implementation baseline
+
+1. On later implementation authorization, create a separate worktree from delivered runtime `ab14579` with the current CAP documentation. The present branch's documentation HEAD is `055abfe`; its dirty G1.12b manifest, owned files and installer are not a CAP starting artifact. Preserve their hashes and paths.
+2. Record the exact official1.10.0 target, selected packs, source/dependency versions and generated-source hashes. Use the canonical investigation workspace described in section7; do not rebuild or mutate the preserved exact/virtual comparison to masquerade as a fixed candidate.
+3. Preserve archive comparisons and previous diagnostics with their original source/environment limits. Distinguish an expected reproduction pass from a repaired behavior pass. No repeated live-configuration survey or paid probe is required merely to prepare the isolated candidate.
+4. Capture baseline diagnostics and an existing .22 applied-state copy for upgrade validation. Retain normal/error/cancellation behavior and the current draft, attachment, marker and queue contracts as explicit expectations.
+
+### 8.3 CAP-1: repair generated semantics without changing marker format
+
+- Owner: `patches/lazy-chat-bg-adapter/recovery-read-units.cjs`. The delivered generated `body-response-2` is the bare-return site; the other six `response` replacements are assignment-expression sites. Prefer retaining that unit ID and replacing its whole return. Confirm occurrence counts and location at the actual pre-unit composition stage before relying on the loop index. Do not shift other IDs or add a broad `first` policy to conceal an anchor mismatch.
+- Add actual-caller and real-composer failing cases before the correction. Unit-level mocked capability results are insufficient. Verify valid response consumption/return,404/incompatible contract,500, malformed/stalled body, prior marker and capability downgrade through the exported caller.
+- Add a small marker-boundary diagnostic over the supported generated TS/JS and Svelte script regions. Token hazards identify candidates; targeted AST/runtime checks determine whether semantics changed. Inventory Svelte script/template/style regions separately and record excluded coverage. Validate positive and ordinary-expression controls before promoting a diagnostic to a gate.
+- An AST comparison that flattens marker newlines is an experiment, not a universal proof: comment and legitimate statement boundaries can change meaning. Likewise, lexical lists of `return`, `async`, postfix operators or TypeScript contextual tokens do not by themselves prove a defect. Keep targeted unreachable-code diagnostics as a cross-check against baseline; do not predict finding counts or broaden compiler policy without inspecting existing errors.
+- Commit the return correction with its passing tests. Preserve red evidence without presenting a knowingly failing test-only checkpoint as a successful runtime candidate. Validate .22 applied-state upgrade in addition to clean composition.
+
+### 8.4 CAP-2: separate read and cancellation changes
+
+| Unit | Maintained owner | Planned change | Required preservation |
+| --- | --- | --- | --- |
+| CAP-2a raw base | `client-input-recovery-units.cjs`, existing `snapshot-view-revision` content; owned `files-1.10/src/ts/bgRecoveryRead.ts` | One original response consumption and one30s candidate budget covering codec import, binary body, decode and base validation | Same codec/defaults and base identity/revision checks; no clone, tee, second fetch or general storage timeout |
+| CAP-2b prepared | Existing `server-chat-commit-client-negotiate` content in `manifest.cjs` | Pass `arg.signal` into the capability control request; consume the original body with `readRecoveryJson` | Normal v1; non-aborted failure's existing legacy server ownership; handled Stop with no POST or resend notice |
+| CAP-2c prior-status observation, conditional | Owned `files-1.10/src/ts/bgServerInputClient.ts`, prior-marker loop only | If caller-level stalls reproduce, wrap that observation in existing `boundedRecoveryRead` using its signal | Existing `prior-operation-unavailable`, unchanged marker on unavailable observation, and unchanged post-POST10s/60s reconciliation |
+
+Use a small response-consumption companion in `bgRecoveryRead` that reuses the response's controller/parent association and cleans it in `finally`. The winning read returns the validated observation; only the outer caller may authorize publication after existing current-selection/revision checks. Do not duplicate those checks inside a read-only decoder or change the shared JSON reader's behavior without need. This helper is owned by the BG adapter; verify unit dependencies and graph composition when adding its caller.
+
+The raw budget begins before the import/body/decode await chain; do not stack independent30s budgets for each step. The timeout winner cannot later write a marker, POST, clear a draft or alter a newer attempt. Decode/import can finish later, and synchronous decode or page suspension can delay a timer; this is a continuation boundary, not hard wall-clock preemption. Preserve existing codec fallback formats and error handling.
+
+Prepared cancellation must work before headers, between headers and body, and during body consumption. Existing post-catch signal handling remains responsible for the exact preparation owner. Test an aborted old owner followed by a new owner, then release the old response: old work must not clear the new stage or busy state. An un-aborted body timeout follows legacy negotiation once; compare it to the existing HTTP/header failure payload, excluding only unavoidable generated identity/time values.
+
+CAP-2c first gets an actual exported-caller header/body stall reproduction. Prefer the prior-marker call-site wrapper rather than changing the shared start/status transport. Propose reusing existing `RECOVERY_BODY_TIMEOUT_MS`30s as an initial whole-observation candidate; this is not measured prior-status device latency. Check timely success and cancellation/late-response behavior before selecting it for implementation. Signal-respecting and signal-ignoring fixtures must distinguish bounded caller settlement from actual connection closure. If this needs a broader post-POST contract change, report that separately before expanding the unit.
+
+### 8.5 CAP-3: test matrix and evidence
+
+These IDs track scenarios, not a required test count. Use real generated callers, native owner/storage and endpoint implementations for the contract being tested, with controlled transport/provider leaves explicitly identified.
+
+| ID | Scenario | Required outcome |
+| --- | --- | --- |
+| RET-1 | Actual composer and whole-return unit | Body consumed once, supplied value returned, expected AST; exact/idempotent apply/revert |
+| RET-2 | Supported generated compositions and baseline diagnostics | Investigated marker-boundary candidates; no unexplained new diagnostics; Svelte/other exclusions recorded |
+| NEG-1 | Valid capability/base;404; incompatible fields; active-marker downgrade | Existing accepted/unsupported/blocked distinctions; no policy/schema bypass |
+| NEG-2 | HTTP failure, malformed JSON, stalled capability body | capability-unavailable; no new marker/POST or silent preparation fallback |
+| RAW-1 | Timely headers, stalled binary/import/async decode | canonical-chat-unavailable; spinner released; draft/translation/attachments preserved |
+| RAW-2 | Late success/rejection after timeout and a later attempt | No stale marker/POST/publication, no unhandled rejection or newer-owner cleanup |
+| RAW-3 | Wrong/missing base or changed selection/slot/view | Existing identity/base/CAS protection; no forced adoption |
+| PRE-1 | Already aborted; Stop before headers/between phases/during body | Handled cancellation without waiting for budget; exact owner/stage release; POST0 and no resend/error notice |
+| PRE-2 | Body timeout without Stop versus HTTP/header failure; normal success | Legacy start once with equivalent semantics; normal v1 start once |
+| OWN-1 | New owner after old Stop, then old response finishes | New busy/stage/marker unaffected |
+| PRI-1 | Existing marker status headers/body stall, both abort cooperation cases | Reproduction first; bounded prior-operation-unavailable if corrected; retained marker/draft; no new POST; post-POST contract unchanged |
+| ADM-1 | Two commands then third; simultaneous entry; same draft in two views | Server capacity/identity enforced; conservative rejection/unknown reconciles without lost draft or paid replay |
+| ADM-2 | Lost start response, delayed/missing/unknown status | Exact operation retained; no second generation on ambiguity; reconcile controller's actual abort checked |
+| REC-1 | Explicit recovery eligibility, admission, claim, client preparation, attach/abandon | Original input preserved, qualification checked separately; ambiguous claim/attach never permits automatic replay |
+| INT-1 | Raw admission during older classic boot probe | New input and old paid result remain recoverable |
+| INT-2 | Raw/boot adoption both orders, local edit and save-in-flight | Real guards preserve content; late refusal reobserved on valid subsequent evidence |
+| INT-3 | Attach and mounted pending-input refresh concurrently | Exact delivery identity; no duplicate provider/completion effects; idempotent repeated reads/ACK allowed |
+| RES-1 | Reader success/error/timeout/abort and late rejection | Timers/listeners and response association cleaned; original controller behavior checked; no clone/tee/double-fetch |
+| UP-1 | Actual .22 applied-state upgrade, re-plan and revert | Stored unit-snapshot migration, graph and byte/mode restoration; no manual edits or drift-check weakening |
+
+Use deterministic clocks for deadline ordering and actual Response/stream/loopback evidence for transport cancellation. Neither establishes iOS suspend/kill behavior. A stale dynamic codec chunk is an upgrade surface: trace the build fence and test preserved blocked handling; do not repair generic chunk loading or turn it into unsupported fallback without evidence.
+
+### 8.6 Commits, gates and delivery boundary
+
+Keep return, raw-read and prepared-cancellation corrections in separate commits with their focused tests. CAP-2c is a separate commit only if its caller reproduction justifies it. Build the deliverable installer from the composed CAP line after integration validation; never use the dirty G1.12b installer. Source commit boundaries do not create intermediate live releases.
+
+For the final composition, run affected full client/server/compatibility tests, types/help, frontend and BG bundle build/load, graph, re-plan0, exact byte/mode revert and .22 upgrade checks, followed by L3/L4, privacy sweep and final read-only consultation. Record source/environment/commands/observed results and reuse unchanged prior evidence only within its contract. Follow the established BG target build workflow; do not substitute the NAI application's build for the isolated PocketRisu target.
+
+After later implementation authorization and gates, check ordinary generation and raw pending work plus process-local settings contexts, drift and verified recovery points. Use the appropriate minimal backup, then safe apply/build/restart and direct source/served-assets/DB/settings readback. Preserve current font/settings and plugin-host OFF. Do not cancel generation or delete user data.
+
+Device preservation checks use ordinary prepared send, Stop while preparation is visibly active, and subsequent send, with route evidence. Do not manufacture phone hangs, alter model/plugin settings or issue paid fault injection to reach a test. Unreachable eligible raw cases remain unqualified. Outstanding G1.12a device scenarios and G1/aggregate/stable gates remain open.
+
+Report a new regression under the repository workflow before repatching. A reproduced related shared failure needs its trigger, damaged contract and smallest protection documented; a conservative refusal alone is not corruption. Failure to reconcile after valid later evidence is a liveness issue. Unexpected marker diagnostics, upgrade drift, dependency changes or intended changes to post-POST timing require investigation before extending scope, not weakened assertions or a blanket owner lock.
+
+### 8.7 Planning consultation
+
+Two read-only Opus5.5 turns reviewed the frozen plan, source snapshots and proposed refinements. Codex directly confirmed the prior-marker timeout gap, response unit mapping, native prepared cleanup, stored-unit snapshot reversal and server transactional capacity guard. The discussion added conditional prior-status observation and applied-state upgrade gates, narrowed the return change toward an existing ID, and placed prepared/raw edits in their maintained owner content.
+
+The proposed AST-newline normalization and lexical scanner were retained as diagnostic candidates rather than asserted universal safety gates. The initial concurrent-entry concern was narrowed using the server's transactional limit; no client mutex was selected. Prior-status budget qualification, full composed caller interleavings and device routes remain implementation evidence to obtain. The advisor did not run tests; only the isolated composer mechanism check was newly executed during this planning review. Runtime implementation remains paused.

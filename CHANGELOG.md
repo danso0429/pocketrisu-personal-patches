@@ -1,5 +1,13 @@
 # Changelog
 
+## 0.2.4-experimental.23 (BG CAP admission correction)
+
+- Repair the complete generated capability return while retaining its existing unit ID; validate real caller behavior and detect remaining unwrapped control JSON calls.
+- Bound the original raw input-base import/body/decode observation and prior-input status observation; retain drafts, markers and exact admission identity on unavailable results.
+- Connect prepared capability headers/body to native Stop. Preserve normal v1 negotiation and the existing non-aborted legacy fallback.
+- Verify actual .22 upgrade, clean composition/re-plan/exact revert, native storage interleavings and synthetic real-browser timeout/Stop/claim/attach/queue paths. Keep personal-settings0.5.13, plugin host OFF and G1.12b/MARP qualification separate.
+- Physical-device and aggregate/stable gates remain open; this is an experimental correction candidate.
+
 ## 0.2.4-experimental.22 (BG terminal recovery candidate)
 
 - Recognize already-current saved chats without replacement, and use guarded fresh canonical reads when the remembered snapshot is unavailable.
