@@ -9,10 +9,14 @@ export interface ServerInputMarker {
     baseRevision: string
     state: 'uncertain' | 'accepted'
     createdAt: number
+    recoveryOutcome?: string
+    recoveryNoticeKey?: string
 }
 
-export const SERVER_INPUT_MARKER_PREFIX = 'bg-server-input-v2:'
-const LEGACY_SERVER_INPUT_MARKER_PREFIX = 'bg-server-input-v1:'
+// v2 readers reject unknown fields and remove the whole entry. Isolate the
+// optional recovery annotations from those readers, as v2 did for v1.
+export const SERVER_INPUT_MARKER_PREFIX = 'bg-server-input-v3:'
+const LEGACY_SERVER_INPUT_MARKER_PREFIXES = ['bg-server-input-v2:', 'bg-server-input-v1:']
 export const SERVER_INPUT_MARKER_MAX_AGE_MS = 49 * 60 * 60 * 1000
 export const SERVER_INPUT_MARKER_MAX_ENTRIES = 128
 
@@ -31,8 +35,11 @@ function validMarker(value: unknown): value is ServerInputMarker {
     const fields = new Set([
         'operationId', 'charId', 'chatId', 'localRevision',
         'baseRevision', 'state', 'createdAt', 'adoptedRevision',
+        'recoveryOutcome', 'recoveryNoticeKey',
     ])
     return Object.keys(marker).every(key => fields.has(key))
+        && (marker.recoveryOutcome === undefined || (typeof marker.recoveryOutcome === 'string' && marker.recoveryOutcome.length <= 64))
+        && (marker.recoveryNoticeKey === undefined || (typeof marker.recoveryNoticeKey === 'string' && marker.recoveryNoticeKey.length <= 1024))
         && typeof marker.operationId === 'string' && marker.operationId.length > 0
         && marker.operationId.length <= 128
         && typeof marker.charId === 'string' && marker.charId.length > 0
@@ -56,35 +63,50 @@ export function readServerInputMarkers(
     const keys: string[] = []
     for (let index = 0; index < storage.length; index += 1) {
         const key = storage.key(index)
-        if (key?.startsWith(SERVER_INPUT_MARKER_PREFIX) || key?.startsWith(LEGACY_SERVER_INPUT_MARKER_PREFIX)) keys.push(key)
+        if (key && [SERVER_INPUT_MARKER_PREFIX, ...LEGACY_SERVER_INPUT_MARKER_PREFIXES].some(prefix => key.startsWith(prefix))) keys.push(key)
     }
+    const prefixes = [SERVER_INPUT_MARKER_PREFIX, ...LEGACY_SERVER_INPUT_MARKER_PREFIXES]
+    keys.sort((left, right) => prefixes.findIndex(prefix => left.startsWith(prefix))
+        - prefixes.findIndex(prefix => right.startsWith(prefix)))
     const candidates: ServerInputMarker[] = []
+    const seen = new Set<string>()
     for (const key of keys) {
-        let marker: unknown
-        try { marker = JSON.parse(storage.getItem(key) || '') } catch { /* invalid */ }
-        const legacy = key.startsWith(LEGACY_SERVER_INPUT_MARKER_PREFIX)
-        if (!validMarker(marker) || key !== (legacy ? LEGACY_SERVER_INPUT_MARKER_PREFIX + marker.operationId : markerKey(marker.operationId))
-            || now - marker.createdAt > SERVER_INPUT_MARKER_MAX_AGE_MS) {
+        let parsed: unknown
+        try { parsed = JSON.parse(storage.getItem(key) || '') } catch { /* invalid */ }
+        const legacy = LEGACY_SERVER_INPUT_MARKER_PREFIXES.find(prefix => key.startsWith(prefix))
+        if (!validMarker(parsed) || key !== (legacy ? legacy + parsed.operationId : markerKey(parsed.operationId))
+            || now - parsed.createdAt > SERVER_INPUT_MARKER_MAX_AGE_MS) {
             storage.removeItem(key)
             continue
         }
+        let marker: ServerInputMarker = parsed
+        // A lower-priority row must not perform migration writes after a
+        // higher-priority row was selected but could not be copied (quota).
+        if (seen.has(marker.operationId)) continue
         if (legacy) {
             const destination = markerKey(marker.operationId)
             let existing: unknown
             try { existing = JSON.parse(storage.getItem(destination) || '') } catch {}
-            if (!validMarker(existing) || existing.operationId !== marker.operationId) {
-                storage.setItem(destination, JSON.stringify(marker))
+            if (validMarker(existing) && existing.operationId === marker.operationId
+                && now - existing.createdAt <= SERVER_INPUT_MARKER_MAX_AGE_MS) {
+                marker = existing
+                try { storage.removeItem(key) } catch { /* Duplicate cleanup is best effort. */ }
+            } else {
+                // Copy before removal. Failed migration must neither lose the
+                // legacy row nor prevent unrelated current rows being read.
+                try {
+                    storage.setItem(destination, JSON.stringify(marker))
+                    storage.removeItem(key)
+                } catch { /* Return the validated legacy candidate until migration can succeed. */ }
             }
-            storage.removeItem(key)
-            // Re-read the v2 entry below or on the next call; never duplicate an
-            // operation when both versions were present during a rolling update.
-            if (keys.includes(destination)) continue
         }
         if (marker.createdAt > now) {
             marker = { ...marker, createdAt: now }
-            storage.setItem(markerKey((marker as ServerInputMarker).operationId), JSON.stringify(marker))
+            try { storage.setItem(markerKey(marker.operationId), JSON.stringify(marker)) }
+            catch { /* A clock correction can still be applied to this read. */ }
         }
-        candidates.push(marker as ServerInputMarker)
+        seen.add(marker.operationId)
+        candidates.push(marker)
     }
     candidates.sort((left, right) => left.createdAt - right.createdAt
         || left.operationId.localeCompare(right.operationId))
@@ -130,7 +152,7 @@ export function updateServerInputMarker(
 
 export function clearServerInputMarker(storage: MarkerStorage, operationId: string): void {
     storage.removeItem(markerKey(operationId))
-    storage.removeItem(LEGACY_SERVER_INPUT_MARKER_PREFIX + operationId)
+    for (const prefix of LEGACY_SERVER_INPUT_MARKER_PREFIXES) storage.removeItem(prefix + operationId)
 }
 
 export function advanceServerInputMarkerRevisions(

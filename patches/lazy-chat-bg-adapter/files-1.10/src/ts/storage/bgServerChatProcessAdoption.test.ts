@@ -140,7 +140,10 @@ async function adoptFromEmptyStorage() {
         'chat-1',
         expectedRevision,
         [],
-        () => { throw new Error('blank placeholder revision must not be read') },
+        (chat) => {
+            if (chat._placeholder) throw new Error('blank placeholder revision must not be read')
+            return orchestrationChatRevision(chat)
+        },
     )
     return { storage, chats, result }
 }

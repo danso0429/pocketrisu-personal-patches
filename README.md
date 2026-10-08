@@ -4,14 +4,18 @@ Personal, all-or-nothing patch delivery for PocketRisu NodeOnly. The current
 stable release is `v0.2.3`, and its complete manifest graph targets exact
 PocketRisu `v1.10.0`.
 
-The `0.2.4-experimental.21` candidate starts G1.12a with temporary recovery timing
-observations. It measures original control-body and BG snapshot reads without
-changing current result decisions, retries or timeouts. Phone observations are
-required before selecting new body-read bounds; this is not the completed G1.12a
-repair. See the [G1.12a plan and measurement boundary](docs/POCKETRISU-G1-12A-TERMINAL-RESULTS-PLAN.md).
-The always-on timing candidate is delivered live; phone observations and the
-functional correction remain pending. Do not resend in response to the existing
-timeout notice during observation—check the conversation first.
+The `0.2.4-experimental.22` G1.12a candidate recognizes already-current server answers, bounds BG
+control-body and snapshot reads, and queries server state after a long suspension
+instead of declaring generation timeout. Conflicting local edits retain recovery
+markers; verified deleted or superseded targets retire locally without deleting
+their server delivery. Temporary measurement instrumentation is removed after
+the user-approved collection closeout. See the
+[G1.12a plan, evidence and delivery status](docs/POCKETRISU-G1-12A-TERMINAL-RESULTS-PLAN.md).
+Implementation validation and delivery are in progress. Production remains the
+measurement-only `0.2.4-experimental.21` until the delivery record is updated.
+G1.12b navigation ownership and MARP server execution remain separate work.
+After updating, reload every open PocketRisu tab/PWA for the v3 input-marker
+reader. Clearing browser storage is neither required nor recommended.
 
 The `0.2.4-experimental.20` candidate adds the G1.6 generic server plugin host:
 one isolated process per plugin per operation, scoped RPC, native hook/provider

@@ -6,7 +6,7 @@ import {
     writePendingMarker as writeStoredPendingMarker,
 } from './bgOrchestrationPending'
 import { orchestrationChatRevision } from './bgOrchestrationMerge'
-import { COMMITTED_RESULT_KEPT_NOTICE } from './bgFinishedOperation'
+const CONFLICT_NOTICE = '서버에 저장된 답변과 현재 편집 내용을 함께 확인해야 해요. 현재 내용과 서버 결과를 보존하고 복구를 보류했어요.'
 
 // Drives the generated bgOrchestrate.ts boot recovery and foreground watch against a scripted
 // server. Only storage, UI and generation-lease leaves are replaced; the orchestration control
@@ -25,13 +25,24 @@ const h = vi.hoisted(() => ({
     ) => Promise<{ status: number, body: unknown }>,
     adopt: null as any,
     sendChat: null as any,
+    doingChat: null as any,
+    sounds: 0,
+    holdSave: false,
+    failSave: false,
+    emitSaveEvidence: false,
+    releaseSave: null as null | (() => void),
 }))
 
 vi.mock('./stores.svelte', async () => {
     const { writable } = await import('svelte/store')
     return { DBState: h.dbState, selectedCharID: writable(0), ReloadChatPointer: writable(0) }
 })
-vi.mock('./globalApi.svelte', () => ({ requestDurableSave: async (scope: any) => { h.durableScopes.push(scope) } }))
+vi.mock('./globalApi.svelte', () => ({ requestDurableSave: async (scope: any) => {
+    h.durableScopes.push(scope)
+    if (h.failSave) throw new Error('synthetic durable save failed')
+    if (h.holdSave) await new Promise<void>(resolve => { h.releaseSave = resolve })
+    if (h.emitSaveEvidence) window.dispatchEvent(new Event('bg-recovery-evidence'))
+} }))
 vi.mock('./storage/chatStorage', () => ({
     adoptServerCommittedChat: (...args: unknown[]) => h.adopt(...args),
     ensureChatHydrated: async () => true,
@@ -48,12 +59,12 @@ vi.mock('./alert', () => ({
         h.warnings.push(message)
     },
 }))
-vi.mock('./notificationSound', () => ({ playNotificationSound: async () => {} }))
+vi.mock('./notificationSound', () => ({ playNotificationSound: async () => { h.sounds++ } }))
 vi.mock('./process/index.svelte', async () => {
     const { writable } = await import('svelte/store')
     return {
         chatProcessStage: writable(0),
-        doingChat: writable(false),
+        get doingChat() { return h.doingChat },
         sendChatWithDirectLifecycle: (...args: unknown[]) => h.sendChat(...args),
     }
 })
@@ -62,14 +73,6 @@ vi.mock('./process/generationState', () => ({
     endGenerationIfOwned: () => true,
     startGeneration: () => {},
 }))
-vi.mock('./generationBusy', async () => {
-    const { writable } = await import('svelte/store')
-    return {
-        orchestrating: writable(false),
-        setServerGenerationBusy: () => {},
-        handoffServerGenerationToClient: () => {},
-    }
-})
 vi.mock('./status/requestStatus', () => ({
     ingestRelayedStatuses: () => {},
     clearRelayedStatuses: () => {},
@@ -198,9 +201,20 @@ function serve(handler: Handler, options: { serverChatCommit?: boolean } = {}) {
     }
 }
 
-beforeEach(() => {
+const listeners: Array<[EventTarget, string, EventListenerOrEventListenerObject, any]> = []
+beforeEach(async () => {
     vi.useFakeTimers()
     vi.resetModules()
+    // Mock factories can survive resetModules; read the same current real busy
+    // coordinator as bgOrchestrate, rather than retaining a prior test's store.
+    h.doingChat = (await import('./generationBusy')).doingChat
+    for (const target of [window, document]) {
+        const add = target.addEventListener.bind(target)
+        vi.spyOn(target, 'addEventListener').mockImplementation((type: string, listener: any, options: any) => {
+            if (listener) listeners.push([target, type, listener, options])
+            add(type, listener, options)
+        })
+    }
     localStorage.clear()
     h.dbState.db = { characters: [{ chaId: CHAR_ID, chatPage: 0, chats: [chatWith(2)] }], statics: {} }
     h.alerts = []
@@ -212,10 +226,17 @@ beforeEach(() => {
     h.requests = []
     h.adopt = vi.fn(async () => ({ adopted: false, reason: 'local-revision-conflict' }))
     h.sendChat = vi.fn(async () => true)
+    h.sounds = 0
+    h.holdSave = false
+    h.failSave = false
+    h.emitSaveEvidence = false
+    h.releaseSave = null
     vi.stubGlobal('fetch', (url: string, init?: RequestInit) => scriptedFetch(url, init))
 })
 
 afterEach(() => {
+    for (const [target, type, listener, options] of listeners.splice(0)) target.removeEventListener(type, listener, options)
+    vi.restoreAllMocks()
     vi.clearAllTimers()
     vi.useRealTimers()
     vi.unstubAllGlobals()
@@ -243,17 +264,484 @@ async function startForeground() {
     return module
 }
 
-describe.each([false, true])('existing behavior with recovery timing enabled=%s', enabled => {
-    let timing: typeof import('./bgRecoveryTiming').bgRecoveryTiming
-    let restoreStart: (() => void) | undefined
-    beforeEach(async () => {
-        timing = (await import('./bgRecoveryTiming')).bgRecoveryTiming
-        if (!enabled) {
-            const spy = vi.spyOn(timing, 'start').mockImplementation(() => {})
-            restoreStart = () => spy.mockRestore()
+describe('terminal recovery without temporary timing instrumentation', () => {
+
+describe('G1.12a terminal decisions', () => {
+    it('closes a warm legacy ACK-body-loss from exact delivered state without repeating the save', async () => {
+        h.dbState.db.statics.messages = 0
+        h.dbState.db.playMessage = true
+        let removed = false
+        serve((operationId, method, url) => {
+            if (isResultPeek(method, url)) return { status: 200, body: removed
+                ? { found: false, operationId, operationState: 'delivered', stage: 0 }
+                : { ...committedResult(operationId), serverChatCommit: undefined, serverChatCommitVersion: undefined } }
+            if (isResultAck(method, url)) { removed = true; return { status: 200, body: new Promise(() => {}) } }
+        })
+        await bootWithMarker()
+        await vi.advanceTimersByTimeAsync(30_001)
+        expect(h.durableScopes).toHaveLength(1)
+        expect(h.sounds).toBe(1)
+        expect(markers()).toHaveLength(1)
+        window.dispatchEvent(new Event('online'))
+        await vi.advanceTimersByTimeAsync(600)
+        expect(markers()).toEqual([])
+        expect(count(isResultAck)).toBe(1)
+        expect(h.durableScopes).toHaveLength(1)
+        expect(h.sounds).toBe(1)
+        expect(h.infos).toEqual([])
+    })
+
+    it('wakes parked raw-input reconciliation through its own ledger', async () => {
+        const ledger = await import('./bgServerInputLedger')
+        ledger.writeServerInputMarker(localStorage, { operationId: BOOT_OPERATION_ID, charId: CHAR_ID, chatId: CHAT_ID,
+            localRevision: orchestrationChatRevision(chatWith(2)), baseRevision: 'a'.repeat(64),
+            state: 'accepted', createdAt: Date.now() })
+        serve((operationId, method, url) => {
+            if (isResultPeek(method, url)) return { status: 200, body: committedResult(operationId) }
+            if (url.startsWith('/api/bg-orchestrate-chat-state/')) return { status: 200, body: projection(operationId) }
+            if (isResultAck(method, url)) return { status: 200, body: { acked: true } }
+        })
+        const module = await import('./bgOrchestrate')
+        await module.reconcileServerPendingInputCommands(CHAR_ID, CHAT_ID, chatWith(2))
+        await module.reconcileServerPendingInputCommands(CHAR_ID, CHAT_ID, chatWith(2))
+        expect(h.adopt).toHaveBeenCalledTimes(1)
+        h.adopt.mockImplementation(async (chats: any[]) => {
+            chats[0] = chatWith(3)
+            return { adopted: true, chat: chats[0] }
+        })
+        window.dispatchEvent(new Event('online'))
+        await vi.advanceTimersByTimeAsync(1)
+        await module.reconcileServerPendingInputCommands(CHAR_ID, CHAT_ID, chatWith(2))
+        expect(h.adopt).toHaveBeenCalledTimes(2)
+        expect(count(isResultAck)).toBe(1)
+        expect(ledger.readServerInputMarkers(localStorage)).toEqual([])
+        expect(h.infos).toEqual([CONFLICT_NOTICE])
+    })
+
+    it('does not let a legacy recovery save wake itself repeatedly when ACK fails', async () => {
+        h.dbState.db.statics.messages = 0
+        h.emitSaveEvidence = true
+        serve((operationId, method, url) => {
+            if (isResultPeek(method, url)) return { status: 200, body: {
+                ...committedResult(operationId), serverChatCommit: undefined, serverChatCommitVersion: undefined,
+            } }
+            if (isResultAck(method, url)) return { status: 503, body: {} }
+        })
+        await bootWithMarker()
+        await vi.advanceTimersByTimeAsync(30_000)
+        expect(count(isResultPeek)).toBe(1)
+        expect(count(isResultAck)).toBe(1)
+        expect(h.durableScopes).toHaveLength(1)
+        window.dispatchEvent(new Event('online'))
+        await vi.advanceTimersByTimeAsync(30_000)
+        expect(count(isResultPeek)).toBe(2)
+        expect(count(isResultAck)).toBe(2)
+        expect(h.durableScopes).toHaveLength(2)
+        expect(markers()).toHaveLength(1)
+    })
+
+    it('never upgrades unsaved in-memory legacy receipts to ACK proof on a warm wake', async () => {
+        h.dbState.db.statics.messages = 0
+        h.failSave = true
+        serve((operationId, method, url) => {
+            if (isResultPeek(method, url)) return { status: 200, body: {
+                ...committedResult(operationId), serverChatCommit: undefined, serverChatCommitVersion: undefined,
+            } }
+            if (isResultAck(method, url)) return { status: 200, body: { acked: true } }
+        })
+        await bootWithMarker()
+        vi.setSystemTime(Date.now() + 16 * 60_000)
+        await vi.advanceTimersByTimeAsync(2_500)
+        const saves = h.durableScopes.length
+        window.dispatchEvent(new Event('online'))
+        await vi.advanceTimersByTimeAsync(600)
+        expect(h.durableScopes.length).toBeGreaterThan(saves)
+        expect(count(isResultAck)).toBe(0)
+        expect(markers()).toHaveLength(1)
+        h.failSave = false
+        await vi.advanceTimersByTimeAsync(2_500)
+        expect(count(isResultAck)).toBe(1)
+        expect(markers()).toEqual([])
+    })
+
+    it('can wake an existing marker when outcome annotation hits localStorage quota', async () => {
+        let failedOnce = false
+        h.adopt = vi.fn(async () => {
+            if (!failedOnce) {
+                failedOnce = true
+                const storage = localStorage
+                vi.stubGlobal('localStorage', {
+                    get length() { return storage.length },
+                    key: (index: number) => storage.key(index),
+                    getItem: (key: string) => storage.getItem(key),
+                    removeItem: (key: string) => storage.removeItem(key),
+                    setItem: () => { throw new Error('synthetic quota') },
+                })
+                return { adopted: false, reason: 'local-revision-conflict' }
+            }
+            return { adopted: true, chat: chatWith(3) }
+        })
+        serve((operationId, method, url) => {
+            if (isResultPeek(method, url)) return { status: 200, body: committedResult(operationId) }
+            if (url.startsWith('/api/bg-orchestrate-chat-state/')) return { status: 200, body: projection(operationId) }
+            if (isResultAck(method, url)) return { status: 200, body: { acked: true } }
+        })
+        await bootWithMarker()
+        expect(markers()).toHaveLength(1)
+        expect(markers()[0].recoveryOutcome).toBeUndefined()
+        const characters = h.dbState.db.characters
+        h.dbState.db.characters = []
+        window.dispatchEvent(new Event('online'))
+        await vi.advanceTimersByTimeAsync(1)
+        expect(h.adopt).toHaveBeenCalledTimes(1)
+        h.dbState.db.characters = characters
+        window.dispatchEvent(new Event('online'))
+        await vi.advanceTimersByTimeAsync(600)
+        expect(h.adopt).toHaveBeenCalledTimes(2)
+        expect(markers()).toEqual([])
+        expect(h.infos).toEqual([CONFLICT_NOTICE])
+    })
+
+    it('does not repeat a legacy no-answer cleanup warning on event wake', async () => {
+        serve((operationId, method, url) => {
+            if (isResultPeek(method, url)) return { status: 200, body: terminalError(operationId, {
+                serverChatCommitVersion: undefined, serverChatCommit: undefined,
+            }) }
+            if (isResultAck(method, url)) return { status: 503, body: {} }
+        })
+        await bootWithMarker()
+        const notice = '백그라운드 생성은 답변 없이 끝났고 서버 정리 확인이 지연됐어요. 다음 실행 때 재확인해요.'
+        expect(h.alerts).toEqual([notice])
+        window.dispatchEvent(new Event('online'))
+        await vi.advanceTimersByTimeAsync(600)
+        expect(count(isResultAck)).toBe(2)
+        expect(h.alerts).toEqual([notice])
+        expect(markers()).toHaveLength(1)
+    })
+
+    it('does not advance a raw-input marker after its character was replaced during projection', async () => {
+        const ledger = await import('./bgServerInputLedger')
+        ledger.writeServerInputMarker(localStorage, { operationId: BOOT_OPERATION_ID, charId: CHAR_ID, chatId: CHAT_ID,
+            localRevision: orchestrationChatRevision(chatWith(2)), baseRevision: 'a'.repeat(64),
+            state: 'accepted', createdAt: Date.now() })
+        const before = ledger.readServerInputMarkers(localStorage)
+        let reads = 0
+        serve((operationId, method, url) => {
+            if (isResultPeek(method, url)) return { status: 200, body: committedResult(operationId) }
+            if (url.startsWith('/api/bg-orchestrate-chat-state/')) {
+                if (++reads === 2) h.dbState.db.characters[0] = structuredClone(h.dbState.db.characters[0])
+                return { status: 200, body: projection(operationId) }
+            }
+        })
+        const module = await import('./bgOrchestrate')
+        await module.reconcileServerPendingInputCommands(CHAR_ID, CHAT_ID, chatWith(2))
+        expect(reads).toBe(2)
+        expect(ledger.readServerInputMarkers(localStorage)).toEqual(before)
+        expect(h.adopt).not.toHaveBeenCalled()
+        expect(count(isResultAck)).toBe(0)
+    })
+
+    it.each(['boot', 'watch'] as const)('does not close an active intermediate result carrying a receipt (%s)', async mode => {
+        serve((operationId, method, url) => {
+            if (isResultPeek(method, url)) return { status: 200, body: {
+                ...committedResult(operationId), kind: 'intermediate', final: false,
+                operationState: 'running-result-ready', stage: 3,
+            } }
+        })
+        if (mode === 'boot') await bootWithMarker()
+        else { await startForeground(); await vi.advanceTimersByTimeAsync(2_500) }
+        const { get } = await import('svelte/store')
+        const { chatProcessStage } = await import('./process/index.svelte')
+        expect(get(h.doingChat)).toBe(true)
+        expect(get(chatProcessStage)).toBe(3)
+        expect(h.adopt).not.toHaveBeenCalled()
+        expect(count(isResultAck)).toBe(0)
+        expect(markers()).toHaveLength(1)
+    })
+
+    it('merges a deferred wake without discarding untouched cold-boot markers', async () => {
+        const others = ['operation-second-2', 'operation-third-3']
+        for (const operationId of others) writeStoredPendingMarker(localStorage, {
+            charId: CHAR_ID, chatId: CHAT_ID, baselineMsgs: 2, operationId,
+            deliveryVersion: 3, resultKeyVersion: 1, staticsMessagesApplied: 0,
+            expectedChatRevision: orchestrationChatRevision(chatWith(2)), ts: Date.now(),
+        })
+        let current = '', sentEvidence = false
+        serve((_operationId, method, url) => {
+            if (isResultPeek(method, url)) {
+                current = url.split('/')[3].split('?')[0]
+                return { status: 200, body: committedResult(current) }
+            }
+            if (url.startsWith('/api/bg-orchestrate-chat-state/')) return { status: 200, body: projection(current) }
+            if (isResultAck(method, url)) return { status: 200, body: { acked: true } }
+        })
+        h.adopt = vi.fn(async () => {
+            if (current === BOOT_OPERATION_ID) {
+                if (!sentEvidence) { sentEvidence = true; window.dispatchEvent(new Event('bg-recovery-evidence')) }
+                return { adopted: false, reason: 'local-revision-conflict' }
+            }
+            return { adopted: true, chat: chatWith(3) }
+        })
+        await bootWithMarker()
+        await vi.advanceTimersByTimeAsync(2_000)
+        for (const operationId of others) expect(h.requests.some(r => isResultPeek(r.method, r.url) && r.url.includes(operationId))).toBe(true)
+        expect(count(isResultAck)).toBe(2)
+        expect(markers().map(marker => marker.operationId)).toEqual([BOOT_OPERATION_ID])
+        expect(h.infos).toEqual([CONFLICT_NOTICE])
+    })
+
+    it.each(['boot', 'watch'] as const)('parks a repeatedly fast-failing legacy save after the recovery budget (%s)', async mode => {
+        h.dbState.db.statics.messages = 0
+        serve((operationId, method, url) => {
+            if (isResultPeek(method, url)) return { status: 200, body: {
+                ...committedResult(operationId), serverChatCommit: undefined, serverChatCommitVersion: undefined,
+            } }
+        })
+        if (mode === 'boot') { h.failSave = true; await bootWithMarker() }
+        else { await startForeground(); h.failSave = true; await vi.advanceTimersByTimeAsync(2_500) }
+        vi.setSystemTime(Date.now() + 16 * 60_000)
+        await vi.advanceTimersByTimeAsync(2_500)
+        const seen = count(isResultPeek)
+        expect(count(isResultAck)).toBe(0)
+        expect(markers()).toHaveLength(1)
+        expect(h.infos).toHaveLength(1)
+        await vi.advanceTimersByTimeAsync(10_000)
+        expect(count(isResultPeek)).toBe(seen)
+        const { get } = await import('svelte/store')
+        expect(get(h.doingChat)).toBe(false)
+    })
+
+    it.each(['boot', 'watch'] as const)('parks unconfirmed HTTP409 ownership after a resumed deadline (%s)', async mode => {
+        serve((_operationId, method, url) => {
+            if (isResultPeek(method, url)) return { status: 409, body: { reason: 'claimed' } }
+        })
+        if (mode === 'boot') await bootWithMarker()
+        else await startForeground()
+        vi.setSystemTime(Date.now() + 16 * 60_000)
+        await vi.advanceTimersByTimeAsync(2_500)
+        const seen = count(isResultPeek)
+        expect(seen).toBeGreaterThan(0)
+        expect(markers()).toEqual([expect.objectContaining({ recoveryOutcome: 'unverified-parked' })])
+        expect(count(isResultAck)).toBe(0)
+        expect(h.alerts).toEqual([])
+        await vi.advanceTimersByTimeAsync(10_000)
+        expect(count(isResultPeek)).toBe(seen)
+        const { get } = await import('svelte/store')
+        expect(get(h.doingChat)).toBe(false)
+    })
+
+    it('does not repeat a terminal failure notice while its ACK remains unavailable', async () => {
+        serve((operationId, method, url) => {
+            if (isResultPeek(method, url)) return { status: 200, body: terminalError(operationId) }
+            if (isResultAck(method, url)) throw new TypeError('offline')
+        })
+        await bootWithMarker()
+        expect(h.alerts).toEqual([FAILURE_NOTICE])
+        window.dispatchEvent(new Event('online'))
+        await vi.advanceTimersByTimeAsync(600)
+        expect(count(isResultAck)).toBe(2)
+        expect(h.alerts).toEqual([FAILURE_NOTICE])
+        expect(markers()).toHaveLength(1)
+    })
+
+    it.each(['committed', 'unreachable'] as const)('queries after a long boot-recovery suspension (%s)', async state => {
+        let resumed = false
+        h.adopt.mockResolvedValue({ adopted: true, chat: chatWith(3) })
+        serve((operationId, method, url) => {
+            if (isResultPeek(method, url)) {
+                if (resumed && state === 'unreachable') throw new TypeError('offline')
+                return { status: 200, body: resumed ? committedResult(operationId)
+                    : { found: false, stage: 1, operationState: 'running' } }
+            }
+            if (url.startsWith('/api/bg-orchestrate-chat-state/')) return { status: 200, body: projection(operationId) }
+            if (isResultAck(method, url)) return { status: 200, body: { acked: true } }
+        })
+        await bootWithMarker()
+        expect(count(isResultPeek)).toBe(1)
+        resumed = true
+        vi.setSystemTime(Date.now() + 16 * 60_000)
+        await vi.advanceTimersByTimeAsync(2_500)
+        expect(count(isResultPeek)).toBe(2)
+        expect(h.alerts).toEqual([])
+        expect(markers()).toHaveLength(state === 'committed' ? 0 : 1)
+        const { get } = await import('svelte/store')
+        expect(get(h.doingChat)).toBe(false)
+        expect(h.infos).toHaveLength(state === 'unreachable' ? 1 : 0)
+    })
+
+    it('retains the legacy-save safety net and suppresses late ACK after release', async () => {
+        h.dbState.db.statics.messages = 0
+        serve((operationId, method, url) => {
+            if (isResultPeek(method, url)) return { status: 200, body: {
+                ...committedResult(operationId), serverChatCommit: undefined, serverChatCommitVersion: undefined,
+            } }
+            if (isResultAck(method, url)) return { status: 200, body: { acked: true } }
+        })
+        await startForeground()
+        vi.setSystemTime(Date.now() + 16 * 60_000)
+        h.holdSave = true
+        await vi.advanceTimersByTimeAsync(2_500)
+        expect(h.releaseSave).toBeTypeOf('function')
+        expect(h.infos).toEqual([])
+        await vi.advanceTimersByTimeAsync(15 * 60_000)
+        expect(markers()).toHaveLength(1)
+        expect(count(isResultAck)).toBe(0)
+        expect(h.alerts).toEqual([])
+        expect(h.infos).toHaveLength(1)
+        const { get } = await import('svelte/store')
+        expect(get(h.doingChat)).toBe(false)
+        h.releaseSave!()
+        await vi.advanceTimersByTimeAsync(1)
+        expect(count(isResultAck)).toBe(0)
+        expect(markers()).toHaveLength(1)
+    })
+
+    it('wakes a parked edited view on external evidence without repeating the notice', async () => {
+        serve((operationId, method, url) => {
+            if (isResultPeek(method, url)) return { status: 200, body: committedResult(operationId) }
+            if (url.startsWith('/api/bg-orchestrate-chat-state/')) return { status: 200, body: projection(operationId) }
+            if (isResultAck(method, url)) return { status: 200, body: { acked: true } }
+        })
+        await bootWithMarker()
+        expect(markers()).toHaveLength(1)
+        expect(h.infos).toEqual([CONFLICT_NOTICE])
+        await vi.advanceTimersByTimeAsync(30_000)
+        expect(count(isResultPeek)).toBe(1)
+        h.adopt.mockResolvedValue({ adopted: true, chat: chatWith(3) })
+        window.dispatchEvent(new Event('bg-recovery-evidence'))
+        await vi.advanceTimersByTimeAsync(600)
+        expect(count(isResultPeek)).toBe(2)
+        expect(count(isResultAck)).toBe(1)
+        expect(markers()).toEqual([])
+        expect(h.infos).toEqual([CONFLICT_NOTICE])
+    })
+
+    it('revalidates after a lost ACK body without replaying completion', async () => {
+        h.dbState.db.playMessage = true
+        let removed = false
+        h.adopt.mockResolvedValue({ adopted: true, chat: chatWith(3) })
+        serve((operationId, method, url) => {
+            if (isResultPeek(method, url)) return { status: 200, body: removed
+                ? committedWithoutRow(operationId) : committedResult(operationId) }
+            if (url.startsWith('/api/bg-orchestrate-chat-state/')) return { status: 200, body: projection(operationId) }
+            if (isResultAck(method, url)) { removed = true; return { status: 200, body: new Promise(() => {}) } }
+        })
+        await startForeground()
+        await vi.advanceTimersByTimeAsync(32_501)
+        expect(count(isResultAck)).toBe(1)
+        expect(markers()).toEqual([expect.objectContaining({ recoveryOutcome: 'ack-pending', completionNotified: true })])
+        const sounds = h.sounds
+        expect(sounds).toBe(1)
+        window.dispatchEvent(new Event('online'))
+        await vi.advanceTimersByTimeAsync(600)
+        expect(h.adopt).toHaveBeenCalledTimes(2)
+        expect(markers()).toEqual([])
+        expect(count(isResultAck)).toBe(1)
+        expect(h.sounds).toBe(sounds)
+    })
+
+    it.each(['boot', 'watch', 'input'] as const)('retires a both-source deleted target without ACK or notice (%s)', async mode => {
+        serve((operationId, method, url) => {
+            if (isResultPeek(method, url)) return { status: 200, body: committedResult(operationId) }
+            if (url.startsWith('/api/bg-orchestrate-chat-state/')) {
+                if (h.dbState.db.characters[0].chats.length) h.dbState.db.characters[0].chats = []
+                return { status: 404, body: { found: false, currentRevision: null } }
+            }
+        })
+        if (mode === 'boot') await bootWithMarker()
+        else if (mode === 'watch') { await startForeground(); await vi.advanceTimersByTimeAsync(2_500) }
+        else {
+            const ledger = await import('./bgServerInputLedger')
+            ledger.writeServerInputMarker(localStorage, { operationId: BOOT_OPERATION_ID, charId: CHAR_ID, chatId: CHAT_ID,
+                localRevision: orchestrationChatRevision(chatWith(2)), baseRevision: 'a'.repeat(64),
+                state: 'accepted', createdAt: Date.now() })
+            const module = await import('./bgOrchestrate')
+            await module.reconcileServerPendingInputCommands(CHAR_ID, CHAT_ID, chatWith(2))
+            expect(ledger.readServerInputMarkers(localStorage)).toEqual([])
+        }
+        expect(h.adopt).not.toHaveBeenCalled()
+        expect(count(isResultAck)).toBe(0)
+        expect(h.alerts).toEqual([])
+        expect(h.infos).toEqual([])
+        expect(markers()).toEqual([])
+    })
+
+    it.each(['boot', 'watch'] as const)('does not mistake server-only absence for local deletion (%s)', async mode => {
+        serve((operationId, method, url) => {
+            if (isResultPeek(method, url)) return { status: 200, body: committedResult(operationId) }
+            if (url.startsWith('/api/bg-orchestrate-chat-state/')) return { status: 404, body: { currentRevision: null } }
+        })
+        if (mode === 'boot') await bootWithMarker()
+        else { await startForeground(); await vi.advanceTimersByTimeAsync(2_500) }
+        expect(markers()).toHaveLength(1)
+        expect(count(isResultAck)).toBe(0)
+        expect(h.alerts).toEqual([])
+        expect(h.infos).toEqual([])
+    })
+
+    it.each(['boot', 'watch'] as const)('retires superseded current content without ACK or completion replay (%s)', async mode => {
+        h.adopt.mockResolvedValue({ adopted: true, chat: chatWith(2) })
+        serve((operationId, method, url) => {
+            if (isResultPeek(method, url)) return { status: 200, body: committedResult(operationId) }
+            if (url.startsWith('/api/bg-orchestrate-chat-state/')) return { status: 200, body: {
+                ...projection(operationId), chatRevision: 'newer', owners: [],
+            } }
+        })
+        if (mode === 'boot') await bootWithMarker()
+        else { await startForeground(); await vi.advanceTimersByTimeAsync(2_500) }
+        expect(h.adopt).toHaveBeenCalledTimes(1)
+        expect(h.adopt.mock.calls[0][7]).toMatchObject({ requireCurrent: true })
+        expect(count(isResultAck)).toBe(0)
+        expect(markers()).toEqual([])
+        expect(h.infos).toEqual(['답변 저장 이후 대화가 변경됐어요. 현재 대화를 유지하고 이전 답변을 다시 덮어쓰지 않았어요.'])
+        expect(h.alerts).toEqual([])
+    })
+
+    it.each(['running', 'committed', 'unreachable'] as const)('queries after a long watch suspension (%s)', async state => {
+        h.adopt.mockResolvedValue({ adopted: true, chat: chatWith(3) })
+        serve((operationId, method, url) => {
+            if (isResultPeek(method, url)) {
+                if (state === 'unreachable') throw new TypeError('offline')
+                return { status: 200, body: state === 'running'
+                    ? { found: false, operationState: 'running', stage: 1 }
+                    : committedResult(operationId) }
+            }
+            if (url.startsWith('/api/bg-orchestrate-chat-state/')) return { status: 200, body: projection(operationId) }
+            if (isResultAck(method, url)) return { status: 200, body: { acked: true } }
+        })
+        await startForeground()
+        vi.setSystemTime(Date.now() + 16 * 60_000)
+        await vi.advanceTimersByTimeAsync(2_500)
+        expect(count(isResultPeek)).toBe(1)
+        expect(h.alerts).toEqual([])
+        expect(h.sendChat).not.toHaveBeenCalled()
+        if (state === 'committed') {
+            expect(h.adopt).toHaveBeenCalledTimes(1)
+            expect(markers()).toEqual([])
+        } else {
+            expect(markers()).toHaveLength(1)
+            const { doingChat } = await import('./process/index.svelte')
+            const { get } = await import('svelte/store')
+            expect(get(doingChat)).toBe(state === 'running')
+            expect(h.infos).toHaveLength(state === 'unreachable' ? 1 : 0)
         }
     })
-    afterEach(() => { timing?.dispose(); restoreStart?.(); restoreStart = undefined })
+
+    it('does not retire a deleted local target from 404 headers with an unreadable body', async () => {
+        serve((operationId, method, url) => {
+            if (isResultPeek(method, url)) return { status: 200, body: committedResult(operationId) }
+            if (url.startsWith('/api/bg-orchestrate-chat-state/')) {
+                h.dbState.db.characters[0].chats = []
+                return { status: 404, body: new Promise(() => {}) }
+            }
+        })
+        await startForeground()
+        await vi.advanceTimersByTimeAsync(32_501)
+        expect(markers()).toHaveLength(1)
+        expect(count(isResultAck)).toBe(0)
+        expect(h.alerts).toEqual([])
+    })
+})
 
 describe('anchored commit notices preserve finished-operation handling', () => {
     it('flushes root settings together with the selected chat before detached admission', async () => {
@@ -460,7 +948,7 @@ describe('boot recovery of a committed result that cannot be adopted', () => {
         expect(markers()).toEqual([])
     })
 
-    it('stops after three permanent refusals with a result row', async () => {
+    it('parks an edited view immediately without ACK or repeated unchanged polling', async () => {
         serve((operationId, method, url) => {
             if (isResultPeek(method, url)) return { status: 200, body: committedResult(operationId) }
             if (method === 'GET' && url.startsWith('/api/bg-orchestrate-chat-state/')) {
@@ -472,21 +960,21 @@ describe('boot recovery of a committed result that cannot be adopted', () => {
         expect(h.adopt).toHaveBeenCalledTimes(1)
         expect(count(isResultAck)).toBe(0)
         await vi.advanceTimersByTimeAsync(2_500)
-        expect(h.adopt).toHaveBeenCalledTimes(2)
+        expect(h.adopt).toHaveBeenCalledTimes(1)
         expect(h.alerts).toEqual([])
         await vi.advanceTimersByTimeAsync(2_500)
-        expect(h.adopt).toHaveBeenCalledTimes(3)
-        expect(count(isResultAck)).toBe(1)
-        expect(h.infos).toEqual([COMMITTED_RESULT_KEPT_NOTICE])
+        expect(h.adopt).toHaveBeenCalledTimes(1)
+        expect(count(isResultAck)).toBe(0)
+        expect(h.infos).toEqual([CONFLICT_NOTICE])
         expect(h.alerts).toEqual([])
-        expect(markers()).toEqual([])
+        expect(markers()).toEqual([expect.objectContaining({ recoveryOutcome: 'conflict-parked' })])
         await vi.advanceTimersByTimeAsync(30_000)
-        expect(count(isResultPeek)).toBe(3)
+        expect(count(isResultPeek)).toBe(1)
         expect(h.infos).toHaveLength(1)
         expect(h.alerts).toEqual([])
     })
 
-    it('stops after three permanent refusals without a result row and sends no acknowledgement', async () => {
+    it('retains unresolved reconciliation without a result row and sends no ACK', async () => {
         serve((operationId, method, url) => {
             if (isResultPeek(method, url)) return { status: 200, body: committedWithoutRow(operationId) }
             if (method === 'GET' && url.startsWith('/api/bg-orchestrate-chat-state/')) {
@@ -495,16 +983,17 @@ describe('boot recovery of a committed result that cannot be adopted', () => {
         })
         await bootWithMarker()
         await vi.advanceTimersByTimeAsync(5_000)
-        expect(h.adopt).toHaveBeenCalledTimes(3)
+        expect(h.adopt).toHaveBeenCalledTimes(1)
         expect(count(isResultAck)).toBe(0)
-        expect(h.infos).toEqual([COMMITTED_RESULT_KEPT_NOTICE])
+        expect(h.infos).toEqual([CONFLICT_NOTICE])
         expect(h.alerts).toEqual([])
-        expect(markers()).toEqual([])
+        expect(markers()).toHaveLength(1)
         await vi.advanceTimersByTimeAsync(30_000)
-        expect(count(isResultPeek)).toBe(3)
+        expect(count(isResultPeek)).toBe(1)
     })
 
-    it('restarts the attempt count after a superseded acknowledgement', async () => {
+    it('reobserves a changed exact delivery after a superseded acknowledgement', async () => {
+        h.adopt.mockResolvedValue({ adopted: true, chat: chatWith(3) })
         let acks = 0
         serve((operationId, method, url) => {
             if (isResultPeek(method, url)) return { status: 200, body: committedResult(operationId) }
@@ -519,18 +1008,14 @@ describe('boot recovery of a committed result that cannot be adopted', () => {
             }
         })
         await bootWithMarker()
-        await vi.advanceTimersByTimeAsync(5_000)
-        expect(h.adopt).toHaveBeenCalledTimes(3)
+        expect(h.adopt).toHaveBeenCalledTimes(1)
         expect(count(isResultAck)).toBe(1)
         expect(h.alerts).toEqual([])
         expect(markers().map(marker => marker.operationId)).toEqual([BOOT_OPERATION_ID])
-        await vi.advanceTimersByTimeAsync(2_500 * 2)
-        expect(h.adopt).toHaveBeenCalledTimes(5)
-        expect(count(isResultAck)).toBe(1)
         await vi.advanceTimersByTimeAsync(2_500)
-        expect(h.adopt).toHaveBeenCalledTimes(6)
+        expect(h.adopt).toHaveBeenCalledTimes(2)
         expect(count(isResultAck)).toBe(2)
-        expect(h.infos).toEqual([COMMITTED_RESULT_KEPT_NOTICE])
+        expect(h.infos).toEqual([])
         expect(h.alerts).toEqual([])
         expect(markers()).toEqual([])
     })
@@ -612,7 +1097,7 @@ describe('foreground watch of finished server operations', () => {
         expect(count(isResultPeek)).toBe(1)
     })
 
-    it('stops a committed result after three permanent refusals', async () => {
+    it('parks a committed result on local conflict without deleting its delivery', async () => {
         serve((operationId, method, url) => {
             if (isResultPeek(method, url)) return { status: 200, body: committedResult(operationId) }
             if (method === 'GET' && url.startsWith('/api/bg-orchestrate-chat-state/')) {
@@ -622,16 +1107,16 @@ describe('foreground watch of finished server operations', () => {
         })
         await startForeground()
         await vi.advanceTimersByTimeAsync(2_500 * 2)
-        expect(h.adopt).toHaveBeenCalledTimes(2)
+        expect(h.adopt).toHaveBeenCalledTimes(1)
         expect(count(isResultAck)).toBe(0)
         await vi.advanceTimersByTimeAsync(2_500)
-        expect(h.adopt).toHaveBeenCalledTimes(3)
-        expect(count(isResultAck)).toBe(1)
-        expect(h.infos).toEqual([COMMITTED_RESULT_KEPT_NOTICE])
+        expect(h.adopt).toHaveBeenCalledTimes(1)
+        expect(count(isResultAck)).toBe(0)
+        expect(h.infos).toEqual([CONFLICT_NOTICE])
         expect(h.alerts).toEqual([])
-        expect(markers()).toEqual([])
+        expect(markers()).toHaveLength(1)
         await vi.advanceTimersByTimeAsync(30_000)
-        expect(count(isResultPeek)).toBe(3)
+        expect(count(isResultPeek)).toBe(1)
     })
 
     it('keeps polling after a superseded acknowledgement of a finished failure', async () => {
@@ -656,6 +1141,7 @@ describe('foreground watch of finished server operations', () => {
     })
 
     it('keeps the marker when the committed-result acknowledgement throws', async () => {
+        h.adopt.mockResolvedValue({ adopted: true, chat: chatWith(3) })
         serve((operationId, method, url) => {
             if (isResultPeek(method, url)) return { status: 200, body: committedResult(operationId) }
             if (method === 'GET' && url.startsWith('/api/bg-orchestrate-chat-state/')) {
@@ -666,14 +1152,14 @@ describe('foreground watch of finished server operations', () => {
         await startForeground()
         await vi.advanceTimersByTimeAsync(2_500 * 3)
         expect(count(isResultAck)).toBe(1)
-        expect(h.infos).toEqual([COMMITTED_RESULT_KEPT_NOTICE])
+        expect(h.infos).toEqual([])
         expect(h.alerts).toEqual([])
-        expect(markers()).toHaveLength(1)
+        expect(markers()).toEqual([expect.objectContaining({ recoveryOutcome: 'ack-pending' })])
         await vi.advanceTimersByTimeAsync(30_000)
-        expect(count(isResultPeek)).toBe(3)
+        expect(count(isResultPeek)).toBe(1)
     })
 
-    it('stops a committed result without a row after three permanent refusals', async () => {
+    it('parks unresolved local edits even when a prior ACK already removed the row', async () => {
         serve((operationId, method, url) => {
             if (isResultPeek(method, url)) return { status: 200, body: committedWithoutRow(operationId) }
             if (method === 'GET' && url.startsWith('/api/bg-orchestrate-chat-state/')) {
@@ -682,13 +1168,13 @@ describe('foreground watch of finished server operations', () => {
         })
         await startForeground()
         await vi.advanceTimersByTimeAsync(2_500 * 3)
-        expect(h.adopt).toHaveBeenCalledTimes(3)
+        expect(h.adopt).toHaveBeenCalledTimes(1)
         expect(count(isResultAck)).toBe(0)
-        expect(h.infos).toEqual([COMMITTED_RESULT_KEPT_NOTICE])
+        expect(h.infos).toEqual([CONFLICT_NOTICE])
         expect(h.alerts).toEqual([])
-        expect(markers()).toEqual([])
+        expect(markers()).toHaveLength(1)
         await vi.advanceTimersByTimeAsync(30_000)
-        expect(count(isResultPeek)).toBe(3)
+        expect(count(isResultPeek)).toBe(1)
     })
 
     it('keeps the legacy client fallback for a legacy error without an answer', async () => {

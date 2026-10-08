@@ -93,11 +93,15 @@ function validProjection(
         && requiredText(projection.chatRevision)
         && projection.coverage === 'authoritative'
         && Array.isArray(projection.owners)
-        && projection.owners.some((owner: unknown) => (
-            !!owner && typeof owner === 'object'
-            && (owner as any).operationId === receipt.operationId
-        ))
         && Array.isArray(projection.pendingInputCommands)
+}
+
+export function isTerminalCommittedEvidence(data: any): boolean {
+    if (!data || (typeof data.stage === 'number' && data.stage > 0)
+        || ['queued', 'running', 'running-result-ready', 'running-result-consumed',
+            'input-queued', 'input-attached', 'input-waiting-predecessor'].includes(data.operationState)) return false
+    return (data.found === false && data.operationState === 'chat-committed' && data.stage === 0)
+        || (data.final === true && ['terminal-success', 'terminal-partial'].includes(data.kind))
 }
 
 export async function hydrateServerCommittedOrchestration(options: {
@@ -106,6 +110,8 @@ export async function hydrateServerCommittedOrchestration(options: {
     charId: string
     chatId: string
     allowedCurrentRevisions: string[]
+    localTarget?: () => 'present' | 'absent' | 'character-missing'
+    isCurrent?: () => boolean
     readProjection: (
         charId: string,
         chatId: string,
@@ -117,6 +123,7 @@ export async function hydrateServerCommittedOrchestration(options: {
         expectedServerRevision: string
         allowedCurrentRevisions: string[]
         savedServerRevision?: string
+        requireCurrent?: boolean
     }) => Promise<{ adopted: boolean, reason?: string, chat?: unknown }>
 }) {
     const receipt = serverChatCommitReceipt(options.data)
@@ -125,6 +132,9 @@ export async function hydrateServerCommittedOrchestration(options: {
         || receipt.operationId !== options.operationId
         || receipt.requestedCharId !== options.charId
         || receipt.requestedChatId !== options.chatId
+        || (requiredText(transport?.operationId) && transport.operationId !== options.operationId)
+        || (transport?.found === true && (!requiredText(transport.resultId)
+            || !Number.isSafeInteger(transport.publishSeq)))
         || (requiredText(transport?.resultId) && transport.resultId !== receipt.resultId)
         || (Number.isSafeInteger(transport?.publishSeq)
             && transport.publishSeq !== receipt.publishSeq)) {
@@ -140,9 +150,19 @@ export async function hydrateServerCommittedOrchestration(options: {
     } catch {
         return { hydrated: false as const, reason: 'projection-unavailable' }
     }
+    if (options.isCurrent?.() === false) return { hydrated: false as const, reason: 'stale-recovery' }
+    if ((projection as any)?.kind === 'chat-missing'
+        && (projection as any).currentRevision === null) {
+        return { hydrated: false as const, reason: isTerminalCommittedEvidence(transport)
+            && options.localTarget?.() === 'absent' ? 'target-deleted' : 'server-chat-missing' }
+    }
     if (!validProjection(projection, receipt)) {
         return { hydrated: false as const, reason: 'projection-invalid' }
     }
+    const ownsResult = projection.owners.some((owner: any) => owner?.operationId === receipt.operationId)
+    const superseded = !ownsResult && projection.chatRevision !== receipt.storedRevision
+        && isTerminalCommittedEvidence(transport)
+    if (!ownsResult && !superseded) return { hydrated: false as const, reason: 'projection-invalid' }
     const projectionRevision = projection.chatRevision
     const allowedCurrentRevisions = [...new Set(
         options.allowedCurrentRevisions.filter(requiredText),
@@ -155,16 +175,19 @@ export async function hydrateServerCommittedOrchestration(options: {
             expectedServerRevision: projectionRevision,
             allowedCurrentRevisions,
             ...(receipt.anchoredBaseRevision ? { savedServerRevision: receipt.anchoredBaseRevision } : {}),
+            ...(superseded ? { requireCurrent: true } : {}),
         })
     } catch {
         return { hydrated: false as const, reason: 'chat-readback-failed' }
     }
+    if (options.isCurrent?.() === false) return { hydrated: false as const, reason: 'stale-recovery' }
     if (!adoption.adopted) {
         return {
             hydrated: false as const,
             reason: adoption.reason || 'chat-adoption-refused',
         }
     }
+    if (superseded) return { hydrated: false as const, reason: 'superseded-current', receipt, projection }
     return {
         hydrated: true as const,
         receipt,

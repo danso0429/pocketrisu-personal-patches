@@ -1,5 +1,17 @@
 # Changelog
 
+## 0.2.4-experimental.22 (BG terminal recovery candidate)
+
+- Recognize already-current saved chats without replacement, and use guarded fresh canonical reads when the remembered snapshot is unavailable.
+- Bound BG control-body and adoption snapshot reads, preserve caller cancellation and ignore timed-out late read results. Leave ordinary storage reads unchanged.
+- Query server state after long suspension instead of declaring generation timeout or advising a resend. Park failed or non-progressing verification while retaining recovery markers; keep a separate legacy-save safety net.
+- Retire targets only when server and loaded local metadata agree they are absent. Preserve newer superseding conversations and never ACK either retirement as delivery.
+- Preserve conflicting edits and exact ACK recovery; deduplicate notices and merge event-triggered recovery into the existing boot queue without dropping other markers.
+- Remove temporary recovery timing after the user-approved measurement closeout. Retain numeric evidence and unmet coverage conditions in the G1.12a plan.
+- Version the existing raw-input marker ledger as v3 so older tabs cannot prune its new recovery annotations. Migrate v2/v1 without losing entries on quota failure; reload all open clients after updating.
+- Revalidate legacy persistence on same-page recovery and propagate manual conflicts to strict-save callers before ACK. Ordinary autosave behavior is preserved.
+- Keep personal-settings `0.5.13`, plugin host OFF, and G1.12b/MARP qualification separate. Delivery and device validation are recorded in the plan; no stable release is implied.
+
 ## 0.2.4-experimental.21 (BG measurement candidate)
 
 - Add temporary bounded boot/watch request timing for G1.12a, separating response headers, original body consumption, snapshot/transfer measurements and visibility transitions.

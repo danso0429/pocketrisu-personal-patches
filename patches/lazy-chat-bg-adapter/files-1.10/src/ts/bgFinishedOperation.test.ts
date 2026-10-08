@@ -1,10 +1,8 @@
 import { describe, expect, it } from 'vitest'
 import {
-    COMMITTED_RESULT_KEPT_NOTICE,
-    PERMANENT_ADOPTION_ATTEMPT_LIMIT,
+    classifyCommittedRecoveryReason,
     finishedServerFailureNotice,
     isFinishedServerFailure,
-    recordCommittedAdoptionAttempt,
 } from './bgFinishedOperation'
 
 function receipt() {
@@ -151,50 +149,38 @@ describe('finished server failure notice', () => {
             .toBe('백그라운드 생성이 답변 없이 끝났어요. 해당 채팅에서 다시 보내주세요.')
     })
 
-    it('keeps the committed-result notice text', () => {
-        expect(COMMITTED_RESULT_KEPT_NOTICE).toBe('답변은 서버 채팅에 저장돼 있어요. 채팅을 다시 열면 보여요.')
-    })
 })
 
-describe('committed adoption attempts', () => {
+describe('committed recovery reason classification', () => {
+    it('does not ACK a malformed committed receipt even with an error label and empty chat', () => {
+        expect(isFinishedServerFailure(terminalError({
+            serverChatCommit: { status: 'committed', receipt: { invalid: true } },
+            chat: null,
+        }), 0)).toBe(false)
+    })
     it.each(['local-revision-conflict', 'projection-invalid', 'commit-receipt-invalid'])(
-        'stops on the third consecutive permanent reason: %s',
+        'parks unchanged unresolved evidence without counting attempts: %s',
         reason => {
-            const attempts = new Map<string, number>()
-            expect(PERMANENT_ADOPTION_ATTEMPT_LIMIT).toBe(3)
-            expect(recordCommittedAdoptionAttempt(attempts, 'op-1', reason)).toBe('retry')
-            expect(recordCommittedAdoptionAttempt(attempts, 'op-1', reason)).toBe('retry')
-            expect(recordCommittedAdoptionAttempt(attempts, 'op-1', reason)).toBe('stop')
-            expect(attempts.has('op-1')).toBe(false)
+            expect(classifyCommittedRecoveryReason(reason)).toBe('park')
         },
     )
 
-    it.each(['projection-unavailable', 'chat-readback-failed', 'server-revision-mismatch', undefined])(
+    it.each(['projection-unavailable', 'chat-readback-failed', 'server-revision-mismatch',
+        'server-chat-missing', 'chat-missing', 'chat-removed', 'local-slot-replaced', 'character-missing'])(
         'keeps retrying a non-permanent reason: %s',
         reason => {
-            const attempts = new Map<string, number>()
-            for (let i = 0; i < 10; i += 1) {
-                expect(recordCommittedAdoptionAttempt(attempts, 'op-1', reason)).toBe('retry')
-            }
-            expect(attempts.size).toBe(0)
+            expect(classifyCommittedRecoveryReason(reason)).toBe('retry')
         },
     )
 
-    it('restarts the count after a non-permanent reason', () => {
-        const attempts = new Map<string, number>()
-        expect(recordCommittedAdoptionAttempt(attempts, 'op-1', 'local-revision-conflict')).toBe('retry')
-        expect(recordCommittedAdoptionAttempt(attempts, 'op-1', 'local-revision-conflict')).toBe('retry')
-        expect(recordCommittedAdoptionAttempt(attempts, 'op-1', 'projection-unavailable')).toBe('retry')
-        expect(recordCommittedAdoptionAttempt(attempts, 'op-1', 'local-revision-conflict')).toBe('retry')
-        expect(recordCommittedAdoptionAttempt(attempts, 'op-1', 'local-revision-conflict')).toBe('retry')
-        expect(recordCommittedAdoptionAttempt(attempts, 'op-1', 'local-revision-conflict')).toBe('stop')
+    it.each(['target-deleted', 'superseded-current'])('classifies proven local retirement: %s', reason => {
+        expect(classifyCommittedRecoveryReason(reason)).toBe('retire')
     })
 
-    it('counts each operation separately', () => {
-        const attempts = new Map<string, number>()
-        recordCommittedAdoptionAttempt(attempts, 'op-1', 'local-revision-conflict')
-        recordCommittedAdoptionAttempt(attempts, 'op-1', 'local-revision-conflict')
-        expect(recordCommittedAdoptionAttempt(attempts, 'op-2', 'local-revision-conflict')).toBe('retry')
-        expect(recordCommittedAdoptionAttempt(attempts, 'op-1', 'local-revision-conflict')).toBe('stop')
+    it.each(['stale-recovery', 'execution-active'])('never closes stale or active execution: %s', reason => {
+        expect(classifyCommittedRecoveryReason(reason)).toBe('stale')
+    })
+    it.each([undefined, null, 'unknown-reason'])('does not turn unknown evidence into success: %s', reason => {
+        expect(classifyCommittedRecoveryReason(reason)).toBe('park')
     })
 })

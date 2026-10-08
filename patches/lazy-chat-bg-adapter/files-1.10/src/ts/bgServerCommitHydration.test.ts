@@ -40,6 +40,60 @@ function projection() {
 }
 
 describe('server-committed result hydration', () => {
+    function terminalOptions() {
+        return {
+            data: { found: true, final: true, kind: 'terminal-success', operationId: receipt().operationId,
+                resultId: receipt().resultId, publishSeq: 2, serverChatCommit: receipt() },
+            operationId: receipt().operationId, charId: 'char-1', chatId: 'chat-1',
+            allowedCurrentRevisions: ['old'],
+            readProjection: vi.fn<() => Promise<unknown>>(async () => projection()),
+            adoptChat: vi.fn(async (_input: any) => ({ adopted: true, chat: { id: 'chat-1' } })),
+        }
+    }
+
+    it.each(['present', 'absent', 'character-missing'] as const)('requires both-source absence (%s)', async local => {
+        const options = terminalOptions()
+        options.readProjection.mockResolvedValue({ kind: 'chat-missing', currentRevision: null })
+        const result = await hydrateServerCommittedOrchestration({ ...options, localTarget: () => local })
+        expect(result).toEqual({ hydrated: false, reason: local === 'absent' ? 'target-deleted' : 'server-chat-missing' })
+        expect(options.adoptChat).not.toHaveBeenCalled()
+    })
+
+    it('does not turn failed projection body consumption into deletion', async () => {
+        const options = terminalOptions()
+        options.readProjection.mockRejectedValue(new DOMException('timed out', 'TimeoutError'))
+        await expect(hydrateServerCommittedOrchestration({ ...options, localTarget: () => 'absent' }))
+            .resolves.toEqual({ hydrated: false, reason: 'projection-unavailable' })
+        expect(options.adoptChat).not.toHaveBeenCalled()
+    })
+
+    it('requires fresh no-replacement proof before retiring a newer ownerless projection', async () => {
+        const options = terminalOptions()
+        options.readProjection.mockResolvedValue({ ...projection(), chatRevision: 'newer', owners: [] })
+        await expect(hydrateServerCommittedOrchestration(options))
+            .resolves.toMatchObject({ hydrated: false, reason: 'superseded-current' })
+        expect(options.adoptChat).toHaveBeenCalledWith(expect.objectContaining({
+            expectedServerRevision: 'newer', requireCurrent: true,
+        }))
+    })
+
+    it('never infers supersession from owner absence at the original revision', async () => {
+        const options = terminalOptions()
+        options.readProjection.mockResolvedValue({ ...projection(), owners: [] })
+        await expect(hydrateServerCommittedOrchestration(options))
+            .resolves.toEqual({ hydrated: false, reason: 'projection-invalid' })
+        expect(options.adoptChat).not.toHaveBeenCalled()
+    })
+
+    it('rechecks epoch after the projection read', async () => {
+        const options = terminalOptions()
+        let current = true
+        options.readProjection.mockImplementation(async () => { current = false; return projection() })
+        await expect(hydrateServerCommittedOrchestration({ ...options, isCurrent: () => current }))
+            .resolves.toEqual({ hydrated: false, reason: 'stale-recovery' })
+        expect(options.adoptChat).not.toHaveBeenCalled()
+    })
+
     it('passes the saved wire revision separately from browser display fingerprints', async () => {
         const anchoredBaseRevision = 'a'.repeat(64)
         const committed = { ...receipt(), anchoredBaseRevision }

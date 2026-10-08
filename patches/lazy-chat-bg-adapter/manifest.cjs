@@ -25,7 +25,7 @@ const queueUnits = require('./queue-units.cjs')
 module.exports = {
     id: 'lazy-chat-bg-adapter',
     title: 'BG preserve integration for lazy chat storage',
-    version: '0.7.28',
+    version: '0.7.29',
     targets: {
         pocketrisu: {
             verified: ['1.10.0'],
@@ -351,6 +351,7 @@ export async function adoptServerCommittedChat(
     allowedCurrentRevisions: string[],
     revisionOf: (chat: Chat) => string,
     savedServerRevision?: string,
+    options: { isCurrent?: () => boolean, requireCurrent?: boolean } = {},
 ): Promise<{
     adopted: boolean
     reason?: string
@@ -361,6 +362,23 @@ export async function adoptServerCommittedChat(
     const initialIndex = chats.findIndex(chat => chat?.id === chatId)
     if (initialIndex < 0) return { adopted: false, reason: 'chat-missing' }
     const initial = chats[initialIndex]
+    const isCurrent = () => options.isCurrent?.() !== false
+    if (!isCurrent()) return { adopted: false, reason: 'stale-recovery' }
+    // Current canonical proof is separate from the older delegation/base proof.
+    // Normalize only the remembered snapshot as hydration does for display; do
+    // not change the shared revision contract or mutate a live streaming slot.
+    if (!options.requireCurrent && isValidHydratedChat(initial, chatId) && initial.isStreaming !== true) {
+        try {
+            const currentView = forageStorage.realStorage.savedChatViewRevision?.(
+                chaId, chatId, expectedServerRevision,
+                (saved: Chat) => revisionOf({ ...saved, isStreaming: false, activeStreamingDisplayOptimizationMode: undefined }),
+            )
+            if (currentView && revisionOf(initial) === currentView) {
+                // No read, slot replacement, tick or save-baseline invalidation.
+                return { adopted: true, revision: expectedServerRevision, chat: initial }
+            }
+        } catch { /* Missing/invalid proof does not broaden the old-base path. */ }
+    }
     const allowed = new Set(allowedCurrentRevisions)
     if (savedServerRevision) {
         // The wire SHA-256 is not the browser's display fingerprint. Only a
@@ -370,13 +388,17 @@ export async function adoptServerCommittedChat(
         )
         if (savedViewRevision) allowed.add(savedViewRevision)
     }
+    let initialView = ''
     if (!initial._placeholder) {
-        let currentRevision = ''
-        try { currentRevision = revisionOf(initial) } catch { /* invalid local chat */ }
-        if (!allowed.has(currentRevision)) {
-            return { adopted: false, reason: 'local-revision-conflict' }
-        }
+        try { initialView = revisionOf(initial) } catch { /* invalid local chat */ }
     }
+    const mayReplace = !options.requireCurrent && (initial._placeholder || allowed.has(initialView))
+    const saveProof = forageStorage.realStorage.chatReadProofToken?.(chaId, chatId)
+    const mayConfirmCurrent = () => initial.isStreaming !== true
+        && forageStorage.realStorage.hasUnconfirmedChatWrite?.(chaId, chatId) === false
+        && forageStorage.realStorage.chatReadProofToken?.(chaId, chatId) === saveProof
+    if (!mayReplace && !isValidHydratedChat(initial, chatId)) return { adopted: false, reason: 'chat-not-hydrated' }
+    if (!mayReplace && !mayConfirmCurrent()) return { adopted: false, reason: 'save-unconfirmed' }
 
     const key = chatKey(chaId, chatId)
     acquireHydrationState(hydrationInFlight, hydrationInFlightCounts, key)
@@ -397,9 +419,30 @@ export async function adoptServerCommittedChat(
             }
         }
         const displayChat = { ...snapshot.chat, isStreaming: false, activeStreamingDisplayOptimizationMode: undefined }
+        const currentIndexBeforePaint = chats.findIndex(chat => chat?.id === chatId)
+        if (!isCurrent()) return { adopted: false, reason: 'stale-recovery' }
+        if (currentIndexBeforePaint < 0) return { adopted: false, reason: 'chat-removed' }
+        if (chats[currentIndexBeforePaint] !== initial) return { adopted: false, reason: 'local-slot-replaced' }
+        let currentView = ''
+        if (!initial._placeholder) {
+            try { currentView = revisionOf(initial) } catch { /* invalid local view */ }
+        }
+        if (currentView !== initialView) return { adopted: false, reason: 'local-revision-conflict' }
+        if (forageStorage.realStorage.chatReadProofToken?.(chaId, chatId) !== saveProof) {
+            return { adopted: false, reason: 'save-proof-changed' }
+        }
+        if (!mayReplace && !mayConfirmCurrent()) return { adopted: false, reason: 'save-unconfirmed' }
+        if (mayConfirmCurrent() && isValidHydratedChat(initial, chatId)
+            && currentView === revisionOf(displayChat)) {
+            // A fresh read proves equality but is not a save ACK. Do not seed or
+            // reset native save observations, especially after cache eviction.
+            return { adopted: true, revision: snapshot.revision, chat: initial }
+        }
+        if (!mayReplace) return { adopted: false, reason: 'local-revision-conflict' }
         await yieldForHydrationPaint()
 
         const currentIndex = chats.findIndex(chat => chat?.id === chatId)
+        if (!isCurrent()) return { adopted: false, reason: 'stale-recovery' }
         if (currentIndex < 0) return { adopted: false, reason: 'chat-removed' }
         const current = chats[currentIndex]
         if (current !== initial) return { adopted: false, reason: 'local-slot-replaced' }
@@ -412,17 +455,26 @@ export async function adoptServerCommittedChat(
         }
 
         acquireHydrationState(hydrationJustApplied, hydrationJustAppliedCounts, key)
+        let published: Chat
+        let publishedView: string
         try {
             chats[currentIndex] = displayChat
+            // Reactive arrays may wrap assigned objects. Return the actual
+            // published slot so callers can verify identity after awaiting.
+            published = chats[currentIndex]
             forageStorage.realStorage.rememberChatContentSnapshot(chaId, chatId, snapshot)
+            publishedView = revisionOf(published)
             await tick()
         } finally {
             releaseHydrationState(hydrationJustApplied, hydrationJustAppliedCounts, key)
         }
+        if (!isCurrent()) return { adopted: false, reason: 'stale-recovery' }
+        if (chats.find(chat => chat?.id === chatId) !== published) return { adopted: false, reason: 'local-slot-replaced' }
+        if (revisionOf(published) !== publishedView) return { adopted: false, reason: 'local-revision-conflict' }
         return {
             adopted: true,
             revision: snapshot.revision,
-            chat: displayChat,
+            chat: published,
         }
     } finally {
         releaseHydrationState(hydrationInFlight, hydrationInFlightCounts, key)
@@ -850,15 +902,15 @@ import {
 } from './storage/chatStorage'
 import {
     hydrateServerCommittedOrchestration,
+    isTerminalCommittedEvidence,
     serverChatDeliveryDisposition,
     serverChatCommitReceipt,
 } from './bgServerCommitHydration'
 import {
-    COMMITTED_RESULT_KEPT_NOTICE,
     anchoredCommitConflictNotice,
     finishedServerFailureNotice,
     isFinishedServerFailure,
-    recordCommittedAdoptionAttempt,
+    classifyCommittedRecoveryReason,
 } from './bgFinishedOperation'
 import { parseServerPendingInputs, type ServerPendingInput } from './bgServerPendingProjection'
 import { submitServerInputCommand, type ServerInputClientOutcome } from './bgServerInputClient'
@@ -869,6 +921,7 @@ import {
     advanceServerInputMarkerRevisions,
     clearServerInputMarker,
     readServerInputMarkers,
+    writeServerInputMarker,
 } from './bgServerInputLedger'
 `,
             requires: [
@@ -943,6 +996,9 @@ import {
         const projection = await response.json()
         if (response.ok && projection?.found === true) return projection
         if (allowMissing && response.status === 404) return null
+        if (response.status === 404 && projection?.currentRevision === null) {
+            return { kind: 'chat-missing', currentRevision: null }
+        }
         if (attempt === 0 && response.status === 409
             && projection?.state === 'revision_mismatch'
             && typeof projection.currentRevision === 'string'
@@ -992,7 +1048,10 @@ export async function reconcileServerPendingInputCommands(
     const character = Array.isArray(characters)
         ? characters.find(candidate => candidate?.chaId === charId) : null
     if (!character || !Array.isArray(character.chats)) return pending
-    const currentChat = () => character.chats.find((candidate: any) => candidate?.id === chatId)
+    const chats = character.chats
+    const currentChat = () => chats.find((candidate: any) => candidate?.id === chatId)
+    const currentCharacter = () => (DBState as any)?.db?.characters?.find((c: any) => c?.chaId === charId)
+    const isCurrentCharacter = () => currentCharacter() === character && character.chats === chats
     await adoptAttachedServerInputs({
         storage: localStorage,
         charId, chatId, pendingInputs: pending,
@@ -1001,14 +1060,17 @@ export async function reconcileServerPendingInputCommands(
             if (!value || value._placeholder) return null
             try { return orchestrationChatRevision(value) } catch { return null }
         },
-        isCurrent: () => Array.isArray(character.chats) && !!currentChat(),
+        isCurrent: () => isCurrentCharacter() && !!currentChat(),
         adopt: (revision, allowed) => adoptServerCommittedChat(
-            character.chats, charId, chatId, revision, [allowed], orchestrationChatRevision,
+            chats, charId, chatId, revision, [allowed], orchestrationChatRevision,
+            undefined, { isCurrent: isCurrentCharacter },
         ),
     })
     for (const marker of readServerInputMarkers(localStorage).filter(row => (
         row.charId === charId && row.chatId === chatId && row.state === 'accepted'
     ))) {
+        if (!isCurrentCharacter()) return pending
+        if (parkedRecoveries.has(marker.operationId)) continue
         if (!pending.some(input => input.operationId === marker.operationId)) {
             try {
                 const query = new URLSearchParams({ charId, chatId })
@@ -1038,14 +1100,29 @@ export async function reconcileServerPendingInputCommands(
         if (!response.ok) continue
         let data: any
         try { data = await response.json() } catch { continue }
-        if (data.operationId !== marker.operationId || !serverChatCommitReceipt(data)) continue
+        if (data.operationId !== marker.operationId || !isCurrentCharacter()) continue
+        if (!serverChatCommitReceipt(data)) {
+            if (!serverOwnedChatStillActive(data) && (data.final === true
+                || ['interrupted-before-result', 'interrupted-after-main', 'delivery-failed'].includes(data.operationState))) {
+                trackParkedRecovery(marker.operationId)
+                const notice = isFinishedServerFailure(data, -1) ? finishedServerFailureNotice(data)
+                    : RECOVERY_UNVERIFIED_NOTICE
+                rememberRecoveryOutcome(marker.operationId, data, 'unverified-parked', notice, true)
+            }
+            continue
+        }
         const previouslyAcknowledged = data.found === false
             && data.operationState === 'chat-committed'
         if (data.found !== true && !previouslyAcknowledged) continue
         const hydration = await hydrateServerCommittedResult(
-            charId, chatId, marker.operationId, data,
+            charId, chatId, marker.operationId, data, isCurrentCharacter,
         )
-        if (!hydration.hydrated || !Array.isArray(character.chats) || !currentChat()) continue
+        if (!isCurrentCharacter()) return pending
+        if (!hydration.hydrated) {
+            settleCommittedRecovery(marker.operationId, data, hydration.reason, 'input', marker.createdAt + ORCH_DEADLINE_MS)
+            continue
+        }
+        if (!hydration.hydrated || !Array.isArray(character.chats) || currentChat() !== hydration.chat) continue
         const adoptedRevision = (hydration.projection as { chatRevision: string }).chatRevision
         advanceServerInputMarkerRevisions(
             localStorage, charId, chatId, marker.localRevision, adoptedRevision,
@@ -1205,7 +1282,9 @@ async function hydrateServerCommittedResult(
     chatId: string,
     operationId: string,
     data: any,
+    isCurrent: () => boolean = () => true,
 ) {
+    if (!isTerminalCommittedEvidence(data)) return { hydrated: false as const, reason: 'execution-active' }
     notifyAssemblyChange(charId, chatId, operationId, data)
     const target = mergeTargetByOperation.get(operationId)
     const allowedCurrentRevisions = target
@@ -1224,6 +1303,13 @@ async function hydrateServerCommittedResult(
         charId,
         chatId,
         allowedCurrentRevisions,
+        isCurrent,
+        localTarget: () => {
+            const characters: any[] = (DBState as any)?.db?.characters
+            const character = Array.isArray(characters) ? characters.find(c => c?.chaId === charId) : null
+            if (!character || !Array.isArray(character.chats)) return 'character-missing'
+            return character.chats.some((chat: any) => chat?.id === chatId) ? 'present' : 'absent'
+        },
         readProjection: readServerChatExecutionProjection,
         adoptChat: async ({
             charId: storedCharId,
@@ -1231,6 +1317,7 @@ async function hydrateServerCommittedResult(
             expectedServerRevision,
             allowedCurrentRevisions,
             savedServerRevision,
+            requireCurrent,
         }) => {
             const characters: any[] = (DBState as any)?.db?.characters
             const character = Array.isArray(characters)
@@ -1239,14 +1326,18 @@ async function hydrateServerCommittedResult(
             if (!character || !Array.isArray(character.chats)) {
                 return { adopted: false, reason: 'character-missing' }
             }
+            const chats = character.chats
             return adoptServerCommittedChat(
-                character.chats,
+                chats,
                 storedCharId,
                 storedChatId,
                 expectedServerRevision,
                 allowedCurrentRevisions,
                 orchestrationChatRevision,
                 savedServerRevision,
+                { requireCurrent, isCurrent: () => isCurrent()
+                    && character.chats === chats
+                    && (DBState as any)?.db?.characters?.find((c: any) => c?.chaId === storedCharId) === character },
             )
         },
     })
@@ -1277,7 +1368,8 @@ function rememberServerCommittedTarget(operationId: string, hydration: any): voi
 }
 
 function serverOwnedChatStillActive(data: any): boolean {
-    return [
+    return data?.final === false || data?.kind === 'intermediate'
+        || (typeof data?.stage === 'number' && data.stage > 0) || [
         'queued',
         'running',
         'running-result-ready',
@@ -1309,15 +1401,12 @@ function retainUncommittedServerChat(
     })
     if (mode === 'boot') deferBootRecovery(operationId)
     else stopWatch({ preservePendingMarker: true })
-    try {
-        alertError('서버 소유 답변의 채팅 저장을 확인하지 못했어요. 결과와 작업 표식을 보존하고 다음 실행에서 다시 확인해요.')
-    } catch { /* best-effort */ }
+    if (operationId) {
+        trackParkedRecovery(operationId)
+        rememberRecoveryOutcome(operationId, data, 'unverified-parked',
+            '서버 소유 답변의 채팅 저장을 확인하지 못했어요. 결과와 작업 표식을 보존하고 다음 실행에서 다시 확인해요.', true)
+    }
 }
-
-// Consecutive non-hydrated attempts per committed operation on this page. A permanent reason
-// cannot resolve under the current adoption rule, so polling it until the deadline only keeps
-// the spinner and the marker alive.
-const committedAdoptionAttempts = new Map<string, number>()
 
 async function acknowledgeFinishedServerResult(
     charId: string,
@@ -1342,15 +1431,7 @@ function notifyFinishedServerFailure(operationId: string, data: any): void {
         kind: data?.kind,
         error: typeof data?.error === 'string' ? data.error : undefined,
     })
-    try { alertError(finishedServerFailureNotice(data)) } catch { /* best-effort */ }
-}
-
-function notifyCommittedResultKeptOnServer(operationId: string, reason: unknown): void {
-    console.warn('[bg-orch] committed result cannot be adopted; leaving it in the server chat', {
-        operationId,
-        reason,
-    })
-    try { notifyInfo(COMMITTED_RESULT_KEPT_NOTICE, { source: 'bg-saved-answer' }) } catch { /* best-effort */ }
+    rememberRecoveryOutcome(operationId, data, 'terminal-error', finishedServerFailureNotice(data), true)
 }
 
 `,
@@ -1368,22 +1449,14 @@ function notifyCommittedResultKeptOnServer(operationId: string, reason: unknown)
             if (data?.operationState === 'chat-committed'
                 && operationId && serverChatCommitReceipt(data)) {
                 const hydration = await hydrateServerCommittedResult(
-                    charId, chatId, operationId, data,
+                    charId, chatId, operationId, data, () => pollEpoch === watchEpoch,
                 )
                 if (pollEpoch !== watchEpoch) return
                 if (!hydration.hydrated) {
-                    if (recordCommittedAdoptionAttempt(
-                        committedAdoptionAttempts, operationId, hydration.reason,
-                    ) === 'stop') {
-                        // No result row remains to acknowledge; the answer stays in the server chat.
-                        notifyCommittedResultKeptOnServer(operationId, hydration.reason)
-                        stopWatch()
-                        return
-                    }
+                    if (settleCommittedRecovery(operationId, data, hydration.reason, 'watch', watchDeadline)) return
                     console.warn('[bg-orch] committed chat hydrate deferred:', hydration.reason)
                     return
                 }
-                committedAdoptionAttempts.delete(operationId)
                 rememberServerCommittedTarget(operationId, hydration)
                 runServerCompletionEpilogue(operationId, { ...data, chat: hydration.chat })
                 stopWatch()
@@ -1409,6 +1482,10 @@ function notifyCommittedResultKeptOnServer(operationId: string, reason: unknown)
 `,
             content: `        if (operationId && data.operationId !== operationId) return
         const serverOwnedDisposition = serverChatDeliveryDisposition(data)
+        if (serverOwnedDisposition !== 'legacy-client-owned' && serverOwnedChatStillActive(data)) {
+            chatProcessStage.set(typeof data.stage === 'number' && data.stage > 0 ? data.stage : 1)
+            return
+        }
         if (serverOwnedDisposition === 'server-owned-uncommitted') {
             if (operationId && isFinishedServerFailure(data, watchBaselineMsgs)) {
                 const acknowledgement = await acknowledgeFinishedServerResult(
@@ -1442,28 +1519,14 @@ function notifyCommittedResultKeptOnServer(operationId: string, reason: unknown)
             if (serverChatDisposition === 'server-committed'
                 && committedReceipt && operationId) {
                 const hydration = await hydrateServerCommittedResult(
-                    charId, chatId, operationId, data,
+                    charId, chatId, operationId, data, () => pollEpoch === watchEpoch,
                 )
                 if (pollEpoch !== watchEpoch) return
                 if (!hydration.hydrated) {
-                    if (recordCommittedAdoptionAttempt(
-                        committedAdoptionAttempts, operationId, hydration.reason,
-                    ) === 'stop') {
-                        // The answer is durable in the server chat and the client save rebase keeps
-                        // a stale local copy from overwriting it. Stop offering the result row.
-                        const acknowledgement = await acknowledgeFinishedServerResult(
-                            charId, chatId, operationId, resultKeyVersion, resultId,
-                        )
-                        if (pollEpoch !== watchEpoch || acknowledgement === 'superseded') return
-                        notifyCommittedResultKeptOnServer(operationId, hydration.reason)
-                        if (isConfirmedOrchestrationAcknowledgement(acknowledgement)) stopWatch()
-                        else stopWatch({ preservePendingMarker: true })
-                        return
-                    }
+                    if (settleCommittedRecovery(operationId, data, hydration.reason, 'watch', watchDeadline)) return
                     console.warn('[bg-orch] committed result hydrate deferred:', hydration.reason)
                     return
                 }
-                committedAdoptionAttempts.delete(operationId)
                 const acknowledgement = resultId
                     ? await acknowledgeResultRevision(
                         charId, chatId, operationId, resultKeyVersion, resultId,
@@ -1497,24 +1560,17 @@ function notifyCommittedResultKeptOnServer(operationId: string, reason: unknown)
                 if (data?.operationState === 'chat-committed'
                     && operationId && serverChatCommitReceipt(data)) {
                     const hydration = await hydrateServerCommittedResult(
-                        charId, chatId, operationId, data,
+                        charId, chatId, operationId, data, () => epoch === bootRecoveryEpoch,
                     )
                     if (epoch !== bootRecoveryEpoch) return
                     if (!hydration.hydrated) {
-                        if (recordCommittedAdoptionAttempt(
-                            committedAdoptionAttempts, operationId, hydration.reason,
-                        ) === 'stop') {
-                            notifyCommittedResultKeptOnServer(operationId, hydration.reason)
-                            finishBootRecovery(operationId)
-                            return
-                        }
+                        if (settleCommittedRecovery(operationId, data, hydration.reason, 'boot', deadline)) return
                         setTimeout(() => bootRecoverPoll(
                             charId, chatId, baselineMsgs, operationId,
                             resultKeyVersion, deadline, emptyCount, epoch,
                         ), ORCH_POLL_MS)
                         return
                     }
-                    committedAdoptionAttempts.delete(operationId)
                     rememberServerCommittedTarget(operationId, hydration)
                     runServerCompletionEpilogue(operationId, { ...data, chat: hydration.chat })
                     finishBootRecovery(operationId)
@@ -1542,6 +1598,11 @@ function notifyCommittedResultKeptOnServer(operationId: string, reason: unknown)
             content: `            setServerGenerationBusy(true)
             chatProcessStage.set(4)
             const serverOwnedDisposition = serverChatDeliveryDisposition(data)
+            if (serverOwnedDisposition !== 'legacy-client-owned' && serverOwnedChatStillActive(data)) {
+                chatProcessStage.set(typeof data.stage === 'number' && data.stage > 0 ? data.stage : 1)
+                setTimeout(() => bootRecoverPoll(charId, chatId, baselineMsgs, operationId, resultKeyVersion, deadline, 0, epoch), ORCH_POLL_MS)
+                return
+            }
             if (serverOwnedDisposition === 'server-owned-uncommitted') {
                 if (operationId && isFinishedServerFailure(data, baselineMsgs)) {
                     const acknowledgement = await acknowledgeFinishedServerResult(
@@ -1584,40 +1645,17 @@ function notifyCommittedResultKeptOnServer(operationId: string, reason: unknown)
             if (serverChatDisposition === 'server-committed'
                 && committedReceipt && operationId) {
                 const hydration = await hydrateServerCommittedResult(
-                    charId, chatId, operationId, data,
+                    charId, chatId, operationId, data, () => epoch === bootRecoveryEpoch,
                 )
                 if (epoch !== bootRecoveryEpoch) return
                 if (!hydration.hydrated) {
-                    if (recordCommittedAdoptionAttempt(
-                        committedAdoptionAttempts, operationId, hydration.reason,
-                    ) === 'stop') {
-                        const acknowledgement = await acknowledgeFinishedServerResult(
-                            charId, chatId, operationId, resultKeyVersion,
-                            typeof data.resultId === 'string' ? data.resultId : null,
-                        )
-                        if (epoch !== bootRecoveryEpoch) return
-                        if (acknowledgement === 'superseded') {
-                            setTimeout(() => bootRecoverPoll(
-                                charId, chatId, baselineMsgs, operationId,
-                                resultKeyVersion, deadline, 0, epoch,
-                            ), ORCH_POLL_MS)
-                            return
-                        }
-                        notifyCommittedResultKeptOnServer(operationId, hydration.reason)
-                        if (isConfirmedOrchestrationAcknowledgement(acknowledgement)) {
-                            finishBootRecovery(operationId)
-                        } else {
-                            deferBootRecovery(operationId)
-                        }
-                        return
-                    }
+                    if (settleCommittedRecovery(operationId, data, hydration.reason, 'boot', deadline)) return
                     setTimeout(() => bootRecoverPoll(
                         charId, chatId, baselineMsgs, operationId,
                         resultKeyVersion, deadline, 0, epoch,
                     ), ORCH_POLL_MS)
                     return
                 }
-                committedAdoptionAttempts.delete(operationId)
                 const resultId = typeof data.resultId === 'string' ? data.resultId : null
                 const acknowledgement = resultId
                     ? await acknowledgeResultRevision(
@@ -3937,4 +3975,9 @@ module.exports.units.push(...queueUnits.map((unit, index) => ({
 })))
 module.exports.units.push(...require('./notification-units.cjs')(module.exports.units))
 module.exports.units.push(...require('./plugin-host-units.cjs')(module.exports.units))
-module.exports.units.push(...require('./recovery-timing-units.cjs')(module.exports.units))
+module.exports.units.push(...require('./recovery-read-units.cjs')(module.exports.units))
+module.exports.units.push(...['bgRecoveryRead.ts', 'bgRecoveryRead.test.ts', 'bgLegacySaveFailure.test.ts'].map(name => ({
+    id: `lazy-chat-bg-adapter:owned:${name}:1.10`,
+    file: `src/ts/${name}`, type: 'owned', targetVersions: pocketRisu1100,
+    content: owned1100(`src/ts/${name}`),
+})))

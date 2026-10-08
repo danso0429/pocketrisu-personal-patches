@@ -27,6 +27,8 @@ export function isFinishedServerFailure(data: unknown, baselineMsgs: number): bo
     if (result.final !== true) return false
     if (result.kind !== 'terminal-error' && result.outcome !== 'error') return false
     if (serverChatCommitReceipt(result)) return false
+    if (result.serverChatCommit?.status === 'committed'
+        || result.serverChatCommit?.contractVersion === 'bg_server_chat_commit.v1') return false
     if (result.anchorResultVersion === 1) return result.hasGeneratedAnswer === false
     const messages = result.chat && Array.isArray(result.chat.message)
         ? result.chat.message.length : -1
@@ -65,33 +67,13 @@ export function finishedServerFailureNotice(data: unknown): string {
         : '백그라운드 생성이 답변 없이 끝났어요. 해당 채팅에서 다시 보내주세요.'
 }
 
-export const COMMITTED_RESULT_KEPT_NOTICE = '답변은 서버 채팅에 저장돼 있어요. 채팅을 다시 열면 보여요.'
-
-// These reasons cannot change while the current adoption rule and receipt stay the same.
-const PERMANENT_ADOPTION_REASONS = new Set([
-    'local-revision-conflict',
-    'projection-invalid',
-    'commit-receipt-invalid',
-])
-export const PERMANENT_ADOPTION_ATTEMPT_LIMIT = 3
-
-// Records one non-hydrated attempt for an operation and decides whether to keep retrying.
-// Only consecutive permanent reasons count; any other reason keeps the existing retry and
-// deadline behavior and restarts the count.
-export function recordCommittedAdoptionAttempt(
-    attempts: Map<string, number>,
-    operationId: string,
-    reason: unknown,
-): 'retry' | 'stop' {
-    if (typeof reason !== 'string' || !PERMANENT_ADOPTION_REASONS.has(reason)) {
-        attempts.delete(operationId)
-        return 'retry'
-    }
-    const count = (attempts.get(operationId) || 0) + 1
-    if (count >= PERMANENT_ADOPTION_ATTEMPT_LIMIT) {
-        attempts.delete(operationId)
-        return 'stop'
-    }
-    attempts.set(operationId, count)
-    return 'retry'
+// This classifies an already-validated hydration outcome, not server authority.
+// Callers still require terminal/identity proof before any retirement or notice.
+export function classifyCommittedRecoveryReason(reason: unknown): 'retire' | 'retry' | 'park' | 'stale' {
+    if (reason === 'stale-recovery' || reason === 'execution-active') return 'stale'
+    if (reason === 'target-deleted' || reason === 'superseded-current') return 'retire'
+    if (typeof reason === 'string' && ['projection-unavailable', 'chat-readback-failed', 'server-chat-missing',
+        'server-revision-mismatch', 'chat-missing', 'chat-removed', 'local-slot-replaced', 'character-missing',
+        'chat-not-hydrated', 'save-proof-changed'].includes(reason)) return 'retry'
+    return 'park'
 }
