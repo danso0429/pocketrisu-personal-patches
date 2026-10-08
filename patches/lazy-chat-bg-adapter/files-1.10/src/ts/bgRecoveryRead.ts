@@ -33,8 +33,9 @@ export function boundedRecoveryRead<T>(
         timer = setTimeout(() => abort(new DOMException('Recovery read timed out', 'TimeoutError')), timeoutMs)
         try {
             // Attach both handlers even when an implementation ignores abort.
-            // The operation must be read-only; only the returned winner may
-            // authorize caller-side publication after its identity/epoch checks.
+            // Only the returned winner may authorize local publication after
+            // identity/epoch checks. A fetch may already have changed the server;
+            // timing out observation does not prove remote non-admission.
             Promise.resolve(action(controller.signal)).then(
                 value => finish(true, value), error => finish(false, error),
             )

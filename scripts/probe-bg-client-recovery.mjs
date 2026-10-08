@@ -112,6 +112,16 @@ try {
   const recover = page.getByRole('button', { name: '앱에서 입력 처리 후 서버 생성 (모델 재호출 가능)', exact: true })
   await recover.waitFor({ timeout: 30000 })
   if (providerCalls !== 0) throw new Error('Provider ran before unsupported input recovery')
+  // G1.12a reports the terminal unsupported-input result through the normal
+  // error dialog. Dismiss that exact notice before operating the retained input;
+  // do not force-click through an overlay or dismiss an unrelated question.
+  const terminalDialog = page.getByRole('dialog')
+  if (await terminalDialog.isVisible()) {
+    if (!(await terminalDialog.innerText()).includes('unsupported host operation (interactive_ui)')) {
+      throw new Error('Unexpected dialog before explicit input recovery')
+    }
+    await terminalDialog.getByRole('button', { name: 'Confirm', exact: true }).click()
+  }
   await recover.click()
   await page.getByText('Synthetic recovery question', { exact: true }).waitFor({ timeout: 30000 })
   await page.locator('input:visible').last().fill('accepted in app')

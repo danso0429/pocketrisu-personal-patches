@@ -39,6 +39,42 @@ function chat(data: string) {
 }
 
 describe('server-committed chat adoption', () => {
+    it.each(['older-first', 'newer-first', 'edit-between'])('CAP concurrent adoption (%s)', async order => {
+        const local = { ...chat('base'), note: '', localLore: [], isStreaming: false }
+        const chats = [local]
+        const storage = new NodeStorage({ invalidate: vi.fn() } as any)
+        storageMock.realStorage = storage
+        const pendingReads: Array<(value: any) => void> = []
+        vi.spyOn(storage, 'peekChatContentSnapshot').mockImplementation(() => new Promise(resolve => pendingReads.push(resolve)))
+        const initial = orchestrationChatRevision(local)
+        const older = { ...structuredClone(local), message: [...local.message, { role: 'char', data: 'older', chatId: 'a1' }] }
+        const newer = { ...structuredClone(older), message: [...older.message, { role: 'char', data: 'newer', chatId: 'a2' }] }
+        const first = adoptServerCommittedChat(chats, 'char-1', 'chat-1', 'r1', [initial], orchestrationChatRevision)
+        const second = adoptServerCommittedChat(chats, 'char-1', 'chat-1', 'r2', [initial], orchestrationChatRevision)
+        expect(pendingReads).toHaveLength(2)
+        if (order === 'newer-first') {
+            pendingReads[1]({ chat: newer, revision: 'r2', encodedBytes: 300 })
+            expect((await second).adopted).toBe(true)
+            pendingReads[0]({ chat: older, revision: 'r1', encodedBytes: 200 })
+            expect((await first).adopted).toBe(false)
+            expect(chats[0].message).toHaveLength(3)
+        } else if (order === 'edit-between') {
+            local.note = 'unsaved edit'
+            pendingReads[0]({ chat: older, revision: 'r1', encodedBytes: 200 })
+            pendingReads[1]({ chat: newer, revision: 'r2', encodedBytes: 300 })
+            expect((await first).adopted).toBe(false)
+            expect((await second).adopted).toBe(false)
+            expect(chats[0]).toBe(local)
+            expect(chats[0].note).toBe('unsaved edit')
+        } else {
+            pendingReads[0]({ chat: older, revision: 'r1', encodedBytes: 200 })
+            expect((await first).adopted).toBe(true)
+            pendingReads[1]({ chat: newer, revision: 'r2', encodedBytes: 300 })
+            expect((await second).adopted).toBe(false)
+            expect(chats[0].message).toHaveLength(2)
+        }
+        expect(isHydrating('char-1', 'chat-1')).toBe(false)
+    })
     afterEach(() => vi.useRealTimers())
     it('returns the published slot when a reactive array wraps the assigned object', async () => {
         const before = chat('before')

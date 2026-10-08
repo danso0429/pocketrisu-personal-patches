@@ -14,7 +14,7 @@ function unit(manifest, id) {
 test('G1 is an exact-1.10 input and commit contract on the current patcher graph', () => {
     assert.deepEqual(adapter.targets.pocketrisu.verified, ['1.10.0'])
     assert.deepEqual(lazy.targets.pocketrisu.verified, ['1.10.0'])
-    assert.equal(adapter.version, '0.7.29')
+    assert.equal(adapter.version, '0.7.30')
     assert.equal(lazy.version, '0.5.6')
     assert.match(unit(adapter, 'lazy-chat-bg-adapter:server-input-capabilities:1.10').content,
         /inputCommandVersion: 1/)

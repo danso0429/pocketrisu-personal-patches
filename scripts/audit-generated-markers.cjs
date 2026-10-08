@@ -9,11 +9,20 @@ const { createRequire } = require('node:module')
 function audit(root) {
     const ts = createRequire(path.join(root, 'package.json'))('typescript')
     const result = { compiler: ts.version, files: 0, scriptRegions: 0,
-        nonScriptMarkers: 0, bareReturnMarkers: [], otherRestrictedMarkers: [] }
+        nonScriptMarkers: 0, bareReturnMarkers: [], otherRestrictedMarkers: [], remainingControlJson: [] }
     function region(text, file, offset) {
         result.scriptRegions++
         const ast = ts.createSourceFile(file, text, ts.ScriptTarget.Latest, true)
         function visit(node) {
+            if (file === 'src/ts/bgOrchestrate.ts' && ts.isAwaitExpression(node)
+                && ts.isCallExpression(node.expression) && ts.isPropertyAccessExpression(node.expression.expression)) {
+                const call = node.expression.expression
+                if (call.name.text === 'json' && ts.isIdentifier(call.expression)
+                    && ['res', 'response', 'statusResponse'].includes(call.expression.text)) {
+                    result.remainingControlJson.push({ file,
+                        line: ast.getLineAndCharacterOfPosition(node.getStart(ast)).line + 1 })
+                }
+            }
             if (ts.isReturnStatement(node) && !node.expression) {
                 const tail = text.slice(node.getStart(ast), node.end + 300)
                 const marker = /^return[ \t]*\/\* (POCKETRISU-PATCH:[^*]+:START) \*\/[ \t]*[\r\n]/.exec(tail)
@@ -71,6 +80,6 @@ if (require.main === module) {
     if (!process.argv[2]) throw Error('Usage: node scripts/audit-generated-markers.cjs <generated-target>')
     const result = audit(path.resolve(process.argv[2]))
     console.log(JSON.stringify(result, null, 2))
-    process.exitCode = result.bareReturnMarkers.length ? 1 : 0
+    process.exitCode = result.bareReturnMarkers.length || result.remainingControlJson.length ? 1 : 0
 }
 module.exports = { audit }
