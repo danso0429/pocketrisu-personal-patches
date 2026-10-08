@@ -28,7 +28,15 @@ Suggestion eligibility uses a page-local target readiness registry seeded before
 | Frontend build | 8020 modules; successful production build |
 | BG build and actual load | Built bgOrchBundle.mjs; built-in load confirmed sendChat and required trigger/script/policy exports |
 
-Live readback is pending in this record until observed. Automatic function-level/mock evidence is not native storage or device proof; actual native storage/publication suites and current adoption source were checked separately. An auxiliary load command used an incorrect .cjs filename after the successful built-in .mjs load check; the built-in load result and actual .mjs syntax verification are the load evidence.
+Automatic function-level/mock evidence is not native storage or device proof; actual native storage/publication suites and current adoption source were checked separately. An auxiliary load command used an incorrect .cjs filename after the successful built-in .mjs load check; the built-in load result and actual .mjs syntax verification are the load evidence.
+
+## Delivery
+
+Runtime4d7bec8, packaginga67a22d, initial gate docs08356e6, final corrections1c59ba1 and post-review gates73af78a were pushed to the separate candidate branch before safe live delivery. Installer6921796bytes0755, SHA-256fff08ee8c1b908abfc0d9d4b7f4c12b6ac47d5cc3e9f5984711dbf58efeb3519. Final privacy sweep173 tracked paths, hits0. No main integration or stable tag.
+
+The retained full recovery archive hash was verified. A source/application-state/notification-namespace backup verified1626 files and91519326 archive bytes. Active generation, durable inputs and native pending sends were checked before stopping; no generation was cancelled. Source apply/build did not change any DB or WAL bytes before restart. Final live replan0 and all474 managed source hashes/modes matched; all175 served JS files matched disk;5 SQLite quick_check results were ok. PM2 online/unstable restarts0, plugin hostOFF, personal settings0.5.13 and external header settings preserved. Operation records22 before/22 after, removed0; input records0, active requests0, pending sends0 at final idle. New error lines0. The post-restart active-request check waited until idle. Device qualification remains pending.
+
+Backup retention review: the new pre-delivery application snapshot and prior CAP snapshot remain rollback anchors. Exact historical application controls and full-user-data recovery sets remain protected for the still-open recovery qualification; no backup or user data was deleted in this task. Task workspaces and original paused WIP11 hashes remain intact.
 
 ## Review decisions and limits
 
