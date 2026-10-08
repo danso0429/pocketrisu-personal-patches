@@ -188,6 +188,12 @@ Opus reviewed the plan and successive implementation deltas read-only. Its concr
 
 ## Functional delivery (2026-10-08 KST)
 
+### Subsequent device observation and continuation
+
+The user observed a normally displayed answer after return, without the former delayed recovery notice, but could not determine whether it completed before leaving or was recovered after suspension. This is normal-display evidence, not confirmation of long-suspension, cold-recovery or deleted-target scenarios. A post-delivery metadata check found three successful main requests and no new targeted timeout/save-failure/recovery notices; twelve regular-expression errors of types present before deployment and two aborted chat-content POSTs remain separate observations, not proof of harmlessness or data loss. The user explicitly requested preserving these limitations and continuing G1.12b. Unconfirmed device scenarios remain open for subsequent observations; no stable-release approval is inferred.
+
+### Deployment evidence
+
 Implementation and packaging commit `ab14579` was pushed on the existing G1.12a candidate branch. Rebuilding its installer produced identical bytes. The branch includes font-bearing origin/main `9259550`; no force push, main integration or stable tag was performed. Main/PR-only CI is not claimed for this candidate branch.
 
 Live delivery revalidated the retained full-backup archive and created a91,456,128-byte application/patcher-state backup with1,624 verified files and both notification namespaces (zero rows). This is an application backup, not a new full user-database snapshot. Active requests, native jobs, pending sends and active input commands were zero before stopping; no generation was cancelled. Database file bytes remained unchanged during source application and builds.
