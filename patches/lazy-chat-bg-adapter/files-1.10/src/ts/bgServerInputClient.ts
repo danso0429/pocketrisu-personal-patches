@@ -10,6 +10,7 @@ import {
 import { reconcileServerInputStart } from './bgServerInputStart'
 import type { MarkerStorage } from './bgOrchestrationPending'
 import type { ServerPendingInput } from './bgServerPendingProjection'
+import { boundedRecoveryRead, RECOVERY_BODY_TIMEOUT_MS } from './bgRecoveryRead'
 
 interface HttpOutcome {
     status: number
@@ -77,7 +78,13 @@ export async function submitServerInputCommand(
     const active: ServerInputMarker[] = []
     for (const marker of stored) {
         let outcome: HttpOutcome
-        try { outcome = await deps.status(marker.operationId, new AbortController().signal) }
+        try {
+            // This pre-admission observation is outside the POST reconciler's
+            // attempt budget. Bound its headers/body without changing that owner.
+            outcome = await boundedRecoveryRead(
+                signal => deps.status(marker.operationId, signal), RECOVERY_BODY_TIMEOUT_MS,
+            )
+        }
         catch { return { kind: 'blocked', reason: 'prior-operation-unavailable' } }
         const status = classifyOrchestrationStatusResponse(
             outcome.status, outcome.body, marker.operationId,
