@@ -13,8 +13,11 @@ verified databases; the user reported normal G1.12b operation. The scoped
 ordinary-use device check is closed, while exact recommendation/recovery routes,
 G1 aggregate and stable qualification remain open. See the
 [G1.12b validation and device closeout](docs/POCKETRISU-G1-12B-RECOVERY-OWNERSHIP-VALIDATION.md).
-The server plugin host remains OFF; MARP qualification and G1.5b admission are
-the next separate work. The stable release remains `v0.2.3`.
+The server plugin host remains OFF; the next separate work is the
+[MARP host qualification plan](docs/POCKETRISU-G1-7-MARP-HOST-QUALIFICATION-PLAN.md),
+then G1.5b admission. It compares real callers, timeout/retry lifetime, settings
+freshness and failure visibility before selecting any new diagnostics feature.
+The stable release remains `v0.2.3`.
 
 The `0.2.4-experimental.22` G1.12a candidate recognizes already-current server answers, bounds BG
 control-body and snapshot reads, and queries server state after a long suspension

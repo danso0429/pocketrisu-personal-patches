@@ -2,6 +2,8 @@
 
 ## Current boundary
 
+2026-10-09 planning continuation: G1.12a/CAP/G1.12b have been delivered, with scoped ordinary-use device confirmations recorded separately. Next is G1.7/G1.11 behavioral qualification, then G1.5b admission. The [MARP host qualification plan](POCKETRISU-G1-7-MARP-HOST-QUALIFICATION-PLAN.md) supersedes older next-step wording below without promoting the historical G1.6 evidence. It adds actual bootstrap/adapter comparison, timeout and next-attempt behavior, dual-store settings freshness, private-history visibility and cold-start/init-effect experiments. Host remains OFF; no new test or activation is implied.
+
 2026-10-07 KST. Candidate `0.2.4-experimental.20`, adapter `0.7.27`, started from `493fceb` and was delivered at `76bf8a2` after preserving the intervening font-target changes from main. G1.6's default-OFF foundation is implemented, automatically validated, committed, pushed and applied live. Original-plugin qualification and activation are not complete. No original plugin source, real-provider request, admission policy or stable release was changed. The ordered goals remain the execution authority; next are G1.12a/b, then G1.7/G1.11 qualification and G1.5b admission expansion.
 
 The supervisor, original-script worker, invocation-scoped RPC, native hook/provider bindings, storage and notification writers are implemented in the manifest and installer. The host remains an internal server-only opt-in (`POCKETRISU_BG_PLUGIN_HOST_CANDIDATE=1`), OFF by default. No HTTP/client flag enables it. Existing admission is unchanged. Implementation presence is not original MARP qualification.

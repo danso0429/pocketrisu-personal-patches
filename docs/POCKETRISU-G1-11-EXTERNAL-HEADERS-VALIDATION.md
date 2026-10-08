@@ -5,6 +5,8 @@ Status: implemented, automatically verified, pushed and live-applied. The user c
 
 ## User behavior and ownership
 
+2026-10-09 planning clarification: the G1.6 source now provides the native plugin-host adapter/header-context wiring, so the caller-absent statement in the historical delivery section is not current status. The [MARP qualification plan](POCKETRISU-G1-7-MARP-HOST-QUALIFICATION-PLAN.md) requires current original-script/final-caller comparison before G1.5b. Browser /proxy2 already applies enabled rules with fallback identity; server calls add per-chat identity. Neither proves actual analysis success. No rule, provider, script or live state was changed by this clarification.
+
 Personal settings → External requests provides server-shared destination rules. New rules are disabled. A rule has an ID/name, enabled state, HTTPS destination with path prefix, header name and the conversation-session value kind. Saving is explicit. A stale device save returns a conflict while retaining the draft; reload is explicit. No provider credential or generated header value is returned by this settings API.
 
 Personal settings `0.5.12` owns configuration/UI, validation, transport and ordinary proxy hooks. Lazy chat BG adapter `0.7.14` connects the final composed BG proxy shim and conversation context. Patcher version is `0.2.4-experimental.7`.

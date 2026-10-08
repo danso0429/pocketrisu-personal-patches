@@ -1,0 +1,55 @@
+# G1.7 MARP host qualification and G1.5b admission plan
+
+2026-10-09 KST. Planning update after joint Opus5.5 consultation and source comparison. Baseline4bce464 / experimental.24 / adapter0.7.31. The ordered BG goals remain execution authority; this document details G1.7/G1.11 qualification before G1.5b admission expansion. No new runtime, original-script, permission, provider configuration, activation or release change is included.
+
+## Direction and existing foundation
+
+Run the unchanged MARP Lite script in the generic isolated server host. Preserve one process per plugin per operation through input, analysis/ax, main and postprocessing. Keep configuration UI in the browser, parent-owned API/RPC/network/storage and saved permissions, and existing custom/provider/model behavior. Do not replace Lite with Full or reimplement MARP as a dedicated backend.
+
+G1.6's default-OFF host and G1.11 header infrastructure are implemented. Native adapter/header-context source wiring is present; original-script behavior through the final caller is not qualified. Browser /proxy2 already uses enabled destination rules with a fallback session identity; server execution adds per-chat HMAC context and whole-pipeline ownership. Header error removal does not prove successful analysis. Existing individual-request and prepared-main preservation is not described as absent merely because raw plugin input remains unqualified.
+
+Source evidence includes a preserved Lite0.9.2 script of64022bytes, SHA-256b1aa573048ea31ec036e21fd9df9f1a35d136435e247f15c3cdaa6026cd8e132. This is historical source identity, not a current installed-hash check or execution allowlist. Earlier browser/prototype comparisons and synthetic host tests are starting evidence, not qualification of the current source/caller/device.
+
+## Qualification sequence
+
+All stages below are planned; none was executed by the planning consultation or this document update. Start with synthetic credentials/providers and isolated application storage while the production host remains OFF.
+
+| Stage | Experiment | Required evidence |
+| --- | --- | --- |
+| M0 | Record current original source and reachable API/global/role paths | Preserve original bytes, version and identity; follow aliases/dynamic registration. Distinguish request hooks, UI-only paths and original fallback behavior. Unknown properties are callable in both native and server Proxies, so typeof checks alone are not support proof. |
+| M1 | Byte-original bootstrap in the current host | Exact hook/unload registration, awaited/causal initialization completion, quiet-boundary behavior and late calls. Original top-level initialization is not awaited; do not infer readiness from evaluation alone. |
+| M2 | Actual browser host versus current server bindings and final transport | Main/sub, retry and fallback with synthetic analysis providers. Compare final requests, injection and configured agent selection. A fixture enabling all three agents expects three analysis calls on a normal attempt and native-equal calls on retry, with a single injection block. Keep main, analysis and OAuth/network counts distinct. |
+| M3 | Slow headers, slow body/stream, plugin timeout and operation cancellation | Actual native error shape, notifications, scope/handle cleanup, entry.failed and next retry/fallback behavior. Returned streams can retain authority until drain/cancel/close. Demonstrated loss of a later normal attempt must be corrected before admission expansion. Transport abort is not proof of provider cancellation or refunded charges. |
+| M4 | Immediate settings save/send and queued updates | Trace actual MARP UI save, argument in-memory mutation, pluginStorage persistence, send/strict root flush and server reads. Test cache/coherence between stores; fresh reads alone do not prove the latest edit or a consistent settings bundle. |
+| M5 | HTTP400, refused connection, empty-success and partial-success | Separate host failures, transport outcomes, swallowed plugin-private failures and loss of private diagnostic history. Record user-visible differences before deciding diagnostics scope. |
+| M6 | Expired saved grants, mixed enabled plugins, initialization effects and cold start | Refusal/notification without fabricated permission; UI-only and multiple-plugin behavior, actual registration/participation, resource costs and effect ownership. Measure launch/load and response-start latency before changing lifetime, caches or filtering. |
+| M7 | Request-specific admission and delivery | Use qualified API/permissions, actual binding/provider/roles and effect/replay boundaries. Retain normal custom/local routes and native retry. Revalidate composition, tests, audits and safe delivery; real-provider/device/aggregate gates remain separate. |
+
+## Behavior contracts to preserve
+
+- Native request retries/fallback invoke beforeRequest according to native semantics. MARP can repeat analysis and remove its previous injection block. Prevent extra host-induced execution rather than suppressing legitimate native retries.
+- Current source observation found no Risuai.log/alert calls in the inspected MARP request path, and setters are in UI/preset/connect paths. Do not implement log/CAS fixes based solely on generic-host possibilities. Verify any new version or demonstrated difference independently.
+- UI DOM and guarded PDF Worker/Blob code are not automatically hook requirements. Extend only evidenced APIs/globals; preserve legitimate original fallbacks instead of adding blanket browser emulation.
+- The server loads once for an operation and observes actual APIs, permissions and registered roles. Client participation summaries may be optional warning hints after measured need, not authority. Unknown/stale hash alone must not reject a request or become an allowlist.
+- Track script/context changes under the existing operation identity/effect lifetime; do not mix incompatible contexts or repeat initialization. Load-before-main does not imply load-before-paid-effects: arbitrary scripts can call nativeFetch or storage during initialization. Qualify the pre-effect/admission boundary and prevent rejection followed by client replay after effects.
+- Transformation failure preserves the prior chain value and reports a host-observed failure. A plugin that supplies the model cannot simply be dropped while pretending the request succeeded; retain native model failure/retry/fallback handling.
+
+## Failure visibility and diagnostics decision
+
+The original MARP hook can catch analysis errors and return cleaned messages. Its history/lastRun are private memory; a completed callback therefore does not prove successful analysis. With per-operation processes, those server-side records are not automatically transferred to the existing browser MARP diagnostic panel. Configuration UI preservation is a different promise.
+
+1. **Host-observed failures:** load/crash, permission, unsupported API, resource limits, disabled entry and provider-role failures use the existing notification contract.
+2. **Transport facts:** status class, network failure, abort and duration can be observed independently of business success.
+3. **Plugin-private semantics:** empty/refused/partial analysis, intended injection and swallowed errors cannot be reliably inferred by a generic host without cooperation.
+
+Reject an all-failed-fetch plus unchanged-output success/failure heuristic: valid probes may fail, HTTP200 may contain unusable output, and MARP can remove an earlier block even when analysis fails. Do not add plugin-name or marker-specific exceptions, rewrite scripts, or claim semantic completeness from a transport summary.
+
+After M5, decide whether a generic parent-owned per-operation RPC outcome summary provides sufficient user value. Candidate fields are registered roles, completed hooks, API call counts, status class, fixed network/abort classification and duration. Exclude URLs, bodies, argument values, credentials, conversation keys and secret-derived hashes. Define retention, bounds, access and display only if the feature is selected. An optional diagnostics view is a proposal; this planning update neither implements it nor authorizes a claim that it reconstructs MARP's private history or catches every semantic failure. Document the remaining visibility limit and resolve necessary user-result choices before G1.5b.
+
+## Gate boundaries and remaining work
+
+Current host implementation, source inspection and reviewer agreement do not permit production activation or unqualified admission. Keep real-provider analysis separate from fake-provider qualification and use the established authorization boundary for the actual paid analysis run. Physical iPhone, process-death/return, queue/edit/notification and G1 aggregate/stable remain independent evidence.
+
+G2 later evaluates unchanged official Archive Center and its listener/state/backend requirements. Prior prototype loading is not current-host compatibility; do not add AC scope or restore old modified-AC assumptions during G1.7.
+
+The next action is M0→M6 qualification and correction of demonstrated gaps, then M7/G1.5b. Cold-start costs and private diagnostic loss are measured/recorded tradeoffs, not grounds for an unmeasured process-lifetime redesign.
