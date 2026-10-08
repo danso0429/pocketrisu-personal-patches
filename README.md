@@ -4,6 +4,18 @@ Personal, all-or-nothing patch delivery for PocketRisu NodeOnly. The current
 stable release is `v0.2.3`, and its complete manifest graph targets exact
 PocketRisu `v1.10.0`.
 
+The `0.2.4-experimental.24` candidate includes the CAP admission corrections and
+G1.12b recovery ownership changes. Terminal reconciliation no longer owns the
+generation busy lease; recommendation requests wait for current-chat proof and
+reject stale target callbacks. Deferred draft scans retain readiness wakes.
+The candidate is delivered with474 managed paths,175 served scripts and five
+verified databases; the user reported normal G1.12b operation. The scoped
+ordinary-use device check is closed, while exact recommendation/recovery routes,
+G1 aggregate and stable qualification remain open. See the
+[G1.12b validation and device closeout](docs/POCKETRISU-G1-12B-RECOVERY-OWNERSHIP-VALIDATION.md).
+The server plugin host remains OFF; MARP qualification and G1.5b admission are
+the next separate work. The stable release remains `v0.2.3`.
+
 The `0.2.4-experimental.22` G1.12a candidate recognizes already-current server answers, bounds BG
 control-body and snapshot reads, and queries server state after a long suspension
 instead of declaring generation timeout. Conflicting local edits retain recovery
@@ -13,7 +25,8 @@ the user-approved collection closeout. See the
 [G1.12a plan, evidence and delivery status](docs/POCKETRISU-G1-12A-TERMINAL-RESULTS-PLAN.md).
 The candidate is delivered after backup, build and readback of465 managed files,
 17 served scripts and five databases. Device validation remains pending.
-G1.12b navigation ownership and MARP server execution remain separate work.
+G1.12b navigation ownership is delivered by the later experimental.24 candidate;
+MARP server execution remains separate work.
 After updating, reload every open PocketRisu tab/PWA for the v3 input-marker
 reader. Clearing browser storage is neither required nor recommended.
 

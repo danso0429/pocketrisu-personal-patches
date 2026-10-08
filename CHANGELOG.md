@@ -1,5 +1,14 @@
 # Changelog
 
+## 0.2.4-experimental.24 (BG recovery ownership and suggestions)
+
+- Separate terminal reconciliation from generation busy; scope cleanup and late callbacks to the captured operation, epoch and native lifecycle, including delayed starts and auto-continue.
+- Seed target readiness before automatic suggestions and verify execution completion separately from the current canonical chat. A confirmed delivery ACK cannot bypass current proof; unpublished legacy results remain protected.
+- Coalesce recommendation requests, preserve existing lists and provider/prompt settings, fence target changes and delayed translation/confirmation callbacks, and drain deferred draft scans.
+- Verify full client2288/4 existing skip, server490/12 skip, compatibility74/5 skip, focused164, patcher331, types0/0, production/BG build/load,42packs1486units/replan0,1022-file exact revert and474-path fresh upgrade equality.
+- Deliver after verified backup and live readback of474 managed paths,175 served scripts and five databases. Preserve header settings, personal-settings0.5.13, plugin host OFF and22 operation records; new error lines0.
+- The user subsequently reported G1.12b normal; the scoped ordinary-use device gate and documentation closeout are complete. Recommendation-specific, cold/long-suspension/deletion and G1 aggregate/stable qualification are not inferred from that report. This remains an experimental candidate.
+
 ## 0.2.4-experimental.23 (BG CAP admission correction)
 
 - Repair the complete generated capability return while retaining its existing unit ID; validate real caller behavior and detect remaining unwrapped control JSON calls.

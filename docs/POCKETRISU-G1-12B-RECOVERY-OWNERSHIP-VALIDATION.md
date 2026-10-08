@@ -34,7 +34,7 @@ Automatic function-level/mock evidence is not native storage or device proof; ac
 
 Runtime4d7bec8, packaginga67a22d, initial gate docs08356e6, final corrections1c59ba1 and post-review gates73af78a were pushed to the separate candidate branch before safe live delivery. Installer6921796bytes0755, SHA-256fff08ee8c1b908abfc0d9d4b7f4c12b6ac47d5cc3e9f5984711dbf58efeb3519. Final privacy sweep173 tracked paths, hits0. No main integration or stable tag.
 
-The retained full recovery archive hash was verified. A source/application-state/notification-namespace backup verified1626 files and91519326 archive bytes. Active generation, durable inputs and native pending sends were checked before stopping; no generation was cancelled. Source apply/build did not change any DB or WAL bytes before restart. Final live replan0 and all474 managed source hashes/modes matched; all175 served JS files matched disk;5 SQLite quick_check results were ok. PM2 online/unstable restarts0, plugin hostOFF, personal settings0.5.13 and external header settings preserved. Operation records22 before/22 after, removed0; input records0, active requests0, pending sends0 at final idle. New error lines0. The post-restart active-request check waited until idle. Device qualification remains pending.
+The retained full recovery archive hash was verified. A source/application-state/notification-namespace backup verified1626 files and91519326 archive bytes. Active generation, durable inputs and native pending sends were checked before stopping; no generation was cancelled. Source apply/build did not change any DB or WAL bytes before restart. Final live replan0 and all474 managed source hashes/modes matched; all175 served JS files matched disk;5 SQLite quick_check results were ok. PM2 online/unstable restarts0, plugin hostOFF, personal settings0.5.13 and external header settings preserved. Operation records22 before/22 after, removed0; input records0, active requests0, pending sends0 at final idle. New error lines0. The post-restart active-request check waited until idle. The scoped ordinary-use device confirmation is recorded below; route-specific qualification remains open.
 
 Backup retention review: the new pre-delivery application snapshot and prior CAP snapshot remain rollback anchors. Exact historical application controls and full-user-data recovery sets remain protected for the still-open recovery qualification; no backup or user data was deleted in this task. Task workspaces and original paused WIP11 hashes remain intact.
 
@@ -53,6 +53,10 @@ Registry unresolved state is bounded at512, with at most256 additional resolved 
 No paid provider call, generation cancellation, user-data deletion, plugin-host activation, Archive Center change or stable tag is part of this delivery. Existing personal settings0.5.13 and external header settings must be preserved in live readback.
 
 ## Device check
+
+2026-10-09 closeout: after reporting that testing was in progress, the user reported G1.12b normal. The scoped ordinary-use device gate is closed. No per-scenario trace, loaded-build evidence, automatic-suggestion usage confirmation or cold/long-suspension/deletion evidence was supplied; those paths are not separately marked passed. This does not qualify G1 aggregate or stable release.
+
+L6 records the confirmation, preserves the structural findings and verification in this document, and removes only the temporary scoped L3 report. The runtime audit, task workspaces, original WIP and recovery backups remain. No code/installer change, runtime rebuild/restart, paid call, main integration or release tag is part of this documentation-only closeout. Next implementation unit is G1.7 plus the G1.11 connection, followed by G1.5b.
 
 Before checking, refresh the PocketRisu page once after delivery. The test does not require identifying an invisible preparation phase.
 
