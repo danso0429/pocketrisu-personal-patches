@@ -25,7 +25,7 @@ const queueUnits = require('./queue-units.cjs')
 module.exports = {
     id: 'lazy-chat-bg-adapter',
     title: 'BG preserve integration for lazy chat storage',
-    version: '0.7.30',
+    version: '0.7.31',
     targets: {
         pocketrisu: {
             verified: ['1.10.0'],
@@ -3976,6 +3976,13 @@ module.exports.units.push(...queueUnits.map((unit, index) => ({
 module.exports.units.push(...require('./notification-units.cjs')(module.exports.units))
 module.exports.units.push(...require('./plugin-host-units.cjs')(module.exports.units))
 module.exports.units.push(...require('./recovery-read-units.cjs')(module.exports.units))
+module.exports.units.push(...require('./recovery-ownership-units.cjs')(module.exports.units))
+module.exports.units.push(...['bgReconciliation.ts', 'bgReconciliation.test.ts', 'suggestionRequestOwner.ts',
+    'suggestionRequestOwner.test.ts', 'suggestionRecovery.test.ts', 'bgRecoveryOwnership.test.ts', 'bgDraftRecoveryOwnership.test.ts'].map(name => ({
+    id: `lazy-chat-bg-adapter:owned:${name}:1.10`,
+    file: `src/ts/${name}`, type: 'owned', targetVersions: pocketRisu1100,
+    content: owned1100(`src/ts/${name}`),
+})))
 module.exports.units.push(...['bgRecoveryRead.ts', 'bgRecoveryRead.test.ts', 'bgLegacySaveFailure.test.ts', 'bgCapabilityAdmissionFlow.test.ts'].map(name => ({
     id: `lazy-chat-bg-adapter:owned:${name}:1.10`,
     file: `src/ts/${name}`, type: 'owned', targetVersions: pocketRisu1100,

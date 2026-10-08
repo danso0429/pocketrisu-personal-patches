@@ -1,6 +1,8 @@
 // @vitest-environment happy-dom
 
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+import { readFileSync } from 'node:fs'
+import ts from 'typescript'
 import {
     readPendingMarkers,
     writePendingMarker as writeStoredPendingMarker,
@@ -24,6 +26,7 @@ const h = vi.hoisted(() => ({
         method: string, url: string, body: any,
     ) => Promise<{ status: number, body: unknown }>,
     adopt: null as any,
+    peek: null as any,
     sendChat: null as any,
     doingChat: null as any,
     sounds: 0,
@@ -49,7 +52,7 @@ vi.mock('./storage/chatStorage', () => ({
     fetchChatFromServer: async (_charId: string, index: number) => (
         JSON.parse(JSON.stringify(h.dbState.db.characters[0].chats[index]))
     ),
-    peekServerChatSnapshot: async () => null,
+    peekServerChatSnapshot: (...args: unknown[]) => h.peek(...args),
 }))
 vi.mock('./alert', () => ({
     alertError: (message: unknown) => { h.alerts.push(String(message)) },
@@ -225,6 +228,7 @@ beforeEach(async () => {
     h.scopesAtStart = []
     h.requests = []
     h.adopt = vi.fn(async () => ({ adopted: false, reason: 'local-revision-conflict' }))
+    h.peek = vi.fn(async () => null)
     h.sendChat = vi.fn(async () => true)
     h.sounds = 0
     h.holdSave = false
@@ -265,6 +269,201 @@ async function startForeground() {
 }
 
 describe('terminal recovery without temporary timing instrumentation', () => {
+
+describe('G1.12b recovery ownership', () => {
+    it('revalidates an unclassified parked marker on new evidence without ACK or replay', async () => {
+        h.dbState.db.characters[0].chats[0] = chatWith(3)
+        h.adopt = vi.fn(async () => ({ adopted: true, chat: h.dbState.db.characters[0].chats[0] }))
+        h.peek = vi.fn(async () => ({ revision: projection(BOOT_OPERATION_ID).chatRevision }))
+        serve((operationId, method, url) => {
+            if (isResultPeek(method, url)) return { status: 200, body: committedResult(operationId) }
+            if (url.startsWith('/api/bg-orchestrate-chat-state/')) return { status: 200, body: projection(operationId) }
+        })
+        await import('./bgOrchestrate')
+        await vi.advanceTimersByTimeAsync(1)
+        writeStoredPendingMarker(localStorage, {
+            charId: CHAR_ID, chatId: CHAT_ID, operationId: BOOT_OPERATION_ID,
+            baselineMsgs: 2, deliveryVersion: 3, resultKeyVersion: 1,
+            staticsMessagesApplied: 0, ts: Date.now(), recoveryOutcome: 'unverified-parked',
+        })
+        const { reconciliationReadiness, seedReconciliationReadiness } = await import('./bgReconciliation')
+        seedReconciliationReadiness()
+        expect(reconciliationReadiness.pending(CHAR_ID, CHAT_ID)).toBe(true)
+        window.dispatchEvent(new Event('bg-recovery-evidence'))
+        await vi.advanceTimersByTimeAsync(5)
+        expect(reconciliationReadiness.pending(CHAR_ID, CHAT_ID)).toBe(false)
+        expect(count(isResultPeek)).toBe(1)
+        expect(count(isResultAck)).toBe(0)
+        expect(h.sendChat).not.toHaveBeenCalled()
+        expect(markers()).toHaveLength(1)
+    })
+    it('releases target readiness from fresh current proof while exact ACK remains pending', async () => {
+        h.dbState.db.characters[0].chats[0] = chatWith(3)
+        h.adopt = vi.fn(async () => ({ adopted: true, chat: h.dbState.db.characters[0].chats[0] }))
+        h.peek = vi.fn(async () => ({ revision: projection(BOOT_OPERATION_ID).chatRevision }))
+        serve((operationId, method, url) => {
+            if (isResultPeek(method, url)) return { status: 200, body: committedResult(operationId) }
+            if (url.startsWith('/api/bg-orchestrate-chat-state/')) return { status: 200, body: projection(operationId) }
+            if (isResultAck(method, url)) return { status: 200, body: new Promise(() => {}) }
+        })
+        await bootWithMarker()
+        await vi.advanceTimersByTimeAsync(1)
+        const { reconciliationReadiness } = await import('./bgReconciliation')
+        expect(reconciliationReadiness.pending(CHAR_ID, CHAT_ID)).toBe(false)
+        expect(h.adopt.mock.calls.some(call => call[7]?.requireCurrent === true)).toBe(true)
+        expect(markers()).toHaveLength(1)
+        expect(count(isResultAck)).toBe(1)
+    })
+    it('retains readiness when current proof refuses an ambiguous save', async () => {
+        h.adopt = vi.fn(async (...args) => args[7]?.requireCurrent
+            ? { adopted: false, reason: 'save-ack-unknown' }
+            : { adopted: true, chat: chatWith(3) })
+        h.peek = vi.fn(async () => ({ revision: projection(BOOT_OPERATION_ID).chatRevision }))
+        serve((operationId, method, url) => {
+            if (isResultPeek(method, url)) return { status: 200, body: committedResult(operationId) }
+            if (url.startsWith('/api/bg-orchestrate-chat-state/')) return { status: 200, body: projection(operationId) }
+            if (isResultAck(method, url)) return { status: 200, body: new Promise(() => {}) }
+        })
+        await bootWithMarker()
+        await vi.advanceTimersByTimeAsync(1)
+        const { reconciliationReadiness } = await import('./bgReconciliation')
+        expect(reconciliationReadiness.pending(CHAR_ID, CHAT_ID)).toBe(true)
+        expect(markers()).toHaveLength(1)
+    })
+    it('holds raw admission against a save-evidence wake until admission settles', async () => {
+        let releaseCapability!: (value: any) => void
+        h.adopt = vi.fn(() => new Promise(() => {}))
+        serve((operationId, method, url) => {
+            if (isResultPeek(method, url)) return { status: 200, body: committedResult(operationId) }
+            if (url.startsWith('/api/bg-orchestrate-chat-state/')) return { status: 200, body: projection(operationId) }
+        })
+        const module = await bootWithMarker()
+        expect(h.adopt).toHaveBeenCalledTimes(1)
+        const route = h.route
+        h.route = async (method, url, body) => url === '/api/bg-orchestrate-capabilities'
+            ? { status: 200, body: new Promise(resolve => { releaseCapability = resolve }) }
+            : route(method, url, body)
+        const admission = module.tryRunServerOwnedInput(0, 'raw input', 'draft-new', undefined, 'client')
+        await vi.advanceTimersByTimeAsync(1)
+        expect(releaseCapability).toBeTypeOf('function')
+        expect(h.adopt).toHaveBeenCalledTimes(1)
+        window.dispatchEvent(new Event('bg-recovery-evidence'))
+        await vi.advanceTimersByTimeAsync(5_000)
+        expect(h.adopt).toHaveBeenCalledTimes(1)
+        expect(count(isResultPeek)).toBe(1)
+        releaseCapability({}) // unsupported capability: no provider or user-data mutation
+        expect(await admission).toMatchObject({ kind: 'unsupported' })
+        await vi.advanceTimersByTimeAsync(600)
+        expect(h.adopt).toHaveBeenCalledTimes(2)
+    })
+    it('runs the actual character navigation while terminal recovery is awaiting adoption', async () => {
+        h.adopt = vi.fn(() => new Promise(() => {}))
+        serve((operationId, method, url) => {
+            if (isResultPeek(method, url)) return { status: 200, body: committedResult(operationId) }
+            if (url.startsWith('/api/bg-orchestrate-chat-state/')) return { status: 200, body: projection(operationId) }
+        })
+        await bootWithMarker()
+        const { get, writable } = await import('svelte/store')
+        const selected = writable(-1)
+        const source = readFileSync('src/ts/characters.ts', 'utf8')
+        const parsed = ts.createSourceFile('characters.ts', source, ts.ScriptTarget.ES2022, true)
+        const declaration = parsed.statements.find(node => ts.isFunctionDeclaration(node) && node.name?.text === 'changeChar')
+        expect(declaration).toBeDefined()
+        const js = ts.transpileModule(declaration!.getText(parsed).replace('export function', 'function'), {
+            compilerOptions: { target: ts.ScriptTarget.ES2022, module: ts.ModuleKind.None },
+        }).outputText
+        const click = new Function('get', 'doingChat', 'getDatabase', 'chatDeselected',
+            'characterFormatUpdate', 'selectedCharID', 'getCurrentChat', js + '\nreturn changeChar')(
+            get, h.doingChat, () => h.dbState.db, writable(false), vi.fn(), selected, () => undefined,
+        )
+        click(0)
+        expect(get(selected)).toBe(0)
+        expect(markers()).toHaveLength(1)
+        expect(count(isResultAck)).toBe(0)
+    })
+
+    it.each(['boot', 'watch'])('does not let an old %s ACK clear a new prepared generation', async mode => {
+        let releaseAck!: (body: any) => void
+        h.adopt = vi.fn(async () => ({ adopted: true, chat: chatWith(3) }))
+        serve((operationId, method, url) => {
+            if (isResultPeek(method, url)) return { status: 200, body: committedResult(operationId) }
+            if (url.startsWith('/api/bg-orchestrate-chat-state/')) return { status: 200, body: projection(operationId) }
+            if (isResultAck(method, url)) return { status: 200, body: new Promise(resolve => { releaseAck = resolve }) }
+        })
+        const module = mode === 'boot' ? await bootWithMarker() : await startForeground()
+        if (mode === 'watch') await vi.advanceTimersByTimeAsync(2_500)
+        expect(releaseAck).toBeTypeOf('function')
+        const oldOperation = markers()[0].operationId
+        await module.runServerOrchestratedChat(0, {})
+        const newer = markers().find(marker => marker.operationId !== oldOperation)
+        expect(newer).toBeDefined()
+        releaseAck({ acked: true })
+        await vi.advanceTimersByTimeAsync(1)
+        const { get } = await import('svelte/store')
+        expect(get(h.doingChat)).toBe(true)
+        expect(markers().find(marker => marker.operationId === newer!.operationId)).toBeDefined()
+        expect(markers().find(marker => marker.operationId === oldOperation)?.recoveryOutcome).toBe('unverified-parked')
+    })
+
+    it('keeps legacy mutation protected until its durable save finishes', async () => {
+        h.holdSave = true
+        h.dbState.db.statics.messages = 0
+        serve((operationId, method, url) => {
+            if (isResultPeek(method, url)) return { status: 200, body: {
+                ...committedResult(operationId), serverChatCommit: undefined, serverChatCommitVersion: undefined,
+            } }
+            if (isResultAck(method, url)) return { status: 200, body: new Promise(() => {}) }
+        })
+        await bootWithMarker()
+        const { get } = await import('svelte/store')
+        expect(get(h.doingChat)).toBe(true)
+        expect(count(isResultAck)).toBe(0)
+        h.releaseSave!()
+        await vi.advanceTimersByTimeAsync(1)
+        expect(get(h.doingChat)).toBe(false)
+        expect(count(isResultAck)).toBe(1)
+    })
+    it('does not hold generation busy while a terminal boot result waits for local adoption', async () => {
+        h.adopt = vi.fn(() => new Promise(() => {}))
+        serve((operationId, method, url) => {
+            if (isResultPeek(method, url)) return { status: 200, body: committedResult(operationId) }
+            if (url.startsWith('/api/bg-orchestrate-chat-state/')) return { status: 200, body: projection(operationId) }
+        })
+        await bootWithMarker()
+        expect(h.adopt).toHaveBeenCalledTimes(1)
+        const { get } = await import('svelte/store')
+        expect(get(h.doingChat)).toBe(false)
+        expect(markers()).toHaveLength(1)
+        expect(count(isResultAck)).toBe(0)
+    })
+
+    it('retains generation busy for a confirmed running boot operation', async () => {
+        serve((operationId, method, url) => {
+            if (isResultPeek(method, url)) return { status: 200, body: {
+                found: false, operationId, operationState: 'running', stage: 2,
+            } }
+        })
+        await bootWithMarker()
+        const { get } = await import('svelte/store')
+        expect(get(h.doingChat)).toBe(true)
+        expect(h.adopt).not.toHaveBeenCalled()
+        expect(count(isResultAck)).toBe(0)
+    })
+
+    it('releases generation busy before waiting for a terminal delivery ACK', async () => {
+        h.adopt = vi.fn(async () => ({ adopted: true, chat: chatWith(3) }))
+        serve((operationId, method, url) => {
+            if (isResultPeek(method, url)) return { status: 200, body: committedResult(operationId) }
+            if (url.startsWith('/api/bg-orchestrate-chat-state/')) return { status: 200, body: projection(operationId) }
+            if (isResultAck(method, url)) return { status: 200, body: new Promise(() => {}) }
+        })
+        await bootWithMarker()
+        expect(count(isResultAck)).toBe(1)
+        const { get } = await import('svelte/store')
+        expect(get(h.doingChat)).toBe(false)
+        expect(markers()).toHaveLength(1)
+    })
+})
 
 describe('G1.12a terminal decisions', () => {
     it('closes a warm legacy ACK-body-loss from exact delivered state without repeating the save', async () => {
