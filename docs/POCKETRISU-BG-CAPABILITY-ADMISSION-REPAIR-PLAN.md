@@ -136,3 +136,13 @@ The correction stage can be internally split into small commits for regression i
 ## 6. Planning review
 
 Read-only Opus5.5 review was reconciled with direct code and controlled execution. The revised plan adds composer-level recurrence checks and the independently reproduced prepared-body cancellation gap; it removes a mandatory shared-save timeout and treats interleavings as regression gates rather than new feature work. The raw blocked/prepared legacy asymmetry and timeout-induced legacy negotiation are explicit. The advisor did not run tests; consultation does not substitute for implementation or release gates.
+
+## 7. Persistent local workspace
+
+On2026-10-08, the user requested relocating ongoing task artifacts out of temporary storage and deleting only completed roundtrip copies. The operator repository now groups gitignored artifacts under `.code-review/workspaces/`: BG candidates, dependencies, investigations and probe runtimes are separate from Personal settings and preloader work.
+
+Use `bg/candidates/g112a-candidate` for the generated integration environment and `bg/investigations/capability-audit` for this plan's exact-live/virtual-return comparison. Shared dependencies are exposed through `bg/dependencies/node_modules` and `bg/dependencies/browser-probes`. The exact operator root and relocation receipt are recorded in the private handoff; these paths are not relative to the patcher worktree.
+
+Old temporary directory names remain compatibility symlinks for historical scripts, caches and virtual-environment launchers;89 absolute internal links were updated. New commands must use the canonical workspace. Do not remove compatibility links by an age-based sweep. The workspace is preserved task state, not an L3 report slated for cleanup.
+
+Fifteen original-equivalent roundtrip trees were removed after comparison, with13 differing intent records retained separately. Logs and scripts were not removed. This maintenance neither deploys the dirty G1.12b candidate nor resumes BG implementation.
