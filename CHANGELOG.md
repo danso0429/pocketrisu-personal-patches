@@ -11,6 +11,7 @@
 - Version the existing raw-input marker ledger as v3 so older tabs cannot prune its new recovery annotations. Migrate v2/v1 without losing entries on quota failure; reload all open clients after updating.
 - Revalidate legacy persistence on same-page recovery and propagate manual conflicts to strict-save callers before ACK. Ordinary autosave behavior is preserved.
 - Keep personal-settings `0.5.13`, plugin host OFF, and G1.12b/MARP qualification separate. Delivery and device validation are recorded in the plan; no stable release is implied.
+- Delivered after verified application/state backup and readback of465 managed files,17 served scripts and five databases. Operation states remained77→77; no generation was cancelled and historical timing logs were retained. Physical-device validation is pending.
 
 ## 0.2.4-experimental.21 (BG measurement candidate)
 

@@ -11,8 +11,8 @@ markers; verified deleted or superseded targets retire locally without deleting
 their server delivery. Temporary measurement instrumentation is removed after
 the user-approved collection closeout. See the
 [G1.12a plan, evidence and delivery status](docs/POCKETRISU-G1-12A-TERMINAL-RESULTS-PLAN.md).
-Implementation validation and delivery are in progress. Production remains the
-measurement-only `0.2.4-experimental.21` until the delivery record is updated.
+The candidate is delivered after backup, build and readback of465 managed files,
+17 served scripts and five databases. Device validation remains pending.
 G1.12b navigation ownership and MARP server execution remain separate work.
 After updating, reload every open PocketRisu tab/PWA for the v3 input-marker
 reader. Clearing browser storage is neither required nor recommended.
