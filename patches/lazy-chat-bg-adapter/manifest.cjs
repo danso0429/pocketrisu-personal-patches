@@ -1701,10 +1701,10 @@ function notifyFinishedServerFailure(operationId: string, data: any): void {
         try {
             const capabilityResponse = await fetchOrchestrationControl(
                 '/api/bg-orchestrate-capabilities',
-                { method: 'GET', credentials: 'same-origin' },
+                { method: 'GET', credentials: 'same-origin', signal: arg?.signal },
             )
             if (capabilityResponse.ok) {
-                const capability = await capabilityResponse.json()
+                const capability = await readRecoveryJson(capabilityResponse)
                 if (capability?.contract === 'bg_orchestration_capabilities.v1'
                     && capability.serverChatCommitVersion === 1
                     && capability.chatExecutionProjectionVersion === 1) {
