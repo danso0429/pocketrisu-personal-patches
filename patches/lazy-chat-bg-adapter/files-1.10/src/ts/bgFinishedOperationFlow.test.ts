@@ -271,6 +271,54 @@ async function startForeground() {
 describe('terminal recovery without temporary timing instrumentation', () => {
 
 describe('G1.12b recovery ownership', () => {
+    it('requires current chat proof after the server reports interrupted saved main content', async () => {
+        h.peek = vi.fn(async () => ({ revision: projection(BOOT_OPERATION_ID).chatRevision }))
+        h.adopt = vi.fn(async () => ({ adopted: false, reason: 'local-revision-conflict' }))
+        serve((operationId, method, url) => {
+            if (isResultPeek(method, url)) return { status: 200, body: {
+                found: false, operationId, stage: 0, operationState: 'interrupted-after-main',
+            } }
+            if (url.startsWith('/api/bg-orchestrate-chat-state/')) return { status: 200, body: projection(operationId) }
+        })
+        await startForeground()
+        await vi.advanceTimersByTimeAsync(2_501)
+        const { get } = await import('svelte/store')
+        const { reconciliationReadiness } = await import('./bgReconciliation')
+        expect(get(h.doingChat)).toBe(false)
+        expect(reconciliationReadiness.pending(CHAR_ID, CHAT_ID)).toBe(true)
+        expect(h.adopt.mock.calls.some(call => call[7]?.requireCurrent)).toBe(true)
+        expect(count(isResultAck)).toBe(0)
+        expect(h.sendChat).not.toHaveBeenCalled()
+        expect(h.dbState.db.characters[0].chats[0].message).toHaveLength(2)
+    })
+    it.each(['legacy', 'uncommitted'])('does not authorize readiness from a %s answer awaiting publication', async kind => {
+        h.dbState.db.characters[0].chats[0] = chatWith(2)
+        h.peek = vi.fn(async () => ({ revision: projection(BOOT_OPERATION_ID).chatRevision }))
+        serve((operationId, method, url) => {
+            if (isResultPeek(method, url)) return { status: 200, body: {
+                ...committedResult(operationId), serverChatCommit: kind === 'legacy' ? undefined : null,
+                serverChatCommitVersion: kind === 'legacy' ? undefined : 1,
+            } }
+            if (url.startsWith('/api/bg-orchestrate-chat-state/')) return { status: 200, body: projection(operationId) }
+        })
+        await import('./bgOrchestrate')
+        await vi.advanceTimersByTimeAsync(1)
+        writeStoredPendingMarker(localStorage, {
+            charId: CHAR_ID, chatId: CHAT_ID, operationId: BOOT_OPERATION_ID,
+            baselineMsgs: 2, deliveryVersion: 3, resultKeyVersion: 1,
+            staticsMessagesApplied: 0, ts: Date.now(), recoveryOutcome: 'unverified-parked',
+        })
+        const { reconciliationReadiness, seedReconciliationReadiness } = await import('./bgReconciliation')
+        seedReconciliationReadiness()
+        window.dispatchEvent(new Event('bg-reconciliation-request'))
+        await vi.advanceTimersByTimeAsync(5)
+        expect(reconciliationReadiness.pending(CHAR_ID, CHAT_ID)).toBe(true)
+        expect(h.peek).not.toHaveBeenCalled()
+        expect(h.adopt).not.toHaveBeenCalled()
+        expect(h.sendChat).not.toHaveBeenCalled()
+        expect(count(isResultAck)).toBe(0)
+        expect(markers()).toHaveLength(1)
+    })
     it('revalidates an unclassified parked marker on new evidence without ACK or replay', async () => {
         h.dbState.db.characters[0].chats[0] = chatWith(3)
         h.adopt = vi.fn(async () => ({ adopted: true, chat: h.dbState.db.characters[0].chats[0] }))
@@ -297,7 +345,7 @@ describe('G1.12b recovery ownership', () => {
         expect(h.sendChat).not.toHaveBeenCalled()
         expect(markers()).toHaveLength(1)
     })
-    it('releases target readiness from fresh current proof while exact ACK remains pending', async () => {
+    it.each(['boot', 'watch'])('releases target readiness from fresh proof while %s ACK remains pending', async mode => {
         h.dbState.db.characters[0].chats[0] = chatWith(3)
         h.adopt = vi.fn(async () => ({ adopted: true, chat: h.dbState.db.characters[0].chats[0] }))
         h.peek = vi.fn(async () => ({ revision: projection(BOOT_OPERATION_ID).chatRevision }))
@@ -306,7 +354,8 @@ describe('G1.12b recovery ownership', () => {
             if (url.startsWith('/api/bg-orchestrate-chat-state/')) return { status: 200, body: projection(operationId) }
             if (isResultAck(method, url)) return { status: 200, body: new Promise(() => {}) }
         })
-        await bootWithMarker()
+        if (mode === 'boot') await bootWithMarker()
+        else { await startForeground(); await vi.advanceTimersByTimeAsync(2_500) }
         await vi.advanceTimersByTimeAsync(1)
         const { reconciliationReadiness } = await import('./bgReconciliation')
         expect(reconciliationReadiness.pending(CHAR_ID, CHAT_ID)).toBe(false)
@@ -314,7 +363,7 @@ describe('G1.12b recovery ownership', () => {
         expect(markers()).toHaveLength(1)
         expect(count(isResultAck)).toBe(1)
     })
-    it('retains readiness when current proof refuses an ambiguous save', async () => {
+    it.each(['boot', 'watch'])('retains readiness when %s current proof refuses an ambiguous save', async mode => {
         h.adopt = vi.fn(async (...args) => args[7]?.requireCurrent
             ? { adopted: false, reason: 'save-ack-unknown' }
             : { adopted: true, chat: chatWith(3) })
@@ -322,13 +371,14 @@ describe('G1.12b recovery ownership', () => {
         serve((operationId, method, url) => {
             if (isResultPeek(method, url)) return { status: 200, body: committedResult(operationId) }
             if (url.startsWith('/api/bg-orchestrate-chat-state/')) return { status: 200, body: projection(operationId) }
-            if (isResultAck(method, url)) return { status: 200, body: new Promise(() => {}) }
+            if (isResultAck(method, url)) return { status: 200, body: mode === 'watch' ? { acked: true } : new Promise(() => {}) }
         })
-        await bootWithMarker()
+        if (mode === 'boot') await bootWithMarker()
+        else { await startForeground(); await vi.advanceTimersByTimeAsync(2_500) }
         await vi.advanceTimersByTimeAsync(1)
         const { reconciliationReadiness } = await import('./bgReconciliation')
         expect(reconciliationReadiness.pending(CHAR_ID, CHAT_ID)).toBe(true)
-        expect(markers()).toHaveLength(1)
+        expect(markers()).toHaveLength(mode === 'boot' ? 1 : 0)
     })
     it('holds raw admission against a save-evidence wake until admission settles', async () => {
         let releaseCapability!: (value: any) => void

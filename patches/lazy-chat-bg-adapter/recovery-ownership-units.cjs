@@ -193,10 +193,17 @@ function rememberServerCommittedTarget`);
     }, 0)
     if (options.handoffToClient)`);
     add('watch-retired-readiness', orch, '    const operationId = activeOperationId\n    watchEpoch++', `    const operationId = activeOperationId
-    if (!options.preservePendingMarker && operationId && watchKey) {
+    if (!options.preservePendingMarker && operationId && watchKey
+        && !reconciliationReadiness.operations(watchKey.charId, watchKey.chatId)
+            .some(owner => owner.operationId === operationId && owner.terminal)) {
         reconciliationReadiness.resolveOperation(watchKey.charId, watchKey.chatId, operationId)
     }
     watchEpoch++`);
+    add('watch-interrupted-main-readiness', orch, `            if (data?.operationState === 'interrupted-after-main') {
+                playMessageCompletionSound()`, `            if (data?.operationState === 'interrupted-after-main') {
+                releaseTerminalGeneration(charId, chatId, operationId)
+                scheduleReadinessCheck()
+                playMessageCompletionSound()`, true);
     add('boot-finished-classification', orch, `function finishBootRecovery(operationId: string | null): void {
     clearPendingMarker(operationId)`, `function finishBootRecovery(operationId: string | null): void {
     if (activeOperationCoordinates && activeOperationId === operationId) {
@@ -230,6 +237,16 @@ const LS_PREFIX = 'bg-stream-draft:'`);
     reconciliationReadiness.subscribe(() => { setTimeout(() => { void scanForLostDrafts() }, 0) })
     // Stage B: register the background-resilient streaming fetch (gemini) unless the
 `);
+    add('draft-rescan-state', stream, 'let scanning = false', 'let scanning = false\nlet scanAgain = false');
+    add('draft-rescan-request', stream, '    if (scanning) return\n    scanning = true',
+        '    if (scanning) { scanAgain = true; return }\n    scanning = true');
+    add('draft-rescan-drain', stream, '        scanning = false\n    }\n}', `        scanning = false
+        if (scanAgain) {
+            scanAgain = false
+            setTimeout(() => { void scanForLostDrafts() }, 0)
+        }
+    }
+}`);
     const busy = 'src/ts/generationBusy.ts';
     add('busy-interface', busy, `    setServerBusy: (active: boolean) => void
     handoffServerToClient: () => void`, `    setServerBusy: (active: boolean, owner?: string | null) => boolean
@@ -398,7 +415,7 @@ const LS_PREFIX = 'bg-stream-draft:'`);
         if (lastTarget !== targetKey) { lastTarget = targetKey; manualRefresh = false; }
         if (get(doingChat)) manualRefresh = true;
         recoveryPending = !!char && !!chat && reconciliationReadiness.pending(char.chaId, chat.id);
-        if (recoveryPending && typeof window !== 'undefined') window.dispatchEvent(new Event('bg-recovery-evidence'));
+        if (recoveryPending && typeof window !== 'undefined') window.dispatchEvent(new Event('bg-reconciliation-request'));
         suggestMessages = get(doingChat) ? [] : chat?.suggestMessages;
         requestOwner.schedule();
     };

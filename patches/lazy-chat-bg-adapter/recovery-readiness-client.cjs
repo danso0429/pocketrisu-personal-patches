@@ -53,6 +53,11 @@ async function recheckSelectedRecoveryReadiness(): Promise<void> {
                 { method: 'GET', credentials: 'same-origin' })
             if (!response.ok || !isCurrent()) return
             const evidence = await readRecoveryJson(response)
+            // A terminal legacy result still needs its client-owned merge/save.
+            // Equality of the pre-result chat is not evidence of its publication.
+            if (evidence?.found === true && serverChatDeliveryDisposition(evidence) === 'legacy-client-owned') return
+            if (evidence?.found === true && serverChatDeliveryDisposition(evidence) !== 'server-committed'
+                && !isFinishedServerFailure(evidence, marker?.baselineMsgs ?? 0)) return
             if (!isCurrent() || (evidence?.operationId ?? serverChatCommitReceipt(evidence)?.operationId) !== operation.operationId
                 || !(isTerminalCommittedEvidence(evidence) || isFinishedServerFailure(evidence, marker?.baselineMsgs ?? 0)
                     || (evidence.found === false && evidence.stage === 0
@@ -96,13 +101,14 @@ try {
     })
     if (typeof window !== 'undefined') {
         window.addEventListener('bg-recovery-evidence', requestReadinessEvidence)
+        window.addEventListener('bg-reconciliation-request', requestReadinessEvidence)
         window.addEventListener('bg-server-input-updated', () => {
             seedReconciliationReadiness()
             scheduleReadinessCheck()
         })
-        window.addEventListener('online', scheduleReadinessCheck)
+        window.addEventListener('online', requestReadinessEvidence)
         document.addEventListener('visibilitychange', () => {
-            if (document.visibilityState === 'visible') scheduleReadinessCheck()
+            if (document.visibilityState === 'visible') requestReadinessEvidence()
         })
     }
 } catch { /* Server runtime does not own browser readiness. */ }

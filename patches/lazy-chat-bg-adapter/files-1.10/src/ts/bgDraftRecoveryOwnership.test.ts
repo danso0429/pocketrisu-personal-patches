@@ -27,6 +27,45 @@ function restoreFixture() {
 }
 
 describe('actual lost-draft recovery ownership', () => {
+    it('drains a readiness release received while another draft is hydrating', async () => {
+        vi.useFakeTimers()
+        try {
+            const source = readFileSync('src/ts/bgStreamPreserve.svelte.ts', 'utf8')
+            const ast = ts.createSourceFile('draft.ts', source, ts.ScriptTarget.Latest, true)
+            const declaration = ast.statements.find(node => ts.isFunctionDeclaration(node) && node.name?.text === 'scanForLostDrafts')!
+            const body = ts.transpileModule(declaration.getText(ast), {
+                compilerOptions: { target: ts.ScriptTarget.ES2022, module: ts.ModuleKind.None },
+            }).outputText
+            const a = { charId: 'a', chatId: 'chat-a', final: true }
+            const b = { charId: 'b', chatId: 'chat-b', final: false }
+            let pending = true, release!: () => void, firstHydration = true
+            const restore = vi.fn(async () => {})
+            const scan = new Function('reconciliationReadiness', 'readLocalDrafts', 'readServerDrafts',
+                'mergeDrafts', 'findCharChat', 'DBState', 'ensureChatHydrated', 'isLost', 'dismissDraft',
+                'bgRecoveringMainGens', 'restoreDraft', 'reportBgPreserveSignal', 'bgRestoreState',
+                'let scanning=false; let scanAgain=false;' + body + '\nreturn scanForLostDrafts')(
+                { pending: (charId: string) => charId === 'a' && pending }, () => [], async () => [a, b],
+                (_local, server) => server, draft => ({ charIdx: draft === a ? 0 : 1, chatIdx: 0 }),
+                { db: { characters: [{ chaId: 'a', chats: [] }, { chaId: 'b', chats: [] }] } },
+                async (_chats, _index, charId) => {
+                    if (charId === 'b' && firstHydration) {
+                        firstHydration = false
+                        await new Promise<void>(resolve => { release = resolve })
+                    }
+                }, draft => draft === a, async () => {}, new Set(), restore, vi.fn(), { candidates: [] },
+            )
+            const running = scan()
+            for (let i = 0; i < 8; i++) await Promise.resolve()
+            expect(release).toBeTypeOf('function')
+            pending = false
+            await scan()
+            release(); await running
+            expect(restore).not.toHaveBeenCalled()
+            await vi.advanceTimersByTimeAsync(1)
+            expect(restore).toHaveBeenCalledExactlyOnceWith(a, { navigate: false })
+            expect(vi.getTimerCount()).toBe(0)
+        } finally { vi.useRealTimers() }
+    })
     it.each(['pending', 'replacement'] as const)('preserves the draft when %s wins during hydration', async mode => {
         const f = restoreFixture()
         const before = structuredClone(f.chat)
