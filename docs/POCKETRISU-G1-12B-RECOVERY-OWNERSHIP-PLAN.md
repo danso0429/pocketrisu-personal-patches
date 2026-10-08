@@ -1,6 +1,6 @@
 # G1.12b recovery ownership and current-context readiness
 
-2026-10-08 KST. Baseline: G1.12a `8240f77`, functional candidate `ab14579` / experimental.22. The user requested continuing after normal answer display on the device, while the exact recovery path and long-suspension/cold/deletion scenarios remain unconfirmed. Those observations are not promoted to L5 passes. Plugin host remains OFF; personal settings stays at least0.5.13.
+2026-10-09 KST. Execution baseline: CAP `7047115`, delivered experimental.23 / adapter0.7.30. The user explicitly requested implementation after ordinary-use confirmation. The original G1.12b WIP and branch remain preserved. Exact recovery paths and long-suspension/cold/deletion scenarios remain unconfirmed; ordinary-use observations are not promoted to those L5 passes. Plugin host remains OFF; personal settings remains0.5.13.
 
 ## Contract
 
@@ -21,9 +21,17 @@ Suggestion coalesces busy/readiness/target changes, retains settings and existin
 5. Run focused/full affected client/server/compatibility, types/help, build/load, patcher graph/re-plan/exact revert, L3/L4 and final read-only Opus consultation.
 6. Explicit-path commits and privacy sweep, push, then idle/drift/backup-gated live apply/build/restart and direct readback. Do not cancel generation, delete user data or issue a stable tag.
 
-Revised planned order is the capability/input-admission correction checkpoint → G1.12b → G1.7/G1.11 → G1.5b → remaining G1.8/G1.9 → G1.10 → G2. See [the evidence-led correction plan](POCKETRISU-BG-CAPABILITY-ADMISSION-REPAIR-PLAN.md). Implementation remains paused. MARP pre-admission termination, PageFold provider support, journal-only deleted new chats and Archive Center changes are excluded from G1.12b.
+Revised planned order is the capability/input-admission correction checkpoint → G1.12b → G1.7/G1.11 → G1.5b → remaining G1.8/G1.9 → G1.10 → G2. See [the evidence-led correction plan](POCKETRISU-BG-CAPABILITY-ADMISSION-REPAIR-PLAN.md). CAP is delivered; G1.12b is authorized and in progress. MARP pre-admission termination, PageFold provider support, journal-only deleted new chats and Archive Center changes are excluded from G1.12b.
 
 ## Current checkpoint
+
+The following pause and preliminary results are historical. The current implementation uses a separate branch based on CAP7047115, not the old dirty candidate. Porting preserves CAP's whole-return, bounded raw import/body/decode, prepared cancellation, and prior-marker read corrections. Direct generation receives a lifecycle token at its actual start, including starts after capability negotiation; native continuation retains that lineage. Terminal cleanup is operation-scoped and guarded before global state changes.
+
+Readiness first establishes terminal execution for each operation, then independently verifies the current canonical chat using strict native adoption. An accepted save or target change requests a fresh read of an unclassified parked operation; neither an event nor an ACK is itself proof. Ordinary retirements and client handoffs release their exact readiness operation. The page registry caps unresolved operations at512 and retained resolved identities at256 beyond that bound; pressure keeps suggestion eligibility blocked until a fresh page, without changing durable markers or server work. The two durable marker ledgers are each capped at128. Suggestion retains populated lists, coalesces requests, tracks current message content, fences translations and confirmation callbacks, and does not pulse generation ownership.
+
+Final source gates, delivery evidence and device limits are recorded separately in the G1.12b validation record. No stable release is authorized by this checkpoint.
+
+## Historical paused WIP
 
 User decision on2026-10-08: implementation is paused. Investigate the capability-return regression in depth using measurements and source evidence, then integrate its correction plan into the ordered BG plan. Existing ownership WIP is preserved and must not be deployed. This supersedes the earlier narrow-repair delivery proposal as the immediate task; neither repair nor G1.12b implementation resumes during investigation/planning.
 
