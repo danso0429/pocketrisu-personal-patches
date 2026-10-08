@@ -30,7 +30,7 @@ const ORCH_DEADLINE_MS = 900000`);
 /* POCKETRISU-PATCH:client-build-fence-bg-adapter:orchestration-control:1.9:END */    } finally {
         clearTimeout(timer)
     }
-}`, `import { fetchRecoveryControl, readRecoveryJson } from './bgRecoveryRead'
+}`, `import { fetchRecoveryControl, readRecoveryJson, readRecoveryBody } from './bgRecoveryRead'
 
 async function fetchOrchestrationControl(url: string, init: RequestInit = {}): Promise<Response> {
     return fetchRecoveryControl(clientBuildFetch, url, init, ORCH_CONTROL_FETCH_TIMEOUT_MS)

@@ -98,10 +98,12 @@ module.exports = prior => {
                     { method: 'GET', credentials: 'same-origin' })
                 if (response.status === 404) return null
                 if (!response.ok) throw new Error('server input base unavailable')
-                const { decodeRisuSave } = await import('./storage/risuSave')
-                const chat = await decodeRisuSave(new Uint8Array(await response.arrayBuffer()))
-                return chat?.id === chatId
-                    ? { revision: response.headers.get('x-input-base-revision') || '', viewRevision: orchestrationChatRevision(chat) } : null`)
+                return await readRecoveryBody(response, async () => {
+                    const { decodeRisuSave } = await import('./storage/risuSave')
+                    const chat = await decodeRisuSave(new Uint8Array(await response.arrayBuffer()))
+                    return chat?.id === chatId
+                        ? { revision: response.headers.get('x-input-base-revision') || '', viewRevision: orchestrationChatRevision(chat) } : null
+                })`)
     add('client-signature', client, '    replaceBlockedOperationId?: string,\n): Promise<ServerInputClientOutcome> {',
         "    replaceBlockedOperationId?: string,\n    inputPreparation?: 'client',\n): Promise<ServerInputClientOutcome> {")
     add('client-policy', client, '    if (requiresClientOwnedInputPreparation((DBState as any)?.db, selectedChat)) {',

@@ -66,3 +66,16 @@ export async function readRecoveryJson<T = any>(response: Response, timeoutMs = 
         )
     } finally { controls.delete(response) }
 }
+
+// Keep original body consumption and asynchronous decoding inside one read-only
+// observation. Import/decode may ignore abort; only the winning result is returned.
+export async function readRecoveryBody<T>(
+    response: Response,
+    consume: () => Promise<T>,
+    timeoutMs = RECOVERY_BODY_TIMEOUT_MS,
+): Promise<T> {
+    const control = controls.get(response)
+    try {
+        return await boundedRecoveryRead(consume, timeoutMs, control?.parent, control?.controller)
+    } finally { controls.delete(response) }
+}
