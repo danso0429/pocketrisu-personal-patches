@@ -351,6 +351,7 @@ describe('CAP generated admission and preparation', () => {
         expect(result).toEqual({ handled: true, result: false })
         expect(get(native.doingChat)).toBe(false)
         expect(posted).toHaveLength(0)
+        expect(h.requests.find(request => request.url.endsWith('capabilities'))?.signal?.aborted).toBe(true)
         await pending
         expect(h.alerts).toEqual([])
         // A new owner must survive the old transport's late completion.
@@ -455,7 +456,7 @@ describe('CAP generated admission and preparation', () => {
             const response = await route(m, u, b)
             return u.includes('input-base/') ? { ...response, headers: {} } as any : response
         }
-        expect(await submit()).toMatchObject({ kind: 'blocked' })
+        expect(await submit()).toEqual({ kind: 'blocked', reason: 'server-chat-unavailable' })
         expect(posted).toHaveLength(0)
     })
     it('lost attach body retains the exact input without admission replay', async () => {
