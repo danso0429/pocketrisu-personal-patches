@@ -129,8 +129,12 @@ function createBgNotifications({ db, kvGet, kvSet, kvDel, kvList, now = Date.now
         const event = normalizeEvent(value), time = now();
         if (!event.code.startsWith('plugin_') || event.code === 'plugin_message'
             || !/^[a-f0-9]{64}$/.test(identity ?? '') || event.createdAt > time) throw new Error('notification_failure_identity_invalid');
+        // Preserve every existing failure group. Only the new recoverable API
+        // refusal gets its own identity domain, so it cannot hide a later disable.
+        const receiptIdentity = event.code === 'plugin_host_limit' && event.reason === 'operation_budget'
+            && event.eventKey.endsWith(':limit') ? [identity, 'api_limit'] : identity;
         const group = createHash('sha256').update(JSON.stringify([
-            identity, event.pluginName, event.pluginVersion, event.code, event.phase,
+            receiptIdentity, event.pluginName, event.pluginVersion, event.code, event.phase,
             event.api ?? null, event.reason ?? null, event.effectsMayHaveOccurred,
         ])).digest('hex');
         const key = FAILURE_PREFIX + group;

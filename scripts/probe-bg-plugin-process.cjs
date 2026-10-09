@@ -9,7 +9,7 @@ const { gzipSync } = require('node:zlib');
 const [target, fixturePath] = process.argv.slice(2, 4).map(value => path.resolve(value));
 const mode = process.argv[4] ?? 'normal';
 assert.ok(['normal', 'disabled', 'crash-input', 'crash-analysis', 'cold-read', 'provider', 'provider-stream', 'provider-off',
-    'retry-after-attach', 'retry-failed-settle', 'crash-after-attach', 'publication-fault', 'two-chat', 'display-role'].includes(mode));
+    'retry-after-attach', 'retry-failed-settle', 'crash-after-attach', 'publication-fault', 'two-chat', 'display-role', 'budget-api'].includes(mode));
 const afterAttach = ['retry-after-attach', 'retry-failed-settle', 'crash-after-attach', 'publication-fault'].includes(mode);
 const pluginProvider = mode.startsWith('provider');
 const database = JSON.parse(fs.readFileSync(fixturePath, 'utf8'));
@@ -40,6 +40,7 @@ database.plugins = [{ name: 'synthetic-generic', version: '3.0', enabled: true, 
         return {success:true,content:${mode === 'provider-stream' ? "new ReadableStream({start(c){c.enqueue('synthetic-');c.enqueue('provider-answer');c.close();}})" : "'synthetic-provider-answer'"}};
     });` : ''}
     await Risuai.addRisuScriptHandler('input',async text=>{
+        ${mode === 'budget-api' ? "try{await Risuai.nativeFetch('https://analysis.example.test/v1',{method:'POST',body:'x'.repeat(4*1024*1024)});}catch{}" : ''}
         ${mode === 'crash-input' ? "await Risuai.pluginStorage.setItem('synthetic-input-effect',1); await Risuai.nativeFetch('https://analysis.example.test/v1',{method:'POST',body:'synthetic-analysis'});" : ''}
         return text+' [input]';
     });
@@ -302,7 +303,12 @@ async function main() {
         body: JSON.stringify({ consumerId: 'synthetic-plugin-consumer', messageVersion: 2 }) });
     assert.equal(noticeResponse.status, 200);
     const notices = (await noticeResponse.json()).notifications;
-    assert.deepEqual(notices.map(row => row.event.code), ['plugin_message']);
+    assert.deepEqual(notices.map(row => row.event.code), mode === 'budget-api' ? ['plugin_message', 'plugin_host_limit'] : ['plugin_message']);
+    if (mode === 'budget-api') {
+        assert.equal(notices[1].event.reason, 'operation_budget');
+        assert.equal(notices[1].event.phase, 'input');
+        assert.equal(notices[1].event.effectsMayHaveOccurred, false);
+    }
     if (mode === 'cold-read') {
         const done = once(server, 'exit'); server.kill('SIGTERM'); await done;
         const saved = new Database(path.join(runtime, 'save/risuai.db'), { readonly: true });

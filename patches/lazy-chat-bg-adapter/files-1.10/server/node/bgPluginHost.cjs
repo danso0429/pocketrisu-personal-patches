@@ -69,24 +69,37 @@ async function createBgPluginHost({ database, bindings, getDatabase, getSelectio
     const apiSlots = limiter(64, signal), writeSlots = limiter(2, signal);
     const withApiBudget = async (entry, method, args, task) => {
         if (noticeFailure) throw noticeFailure;
-        const bytes = measurePluginValue(args);
-        if (entry.pendingBytes + bytes > 4 * 1024 * 1024) throw fail('plugin_budget_exceeded');
-        entry.pendingBytes += bytes;
-        const run = () => {
-            entry.session.assertCurrent();
-            return task();
-        };
         try {
-            // Outbound methods can re-enter body/provider callbacks. Holding a
-            // host-work permit across them would deadlock a parallel batch.
-            // Their lifetime/arguments remain bounded and network totals apply.
-            return await (['nativeFetch', 'risuFetch', 'runLLMModel'].includes(method)
-                ? run() : entry.apiSlots.run(() => apiSlots.run(run)));
+            let bytes = 0, charged = false;
+            try {
+                bytes = measurePluginValue(args);
+                if (entry.pendingBytes + bytes > 4 * 1024 * 1024) throw fail('plugin_budget_exceeded');
+                entry.pendingBytes += bytes; charged = true;
+                const run = () => { entry.session.assertCurrent(); return task(); };
+                // Outbound methods can re-enter body/provider callbacks. Holding a
+                // host-work permit across them would deadlock a parallel batch.
+                return await (['nativeFetch', 'risuFetch', 'runLLMModel'].includes(method)
+                    ? run() : entry.apiSlots.run(() => apiSlots.run(run)));
+            } finally {
+                // Issued-request cleanup is not a new call with expired authority.
+                // Release byte/slot ownership before awaiting any durable warning.
+                if (charged) entry.pendingBytes -= bytes;
+            }
+        } catch (error) {
+            if (['plugin_budget_exceeded', 'plugin_value_limit'].includes(error?.code)
+                && !closed && !tearingDown && !entry.closing && !entry.failed && !signal.aborted && !noticeFailure) {
+                const phase = phaseScope.getStore() ?? entry.lastPhase ?? 'load';
+                const budgetNotices = entry.budgetNotices ??= new Map();
+                if (!budgetNotices.has(phase)) {
+                    // An API refusal need not disable a recoverable plugin. Keep
+                    // its immutable event separate from a later terminal failure.
+                    budgetNotices.set(phase, record({ ...common(entry, phase), code: 'plugin_host_limit', reason: 'operation_budget',
+                        eventKey: `plugin:${entry.index}:${entry.identity}:${phase}:limit` }));
+                }
+                await budgetNotices.get(phase);
+            }
+            throw noticeFailure ?? error;
         }
-        // An issued request may reject when its callback scope is released.
-        // That is cleanup, not a new call with expired authority. The peer's
-        // onExpiredContext path reports actual calls arriving after expiry.
-        finally { entry.pendingBytes -= bytes; }
     };
     const write = async (args, task) => {
         const bytes = Buffer.byteLength(JSON.stringify(args) ?? '');

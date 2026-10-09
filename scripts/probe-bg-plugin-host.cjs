@@ -477,3 +477,105 @@ test('closing a host refuses unload writes while retaining prior committed effec
     assert.equal(h.root.pluginCustomStorage['unload-effect'], undefined);
     assert.equal(h.writes, 1); assert.deepEqual(h.notices(), []);
 });
+
+test('caught value-limit refusals are reported once and a later small request still runs', async t => {
+    const h = await fixture(t, [plugin('value-budget', `await Risuai.addRisuReplacer('beforeRequest',async messages=>{
+        try{await Risuai.nativeFetch('https://synthetic.invalid/limit',{method:'POST',body:messages[0].content==='large'?'x'.repeat(4*1024*1024):'small'});}catch{}
+        return messages;
+    });`)]);
+    const hook = [...h.registry.replacerbeforeRequest][0];
+    for (let count = 0; count < 2; count++) assert.deepEqual(await hook([{role:'user',content:'large'}]), [{role:'user',content:'large'}]);
+    assert.equal(h.network.length, 0); assert.equal(h.effects, 0);
+    assert.deepEqual(await hook([{role:'user',content:'small'}]), [{role:'user',content:'small'}]);
+    assert.equal(h.network.length, 1); assert.equal(h.effects, 1);
+    const notices = h.notices(); assert.equal(notices.length, 1);
+    assert.equal(notices[0].code, 'plugin_host_limit'); assert.equal(notices[0].reason, 'operation_budget');
+    assert.equal(notices[0].phase, 'before_request'); assert.equal(notices[0].effectsMayHaveOccurred, false);
+});
+
+test('limit warning does not conflict with a later terminal failure in the same phase', async t => {
+    const h = await fixture(t, [plugin('limit-then-failure', `await Risuai.addRisuReplacer('beforeRequest',async messages=>{
+        try{await Risuai.nativeFetch('https://synthetic.invalid/limit',{method:'POST',body:'x'.repeat(4*1024*1024)});}catch{}
+        throw Error('private terminal failure');
+    });`)]);
+    assert.deepEqual(await [...h.registry.replacerbeforeRequest][0]([]), []);
+    assert.equal(h.controller.signal.aborted, false); assert.equal(h.network.length, 0);
+    assert.deepEqual(h.notices().map(row=>row.code), ['plugin_host_limit','plugin_hook_failed']);
+});
+
+test('recoverable limit and terminal resource failure keep separate stored notices', async t => {
+    const h=await fixture(t,[plugin('limit-then-resource',`await Risuai.addRisuReplacer('beforeRequest',async messages=>{
+        try{await Risuai.nativeFetch('https://synthetic.invalid/limit',{method:'POST',body:'x'.repeat(4*1024*1024)});}catch{}
+        await Risuai.getDatabase(['pluginCustomStorage']);return messages;
+    });`)]);
+    h.root.pluginCustomStorage.oversized='x'.repeat(4*1024*1024);
+    assert.deepEqual(await [...h.registry.replacerbeforeRequest][0]([]),[]);
+    assert.equal(h.controller.signal.aborted,false);assert.equal(h.network.length,0);assert.equal(h.effects,0);
+    const notices=h.notices();assert.equal(notices.length,2);
+    assert.ok(notices.every(row=>row.code==='plugin_host_limit'&&row.reason==='operation_budget'&&!row.effectsMayHaveOccurred));
+    assert.deepEqual(notices.map(row=>row.eventKey.slice(row.eventKey.lastIndexOf(':')+1)).sort(),['failure','limit']);
+});
+
+for (const result of ['exception', 'capacity']) test(`limit notification ${result} preserves mandatory failure before outbound`, async t => {
+    const h = await fixture(t, [plugin('limit-publication', `await Risuai.addRisuReplacer('beforeRequest',async messages=>{
+        try{await Risuai.nativeFetch('https://synthetic.invalid/limit',{method:'POST',body:'x'.repeat(4*1024*1024)});}catch{}
+        try{await Risuai.nativeFetch('https://synthetic.invalid/next',{method:'POST',body:'small'});}catch{}
+        return messages;
+    });`)], true, {publishNotification:()=>{
+        if(result==='exception')throw Error('synthetic publication unavailable');
+        return {status:'capacity'};
+    }});
+    await assert.rejects([...h.registry.replacerbeforeRequest][0]([]), {code:'plugin_notification_unavailable'});
+    assert.equal(h.controller.signal.aborted, true); assert.equal(h.network.length, 0);
+    assert.deepEqual(h.root.pluginCustomStorage,{existing:'kept',zero:0});
+});
+
+test('write quota refusal reports load phase without disabling the installed request hook', async t => {
+    const h = await fixture(t, [plugin('write-budget', `
+        for(let i=0;i<65;i++){try{await Risuai.pluginStorage.setItem('synthetic-'+i,i);}catch{}}
+        await Risuai.addRisuReplacer('beforeRequest',messages=>messages);
+    `)]);
+    assert.equal(h.writes, 64); assert.equal(h.root.pluginCustomStorage['synthetic-64'], undefined);
+    assert.equal(h.registry.replacerbeforeRequest.size, 1);
+    assert.deepEqual(await [...h.registry.replacerbeforeRequest][0]([]), []);
+    const notices=h.notices();assert.equal(notices.length,1);
+    assert.equal(notices[0].code,'plugin_host_limit');assert.equal(notices[0].phase,'load');
+    assert.equal(notices[0].effectsMayHaveOccurred,true);
+});
+
+test('parallel pending-byte refusals await one stored notice and release their own charges', {timeout:15000}, async t => {
+    let startFirst, releaseFirst, startNotice, releaseNotice, finishRefusals;
+    const firstStarted=new Promise(resolve=>{startFirst=resolve;});
+    const firstGate=new Promise(resolve=>{releaseFirst=resolve;});
+    const noticeStarted=new Promise(resolve=>{startNotice=resolve;});
+    const noticeGate=new Promise(resolve=>{releaseNotice=resolve;});
+    const refusalsReady=new Promise(resolve=>{finishRefusals=resolve;});
+    let h, published=0, issued=0;
+    h=await fixture(t,[plugin('pending-budget',`await Risuai.addRisuReplacer('beforeRequest',async messages=>{
+        const first=Risuai.nativeFetch('https://synthetic.invalid/first',{method:'POST',body:'x'.repeat(3*1024*1024)});
+        await Risuai.runLLMModel({messages:[],mode:'model'});
+        let refused=0;
+        await Promise.all([1,2].map(()=>Risuai.nativeFetch('https://synthetic.invalid/refused',{method:'POST',body:'x'.repeat(3*1024*1024)}).catch(()=>{refused++;})));
+        await Risuai.setArgument('sample',String(refused));
+        await Risuai.runLLMModel({messages:[{role:'user',content:String(refused)}],mode:'model'});await first;
+        await Risuai.nativeFetch('https://synthetic.invalid/small',{method:'POST',body:'small'});return messages;
+    });`)],true,{publishNotification:async(event,identity)=>{
+        startNotice();await noticeGate;published++;
+        return h.notifications.publishPluginFailure(event,identity);
+    }});
+    t.after(()=>{releaseFirst();releaseNotice();});
+    h.bindings.requestChatDataMain=async args=>{
+        if(args.formated.length)finishRefusals(args.formated[0].content);
+        else await firstStarted;
+        return{type:'success',result:'synthetic barrier'};
+    };
+    h.bindings.nativeFetch=async(url)=>{issued++;if(url.endsWith('/first')){startFirst();await firstGate;}return new Response('synthetic');};
+    const task=[...h.registry.replacerbeforeRequest][0]([]);
+    task.catch(()=>{});
+    await noticeStarted;assert.equal(issued,1);assert.equal(published,0);assert.equal(h.root.plugins[0].realArg.sample,'original');
+    releaseNotice();assert.equal(await refusalsReady,'2');
+    assert.equal(h.root.plugins[0].realArg.sample,'2');releaseFirst();assert.deepEqual(await task,[]);
+    assert.equal(issued,2);assert.equal(published,1);assert.equal(h.root.plugins[0].realArg.sample,'2');
+    const notices=h.notices();assert.equal(notices.length,1);assert.equal(notices[0].code,'plugin_host_limit');
+    assert.equal(notices[0].effectsMayHaveOccurred,true);assert.equal(notices[0].phase,'before_request');
+});

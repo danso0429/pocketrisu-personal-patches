@@ -77,7 +77,9 @@ export function notificationMessage(notification: BgNotification): string {
         case 'plugin_message': return `${plugin}: ${event.message}`
         case 'plugin_host_limit': return event.reason === 'notification_capacity'
             ? '서버 알림 보관 한도로 일부 플러그인 알림을 생략했어요. 생성 작업은 계속 진행해요.'
-            : `${plugin}: 서버 플러그인 실행 한도에 도달해 이 플러그인의 요청을 중단했어요.`
+            : event.eventKey.endsWith(':limit')
+                ? `${plugin}: 플러그인 API 호출이 실행 한도를 초과해 거부되었어요.`
+                : `${plugin}: 서버 플러그인 실행 한도에 도달해 이 플러그인의 요청을 중단했어요.`
         case 'plugin_late_call': return `${plugin}: 완료된 콜백에서 뒤늦게 도착한 API 요청을 거부했어요. 다른 콜백은 유지해요.`
     }
 }

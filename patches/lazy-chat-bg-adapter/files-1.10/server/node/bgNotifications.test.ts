@@ -1,5 +1,6 @@
 import Database from 'better-sqlite3'
 import { createRequire } from 'node:module'
+import { createHash } from 'node:crypto'
 import { afterEach, describe, expect, it } from 'vitest'
 const require = createRequire(import.meta.url)
 const { createBgNotifications, PREFIX, LEASE_MS, MAX_ROWS } = require('./bgNotifications.cjs')
@@ -28,6 +29,26 @@ function harness() {
 }
 
 describe('durable BG notification owner', () => {
+    it('separates API refusals from terminal limits while retaining existing failure group keys', () => {
+        const h=harness(),identity='a'.repeat(64),prefix='internal/bg-plugin-failure-receipts/v1/'
+        const event={...h.event(),code:'plugin_host_limit',pluginName:'synthetic',pluginVersion:'1',phase:'before_request',
+            reason:'operation_budget',effectsMayHaveOccurred:false}
+        const warning=h.owner.publishPluginFailure({...event,eventKey:'plugin:synthetic:before_request:limit'},identity)
+        const terminal=h.owner.publishPluginFailure({...event,eventKey:'plugin:synthetic:before_request:failure'},identity)
+        expect(warning.status).toBe('stored');expect(terminal.status).toBe('stored');expect(warning.id).not.toBe(terminal.id)
+        const legacyKey=prefix+createHash('sha256').update(JSON.stringify([
+            identity,'synthetic','1','plugin_host_limit','before_request',null,'operation_budget',false,
+        ])).digest('hex')
+        expect(h.deps.kvGet(legacyKey)).not.toBeNull()
+        expect(h.owner.publishPluginFailure({...event,operationId:'warning-next-operation',eventKey:'plugin:synthetic:before_request:limit'},identity))
+            .toEqual({status:'duplicate',id:warning.id})
+        expect(h.owner.publishPluginFailure({...event,operationId:'terminal-next-operation',eventKey:'plugin:synthetic:before_request:failure'},identity))
+            .toEqual({status:'duplicate',id:terminal.id})
+        expect(h.owner.claim('legacy-limit-consumer')).toEqual([])
+        expect(h.owner.claim('modern-limit-consumer',2).map((row:any)=>row.event.eventKey).sort())
+            .toEqual(['plugin:synthetic:before_request:limit','plugin:synthetic:before_request:failure'].sort())
+    })
+
     it('retains unrelated corrupt failure receipts without blocking healthy groups', () => {
         const h = harness(), prefix = 'internal/bg-plugin-failure-receipts/v1/'
         const brokenKey = prefix + 'f'.repeat(64)

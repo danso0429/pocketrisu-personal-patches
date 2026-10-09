@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from 'vitest'
-import { createBgNotificationDelivery, parseBgNotifications } from './bgNotifications'
+import { createBgNotificationDelivery, notificationMessage, parseBgNotifications } from './bgNotifications'
 
 function harness() {
     let visible = true, monotonic = 100, now = 1_000_000
@@ -17,6 +17,18 @@ function harness() {
 }
 
 describe('visible notification enqueue and independent ACK', () => {
+    it('distinguishes refused API calls from terminal limits without a new reason or schema', () => {
+        const h=harness()
+        const event={...h.notice.event,code:'plugin_host_limit' as const,pluginName:'synthetic',pluginVersion:'1',
+            phase:'before_request',reason:'operation_budget' as const,effectsMayHaveOccurred:false}
+        const warning={...h.notice,event:{...event,eventKey:'plugin:synthetic:before_request:limit'}}
+        const terminal={...h.notice,event:{...event,eventKey:'plugin:synthetic:before_request:failure'}}
+        expect(notificationMessage(warning)).toBe('synthetic (1): 플러그인 API 호출이 실행 한도를 초과해 거부되었어요.')
+        expect(notificationMessage(terminal)).toBe('synthetic (1): 서버 플러그인 실행 한도에 도달해 이 플러그인의 요청을 중단했어요.')
+        expect(parseBgNotifications({notifications:[warning]})).toEqual([warning])
+        expect(parseBgNotifications({notifications:[terminal]})).toEqual([terminal])
+    })
+
     it('retries ACK without redisplaying, including a recreated page receipt ledger', async () => {
         const h = harness()
         h.deps.acknowledge.mockRejectedValueOnce(new Error('lost response'))
