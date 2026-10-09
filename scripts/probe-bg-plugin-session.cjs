@@ -75,22 +75,24 @@ test('reentrant callback requests are bounded by invocation chain depth', async 
     assert.equal(session.activeScopes, 0);
 });
 
-test('a queued write rechecks authority after its originating hook returns', async t => {
+test('a queued write rechecks authority after its originating hook returns', { timeout: 5000 }, async t => {
     let hook, release, started, completed, writes = 0, session;
     const gate = new Promise(resolve => { release = resolve; });
     const began = new Promise(resolve => { started = resolve; });
     const finished = new Promise(resolve => { completed = resolve; });
     session = await createPluginSession({
         script: `await Risuai.addRisuReplacer('beforeRequest',async x=>{
-            void Risuai.setArgument('key','value').catch(()=>{});return x;
+            void Risuai.setArgument('key','value').catch(()=>{});
+            await Risuai.log('write-entered');return x;
         });`,
         api: async (method, args) => {
             if (method === 'addRisuReplacer') { hook = args[1]; return; }
+            if (method === 'log') { await began; return; }
             started(); await gate;
             try { session.assertCurrent(); writes++; } finally { completed(); }
         },
     });
-    t.after(() => session.close());
+    t.after(async () => { release(); await session.close(); });
     await session.load(); await hook('value'); await began;
     release(); await finished;
     assert.equal(writes, 0);
