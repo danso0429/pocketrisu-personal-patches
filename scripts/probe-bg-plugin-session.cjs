@@ -2,7 +2,43 @@
 const test = require('node:test');
 const assert = require('node:assert/strict');
 const { AsyncLocalStorage } = require('node:async_hooks');
+const Module = require('node:module');
+let wireMutation = null;
+const load = Module._load;
+Module._load = function(request, ...args) {
+    const value = load.call(this, request, ...args);
+    if (request === './bgPluginSandbox.cjs') return { ...value, createPluginSandbox: options => {
+        const mutation = wireMutation;
+        return value.createPluginSandbox({ ...options, onFrame: frame => options.onFrame(mutation ? mutation(frame) : frame) });
+    } };
+    return value;
+};
 const { createPluginSession } = require('../patches/lazy-chat-bg-adapter/files-1.10/server/node/bgPluginSession.cjs');
+Module._load = load;
+
+for (const kind of ['valid', 'invalid', 'expired']) test(`untrusted local refusal ${kind} is scoped and executes no API task`, async t => {
+    let hook, effects = 0, reports = 0, late = 0, changed = 0;
+    const phase = new AsyncLocalStorage(), reportPhases = [];
+    wireMutation = frame => {
+        if (frame.kind === 'call' && frame.method === 'api' && frame.args?.[1]?.[0]?.[1] === 'nativeFetch' && changed++ < 1) {
+            return { ...frame, method: 'api_local_limit', args: ['array', [['value', kind === 'invalid' ? 'nativeFetch' : 'plugin_rpc_frame_limit']]],
+                context: kind === 'expired' ? 'expired' : frame.context };
+        }
+        return frame;
+    };
+    const session = await createPluginSession({
+        script: `await Risuai.addRisuReplacer('beforeRequest',async()=>{try {await Risuai.nativeFetch('https://synthetic.invalid',{body:'small'});return 'ok';}catch(e){return e.code;}});`,
+        api(method, args) { if (method === 'addRisuReplacer') hook = args[1]; else { effects++; return 'ok'; } },
+        onLocalLimit: () => { reports++; reportPhases.push(phase.getStore()); }, onLateCall: () => { late++; },
+    });
+    wireMutation = null; t.after(() => session.close()); await session.load();
+    const result = await phase.run('main', () => hook([]));
+    assert.equal(result, kind === 'invalid' ? 'plugin_api_request_invalid' : kind === 'expired' ? 'plugin_invocation_expired' : 'plugin_rpc_frame_limit');
+    assert.equal(effects, 0); assert.equal(reports, kind === 'valid' ? 1 : 0); assert.equal(late, kind === 'expired' ? 1 : 0);
+    assert.deepEqual(reportPhases, kind === 'valid' ? ['main'] : []);
+    assert.equal(await phase.run('next', () => hook([])), 'ok'); assert.equal(effects, 1);
+    assert.equal(session.failure, null); assert.equal(session.activeScopes, 0);
+});
 
 test('API calls use the invoking phase, not the socket creation phase', async t => {
     const phase = new AsyncLocalStorage(), observed = [];

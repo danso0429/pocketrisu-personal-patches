@@ -49,6 +49,84 @@ async function fixture(t, plugins, permissions = true, options = {}) {
         controller, notices: () => notifications.claim('synthetic-consumer', 2).map(row => row.event) };
 }
 
+for (const kind of ['frame', 'value']) test(`caught local RPC ${kind} refusal is durable and preserves the next valid call`, async t => {
+    const h = await fixture(t, [plugin('local-' + kind, `
+        await Risuai.addRisuReplacer('beforeRequest',async xs=>{
+            if(xs[0].content==='large') {
+                try { await Risuai.nativeFetch('https://synthetic.invalid', {method:'POST',body:
+                    ${kind === 'frame' ? "'x'.repeat(9*1024*1024)" : 'Array(100001).fill(0)'}}); } catch {}
+            } else await Risuai.nativeFetch('https://synthetic.invalid', {method:'POST',body:'small'});
+            return xs;
+        });
+    `)]);
+    const hook = [...h.registry.replacerbeforeRequest][0];
+    await hook([{ role: 'user', content: 'large' }]);
+    assert.equal(h.network.length, 0); assert.equal(h.effects, 0);
+    const notices = h.notices(); assert.equal(notices.length, 1);
+    assert.equal(notices[0].code, 'plugin_host_limit'); assert.ok(notices[0].eventKey.endsWith(':limit'));
+    assert.equal(notices[0].effectsMayHaveOccurred, false);
+    await hook([{ role: 'user', content: 'small' }]);
+    assert.equal(h.network.length, 1); assert.equal(h.effects, 1);
+});
+
+test('parallel local frame refusals await one immutable notification', async t => {
+    let entered = 0, release, notified;
+    const noticeStarted = new Promise(resolve => { notified = resolve; });
+    const held = new Promise(resolve => { release = resolve; });
+    const h = await fixture(t, [plugin('parallel-local', `
+        await Risuai.addRisuReplacer('beforeRequest',async xs=>{
+            await Promise.all([1,2].map(async()=>{try {await Risuai.nativeFetch('https://synthetic.invalid',
+                {method:'POST',body:'x'.repeat(9*1024*1024)});}catch{}})); return xs;
+        });
+    `)], true, { publishNotification: async event => {
+        assert.equal(event.code, 'plugin_host_limit'); entered++; notified(); await held; return { status: 'stored' };
+    } });
+    let done = false;
+    const pending = [...h.registry.replacerbeforeRequest][0]([]).then(() => { done = true; });
+    await noticeStarted; assert.equal(done, false); assert.equal(entered, 1); assert.equal(h.effects, 0);
+    release(); await pending; assert.equal(entered, 1); assert.equal(h.network.length, 0);
+});
+
+test('local frame refusal publication failure remains mandatory despite a caught guest error', async t => {
+    const h = await fixture(t, [plugin('local-publication', `
+        await Risuai.addRisuReplacer('beforeRequest',async xs=>{try {await Risuai.nativeFetch('https://synthetic.invalid',
+            {method:'POST',body:'x'.repeat(9*1024*1024)});}catch{}return xs;});
+    `)], true, { publishNotification: () => { throw Error('synthetic store failure'); } });
+    await [...h.registry.replacerbeforeRequest][0]([]).catch(() => {});
+    await assert.rejects(h.host.assertNotifications(), { code: 'plugin_notification_unavailable' });
+    assert.equal(h.network.length, 0); assert.equal(h.effects, 0); assert.equal(h.controller.signal.aborted, true);
+});
+
+test('local frame refusal during initialization settles before ready without disabling a later hook', async t => {
+    const h = await fixture(t, [plugin('local-load', `
+        try {await Risuai.nativeFetch('https://synthetic.invalid',{method:'POST',body:'x'.repeat(9*1024*1024)});}catch{}
+        await Risuai.addRisuReplacer('beforeRequest',async xs=>{await Risuai.nativeFetch('https://synthetic.invalid',{method:'POST',body:'small'});return xs;});
+    `)]);
+    assert.equal(h.registry.replacerbeforeRequest.size, 1); assert.equal(h.network.length, 0);
+    const notices = h.notices(); assert.equal(notices.length, 1); assert.equal(notices[0].phase, 'load');
+    await [...h.registry.replacerbeforeRequest][0]([]); assert.equal(h.network.length, 1);
+});
+test('local refusal notification capacity remains an operation failure', async t => {
+    const h = await fixture(t, [plugin('local-capacity', `
+        await Risuai.addRisuReplacer('beforeRequest',async xs=>{try {await Risuai.nativeFetch('https://synthetic.invalid',
+            {method:'POST',body:'x'.repeat(9*1024*1024)});}catch{}return xs;});
+    `)], true, { publishNotification: () => ({ status: 'capacity' }) });
+    await [...h.registry.replacerbeforeRequest][0]([]).catch(() => {});
+    await assert.rejects(h.host.assertNotifications(), { code: 'plugin_notification_unavailable' });
+    assert.equal(h.controller.signal.aborted, true); assert.equal(h.effects, 0); assert.equal(h.network.length, 0);
+});
+test('uncaught local frame refusal retains separate API and terminal resource notices', async t => {
+    const h = await fixture(t, [plugin('uncaught-local', `
+        await Risuai.addRisuReplacer('beforeRequest',async()=>Risuai.nativeFetch('https://synthetic.invalid',
+            {method:'POST',body:'x'.repeat(9*1024*1024)}));
+    `)]);
+    await [...h.registry.replacerbeforeRequest][0]([]);
+    const notices = h.notices(); assert.equal(notices.length, 2);
+    assert.ok(notices.every(n => n.code === 'plugin_host_limit' && n.effectsMayHaveOccurred === false));
+    assert.deepEqual(notices.map(n => n.eventKey.split(':').at(-1)).sort(), ['failure', 'limit']);
+    assert.equal(h.network.length, 0);
+});
+
 test('generic before/after/script/body/provider APIs install and clean up', async t => {
     const h = await fixture(t, [plugin('generic', `
         await Risuai.addRisuReplacer('beforeRequest',async xs=>[...xs,{role:'system',content:await Risuai.getArgument('sample')}]);

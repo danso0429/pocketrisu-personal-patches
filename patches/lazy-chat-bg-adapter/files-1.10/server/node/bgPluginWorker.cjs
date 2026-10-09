@@ -8,7 +8,7 @@ const immediate = () => new Promise(resolve => setImmediate(resolve));
 
 function createPluginPeer({ send, dispatch, onFatal = () => {}, timeoutMs = 600_000, onExpiredContext = () => {},
     getContext = () => null, runContext = (_context, task) => task(),
-    invoke = task => task(), retainContext = () => () => {} }) {
+    invoke = task => task(), retainContext = () => () => {}, localCallLimits = false }) {
     const pending = new Map(), functions = new Map(), remoteFunctions = new Map();
     const readers = new Map(), signals = new Map(), controllers = new Map();
     const remoteStreams = new Map();
@@ -176,7 +176,10 @@ function createPluginPeer({ send, dispatch, onFatal = () => {}, timeoutMs = 600_
         if (closed) return Promise.reject(fail('plugin_rpc_closed'));
         if (pending.size >= 64) return Promise.reject(fail('plugin_rpc_pending_limit'));
         let encoded;
-        try { encoded = pack(args); } catch (error) { return Promise.reject(error); }
+        try { encoded = pack(args); } catch (error) {
+            if (!localCallLimits || error?.code !== 'plugin_rpc_value_limit') return Promise.reject(error);
+            method = 'api_local_limit'; encoded = ['array', [['value', error.code]]];
+        }
         const id = ++sequence;
         activity++;
         return new Promise((resolve, reject) => {
@@ -184,7 +187,15 @@ function createPluginPeer({ send, dispatch, onFatal = () => {}, timeoutMs = 600_
             timer.unref?.();
             pending.set(id, { resolve, reject, timer, context });
             try { emit({ kind: 'call', id, method, args: encoded, context }); }
-            catch (error) { fatal(errorCode(error)); }
+            catch (error) {
+                if (localCallLimits && error?.code === 'plugin_rpc_frame_limit' && error.oversize === true) {
+                    // No original bytes were issued. Preserve id/context/timer
+                    // and await the parent's mandatory refusal publication.
+                    try { emit({ kind: 'call', id, method: 'api_local_limit',
+                        args: ['array', [['value', error.code]]], context }); }
+                    catch (reportError) { fatal(errorCode(reportError)); }
+                } else fatal(errorCode(error));
+            }
         });
     }
     async function execute(method, args) {
@@ -289,10 +300,12 @@ async function runWorker() {
     vm.runInContext('globalThis.window = globalThis; globalThis.self = globalThis;', context);
     const runtimeMs = Number(process.argv[2]);
     peer = createPluginPeer({ timeoutMs: Number.isSafeInteger(runtimeMs) && runtimeMs > 0 ? runtimeMs : 600_000,
+        localCallLimits: true,
         getContext: () => invocation.getStore() ?? null,
         runContext: (context, task) => invocation.run(context, task), send(frame) {
         const bytes = JSON.stringify(frame) + '\n';
-        if (Buffer.byteLength(bytes) > 8 * 1024 * 1024 || channel.writableLength > 16 * 1024 * 1024) throw fail('plugin_rpc_frame_limit');
+        if (channel.writableLength > 16 * 1024 * 1024) throw fail('plugin_rpc_frame_limit');
+        if (Buffer.byteLength(bytes) > 8 * 1024 * 1024) throw Object.assign(fail('plugin_rpc_frame_limit'), { oversize: true });
         channel.write(bytes);
     }, onFatal: () => process.exit(1), async dispatch(method, args) {
         if (method === 'load' && !loaded && args.length === 1 && typeof args[0] === 'string') {

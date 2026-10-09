@@ -12,6 +12,7 @@ const { clean, identityOf, pluginMetadata } = require('./bgPluginMetadata.cjs');
 const clone = clonePluginValue;
 const phaseScope = new AsyncLocalStorage();
 const resourceFailures = new Set(['plugin_budget_exceeded', 'plugin_value_limit', 'plugin_rpc_value_limit',
+    'plugin_rpc_frame_limit',
     'plugin_rpc_pending_limit', 'plugin_rpc_handle_limit', 'plugin_sandbox_frame_limit',
     'plugin_sandbox_byte_rate_limit', 'plugin_sandbox_rate_limit', 'plugin_sandbox_backpressure', 'plugin_invocation_limit']);
 
@@ -67,6 +68,18 @@ async function createBgPluginHost({ database, bindings, getDatabase, getSelectio
     };
     let rootWrites = 0, writtenBytes = 0, networkCalls = 0;
     const apiSlots = limiter(64, signal), writeSlots = limiter(2, signal);
+    const reportApiLimit = async entry => {
+        if (noticeFailure) throw noticeFailure;
+        if (closed || tearingDown || entry.closing || entry.failed || signal.aborted) return;
+        const phase = phaseScope.getStore() ?? entry.lastPhase ?? 'load';
+        const budgetNotices = entry.budgetNotices ??= new Map();
+        if (!budgetNotices.has(phase)) {
+            budgetNotices.set(phase, record({ ...common(entry, phase), code: 'plugin_host_limit', reason: 'operation_budget',
+                eventKey: `plugin:${entry.index}:${entry.identity}:${phase}:limit` }));
+        }
+        await budgetNotices.get(phase);
+        if (noticeFailure) throw noticeFailure;
+    };
     const withApiBudget = async (entry, method, args, task) => {
         if (noticeFailure) throw noticeFailure;
         try {
@@ -88,15 +101,7 @@ async function createBgPluginHost({ database, bindings, getDatabase, getSelectio
         } catch (error) {
             if (['plugin_budget_exceeded', 'plugin_value_limit'].includes(error?.code)
                 && !closed && !tearingDown && !entry.closing && !entry.failed && !signal.aborted && !noticeFailure) {
-                const phase = phaseScope.getStore() ?? entry.lastPhase ?? 'load';
-                const budgetNotices = entry.budgetNotices ??= new Map();
-                if (!budgetNotices.has(phase)) {
-                    // An API refusal need not disable a recoverable plugin. Keep
-                    // its immutable event separate from a later terminal failure.
-                    budgetNotices.set(phase, record({ ...common(entry, phase), code: 'plugin_host_limit', reason: 'operation_budget',
-                        eventKey: `plugin:${entry.index}:${entry.identity}:${phase}:limit` }));
-                }
-                await budgetNotices.get(phase);
+                await reportApiLimit(entry);
             }
             throw noticeFailure ?? error;
         }
@@ -292,6 +297,7 @@ async function createBgPluginHost({ database, bindings, getDatabase, getSelectio
             try {
             entry.session = await phaseScope.run('load', () => createPluginSession({ script: plugin.script, signal: abortSignal,
                 onFailure: code => disable(entry, code), onLateCall: () => reportLate(entry),
+                onLocalLimit: () => { entry.session.assertCurrent(); return reportApiLimit(entry); },
                 api: (method, args) => withApiBudget(entry, method, args, async () => {
                     if (closed || entry.failed || signal.aborted) throw fail('plugin_operation_closed');
                     if (tearingDown && !['removeRisuReplacer', 'removeRisuScriptHandler', 'unregisterBodyIntercepter',

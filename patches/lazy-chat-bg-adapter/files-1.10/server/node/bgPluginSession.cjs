@@ -8,7 +8,8 @@ const { createPluginPeer } = require('./bgPluginWorker.cjs');
 const chain = new AsyncLocalStorage();
 const failure = code => Object.assign(new Error(code), { code });
 
-async function createPluginSession({ script, api, signal, onFailure = () => {}, onLateCall = () => {}, runtimeMs = 600_000 }) {
+async function createPluginSession({ script, api, signal, onFailure = () => {}, onLateCall = () => {},
+    onLocalLimit = async () => {}, runtimeMs = 600_000 }) {
     if (typeof script !== 'string' || Buffer.byteLength(script) > 4 * 1024 * 1024
         || typeof api !== 'function') throw failure('plugin_script_invalid');
     const scopes = new Map(), current = new AsyncLocalStorage();
@@ -59,6 +60,14 @@ async function createPluginSession({ script, api, signal, onFailure = () => {}, 
         },
         dispatch(method, args) {
             find(current.getStore());
+            if (method === 'api_local_limit') {
+                if (args.length !== 1 || !['plugin_rpc_frame_limit', 'plugin_rpc_value_limit'].includes(args[0])) {
+                    throw failure('plugin_api_request_invalid');
+                }
+                // Untrusted reports can only publish this entry's bounded
+                // refusal and reject this call; no API task/effect is run.
+                return Promise.resolve(onLocalLimit(args[0])).then(() => { throw failure(args[0]); });
+            }
             if (method !== 'api' || args.length !== 2 || typeof args[0] !== 'string'
                 || !/^[A-Za-z_][A-Za-z0-9_.]{0,79}$/.test(args[0]) || !Array.isArray(args[1])) {
                 throw failure('plugin_api_request_invalid');
