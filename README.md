@@ -4,6 +4,16 @@ Personal, all-or-nothing patch delivery for PocketRisu NodeOnly. The current
 stable release is `v0.2.3`, and its complete manifest graph targets exact
 PocketRisu `v1.10.0`.
 
+The `0.2.4-experimental.29` candidate preserves URL-encoded form bytes on the
+authenticated proxy aliases and reports worker-local RPC frame/value refusals
+without losing later valid calls. Personal settings is0.5.14 and the BG adapter
+is0.7.36; original MARP, limits and default hostOFF are retained.
+[PDF/proxy qualification](docs/POCKETRISU-G1-7-PDF-PROXY-VALIDATION.md) records
+four-family native/server PDF comparisons, Worker controls, original large-input
+and cancel boundaries, and the separate actual preset Send/store evidence.
+Actual providers, residual M7/activation and device/aggregate remain open;
+the stable release remains `v0.2.3`.
+
 The `0.2.4-experimental.28` candidate adds visible API-limit refusals to the
 generic server plugin host while preserving valid later calls and existing limits.
 It retains the unavailable-host BG continuation/warnings from experimental.27.
@@ -20,7 +30,7 @@ with hostOFF do not qualify server MARP execution.
 [M4 settings evidence](docs/POCKETRISU-G1-7-M4-SETTINGS-VALIDATION.md) adds eleven
 synthetic UI/server/native-v3 scenarios for agent selection, overrides, prompts,
 queued updates, retries, deadlines and concurrent reads without changing runtime.
-Next scoped work is remaining browser PDF/resource boundaries and M7;
+The later experimental.29 checkpoint adds stated PDF/resource evidence; residual M7,
 stable/activation/device aggregate remain open.
 
 The earlier `0.2.4-experimental.24` candidate includes the CAP admission corrections and
