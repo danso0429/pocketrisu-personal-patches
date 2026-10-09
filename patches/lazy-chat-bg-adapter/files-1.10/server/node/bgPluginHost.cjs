@@ -5,6 +5,7 @@ const { createHash, randomUUID } = require('node:crypto');
 const { createPluginSession } = require('./bgPluginSession.cjs');
 const { createPluginStorage, savedPluginPermission } = require('./bgPluginStorage.cjs');
 const { clonePluginValue, measurePluginValue } = require('./bgPluginValue.cjs');
+const { createTransportCounter } = require('./bgPluginDiagnostics.cjs');
 
 const fail = code => Object.assign(new Error(code), { code });
 const clean = (value, max) => (typeof value === 'string' || typeof value === 'number' ? String(value) : 'unknown')
@@ -47,10 +48,29 @@ function limiter(limit, signal) {
 }
 
 async function createBgPluginHost({ database, bindings, getDatabase, getSelection, hydrate,
-    storageOwner, beforeEffect, publishNotification, operation, signal, onCriticalFailure = () => {} }) {
+    storageOwner, beforeEffect, publishNotification, publishDiagnostic, operation, signal, onCriticalFailure = () => {} }) {
     const entries = [], cleanups = [], notices = [], names = new Set();
     let closed = false, tearingDown = false, noticeFailure = null;
     let messageCapacityReported = false;
+    let diagnosticFailureReported = false;
+    const publishSummaries = async () => {
+        if (typeof publishDiagnostic !== 'function') return;
+        for (const entry of entries) {
+            const summary = entry.transport?.snapshot();
+            if (!summary?.calls) continue;
+            try {
+                const metadata = common(entry, entry.lastPhase ?? 'load');
+                await publishDiagnostic({ version: 1, id: entry.diagnosticId, createdAt: Date.now(),
+                    pluginName: metadata.pluginName, pluginVersion: metadata.pluginVersion, ...summary });
+            } catch {
+                if (!diagnosticFailureReported) {
+                    diagnosticFailureReported = true;
+                    try { console.warn('[BGPluginDiagnostics] summary storage unavailable'); }
+                    catch { /* Diagnostic logging must not change the generation outcome. */ }
+                }
+            }
+        }
+    };
     let rootWrites = 0, writtenBytes = 0, networkCalls = 0;
     const apiSlots = limiter(64, signal), writeSlots = limiter(2, signal);
     const withApiBudget = async (entry, method, args, task) => {
@@ -69,7 +89,9 @@ async function createBgPluginHost({ database, bindings, getDatabase, getSelectio
             return await (['nativeFetch', 'risuFetch', 'runLLMModel'].includes(method)
                 ? run() : entry.apiSlots.run(() => apiSlots.run(run)));
         }
-        catch (error) { if (error?.code === 'plugin_invocation_expired') reportLate(entry); throw error; }
+        // An issued request may reject when its callback scope is released.
+        // That is cleanup, not a new call with expired authority. The peer's
+        // onExpiredContext path reports actual calls arriving after expiry.
         finally { entry.pendingBytes -= bytes; }
     };
     const write = async (args, task) => {
@@ -229,6 +251,7 @@ async function createBgPluginHost({ database, bindings, getDatabase, getSelectio
             names.add(plugin.name);
             const entry = { plugin: { name: plugin.name, script: '', version: plugin.version }, index, registrations: [], unload: [], abort: new AbortController(),
                 session: null, failed: false, ready: false, effects: operation.inputPreparedOnClient === true, messageCount: 0, pendingBytes: 0 };
+            entry.transport = createTransportCounter(); entry.diagnosticId = randomUUID();
             entry.identity = identityOf(plugin);
             entry.apiSlots = limiter(16, entry.abort.signal);
             entries.push(entry);
@@ -314,17 +337,22 @@ async function createBgPluginHost({ database, bindings, getDatabase, getSelectio
                                 if (!options || typeof options !== 'object' || Array.isArray(options)) throw fail('plugin_api_arguments_invalid');
                                 const optionsSignal = method === 'nativeFetch' ? options.signal : options.abortSignal;
                                 await effect(entry);
-                                return bindings[method](args[0], { ...options,
+                                const scopeSignal = entry.session.currentSignal();
+                                return entry.transport.observe(method, [['operationCancelled', signal], ['entryClosed', entry.abort.signal],
+                                    ['scopeClosed', scopeSignal], ['requestAborted', optionsSignal]], () => bindings[method](args[0], { ...options,
                                     [method === 'nativeFetch' ? 'signal' : 'abortSignal']: AbortSignal.any([
-                                        abortSignal, entry.session.currentSignal(), ...(optionsSignal instanceof AbortSignal ? [optionsSignal] : [])]) });
+                                        abortSignal, scopeSignal, ...(optionsSignal instanceof AbortSignal ? [optionsSignal] : [])]) }));
                             }
                             case 'runLLMModel': {
                                 if (++networkCalls > 128) throw fail('plugin_budget_exceeded');
                                 const options = args[0];
                                 if (!options || !Array.isArray(options.messages)) throw fail('plugin_api_arguments_invalid');
                                 await effect(entry);
-                                return bindings.requestChatDataMain({ formated: options.messages, bias: {}, staticModel: options.staticModel,
-                                    blockPlugins: !options.allowPlugins, abortSignal: AbortSignal.any([abortSignal, entry.session.currentSignal()]) }, options.mode);
+                                const scopeSignal = entry.session.currentSignal();
+                                const requestSignal = AbortSignal.any([abortSignal, scopeSignal]);
+                                return entry.transport.observe('modelCalls', [['operationCancelled', signal], ['entryClosed', entry.abort.signal],
+                                    ['scopeClosed', scopeSignal]], () => bindings.requestChatDataMain({ formated: options.messages, bias: {}, staticModel: options.staticModel,
+                                    blockPlugins: !options.allowPlugins, abortSignal: requestSignal }, options.mode, requestSignal));
                             }
                             case 'getDatabase': return await readDatabase(args[0]);
                             case 'getDatabaseMetadata': return await readDatabase(args[0], true);
@@ -359,8 +387,9 @@ async function createBgPluginHost({ database, bindings, getDatabase, getSelectio
                             default: return unsupported(method);
                         }
                     } catch (error) {
-                        if (error?.code === 'plugin_invocation_expired') reportLate(entry);
-                        else if (error?.code !== 'plugin_budget_exceeded') disable(entry, error?.code ?? 'plugin_hook_failed', method);
+                        if (!['plugin_invocation_expired', 'plugin_budget_exceeded'].includes(error?.code)) {
+                            disable(entry, error?.code ?? 'plugin_hook_failed', method);
+                        }
                         throw error;
                     }
                 }) }));
@@ -374,6 +403,7 @@ async function createBgPluginHost({ database, bindings, getDatabase, getSelectio
         for (const entry of entries) entry.apiSlots.close();
         for (const cleanup of cleanups.reverse()) cleanup();
         await Promise.all(entries.map(entry => entry.session?.close()));
+        await publishSummaries();
         throw error;
     }
     return {
@@ -411,6 +441,7 @@ async function createBgPluginHost({ database, bindings, getDatabase, getSelectio
             for (const entry of entries) entry.apiSlots.close();
             for (const cleanup of cleanups.reverse()) cleanup();
             await Promise.all(entries.map(entry => entry.session?.close()));
+            await publishSummaries();
         },
     };
 }

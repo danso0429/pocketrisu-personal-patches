@@ -5,11 +5,12 @@ const targetVersions = { pocketrisu: ['1.10.0'] };
 module.exports = prior => {
     const units = [];
     const related = ['bg-preserve', 'lazy-chat-sync'].flatMap(name => require(`../${name}/manifest.cjs`).units);
-    const add = (name, file, anchor, content) => units.push({ id: `lazy-chat-bg-adapter:plugin-host:${name}:1.10`,
-        file, type: 'replace', anchor, content, targetVersions,
+    const add = (name, file, anchor, content, markup = false) => units.push({ id: `lazy-chat-bg-adapter:plugin-host:${name}:1.10`,
+        file, type: 'replace', anchor, ...(markup ? { managed: content } : { content }), targetVersions,
         after: [...prior, ...related, ...units].filter(unit => unit.file === file).map(unit => unit.id) });
     for (const file of ['server/node/bgPluginSandbox.cjs', 'server/node/bgPluginWorker.cjs',
         'server/node/bgPluginSession.cjs', 'server/node/bgPluginStorage.cjs', 'server/node/bgPluginHost.cjs', 'server/node/bgPluginValue.cjs',
+        'server/node/bgPluginDiagnostics.cjs', 'src/lib/Others/BgPluginDiagnostics.svelte',
         'src/ts/bgPluginBindings.ts']) {
         units.push({ id: `lazy-chat-bg-adapter:plugin-host:owned:${file}:1.10`, file,
             type: 'owned', targetVersions, content: fs.readFileSync(path.join(__dirname, 'files-1.10', file), 'utf8') });
@@ -54,9 +55,30 @@ module.exports = prior => {
         '        allowPlainJson: allowPlainJsonFallback || storageKey !== canonicalKey,\n        maxBytes: options.maxBytes,');
     add('metadata-projector-export', 'src/ts/plugins/apiV3/pluginChatAccess.ts',
         'function projectChatMetadata(chat:', 'export function projectChatMetadata(chat:');
+    add('diagnostic-owner', 'server/node/server.cjs',
+        'const bgNotifications = createBgNotifications({ db: sqliteDb, kvGet, kvSet, kvDel, kvList });',
+        `const { createBgPluginDiagnostics } = require('./bgPluginDiagnostics.cjs');
+const bgPluginDiagnostics = createBgPluginDiagnostics({ kvGet, kvSet, kvDel, kvList,
+    transaction: task => sqliteDb.transaction(task)() });
+const bgNotifications = createBgNotifications({ db: sqliteDb, kvGet, kvSet, kvDel, kvList });`);
+    add('diagnostic-route', 'server/node/server.cjs',
+        '// ─── Express error middleware — must be registered after all routes ─────────',
+        `
+app.get('/api/bg-plugin-diagnostics', sessionAuthMiddleware, (req, res) => {
+    res.setHeader('Cache-Control', 'no-store');
+    try { res.json({ summaries: bgPluginDiagnostics.list() }); }
+    catch { res.status(503).json({ error: 'plugin-diagnostics-unavailable' }); }
+});
+// ─── Express error middleware — must be registered after all routes ─────────`);
+    add('diagnostic-log-import', 'src/lib/Setting/Pages/RequestLogs.svelte',
+        "    import ShButton from 'src/lib/UI/GUI/ShButton.svelte'",
+        "    import ShButton from 'src/lib/UI/GUI/ShButton.svelte'\n    import BgPluginDiagnostics from 'src/lib/Others/BgPluginDiagnostics.svelte'");
+    add('diagnostic-log-panel', 'src/lib/Setting/Pages/RequestLogs.svelte',
+        '</script>', '</script>\n\n<BgPluginDiagnostics />', true);
     add('canonical-owner', 'server/node/server.cjs',
         "require('./bgOrchestrator.cjs')(app, Object.assign({ sessionAuthMiddleware,",
         `const bgPluginDependencies = {
+    publishDiagnostic: value => bgPluginDiagnostics.publish(value),
     // Internal candidate only. No HTTP/client flag can enable plugin execution.
     enabled: process.env.POCKETRISU_BG_PLUGIN_HOST_CANDIDATE === '1',
     hydrate: (characters, snapshots) => queueStorageOperation(() => {
@@ -161,6 +183,7 @@ require('./bgOrchestrator.cjs')(app, Object.assign({ bgPluginDependencies, sessi
         hydrate: characters => deps.bgPluginDependencies.hydrate(characters, pluginChatSnapshot),
         storageOwner: deps.bgPluginDependencies.storageOwner,
         publishNotification: deps.bgPluginDependencies.publishNotification,
+        publishDiagnostic: deps.bgPluginDependencies.publishDiagnostic,
         onCriticalFailure: error => llmAbort.abort(error),
         operation: { operationId: control.operationId, charId: selectedCharId, chatId: selectedChatId,
           inputPreparedOnClient: control.inputCommandVersion !== 1 || control.inputPreparedOnClient === true },

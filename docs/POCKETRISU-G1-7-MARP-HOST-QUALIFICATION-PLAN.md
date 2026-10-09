@@ -1,6 +1,8 @@
 # G1.7 MARP host qualification and G1.5b admission plan
 
-2026-10-09 KST. Planning update after joint Opus5.5 consultation and source comparison. Baseline4bce464 / experimental.24 / adapter0.7.31. The ordered BG goals remain execution authority; this document details G1.7/G1.11 qualification before G1.5b admission expansion. No new runtime, original-script, permission, provider configuration, activation or release change is included.
+Post-implementation handoff: [MARP BG verification and review criteria](POCKETRISU-MARP-BG-POST-IMPLEMENTATION-REVIEW.md) defines evidence requirements, automated scenarios and iPhone checks for the completed implementation. It supplements this plan without changing the ordered goals or recording a qualification pass.
+
+2026-10-09 KST. Initial planning baseline4bce464 / experimental.24 / adapter0.7.31. Current scoped implementation and isolated evidence are recorded in the [qualification ledger](POCKETRISU-G1-7-MARP-QUALIFICATION-VALIDATION.md); that ledger does not declare full MARP BG or production activation. The ordered BG goals remain execution authority.
 
 ## Direction and existing foundation
 
@@ -12,7 +14,7 @@ Source evidence includes a preserved Lite0.9.2 script of64022bytes, SHA-256b1aa5
 
 ## Qualification sequence
 
-All stages below are planned; none was executed by the planning consultation or this document update. Start with synthetic credentials/providers and isolated application storage while the production host remains OFF.
+The sequence below remains the execution plan. Initial consultation performed no experiments; subsequent scoped results and remaining conditions are recorded separately in the qualification ledger. Use synthetic credentials/providers and isolated application storage while production remains OFF.
 
 | Stage | Experiment | Required evidence |
 | --- | --- | --- |
@@ -20,7 +22,7 @@ All stages below are planned; none was executed by the planning consultation or 
 | M1 | Byte-original bootstrap in the current host | Exact hook/unload registration, awaited/causal initialization completion, quiet-boundary behavior and late calls. Original top-level initialization is not awaited; do not infer readiness from evaluation alone. |
 | M2 | Actual browser host versus current server bindings and final transport | Main/sub, retry and fallback with synthetic analysis providers. Compare final requests, injection and configured agent selection. A fixture enabling all three agents expects three analysis calls on a normal attempt and native-equal calls on retry, with a single injection block. Keep main, analysis and OAuth/network counts distinct. |
 | M3 | Slow headers, slow body/stream, plugin timeout and operation cancellation | Actual native error shape, notifications, scope/handle cleanup, entry.failed and next retry/fallback behavior. Returned streams can retain authority until drain/cancel/close. Demonstrated loss of a later normal attempt must be corrected before admission expansion. Transport abort is not proof of provider cancellation or refunded charges. |
-| M4 | Immediate settings save/send and queued updates | Trace actual MARP UI save, argument in-memory mutation, pluginStorage persistence, send/strict root flush and server reads. Test cache/coherence between stores; fresh reads alone do not prove the latest edit or a consistent settings bundle. |
+| M4 | Immediate settings save/send and queued updates | Follow actual v3 aliases: MARP pluginStorage mutates root pluginCustomStorage; arguments mutate the same root's plugins[].realArg. getLocalPluginStorage is a different KV path. Trace UI completion, both mutations, send/strict root flush, admission capture and execution. Fresh reads or the original saved confirmation alone do not prove durability/coherence; test queued/retry capture separately. |
 | M5 | HTTP400, refused connection, empty-success and partial-success | Separate host failures, transport outcomes, swallowed plugin-private failures and loss of private diagnostic history. Record user-visible differences before deciding diagnostics scope. |
 | M6 | Expired saved grants, mixed enabled plugins, initialization effects and cold start | Refusal/notification without fabricated permission; UI-only and multiple-plugin behavior, actual registration/participation, resource costs and effect ownership. Measure launch/load and response-start latency before changing lifetime, caches or filtering. |
 | M7 | Request-specific admission and delivery | Use qualified API/permissions, actual binding/provider/roles and effect/replay boundaries. Retain normal custom/local routes and native retry. Revalidate composition, tests, audits and safe delivery; real-provider/device/aggregate gates remain separate. |

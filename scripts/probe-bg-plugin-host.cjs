@@ -40,6 +40,7 @@ async function fixture(t, plugins, permissions = true, options = {}) {
         hydrate: async value => structuredClone(value), storageOwner: owner, beforeEffect: () => { effects++; },
         publishNotification: options.publishNotification ?? ((event, identity) => identity
             ? notifications.publishPluginFailure(event, identity) : notifications.publish(event)),
+        publishDiagnostic: options.publishDiagnostic,
         onCriticalFailure: error => { options.onCriticalFailure?.(error); controller.abort(error); },
         operation: { operationId: 'synthetic-operation', charId: 'synthetic-character', chatId: 'synthetic-chat' },
         signal: controller.signal, bindings });
@@ -288,5 +289,115 @@ test('parallel reentrant model calls do not hold the slots needed by nested APIs
     };
     assert.deepEqual(await [...h.registry.replacerbeforeRequest][0]([]), []);
     assert.equal(calls, 16);
+    assert.deepEqual(h.notices(), []);
+});
+
+test('scope cleanup of an already-issued request is not a late API call', async t => {
+    const h = await fixture(t, [plugin('abandoned-fetch', `
+        await Risuai.addRisuReplacer('beforeRequest',async messages=>{
+            void Risuai.nativeFetch('https://synthetic.invalid/slow',{method:'GET'}).catch(()=>{});
+            await new Promise(resolve=>setTimeout(resolve,30));
+            return messages;
+        });
+    `)]);
+    let issued = 0, cleaned = 0;
+    const settled = [];
+    h.bindings.nativeFetch = async (_, { signal }) => {
+        issued++;
+        let done;
+        settled.push(new Promise(resolve => { done = resolve; }));
+        try {
+            return await new Promise((_, reject) => {
+                const abort = () => reject(signal.reason);
+                if (signal.aborted) abort(); else signal.addEventListener('abort', abort, { once: true });
+            });
+        } finally { cleaned++; done(); }
+    };
+    const hook = [...h.registry.replacerbeforeRequest][0];
+    const messages = [{ role: 'user', content: 'preserved' }];
+    for (let attempt = 0; attempt < 2; attempt++) {
+        assert.deepEqual(await hook(messages), messages);
+        await Promise.all(settled);
+        await new Promise(resolve => setImmediate(resolve));
+        await h.host.assertNotifications();
+    }
+    assert.equal(issued, 2);
+    assert.equal(cleaned, 2);
+    assert.deepEqual(h.notices(), []);
+});
+
+test('a new API call after callback completion remains blocked and reported', async t => {
+    const h = await fixture(t, [plugin('late-api', `
+        await Risuai.addRisuReplacer('beforeRequest',messages=>{
+            setTimeout(()=>Risuai.nativeFetch('https://synthetic.invalid/late',{method:'GET'}).catch(()=>{}),30);
+            return messages;
+        });
+    `)]);
+    assert.deepEqual(await [...h.registry.replacerbeforeRequest][0]([]), []);
+    await new Promise(resolve => setTimeout(resolve,100));
+    await h.host.assertNotifications();
+    assert.equal(h.network.length, 0);
+    assert.deepEqual(h.notices().map(event => event.code), ['plugin_late_call']);
+});
+
+test('one final diagnostic excludes payload and storage failure cannot fail generation', async t => {
+    const summaries = [];
+    const h = await fixture(t, [plugin('diagnostic', `await Risuai.addRisuReplacer('beforeRequest',async messages=>{
+        await Risuai.nativeFetch('https://synthetic.invalid/private-target',{method:'POST',body:'private payload'});
+        return messages;
+    });`)], true, { publishDiagnostic: value => { summaries.push(value); throw new Error('private store failure'); } });
+    const hook = [...h.registry.replacerbeforeRequest][0];
+    assert.deepEqual(await hook([]), []); assert.deepEqual(await hook([]), []);
+    assert.equal(summaries.length, 0);
+    const warn = console.warn;
+    let warnings = 0;
+    console.warn = () => { warnings++; throw new Error('synthetic logger failure'); };
+    try { await h.host.close(); await h.host.close(); }
+    finally { console.warn = warn; }
+    assert.equal(warnings, 1);
+    assert.equal(summaries.length, 1); assert.equal(summaries[0].calls, 2); assert.equal(summaries[0].http2xx, 2);
+    assert.equal(JSON.stringify(summaries).includes('private'), false);
+    assert.equal(h.controller.signal.aborted, false); assert.deepEqual(h.notices(), []);
+});
+
+test('constructor failure still summarizes load effects after worker cleanup', async t => {
+    const summaries = [];
+    await assert.rejects(fixture(t, [plugin('load-effect', `
+        await Risuai.nativeFetch('https://synthetic.invalid/load',{method:'GET'});
+        await Risuai.log('synthetic notice');
+    `)], true, { publishDiagnostic: value => summaries.push(value),
+        publishNotification: () => { throw Error('synthetic unavailable'); } }), { code: 'plugin_notification_unavailable' });
+    assert.equal(summaries.length, 1); assert.equal(summaries[0].calls, 1); assert.equal(summaries[0].http2xx, 1);
+    assert.equal(summaries[0].pending, 0);
+});
+
+test('observing a synchronous binding failure preserves the existing disabled-entry notice', async t => {
+    const h = await fixture(t, [plugin('sync-binding', `await Risuai.addRisuReplacer('beforeRequest',async messages=>{
+        try{await Risuai.nativeFetch('https://synthetic.invalid/sync',{method:'GET'});}catch{}return messages;
+    });`)]);
+    h.bindings.nativeFetch = () => { throw Error('synthetic validation'); };
+    const hook = [...h.registry.replacerbeforeRequest][0];
+    assert.deepEqual(await hook([]), []); assert.deepEqual(await hook([]), []);
+    assert.deepEqual(h.notices().map(value => value.code), ['plugin_hook_failed']);
+});
+
+test('operation cancellation reaches the model API transport, beyond ending its callback', async t => {
+    const h = await fixture(t, [plugin('model-cancel', `await Risuai.addRisuReplacer('beforeRequest',async messages=>{
+        await Risuai.runLLMModel({messages,mode:'model'});return messages;
+    });`)]);
+    let start, release, aborted = false;
+    const started = new Promise(resolve => { start = resolve; });
+    h.bindings.requestChatDataMain = async (_, mode, signal = new AbortController().signal) => {
+        assert.equal(mode, 'model'); start();
+        return await new Promise(resolve => {
+            release = () => resolve({ type: 'success', result: 'synthetic' });
+            signal.addEventListener('abort', () => { aborted = true; resolve({ type: 'fail', result: 'aborted' }); }, { once: true });
+        });
+    };
+    const task = [...h.registry.replacerbeforeRequest][0]([]);
+    const result = assert.rejects(task);
+    await started; h.controller.abort(); await result;
+    release();
+    assert.equal(aborted, true);
     assert.deepEqual(h.notices(), []);
 });
