@@ -16,9 +16,12 @@ database checks; existing header settings and hostOFF are retained. See the
 validation document for exact backup/readback evidence and remaining device gates.
 The user reports normal ordinary requests, closing this candidate's scoped
 preservation check. Connection-test success and missing preprocessing history
-with hostOFF do not qualify server MARP execution. Next scoped work is settings
-freshness (agent/prompt/deadline and queued updates), then remaining PDF/resource
-boundaries and M7; stable/activation/device aggregate remain open.
+with hostOFF do not qualify server MARP execution.
+[M4 settings evidence](docs/POCKETRISU-G1-7-M4-SETTINGS-VALIDATION.md) adds eleven
+synthetic UI/server/native-v3 scenarios for agent selection, overrides, prompts,
+queued updates, retries, deadlines and concurrent reads without changing runtime.
+Next scoped work is remaining browser PDF/resource boundaries and M7;
+stable/activation/device aggregate remain open.
 
 The earlier `0.2.4-experimental.24` candidate includes the CAP admission corrections and
 G1.12b recovery ownership changes. Terminal reconciliation no longer owns the

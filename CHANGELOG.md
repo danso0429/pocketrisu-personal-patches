@@ -9,6 +9,7 @@
 - See `docs/POCKETRISU-G1-7-PROTOCOL-BUDGET-VALIDATION.md` for measured validation and delivery status.
 - Delivered after verified application/state backup;484 managed paths/175 served scripts/5database checks, hostOFF/header preservation, operation records99→99/removed0, unstable restarts0/new error lines0. Physical-device and aggregate/stable checks remain separate.
 - The user reports ordinary requests as normal and connection testing as successful. Close only the scoped preservation check; hostOFF preprocessing/history absence, exact device/bundle/API-limit scenarios and M7/G1 aggregate remain separate.
+- Add eleven maintained synthetic settings scenarios through the original UI/server Send and an actual native-v3 hook comparator. Record per-hook retry refresh and the original concurrent vault/argument read boundary; runtime/installer/production remain unchanged. See `docs/POCKETRISU-G1-7-M4-SETTINGS-VALIDATION.md`.
 
 ## 0.2.4-experimental.24 (BG recovery ownership and suggestions)
 
