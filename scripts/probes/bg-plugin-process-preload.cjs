@@ -55,6 +55,10 @@ if (process.env.POCKETRISU_PLUGIN_AFTER_ATTACH_FAULT === '1') {
     };
 }
 const listen = http.Server.prototype.listen;
+let analysisCount = 0;
+let releaseFirst;
+const firstAnalysis = new Promise(resolve => { releaseFirst = resolve; });
+process.on('message', message => { if (message?.event === 'release-first-analysis') releaseFirst(); });
 http.Server.prototype.listen = function (...args) {
     if (typeof args[1] === 'string') args[1] = '127.0.0.1'; else args.splice(1, 0, '127.0.0.1');
     this.once('listening', () => process.send?.({ event: 'ready', port: this.address().port }));
@@ -69,6 +73,7 @@ globalThis.fetch = async (input, options) => {
         }
         process.send?.({ event: 'analysis', body: options?.body == null ? null : Buffer.from(options.body).toString('utf8'),
             headers: Object.fromEntries(new Headers(options?.headers)) });
+        if (process.env.POCKETRISU_PLUGIN_TWO_CHAT === '1' && ++analysisCount === 1) await firstAnalysis;
         return new Response('analysis-ok');
     }
     if (url.startsWith('https://api.openai.com/v1/chat/completions')) {

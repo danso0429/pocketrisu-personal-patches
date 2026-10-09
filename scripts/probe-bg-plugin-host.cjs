@@ -401,3 +401,79 @@ test('operation cancellation reaches the model API transport, beyond ending its 
     assert.equal(aborted, true);
     assert.deepEqual(h.notices(), []);
 });
+
+test('UI registration callbacks do not run while request and display roles remain independent', async t => {
+    const h = await fixture(t, [plugin('ui-only', `
+        await Risuai.registerSetting('Synthetic',async()=>{
+            await Risuai.nativeFetch('https://synthetic.invalid/ui-only',{});
+            await Risuai.addRisuReplacer('beforeRequest',x=>[]);
+        });
+        await Risuai.registerButton({name:'Synthetic'},async()=>Risuai.pluginStorage.setItem('ui-write',true));
+    `), plugin('request', `await Risuai.addRisuReplacer('beforeRequest',x=>[...x,{role:'system',content:'request'}]);`),
+    plugin('display', `await Risuai.addRisuScriptHandler('display',x=>x+' display');`)]);
+    assert.equal(h.registry.replacerbeforeRequest.size, 1);
+    assert.equal(h.registry.editdisplay.size, 1);
+    assert.deepEqual(await [...h.registry.replacerbeforeRequest][0]([]), [{role:'system',content:'request'}]);
+    assert.equal(await [...h.registry.editdisplay][0]('visible'), 'visible display');
+    assert.equal(h.network.length, 0); assert.equal(h.writes, 0);
+    assert.deepEqual(h.notices(), []);
+    // This does not qualify plugins whose request hooks depend on a UI callback.
+});
+
+test('settings-dependent roles use synthetic arguments and shared root storage', async t => {
+    const script = `if(await Risuai.getArgument('sample')==='enabled'&&await Risuai.pluginStorage.getItem('existing')==='kept'){
+        await Risuai.addRisuReplacer('beforeRequest',x=>[...x,{role:'system',content:'enabled'}]);
+    }`;
+    const enabled = {...plugin('conditional',script),realArg:{sample:'enabled'}};
+    const h = await fixture(t, [enabled]);
+    assert.deepEqual(await [...h.registry.replacerbeforeRequest][0]([]), [{role:'system',content:'enabled'}]);
+    await h.host.close();
+    const disabled = await fixture(t, [{...enabled,realArg:{sample:'disabled'}}]);
+    assert.equal(disabled.registry.replacerbeforeRequest.size, 0);
+    assert.equal(disabled.network.length, 0); assert.deepEqual(disabled.notices(), []);
+});
+
+test('initialization effects occur once per operation and repeat in a new host', async t => {
+    const script = `await Risuai.nativeFetch('https://synthetic.invalid/init',{});
+        await Risuai.pluginStorage.setItem('initialized',true);
+        await Risuai.addRisuReplacer('beforeRequest',x=>x);`;
+    for (let operation = 0; operation < 2; operation++) {
+        const h = await fixture(t, [plugin('initializer',script)]);
+        const hook = [...h.registry.replacerbeforeRequest][0];
+        assert.deepEqual(await hook([]), []); assert.deepEqual(await hook([]), []);
+        assert.equal(h.network.length, 1); assert.equal(h.writes, 1);
+        assert.equal(h.root.pluginCustomStorage.initialized, true);
+        await h.host.close();
+        assert.equal(h.registry.replacerbeforeRequest.size, 0);
+    }
+});
+
+test('partial initialization is reported before a healthy following plugin issues its request', async t => {
+    const reported = [];
+    const h = await fixture(t, [plugin('partial-initializer', `
+        await Risuai.nativeFetch('https://synthetic.invalid/init',{});
+        await Risuai.pluginStorage.setItem('partial',true);
+        throw Error('private initialization detail');
+    `), plugin('healthy', `await Risuai.addRisuReplacer('beforeRequest',async x=>{
+        await Risuai.nativeFetch('https://synthetic.invalid/request',{});return x;
+    });`)], true, {publishNotification:async event=>{
+        await new Promise(resolve=>setImmediate(resolve));reported.push(event);return {status:'stored'};
+    }});
+    assert.equal(reported.length, 1); assert.equal(reported[0].effectsMayHaveOccurred, true);
+    assert.equal(reported[0].phase, 'load'); assert.equal(reported[0].code, 'plugin_hook_failed');
+    assert.equal(JSON.stringify(reported).includes('private initialization detail'), false);
+    assert.equal(h.root.pluginCustomStorage.partial, true); assert.equal(h.network.length, 1);
+    assert.deepEqual(await [...h.registry.replacerbeforeRequest][0]([]), []);
+    assert.equal(h.network.length, 2); assert.equal(reported.length, 1);
+});
+
+test('closing a host refuses unload writes while retaining prior committed effects', async t => {
+    const h = await fixture(t, [plugin('unload-effect', `
+        await Risuai.pluginStorage.setItem('load-effect',true);
+        await Risuai.onUnload(async()=>{try{await Risuai.pluginStorage.setItem('unload-effect',true);}catch{}});
+    `)]);
+    await h.host.close(); await h.host.close();
+    assert.equal(h.root.pluginCustomStorage['load-effect'], true);
+    assert.equal(h.root.pluginCustomStorage['unload-effect'], undefined);
+    assert.equal(h.writes, 1); assert.deepEqual(h.notices(), []);
+});

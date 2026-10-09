@@ -9,7 +9,7 @@ const { gzipSync } = require('node:zlib');
 const [target, fixturePath] = process.argv.slice(2, 4).map(value => path.resolve(value));
 const mode = process.argv[4] ?? 'normal';
 assert.ok(['normal', 'disabled', 'crash-input', 'crash-analysis', 'cold-read', 'provider', 'provider-stream', 'provider-off',
-    'retry-after-attach', 'retry-failed-settle', 'crash-after-attach', 'publication-fault'].includes(mode));
+    'retry-after-attach', 'retry-failed-settle', 'crash-after-attach', 'publication-fault', 'two-chat', 'display-role'].includes(mode));
 const afterAttach = ['retry-after-attach', 'retry-failed-settle', 'crash-after-attach', 'publication-fault'].includes(mode);
 const pluginProvider = mode.startsWith('provider');
 const database = JSON.parse(fs.readFileSync(fixturePath, 'utf8'));
@@ -21,6 +21,9 @@ database.aiModel = database.subModel = 'gpt35';
 database.nodeOnlyModelModeLock = 'legacy'; database.openAIKey = 'synthetic'; database.streaming = false;
 database.characters[0].triggerscript = [];
 database.characters[0].chats[0].useModelPreset = false;
+if (mode === 'two-chat') {
+    database.characters[0].chats.push({ ...structuredClone(database.characters[0].chats[0]), id: 'synthetic-second-chat', message: [] });
+}
 if (pluginProvider) {
     database.aiModel = database.subModel = 'pluginmodel:::synthetic-provider';
     database.characters[0].chats[0].message = [{ role: 'user', data: 'synthetic-question', chatId: 'synthetic-existing-user' }];
@@ -45,10 +48,12 @@ database.plugins = [{ name: 'synthetic-generic', version: '3.0', enabled: true, 
         const count=await Risuai.pluginStorage.getItem('synthetic-runs')||0;
         await Risuai.pluginStorage.setItem('synthetic-runs',count+1);
         const response=await Risuai.nativeFetch('https://analysis.example.test/v1',{method:'POST',body:'synthetic-analysis'});
-        return [...messages,{role:'system',content:'[before] '+await response.text()}];
+        const result=await response.text();
+        ${mode === 'two-chat' ? "const character=await Risuai.getCharacter();return [...messages,{role:'system',content:'[before] '+result+' '+character.chats[character.chatPage].id}];" : "return [...messages,{role:'system',content:'[before] '+result}];"}
     });
     await Risuai.addRisuReplacer('afterRequest',async text=>text+' [after]');
     await Risuai.addRisuScriptHandler('output',async text=>text+' [output]');
+    ${mode === 'display-role' ? "await Risuai.addRisuScriptHandler('display',async text=>text+' [display-only]');await Risuai.addRisuScriptHandler('process',async text=>text+' [prompt-only]');" : ''}
     await Risuai.log('synthetic-loaded');
 ` }];
 const password = createHash('sha256').update('synthetic-plugin-password').digest('hex');
@@ -74,6 +79,7 @@ async function launch(crash) {
             POCKETRISU_PLUGIN_PUBLICATION_FAULT: mode === 'publication-fault' && launchIndex === 1 ? '1' : '0',
             POCKETRISU_PLUGIN_AFTER_ATTACH_KILL: crash && mode === 'crash-after-attach' ? '1' : '0',
             POCKETRISU_PLUGIN_SETTLE_FAULT: mode === 'retry-failed-settle' ? '1' : '0',
+            POCKETRISU_PLUGIN_TWO_CHAT: mode === 'two-chat' ? '1' : '0',
             TUNNEL_DISABLED: '1', UPDATE_CHECK_DISABLED: '1' }, stdio: ['ignore', 'pipe', 'pipe', 'ipc'] });
     const log = fs.createWriteStream(path.join(runtime, `server-${launchIndex}.log`));
     server.stdout.pipe(log); server.stderr.pipe(log);
@@ -123,6 +129,52 @@ async function main() {
     const started = await fetch(origin + '/api/bg-orchestrate', { method: 'POST', headers, body: JSON.stringify(body) });
     const startBody = await started.json();
     assert.equal(started.status, 200, JSON.stringify(startBody));
+    if (mode === 'two-chat') {
+        await wait(() => events.some(message => message.event === 'analysis'));
+        const secondResponse = await fetch(origin + '/api/chat-content/synthetic-character/1', { headers: { ...headers, 'x-chat-id': 'synthetic-second-chat' } });
+        assert.equal(secondResponse.status, 200);
+        const secondChat = await decodeRisuSave(new Uint8Array(await secondResponse.arrayBuffer()));
+        const secondId = 'synthetic-second-operation';
+        const second = await fetch(origin + '/api/bg-orchestrate', { method: 'POST', headers, body: JSON.stringify({
+            ...body, operationId: secondId, selectedChatId: 'synthetic-second-chat', currentChat: secondChat,
+            baseChatRevision: secondResponse.headers.get('x-chat-revision'), inputCommand: {
+                ...body.inputCommand, inputCommandId: 'synthetic-second-input', userMessageId: 'synthetic-second-user', rawText: 'second question',
+            },
+        }) });
+        assert.ok([200, 202].includes(second.status), JSON.stringify(await second.clone().json()));
+        const secondAck = await second.json(); assert.equal(secondAck.operationId, secondId);
+        assert.ok(secondAck.started === true || secondAck.accepted === true);
+        // Observe longer than twice the measured mixed-host cold load. Source
+        // lock tracing remains the structural anchor, not this finite window.
+        await new Promise(resolve => setTimeout(resolve, 2000));
+        assert.equal(events.filter(message => message.event === 'analysis').length, 1);
+        assert.equal(events.filter(message => message.event === 'provider').length, 0);
+        server.send({ event: 'release-first-analysis' });
+        for (const [index, chatId] of [[0, 'synthetic-chat'], [1, 'synthetic-second-chat']]) {
+            const chat = await wait(async () => {
+                const response = await fetch(origin + '/api/chat-content/synthetic-character/' + index, { headers: { ...headers, 'x-chat-id': chatId } });
+                assert.equal(response.status, 200);
+                const value = await decodeRisuSave(new Uint8Array(await response.arrayBuffer()));
+                return value.message.some(message => message.role === 'char') ? value : null;
+            });
+            assert.equal(chat.message.filter(message => message.role === 'user').length, 1);
+            assert.equal(chat.message.filter(message => message.role === 'char').length, 1);
+        }
+        const providers = events.filter(message => message.event === 'provider');
+        assert.equal(providers.length, 2); assert.equal(events.filter(message => message.event === 'analysis').length, 2);
+        for (const [index, chatId] of ['synthetic-chat', 'synthetic-second-chat'].entries()) {
+            const injected = providers[index].body.messages.filter(message => message.content.startsWith('[before]'));
+            assert.deepEqual(injected.map(message => message.content), ['[before] analysis-ok ' + chatId]);
+        }
+        const noticeResponse = await fetch(origin + '/api/bg-notifications/claim', { method: 'POST', headers,
+            body: JSON.stringify({ consumerId: 'synthetic-two-chat-consumer', messageVersion: 2 }) });
+        assert.equal(noticeResponse.status, 200);
+        const notices = (await noticeResponse.json()).notifications;
+        assert.equal(notices.length, 2);
+        assert.deepEqual(notices.map(row => row.event.code), ['plugin_message', 'plugin_message']);
+        console.log(JSON.stringify({ passed: true, runtime, mode, beforeRelease: { analysis: 1, provider: 0 }, afterRelease: { analysis: 2, provider: 2 }, inputs: 2, answers: 2, crossChatHooks: 0 }));
+        return;
+    }
     if (mode === 'provider-off') {
         const result = await wait(async () => {
             const response = await fetch(origin + '/api/bg-orchestrate-result/' + operationId
@@ -196,12 +248,16 @@ async function main() {
         origin = await launch(false); headers = await credentials(origin, stamp);
         const retry = await fetch(origin + '/api/bg-orchestrate', { method: 'POST', headers, body: JSON.stringify(body) });
         const retryBody = await retry.json();
-        assert.ok(retry.status === 409 || (retry.status === 200 && retryBody.reused === true), JSON.stringify(retryBody));
+        if (mode === 'crash-input') {
+            assert.equal(retry.status, 409, JSON.stringify(retryBody));
+            assert.equal(retryBody.reason, 'transform_outcome_unknown');
+        } else assert.ok(retry.status === 409 || (retry.status === 200 && retryBody.reused === true), JSON.stringify(retryBody));
         const statusResponse = await fetch(origin + '/api/bg-orchestrate-status/' + operationId
             + '?charId=synthetic-character&chatId=synthetic-chat', { headers });
         assert.equal(statusResponse.status, 200);
         const status = await statusResponse.json();
-        await new Promise(resolve => setTimeout(resolve, 500));
+        if (mode === 'crash-input') assert.equal(status.state, 'input-transform-unknown');
+        await new Promise(resolve => setTimeout(resolve, 2000));
         assert.equal(events.filter(message => message.event === 'provider' || message.event === 'analysis').length, 0);
         assert.equal(events.filter(message => message.event === 'analysis-crash').length, 1);
         console.log(JSON.stringify({ passed: true, runtime, mode, launches, durableEffect: 1,
@@ -224,6 +280,12 @@ async function main() {
         return;
     }
     if (!pluginProvider) assert.ok(provider[0].body.messages.some(message => message.content === '[before] analysis-ok'));
+    if (mode === 'display-role') {
+        assert.ok(provider[0].body.messages.some(message => message.content.includes('[prompt-only]')));
+        assert.equal(JSON.stringify(provider[0].body.messages).includes('[display-only]'), false);
+        assert.equal(JSON.stringify(completed.message).includes('[display-only]'), false);
+        assert.equal(JSON.stringify(completed.message).includes('[prompt-only]'), false);
+    }
     assert.equal(events.filter(message => message.event === 'analysis').length, 1);
     const stored = new Database(path.join(runtime, 'save/risuai.db'), { readonly: true });
     const config = JSON.parse(String(stored.prepare('SELECT value FROM kv WHERE key=?').get('internal/external-request-headers/v1').value));
