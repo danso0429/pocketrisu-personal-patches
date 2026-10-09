@@ -7,6 +7,7 @@
 - Describe limited execution accurately in existing notification wording; keep the schema and 48-hour failure receipt policy.
 - Add original MARP protocol/PDF/OAuth/failure controls and actual process/browser notification evidence. Production activation, actual providers, device and aggregate/stable qualification remain separate.
 - See `docs/POCKETRISU-G1-7-PROTOCOL-BUDGET-VALIDATION.md` for measured validation and delivery status.
+- Delivered after verified application/state backup;484 managed paths/175 served scripts/5database checks, hostOFF/header preservation, operation records99→99/removed0, unstable restarts0/new error lines0. Physical-device and aggregate/stable checks remain separate.
 
 ## 0.2.4-experimental.24 (BG recovery ownership and suggestions)
 

@@ -47,4 +47,10 @@ The first full build/check was interrupted by an execution-environment restart; 
 
 M0–M5 settings-agent/prompt/deadline/interleaving, original browser PDF Worker parity, large-content/resource/cancel timing and any remaining caller conditions must be closed according to the ledger. M7 must qualify final admission/activation conditions against that support scope. Actual provider, iPhone D1–D8 and G1 aggregate/stable are separate. G1.8/G1.9→G1.10→unchanged official AC/G2 order remains.
 
-Delivery is pending final source review at this checkpoint. Production remains hostOFF; no activation is implied.
+## Safe delivery
+
+Final source and correction consultations confirmed receipt compatibility and truthful wording; the remaining test-order/count concerns were corrected and rerun. Implementation f93c7ff, protocol probe2546b4a and packaging/evidence8575f73 were pushed to the existing candidate branch. Sweep of194 publishing paths found no listed identifiers; no stable tag/release was created.
+
+Readonly preflight verified484 managed files without drift, hostOFF and active/model/pending0. The previously verified full recovery anchor was rehashed. A stopped application/patcher-state rollback archive of91,642,361bytes/1,642files and notification namespace were verified; no redundant whole-user-data copy was made. Apply changed only the planned host/notification source and tests plus patcher state. Source/build preserved database bytes.
+
+After frontend/BG build and restart: PM2online/unstable0,484 managed file hashes/modes,175 served JS assets, five SQLite quick checks and header-settings equality pass. Operation records99→99, removed0, active/pending0, new error-log lines0. Original font settings/pack and hostOFF remain preserved. API-refusal and terminal UI are automatically checked in synthetic Chromium; actual iPhone loaded-bundle/ordinary-use and overall M7/G1 qualification remain separate.

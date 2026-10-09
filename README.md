@@ -11,6 +11,9 @@ Original MARP protocol/PDF/OAuth fixtures and the limit correction are recorded 
 [the scoped validation](docs/POCKETRISU-G1-7-PROTOCOL-BUDGET-VALIDATION.md).
 The server plugin host remains OFF; actual providers, M7 activation and device/
 aggregate qualification are still open. The stable release remains `v0.2.3`.
+This correction is delivered with484 managed paths/175 served scripts and five
+database checks; existing header settings and hostOFF are retained. See the
+validation document for exact backup/readback evidence and remaining device gates.
 
 The earlier `0.2.4-experimental.24` candidate includes the CAP admission corrections and
 G1.12b recovery ownership changes. Terminal reconciliation no longer owns the
