@@ -90,6 +90,23 @@ function harness(input: (signal: AbortSignal | undefined) => Promise<void> = asy
 }
 
 describe('server input shares the operation execution context', () => {
+    it.each(['OFF', 'missing bindings', 'ownership'])('keeps a warned omission eligible at the actual preclaim callback: %s', async reason => {
+        const h = harness()
+        ;(h.root as any).plugins = [{ enabled: true, version: '2.0', name: 'synthetic-omitted' }]
+        ;(h.bg.inputPolicy as any).evaluateServerInputModels = (_db: unknown, _chat: unknown, disposition?: boolean | 'omit') =>
+            disposition === 'omit' ? { kind: 'server-input' } : { kind: 'client-prepared', reason: 'plugin-host-unqualified' }
+        const stop = new Error('preclaim test boundary'), publish = vi.fn(() => ({ status: 'stored' }))
+        const begin = vi.fn(async (validate: (context: unknown) => unknown) => {
+            expect(validate(h.context())).toBeNull(); throw stop
+        })
+        await expect(h.run({ bgPluginDependencies: { enabled: reason !== 'OFF', publishNotification: publish } }, 'char', 'chat', h.context().chat, 'full', {
+            operationId: 'operation-warned-fallback', inputCommandVersion: 1, serverChatCommitVersion: 1,
+            resultKeyVersion: reason === 'ownership' ? 0 : 1, beginInputTransform: begin,
+        })).rejects.toBe(stop)
+        expect(begin).toHaveBeenCalledTimes(1)
+        // Eligibility does not itself issue the omission warning or claim effects.
+        expect(publish).not.toHaveBeenCalled(); expect(h.observations).toEqual([])
+    })
     it.each([
         ['host OFF', false, false, 1],
         ['missing bindings', true, false, 1],

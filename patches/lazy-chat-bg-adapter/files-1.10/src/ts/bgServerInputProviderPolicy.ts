@@ -34,7 +34,9 @@ function httpEndpoint(value: unknown): boolean {
 export function evaluateServerInputModels(
     database: ProviderDatabase | null | undefined,
     chat: Partial<Chat> | null | undefined,
-    allowServerPlugins = false,
+    // 'omit' is server-only disposition after a durable omission notice. It
+    // does not authorize a provider, endpoint, MCP or browser-only epilogue.
+    allowServerPlugins: boolean | 'omit' = false,
 ): ServerInputModelDecision {
     const db = (database ?? {}) as Database
     let expandedNativeRoute = false
@@ -94,7 +96,8 @@ export function evaluateServerInputModels(
         || [db.aiModel, db.subModel].some(model => model === 'reverse_proxy'
             || model?.startsWith('xcustom:::') || model?.startsWith('pluginmodel:::'))
     if (formerlyPrepared && db.plugins?.some(plugin => plugin.enabled)
-        && (!allowServerPlugins || db.plugins.some(plugin => plugin.enabled && plugin.version !== '3.0'))) {
+        && (!allowServerPlugins || (allowServerPlugins !== 'omit'
+            && db.plugins.some(plugin => plugin.enabled && plugin.version !== '3.0')))) {
         return { kind: 'client-prepared', reason: 'plugin-host-unqualified' }
     }
     // Module selection can include a character/persona not supplied to this
@@ -110,7 +113,7 @@ export function evaluateServerInputModels(
 export function requiresClientOwnedInputPreparation(
     database: ProviderDatabase | null | undefined,
     chat: Partial<Chat> | null | undefined,
-    allowServerPlugins = false,
+    allowServerPlugins: boolean | 'omit' = false,
 ): boolean {
     return evaluateServerInputModels(database, chat, allowServerPlugins).kind === 'client-prepared'
 }

@@ -1,20 +1,14 @@
 'use strict';
 const { AsyncLocalStorage } = require('node:async_hooks');
 const { isDeepStrictEqual } = require('node:util');
-const { createHash, randomUUID } = require('node:crypto');
+const { randomUUID } = require('node:crypto');
 const { createPluginSession } = require('./bgPluginSession.cjs');
 const { createPluginStorage, savedPluginPermission } = require('./bgPluginStorage.cjs');
 const { clonePluginValue, measurePluginValue } = require('./bgPluginValue.cjs');
 const { createTransportCounter } = require('./bgPluginDiagnostics.cjs');
 
 const fail = code => Object.assign(new Error(code), { code });
-const clean = (value, max) => (typeof value === 'string' || typeof value === 'number' ? String(value) : 'unknown')
-    .replace(/[\u0000-\u001f\u007f]/g, ' ').slice(0, max) || 'unknown';
-const identityOf = plugin => createHash('sha256').update(JSON.stringify([
-    clean(plugin.name, 120), clean(plugin.version, 80),
-    typeof plugin.script === 'string' && Buffer.byteLength(plugin.script) <= 4 * 1024 * 1024
-        ? createHash('sha256').update(plugin.script).digest('hex') : 'invalid-or-oversized',
-])).digest('hex');
+const { clean, identityOf, pluginMetadata } = require('./bgPluginMetadata.cjs');
 const clone = clonePluginValue;
 const phaseScope = new AsyncLocalStorage();
 const resourceFailures = new Set(['plugin_budget_exceeded', 'plugin_value_limit', 'plugin_rpc_value_limit',
@@ -123,8 +117,7 @@ async function createBgPluginHost({ database, bindings, getDatabase, getSelectio
     };
     const common = (entry, phase) => ({ operationId: operation.operationId,
         charId: operation.charId, chatId: operation.chatId, createdAt: Date.now(),
-        pluginName: clean(entry.plugin.name, 120), pluginVersion: clean(typeof entry.plugin.script === 'string'
-            ? entry.plugin.script.match(/^\/\/@version\s+(.+)$/m)?.[1] ?? entry.plugin.version : entry.plugin.version, 80),
+        ...pluginMetadata(entry.plugin),
         phase, effectsMayHaveOccurred: entry.effects, failureIdentity: entry.identity });
     const disable = (entry, code, api) => {
         if (entry.failed || entry.closing || signal.aborted || noticeFailure) return;

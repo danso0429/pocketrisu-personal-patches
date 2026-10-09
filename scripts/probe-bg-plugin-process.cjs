@@ -8,7 +8,7 @@ const assert = require('node:assert/strict');
 const { gzipSync } = require('node:zlib');
 const [target, fixturePath] = process.argv.slice(2, 4).map(value => path.resolve(value));
 const mode = process.argv[4] ?? 'normal';
-assert.ok(['normal', 'disabled', 'crash-input', 'crash-analysis', 'cold-read', 'provider', 'provider-stream',
+assert.ok(['normal', 'disabled', 'crash-input', 'crash-analysis', 'cold-read', 'provider', 'provider-stream', 'provider-off',
     'retry-after-attach', 'retry-failed-settle', 'crash-after-attach', 'publication-fault'].includes(mode));
 const afterAttach = ['retry-after-attach', 'retry-failed-settle', 'crash-after-attach', 'publication-fault'].includes(mode);
 const pluginProvider = mode.startsWith('provider');
@@ -69,7 +69,7 @@ async function launch(crash) {
     server = fork(path.join(target, 'server/node/server.cjs'), [], { cwd: runtime,
         execArgv: ['--require', path.join(__dirname, 'probes/bg-plugin-process-preload.cjs')],
         env: { ...process.env, PORT: '0', POCKETRISU_PLUGIN_PROCESS_PROBE: '1',
-            POCKETRISU_PLUGIN_CRASH: crash && mode !== 'crash-after-attach' ? '1' : '0', POCKETRISU_BG_PLUGIN_HOST_CANDIDATE: mode === 'disabled' ? '0' : '1',
+            POCKETRISU_PLUGIN_CRASH: crash && mode !== 'crash-after-attach' ? '1' : '0', POCKETRISU_BG_PLUGIN_HOST_CANDIDATE: ['disabled', 'provider-off'].includes(mode) ? '0' : '1',
             POCKETRISU_PLUGIN_AFTER_ATTACH_FAULT: afterAttach && mode !== 'publication-fault' ? '1' : '0',
             POCKETRISU_PLUGIN_PUBLICATION_FAULT: mode === 'publication-fault' && launchIndex === 1 ? '1' : '0',
             POCKETRISU_PLUGIN_AFTER_ATTACH_KILL: crash && mode === 'crash-after-attach' ? '1' : '0',
@@ -123,6 +123,23 @@ async function main() {
     const started = await fetch(origin + '/api/bg-orchestrate', { method: 'POST', headers, body: JSON.stringify(body) });
     const startBody = await started.json();
     assert.equal(started.status, 200, JSON.stringify(startBody));
+    if (mode === 'provider-off') {
+        const result = await wait(async () => {
+            const response = await fetch(origin + '/api/bg-orchestrate-result/' + operationId
+                + '?charId=synthetic-character&chatId=synthetic-chat&consumerId=synthetic-off-result-consumer', { headers });
+            if (!response.ok) return null;
+            const value = await response.json(); return value.final ? value : null;
+        });
+        assert.equal(result.kind, 'terminal-error'); assert.notEqual(result.hasGeneratedAnswer, true);
+        const saved = await read(); assert.equal(saved.chat.message.filter(message => message.role === 'char').length, 0);
+        assert.equal(events.filter(message => message.event === 'provider' || message.event === 'analysis').length, 0);
+        const notices = await fetch(origin + '/api/bg-notifications/claim', { method: 'POST', headers,
+            body: JSON.stringify({ consumerId: 'synthetic-off-notice-consumer', messageVersion: 1 }) });
+        assert.equal(notices.status, 200);
+        assert.equal((await notices.json()).notifications.filter(row => row.event.api === 'server_plugin_host_disabled').length, 1);
+        console.log(JSON.stringify({ passed: true, runtime, mode, result: result.kind, providerCalls: 0, analysis: 0, answers: 0, omissionNotice: 1 }));
+        return;
+    }
     if (mode === 'retry-failed-settle' || mode === 'crash-after-attach') {
         if (mode === 'crash-after-attach') {
             await wait(() => server.signalCode === 'SIGKILL');

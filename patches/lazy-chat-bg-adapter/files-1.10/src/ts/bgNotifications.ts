@@ -65,7 +65,13 @@ export function notificationMessage(notification: BgNotification): string {
     switch (event.code) {
         case 'input_host_unsupported': return '서버에서 처리할 수 없는 입력 동작으로 멈췄어요. 원문은 해당 채팅에 보존했어요.'
         case 'plugin_permission_missing': return `${plugin}: 저장된 권한이 없거나 재확인이 필요해 플러그인을 적용하지 않았어요. 앱에서 권한을 확인해 주세요.`
-        case 'plugin_api_unsupported': return `${plugin}: 서버에서 지원하지 않는 API를 요청했어요 (${event.api}).`
+        case 'plugin_api_unsupported': {
+            const reasons: Record<string, string> = { server_plugin_host_disabled: '호스트가 꺼져 있어', server_plugin_host_bindings: '필수 서버 API가 없어',
+                server_plugin_host_ownership: '작업 소유권을 지원하지 않아' }
+            const unavailable = reasons[event.api as string]
+            return unavailable ? `${plugin}: ${unavailable} 서버 플러그인 실행을 생략했어요.`
+                : `${plugin}: 서버에서 지원하지 않는 API를 요청했어요 (${event.api}).`
+        }
         case 'plugin_hook_failed': return `${plugin}: 요청 처리 중 플러그인 오류가 발생했어요.`
         case 'plugin_provider_failed': return `${plugin}: 모델 공급자 실행이 실패했어요.`
         case 'plugin_message': return `${plugin}: ${event.message}`

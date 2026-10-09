@@ -53,17 +53,19 @@ Browser-death controls stop the launched Chrome subtree; hiding/offline/API-only
 
 Native-wrapper, full normal-chat orchestration and browser death/return traces remain in the private local workspace. The native-wrapper fixture adds only an export to a separate test bundle and preserves imported bodies; it is not delivered. Its empty-request-trigger fixture logs an existing null/displayData condition while continuing; those logs are retained and not described as clean production runtime.
 
-## Admission boundary and unresolved OFF behavior
+## Admission boundary and OFF continuation
 
 The candidate waives only the native-v3 plugin exclusion when the remaining model/MCP/provider qualifications pass and live capability advertises valid bindings. No name/hash authority is introduced. Per-tab OFF makes0 extra admission reads; unknown/ON reads live capability before marker ownership. Second capability/configuration veto retains the draft with0 flush/start/marker writes. Claim and assembly independently check the eligible/bound host. Compatible server_host_unsupported / server_plugin_host projection uses effectsMayHaveOccurred=false and not_run/retryable before effects.
 
 Fresh Opus5.5 review found two client gaps, corrected: an unknown hint reaches live verification on explicit server retry; changed selection during live capability read blocks before legacy fallback. Seven executions of the unchanged generated caller body cover OFF/ON/stale/read failure/selection changes. This seam harness does not qualify submit-owner or browser behavior by itself.
 
-Actual hostOFF preset Send in both this candidate and preserved experimental.24 produced serveranalysis0/browseranalysis0/main1/injection0/page errors0. This is a reproduced pre-existing omission, not a candidate regression or proof of preserved browser participation. The user-visible choice between BG-with-omission-notice and ordinary-client participation is pending. Explicit client-input recovery with hostOFF is also an open verification surface.
+Actual hostOFF preset Send in both this candidate and preserved experimental.24 produced serveranalysis0/browseranalysis0/main1/injection0/page errors0. This is a reproduced pre-existing omission, not a candidate regression or proof of preserved browser participation. On2026-10-09 the user chose BG continuation with omitted-server-plugin name/version/reason warnings. Implement and verify that contract for full/legacy/classic/preset and explicit client-input recovery; do not change ON participation or silently drop a selected model provider. .26 alone has not implemented this decision.
 
 Code review confirmed the shared binding/start predicate, operation-bound post-attach check and compatible pre-effect projection. The defensive post-claim assert does not establish a separate reachable safety boundary: initial assembly already rejects identical unsupported inputs. Constructor-wide failure conservatively remains execution-unknown/cancelable rather than automatic retry. Capability GET loads trusted bundle initialization only, not guest scripts; failure and recovery combinations remain to test.
 
 ## Remaining admission and delivery
+
+The user's OFF choice is implemented in experimental.27/adapter0.7.34. See the [OFF continuation evidence](POCKETRISU-G1-7-OFF-CONTINUATION-VALIDATION.md) for original-script final caller/SQLite/return, legacy capability failure, explicit client-input recovery, warning-store failure and selected-provider failure/positive controls. .26 observations below remain historical; no overall A/D or activation pass is inferred.
 
 Fresh Opus5.5 source review found no ON-path correctness defect in its inspected scope and identified missing maintained tests. Added actual generated preclaim cases (OFF, incomplete bindings, missing result ownership, ON), stopping before any fake successful claim, and actual capability callback cases (OFF, ON, missing bindings, load failure), asserting every unchanged field. Initial extraction included unrelated route code and omitted existing owner dependencies; corrected boundaries/dependencies and exact current fields without runtime changes or weakened assertions. Final fullserver500pass/12existing skip.
 
