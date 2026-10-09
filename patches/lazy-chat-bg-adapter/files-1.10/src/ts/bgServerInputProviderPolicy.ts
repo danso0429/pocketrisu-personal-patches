@@ -34,6 +34,7 @@ function httpEndpoint(value: unknown): boolean {
 export function evaluateServerInputModels(
     database: ProviderDatabase | null | undefined,
     chat: Partial<Chat> | null | undefined,
+    allowServerPlugins = false,
 ): ServerInputModelDecision {
     const db = (database ?? {}) as Database
     let expandedNativeRoute = false
@@ -92,7 +93,8 @@ export function evaluateServerInputModels(
         || (db.nodeOnlyModelModeLock !== 'legacy' && chat?.useModelPreset === true)
         || [db.aiModel, db.subModel].some(model => model === 'reverse_proxy'
             || model?.startsWith('xcustom:::') || model?.startsWith('pluginmodel:::'))
-    if (formerlyPrepared && db.plugins?.some(plugin => plugin.enabled)) {
+    if (formerlyPrepared && db.plugins?.some(plugin => plugin.enabled)
+        && (!allowServerPlugins || db.plugins.some(plugin => plugin.enabled && plugin.version !== '3.0'))) {
         return { kind: 'client-prepared', reason: 'plugin-host-unqualified' }
     }
     // Module selection can include a character/persona not supplied to this
@@ -108,6 +110,7 @@ export function evaluateServerInputModels(
 export function requiresClientOwnedInputPreparation(
     database: ProviderDatabase | null | undefined,
     chat: Partial<Chat> | null | undefined,
+    allowServerPlugins = false,
 ): boolean {
-    return evaluateServerInputModels(database, chat).kind === 'client-prepared'
+    return evaluateServerInputModels(database, chat, allowServerPlugins).kind === 'client-prepared'
 }

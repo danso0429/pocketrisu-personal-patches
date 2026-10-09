@@ -62,6 +62,14 @@ function makeHarness() {
 }
 
 describe('server-owned input client admission', () => {
+    it('retains the draft without acquiring a marker or legacy fallback when live configuration downgrades', async () => {
+        const harness = makeHarness()
+        harness.deps.configurationAllowed = () => false
+        expect(await submitServerInputCommand(harness.deps, request)).toEqual({ kind: 'blocked', reason: 'capability-downgraded' })
+        expect(harness.start).not.toHaveBeenCalled()
+        expect(harness.flushSettings).not.toHaveBeenCalled()
+        expect(readServerInputMarkers(harness.deps.storage)).toEqual([])
+    })
     it('persists the real semantic fingerprint separately from the server SHA-256 revision', async () => {
         const harness = makeHarness()
         const view = orchestrationChatRevision({ id: 'chat-1', message: [] })

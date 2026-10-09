@@ -8,6 +8,7 @@ import * as inputPolicy from '../../src/ts/bgServerInputProviderPolicy'
 import contextPackage from './serverChatAssemblyContext.cjs'
 import anchorPackage from './chatAnchorCommit.cjs'
 import inputAttachPackage from './chatInputAttach.cjs'
+import eligibilityPackage from './bgPluginEligibility.cjs'
 const { captureChatAnchor, captureExecutionChatAnchor, resolveChatAnchor, checkChatAnchor, anchoredAssistantMessages } = anchorPackage as any
 const message = (chatId: string, data: string, role = 'char') => ({ chatId, data, role })
 const base = () => ({ id: 'chat', name: 'before', scriptstate: { a: '0', b: '0' },
@@ -62,13 +63,13 @@ describe('anchored chat resolution', () => {
                 } },
         }
         const run = new Function('loadBundle', 'nodeCrypto', 'require', 'orchestrationAbortContext',
-            'withExternalHeaderConversation', 'diffGlobalVariables', `
+            'withExternalHeaderConversation', 'diffGlobalVariables', 'canStartPluginHost', `
             let _previewLock = Promise.resolve(); const _orchStage = {}, _orchStatus = {};
             const stageKey = (a, b) => a + ':' + b;
             ${source.slice(start, end)}
             return runServerPreview;
         `)(async () => bg, crypto, createRequire(import.meta.url), new AsyncLocalStorage(),
-            (_key: string, task: () => unknown) => task(), () => ({ changed: {}, deleted: [], expected: {} }))
+            (_key: string, task: () => unknown) => task(), () => ({ changed: {}, deleted: [], expected: {} }), eligibilityPackage.canStartPluginHost)
         const running = run({ getDbCache: () => null }, 'char', 'chat', base(), 'full', {
             serverChatCommitVersion: 1, inputCommandVersion: 1,
             readInputSettingsSnapshot: () => { throw new Error('admission settings used for execution') },
@@ -161,13 +162,13 @@ describe('anchored chat resolution', () => {
             },
         }
         const run = new Function('loadBundle', 'nodeCrypto', 'require', 'orchestrationAbortContext',
-            'withExternalHeaderConversation', 'diffGlobalVariables', `
+            'withExternalHeaderConversation', 'diffGlobalVariables', 'canStartPluginHost', `
             let _previewLock = Promise.resolve(); const _orchStage = {}, _orchStatus = {};
             const stageKey = (a, b) => a + ':' + b;
             ${source.slice(start, end)}
             return runServerPreview;
         `)(async () => bg, crypto, createRequire(import.meta.url), new AsyncLocalStorage(),
-            (_key: string, task: () => unknown) => task(), () => ({ changed: {}, deleted: [], expected: {} }))
+            (_key: string, task: () => unknown) => task(), () => ({ changed: {}, deleted: [], expected: {} }), eligibilityPackage.canStartPluginHost)
         const initial: any = base()
         delete initial.message[0].chatId
         const latest = structuredClone(initial)

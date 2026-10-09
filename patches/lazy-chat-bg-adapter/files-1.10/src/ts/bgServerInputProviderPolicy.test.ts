@@ -156,4 +156,21 @@ describe('server-owned input provider boundary', () => {
                 .toEqual({ kind: 'client-prepared', reason: 'provider-unqualified' })
         },
     )
+
+    it('waives only native v3 plugin participation and never MCP/provider/endpoint restrictions', () => {
+        const db = { modelPresets: [preset()], plugins: [{ enabled: true, version: '3.0', script: 'unknown new bytes' }] as any,
+            aiModel: 'gpt-4o', subModel: 'gpt-4o' }
+        const chat = { useModelPreset: true, modelBinding: { main: 'native-preset', sub: 'native-preset', separateAux: false, aux: {} } }
+        expect(evaluateServerInputModels(db, chat)).toEqual({ kind: 'client-prepared', reason: 'plugin-host-unqualified' })
+        expect(evaluateServerInputModels(db, chat, true)).toEqual({ kind: 'server-input' })
+        expect(evaluateServerInputModels({ ...db, modules: [{ mcp: { url: 'internal:tool' } }] as any }, chat, true))
+            .toEqual({ kind: 'client-prepared', reason: 'mcp-unqualified' })
+        expect(evaluateServerInputModels({ ...db, plugins: [{ enabled: true, version: '2.0' }] as any }, chat, true))
+            .toEqual({ kind: 'client-prepared', reason: 'plugin-host-unqualified' })
+        expect(evaluateServerInputModels({ ...db, aiModel: 'pluginmodel:::unknown' }, { useModelPreset: false }, true))
+            .toEqual({ kind: 'client-prepared', reason: 'provider-unqualified' })
+        const invalid = preset(); invalid.profileSnapshot.endpoint.url = 'file:///tmp/provider'
+        expect(evaluateServerInputModels({ ...db, modelPresets: [invalid] }, chat, true))
+            .toEqual({ kind: 'client-prepared', reason: 'endpoint-unqualified' })
+    })
 })

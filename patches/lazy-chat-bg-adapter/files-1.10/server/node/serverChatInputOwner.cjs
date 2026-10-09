@@ -984,13 +984,21 @@ function createServerChatInputOwner({
             const context = captureAssemblyContext(getDbCache()[databaseKey], current,
                 record.admission.charId, record.admission.chatId);
             if (validateContext) {
-                const reason = validateContext(context);
-                if (reason) {
+                const rejection = validateContext(context);
+                if (rejection) {
+                    const descriptor = typeof rejection === 'object' && rejection !== null ? rejection : null;
+                    const reason = descriptor ? descriptor.reason : rejection;
                     if (typeof reason !== 'string' || !/^[a-z][a-z0-9_]{2,63}$/.test(reason)) throw new Error('invalid context rejection');
+                    if (descriptor && (reason !== 'server_host_unsupported'
+                        || typeof descriptor.api !== 'string' || !/^[a-z][a-z0-9_]{2,63}$/.test(descriptor.api)
+                        || descriptor.effectsMayHaveOccurred !== false)) throw new Error('invalid context rejection');
                     const blocked = { ...record, inputState: 'blocked_edit',
-                        terminal: { state: 'blocked_edit', reason, at: Date.now() } };
+                        terminal: { state: 'blocked_edit', reason, at: Date.now(),
+                            ...(descriptor ? { api: descriptor.api, effectsMayHaveOccurred: false,
+                                ...(typeof publishNotification === 'function' ? { notificationVersion: 1 } : {}) } : {}) } };
                     write(blocked);
                     settingsSnapshots.delete(operationId);
+                    if (descriptor) publishUnsupportedInputNotice(blocked);
                     return { status: 'blocked', reason, record: clone(blocked) };
                 }
             }
@@ -1446,7 +1454,8 @@ function createServerChatInputOwner({
                 const outcome = publishNotification({
                     operationId: current.operationId, eventKey: 'input-host-unsupported', code: 'input_host_unsupported',
                     charId: current.admission.charId, chatId: current.admission.chatId,
-                    createdAt: current.terminal.at, api: current.terminal.api, effectsMayHaveOccurred: true,
+                    createdAt: current.terminal.at, api: current.terminal.api,
+                    effectsMayHaveOccurred: current.terminal.effectsMayHaveOccurred ?? true,
                 });
                 if (!['stored', 'duplicate', 'expired'].includes(outcome?.status)) throw new Error('notification_deferred');
                 write({ ...current, terminal: { ...current.terminal,

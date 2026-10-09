@@ -25,7 +25,7 @@ const queueUnits = require('./queue-units.cjs')
 module.exports = {
     id: 'lazy-chat-bg-adapter',
     title: 'BG preserve integration for lazy chat storage',
-    version: '0.7.32',
+    version: '0.7.33',
     targets: {
         pocketrisu: {
             verified: ['1.10.0'],
@@ -3988,3 +3988,4 @@ module.exports.units.push(...['bgRecoveryRead.ts', 'bgRecoveryRead.test.ts', 'bg
     file: `src/ts/${name}`, type: 'owned', targetVersions: pocketRisu1100,
     content: owned1100(`src/ts/${name}`),
 })))
+module.exports.units.push(...require('./plugin-admission-units.cjs')(module.exports.units))

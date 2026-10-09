@@ -18,6 +18,7 @@ interface HttpOutcome {
 }
 
 interface Capability {
+    serverPluginHostVersion?: unknown
     serverInputBaseVersion?: unknown
     clientInputPreparationVersion?: unknown
     contract?: unknown
@@ -29,6 +30,7 @@ interface Capability {
 export interface ServerInputClientDependencies {
     storage: MarkerStorage
     readCapability: () => Promise<Capability | null>
+    configurationAllowed?: (capability: Capability) => boolean
     flushSettings: () => Promise<void>
     readLocalRevision: () => string
     peekServerChat: () => Promise<{ revision: string; viewRevision: string } | null>
@@ -129,6 +131,9 @@ export async function submitServerInputCommand(
         return active.length > 0
             ? { kind: 'blocked', reason: 'capability-downgraded' }
             : { kind: 'unsupported' }
+    }
+    if (deps.configurationAllowed && !deps.configurationAllowed(capability)) {
+        return { kind: 'blocked', reason: 'capability-downgraded' }
     }
     if (typeof request.draftId !== 'string'
         || !/^[A-Za-z0-9_-]{8,128}$/.test(request.draftId)) {

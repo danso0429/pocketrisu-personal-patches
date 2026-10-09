@@ -177,6 +177,28 @@ function makeHarness() {
 }
 
 describe('pre-canonical server chat input owner', () => {
+    it('keeps a pre-effect unavailable host retryable with a compatible projection and truthful notice', async () => {
+        const h = makeHarness()
+        const notifications = (notificationPackage as any).createBgNotifications({ db: h.db,
+            kvGet: h.kvGet, kvSet: h.kvSet, kvDel: h.kvDel, kvList: h.kvList })
+        h.runtime.notificationPublisher = event => notifications.publish(event)
+        const owner = h.makeOwner(), id = 'operation-pre-effect-host-unavailable'
+        await owner.admit(admission(id))
+        expect(await owner.beginTransform(id, () => ({ reason: 'server_host_unsupported',
+            api: 'server_plugin_host', effectsMayHaveOccurred: false })))
+            .toMatchObject({ status: 'blocked', reason: 'server_host_unsupported' })
+        expect(owner.read(id)).toMatchObject({ transformState: 'not_run', inputState: 'blocked_edit', inputReceipt: null })
+        expect(owner.pendingProjection('char-1', 'chat-1')[0]).toMatchObject({
+            reason: 'server_host_unsupported', unsupportedApi: 'server_plugin_host', retryAllowed: true, rawText: 'hello',
+        })
+        expect(notifications.claim('compatible-consumer', 2)[0].event).toMatchObject({
+            code: 'input_host_unsupported', api: 'server_plugin_host', effectsMayHaveOccurred: false,
+        })
+        owner.retryNotifications()
+        expect(h.kvList((notificationPackage as any).PREFIX)).toHaveLength(1)
+        expect(owner.settingsSnapshotStats().contexts).toBe(0)
+        expect(h.runtime.fullStore.get('char-1')?.get('chat-1')).toEqual(baseChat())
+    })
     it('atomically rolls back a dispatched notice if its source receipt cannot be written, without undoing the stop', async () => {
         const h = makeHarness()
         const notifications = (notificationPackage as any).createBgNotifications({ db: h.db,

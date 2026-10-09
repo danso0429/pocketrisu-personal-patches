@@ -5,6 +5,7 @@ import { afterEach, describe, expect, it, vi } from 'vitest'
 import abortPackage from './bgOrchestrationAbortContext.cjs'
 import headerPackage from './externalRequestHeaders.cjs'
 import assemblyPackage from './serverChatAssemblyContext.cjs'
+import eligibilityPackage from './bgPluginEligibility.cjs'
 
 const require = createRequire(import.meta.url)
 const originalDocument = Object.getOwnPropertyDescriptor(globalThis, 'document')
@@ -42,7 +43,8 @@ function harness(input: (signal: AbortSignal | undefined) => Promise<void> = asy
     }
     const bg = {
         policy: { requiresClientGenerationEpilogue: () => false },
-        inputPolicy: { requiresClientOwnedInputPreparation: () => false },
+        inputPolicy: { requiresClientOwnedInputPreparation: () => false,
+            evaluateServerInputModels: () => ({ kind: 'server-input' }) },
         dbmod: { setDatabase: (db: any) => { database = db }, getDatabase: () => database },
         stores: { selectedCharID: { set: () => {} } },
         triggers: { runTrigger: async (_char: any, _mode: string, value: any) => {
@@ -61,13 +63,13 @@ function harness(input: (signal: AbortSignal | undefined) => Promise<void> = asy
     const end = source.indexOf('\n// S2-C:', start)
     if (start < 0 || end <= start) throw new Error('Generated runner boundary missing')
     const run = new Function('loadBundle', 'nodeCrypto', 'require', 'orchestrationAbortContext',
-        'withExternalHeaderConversation', 'diffGlobalVariables', `
+        'withExternalHeaderConversation', 'diffGlobalVariables', 'canStartPluginHost', `
         let _previewLock = Promise.resolve(); const _orchStage = {}, _orchStatus = {};
         const stageKey = (a, b) => a + ':' + b;
         ${source.slice(start, end)}
         return runServerPreview;
     `)(async () => bg, crypto, require, abortContext, headerPackage.withExternalHeaderConversation,
-        () => ({ changed: {}, deleted: [], expected: {} }))
+        () => ({ changed: {}, deleted: [], expected: {} }), eligibilityPackage.canStartPluginHost)
     const context = () => assemblyPackage.captureAssemblyContext(root, canonical, 'char', 'chat')
     const command = { rawText: 'input', userMessageId: 'input-id', submittedAt: 123 }
     const record = { admission: command, inputReceipt: { messageId: 'input-id' } }
@@ -83,11 +85,42 @@ function harness(input: (signal: AbortSignal | undefined) => Promise<void> = asy
         },
         readAssemblyContext: async () => context(), onInputCommitted: () => {},
     })
-    return { execute, observations, attachments: () => attachments, mains: () => mains, abortContext,
+    return { execute, run, bg, root, context, observations, attachments: () => attachments, mains: () => mains, abortContext,
         outsideHeader: () => headers.apply('https://synthetic.example.test/v1/chat', {}).headers['x-session'] }
 }
 
 describe('server input shares the operation execution context', () => {
+    it.each([
+        ['host OFF', false, false, 1],
+        ['missing bindings', true, false, 1],
+        ['missing result ownership', true, true, 0],
+        ['eligible host ON', true, true, 1],
+    ] as const)('uses the generated preclaim decision before effects: %s', async (_name, enabled, complete, resultKeyVersion) => {
+        const h = harness()
+        ;(h.root as any).plugins = [{ enabled: true, version: '3.0', name: 'synthetic-generic' }]
+        ;(h.bg.inputPolicy as any).evaluateServerInputModels = (_db: unknown, _chat: unknown, allow?: boolean) =>
+            allow ? { kind: 'server-input' } : { kind: 'client-prepared', reason: 'plugin-host-unqualified' }
+        if (complete) (h.bg as any).bgPluginBindings = {
+            nativeFetch: vi.fn(), risuFetch: vi.fn(), requestChatDataMain: vi.fn(), installProvider: vi.fn(), characterMetadata: vi.fn(),
+            allowedDbKeys: [], bodyInterceptors: [], registry: { providers: new Map(),
+                replacerbeforeRequest: new Set(), replacerafterRequest: new Set(), editinput: new Set(),
+                editoutput: new Set(), editprocess: new Set(), editdisplay: new Set() },
+        }
+        const stop = new Error('preclaim test boundary')
+        const begin = vi.fn(async (validate: (context: unknown) => unknown) => {
+            expect(validate(h.context())).toEqual(enabled && complete && resultKeyVersion === 1 ? null : {
+                reason: 'server_host_unsupported', api: 'server_plugin_host', effectsMayHaveOccurred: false,
+            })
+            throw stop // Do not substitute a fake successful claim/host/main.
+        })
+        await expect(h.run({ bgPluginDependencies: { enabled } }, 'char', 'chat', h.context().chat, 'full', {
+            inputCommandVersion: 1, serverChatCommitVersion: 1, resultKeyVersion, beginInputTransform: begin,
+        })).rejects.toBe(stop)
+        expect(begin).toHaveBeenCalledTimes(1)
+        expect(h.observations).toEqual([])
+        expect(h.attachments()).toBe(0)
+        expect(h.mains()).toBe(0)
+    })
     it('limits a failed input fetch latch to its own async operation', async () => {
         const source = readFileSync(new URL('./bgOrchestrator.cjs', import.meta.url), 'utf8')
         const start = source.indexOf('function patchFetch(')
