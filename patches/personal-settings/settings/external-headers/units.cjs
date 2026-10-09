@@ -55,6 +55,17 @@ registerExternalHeaderRoutes(app, checkAuth, externalRequestHeaders);
         'lazy-chat-bg-adapter:server-chat-owned-root-patch:1.10',
     ],
 })
+unit('proxy-form-body', server, 'insert', {
+    where: 'before', anchor: "app.use(express.text({ limit: '100mb' }));\n",
+    content: String.raw`// Keep form bytes intact for the existing authenticated proxy aliases.
+// JSON, text/plain, binary imports and other API parsers retain their owners.
+const proxyFormBodyParser = express.raw({ type: 'application/x-www-form-urlencoded', limit: '100mb' });
+app.use(/^\/proxy2?\/?$/i, proxyFormBodyParser);
+`,
+    // Reuse the existing server-init ancestry. Child BG anchors do not exist
+    // in the pairwise baseline until their parent hooks have been composed.
+    after: [init, 'pagefold-model-preset:server-binary-body-limit:1.10'],
+})
 for (const method of ['req.method', "'GET'"]) {
     unit('proxy-fetch-' + (method === 'req.method' ? 'write' : 'get'), server, 'replace', {
         anchor: `        originalResponse = await fetch(urlParam, {\n            method: ${method},\n`,

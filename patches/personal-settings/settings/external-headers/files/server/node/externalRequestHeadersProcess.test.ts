@@ -22,11 +22,14 @@ it('uses saved rules through real proxy GET/POST and WebSocket jobs, preserving 
     writeFileSync(path.join(root, 'dist/build-stamp.json'), JSON.stringify({ version: '1.10.0', stamp: 'external-header-test' }))
     execFileSync('openssl', ['req', '-x509', '-newkey', 'rsa:2048', '-nodes', '-keyout', path.join(root, 'key.pem'),
         '-out', path.join(root, 'cert.pem'), '-days', '1', '-subj', '/CN=localhost', '-addext', 'subjectAltName=IP:127.0.0.1,DNS:localhost'], { stdio: 'ignore' })
+    let upstreamCalls = 0
     const upstream = createServer({ key: readFileSync(path.join(root, 'key.pem')), cert: readFileSync(path.join(root, 'cert.pem')) }, async (req, res) => {
+        upstreamCalls++
         const chunks = []
         for await (const chunk of req) chunks.push(Buffer.from(chunk))
         res.setHeader('content-type', 'application/json')
-        res.end(JSON.stringify({ method: req.method, headers: req.headers, body: Buffer.concat(chunks).toString() }))
+        const bytes = Buffer.concat(chunks)
+        res.end(JSON.stringify({ method: req.method, headers: req.headers, body: bytes.toString(), bodyBase64: bytes.toString('base64') }))
     })
     upstream.listen(0, '127.0.0.1'); await once(upstream, 'listening')
     cleanups.push(async () => { upstream.closeAllConnections(); await new Promise<void>(resolve => upstream.close(() => resolve())) })
@@ -75,6 +78,47 @@ it('uses saved rules through real proxy GET/POST and WebSocket jobs, preserving 
     expect(first).toMatchObject({ method: 'POST', body: JSON.stringify({ message: 'exact body' }), headers: { 'x-original': 'kept' } })
     expect(first.headers['x-session']).toMatch(/^[a-f0-9]{64}$/)
     expect((await proxy('GET')).headers['x-session']).toBe(first.headers['x-session'])
+    const form = Buffer.concat([Buffer.from('grant_type=synthetic&repeat=a&repeat=b&space=+&space=%20&plus=%2B&utf8=%ED%95%9C%EA%B8%80&raw='), Buffer.from([0xc3, 0xa9])])
+    for (const endpoint of ['/proxy2', '/proxy2/', '/PROXY2', '/proxy', '/PROXY/']) {
+        for (const method of ['POST', 'PUT', 'PATCH', 'DELETE']) {
+            const response = await fetch(base + endpoint, { method, headers: { ...auth(),
+                'content-type': 'Application/X-WWW-Form-Urlencoded; charset=UTF-8',
+                'risu-url': encodeURIComponent(destination + '/form'),
+                'risu-header': encodeURIComponent(JSON.stringify({ 'content-type': 'application/x-www-form-urlencoded; charset=UTF-8', 'x-original': 'kept' })) }, body: form })
+            expect(response.status).toBe(200)
+            const result = await response.json() as any
+            expect(result).toMatchObject({ method, bodyBase64: form.toString('base64'), headers: {
+                'content-type': 'application/x-www-form-urlencoded; charset=UTF-8', 'x-original': 'kept', 'x-session': first.headers['x-session'] } })
+        }
+    }
+    const emptyForm = await fetch(base + '/proxy2', { method: 'POST', headers: { ...auth(), 'content-type': 'application/x-www-form-urlencoded',
+        'risu-url': encodeURIComponent(destination + '/empty'), 'risu-header': encodeURIComponent(JSON.stringify({ 'content-type': 'application/x-www-form-urlencoded' })) }, body: '' })
+    expect(emptyForm.status).toBe(200)
+    expect((await emptyForm.json() as any).bodyBase64).toBe('')
+    for (const [type, body] of [['application/json', Buffer.from('{"preserved":"json"}')], ['text/plain', Buffer.from('Synthetic 한글')],
+        ['application/octet-stream', Buffer.from([0, 255, 1, 128])]] as const) {
+        const response = await fetch(base + '/proxy2', { method: 'POST', headers: { ...auth(), 'content-type': type,
+            'risu-url': encodeURIComponent(destination + '/other'), 'risu-header': encodeURIComponent(JSON.stringify({ 'content-type': type })) }, body })
+        expect(response.status).toBe(200)
+        expect((await response.json() as any).bodyBase64).toBe(body.toString('base64'))
+    }
+    // Owner characterization: JSON continues through its existing parser.
+    const spacedJson = await fetch(base + '/proxy2', { method: 'POST', headers: { ...auth(),
+        'risu-url': encodeURIComponent(destination + '/json-owner'), 'risu-header': encodeURIComponent(JSON.stringify({ 'content-type': 'application/json' })) }, body: '{ "a" : 1 }' })
+    expect(spacedJson.status).toBe(200)
+    expect((await spacedJson.json() as any).body).toBe('{"a":1}')
+    expect((await fetch(base + '/proxy22', { method: 'POST', headers: { ...auth(), 'content-type': 'application/x-www-form-urlencoded' }, body: form })).status).toBe(404)
+    const beforeRefusal = upstreamCalls
+    const refused = await fetch(base + '/proxy2', { method: 'POST', headers: { 'content-type': 'application/x-www-form-urlencoded',
+        'risu-url': encodeURIComponent(destination + '/denied') }, body: form })
+    expect(refused.status).toBe(400)
+    expect(upstreamCalls).toBe(beforeRefusal)
+    for (const method of ['GET', 'HEAD']) {
+        const response = await fetch(base + '/proxy2', { method, headers: { ...auth(), 'content-type': 'application/x-www-form-urlencoded',
+            'risu-url': encodeURIComponent(destination + '/no-body'), 'risu-header': encodeURIComponent(JSON.stringify({ 'content-type': 'application/x-www-form-urlencoded' })) } })
+        expect(response.status).toBe(200)
+        if (method === 'GET') expect((await response.json() as any).bodyBase64).toBe('')
+    }
     const job = await fetch(base + '/proxy-stream-jobs', { method: 'POST', headers: auth(), body: JSON.stringify({ url: destination + '/chat', method: 'POST', headers: { 'content-type': 'text/plain' }, bodyBase64: Buffer.from('ws body').toString('base64') }) })
     expect(job.status).toBe(200)
     const { jobId } = await job.json() as any
