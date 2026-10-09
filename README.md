@@ -14,6 +14,11 @@ aggregate qualification are still open. The stable release remains `v0.2.3`.
 This correction is delivered with484 managed paths/175 served scripts and five
 database checks; existing header settings and hostOFF are retained. See the
 validation document for exact backup/readback evidence and remaining device gates.
+The user reports normal ordinary requests, closing this candidate's scoped
+preservation check. Connection-test success and missing preprocessing history
+with hostOFF do not qualify server MARP execution. Next scoped work is settings
+freshness (agent/prompt/deadline and queued updates), then remaining PDF/resource
+boundaries and M7; stable/activation/device aggregate remain open.
 
 The earlier `0.2.4-experimental.24` candidate includes the CAP admission corrections and
 G1.12b recovery ownership changes. Terminal reconciliation no longer owns the

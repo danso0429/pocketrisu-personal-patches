@@ -57,3 +57,13 @@ Current host implementation, source inspection and reviewer agreement do not per
 G2 later evaluates unchanged official Archive Center and its listener/state/backend requirements. Prior prototype loading is not current-host compatibility; do not add AC scope or restore old modified-AC assumptions during G1.7.
 
 The next action is M0→M6 qualification and correction of demonstrated gaps, then M7/G1.5b. Cold-start costs and private diagnostic loss are measured/recorded tradeoffs, not grounds for an unmeasured process-lifetime redesign.
+
+## Next scoped experiment after experimental.28
+
+2026-10-09: protocol35, mixed initialization and the API-limit correction have scoped evidence; the user reports ordinary requests as normal. Reuse those stated passes. The proposed first remaining unit is M4 settings freshness, followed by remaining M2 browser/PDF and M3 large-content/cancel conditions, then M7. This prioritization does not change the user-visible contract or authorize production activation.
+
+1. Reuse the original UI default-model Save→Send and queued-model-update passes. Add agent enable/disable, per-agent overrides, system/user prompt templates and request/analysis deadlines using synthetic providers.
+2. Trace UI completion→pluginCustomStorage vault and plugins[].realArg→strict root flush→admission/assembly→actual analysis/model input. Assert the intended precedence and coherent captured settings, not merely a fresh read or the original saved toast.
+3. Hold N, save changed settings and enqueue N+1; record which version each operation uses under the established assembly-time policy. Include writes interleaved with save/send and native retry; do not change capture timing based on an assumed mismatch.
+4. Deliver a settings/evidence table linking each operation, captured settings, selected agent calls, final injection and normal-chat storage. Correct only reproduced generic-host/caller defects, preserving original plugin bytes, custom/local endpoints, permissions and native retry.
+5. Keep browser Worker versus server inline PDF, large-payload CPU/frame/cancel behavior and remaining caller/ACK/edit/delete conditions explicit. M7 then qualifies the implemented admission/final caller and activation conditions against the demonstrated scope. Actual provider and physical device are separate gates.

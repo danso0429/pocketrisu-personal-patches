@@ -54,3 +54,11 @@ Final source and correction consultations confirmed receipt compatibility and tr
 Readonly preflight verified484 managed files without drift, hostOFF and active/model/pending0. The previously verified full recovery anchor was rehashed. A stopped application/patcher-state rollback archive of91,642,361bytes/1,642files and notification namespace were verified; no redundant whole-user-data copy was made. Apply changed only the planned host/notification source and tests plus patcher state. Source/build preserved database bytes.
 
 After frontend/BG build and restart: PM2online/unstable0,484 managed file hashes/modes,175 served JS assets, five SQLite quick checks and header-settings equality pass. Operation records99→99, removed0, active/pending0, new error-log lines0. Original font settings/pack and hostOFF remain preserved. API-refusal and terminal UI are automatically checked in synthetic Chromium; actual iPhone loaded-bundle/ordinary-use and overall M7/G1 qualification remain separate.
+
+## Scoped user confirmation and closeout
+
+On2026-10-09 the user reports ordinary requests as normal and MARP connection testing as successful, then confirms recording the current result and reviewing the next plan. The ordinary-request preservation check for experimental.28 is closed on that report. No device-specific trace, loaded-bundle identity, exact answer/spinner count or API-limit scenario was supplied, so those observations are not inferred.
+
+The missing MARP preprocessing history on chat send is consistent with the independently read hostOFF runtime; it is not recorded as MARP execution success. Connection tests are separate from chat preprocessing. Even hostON execution does not automatically populate the original browser-local MARP history. Actual analysis, injection and storage must be correlated to the same operation in later qualification.
+
+Documentation/JOURNAL/ordered-goals closeout is performed without runtime, installer, activation or version changes. The completed scoped L3 report is removed in L6; remaining runtime surfaces and evidence stay recorded. Actual provider, M7, D1–D8/G1 aggregate and stable gates remain open.
