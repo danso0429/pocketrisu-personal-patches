@@ -4,7 +4,15 @@ Personal, all-or-nothing patch delivery for PocketRisu NodeOnly. The current
 stable release is `v0.2.3`, and its complete manifest graph targets exact
 PocketRisu `v1.10.0`.
 
-The `0.2.4-experimental.24` candidate includes the CAP admission corrections and
+The `0.2.4-experimental.28` candidate adds visible API-limit refusals to the
+generic server plugin host while preserving valid later calls and existing limits.
+It retains the unavailable-host BG continuation/warnings from experimental.27.
+Original MARP protocol/PDF/OAuth fixtures and the limit correction are recorded in
+[the scoped validation](docs/POCKETRISU-G1-7-PROTOCOL-BUDGET-VALIDATION.md).
+The server plugin host remains OFF; actual providers, M7 activation and device/
+aggregate qualification are still open. The stable release remains `v0.2.3`.
+
+The earlier `0.2.4-experimental.24` candidate includes the CAP admission corrections and
 G1.12b recovery ownership changes. Terminal reconciliation no longer owns the
 generation busy lease; recommendation requests wait for current-chat proof and
 reject stale target callbacks. Deferred draft scans retain readiness wakes.
@@ -13,10 +21,11 @@ verified databases; the user reported normal G1.12b operation. The scoped
 ordinary-use device check is closed, while exact recommendation/recovery routes,
 G1 aggregate and stable qualification remain open. See the
 [G1.12b validation and device closeout](docs/POCKETRISU-G1-12B-RECOVERY-OWNERSHIP-VALIDATION.md).
-The server plugin host remains OFF; the next separate work is the
+The remaining server-plugin work follows the
 [MARP host qualification plan](docs/POCKETRISU-G1-7-MARP-HOST-QUALIFICATION-PLAN.md),
 then G1.5b admission. It compares real callers, timeout/retry lifetime, settings
-freshness and failure visibility before selecting any new diagnostics feature.
+freshness and failure visibility; existing transport diagnostics do not classify
+private plugin semantic success.
 The stable release remains `v0.2.3`.
 
 The `0.2.4-experimental.22` G1.12a candidate recognizes already-current server answers, bounds BG

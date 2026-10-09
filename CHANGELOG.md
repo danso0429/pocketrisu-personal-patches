@@ -1,5 +1,13 @@
 # Changelog
 
+## 0.2.4-experimental.28 (BG API-limit visibility)
+
+- Report host-observed API value/pending/write/network limit refusals even when a plugin catches them, while retaining later valid calls and existing caps.
+- Await one immutable warning per entry/phase, separate it from terminal failure, release byte/slot ownership before publication and retain mandatory publication-failure handling.
+- Describe limited execution accurately in existing notification wording; keep the schema and 48-hour failure receipt policy.
+- Add original MARP protocol/PDF/OAuth/failure controls and actual process/browser notification evidence. Production activation, actual providers, device and aggregate/stable qualification remain separate.
+- See `docs/POCKETRISU-G1-7-PROTOCOL-BUDGET-VALIDATION.md` for measured validation and delivery status.
+
 ## 0.2.4-experimental.24 (BG recovery ownership and suggestions)
 
 - Separate terminal reconciliation from generation busy; scope cleanup and late callbacks to the captured operation, epoch and native lifecycle, including delayed starts and auto-continue.
