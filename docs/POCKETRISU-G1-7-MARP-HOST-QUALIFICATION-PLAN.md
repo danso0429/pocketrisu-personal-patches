@@ -50,6 +50,8 @@ After M5, decide whether a generic parent-owned per-operation RPC outcome summar
 
 ## Gate boundaries and remaining work
 
+Terminology clarification (2026-10-09): use “서버 플러그인 실행기” in user-facing explanations for the server plugin host. This does not rename internal identifiers. Current startup attempts all enabled plugins that meet loader conditions, rather than selecting only MARP or proving each plugin requires server execution. Before production activation, M6/M7 must resolve initialization side effects, UI-only plugins and duplicate browser/server participation. MARP-only selection was discussed as a possible direction, not adopted as an execution allowlist or a confirmed implementation decision.
+
 Current host implementation, source inspection and reviewer agreement do not permit production activation or unqualified admission. Keep real-provider analysis separate from fake-provider qualification and use the established authorization boundary for the actual paid analysis run. Physical iPhone, process-death/return, queue/edit/notification and G1 aggregate/stable remain independent evidence.
 
 G2 later evaluates unchanged official Archive Center and its listener/state/backend requirements. Prior prototype loading is not current-host compatibility; do not add AC scope or restore old modified-AC assumptions during G1.7.

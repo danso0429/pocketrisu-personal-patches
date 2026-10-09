@@ -45,6 +45,8 @@ Readonly post-delivery check observes6host-disabled notices, including original 
 
 ### Scoped iPhone wording check
 
+User follow-up on 2026-10-09 reports current use as normal and supplies six Mobile Safari host-disabled warnings, including Lite0.9.2. Record this as scoped current-use/notification confirmation. No individual D1–D8 scenario, loaded-bundle measurement or server MARP analysis evidence was supplied; it does not qualify host-ON execution or close the MARP aggregate gate. The user-facing term is now “서버 플러그인 실행기”; internal identifiers remain unchanged.
+
 Use the newly served bundle; an already open PWA may retain the previous wording. In Safari, open the usual PocketRisu page and tap the address-bar circular reload arrow before this check. Enter the ordinary MARP-enabled chat. A pending notification is a small warning toast, not a modal that replaces an input dialog; the expected new message names the plugin/version and says the server host is disabled and server execution was omitted. Existing6receipts include one for Lite0.9.2. If a notice was already delivered/ACKed elsewhere, it may not reappear: do not generate repeatedly to force it.
 
 For the next ordinary message, send once and verify the original chat receives one answer and the spinner ends. The same plugin/reason normally has no second warning during48-hour dedup. This check qualifies fallback UI only; current hostOFF does not run server MARP analyses. The actual model provider can still fail normally; do not interpret omission text as promised model success. Record device/loaded bundle and observed wording separately from D1–D8/ON qualification.
