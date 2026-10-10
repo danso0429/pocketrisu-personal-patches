@@ -170,6 +170,11 @@ function createBgNotifications({ db, kvGet, kvSet, kvDel, kvList, now = Date.now
                     ? notice.event.code === 'plugin_host_limit' && notice.event.reason === 'operation_budget'
                         && !notice.event.eventKey.endsWith(':limit') && !notice.event.eventKey.endsWith(':settlement-budget')
                     : prior.kind === 'terminal_limit';
+                if (terminalLimit && verifiedTerminal && prior.kind === undefined) {
+                    // Backfill proven legacy ownership before its ACKed row can
+                    // be reclaimed. Preserve the original identity and TTL.
+                    kvSet(key, JSON.stringify({ ...prior, kind: 'terminal_limit' }));
+                }
                 if (!terminalLimit || verifiedTerminal) return { status: 'duplicate', id: prior.id };
             }
         }

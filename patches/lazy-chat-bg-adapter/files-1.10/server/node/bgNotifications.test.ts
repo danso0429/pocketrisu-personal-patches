@@ -45,6 +45,26 @@ describe('durable BG notification owner', () => {
         expect(next.status).toBe('stored')
         expect(next.id).not.toBe(prior.id)
         expect(h.deps.kvGet('internal/bg-notifications/v1/' + prior.id)).not.toBeNull()
+        expect(JSON.parse(h.deps.kvGet(key)!)).toMatchObject({ kind: 'terminal_limit', id: next.id })
+    })
+
+    it('backfills a proven legacy terminal receipt without renewing its TTL or duplicating it', () => {
+        const h = harness(), identity = 'f'.repeat(64), prefix = 'internal/bg-plugin-failure-receipts/v1/'
+        const base = { ...h.event(), code: 'plugin_host_limit', pluginName: 'synthetic', pluginVersion: '1',
+            phase: 'provider', reason: 'operation_budget', effectsMayHaveOccurred: true, eventKey: 'plugin:0:provider:failure' }
+        const prior = h.owner.publish(base)
+        const key = prefix + createHash('sha256').update(JSON.stringify([
+            identity, 'synthetic', '1', 'plugin_host_limit', 'provider', null, 'operation_budget', true,
+        ])).digest('hex')
+        const receipt = { version: 1, id: prior.id, createdAt: base.createdAt,
+            expiresAt: base.createdAt + 48 * 60 * 60 * 1000 }
+        h.deps.kvSet(key, JSON.stringify(receipt)); h.advance(100)
+        const later = { ...base, ...h.event('later-operation'), code: base.code, eventKey: base.eventKey }
+        expect(h.owner.publishPluginFailure(later, identity)).toEqual({ status: 'duplicate', id: prior.id })
+        expect(JSON.parse(h.deps.kvGet(key)!)).toEqual({ ...receipt, kind: 'terminal_limit' })
+        h.deps.kvDel('internal/bg-notifications/v1/' + prior.id)
+        expect(h.owner.publishPluginFailure({ ...later, operationId: 'last-operation' }, identity))
+            .toEqual({ status: 'duplicate', id: prior.id })
     })
 
     it('repairs an ambiguous existing terminal key without growing a full receipt pool', () => {
