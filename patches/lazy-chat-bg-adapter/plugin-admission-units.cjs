@@ -43,6 +43,17 @@ module.exports = prior => {
     add('attached-policy', 'server/node/bgOrchestrator.cjs',
         'bg.inputPolicy.requiresClientOwnedInputPreparation(db, assemblyContext.chat)',
         'bg.inputPolicy.requiresClientOwnedInputPreparation(db, assemblyContext.chat, pluginHost !== null)');
+    add('raw-provider-registration', 'server/node/bgOrchestrator.cjs',
+        "        const inputGlobalsBefore = JSON.stringify(db.globalChatVariables || {})",
+        `        // Initialization may have had effects, but no raw input effect may
+        // run until every statically selected provider is actually registered.
+        if (!control.inputPreparedOnClient && bg.inputPolicy.selectedServerInputPluginProviders(db, currentChat)
+          .some(name => !pluginHost || !pluginHost.hasProvider(name))) {
+          throw Object.assign(new Error('server input provider unavailable'), {
+            code: 'BG_INPUT_HOST_UNSUPPORTED', api: 'plugin_provider_unavailable',
+          })
+        }
+        const inputGlobalsBefore = JSON.stringify(db.globalChatVariables || {})`);
     add('host-assert', 'server/node/bgOrchestrator.cjs',
         '    if (pluginHostEligible) {',
         `    if (control?.inputCommandVersion === 1 && inputTransformClaim?.status === 'started'

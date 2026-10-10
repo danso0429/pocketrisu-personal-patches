@@ -75,7 +75,9 @@ module.exports = priorUnits => {
         rejectUnsupportedServerInput('preset_adapter')
     }
     if (selection.kind === 'classic' && (selection.modelId === 'custom'
-        || selection.modelId?.startsWith('pluginmodel:::') || selection.modelId?.startsWith('hf:::'))) {
+        || (selection.modelId?.startsWith('pluginmodel:::')
+            && !pluginV2.providers.has(selection.modelId.slice('pluginmodel:::'.length)))
+        || selection.modelId?.startsWith('hf:::'))) {
         rejectUnsupportedServerInput('browser_model_provider')
     }
 `, 'insert', 'after')
@@ -86,7 +88,9 @@ module.exports = priorUnits => {
         '    const format = targ.modelInfo.format\n',
         `    const format = targ.modelInfo.format
     assertServerInputCanContinue()
-    if (format === LLMFormat.Plugin || format === LLMFormat.WebLLM) {
+    if (format === LLMFormat.WebLLM || (format === LLMFormat.Plugin
+        && (!targ.aiModel?.startsWith('pluginmodel:::')
+            || !pluginV2.providers.has(targ.aiModel.slice('pluginmodel:::'.length))))) {
         rejectUnsupportedServerInput('browser_model_provider')
     }
 `)

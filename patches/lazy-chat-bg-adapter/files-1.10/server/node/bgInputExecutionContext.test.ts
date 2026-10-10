@@ -44,6 +44,7 @@ function harness(input: (signal: AbortSignal | undefined) => Promise<void> = asy
     const bg = {
         policy: { requiresClientGenerationEpilogue: () => false },
         inputPolicy: { requiresClientOwnedInputPreparation: () => false,
+            selectedServerInputPluginProviders: () => [],
             evaluateServerInputModels: () => ({ kind: 'server-input' }) },
         dbmod: { setDatabase: (db: any) => { database = db }, getDatabase: () => database },
         stores: { selectedCharID: { set: () => {} } },

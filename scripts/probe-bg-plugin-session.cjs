@@ -99,6 +99,40 @@ test('late timer API is rejected without killing the later invocation', async t 
     assert.deepEqual(effects, []);
 });
 
+test('a retained stream keeps the failed input scope when consumed after transform stops', async t => {
+    const { transformServerChatInput } = require('../patches/lazy-chat-bg-adapter/files-1.10/server/node/serverChatInputTransform.cjs');
+    let provider, stream, captured, effects = 0;
+    const scopes = [];
+    const session = await createPluginSession({
+        script: `await Risuai.addProvider('retained',async()=>({success:true,content:new ReadableStream({
+            async pull(c){try{await Risuai.nativeFetch('https://synthetic.invalid/retained',{});c.enqueue('allowed');}
+                catch(e){c.enqueue(e.code);}c.close();}
+        },{highWaterMark:0})}));`,
+        api(method, args) {
+            if (method === 'addProvider') { provider = args[1]; return; }
+            assert.equal(method, 'nativeFetch');
+            const current = globalThis.__bgGetServerInputExecution();scopes.push(current);
+            if (current?.failure) throw current.failure;
+            effects++;return null;
+        },
+    });
+    t.after(() => session.close());await session.load();
+    await assert.rejects(transformServerChatInput({type:'character'},{message:[]},
+        {rawText:'synthetic',userMessageId:'synthetic-input',submittedAt:1},
+        {runTrigger:async()=>{captured=globalThis.__bgGetServerInputExecution();stream=(await provider({})).content;
+            try{captured.reject('browser_model_provider');}catch{}return null;}},
+        {processScript:async(_char,text)=>text},()=>{}),{code:'BG_INPUT_HOST_UNSUPPORTED'});
+    assert.equal(session.activeScopes,1);
+    // The RPC boundary intentionally normalizes non-plugin error codes; the
+    // parent scope still retains the original unsupported-input failure.
+    const reader=stream.getReader();assert.deepEqual(await reader.read(),{value:'plugin_execution_failed',done:false});
+    assert.equal(captured.failure.code,'BG_INPUT_HOST_UNSUPPORTED');
+    assert.equal((await reader.read()).done,true);assert.equal(effects,0);assert.deepEqual(scopes,[captured]);
+    assert.equal(session.activeScopes,0);assert.equal(globalThis.__bgGetServerInputExecution(),undefined);
+    const next=(await provider({})).content.getReader();assert.deepEqual(await next.read(),{value:'allowed',done:false});
+    assert.equal((await next.read()).done,true);assert.equal(effects,1);assert.equal(session.activeScopes,0);
+});
+
 test('reentrant callback requests are bounded by invocation chain depth', async t => {
     let hook;
     const session = await createPluginSession({

@@ -2,7 +2,7 @@ import { describe, expect, it, vi } from 'vitest'
 vi.mock('src/ts/storage/database.svelte', () => ({ getDatabase: () => {
     throw new Error('Policy must use its explicit snapshot')
 } }))
-import { evaluateServerInputModels, requiresClientOwnedInputPreparation } from './bgServerInputProviderPolicy'
+import { evaluateServerInputModels, requiresClientOwnedInputPreparation, selectedServerInputPluginProviders } from './bgServerInputProviderPolicy'
 
 describe('server-owned input provider boundary', () => {
     it.each(['model', 'submodel', 'memory', 'emotion', 'translate', 'otherAx'] as const)(
@@ -157,7 +157,7 @@ describe('server-owned input provider boundary', () => {
         },
     )
 
-    it('waives only native v3 plugin participation and never MCP/provider/endpoint restrictions', () => {
+    it('admits plugin provider candidates only with the actual host while retaining other restrictions', () => {
         const db = { modelPresets: [preset()], plugins: [{ enabled: true, version: '3.0', script: 'unknown new bytes' }] as any,
             aiModel: 'gpt-4o', subModel: 'gpt-4o' }
         const chat = { useModelPreset: true, modelBinding: { main: 'native-preset', sub: 'native-preset', separateAux: false, aux: {} } }
@@ -168,10 +168,34 @@ describe('server-owned input provider boundary', () => {
         expect(evaluateServerInputModels({ ...db, plugins: [{ enabled: true, version: '2.0' }] as any }, chat, true))
             .toEqual({ kind: 'client-prepared', reason: 'plugin-host-unqualified' })
         expect(evaluateServerInputModels({ ...db, aiModel: 'pluginmodel:::unknown' }, { useModelPreset: false }, true))
-            .toEqual({ kind: 'client-prepared', reason: 'provider-unqualified' })
+            .toEqual({ kind: 'server-input' })
         const invalid = preset(); invalid.profileSnapshot.endpoint.url = 'file:///tmp/provider'
         expect(evaluateServerInputModels({ ...db, modelPresets: [invalid] }, chat, true))
             .toEqual({ kind: 'client-prepared', reason: 'endpoint-unqualified' })
+    })
+    it.each(modes)('tracks plugin routes selected only by %s overrides or fallbacks', mode => {
+        const base = { aiModel: 'gpt-4o', subModel: 'gpt-4o', plugins: [{ enabled: true, version: '3.0' }] as any }
+        for (const route of [
+            { seperateModelsForAxModels: true, seperateModels: { [mode]: 'pluginmodel:::synthetic' } },
+            { fallbackModels: { [mode]: ['pluginmodel:::synthetic'] } },
+        ]) {
+            const db = { ...base, ...route }
+            expect(selectedServerInputPluginProviders(db, null)).toEqual(['synthetic'])
+            expect(evaluateServerInputModels(db, null)).toEqual({ kind: 'client-prepared', reason: 'plugin-host-unqualified' })
+            expect(evaluateServerInputModels(db, null, true)).toEqual({ kind: 'server-input' })
+            expect(evaluateServerInputModels({ ...db, modules: [{ mcp: { url: 'internal:tool' } }] as any }, null, true))
+                .toEqual({ kind: 'client-prepared', reason: 'mcp-unqualified' })
+            expect(evaluateServerInputModels({ ...db, plugins: [{ enabled: true, version: '2.0' }] as any }, null, true))
+                .toEqual({ kind: 'client-prepared', reason: 'plugin-host-unqualified' })
+            expect(evaluateServerInputModels(db, null, 'omit').kind).toBe('client-prepared')
+            expect(evaluateServerInputModels({ ...db, plugins: [] }, null, true).kind).toBe('client-prepared')
+        }
+    })
+    it('enumerates only dispatcher attempts and de-duplicates names without inferring registration', () => {
+        const db = { aiModel: 'pluginmodel:::unused-main', subModel: 'pluginmodel:::sub',
+            fallbackModels: { model: ['pluginmodel:::first', '', 'pluginmodel:::second'] },
+            seperateModelsForAxModels: false, seperateModels: { memory: 'pluginmodel:::inactive' } }
+        expect(selectedServerInputPluginProviders(db, null)).toEqual(['first', 'second', 'sub'])
     })
     it('can omit unsupported plugin versions with a server warning without waiving other qualifications', () => {
         const db = { modelPresets: [preset()], plugins: [{ enabled: true, version: '2.0' }] as any,

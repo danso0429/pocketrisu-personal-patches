@@ -57,6 +57,25 @@ async function fixture(t, plugins, permissions = true, options = {}) {
         controller, notices: () => notifications.claim('synthetic-consumer', 2).map(row => row.event) };
 }
 
+for (const prepared of [false,true])for(const loadFailure of [false,true])test(`conflicting provider names cannot dispatch the first owner, prepared=${prepared}, loadFailure=${loadFailure}`,async t=>{
+    const h=await fixture(t,[
+        plugin('first-owner',`await Risuai.addProvider('shared',async()=>{await Risuai.nativeFetch('https://synthetic.invalid/must-not-run',{});return {success:true,content:'first'};});`),
+        plugin('second-owner',`await Risuai.addProvider('shared',async()=>({success:true,content:'second'}));${loadFailure?'throw Error("Synthetic registration load failure");':''}`),
+        plugin('healthy-owner',`await Risuai.addProvider('healthy',async()=>({success:true,content:'healthy'}));`),
+    ],true,{prepared});
+    assert.equal(h.host.hasProvider('shared'),false);
+    assert.equal(h.host.hasProvider('healthy'),true);
+    assert.equal(h.host.hasProvider('absent'),false);
+    await assert.rejects(h.registry.providers.get('shared')({}),/plugin_provider_failed/);
+    assert.equal(h.network.length,0);assert.equal(h.effects,0);
+    assert.deepEqual(await h.registry.providers.get('healthy')({}),{success:true,content:'healthy'});
+    assert.equal(h.effects,1);
+    assert.deepEqual(h.notices().map(n=>[n.pluginName,n.phase,n.code]),[
+        ['second-owner','load','plugin_hook_failed'],['first-owner','provider','plugin_provider_failed'],
+    ]);
+    await h.host.close();assert.equal(h.host.hasProvider('healthy'),false);assert.equal(h.registry.providers.size,0);
+});
+
 for (const prepared of [false,true])test(`mid-callback identity invalidation preserves issued effects and prior input, prepared=${prepared}`,async t=>{
     let entered,release;const started=new Promise(r=>entered=r),held=new Promise(r=>release=r);
     const h=await fixture(t,[plugin('mid-callback',`await Risuai.addRisuReplacer('beforeRequest',async x=>{
@@ -586,7 +605,10 @@ test('valid provider failures remain retryable through the native caller policy'
 test('provider name collision cannot overwrite or resurrect another plugin', async t => {
     const h = await fixture(t, [plugin('original', `await Risuai.addProvider('shared',async()=>({success:true,content:'original'}));`),
         plugin('conflict', `await Risuai.addProvider('shared',async()=>({success:true,content:'changed'}));`)]);
-    assert.equal((await h.registry.providers.get('shared')({})).content, 'original');
+    assert.equal(h.host.hasProvider('shared'), false);
+    await assert.rejects(h.registry.providers.get('shared')({}), /plugin_provider_failed/);
+    assert.equal(h.effects, 0);
+    assert.deepEqual(h.notices().map(event => event.code), ['plugin_hook_failed', 'plugin_provider_failed']);
     await h.host.close();
     assert.equal(h.registry.providers.size, 0);
 });

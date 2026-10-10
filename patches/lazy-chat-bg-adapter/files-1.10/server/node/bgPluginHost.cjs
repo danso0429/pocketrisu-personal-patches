@@ -44,7 +44,7 @@ function limiter(limit, signal) {
 
 async function createBgPluginHost({ database, bindings, getDatabase, getSelection, hydrate,
     storageOwner, beforeEffect, publishNotification, publishDiagnostic, operation, signal, onCriticalFailure = () => {} }) {
-    const entries = [], cleanups = [], notices = [], names = new Set(), omittedNames = new Set();
+    const entries = [], cleanups = [], notices = [], names = new Set(), omittedNames = new Set(), conflictedProviders = new Set();
     let closed = false, tearingDown = false, noticeFailure = null, identityFailure = null;
     let messageCapacityReported = false;
     let diagnosticFailureReported = false;
@@ -145,6 +145,11 @@ async function createBgPluginHost({ database, bindings, getDatabase, getSelectio
         ...pluginMetadata(entry.plugin),
         phase, effectsMayHaveOccurred: entry.effects, failureIdentity: entry.identity });
     const disable = (entry, code, api, phaseOverride) => {
+        // A load failure after registration must not reveal a different owner
+        // of the same selected name. Unknown, never-registered names are not inferred.
+        if (!entry.ready) for (const row of entry.registrations ?? []) {
+            if (row.type === 'provider') conflictedProviders.add(row.name);
+        }
         if (entry.failed || entry.closing || signal.aborted || noticeFailure) return;
         entry.failed = true;
         const phase = phaseOverride ?? entry.lastPhase ?? phaseScope.getStore() ?? 'load';
@@ -253,7 +258,7 @@ async function createBgPluginHost({ database, bindings, getDatabase, getSelectio
         record({ ...common(entry, 'provider'), code: 'plugin_provider_failed',
             eventKey: `plugin:${entry.index}:provider:failure` });
     };
-    const invoke = (entry, kind, callback, contract = 'replacer') => async (...args) => {
+    const invoke = (entry, kind, callback, contract = 'replacer', providerName) => async (...args) => {
         const provider = kind === 'provider';
         if (noticeFailure) throw noticeFailure;
         if (identityFailure) throw identityFailure;
@@ -268,6 +273,7 @@ async function createBgPluginHost({ database, bindings, getDatabase, getSelectio
                 await currentIdentity(kind);
                 await noticesSettled();
                 if (closed || tearingDown || signal.aborted) throw fail('plugin_operation_closed');
+                if (provider && conflictedProviders.has(providerName)) throw fail('plugin_provider_name_conflict');
                 if (entry.failed) {
                     if (provider) throw fail('plugin_provider_failed');
                     return args[0];
@@ -313,7 +319,10 @@ async function createBgPluginHost({ database, bindings, getDatabase, getSelectio
     const install = entry => {
         const providerNames = new Set();
         for (const row of entry.registrations.filter(row => row.type === 'provider')) {
-            if (providerNames.has(row.name) || bindings.registry.providers.has(row.name)) throw fail('plugin_provider_name_conflict');
+            if (providerNames.has(row.name) || bindings.registry.providers.has(row.name)) {
+                conflictedProviders.add(row.name);
+                throw fail('plugin_provider_name_conflict');
+            }
             providerNames.add(row.name);
         }
         for (const row of entry.registrations) {
@@ -330,7 +339,7 @@ async function createBgPluginHost({ database, bindings, getDatabase, getSelectio
                 undo = () => { const index = bindings.bodyInterceptors.indexOf(value); if (index >= 0) bindings.bodyInterceptors.splice(index, 1); };
             } else {
                 if (bindings.registry.providers.has(row.name)) throw fail('plugin_provider_name_conflict');
-                const callback = invoke(entry, 'provider', (...args) => row.callback({ ...args[0], mode: 'v3' }, args[1]), 'provider');
+                const callback = invoke(entry, 'provider', (...args) => row.callback({ ...args[0], mode: 'v3' }, args[1]), 'provider', row.name);
                 undo = bindings.installProvider(row.name, callback, row.options);
             }
             let removed = false;
@@ -528,6 +537,11 @@ async function createBgPluginHost({ database, bindings, getDatabase, getSelectio
         throw error;
     }
     return {
+        hasProvider(name) {
+            return !closed && !conflictedProviders.has(name) && typeof bindings.registry.providers.get(name) === 'function'
+                && entries.some(entry => !entry.failed && entry.registrations.some(row => row.type === 'provider'
+                    && row.name === name && typeof row.remove === 'function'));
+        },
         async refreshIdentity() {
             if (!closed && !tearingDown) checkedIdentity(getDatabase());
             await noticesSettled();
