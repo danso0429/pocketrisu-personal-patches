@@ -16,6 +16,11 @@ for actual raw/prepared server, cache, provider, browser and gate evidence.
 Raw selected-provider admission, remaining M7/activation and device/aggregate
 qualification remain open; this checkpoint is not a stable release.
 
+Experimental.30 is delivered with hostOFF after verified application/state rollback:
+484 managed files/175 served scripts/five database checks, header settings retained,
+operations103→103/removed0, online/unstable0/new error lines0. It adds no active UI
+behavior while OFF; the remaining activation/device/aggregate gates stay open.
+
 The `0.2.4-experimental.29` candidate preserves URL-encoded form bytes on the
 authenticated proxy aliases and reports worker-local RPC frame/value refusals
 without losing later valid calls. Personal settings is0.5.14 and the BG adapter

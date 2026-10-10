@@ -7,6 +7,7 @@
 - Preserve canonical per-key writes when an operation snapshot lacks the plugin; do not recreate or accept an entire child-supplied plugin array. Keep caps, notification schema, native settings freshness and teardown behavior.
 - BG adapter0.7.37 / Personal settings0.5.14. Actual host90/session8, generated context12, browser Save/queue/retry, protocol35/M3 13 and full automatic/graph/revert gates pass. See `docs/POCKETRISU-G1-7-CONTEXT-OMISSION-VALIDATION.md` for scope and limits.
 - Production host remains OFF. Raw selected-provider admission, oversized handle reuse, broader caller/activation, actual provider and device/aggregate/stable gates remain separate.
+- Delivered after verified91,646,644byte/1,642file app/state rollback and12 notification rows: eight planned paths,484 managed files/175 served scripts/five database checks, header settings preserved, operations103→103/removed0, active/model/pending0, online/unstable0/new error lines0. No new scoped device check is inferred for the OFF-only correction, and the existing aggregate gates remain open.
 
 ## 0.2.4-experimental.29 (proxy form and local RPC refusal)
 
