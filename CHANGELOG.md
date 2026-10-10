@@ -7,6 +7,7 @@
 - Release refused large descriptors and never-decoded ordinary exports. Track outstanding publications so one refused invocation cannot revoke functions, streams or abort signals concurrently reused by another. Keep host-owned streams invocation-bound and existing caps unchanged.
 - Replace settlement/bootstrap polling with activity subscriptions, deadline and close wakeups. Recheck result admission after asynchronous identity/notice boundaries and during teardown.
 - Record broader structural/runtime audits, original-provider/admission and repository evidence in [M7 qualification](docs/POCKETRISU-G1-7-M7-QUALIFICATION-VALIDATION.md). BG adapter0.7.41; host remainsOFF. Actual-provider/device, later ordered goals and stable release remain separate.
+- Safe OFF application delivery and independent source/asset/database/capability readback complete. The existing classified startup recovery warning remains unchanged and explicit under G1.8; no operation removal or user-data cleanup was used to obtain this result.
 
 ## 0.2.4-experimental.33 (M7 original provider and bounded storage)
 

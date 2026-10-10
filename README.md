@@ -15,8 +15,8 @@ operational composition, support/activation conditions and remaining goal gates.
 The follow-up audit repairs phase/receipt ownership, saturated settlement replies,
 refused resource cleanup, concurrent shared exports and teardown result admission.
 Event-driven settlement preserves accepted bookkeeping without a busy wait.
-M7 qualification applies at the documented scope; candidate delivery is recorded
-separately in its validation document. The existing absent-chat recovery classification and
+Repaired M7 qualification and independently checked OFF candidate delivery are
+closed at the documented scope. The existing absent-chat recovery classification and
 journal-retention follow-up remains explicit under G1.8; actual providers,
 device/aggregate qualification and live activation remain separate. Stable
 remains `v0.2.3`.
