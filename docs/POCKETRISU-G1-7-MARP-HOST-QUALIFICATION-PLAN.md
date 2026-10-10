@@ -14,6 +14,8 @@ Source evidence includes a preserved Lite0.9.2 script of64022bytes, SHA-256b1aa5
 
 ## Qualification sequence
 
+Current scoped checkpoint (2026-10-10): [raw selected-provider qualification](POCKETRISU-G1-7-RAW-PROVIDER-VALIDATION.md) closes the demonstrated raw preparation/context gap in experimental.31/adapter0.7.38. Actual raw12/host94/session9 and preserved caller/automatic/graph gates are recorded. The eligible host must register healthy, unambiguous selected providers before raw input effects; registered-then-load-failed names also fail closed. Remaining auxiliary caller mapping and oversized handle reuse precede final M7/G1.5b admission/activation. Actual provider, combined stream, device/aggregate and G1.8/G1.9 conditions remain distinct; production stays OFF.
+
 The sequence below remains the execution plan. Initial consultation performed no experiments; subsequent scoped results and remaining conditions are recorded separately in the qualification ledger. Use synthetic credentials/providers and isolated application storage while production remains OFF.
 
 | Stage | Experiment | Required evidence |

@@ -4,7 +4,16 @@ Personal, all-or-nothing patch delivery for PocketRisu NodeOnly. The current
 stable release is `v0.2.3`, and its complete manifest graph targets exact
 PocketRisu `v1.10.0`.
 
-The `0.2.4-experimental.30` candidate implements the selected analysis-context
+The `0.2.4-experimental.31` candidate admits raw selected-plugin providers through
+the eligible host and checks actual healthy registration before input effects.
+Missing/ambiguous providers fail without an implicit default model; native retry
+and input failure latches remain. BG adapter is0.7.38; Personal settings0.5.14
+and hostOFF are retained. Actual raw12/host94/session9 and full automatic gates
+are recorded in [raw provider validation](docs/POCKETRISU-G1-7-RAW-PROVIDER-VALIDATION.md).
+Remaining caller/handle, final M7/activation, actual-provider and device/aggregate
+gates stay open. This is an experimental candidate; safe delivery is pending.
+
+The `0.2.4-experimental.30` checkpoint implements the selected analysis-context
 contract: omit unusable non-provider hooks, retain prior effects and chain output,
 finish/store the answer and await the failure notice. Duplicate identities are
 refused before initialization; canonical identity checks use a hot cache peek
@@ -13,8 +22,9 @@ missing/invalid selected provider. BG adapter is0.7.37; Personal settings0.5.14
 and production hostOFF are retained. See the
 [context omission validation](docs/POCKETRISU-G1-7-CONTEXT-OMISSION-VALIDATION.md)
 for actual raw/prepared server, cache, provider, browser and gate evidence.
-Raw selected-provider admission, remaining M7/activation and device/aggregate
-qualification remain open; this checkpoint is not a stable release.
+Raw selected-provider admission was still open at that checkpoint and is now
+qualified within the experimental.31 scope above. Remaining M7/activation and
+device/aggregate qualification stay open; this checkpoint is not a stable release.
 
 Experimental.30 is delivered with hostOFF after verified application/state rollback:
 484 managed files/175 served scripts/five database checks, header settings retained,

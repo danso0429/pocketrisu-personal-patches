@@ -1,6 +1,8 @@
 # G1.7 MARP qualification evidence ledger
 
-2026-10-09 KST foundation, updated2026-10-10. Foundation baseline `0f24c07` → `d2459fc` / experimental.26; current scoped context candidate `0.2.4-experimental.30` / adapter `0.7.37`. Apply the [post-implementation review criteria](POCKETRISU-MARP-BG-POST-IMPLEMENTATION-REVIEW.md). Scoped implementation and isolated experiments do not establish completed MARP BG, production activation, real-provider success, device qualification or a stable release.
+2026-10-09 KST foundation, updated2026-10-10. Foundation baseline `0f24c07` → `d2459fc` / experimental.26; current scoped raw-provider candidate `0.2.4-experimental.31` / adapter `0.7.38`. Apply the [post-implementation review criteria](POCKETRISU-MARP-BG-POST-IMPLEMENTATION-REVIEW.md). Scoped implementation and isolated experiments do not establish completed MARP BG, production activation, real-provider success, device qualification or a stable release.
+
+The [raw provider checkpoint](POCKETRISU-G1-7-RAW-PROVIDER-VALIDATION.md) closes the demonstrated raw preparation/context refusal with actual registration-before-input authority, known collision/load-failure refusal, dynamic input guards and raw12/host94/session9 evidence. Remaining auxiliary callers/handle reuse, final M7/G1.5b activation and device/aggregate remain open; production stays OFF.
 
 ## Source and changes
 

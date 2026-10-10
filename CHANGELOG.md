@@ -1,5 +1,13 @@
 # Changelog
 
+## 0.2.4-experimental.31 (raw provider admission and ownership)
+
+- Admit raw pluginmodel candidates only through the eligible host; share actual main/sub/auxiliary/fallback/module selection between preflight and required-name checks, preserving other provider/endpoint/MCP/local-route constraints.
+- Require healthy installed provider ownership before raw input effects. Refuse missing/conflicted names and names registered before load failure; retain blocked raw text, notices, prior initialization effects and existing no-replay ownership.
+- Allow registered providers inside input execution while preserving unsupported-input latches, native retries and failure/default-model guards. Keep original MARP and production hostOFF.
+- BG adapter0.7.38 / Personal settings0.5.14. Raw12, preserved caller6, host94/session9 and full automatic/graph/exact-revert gates pass; see `docs/POCKETRISU-G1-7-RAW-PROVIDER-VALIDATION.md` for evidence and limits.
+- Remaining caller/handle, M7/G1.5b activation, actual providers, failure/stream/device/aggregate and stable release stay separate. Final consultation and safe OFF delivery are pending.
+
 ## 0.2.4-experimental.30 (context omission and canonical identity)
 
 - Implement the confirmed non-provider context contract: retain prior chain output and existing effects, omit invalid hooks with an awaited notice, then finish/store the answer without replaying initialization or analysis. Selected model-provider failures remain failures.
