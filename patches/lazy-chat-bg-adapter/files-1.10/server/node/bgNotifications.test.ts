@@ -67,6 +67,22 @@ describe('durable BG notification owner', () => {
             .toEqual({ status: 'duplicate', id: prior.id })
     })
 
+    it('rolls back a failed terminal-kind backfill and propagates the storage error', () => {
+        const h = harness(), identity = 'e'.repeat(64), prefix = 'internal/bg-plugin-failure-receipts/v1/'
+        const event = { ...h.event(), code: 'plugin_host_limit', pluginName: 'synthetic', pluginVersion: '1',
+            phase: 'provider', reason: 'operation_budget', effectsMayHaveOccurred: true, eventKey: 'plugin:0:provider:failure' }
+        const notice = h.owner.publish(event)
+        const key = prefix + createHash('sha256').update(JSON.stringify([
+            identity, 'synthetic', '1', 'plugin_host_limit', 'provider', null, 'operation_budget', true,
+        ])).digest('hex')
+        const prior = JSON.stringify({ version: 1, id: notice.id, createdAt: event.createdAt,
+            expiresAt: event.createdAt + 48 * 60 * 60 * 1000 })
+        h.deps.kvSet(key, prior); h.fail(1)
+        expect(() => h.owner.publishPluginFailure(event, identity)).toThrow('injected write failure')
+        expect(h.deps.kvGet(key)).toBe(prior)
+        expect(h.deps.kvGet('internal/bg-notifications/v1/' + notice.id)).not.toBeNull()
+    })
+
     it('repairs an ambiguous existing terminal key without growing a full receipt pool', () => {
         const h = harness(), identity = 'c'.repeat(64), prefix = 'internal/bg-plugin-failure-receipts/v1/'
         const base = { ...h.event(), code: 'plugin_host_limit', pluginName: 'synthetic', pluginVersion: '1',
