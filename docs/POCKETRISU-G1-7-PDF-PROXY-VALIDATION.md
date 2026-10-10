@@ -55,7 +55,7 @@ Other corrected diagnostics: Gemini compatible endpoint omitted from the fake al
 
 ## Remaining gates
 
-Keep M0–M6 residual identity/argument-epoch/caller cases, M7/G1.5b activation, G1.8/G1.9 remaining behavior and G1.10 device/aggregate distinct. The runtime fix requires only a scoped ordinary-request preservation observation before its user gate is closed; broader MARP BG/device scenarios remain at G1.10 after activation conditions are met. Actual paid-provider requests still require the established concrete authorization. G2 continues to use unchanged official Archive Center later.
+Keep M0–M6 residual identity/argument-epoch/caller cases, M7/G1.5b activation, G1.8/G1.9 remaining behavior and G1.10 device/aggregate distinct. The scoped ordinary-request preservation observation is closed by the user report below; broader MARP BG/device scenarios remain at G1.10 after activation conditions are met. Actual paid-provider requests still require the established concrete authorization. G2 continues to use unchanged official Archive Center later.
 
 ## Safe delivery
 
@@ -65,4 +65,10 @@ Readonly active/model/pending0 and hostOFF preceded stop. The existing verified 
 
 Only six planned paths changed: server entry, worker/session/host, direct process test and patcher state. Source/app/frontend/BG builds retained database bytes. Post-restart readback confirms484 managed hashes/modes,175 served JS files, five database quick checks, unchanged header configuration, operation records99→99/removed0, input records0, active/pending0, online/unstable0 and new error lines0. Original appearance source and settings remain under the unchanged contract; the additive transport owner version is0.5.14.
 
-The real live `/proxy2` then forwards an89byte synthetic form to a temporary loopback echo: HTTP200, exact body/content-type match, external provider calls0, session activation0. This verifies live delivery, not actual-provider MARP execution. HostOFF remains; physical ordinary-use L5 and the stated activation/device/aggregate gates remain pending.
+The real live `/proxy2` then forwards an89byte synthetic form to a temporary loopback echo: HTTP200, exact body/content-type match, external provider calls0, session activation0. This verifies live delivery, not actual-provider MARP execution. HostOFF remains; the stated activation/device/aggregate gates remain pending.
+
+## Scoped user L5 and documentation closeout
+
+On2026-10-10 KST, the user reported “L5 정상” in response to the experimental.29 ordinary-use iPhone check: refresh the PocketRisu tab/PWA, send one short message with ordinary model/preset settings, then leave and return after the answer arrives to observe answer retention and progress cleanup. This is a user-reported pass of that scoped preservation check; no loaded-bundle attestation, server MARP execution, API-limit UI or comprehensive G1 device pass is inferred.
+
+README, CHANGELOG, the qualification ledger, ordered-goals status and local journal record this closeout. Completed structural-audit findings and limitations are preserved in this validation document; the temporary scoped L3 report is removed at L6. Runtime audit, synthetic evidence and rollback material remain. Runtime payload/version are unchanged; no rebuild, restart, host activation, stable tag or release is required by this documentation-only closeout.
