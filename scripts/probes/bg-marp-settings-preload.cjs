@@ -15,12 +15,25 @@ Module._load = function(request, ...args) {
         emit({ event: 'host', operationId: options.operation.operationId,
             assembly: settings(options.database) });
         const getRoot = options.storageOwner.getRoot;
-        return value.createBgPluginHost({ ...options, storageOwner: { ...options.storageOwner,
+        const host = await value.createBgPluginHost({ ...options,
+            publishNotification: (...args) => {
+                emit({event:'host-notice',code:args[0].code,pluginName:args[0].pluginName});
+                return options.publishNotification(...args);
+            }, storageOwner: { ...options.storageOwner,
             getRoot: async () => {
                 const root = await getRoot();
                 emit({ event: 'root-read', operationId: options.operation.operationId, digest: digest(settings(root)) });
                 return root;
             } } });
+        const refreshIdentity = host.refreshIdentity.bind(host);
+        host.refreshIdentity = async () => {
+            emit({ event: 'identity-refresh-start', operationId: options.operation.operationId,
+                assembly: settings(options.getDatabase()) });
+            const result = await refreshIdentity();
+            emit({ event: 'identity-refresh-end', operationId: options.operation.operationId });
+            return result;
+        };
+        return host;
     } };
     if (request === './bgPluginStorage.cjs') return { ...value, createPluginStorage: options => {
         const storage = value.createPluginStorage(options);
@@ -39,9 +52,15 @@ Module._load = function(request, ...args) {
     return value;
 };
 function settings(db) {
+    try {
     const raw = db.pluginCustomStorage?.risu_multiagent_lite_config_vault_v1;
     const vault = typeof raw === 'string' ? JSON.parse(raw) : raw;
-    return { config: vault?.config, arguments: db.plugins.find(p => p.name === 'risu_multiagent')?.realArg };
+    return { config: vault?.config, arguments: db.plugins?.find(p => p.name === 'risu_multiagent')?.realArg };
+    } catch {
+        // Observation cannot skip the real host/refresh on malformed fixtures.
+        // The runner rejects this event independently from product failures.
+        emit({event:'observation-error'});return null;
+    }
 }
 const listen = http.Server.prototype.listen;
 http.Server.prototype.listen = function(...args) {

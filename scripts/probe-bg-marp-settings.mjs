@@ -282,6 +282,16 @@ try {
     const analyses = events.filter(x => x.event === 'analysis'), mains = events.filter(x => x.event === 'main');
     const hosts = events.filter(x => x.event === 'host');
     assert.deepEqual(hosts.map(row => row.operationId), admissions);
+    const refreshStarts = events.filter(x => x.event === 'identity-refresh-start');
+    const refreshEnds = events.filter(x => x.event === 'identity-refresh-end');
+    assert.deepEqual(refreshStarts.map(row => row.operationId), admissions);
+    assert.deepEqual(refreshEnds.map(row => row.operationId), admissions);
+    for (let index = 0; index < hosts.length; index++) {
+        assert.ok(hosts[index].at < refreshStarts[index].at);
+        assert.ok(refreshStarts[index].at < refreshEnds[index].at);
+        assert.ok(analyses.filter(row => row.at > hosts[index].at && (index + 1 === hosts.length || row.at < hosts[index + 1].at))
+            .every(row => row.at > refreshEnds[index].at));
+    }
     assert.equal(events.filter(row => row.event === 'read').length, 18 * (scenario === 'retry' ? 2 : expectedAnswers));
     assert.ok(analyses.every(row => hosts.some(host => host.at < row.at)));
     const models = analyses.map(x => x.body.model);
@@ -340,6 +350,9 @@ try {
     assert.ok(chat.message.filter(m => m.role === 'char').every(m => m.data === 'Synthetic settings answer'));
     assert.equal(browserAnalysis, 0); assert.deepEqual(errors, []);
     assert.equal(events.filter(x => x.event === 'validation-error').length, 0);
+    assert.equal(events.filter(x => x.event === 'observation-error').length, 0);
+    if(['selection','queue','retry'].includes(scenario))assert.deepEqual(events.filter(x=>x.event==='host-notice'),[],
+        'unchanged original identity survives stripped assembly snapshot and refresh');
     const finalSettings = await rootSettings(); assertFinalSettings(finalSettings);
     const receipt = { scenario, runtime, originalBytes: Buffer.byteLength(script), originalHash: createHash('sha256').update(script).digest('hex'),
         admissions, acks, saved, patches, heldPatchPaths, events, analysis: models.length, main: mains.length, answers: expectedAnswers,
