@@ -167,4 +167,7 @@ globalThis.fetch = async(input, options = {}) => {
         usage: { prompt_tokens: 2, completion_tokens: 3 } });
 };
 // Close the actual HTTP/TCP/WS routes as well as fetch; never use real providers.
-require('./bg-marp-pdf-transport.cjs').installPdfHttpTransport(globalThis.fetch, emit);
+let socketControl=true;
+require('./bg-marp-pdf-transport.cjs').installPdfHttpTransport(globalThis.fetch,
+    process.env.MARP_INSTALLED_PROBE==='1'?row=>emit({...row,control:socketControl}):emit);
+socketControl=false;
