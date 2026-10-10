@@ -14,6 +14,12 @@ and cancel boundaries, and the separate actual preset Send/store evidence.
 Actual providers, residual M7/activation and device/aggregate remain open;
 the stable release remains `v0.2.3`.
 
+Experimental.29 is delivered:484 managed files/175 served scripts/five database
+checks, header configuration preserved, operations99→99/removed0, hostOFF,
+online/unstable0/new error lines0. The live proxy form echo matches its89byte
+body/content type without an external provider call. Scoped ordinary-use iPhone
+confirmation is pending; it does not replace the remaining activation/aggregate gates.
+
 The `0.2.4-experimental.28` candidate adds visible API-limit refusals to the
 generic server plugin host while preserving valid later calls and existing limits.
 It retains the unavailable-host BG continuation/warnings from experimental.27.

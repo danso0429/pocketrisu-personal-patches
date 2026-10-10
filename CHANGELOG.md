@@ -6,6 +6,7 @@
 - Report worker-local frame/value refusal under the same pending id/context through the existing mandatory phase notice. Retain caps, fatal backpressure and existing return errors; preserve tested later plain-data calls and reject malformed/expired reports without API effects.
 - Record four-family native/server original PDF comparisons, exact source/PDF and injection checks, CSP/Worker controls, original large/cancel/next-normal cases and separate actual preset Send/Chrome exit/normal-chat journal/cold-return evidence.
 - Personal settings0.5.14 / BG adapter0.7.36. Production host remains OFF; actual provider, residual admission/activation, device, aggregate and stable release remain separate. See `docs/POCKETRISU-G1-7-PDF-PROXY-VALIDATION.md`.
+- Delivered after verified app/state rollback:484 managed files/175 served scripts/five databases; header configuration preserved, operations99→99/removed0, hostOFF/online/unstable0/new error lines0. Live loopback form echo is HTTP200/exact89bytes and MIME, provider0/session activation0. Scoped ordinary-use device confirmation remains pending.
 
 ## 0.2.4-experimental.28 (BG API-limit visibility)
 
