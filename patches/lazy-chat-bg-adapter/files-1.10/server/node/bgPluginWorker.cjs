@@ -5,6 +5,26 @@
 const fail = code => Object.assign(new Error(code), { code });
 const validId = value => Number.isSafeInteger(value) && value > 0;
 const immediate = () => new Promise(resolve => setImmediate(resolve));
+// Materialization/rollback must not invoke guest-owned instance overrides.
+const apply = Reflect.apply;
+const signalAborted = Object.getOwnPropertyDescriptor(AbortSignal.prototype, 'aborted').get;
+const addListener = EventTarget.prototype.addEventListener, removeListener = EventTarget.prototype.removeEventListener;
+const getReader = ReadableStream.prototype.getReader, releaseReader = ReadableStreamDefaultReader.prototype.releaseLock;
+const searchString = URLSearchParams.prototype.toString, dateString = Date.prototype.toISOString;
+const createObject = Object.create, defineProperty = Object.defineProperty, ownKeys = Object.keys;
+const setPrototype = Object.setPrototypeOf, isArray = Array.isArray, stringify = JSON.stringify;
+function wireData(value) {
+    if (!value || typeof value !== 'object') return value;
+    if (isArray(value)) {
+        const result = setPrototype([], null);
+        for (let index = 0; index < value.length; index++) result[index] = wireData(value[index]);
+        return result;
+    }
+    const result = createObject(null), keys = ownKeys(value);
+    for (let index = 0; index < keys.length; index++) result[keys[index]] = wireData(value[keys[index]]);
+    return result;
+}
+function wireJSON() { return wireData(this); }
 
 function createPluginPeer({ send, dispatch, onFatal = () => {}, timeoutMs = 600_000, onExpiredContext = () => {},
     getContext = () => null, runContext = (_context, task) => task(),
@@ -14,18 +34,26 @@ function createPluginPeer({ send, dispatch, onFatal = () => {}, timeoutMs = 600_
     const remoteStreams = new Map();
     const ids = new WeakMap(), reverseFunctions = new WeakMap();
     let sequence = 0, handle = 0, lastIncoming = 0, incoming = 0, closed = false, activity = 0;
-    const exported = (value, map) => {
-        if (ids.has(value)) return ids.get(value);
-        if (map.size >= 256) throw fail('plugin_rpc_handle_limit');
-        const id = ++handle;
-        ids.set(value, id); map.set(id, value);
-        return id;
+    const exportSlot = (value, kind, budget) => {
+        const slot = kind === 'signal' ? [kind, null, apply(signalAborted, value, [])] : [kind, null];
+        let entry = budget.exports.get(value);
+        if (!entry) {
+            entry = { value, kind, slots: [] };
+            budget.exports.set(value, entry);
+            const map = kind === 'function' ? functions : kind === 'signal' ? signals : readers;
+            if (!ids.has(value) && map.size + ++budget.counts[kind] > (kind === 'stream' ? 64 : 256)) throw fail('plugin_rpc_handle_limit');
+        }
+        entry.slots.push(slot); return slot;
     };
     const errorCode = error => /^plugin_[a-z0-9_]{1,80}$/.test(error?.code ?? '')
         ? error.code : 'plugin_execution_failed';
     const emit = frame => {
         if (closed) throw fail('plugin_rpc_closed');
-        send({ v: 1, ...frame });
+        const value = { v: 1, ...frame };
+        // Preserve the in-memory frame contract, but keep inherited JSON
+        // formatters out of the private wire tree after materialization.
+        defineProperty(value, 'toJSON', { value: wireJSON });
+        send(value);
     };
     function close(code = 'plugin_rpc_closed') {
         if (closed) return;
@@ -33,7 +61,7 @@ function createPluginPeer({ send, dispatch, onFatal = () => {}, timeoutMs = 600_
         for (const entry of pending.values()) { clearTimeout(entry.timer); entry.reject(fail(code)); }
         pending.clear();
         for (const controller of controllers.values()) controller.abort(fail(code));
-        for (const entry of signals.values()) entry.signal.removeEventListener('abort', entry.abort);
+        for (const entry of signals.values()) apply(removeListener, entry.signal, ['abort', entry.abort]);
         for (const entry of readers.values()) void entry.reader.cancel(code).catch(() => {});
         for (const entry of remoteStreams.values()) { entry.controller?.error(fail(code)); entry.release(); }
         controllers.clear(); signals.clear(); readers.clear(); functions.clear(); remoteFunctions.clear();
@@ -41,7 +69,7 @@ function createPluginPeer({ send, dispatch, onFatal = () => {}, timeoutMs = 600_
     }
     const fatal = code => { close(code); onFatal(code); };
 
-    function pack(value, depth = 0, budget = { nodes: 0 }) {
+    function pack(value, depth, budget) {
         if (++budget.nodes > 100_000 || depth > 64) throw fail('plugin_rpc_value_limit');
         const child = item => pack(item, depth + 1, budget);
         if (value === undefined) return ['undefined'];
@@ -49,46 +77,85 @@ function createPluginPeer({ send, dispatch, onFatal = () => {}, timeoutMs = 600_
             || (typeof value === 'number' && Number.isFinite(value))) return ['value', value];
         if (typeof value === 'function') {
             if (reverseFunctions.has(value)) return ['returnFunction', reverseFunctions.get(value)];
-            return ['function', exported(value, functions)];
+            return exportSlot(value, 'function', budget);
         }
         if (value instanceof AbortSignal) {
-            let id = ids.get(value);
-            if (!id) {
-                if (signals.size >= 256) throw fail('plugin_rpc_handle_limit');
-                id = ++handle; ids.set(value, id);
-                const abort = () => { if (!closed) emit({ kind: 'abort', handle: id }); };
-                signals.set(id, { signal: value, abort });
-                value.addEventListener('abort', abort, { once: true });
-            }
-            return ['signal', id, value.aborted];
+            return exportSlot(value, 'signal', budget);
         }
-        if (value instanceof Response) return ['response', value.status, value.statusText,
-            [...value.headers], value.url, value.redirected, value.type, child(value.body)];
+        if (value instanceof Response) {
+            const { status, statusText, url, redirected, type, headers, body } = value;
+            if (!Number.isInteger(status) || typeof statusText !== 'string' || typeof url !== 'string'
+                || typeof redirected !== 'boolean' || typeof type !== 'string') throw fail('plugin_rpc_type_unsupported');
+            return ['response', status, statusText, headerPairs(headers), url, redirected, type, child(body)];
+        }
         if (value instanceof ReadableStream) {
-            let id = ids.get(value);
-            if (!id) {
-                if (readers.size >= 64) throw fail('plugin_rpc_handle_limit');
-                id = ++handle; ids.set(value, id);
-                readers.set(id, { reader: value.getReader(), pulling: false, context: getContext() });
-            }
-            return ['stream', id];
+            return exportSlot(value, 'stream', budget);
         }
         if (value instanceof ArrayBuffer) return ['bytes', 'buffer', Buffer.from(value).toString('base64')];
         if (ArrayBuffer.isView(value)) {
             if (Object.prototype.toString.call(value) !== '[object Uint8Array]') throw fail('plugin_rpc_type_unsupported');
             return ['bytes', 'uint8', Buffer.from(value.buffer, value.byteOffset, value.byteLength).toString('base64')];
         }
-        if (value instanceof Headers) return ['headers', [...value]];
-        if (value instanceof URLSearchParams) return ['search', value.toString()];
+        if (value instanceof Headers) return ['headers', headerPairs(value)];
+        if (value instanceof URLSearchParams) return ['search', apply(searchString, value, [])];
         if (Array.isArray(value)) {
             if (value.length > 100_000) throw fail('plugin_rpc_value_limit');
             return ['array', Array.from(value, child)];
         }
-        if (Object.prototype.toString.call(value) === '[object Date]') return ['date', Date.prototype.toISOString.call(value)];
+        if (Object.prototype.toString.call(value) === '[object Date]') return ['date', apply(dateString, value, [])];
         if (typeof value === 'object' && Object.prototype.toString.call(value) === '[object Object]') {
             return ['object', Object.entries(value).map(([key, item]) => [key, child(item)])];
         }
         throw fail('plugin_rpc_type_unsupported');
+    }
+
+    function headerPairs(headers) {
+        return Array.from(headers, pair => {
+            if (!Array.isArray(pair) || pair.length !== 2) throw fail('plugin_rpc_type_unsupported');
+            const [name, value] = pair;
+            if (typeof name !== 'string' || typeof value !== 'string') throw fail('plugin_rpc_type_unsupported');
+            return [name, value];
+        });
+    }
+    function serialize(value) {
+        // Encode payload getters/iterators before acquiring resources.
+        // Nested calls can publish handles independently. This transaction
+        // assumes untampered codec intrinsics; isolation remains the OS process.
+        const budget = { nodes: 0, exports: new Map(), counts: { function: 0, signal: 0, stream: 0 } };
+        const encoded = pack(value, 0, budget), created = [];
+        if (closed) throw fail('plugin_rpc_closed');
+        const rollback = () => {
+            for (const entry of created.reverse()) {
+                ids.delete(entry.value); entry.map.delete(entry.id);
+                if (entry.kind === 'stream') apply(releaseReader, entry.resource.reader, []);
+                if (entry.kind === 'signal') apply(removeListener, entry.value, ['abort', entry.resource.abort]);
+            }
+            created.length = 0;
+        };
+        try {
+            for (const entry of budget.exports.values()) {
+                let id = ids.get(entry.value);
+                if (!id) {
+                    const map = entry.kind === 'function' ? functions : entry.kind === 'signal' ? signals : readers;
+                    if (map.size >= (entry.kind === 'stream' ? 64 : 256)) throw fail('plugin_rpc_handle_limit');
+                    // A locked stream must fail before installing its identity.
+                    const resource = entry.kind === 'stream' ? { reader: apply(getReader, entry.value, []), pulling: false, context: getContext() }
+                        : entry.kind === 'signal' ? { signal: entry.value, abort: null } : entry.value;
+                    id = ++handle;
+                    if (entry.kind === 'signal') {
+                        resource.abort = () => { if (!closed) emit({ kind: 'abort', handle: id }); };
+                        apply(addListener, entry.value, ['abort', resource.abort, { once: true }]);
+                    }
+                    ids.set(entry.value, id); map.set(id, resource);
+                    created.push({ ...entry, id, map, resource });
+                }
+                for (const slot of entry.slots) {
+                    slot[1] = id;
+                    if (entry.kind === 'signal') slot[2] = apply(signalAborted, entry.value, []);
+                }
+            }
+        } catch (error) { rollback(); throw error; }
+        return { encoded, rollback };
     }
 
     function unpack(value, depth = 0, budget = { nodes: 0 }) {
@@ -174,11 +241,18 @@ function createPluginPeer({ send, dispatch, onFatal = () => {}, timeoutMs = 600_
 
     function call(method, args, context = getContext()) {
         if (closed) return Promise.reject(fail('plugin_rpc_closed'));
+        if (typeof method !== 'string' || !(context === null || typeof context === 'string')) return Promise.reject(fail('plugin_rpc_context_invalid'));
         if (pending.size >= 64) return Promise.reject(fail('plugin_rpc_pending_limit'));
-        let encoded;
-        try { encoded = pack(args); } catch (error) {
+        let encoded, serialization;
+        try { serialization = serialize(args); encoded = serialization.encoded; } catch (error) {
+            if (closed) return Promise.reject(fail('plugin_rpc_closed'));
             if (!localCallLimits || error?.code !== 'plugin_rpc_value_limit') return Promise.reject(error);
             method = 'api_local_limit'; encoded = ['array', [['value', error.code]]];
+        }
+        // Encoding may synchronously publish a nested call or close this peer.
+        if (closed || pending.size >= 64) {
+            serialization?.rollback();
+            return Promise.reject(fail(closed ? 'plugin_rpc_closed' : 'plugin_rpc_pending_limit'));
         }
         const id = ++sequence;
         activity++;
@@ -189,6 +263,7 @@ function createPluginPeer({ send, dispatch, onFatal = () => {}, timeoutMs = 600_
             try { emit({ kind: 'call', id, method, args: encoded, context }); }
             catch (error) {
                 if (localCallLimits && error?.code === 'plugin_rpc_frame_limit' && error.oversize === true) {
+                    serialization?.rollback();
                     // No original bytes were issued. Preserve id/context/timer
                     // and await the parent's mandatory refusal publication.
                     try { emit({ kind: 'call', id, method: 'api_local_limit',
@@ -255,7 +330,11 @@ function createPluginPeer({ send, dispatch, onFatal = () => {}, timeoutMs = 600_
                 incoming++;
                 void Promise.resolve().then(() => runContext(frame.context, () =>
                     Promise.resolve().then(() => execute(frame.method, args)).then(value => {
-                        if (!closed) emit({ kind: 'return', id: frame.id, ok: true, value: pack(value) });
+                        if (!closed) {
+                            const serialization = serialize(value);
+                            try { emit({ kind: 'return', id: frame.id, ok: true, value: serialization.encoded }); }
+                            catch (error) { if (error.code === 'plugin_rpc_frame_limit' && error.oversize === true) serialization.rollback(); throw error; }
+                        }
                     }),
                 )).catch(error => {
                     try { if (!closed) emit({ kind: 'return', id: frame.id, ok: false, code: errorCode(error) }); }
@@ -264,7 +343,8 @@ function createPluginPeer({ send, dispatch, onFatal = () => {}, timeoutMs = 600_
             } else throw fail('plugin_rpc_protocol_invalid');
         } catch (error) { fatal(errorCode(error)); }
     }
-    return { call, receive, close, stats: () => ({ pending: pending.size, incoming, activity, closed }) };
+    return { call, receive, close, stats: () => ({ pending: pending.size, incoming, activity, closed,
+        exports: { functions: functions.size, streams: readers.size, signals: signals.size } }) };
 }
 
 async function runWorker() {
@@ -303,7 +383,7 @@ async function runWorker() {
         localCallLimits: true,
         getContext: () => invocation.getStore() ?? null,
         runContext: (context, task) => invocation.run(context, task), send(frame) {
-        const bytes = JSON.stringify(frame) + '\n';
+        const bytes = stringify(frame) + '\n';
         if (channel.writableLength > 16 * 1024 * 1024) throw fail('plugin_rpc_frame_limit');
         if (Buffer.byteLength(bytes) > 8 * 1024 * 1024) throw Object.assign(fail('plugin_rpc_frame_limit'), { oversize: true });
         channel.write(bytes);

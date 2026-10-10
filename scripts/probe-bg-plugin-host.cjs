@@ -28,7 +28,8 @@ async function fixture(t, plugins, permissions = true, options = {}) {
     const registry = { replacerbeforeRequest: new Set(), replacerafterRequest: new Set(), editinput: new Set(),
         editoutput: new Set(), editprocess: new Set(), editdisplay: new Set(), providers: new Map() };
     const bindings = { registry, allowedDbKeys: ['characters', 'plugins', 'pluginCustomStorage'], bodyInterceptors: [],
-        nativeFetch: async (url, options) => { network.push({ url, options }); return new Response('synthetic-response'); },
+        nativeFetch: async (url, init) => { network.push({ url, options:init }); return options.nativeFetch
+            ? options.nativeFetch(url, init) : new Response('synthetic-response'); },
         risuFetch: async () => ({ ok: true, data: 'synthetic' }),
         requestChatDataMain: async (args, mode) => ({ type: 'success', result: JSON.stringify({ args, mode }) }),
         installProvider(name, callback) { registry.providers.set(name, callback); return () => registry.providers.delete(name); } };
@@ -450,6 +451,32 @@ test('local frame refusal publication failure remains mandatory despite a caught
     await [...h.registry.replacerbeforeRequest][0]([]).catch(() => {});
     await assert.rejects(h.host.assertNotifications(), { code: 'plugin_notification_unavailable' });
     assert.equal(h.network.length, 0); assert.equal(h.effects, 0); assert.equal(h.controller.signal.aborted, true);
+});
+
+for(const kind of ['frame','value'])test(`real guest reuses refused ${kind} stream/response/callback/signal without API effects`,async t=>{
+    const observed=[];
+    const h=await fixture(t,[plugin('handle-reuse',`
+        await Risuai.addRisuReplacer('beforeRequest',async xs=>{
+            const stream=new ReadableStream({pull(c){c.enqueue('stream-kept');c.close();}},{highWaterMark:0});
+            const response=new Response('response-kept');const controller=new AbortController();const fn=x=>'callback-'+x;
+            const handles={extraStream:stream,extraResponse:response,extraFn:fn,extraSignal:controller.signal};
+            try{await Risuai.nativeFetch('https://synthetic.invalid/must-not-run',{...handles,bad:${kind==='frame'?"'x'.repeat(9*1024*1024)":"Array(100001).fill(0)"}});}catch{}
+            if(stream.locked||response.body.locked||response.bodyUsed)throw Error('refused body was consumed or locked');
+            const result=await Risuai.nativeFetch('https://synthetic.invalid/next',handles);
+            controller.abort();return [...xs,{role:'system',content:await result.text()}];
+        });
+    `)],true,{nativeFetch:async(url,init)=>{
+        assert.equal(url,'https://synthetic.invalid/next');const reader=init.extraStream.getReader();
+        assert.equal((await reader.read()).value,'stream-kept');assert.equal((await reader.read()).done,true);
+        assert.equal(await init.extraResponse.text(),'response-kept');assert.equal(await init.extraFn('kept'),'callback-kept');
+        observed.push(init.extraSignal);return new Response('handles reused');
+    }});
+    assert.deepEqual(await [...h.registry.replacerbeforeRequest][0]([]),[{role:'system',content:'handles reused'}]);
+    assert.equal(h.network.length,1);assert.equal(h.effects,1);assert.equal(observed.length,1);
+    await new Promise(resolve=>setImmediate(resolve));assert.equal(observed[0].aborted,true);
+    const notices=h.notices();assert.equal(notices.length,1);assert.equal(notices[0].code,'plugin_host_limit');
+    assert.equal(notices[0].phase,'before_request');assert.equal(notices[0].effectsMayHaveOccurred,false);
+    await h.host.close();assert.equal(h.registry.replacerbeforeRequest.size,0);
 });
 
 test('local frame refusal during initialization settles before ready without disabling a later hook', async t => {
