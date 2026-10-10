@@ -8,6 +8,8 @@ The [raw provider checkpoint](POCKETRISU-G1-7-RAW-PROVIDER-VALIDATION.md) closes
 
 ## Source and changes
 
+M7 first-unit checkpoint (2026-10-10): [installed combination/admission evidence](POCKETRISU-G1-7-INSTALLED-COMBINATION-VALIDATION.md) implements maintained original-combination10 and actual raw/prepared HTTP8, plus existing default controls2. Current readonly original order/version/source identities match; synthetic settings only. ON analysis3/main1, OFF omission/main1 with six notices, expired-grant main1 and healthy selected synthetic-provider1 all store one input/answer with matching journals. Per-entry transport summaries, exact failure sets, repeat receipts and post-close resource settlement are asserted. Application/installer/version remain experimental.32, with no live mutation. This closes the stated M7.1/scoped M7.2 probe unit, not M7 activation or A/D aggregate. Remaining selected installed-provider, operational composition/capacity/settings and later failure/stream/provider/device gates stay explicit.
+
 Read-only installed-source extraction confirmed Lite0.9.2: 64,022 bytes, SHA-256 `b1aa573048ea31ec036e21fd9df9f1a35d136435e247f15c3cdaa6026cd8e132`. Original bytes execute in the generic worker. Production has no MARP name/hash/marker branch; hashes identify evidence, not an execution allowlist.
 
 - Already-issued request cleanup no longer becomes a false late-API notice. New calls arriving after expiry remain blocked and reported.

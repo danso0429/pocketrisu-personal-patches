@@ -2,6 +2,9 @@
 
 ## 0.2.4-experimental.32 (rejected handle reuse and auxiliary callers)
 
+- Add the M7 first-unit maintained installed-original combination10 and actual raw/prepared HTTP8 probes, retaining default controls2, unchanged application/installer and hostOFF. Independently pin original source evidence, exact failure sets, per-entry transport counts and effect/commit ownership; preserve delayed OS teardown observations. See `docs/POCKETRISU-G1-7-INSTALLED-COMBINATION-VALIDATION.md`.
+- Connect remaining M7/G1.8/G1.9/G1.10/G2 verification to goal subplans and L1–L6 without treating listed scenarios as an audit ceiling. This checkpoint does not activate production or complete M7/device/aggregate.
+
 - Encode before acquiring RPC handles, recheck committed identities/caps and restore only new resources after materialization or known prewrite failure. Preserve unread bodies, callback/signal reuse, published handles, monotonic IDs, original caps and fatal cancellation.
 - Recheck closed/pending state after nested encoding, preserve tiny-control failure semantics and keep inherited JSON formatters out of private frames. Native Response metadata and wire v1 tags remain compatible; this is not VM isolation or arbitrary consumed-stream reuse.
 - Record current native caller inventory and four actual low-level v2/Lua input→MARP→main→normal-chat/journal cases with default/expanded main-only settings. Keep original scripts and frontend/model policy unchanged.

@@ -16,6 +16,15 @@ aggregate remain separate. Final source consultation and scoped application deli
 are complete after rollback, source/configuration and database-preservation checks.
 Detailed operational receipts are retained privately. Stable remains `v0.2.3`.
 
+The M7 first-unit checkpoint adds maintained installed-original combination and
+actual raw/prepared admission probes on the unchanged experimental.32 application.
+Original-host10, HTTP8 and existing default controls2 pass with explicit omission,
+provider, notice/receipt and canonical-storage assertions. The goal subplans connect
+remaining checks to L1–L6 without limiting audit discovery. See
+[installed-combination evidence](docs/POCKETRISU-G1-7-INSTALLED-COMBINATION-VALIDATION.md).
+Full M7 activation, failure/stream/device/aggregate and unchanged official AC remain
+separate; no application version or production setting changes in this checkpoint.
+
 The `0.2.4-experimental.31` checkpoint admits raw selected-plugin providers through
 the eligible host and checks actual healthy registration before input effects.
 Missing/ambiguous providers fail without an implicit default model; native retry

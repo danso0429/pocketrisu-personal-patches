@@ -54,6 +54,8 @@ The generic parent-owned per-entry transport summary and Request Logs diagnostic
 
 ## M7/G1.5b implementation and verification subplan
 
+First-unit implementation evidence: [installed-combination checkpoint](POCKETRISU-G1-7-INSTALLED-COMBINATION-VALIDATION.md) adds maintained original-host10 and actual raw/prepared HTTP8, retaining experimental.32 application/installer and the remaining operational/provider/device conditions. The units below are not globally complete.
+
 2026-10-10. Start from experimental.32/adapter0.7.39 and its current handle/caller evidence. The following units connect remaining checks to repository L1–L6; they are starting investigation paths, not a closed test list or a substitute for tracing changed dependencies and newly discovered behavior. Reuse evidence only for unchanged source/environment/contracts. Characterization is not admission approval; a source-only feature mapping is not a runtime pass.
 
 | Unit | Implementation/investigation and L1–L4 evidence | Delivery and L5–L6 boundary |
