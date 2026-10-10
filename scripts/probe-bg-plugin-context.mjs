@@ -9,7 +9,8 @@ import {createHash,randomUUID} from 'node:crypto';
 const [targetArgument,originalArgument,fixtureArgument,outputArgument,scenario,route='raw']=process.argv.slice(2);
 const [target,original,fixturePath,output]=[targetArgument,originalArgument,fixtureArgument,outputArgument].map(p=>path.resolve(p));
 const rawProviderCases=['happy-provider','input-provider','input-blocked-provider','missing-provider','off-provider','conflict-provider','failed-registration-provider','fallback-provider','missing-fallback-provider','retry-provider'];
-assert.ok(['script','insert','value-copy','cache-evict','root-failure','constructor-failure','duplicate-start','selected-provider','duplicate-provider','nonselected-provider',...rawProviderCases].includes(scenario));
+const auxiliaryCases=['aux-default','aux-expanded','aux-lua-default','aux-lua-expanded'];
+assert.ok(['script','insert','value-copy','cache-evict','root-failure','constructor-failure','duplicate-start','selected-provider','duplicate-provider','nonselected-provider',...rawProviderCases,...auxiliaryCases].includes(scenario));
 assert.ok(['raw','prepared'].includes(route));
 const require=createRequire(path.join(target,'package.json')),Database=require('better-sqlite3');
 const runtime=fs.mkdtempSync('/tmp/marp-settings-context-');process.chdir(runtime);
@@ -61,6 +62,13 @@ if(scenario==='failed-registration-provider')data.plugins.push({...data.plugins[
     script:data.plugins[1].script+'\nthrow Error("Synthetic load failure after registration");'});
 if(scenario.endsWith('fallback-provider')){data.aiModel=data.subModel='gpt-4o';data.fallbackModels={...data.fallbackModels,model:['pluginmodel:::synthetic-provider']};}
 if(scenario==='retry-provider')data.requestRetrys=1;
+if(auxiliaryCases.includes(scenario)){
+    data.plugins[0].realArg.main_model_only=scenario.endsWith('expanded')?'0':'1';
+    data.characters[0].triggerscript=[{comment:'Synthetic actual auxiliary caller',type:'input',conditions:[],lowLevelAccess:true,
+        effect:scenario.includes('lua')?[{type:'triggerlua',code:`onInput=async(function(id) local result=axLLM(id,{{role='user',content='Synthetic Lua auxiliary question'}},false,{streaming=false}); setChatVar(id,'aux_lua',result.result) end)`}]
+            :['model','submodel'].map(model=>({type:'v2RunLLM',value:'Synthetic actual '+model+' question',valueType:'value',model,streaming:false,outputVar:'aux_'+model,indent:0})),
+    }];
+}
 if(scenario==='duplicate-start')data.plugins.push({...data.plugins[0],realArg:{}});
 if(scenario==='duplicate-provider')data.plugins.push({...data.plugins[1],realArg:{}});
 if(route==='prepared')data.characters[0].chats[0].message.push({role:'user',data:'Synthetic prepared input',chatId:'synthetic-prepared-user'});
@@ -76,7 +84,8 @@ disk.prepare('INSERT OR REPLACE INTO kv(key,value) VALUES(?,?)').run('cache/plug
 const events=[],server=fork(path.join(target,'server/node/server.cjs'),[],{cwd:runtime,
     execArgv:['--require',new URL('./probes/bg-marp-settings-preload.cjs',import.meta.url).pathname],
     env:{...process.env,PORT:'0',TUNNEL_DISABLED:'1',UPDATE_CHECK_DISABLED:'1',POCKETRISU_BG_PLUGIN_HOST_CANDIDATE:scenario==='off-provider'?'0':'1',MARP_SETTINGS_PROBE:'1',
-        MARP_SETTINGS_GATE:['duplicate-start','duplicate-provider','constructor-failure',...rawProviderCases].includes(scenario)?'':'analysis',MARP_CONTEXT_SCENARIO:scenario},stdio:['ignore','pipe','pipe','ipc']});
+        MARP_SETTINGS_GATE:['duplicate-start','duplicate-provider','constructor-failure',...rawProviderCases,...auxiliaryCases].includes(scenario)?'':'analysis',
+        MARP_AUX_CALLER_PROBE:auxiliaryCases.includes(scenario)?'1':'0',MARP_CONTEXT_SCENARIO:scenario},stdio:['ignore','pipe','pipe','ipc']});
 server.on('message',row=>events.push(row));const log=fs.createWriteStream(path.join(runtime,'server.log'));server.stdout.pipe(log);server.stderr.pipe(log);
 const wait=async task=>{const end=Date.now()+60000;while(Date.now()<end){const value=await task();if(value)return value;await new Promise(r=>setTimeout(r,50));}throw Error('context probe deadline');};
 const operationId=randomUUID();
@@ -96,7 +105,7 @@ try{
             rawText:'Synthetic raw input',settingsSnapshotRef:'synthetic-client-hint',submittedAt:Date.now()}}:{})};
     const start=await fetch(origin+'/api/bg-orchestrate',{method:'POST',headers,body:JSON.stringify(body)});assert.equal(start.status,200);
     const ack=await start.json();assert.equal(ack.started,true);assert.equal(ack.operationId,operationId);
-    if(!['duplicate-start','duplicate-provider','constructor-failure',...rawProviderCases].includes(scenario)){
+    if(!['duplicate-start','duplicate-provider','constructor-failure',...rawProviderCases,...auxiliaryCases].includes(scenario)){
         await wait(()=>events.some(e=>e.event==='analysis'));
         if(scenario==='cache-evict'){
             const key=Buffer.from('database/database.bin').toString('hex');
@@ -131,6 +140,24 @@ try{
     assert.notEqual(terminal.state,'cancelled');
     const response=await fetch(origin+'/api/chat-content/synthetic-character/0',{headers});assert.equal(response.status,200);
     const chat=await decodeRisuSave(new Uint8Array(await response.arrayBuffer()));
+    if(auxiliaryCases.includes(scenario)){
+        const lua=scenario.includes('lua'),expanded=scenario.endsWith('expanded');
+        const roles=events.filter(e=>e.event==='actual-request-role').map(e=>e.role);
+        assert.deepEqual(roles,lua?['otherAx','model']:['model','submodel','model']);
+        const analyses=events.filter(e=>e.event==='analysis'),mains=events.filter(e=>e.event==='main');
+        assert.equal(analyses.length,lua?(expanded?6:3):(expanded?9:6));assert.equal(mains.length,lua?2:3);
+        const injected=mains.map(e=>JSON.stringify(e.body).includes('<!--MARP:v1:begin-->'));
+        assert.deepEqual(injected,lua?[expanded,true]:[true,expanded,true]);
+        assert.equal(chat.message.filter(m=>m.role==='char').length,1);assert.equal(chat.message.filter(m=>m.role==='user').length,1);
+        for(const key of lua?['aux_lua']:['aux_model','aux_submodel'])assert.equal(chat.scriptstate['$'+key],'Synthetic settings answer');
+        assert.equal(events.filter(e=>['host-notice','observation-error','validation-error','denied'].includes(e.event)).length,0);
+        const db=new Database(path.join(runtime,'save/risuai.db'),{readonly:true});let journal;
+        try{journal=db.prepare('SELECT value FROM kv WHERE key LIKE ?').all('internal/server-chat-commit/v1/%').map(r=>JSON.parse(String(r.value)));}finally{db.close();}
+        assert.ok(journal.some(row=>row.operationId===operationId));
+        fs.mkdirSync(output,{recursive:true});fs.writeFileSync(path.join(output,scenario+'-'+route+'.json'),JSON.stringify({scenario,route,runtime,operationId,terminal,events,roles,injected,
+            analysis:analyses.length,nativeRequests:mains.length,answers:1,scope:'actual generated raw HTTP/input v2RunLLM or Lua axLLM/main dispatcher through unchanged original MARP; synthetic provider; not all auxiliary entry points'},null,2));
+        console.log(JSON.stringify({scenario,roles,analysis:analyses.length,nativeRequests:mains.length,answers:1,state:terminal.state}));return;
+    }
     if(route==='raw'&&(rawProviderCases.includes(scenario)||scenario==='duplicate-provider')){
         const blocked=['duplicate-provider','missing-provider','missing-fallback-provider','off-provider','input-blocked-provider','conflict-provider','failed-registration-provider'].includes(scenario);
         const analyses=events.filter(e=>e.event==='analysis'),mains=events.filter(e=>e.event==='main');

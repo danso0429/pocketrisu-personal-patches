@@ -36,6 +36,19 @@ Module._load = function(request, ...args) {
         return value.createPluginSession(options);
     }};
     if (request === './bgPluginHost.cjs') return { ...value, createBgPluginHost: async options => {
+        if(process.env.MARP_AUX_CALLER_PROBE==='1'){
+            const set=options.bindings.registry.replacerbeforeRequest;
+            if(!set.__auxObserved){
+                const add=set.add,remove=set.delete,wrapped=new WeakMap();
+                set.add=function(callback){
+                    if(typeof callback!=='function')return add.call(this,callback);
+                    if(!wrapped.has(callback))wrapped.set(callback,(...args)=>{emit({event:'actual-request-role',role:args[1]??null});return callback(...args);});
+                    return add.call(this,wrapped.get(callback));
+                };
+                set.delete=function(callback){return remove.call(this,wrapped.get(callback)??callback);};
+                Object.defineProperty(set,'__auxObserved',{value:true});
+            }
+        }
         emit({ event: 'host', operationId: options.operation.operationId,
             assembly: settings(options.database) });
         const getRoot = options.storageOwner.getRoot;
