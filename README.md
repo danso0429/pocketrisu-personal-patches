@@ -4,6 +4,18 @@ Personal, all-or-nothing patch delivery for PocketRisu NodeOnly. The current
 stable release is `v0.2.3`, and its complete manifest graph targets exact
 PocketRisu `v1.10.0`.
 
+The `0.2.4-experimental.30` candidate implements the selected analysis-context
+contract: omit unusable non-provider hooks, retain prior effects and chain output,
+finish/store the answer and await the failure notice. Duplicate identities are
+refused before initialization; canonical identity checks use a hot cache peek
+with safe cold recovery, preserve unaffected relative hook order and reject a
+missing/invalid selected provider. BG adapter is0.7.37; Personal settings0.5.14
+and production hostOFF are retained. See the
+[context omission validation](docs/POCKETRISU-G1-7-CONTEXT-OMISSION-VALIDATION.md)
+for actual raw/prepared server, cache, provider, browser and gate evidence.
+Raw selected-provider admission, remaining M7/activation and device/aggregate
+qualification remain open; this checkpoint is not a stable release.
+
 The `0.2.4-experimental.29` candidate preserves URL-encoded form bytes on the
 authenticated proxy aliases and reports worker-local RPC frame/value refusals
 without losing later valid calls. Personal settings is0.5.14 and the BG adapter
@@ -24,8 +36,9 @@ the remaining activation/aggregate gates stay open.
 The subsequent [role/identity/epoch checkpoint](docs/POCKETRISU-G1-7-ROLE-IDENTITY-EPOCH-VALIDATION.md)
 adds original native/server role comparisons and separate canonical-root/operation-DB
 characterization, with actual Send/queue/retry refresh/store evidence. It changes
-probes and documentation only. Duplicate-name handling and identity authority on
-non-attached paths remain required design work before M7; production stays OFF.
+probes and documentation only. Its duplicate-name/non-attached design work is
+implemented in the subsequent experimental.30 checkpoint within the documented
+scope; full M7 and production activation remain open.
 
 The `0.2.4-experimental.28` candidate adds visible API-limit refusals to the
 generic server plugin host while preserving valid later calls and existing limits.

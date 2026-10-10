@@ -1,5 +1,13 @@
 # Changelog
 
+## 0.2.4-experimental.30 (context omission and canonical identity)
+
+- Implement the confirmed non-provider context contract: retain prior chain output and existing effects, omit invalid hooks with an awaited notice, then finish/store the answer without replaying initialization or analysis. Selected model-provider failures remain failures.
+- Detect ambiguous names before guest initialization, preserve unaffected relative hook order, bind grants to loaded code and check canonical identity at callback/API/effect/write boundaries. Recover normal cache eviction through the canonical owner; genuine authority failure retains the existing error/unknown-input contracts.
+- Preserve canonical per-key writes when an operation snapshot lacks the plugin; do not recreate or accept an entire child-supplied plugin array. Keep caps, notification schema, native settings freshness and teardown behavior.
+- BG adapter0.7.37 / Personal settings0.5.14. Actual host90/session8, generated context12, browser Save/queue/retry, protocol35/M3 13 and full automatic/graph/revert gates pass. See `docs/POCKETRISU-G1-7-CONTEXT-OMISSION-VALIDATION.md` for scope and limits.
+- Production host remains OFF. Raw selected-provider admission, oversized handle reuse, broader caller/activation, actual provider and device/aggregate/stable gates remain separate.
+
 ## 0.2.4-experimental.29 (proxy form and local RPC refusal)
 
 - Preserve URL-encoded form bytes on the existing authenticated `/proxy` and `/proxy2` aliases, with their case/trailing-slash behavior. Retain JSON/text/binary owners, size bounds, headers and authentication.

@@ -1,6 +1,6 @@
 # G1.7 MARP qualification evidence ledger
 
-2026-10-09 KST. Foundation baseline `0f24c07` → `d2459fc`; current admission candidate `0.2.4-experimental.26` / adapter `0.7.33`. Apply the [post-implementation review criteria](POCKETRISU-MARP-BG-POST-IMPLEMENTATION-REVIEW.md). Scoped implementation and isolated experiments do not establish completed MARP BG, production activation, real-provider success, device qualification or a stable release.
+2026-10-09 KST foundation, updated2026-10-10. Foundation baseline `0f24c07` → `d2459fc` / experimental.26; current scoped context candidate `0.2.4-experimental.30` / adapter `0.7.37`. Apply the [post-implementation review criteria](POCKETRISU-MARP-BG-POST-IMPLEMENTATION-REVIEW.md). Scoped implementation and isolated experiments do not establish completed MARP BG, production activation, real-provider success, device qualification or a stable release.
 
 ## Source and changes
 
@@ -78,6 +78,8 @@ M2/M3 follow-up (2026-10-10): [PDF/proxy/refusal evidence](POCKETRISU-G1-7-PDF-P
 Scoped experimental.29 user closeout (2026-10-10): the user reported the ordinary-use iPhone L5 as normal. This closes the refresh/short-send/answer-retention/progress-cleanup preservation check only. It does not qualify the MARP D1–D8 matrix, loaded bundle, server host activation or G1 aggregate.
 
 Role/identity/epoch follow-up (2026-10-10): [context-boundary characterization](POCKETRISU-G1-7-ROLE-IDENTITY-EPOCH-VALIDATION.md) records 18 actual original native-v3/server role comparisons and separate canonical-root/operation-DB tests, plus real Send/queue/native-retry refresh/store observation. Index cascades, duplicate-name support differences, initialization-fixed roles and post-boundary effects are characterized rather than accepted as a universal native contract. Duplicate handling and non-attached identity authority remain required pre-M7 design work; auxiliary caller roles and complete failure/replay outcomes remain unverified. This checkpoint changes probes/docs only and preserves experimental.29 runtime/hostOFF.
+
+Confirmed-policy implementation (2026-10-10): [context omission evidence](POCKETRISU-G1-7-CONTEXT-OMISSION-VALIDATION.md) implements upfront duplicate suppression and canonical checks across attached/non-attached invocations, preserving unaffected relative order and live settings. It fixes cold-cache false failure, mandatory notice waits, loaded-source grants and absent-snapshot write mirroring. Host89/session8/context12, actual browser selection/queue/retry, protocol35/M3 13 and full automatic/graph gates pass. Raw constructor failure retains existing queued/transform-unknown no-replay state; prepared and mid-run failures use their documented result errors. Prepared selected-provider controls do not qualify the observed raw preparation/context refusal. Remaining raw admission, broader callers/handles/activation/A-D/provider/device/aggregate remain open; hostOFF is retained.
 
 The user's OFF choice is implemented in experimental.27/adapter0.7.34. See the [OFF continuation evidence](POCKETRISU-G1-7-OFF-CONTINUATION-VALIDATION.md) for original-script final caller/SQLite/return, legacy capability failure, explicit client-input recovery, warning-store failure and selected-provider failure/positive controls. .26 observations below remain historical; no overall A/D or activation pass is inferred.
 
