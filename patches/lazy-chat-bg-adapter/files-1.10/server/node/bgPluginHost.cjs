@@ -307,6 +307,7 @@ async function createBgPluginHost({ database, bindings, getDatabase, getSelectio
                 if (provider) { permission(entry, 'provider', true); await effect(entry); }
                 const value = await callback(...args);
                 await currentIdentity(kind);
+                if (closed || tearingDown || entry.closing) throw fail('plugin_operation_closed');
                 if (entry.failed) throw fail('plugin_hook_failed');
                 if (contract === 'replacer' && kind === 'before_request' && !Array.isArray(value)) throw fail('plugin_hook_result_invalid');
                 if (contract === 'replacer' && kind === 'after_request' && typeof value !== 'string') throw fail('plugin_hook_result_invalid');
@@ -316,10 +317,12 @@ async function createBgPluginHost({ database, bindings, getDatabase, getSelectio
                 if (provider && value.success === false) providerFailure(entry);
                 if (!provider && value != null && !isDeepStrictEqual(value, args[0])) entry.effects = true;
                 await noticesSettled();
+                if (closed || tearingDown || entry.closing) throw fail('plugin_operation_closed');
                 return value;
             } catch (error) {
                 if (noticeFailure) throw noticeFailure;
                 if (identityFailure) throw identityFailure;
+                if (closed || tearingDown || entry.closing) throw error;
                 if (provider && error?.code === 'plugin_execution_failed' && !entry.session.failure && !signal.aborted) {
                     providerFailure(entry); await noticesSettled(); throw error;
                 }
@@ -584,7 +587,7 @@ async function createBgPluginHost({ database, bindings, getDatabase, getSelectio
     }
     return {
         hasProvider(name) {
-            return !closed && !conflictedProviders.has(name) && typeof bindings.registry.providers.get(name) === 'function'
+            return !closed && !tearingDown && !conflictedProviders.has(name) && typeof bindings.registry.providers.get(name) === 'function'
                 && entries.some(entry => !entry.failed && entry.registrations.some(row => row.type === 'provider'
                     && row.name === name && typeof row.remove === 'function'));
         },

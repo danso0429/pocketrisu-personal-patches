@@ -115,6 +115,27 @@ test('same-phase settlement memo retains its first effects snapshot as later wor
     assert.equal(h.controller.signal.aborted, false);
 });
 
+test('a callback finishing during unload cannot publish a result after host teardown starts', async t => {
+    let release, entered;
+    const held = new Promise(resolve => { release = resolve; });
+    const began = new Promise(resolve => { entered = resolve; });
+    const h = await fixture(t, [plugin('closing-result', `
+        await Risuai.onUnload(()=>new Promise(resolve=>setTimeout(resolve,500)));
+        await Risuai.addProvider('closing-provider',async()=>{
+            await Risuai.nativeFetch('https://synthetic.invalid/held');return {success:true,content:'late answer'};
+        });
+    `)], true, { nativeFetch: async () => { entered(); await held; return new Response(null); } });
+    t.after(() => release());
+    const result = h.registry.providers.get('closing-provider')({});
+    result.catch(() => {});
+    await began;
+    const closing = h.host.close();
+    assert.equal(h.host.hasProvider('closing-provider'), false);
+    release();
+    try { await assert.rejects(result, { code: 'plugin_operation_closed' }); }
+    finally { await closing; }
+});
+
 test('a pending large local write does not consume the ordinary API budget',async t=>{
     let effectCount=0,held,release,logged,store;
     const writing=new Promise(resolve=>{held=resolve;}),resume=new Promise(resolve=>{release=resolve;}),message=new Promise(resolve=>{logged=resolve;});
