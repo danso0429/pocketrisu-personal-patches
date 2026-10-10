@@ -1,5 +1,13 @@
 # Changelog
 
+## 0.2.4-experimental.33 (M7 original provider and bounded storage)
+
+- Preserve unchanged original PageFold default primary/emoji fonts, persistent local cache and statistics. Add local-only32MiB JSON string transport, both-direction/process allocation ownership, progress deadlines, exact Unicode/JSON escaping, method/position/duplicate guards and paced pulls. Ordinary/root/nonstring/frame/network caps remain.
+- Join accepted callback bookkeeping within its invocation, preserve callback errors/results, root cancellation and abandoned network/body cleanup. Separate local pending/write budgets and measure worker512MiB/V8heap256MiB within unchanged aggregate1GiB restrictions.
+- Preserve competing local CAS values and caught original callback behavior after a mandatory warning, without dropping a valid already obtained response. Uncaught provider, root/identity/permission and mandatory-notice failures remain terminal; no automatic effect replay or default-model substitution.
+- Add byte-original provider12 (four synthetic auth/routes, default/cold fonts, maximum/balanced/emoji, independent PDF/RSA validation), host118, peer42, authenticated raw/prepared original/stat-conflict and restart/prior-browser controls. Reclaim operation warnings after ACK without terminal-receipt growth; preserve mandatory admission under guest-log saturation. Record actual resource/graph/audits and remaining G1.8/G1.9/G1.10 boundaries in `docs/POCKETRISU-G1-7-M7-QUALIFICATION-VALIDATION.md`.
+- M7 scoped qualification and candidate delivery are closed with hostOFF. Classify the existing absent-chat startup recovery warning and journal-retention boundary as an explicit G1.8 follow-up; do not claim clean logs or bounded recovery storage. No paid generation, live activation or stable release is implied.
+
 ## 0.2.4-experimental.32 (rejected handle reuse and auxiliary callers)
 
 - Add the M7 first-unit maintained installed-original combination10 and actual raw/prepared HTTP8 probes, retaining default controls2, unchanged application/installer and hostOFF. Independently pin original source evidence, exact failure sets, per-entry transport counts and effect/commit ownership; preserve delayed OS teardown observations. See `docs/POCKETRISU-G1-7-INSTALLED-COMBINATION-VALIDATION.md`.

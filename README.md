@@ -4,7 +4,21 @@ Personal, all-or-nothing patch delivery for PocketRisu NodeOnly. The current
 stable release is `v0.2.3`, and its complete manifest graph targets exact
 PocketRisu `v1.10.0`.
 
-The `0.2.4-experimental.32` candidate restores unread stream/Response and callback/
+The `0.2.4-experimental.33` candidate supports the unchanged original PageFold
+provider's default font/emoji cache and statistics in the isolated host. Bounded
+local string transport, allocation/progress ownership and separate API budgets
+retain ordinary limits; caught local CAS refusals retain competing data and valid
+answers after a mandatory warning. BG adapter0.7.40 / Personal settings0.5.14;
+production remains hostOFF. See [M7 qualification](docs/POCKETRISU-G1-7-M7-QUALIFICATION-VALIDATION.md)
+for original-provider12, actual raw/prepared/admission and failure evidence,
+operational composition, support/activation conditions and remaining goal gates.
+M7 implementation/isolated qualification and candidate delivery are closed at
+the documented scope. The existing absent-chat recovery classification and
+journal-retention follow-up remains explicit under G1.8; actual providers,
+device/aggregate qualification and live activation remain separate. Stable
+remains `v0.2.3`.
+
+The preceding `0.2.4-experimental.32` candidate restores unread stream/Response and callback/
 signal resources after refused serialization, while preserving published handles,
 original caps and fatal teardown. Actual v2/Lua auxiliary caller roles and original
 MARP main-only settings are measured through HTTP and normal-chat storage.
