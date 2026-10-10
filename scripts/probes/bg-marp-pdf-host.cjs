@@ -33,7 +33,9 @@ async function main() {
     try {
         assert.equal(bg.bgPluginBindings.registry.replacerbeforeRequest.size, 1);
         const hook = [...bg.bgPluginBindings.registry.replacerbeforeRequest][0];
-        const result = await hook(structuredClone(fixture.input), 'model');
+        const hookArgs = [structuredClone(fixture.input)];
+        if (!fixture.omitRole) hookArgs.push(Object.hasOwn(fixture, 'role') ? fixture.role : 'model');
+        const result = await hook(...hookArgs);
         assert.equal(events.filter(e => e.event === 'validation-error').length, 0);
         fs.writeFileSync(output, JSON.stringify({ events, result, notices, diagnostics }, null, 2));
     } finally { await host.close(); assert.equal(bg.bgPluginBindings.registry.replacerbeforeRequest.size, 0); }

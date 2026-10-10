@@ -8,9 +8,11 @@ import { pathToFileURL } from 'node:url';
 import { createHash, generateKeyPairSync } from 'node:crypto';
 import { createServer } from 'node:http';
 
-const [target, original, seedPath, playwrightRoot, chromiumPath, output, family = 'openai', observation = 'plain'] = process.argv.slice(2);
+const [target, original, seedPath, playwrightRoot, chromiumPath, output, family = 'openai', observation = 'plain', suite = 'pdf'] = process.argv.slice(2);
 assert.ok(['openai', 'anthropic', 'gemini', 'vertex'].includes(family));
 assert.ok(['plain', 'observed'].includes(observation));
+assert.ok(['pdf', 'roles'].includes(suite));
+if (suite === 'roles') { assert.equal(family, 'openai'); assert.equal(observation, 'plain'); }
 const source = fs.readFileSync(original, 'utf8');
 assert.equal(createHash('sha256').update(source).digest('hex'), 'b1aa573048ea31ec036e21fd9df9f1a35d136435e247f15c3cdaa6026cd8e132');
 const require = createRequire(path.join(playwrightRoot, 'package.json'));
@@ -152,6 +154,78 @@ try {
     await page.getByText('System', { exact: true }).first().click(); await page.getByText('Request Logs', { exact: true }).first().click();
     await page.getByText('MARP Lite', { exact: true }).first().click();
     frame = await wait(async () => { for (const f of page.frames()) if (await f.locator('[name="default_pdf_mode"]').count()) return f; });
+    if (suite === 'roles') {
+        // Exercise the byte-original role predicates in both actual hosts.
+        // Expectations are explicit, not computed by copying that predicate.
+        const cases = [
+            {tag:'main',role:'model',calls:3}, {tag:'main-case',role:'MODEL',calls:3},
+            {tag:'omitted',omitRole:true,calls:3}, {tag:'empty',role:'',calls:3},
+            {tag:'sub-default',role:'submodel',calls:0}, {tag:'aux-default',role:'aux',calls:0},
+            {tag:'sub-enabled',role:'submodel',main:false,calls:3}, {tag:'aux-enabled',role:'aux',main:false,calls:3},
+            {tag:'memory-default',role:'memory',main:false,calls:0},
+            {tag:'hypa-default',role:'hypamemory',main:false,calls:0},
+            {tag:'memory-enabled',role:'memory',main:false,memory:false,calls:3},
+            {tag:'translate-default',role:'translate',main:false,calls:0},
+            {tag:'translate-enabled',role:'translate',main:false,translate:false,calls:3},
+            {tag:'translation-main-veto',role:'translation',translate:false,calls:0},
+            {tag:'lb-default',role:'model',content:'<lb-process>Synthetic input</lb-process>',calls:0},
+            {tag:'lb-enabled',role:'model',lb:false,content:'<lb-process>Synthetic input</lb-process>',calls:3},
+            {tag:'bypass-old-injection',role:'submodel',prior:true,calls:0},
+            {tag:'main-old-injection',role:'model',prior:true,calls:3},
+        ];
+        for (const row of cases) {
+            for (const [key, value] of Object.entries({main_model_only:row.main??true,
+                bypass_hypamemory:row.memory??true,bypass_translate:row.translate??true,bypass_lb_process:row.lb??true})) {
+                await frame.locator(`[name="${key}"]`).setChecked(value);
+            }
+            await frame.locator('[name="default_pdf_mode"]').selectOption('off');
+            await frame.getByRole('button',{name:'설정 저장',exact:true}).click();
+            await frame.getByText('설정을 저장했습니다.',{exact:true}).waitFor();
+            const settings = await wait(async()=>{const s=await savedSettings();return s.arguments.main_model_only===String(Number(row.main??true))
+                && s.arguments.bypass_hypamemory===String(Number(row.memory??true))
+                && s.arguments.bypass_translate===String(Number(row.translate??true))
+                && s.arguments.bypass_lb_process===String(Number(row.lb??true)) ? s:null;});
+            const input=[{role:'system',content:'Synthetic setting.'},
+                {role:'user',content:row.content??'Synthetic role input'}];
+            if(row.prior) input.unshift({role:'system',content:'<!--MARP:v1:begin-->\nOld synthetic note\n<!--MARP:v1:end-->'});
+            const before=events.length;
+            await page.evaluate(({input,row})=>{
+                window.__m2.result=null;const ref=window.__m2.registration;
+                ref.source.postMessage({type:'INVOKE_CALLBACK',id:ref.id,reqId:'synthetic-m2',
+                    args:row.omitRole?[input]:[input,row.role]},'*');
+            },{input,row});
+            const reply=await wait(()=>page.evaluate(()=>window.__m2.result));assert.equal(reply.error,undefined);
+            const nativeEvents=events.slice(before),native=nativeEvents.filter(e=>e.event==='analysis');
+            assert.equal(nativeEvents.filter(e=>e.event==='validation-error').length,0);
+            assert.equal(native.length,row.calls,row.tag);
+            const casePath=path.join(runtime,row.tag+'.case.json'),hostPath=path.join(runtime,row.tag+'.host.json');
+            fs.writeFileSync(casePath,JSON.stringify({family,publicKey:key.publicKey,input,...settings,
+                role:row.role,omitRole:row.omitRole??false}));
+            const run=spawnSync(process.execPath,[new URL('./probes/bg-marp-pdf-host.cjs',import.meta.url).pathname,
+                target,original,casePath,hostPath],{cwd:runtime,encoding:'utf8',timeout:120000});
+            assert.equal(run.status,0,run.stderr+run.stdout);
+            const host=JSON.parse(fs.readFileSync(hostPath)),remote=host.events.filter(e=>e.event==='analysis');
+            assert.equal(remote.length,row.calls);assert.deepEqual(host.notices,[]);assert.deepEqual(host.result,reply.result);
+            assert.equal(host.events.filter(e=>e.event==='validation-error').length,0);
+            for(const n of native){const s=remote.find(r=>r.agent===n.agent);assert.ok(s);
+                assert.equal(s.url,n.url);assert.deepEqual(s.body,n.body);
+                const routeHeaders=new Set(['x-forwarded-for','host','content-length']);
+                assert.deepEqual(s.headers.filter(([k])=>!routeHeaders.has(k)),n.headers.filter(([k])=>!routeHeaders.has(k)));
+            }
+            const resultText=JSON.stringify(reply.result);
+            // Original role bypass returns before ce() strips old injection.
+            // Qualify that ordering instead of inventing bypass cleanup.
+            assert.equal(resultText.match(/<!--MARP:v1:begin-->/g)?.length??0,row.calls||row.prior?1:0);
+            assert.equal(resultText.includes('Old synthetic note'),Boolean(row.prior&&!row.calls));
+            if(!row.calls)assert.deepEqual(reply.result,input);
+            results.push({tag:row.tag,role:row.role,omitRole:row.omitRole??false,analysis:row.calls,
+                native,remote,outputHash:createHash('sha256').update(resultText).digest('hex')});
+            console.log(JSON.stringify({suite,tag:row.tag,analysis:row.calls}));
+        }
+        assert.deepEqual(errors,[]);assert.equal(context.serviceWorkers().length,0);assert.equal(page.workers().length,0);
+        fs.mkdirSync(output,{recursive:true});fs.writeFileSync(path.join(output,'roles.json'),JSON.stringify({suite,runtime,results,
+            scope:'actual v3 registered hook and isolated server hook/role predicates/final synthetic analysis requests; no Send/main/device/activation claim'},null,2));
+    } else {
     const off = new Map();
     for (const mode of ['off', 'quality', 'standard', 'max']) {
         await frame.locator('[name="default_pdf_mode"]').selectOption(mode);
@@ -284,6 +358,7 @@ try {
     fs.writeFileSync(path.join(output, family + '-' + observation + '.json'), JSON.stringify({ family, observation, runtime, results,
         policy, observer, workers, workerReference, errors, oauth: events.filter(e => e.event === 'oauth').length,
         scope: 'actual v3 registered hook and isolated server hook/final analysis transport/PDF; no Send/main/store/device/activation claim' }, null, 2));
+    }
 } catch (error) {
     fs.writeFileSync(path.join(runtime, 'failure.json'), JSON.stringify({ events, results, errors }, null, 2));
     console.error(runtime, error); process.exitCode = 1;
