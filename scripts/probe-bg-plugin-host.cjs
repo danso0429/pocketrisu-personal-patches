@@ -19,6 +19,9 @@ async function fixture(t, plugins, permissions = true, options = {}) {
     const kvList = prefix => db.prepare('SELECT key FROM kv WHERE substr(key,1,?)=? ORDER BY key').all(prefix.length, prefix).map(row => row.key);
     const notifications = createBgNotifications({ db, kvGet, kvSet, kvDel, kvList });
     let root = { plugins, pluginCustomStorage: { existing: 'kept', zero: 0 }, unrelated: { preserved: true }, characters: [] };
+    // Production has a captured operation DB and an independently current
+    // canonical root. Keep old fixtures unchanged; epoch probes opt into both.
+    let operationDb = structuredClone(root);
     let effects = 0, writes = 0, host;
     const network = [];
     const controller = options.controller ?? new AbortController();
@@ -36,7 +39,8 @@ async function fixture(t, plugins, permissions = true, options = {}) {
     const owner = { kvGet, kvSet, kvDel, kvList, transaction: task => db.transaction(task)(),
         getRoot: async () => root, writeRoot: async mutate => { root = mutate(root); writes++; } };
     t.after(async () => { await host?.close(); db.close(); });
-    host = await createBgPluginHost({ database: root, getDatabase: () => root, getSelection: () => ({ characterIndex: 0, chatIndex: 0 }),
+    host = await createBgPluginHost({ database: options.separateRoot ? operationDb : root,
+        getDatabase: () => options.separateRoot ? operationDb : root, getSelection: () => ({ characterIndex: 0, chatIndex: 0 }),
         hydrate: async value => structuredClone(value), storageOwner: owner, beforeEffect: () => { effects++; },
         publishNotification: options.publishNotification ?? ((event, identity) => identity
             ? notifications.publishPluginFailure(event, identity) : notifications.publish(event)),
@@ -46,8 +50,174 @@ async function fixture(t, plugins, permissions = true, options = {}) {
         signal: controller.signal, bindings });
     return { host, registry, bindings, notifications, owner, network, get root() { return root; },
         set root(value) { root = value; }, get effects() { return effects; }, get writes() { return writes; },
+        get operationDb() { return options.separateRoot ? operationDb : root; },
+        swapOperationDb() { operationDb = structuredClone(root); },
         controller, notices: () => notifications.claim('synthetic-consumer', 2).map(row => row.event) };
 }
+
+for (const mutation of ['script', 'name', 'version', 'disable', 'remove', 'reorder']) {
+    for (const initialized of [false, true]) test(`attached-boundary ${mutation} keeps prior effects=${initialized} without reloading`, async t => {
+        const script = `${initialized ? "await Risuai.nativeFetch('https://synthetic.invalid/init',{});" : ''}
+            await Risuai.addRisuReplacer('beforeRequest',async x=>{
+                await Risuai.nativeFetch('https://synthetic.invalid/old-hook',{});return x;
+            });`;
+        const h = await fixture(t, [plugin('changing', script), plugin('healthy',
+            `await Risuai.addRisuReplacer('beforeRequest',x=>[...x,{role:'system',content:'healthy'}]);`)], true, { separateRoot: true });
+        const hooks = [...h.registry.replacerbeforeRequest]; assert.equal(hooks.length, 2);
+        const next = structuredClone(h.root);
+        if (mutation === 'script') next.plugins[0].script += "\nawait Risuai.nativeFetch('https://synthetic.invalid/new-init',{});";
+        if (mutation === 'name') next.plugins[0].name = 'replacement';
+        if (mutation === 'version') next.plugins[0].version = '3.1';
+        if (mutation === 'disable') next.plugins[0].enabled = false;
+        if (mutation === 'remove') next.plugins.shift();
+        if (mutation === 'reorder') next.plugins.reverse();
+        h.root = next;
+        // A root-only update is not an operation DB swap. No refresh authority
+        // is fabricated from getRoot's newer value.
+        await h.host.refreshIdentity(); assert.deepEqual(h.notices(), []);
+        h.swapOperationDb(); await h.host.refreshIdentity();
+        const input = [{role:'user',content:'kept'}];
+        assert.deepEqual(await hooks[0](input), input);
+        const cascade = ['disable','remove','reorder'].includes(mutation);
+        assert.deepEqual(await hooks[1](input), cascade ? input : [...input,{role:'system',content:'healthy'}]);
+        assert.equal(h.network.length, Number(initialized)); assert.equal(h.effects, Number(initialized));
+        const notices = h.notices(), old = notices.find(n => n.pluginName === 'changing');
+        assert.ok(old); assert.equal(old.effectsMayHaveOccurred, initialized);
+        assert.equal(old.code, 'plugin_hook_failed');
+        assert.equal(notices.filter(n => n.pluginName === 'healthy').length, Number(cascade));
+        assert.equal(notices.filter(n => n.pluginName === 'replacement').length, Number(mutation === 'name'));
+        await h.host.refreshIdentity(); assert.equal(h.notices().length, notices.length, 'durable receipt deduplicates refresh');
+        await h.host.close(); assert.equal(h.registry.replacerbeforeRequest.size, 0);
+    });
+}
+
+test('tail append warns without running new initialization or changing the existing chain', async t => {
+    const h = await fixture(t, [plugin('original', `await Risuai.addRisuReplacer('beforeRequest',x=>x);`)], true, {separateRoot:true});
+    const hook = [...h.registry.replacerbeforeRequest][0];
+    h.root = {...h.root,plugins:[...h.root.plugins,plugin('appended',`await Risuai.nativeFetch('https://synthetic.invalid/new-init',{});`)]};
+    h.swapOperationDb(); await h.host.refreshIdentity();
+    assert.deepEqual(await hook([]), []); assert.equal(h.network.length,0); assert.equal(h.effects,0);
+    assert.equal(h.registry.replacerbeforeRequest.size,1);
+    assert.deepEqual(h.notices().map(n=>[n.pluginName,n.code,n.api,n.effectsMayHaveOccurred]),
+        [['appended','plugin_api_unsupported','plugin_set_changed',false]]);
+});
+
+test('live argument reads change without reinitialization while conditional roles stay at load epoch', async t => {
+    const script = `const registered=await Risuai.getArgument('sample');let calls=0;
+        if(registered==='enabled')await Risuai.addRisuReplacer('beforeRequest',async x=>
+            [...x,{role:'system',content:registered+':'+(++calls)+':'+await Risuai.getArgument('sample')}]);`;
+    const h = await fixture(t,[{...plugin('conditional-epoch',script),realArg:{sample:'enabled'}}],true,{separateRoot:true});
+    const hook = [...h.registry.replacerbeforeRequest][0]; assert.equal(typeof hook,'function');
+    h.root = {...h.root,plugins:h.root.plugins.map(p=>({...p,realArg:{sample:'disabled'}}))};
+    assert.equal(h.operationDb.plugins[0].realArg.sample,'enabled');
+    assert.deepEqual(await hook([]),[{role:'system',content:'enabled:1:disabled'}]);
+    h.swapOperationDb(); await h.host.refreshIdentity();
+    assert.deepEqual(await hook([]),[{role:'system',content:'enabled:2:disabled'}]);
+    assert.deepEqual(h.notices(),[]); assert.equal(h.network.length,0);
+    await h.host.close();
+    const fresh=await fixture(t,structuredClone(h.root.plugins),true,{separateRoot:true});
+    assert.equal(fresh.registry.replacerbeforeRequest.size,0); assert.deepEqual(fresh.notices(),[]);
+});
+
+test('disabled same-name duplicate refuses argument access without writing or replaying initialization', async t => {
+    const h=await fixture(t,[plugin('duplicate-root',`await Risuai.addRisuReplacer('beforeRequest',async x=>{
+        await Risuai.getArgument('sample');return x;});`)],true,{separateRoot:true});
+    const hook=[...h.registry.replacerbeforeRequest][0];
+    h.root={...h.root,plugins:[...h.root.plugins,{...h.root.plugins[0],enabled:false}]};
+    // The operation snapshot remains unique; canonical argument identity does not.
+    await h.host.refreshIdentity(); assert.deepEqual(h.notices(),[]);
+    const input=[{role:'user',content:'kept'}]; assert.deepEqual(await hook(input),input);
+    assert.equal(h.writes,0); assert.equal(h.network.length,0);
+    assert.deepEqual(h.notices().map(n=>[n.pluginName,n.effectsMayHaveOccurred]),[['duplicate-root',false]]);
+});
+
+test('post-refresh canonical script replacement is caught by argument identity, not ambient network calls', async t => {
+    const h=await fixture(t,[plugin('post-boundary',`await Risuai.addRisuReplacer('beforeRequest',async x=>{
+        await Risuai.nativeFetch('https://synthetic.invalid/issued-before-read',{});
+        await Risuai.getArgument('sample');return x;});`)],true,{separateRoot:true});
+    await h.host.refreshIdentity();
+    h.root={...h.root,plugins:h.root.plugins.map(p=>({...p,script:p.script+'\n// canonical update'}))};
+    const input=[{role:'user',content:'kept'}]; assert.deepEqual(await [...h.registry.replacerbeforeRequest][0](input),input);
+    assert.equal(h.network.length,1); assert.equal(h.effects,1); assert.equal(h.writes,0);
+    assert.deepEqual(h.notices().map(n=>[n.code,n.effectsMayHaveOccurred]),[['plugin_hook_failed',true]]);
+});
+
+test('identity-disabled provider throws while its prior registered entry stays owned until close', async t => {
+    const h=await fixture(t,[plugin('provider-epoch',`await Risuai.addProvider('epoch-model',async()=>({success:true,content:'old'}));`)],true,{separateRoot:true});
+    const provider=h.registry.providers.get('epoch-model'); assert.equal(typeof provider,'function');
+    h.root={...h.root,plugins:h.root.plugins.map(p=>({...p,script:p.script+'\n// replacement'}))};
+    h.swapOperationDb(); await h.host.refreshIdentity();
+    await assert.rejects(provider({}),{code:'plugin_provider_failed'});
+    assert.equal(h.registry.providers.get('epoch-model'),provider); assert.equal(h.effects,0);
+    assert.equal(h.notices().length,1); await h.host.close(); assert.equal(h.registry.providers.size,0);
+});
+
+for (const grant of ['given','digest']) test(`provider ${grant} permission uses the operation script while canonical arguments use current identity`, async t => {
+    const {createHash}=require('node:crypto');
+    const p=plugin('grant-epoch',`await Risuai.addProvider('grant-model',async()=>({success:true,content:'owned'}));
+        await Risuai.addRisuReplacer('beforeRequest',async x=>{await Risuai.getArgument('sample');return x;});`);
+    const h=await fixture(t,[p],true,{separateRoot:true});
+    const permissions=['provider','replacer'],cache=[];
+    for(const name of permissions){cache.push([JSON.stringify([p.name,name])+'_lastGrantTime',Date.now()]);
+        if(grant==='digest')cache.push([createHash('sha256').update(p.script).digest('hex')+'_'+name,true]);}
+    h.owner.kvSet('cache/plugin-permissions/state.json',JSON.stringify({
+        given:grant==='given'?permissions.map(name=>JSON.stringify([p.name,name])):[],denied:[],cache}));
+    h.root={...h.root,plugins:h.root.plugins.map(p=>({...p,script:p.script+'\n// persisted replacement'}))};
+    // No operation swap/refresh yet: providers recheck the old snapshot grant.
+    assert.deepEqual(await h.registry.providers.get('grant-model')({}),{success:true,content:'owned'});
+    assert.equal(h.effects,1);assert.deepEqual(h.notices(),[]);
+    const input=[{role:'user',content:'kept'}];assert.deepEqual(await [...h.registry.replacerbeforeRequest][0](input),input);
+    assert.deepEqual(h.notices().map(n=>[n.code,n.effectsMayHaveOccurred]),[['plugin_hook_failed',true]]);
+    await assert.rejects(h.registry.providers.get('grant-model')({}),{code:'plugin_provider_failed'});
+    assert.equal(h.effects,1);assert.equal(h.network.length,0);
+});
+
+test('canonical argument conflict preserves the external value and rejects a stale setter', async t => {
+    const h=await fixture(t,[plugin('argument-cas',`let observed;
+        await Risuai.addRisuReplacer('beforeRequest',async x=>{
+            if(x[0].content==='read') observed=await Risuai.getArgument('sample');
+            else await Risuai.setArgument('sample','guest-write');return x;});`)],true,{separateRoot:true});
+    const hook=[...h.registry.replacerbeforeRequest][0];await hook([{role:'user',content:'read'}]);
+    h.root={...h.root,plugins:h.root.plugins.map(p=>({...p,realArg:{sample:'external-edit'}}))};
+    const input=[{role:'user',content:'write'}];assert.deepEqual(await hook(input),input);
+    assert.equal(h.root.plugins[0].realArg.sample,'external-edit');assert.equal(h.writes,0);
+    assert.equal(h.operationDb.plugins[0].realArg.sample,'original');
+    // effect() is a conservative intent latch; a rejected transaction can still
+    // report effectsMayHaveOccurred=true without a durable write.
+    assert.equal(h.effects,1);assert.deepEqual(h.notices().map(n=>[n.code,n.effectsMayHaveOccurred]),[['plugin_hook_failed',true]]);
+});
+
+for(const position of [0,1])test(`insertion at enabled index ${position} records addition and shifted-entry cascade without new init`,async t=>{
+    const originals=['first','second'].map(name=>plugin(name,`await Risuai.addRisuReplacer('beforeRequest',x=>[...x,{role:'system',content:'${name}'}]);`));
+    const h=await fixture(t,originals,true,{separateRoot:true}),hooks=[...h.registry.replacerbeforeRequest];
+    const plugins=structuredClone(h.root.plugins);plugins.splice(position,0,plugin('inserted',`await Risuai.nativeFetch('https://synthetic.invalid/new-init',{});`));
+    h.root={...h.root,plugins};h.swapOperationDb();await h.host.refreshIdentity();
+    for(let index=0;index<hooks.length;index++)assert.deepEqual(await hooks[index]([]),index<position?[{role:'system',content:originals[index].name}]:[]);
+    assert.equal(h.network.length,0);assert.equal(h.effects,0);
+    const notices=h.notices();assert.deepEqual(notices.map(n=>n.pluginName).sort(),[...originals.slice(position).map(p=>p.name),'inserted'].sort());
+    assert.equal(notices.find(n=>n.pluginName==='inserted').api,'plugin_set_changed');
+    assert.ok(notices.every(n=>n.effectsMayHaveOccurred===false));
+});
+
+test('two enabled same-name entries load only the first but canonical argument access refuses ambiguity',async t=>{
+    const h=await fixture(t,[plugin('enabled-duplicate',`await Risuai.nativeFetch('https://synthetic.invalid/first-init',{});
+        await Risuai.addRisuReplacer('beforeRequest',async x=>{await Risuai.getArgument('sample');return x;});`),
+        plugin('enabled-duplicate',`await Risuai.nativeFetch('https://synthetic.invalid/second-init',{});`)],true,{separateRoot:true});
+    assert.equal(h.network.length,1);assert.equal(h.registry.replacerbeforeRequest.size,1);assert.deepEqual(h.notices(),[]);
+    const input=[{role:'user',content:'kept'}];assert.deepEqual(await [...h.registry.replacerbeforeRequest][0](input),input);
+    assert.equal(h.network.length,1);assert.equal(h.writes,0);
+    assert.deepEqual(h.notices().map(n=>[n.pluginName,n.effectsMayHaveOccurred]),[['enabled-duplicate',true]]);
+});
+
+test('successful argument write mirrors into operation DB and survives later swap/refresh without identity failure',async t=>{
+    const h=await fixture(t,[plugin('argument-success',`let count=0;await Risuai.addRisuReplacer('beforeRequest',async x=>{
+        if(++count===1)await Risuai.setArgument('sample','guest-write');
+        return [...x,{role:'system',content:await Risuai.getArgument('sample')}];});`)],true,{separateRoot:true});
+    const hook=[...h.registry.replacerbeforeRequest][0];assert.deepEqual(await hook([]),[{role:'system',content:'guest-write'}]);
+    assert.equal(h.writes,1);assert.equal(h.root.plugins[0].realArg.sample,'guest-write');assert.equal(h.operationDb.plugins[0].realArg.sample,'guest-write');
+    h.swapOperationDb();await h.host.refreshIdentity();assert.deepEqual(await hook([]),[{role:'system',content:'guest-write'}]);
+    assert.equal(h.writes,1);assert.deepEqual(h.notices(),[]);assert.equal(h.network.length,0);
+});
 
 for (const kind of ['frame', 'value']) test(`caught local RPC ${kind} refusal is durable and preserves the next valid call`, async t => {
     const h = await fixture(t, [plugin('local-' + kind, `
