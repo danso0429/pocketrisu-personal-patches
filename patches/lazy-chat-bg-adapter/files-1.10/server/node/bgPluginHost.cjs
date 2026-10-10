@@ -81,6 +81,20 @@ async function createBgPluginHost({ database, bindings, getDatabase, getSelectio
         await budgetNotices.get(phase);
         if (noticeFailure) throw noticeFailure;
     };
+    const reportSettlementBudget = async entry => {
+        if (noticeFailure) throw noticeFailure;
+        if (closed || tearingDown || entry.closing || entry.failed || signal.aborted) return;
+        const phase = phaseScope.getStore() ?? entry.lastPhase ?? 'load';
+        const settlementNotices = entry.settlementNotices ??= new Map();
+        // Retain the first warning's effects snapshot for this phase, even if
+        // subsequent accepted work changes it. Later terminal failures are separate.
+        if (!settlementNotices.has(phase)) {
+            settlementNotices.set(phase, record({ ...common(entry, phase), code: 'plugin_host_limit', reason: 'operation_budget',
+                eventKey: `plugin:${entry.index}:${entry.identity}:${phase}:settlement-budget` }));
+        }
+        await settlementNotices.get(phase);
+        if (noticeFailure) throw noticeFailure;
+    };
     const withApiBudget = async (entry, method, args, task) => {
         if (noticeFailure) throw noticeFailure;
         if (identityFailure) throw identityFailure;
@@ -423,8 +437,7 @@ async function createBgPluginHost({ database, bindings, getDatabase, getSelectio
             try {
             entry.session = await phaseScope.run('load', () => createPluginSession({ script: plugin.script, signal: abortSignal,
                 onFailure: code => disable(entry, code), onLateCall: () => reportLate(entry),
-                onSettlementTimeout: () => record({ ...common(entry, phaseScope.getStore() ?? entry.lastPhase ?? 'load'),
-                    code: 'plugin_host_limit', reason: 'operation_budget', eventKey: `plugin:${entry.index}:settlement-budget` }),
+                onSettlementTimeout: () => reportSettlementBudget(entry),
                 onLocalLimit: () => { entry.session.assertCurrent(); return reportApiLimit(entry); },
                 api: (method, args) => withApiBudget(entry, method, args, async () => {
                     if (closed || entry.failed || signal.aborted) throw fail('plugin_operation_closed');

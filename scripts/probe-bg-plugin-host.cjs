@@ -47,7 +47,7 @@ async function fixture(t, plugins, permissions = true, options = {}) {
     t.after(async () => { await host?.close(); db.close(); });
     host = await createBgPluginHost({ database: options.separateRoot ? operationDb : root,
         getDatabase: () => options.separateRoot ? operationDb : root, getSelection: () => ({ characterIndex: 0, chatIndex: 0 }),
-        hydrate: async value => structuredClone(value), storageOwner: owner, beforeEffect: () => { effects++; return options.beforeEffect?.(); },
+        hydrate: options.hydrate ?? (async value => structuredClone(value)), storageOwner: owner, beforeEffect: () => { effects++; return options.beforeEffect?.(); },
         publishNotification: options.publishNotification ?? ((event, identity) => identity
             ? notifications.publishPluginFailure(event, identity) : notifications.publish(event)),
         publishDiagnostic: options.publishDiagnostic,
@@ -77,6 +77,43 @@ for (const form of ['given','digest','given-and-denied','denied','missing-time',
         else{assert.equal(h.effects,0);assert.deepEqual(h.notices().map(n=>({code:n.code,phase:n.phase,effects:n.effectsMayHaveOccurred})),[{code:'plugin_permission_missing',phase:'load',effects:false}]);}
     });
 }
+
+test('actual settlement warnings retain distinct phases without aborting the operation', async t => {
+    let release;
+    const held = new Promise(resolve => { release = resolve; });
+    const h = await fixture(t, [plugin('settlement-phases', `
+        await Risuai.addRisuReplacer('beforeRequest',async value=>{void Risuai.setArgument('held','before').catch(()=>{});return value;});
+        await Risuai.addProvider('settlement-provider',async()=>{void Risuai.pluginStorage.setItem('held','provider').catch(()=>{});return {success:true,content:'original answer'};});
+    `)], true, { beforeRootWrite: () => held });
+    t.after(() => release());
+    assert.deepEqual(await [...h.registry.replacerbeforeRequest][0]([]), []);
+    assert.deepEqual(await h.registry.providers.get('settlement-provider')({}), { success: true, content: 'original answer' });
+    assert.equal(h.controller.signal.aborted, false);
+    assert.deepEqual(h.notices().map(row => row.phase).sort(), ['before_request', 'provider']);
+    assert.ok(h.notices().every(row => row.eventKey.endsWith(':settlement-budget')));
+});
+
+test('same-phase settlement memo retains its first effects snapshot as later work changes it', async t => {
+    let release;
+    const held = new Promise(resolve => { release = resolve; });
+    const h = await fixture(t, [plugin('settlement-effects', `let calls=0;
+        await Risuai.addRisuReplacer('beforeRequest',async value=>{
+            if(++calls===1)void Risuai.getDatabase(['characters']).catch(()=>{});
+            else void Risuai.pluginStorage.setItem('held','new').catch(()=>{});
+            return value;
+        });
+    `)], true, { hydrate: async () => { await held; return []; }, beforeRootWrite: () => held });
+    t.after(() => release());
+    const callback = [...h.registry.replacerbeforeRequest][0];
+    assert.deepEqual(await callback([]), []);
+    assert.equal(h.effects, 0);
+    assert.deepEqual(await callback([]), []);
+    assert.ok(h.effects > 0);
+    const notices = h.notices();
+    assert.equal(notices.length, 1);
+    assert.equal(notices[0].effectsMayHaveOccurred, false);
+    assert.equal(h.controller.signal.aborted, false);
+});
 
 test('a pending large local write does not consume the ordinary API budget',async t=>{
     let effectCount=0,held,release,logged,store;

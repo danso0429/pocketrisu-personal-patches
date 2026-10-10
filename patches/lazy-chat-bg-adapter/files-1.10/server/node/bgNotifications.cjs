@@ -134,10 +134,14 @@ function createBgNotifications({ db, kvGet, kvSet, kvDel, kvList, now = Date.now
         const event = normalizeEvent(value), time = now();
         if (!event.code.startsWith('plugin_') || event.code === 'plugin_message'
             || !/^[a-f0-9]{64}$/.test(identity ?? '') || event.createdAt > time) throw new Error('notification_failure_identity_invalid');
-        // Preserve every existing failure group. Only the new recoverable API
-        // refusal gets its own identity domain, so it cannot hide a later disable.
+        // Preserve existing terminal groups. Recoverable API refusals and
+        // settlement warnings each have their own domain, so neither hides a disable.
         const receiptIdentity = event.code === 'plugin_host_limit' && event.reason === 'operation_budget'
-            && event.eventKey.endsWith(':limit') ? [identity, 'api_limit'] : identity;
+            ? event.eventKey.endsWith(':limit') ? [identity, 'api_limit']
+                : event.eventKey.endsWith(':settlement-budget') ? [identity, 'settlement'] : identity
+            : identity;
+        const terminalLimit = event.code === 'plugin_host_limit' && event.reason === 'operation_budget'
+            && receiptIdentity === identity;
         const group = createHash('sha256').update(JSON.stringify([
             receiptIdentity, event.pluginName, event.pluginVersion, event.code, event.phase,
             event.api ?? null, event.reason ?? null, event.effectsMayHaveOccurred,
@@ -147,7 +151,8 @@ function createBgNotifications({ db, kvGet, kvSet, kvDel, kvList, now = Date.now
             const record = JSON.parse(Buffer.isBuffer(raw) ? raw.toString('utf8') : String(raw));
             if (record.version !== 1 || !/^[a-f0-9]{64}$/.test(record.id ?? '')
                 || !Number.isSafeInteger(record.createdAt) || record.createdAt <= 0
-                || record.expiresAt !== record.createdAt + NOTIFICATION_TTL_MS) throw new Error('notification_failure_receipt_invalid');
+                || record.expiresAt !== record.createdAt + NOTIFICATION_TTL_MS
+                || (record.kind !== undefined && record.kind !== 'terminal_limit')) throw new Error('notification_failure_receipt_invalid');
             return record;
         };
         const raw = kvGet(key);
@@ -156,8 +161,15 @@ function createBgNotifications({ db, kvGet, kvSet, kvDel, kvList, now = Date.now
             if (prior.expiresAt > time) {
                 // A retained receipt also covers a v2 row reclaimed after ACK.
                 // Corrupt extant notices must not be mistaken for delivered ones.
-                read(prior.id);
-                return { status: 'duplicate', id: prior.id };
+                const notice = read(prior.id);
+                // Before settlement had its own domain, a warning could own
+                // this terminal key. Keep every old row, but do not let it hide
+                // a terminal limit. An untyped reclaimed legacy row is ambiguous:
+                // allow one fresh terminal notice, then persist its explicit kind.
+                const verifiedTerminal = notice
+                    ? !notice.event.eventKey.endsWith(':settlement-budget')
+                    : prior.kind === 'terminal_limit';
+                if (!terminalLimit || verifiedTerminal) return { status: 'duplicate', id: prior.id };
             }
         }
         const kept = [];
@@ -170,11 +182,12 @@ function createBgNotifications({ db, kvGet, kvSet, kvDel, kvList, now = Date.now
             }
             if (receipt.expiresAt <= time) kvDel(receiptKey); else kept.push(receiptKey);
         }
-        if (kept.length >= MAX_ROWS) return { status: 'capacity' };
+        if (kept.length >= MAX_ROWS && !kept.includes(key)) return { status: 'capacity' };
         const outcome = publish(event);
         if (['stored', 'duplicate'].includes(outcome.status)) {
             kvSet(key, JSON.stringify({ version: 1, id: outcome.id, createdAt: event.createdAt,
-                expiresAt: event.createdAt + NOTIFICATION_TTL_MS }));
+                expiresAt: event.createdAt + NOTIFICATION_TTL_MS,
+                ...(terminalLimit ? { kind: 'terminal_limit' } : {}) }));
         }
         return outcome;
     });

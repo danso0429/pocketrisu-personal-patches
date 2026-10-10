@@ -29,6 +29,63 @@ function harness() {
 }
 
 describe('durable BG notification owner', () => {
+    it('repairs an ambiguous existing terminal key without growing a full receipt pool', () => {
+        const h = harness(), identity = 'c'.repeat(64), prefix = 'internal/bg-plugin-failure-receipts/v1/'
+        const base = { ...h.event(), code: 'plugin_host_limit', pluginName: 'synthetic', pluginVersion: '1',
+            phase: 'provider', reason: 'operation_budget', effectsMayHaveOccurred: true }
+        const legacyKey = prefix + createHash('sha256').update(JSON.stringify([
+            identity, 'synthetic', '1', 'plugin_host_limit', 'provider', null, 'operation_budget', true,
+        ])).digest('hex')
+        const prior = JSON.stringify({ version: 1, id: 'e'.repeat(64), createdAt: base.createdAt,
+            expiresAt: base.createdAt + 48 * 60 * 60 * 1000 })
+        h.deps.kvSet(legacyKey, prior)
+        for (let index = 0; index < 1023; index++) h.deps.kvSet(prefix + index.toString(16).padStart(64, '0'), prior)
+        const result = h.owner.publishPluginFailure({ ...base, eventKey: 'plugin:0:provider:failure' }, identity)
+        expect(result.status).toBe('stored')
+        expect(h.deps.kvList(prefix)).toHaveLength(1024)
+        expect(JSON.parse(h.deps.kvGet(legacyKey)!)).toMatchObject({ kind: 'terminal_limit', id: result.id })
+    })
+
+    it.each([true, false])('does not inherit a legacy settlement receipt as terminal ownership: old row present=%s', present => {
+        const h = harness(), identity = 'b'.repeat(64), prefix = 'internal/bg-plugin-failure-receipts/v1/'
+        const base = { ...h.event(), code: 'plugin_host_limit', pluginName: 'synthetic', pluginVersion: '1',
+            phase: 'provider', reason: 'operation_budget', effectsMayHaveOccurred: true }
+        const warning = h.owner.publish({ ...base, eventKey: 'plugin:0:settlement-budget' })
+        const legacyKey = prefix + createHash('sha256').update(JSON.stringify([
+            identity, 'synthetic', '1', 'plugin_host_limit', 'provider', null, 'operation_budget', true,
+        ])).digest('hex')
+        h.deps.kvSet(legacyKey, JSON.stringify({ version: 1, id: warning.id, createdAt: base.createdAt,
+            expiresAt: base.createdAt + 48 * 60 * 60 * 1000 }))
+        if (!present) h.deps.kvDel('internal/bg-notifications/v1/' + warning.id)
+        const terminal = h.owner.publishPluginFailure({ ...base, operationId: 'terminal-operation',
+            eventKey: 'plugin:0:provider:failure' }, identity)
+        expect(terminal.status).toBe('stored')
+        expect(terminal.id).not.toBe(warning.id)
+        if (present) expect(h.deps.kvGet('internal/bg-notifications/v1/' + warning.id)).not.toBeNull()
+        expect(JSON.parse(h.deps.kvGet(legacyKey)!)).toMatchObject({ kind: 'terminal_limit', id: terminal.id })
+        h.deps.kvDel('internal/bg-notifications/v1/' + terminal.id)
+        expect(h.owner.publishPluginFailure({ ...base, operationId: 'third-operation',
+            eventKey: 'plugin:0:provider:failure' }, identity)).toEqual({ status: 'duplicate', id: terminal.id })
+    })
+
+    it.each(['settlement-first', 'terminal-first'])('keeps settlement, API refusal and terminal ownership separate: %s', order => {
+        const h = harness(), identity = 'a'.repeat(64)
+        const event = { ...h.event(), code: 'plugin_host_limit', pluginName: 'synthetic', pluginVersion: '1',
+            phase: 'provider', reason: 'operation_budget', effectsMayHaveOccurred: true }
+        const kinds = order === 'settlement-first' ? ['settlement-budget', 'failure', 'limit'] : ['failure', 'settlement-budget', 'limit']
+        const outcomes = kinds.map(kind => h.owner.publishPluginFailure({ ...event,
+            eventKey: `plugin:0:${identity}:provider:${kind}` }, identity))
+        expect(outcomes.map(outcome => outcome.status)).toEqual(['stored', 'stored', 'stored'])
+        expect(new Set(outcomes.map(outcome => outcome.id)).size).toBe(3)
+        expect(h.owner.claim('settlement-consumer', 2).map((row: any) => row.event.eventKey.split(':').at(-1)).sort())
+            .toEqual(['failure', 'limit', 'settlement-budget'])
+        for (const [index, kind] of kinds.entries()) {
+            expect(h.owner.publishPluginFailure({ ...event, operationId: 'next-operation',
+                eventKey: `plugin:0:${identity}:provider:${kind}` }, identity))
+                .toEqual({ status: 'duplicate', id: outcomes[index].id })
+        }
+    })
+
     it('separates API refusals from terminal limits while retaining existing failure group keys', () => {
         const h=harness(),identity='a'.repeat(64),prefix='internal/bg-plugin-failure-receipts/v1/'
         const event={...h.event(),code:'plugin_host_limit',pluginName:'synthetic',pluginVersion:'1',phase:'before_request',
