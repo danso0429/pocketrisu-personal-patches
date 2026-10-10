@@ -1,5 +1,13 @@
 # Changelog
 
+## 0.2.4-experimental.34 (M7 lifecycle audit repairs)
+
+- Keep settlement warnings distinct from terminal/API-limit events and separate across phases. Preserve legacy terminal receipts only with semantic ownership proof; backfill proven ownership without changing identity or expiry, and propagate transaction failure.
+- Return settlement metadata with the original callback result/error so a saturated RPC window does not replace it with a reporting failure. Await mandatory publication in the original live scope; preserve scope cancellation and publication failures.
+- Release refused large descriptors and never-decoded ordinary exports. Track outstanding publications so one refused invocation cannot revoke functions, streams or abort signals concurrently reused by another. Keep host-owned streams invocation-bound and existing caps unchanged.
+- Replace settlement/bootstrap polling with activity subscriptions, deadline and close wakeups. Recheck result admission after asynchronous identity/notice boundaries and during teardown.
+- Record broader structural/runtime audits, original-provider/admission and repository evidence in [M7 qualification](docs/POCKETRISU-G1-7-M7-QUALIFICATION-VALIDATION.md). BG adapter0.7.41; host remainsOFF. Actual-provider/device, later ordered goals and stable release remain separate.
+
 ## 0.2.4-experimental.33 (M7 original provider and bounded storage)
 
 - Preserve unchanged original PageFold default primary/emoji fonts, persistent local cache and statistics. Add local-only32MiB JSON string transport, both-direction/process allocation ownership, progress deadlines, exact Unicode/JSON escaping, method/position/duplicate guards and paced pulls. Ordinary/root/nonstring/frame/network caps remain.
