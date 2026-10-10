@@ -7,6 +7,7 @@
 - Record four-family native/server original PDF comparisons, exact source/PDF and injection checks, CSP/Worker controls, original large/cancel/next-normal cases and separate actual preset Send/Chrome exit/normal-chat journal/cold-return evidence.
 - Personal settings0.5.14 / BG adapter0.7.36. Production host remains OFF; actual provider, residual admission/activation, device, aggregate and stable release remain separate. See `docs/POCKETRISU-G1-7-PDF-PROXY-VALIDATION.md`.
 - Delivered after verified app/state rollback:484 managed files/175 served scripts/five databases; header configuration preserved, operations99→99/removed0, hostOFF/online/unstable0/new error lines0. Live loopback form echo is HTTP200/exact89bytes and MIME, provider0/session activation0. The user reported the scoped ordinary-use iPhone L5 as normal on2026-10-10; this closes only that preservation check, with activation and aggregate/stable gates still open.
+- Add a probes/docs-only role/identity/epoch checkpoint: actual host71, original native/server roles18, preserved default PDF24 and actual Send/queue/retry refresh/store. The installer remains byte-identical; duplicate-name handling and non-attached identity authority are required pre-M7 design work, not inferred native equivalence or production activation.
 
 ## 0.2.4-experimental.28 (BG API-limit visibility)
 

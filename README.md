@@ -21,6 +21,12 @@ body/content type without an external provider call. The user reported the scope
 ordinary-use iPhone L5 as normal on2026-10-10. Its documentation closeout is complete;
 the remaining activation/aggregate gates stay open.
 
+The subsequent [role/identity/epoch checkpoint](docs/POCKETRISU-G1-7-ROLE-IDENTITY-EPOCH-VALIDATION.md)
+adds original native/server role comparisons and separate canonical-root/operation-DB
+characterization, with actual Send/queue/retry refresh/store evidence. It changes
+probes and documentation only. Duplicate-name handling and identity authority on
+non-attached paths remain required design work before M7; production stays OFF.
+
 The `0.2.4-experimental.28` candidate adds visible API-limit refusals to the
 generic server plugin host while preserving valid later calls and existing limits.
 It retains the unavailable-host BG continuation/warnings from experimental.27.
