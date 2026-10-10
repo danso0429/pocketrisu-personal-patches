@@ -12,7 +12,9 @@ BG adapter0.7.39 / Personal settings0.5.14; production stays hostOFF.
 [Handle/caller validation](docs/POCKETRISU-G1-7-HANDLE-CALLER-VALIDATION.md) records
 wire30/worker11/session9/host96, original protocol/resource and actual caller evidence.
 Final M7 installed-combination/admission/activation, actual providers and device/
-aggregate remain separate. Safe delivery is pending final consultation/readback.
+aggregate remain separate. Final source consultation and scoped application delivery
+are complete after rollback, source/configuration and database-preservation checks.
+Detailed operational receipts are retained privately. Stable remains `v0.2.3`.
 
 The `0.2.4-experimental.31` checkpoint admits raw selected-plugin providers through
 the eligible host and checks actual healthy registration before input effects.

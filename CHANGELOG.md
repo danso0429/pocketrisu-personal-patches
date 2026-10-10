@@ -6,7 +6,8 @@
 - Recheck closed/pending state after nested encoding, preserve tiny-control failure semantics and keep inherited JSON formatters out of private frames. Native Response metadata and wire v1 tags remain compatible; this is not VM isolation or arbitrary consumed-stream reuse.
 - Record current native caller inventory and four actual low-level v2/Lua input→MARP→main→normal-chat/journal cases with default/expanded main-only settings. Keep original scripts and frontend/model policy unchanged.
 - BG adapter0.7.39 / Personal settings0.5.14. Local wire30/actual worker11/session9/host96, original protocol35/resource13, actual callers and full server/patcher/graph gates pass. Unchanged frontend/type/compat counts retain31 evidence; see `docs/POCKETRISU-G1-7-HANDLE-CALLER-VALIDATION.md`.
-- Production remains hostOFF; final M7/admission/activation, actual providers, failure/stream/device/aggregate and stable release remain separate. Final consultation/readback are pending.
+- Final source consultation and scoped application delivery complete after rollback, source/configuration, database-preservation and build/load checks. Detailed operational receipts are retained privately.
+- Production remains hostOFF; final M7/admission/activation, actual providers, failure/stream/device/aggregate and stable release remain separate. No generation cancellation or data/backup/tmp/worktree deletion occurred.
 
 ## 0.2.4-experimental.31 (raw provider admission and ownership)
 
