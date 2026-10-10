@@ -16,6 +16,27 @@ Module._load = function(request, ...args) {
 const { createPluginSession } = require('../patches/lazy-chat-bg-adapter/files-1.10/server/node/bgPluginSession.cjs');
 Module._load = load;
 
+for (const method of ['getArgument', 'nativeFetch']) test(`bootstrap still joins its unawaited ${method} initialization chain`, async t => {
+    let hook, entered, release;
+    const began = new Promise(resolve => { entered = resolve; });
+    const held = new Promise(resolve => { release = resolve; });
+    const session = await createPluginSession({ script: `
+        void Risuai.${method}('synthetic').then(()=>Risuai.addRisuReplacer('beforeRequest',value=>'kept-'+value));
+    `, api: async (name, args) => {
+        if (name === method) { entered(); await held; return method === 'nativeFetch' ? new Response('unused body') : 'initial'; }
+        assert.equal(name, 'addRisuReplacer'); hook = args[1];
+    } });
+    t.after(async () => { release(); await session.close(); });
+    let loaded = false;
+    const loading = session.load().then(value => { loaded = true; return value; });
+    await began;
+    await new Promise(resolve => setTimeout(resolve, 100));
+    assert.equal(loaded, false); assert.equal(hook, undefined);
+    release(); await loading;
+    assert.equal(await hook('value'), 'kept-value');
+    assert.equal(session.failure, null); assert.equal(session.activeScopes, 0);
+});
+
 for (const kind of ['valid', 'invalid', 'expired']) test(`untrusted local refusal ${kind} is scoped and executes no API task`, async t => {
     let hook, effects = 0, reports = 0, late = 0, changed = 0;
     const phase = new AsyncLocalStorage(), reportPhases = [];

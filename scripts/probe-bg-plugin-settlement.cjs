@@ -102,3 +102,23 @@ test('the receiving peer still rejects a 65th concurrent incoming call', async t
     assert.deepEqual(f.fatals, ['plugin_rpc_protocol_invalid']);
     assert.deepEqual(f.warnings, []);
 });
+
+test('closing during settlement wakes and releases context waiters without publishing a warning', async t => {
+    const f = fixture(t);
+    let entered;
+    const began = new Promise(resolve => { entered = resolve; });
+    const callback = await f.register(() => { void f.worker.call('api', ['held', []]).catch(() => {}); entered(); return 'original'; });
+    const result = callback();
+    let finished = false;
+    result.finally(() => { finished = true; }).catch(() => {});
+    await began;
+    // Wait for the actual subscription, not an assumed number of event-loop turns.
+    while (!f.worker.stats().waitingContexts && !finished) await new Promise(resolve => setImmediate(resolve));
+    assert.ok(f.worker.stats().waitingContexts > 0);
+    f.parent.close(); f.worker.close();
+    await assert.rejects(result, { code: 'plugin_rpc_closed' });
+    await new Promise(resolve => setImmediate(resolve));
+    assert.equal(f.worker.stats().waitingContexts, 0);
+    assert.equal(f.worker.stats().waitingLoad, 0);
+    assert.deepEqual(f.warnings, []);
+});

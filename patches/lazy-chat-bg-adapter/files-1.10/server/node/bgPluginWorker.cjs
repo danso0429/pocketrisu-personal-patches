@@ -27,6 +27,7 @@ function wireData(value) {
 }
 function wireJSON() { return wireData(this); }
 const LARGE_UNITS = 32 * 1024 * 1024, STRING_CHUNK = 64 * 1024;
+const SETTLEMENT_MAX_MS = 15_000, LARGE_PROGRESS_IDLE_MS = 15_000;
 // Shared by all peers in the host process. Reservations cover both directions
 // and stay charged through dispatch, not merely until the last chunk arrives.
 let reservedLargeUnits = 0;
@@ -76,13 +77,39 @@ function createPluginPeer({ send, dispatch, onFatal = () => {}, timeoutMs = 600_
     const ids = new WeakMap(), reverseFunctions = new WeakMap();
     let sequence = 0, handle = 0, lastIncoming = 0, incoming = 0, closed = false, activity = 0;
     const incomingContexts = new Map(), contextActivity = new Map();
+    const contextWaiters = new Map(), activityWaiters = new Set();
     const largeMarkers = new WeakMap(), largeReleases = new Set();
     const reserve = units => {
         const release = reserveLarge(units);
         const ownedRelease = () => { release(); largeReleases.delete(ownedRelease); };
         largeReleases.add(ownedRelease); return ownedRelease;
     };
-    const touchContext = context => { if (settleCallbacks) contextActivity.set(context, (contextActivity.get(context) ?? 0) + 1); };
+    const touchActivity = () => { activity++; for (const wake of activityWaiters) wake(); };
+    const touchContext = context => {
+        touchActivity();
+        if (settleCallbacks) {
+            contextActivity.set(context, (contextActivity.get(context) ?? 0) + 1);
+            for (const wake of contextWaiters.get(context) ?? []) wake();
+        }
+    };
+    const waitForActivity = (context, seen, deadline) => new Promise(resolve => {
+        // Undefined selects bootstrap-wide activity; real RPC contexts are null
+        // or parent-owned strings. Recheck the version before and after subscribing.
+        const global = context === undefined;
+        const version = () => global ? activity : contextActivity.get(context) ?? 0;
+        if (closed || version() !== seen) { resolve(); return; }
+        const waiters = global ? activityWaiters : contextWaiters.get(context) ?? new Set();
+        if (!global) contextWaiters.set(context, waiters);
+        let timer;
+        const wake = () => {
+            clearTimeout(timer); waiters.delete(wake);
+            if (!global && !waiters.size) contextWaiters.delete(context);
+            resolve();
+        };
+        waiters.add(wake);
+        if (deadline !== undefined) timer = setTimeout(wake, Math.max(1, deadline - performance.now()));
+        if (closed || version() !== seen) wake();
+    });
     const pendingContext = context => [...pending.values()].filter(entry => entry.context === context && entry.settles).length;
     const releaseTracking = context => {
         if (settleCallbacks && !incomingContexts.has(context) && pendingContext(context) === 0) contextActivity.delete(context);
@@ -92,7 +119,8 @@ function createPluginPeer({ send, dispatch, onFatal = () => {}, timeoutMs = 600_
         // streams or waiting on another invocation's reentrant model call.
         // Two quiet turns are a bounded observation, not arbitrary async work.
         const remaining = Math.max(0, timeoutMs - (performance.now() - started));
-        const deadline = performance.now() + Math.min(15_000, remaining / 2);
+        // Keep half the remaining request lifetime for reply/publication work.
+        const deadline = performance.now() + Math.min(SETTLEMENT_MAX_MS, remaining / 2);
         for (;;) {
             if (closed) throw fail('plugin_rpc_closed');
             await immediate();
@@ -107,6 +135,21 @@ function createPluginPeer({ send, dispatch, onFatal = () => {}, timeoutMs = 600_
                 // slot. The parent awaits its notification before accepting it.
                 return true;
             }
+            await waitForActivity(context, before, deadline);
+        }
+    }
+    async function waitForLoadIdle() {
+        // Preserve bootstrap's existing contract: all initialization RPCs join,
+        // including network tasks, and only the load invocation itself may remain.
+        for (;;) {
+            if (closed) throw fail('plugin_rpc_closed');
+            await immediate();
+            const before = activity;
+            if (pending.size === 0 && incoming === 1) {
+                await immediate();
+                if (pending.size === 0 && incoming === 1 && activity === before) return;
+            }
+            await waitForActivity(undefined, before);
         }
     }
     const exportSlot = (value, kind, budget) => {
@@ -133,6 +176,8 @@ function createPluginPeer({ send, dispatch, onFatal = () => {}, timeoutMs = 600_
     function close(code = 'plugin_rpc_closed') {
         if (closed) return;
         closed = true;
+        touchActivity();
+        for (const waiters of contextWaiters.values()) for (const wake of waiters) wake();
         for (const entry of pending.values()) { clearTimeout(entry.timer); entry.reject(fail(code)); }
         pending.clear();
         for (const controller of controllers.values()) controller.abort(fail(code));
@@ -163,7 +208,7 @@ function createPluginPeer({ send, dispatch, onFatal = () => {}, timeoutMs = 600_
             };
             const progress = () => {
                 if (cleaned) return;
-                clearTimeout(idle); idle = setTimeout(() => { cleanup(); fatal('plugin_rpc_timeout'); }, Math.min(15_000, timeoutMs)); idle.unref?.();
+                clearTimeout(idle); idle = setTimeout(() => { cleanup(); fatal('plugin_rpc_timeout'); }, Math.min(LARGE_PROGRESS_IDLE_MS, timeoutMs)); idle.unref?.();
             };
             progress();
             budget.cleanup.push(cleanup);
@@ -347,13 +392,13 @@ function createPluginPeer({ send, dispatch, onFatal = () => {}, timeoutMs = 600_
                 start(controller) { entry.controller = controller; },
                 async pull(controller) {
                     try {
-                        const result = await call('_pull', [data], context, entry.large ? Math.min(15_000, timeoutMs) : timeoutMs);
+                        const result = await call('_pull', [data], context, entry.large ? Math.min(LARGE_PROGRESS_IDLE_MS, timeoutMs) : timeoutMs);
                         if (!result || typeof result.done !== 'boolean') throw fail('plugin_rpc_stream_invalid');
                         if (result.done) { controller.close(); finish(); } else controller.enqueue(result.value);
                     } catch (error) { controller.error(error); finish(); }
                 },
                 async cancel() {
-                    try { if (!closed) await call('_cancel', [data], context, entry.large ? Math.min(15_000, timeoutMs) : timeoutMs); }
+                    try { if (!closed) await call('_cancel', [data], context, entry.large ? Math.min(LARGE_PROGRESS_IDLE_MS, timeoutMs) : timeoutMs); }
                     finally { finish(); }
                 },
             }, { highWaterMark: 0 });
@@ -421,7 +466,6 @@ function createPluginPeer({ send, dispatch, onFatal = () => {}, timeoutMs = 600_
             return Promise.reject(fail(closed ? 'plugin_rpc_closed' : 'plugin_rpc_pending_limit'));
         }
         const id = ++sequence;
-        activity++;
         return new Promise((resolve, reject) => {
             const timer = setTimeout(() => fatal('plugin_rpc_timeout'), method === 'load' ? Math.min(callTimeout, 15_000) : callTimeout);
             timer.unref?.();
@@ -482,7 +526,7 @@ function createPluginPeer({ send, dispatch, onFatal = () => {}, timeoutMs = 600_
         if (closed) return;
         try {
             if (!frame || frame.v !== 1) throw fail('plugin_rpc_protocol_invalid');
-            activity++;
+            touchActivity();
             if (frame.kind === 'abort') {
                 if (!validId(frame.handle)) throw fail('plugin_rpc_protocol_invalid');
                 controllers.get(frame.handle)?.abort(fail('plugin_rpc_aborted'));
@@ -576,13 +620,14 @@ function createPluginPeer({ send, dispatch, onFatal = () => {}, timeoutMs = 600_
                     if (settleCallbacks) {
                         const count = (incomingContexts.get(frame.context) ?? 1) - 1;
                         if (count) incomingContexts.set(frame.context, count); else incomingContexts.delete(frame.context);
-                        touchContext(frame.context); releaseTracking(frame.context);
                     }
+                    touchContext(frame.context); releaseTracking(frame.context);
                 });
             } else throw fail('plugin_rpc_protocol_invalid');
         } catch (error) { fatal(errorCode(error)); }
     }
-    return { call, receive, close, stats: () => ({ pending: pending.size, incoming, activity, closed,
+    return { call, receive, close, waitForLoadIdle, stats: () => ({ pending: pending.size, incoming, activity, closed,
+        waitingContexts: contextWaiters.size, waitingLoad: activityWaiters.size,
         largeReservations: largeReleases.size, reservedLargeUnits,
         storageCredits,
         exports: { functions: functions.size, streams: readers.size, signals: signals.size } }) };
@@ -634,14 +679,8 @@ async function runWorker() {
             loaded = true;
             // Same wrapper contract as the browser guest; script bytes are not rewritten.
             await vm.runInContext(`(async () => {\n${args[0]}\n})()`, context, { timeout: 5000, filename: 'plugin.js' });
-            for (;;) {
-                await immediate();
-                const before = peer.stats();
-                if (before.pending !== 0 || before.incoming !== 1) continue;
-                await immediate();
-                const after = peer.stats();
-                if (after.pending === 0 && after.incoming === 1 && after.activity === before.activity) return { ready: true };
-            }
+            await peer.waitForLoadIdle();
+            return { ready: true };
         }
         throw fail('plugin_rpc_method_unsupported');
     } });
