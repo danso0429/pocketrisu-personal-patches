@@ -25,7 +25,7 @@ async function runFixture({ response = 'success', requestTimeout = 1, analysisTi
         editoutput: new Set(), editprocess: new Set(), editdisplay: new Set(), providers: new Map() };
     const notices = [], calls = [], effects = [], finalCalls = [], diagnostics = [];
     const operation = new AbortController();
-    const storageOwner = { getRoot: async () => root, writeRoot: async fn => { root = fn(root); },
+    const storageOwner = { peekRoot: () => root, getRoot: async () => root, writeRoot: async fn => { root = fn(root); },
         kvGet: key => kv.get(key), kvSet: (key, value) => kv.set(key, value), kvDel: key => kv.delete(key),
         kvList: prefix => [...kv.keys()].filter(key => key.startsWith(prefix)), transaction: fn => fn() };
     async function syntheticFetch(url, options) {

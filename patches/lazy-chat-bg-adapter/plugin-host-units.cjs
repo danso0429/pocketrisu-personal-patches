@@ -119,6 +119,7 @@ app.get('/api/bg-plugin-diagnostics', sessionAuthMiddleware, (req, res) => {
         ? bgNotifications.publishPluginFailure(event, identity) : bgNotifications.publish(event),
     storageOwner: {
         kvGet, kvSet, kvDel, kvList,
+        peekRoot: () => dbCache[DB_HEX_KEY],
         transaction: task => sqliteDb.transaction(task)(),
         getRoot: () => queueStorageOperation(async () => {
             await ensureServerChatCommitCanonicalState();
@@ -210,7 +211,7 @@ require('./bgOrchestrator.cjs')(app, Object.assign({ bgPluginDependencies, sessi
       try { await pluginHost.assertNotifications() } catch (error) { fullThrew = fullThrew || error }
     }
     if (llmAbort && llmAbort.signal.aborted) {
-      if (llmAbort.signal.reason?.code === 'plugin_notification_unavailable') throw llmAbort.signal.reason`);
+      if (['plugin_notification_unavailable', 'plugin_identity_unavailable'].includes(llmAbort.signal.reason?.code)) throw llmAbort.signal.reason`);
     add('unsupported-effect-failure', 'server/node/bgOrchestrator.cjs',
         "                  try { serverChatInputOwner.markRunFailureSynchronously(operationId, false) } catch {}\n                  terminalState = 'retryable-no-provider'",
         "                  try { serverChatInputOwner.markRunFailureSynchronously(operationId, serverInputProviderStarted) } catch {}\n                  terminalState = serverInputProviderStarted ? 'delivery-failed' : 'retryable-no-provider'");
@@ -239,7 +240,7 @@ require('./bgOrchestrator.cjs')(app, Object.assign({ bgPluginDependencies, sessi
         const indent = ' '.repeat(spaces);
         const anchor = `${indent}if (llmAbort.signal.aborted\n${indent}  || (control && typeof control.isCancelled === 'function' && control.isCancelled())) {`;
         add(name, 'server/node/bgOrchestrator.cjs', anchor,
-            anchor + `\n${indent}  if (llmAbort.signal.reason?.code === 'plugin_notification_unavailable') throw llmAbort.signal.reason`);
+            anchor + `\n${indent}  if (['plugin_notification_unavailable', 'plugin_identity_unavailable'].includes(llmAbort.signal.reason?.code)) throw llmAbort.signal.reason`);
     }
     return units;
 };

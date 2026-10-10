@@ -171,7 +171,7 @@ async function main() {
         const controller = new AbortController();
         const host = await createBgPluginHost({ database: root, getDatabase: () => root, getSelection: () => ({ characterIndex: 0, chatIndex: 0 }),
             hydrate: async value => value, bindings: bg.bgPluginBindings, signal: controller.signal,
-            storageOwner: { getRoot: async () => root, writeRoot: async () => { throw Error('unexpected write'); },
+            storageOwner: { peekRoot: () => root, getRoot: async () => root, writeRoot: async () => { throw Error('unexpected write'); },
                 kvGet: key => kv.get(key), kvSet: (key, value) => kv.set(key, value), kvDel: key => kv.delete(key),
                 kvList: prefix => [...kv.keys()].filter(key => key.startsWith(prefix)), transaction: task => task() },
             beforeEffect: () => {}, publishNotification: event => { notices.push(event.code); return { status: 'stored' }; },

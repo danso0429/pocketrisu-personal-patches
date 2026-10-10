@@ -1,7 +1,8 @@
 import { describe, expect, it } from 'vitest'
 import { readFileSync } from 'node:fs'
 import eligibility from './bgPluginEligibility.cjs'
-const { hasPluginBindings, canStartPluginHost } = eligibility
+const { hasPluginBindings, hasPluginHostIdentity, canStartPluginHost } = eligibility
+const dependencies = () => ({ enabled: true, storageOwner: { peekRoot: () => ({ plugins: [] }) } })
 const bindings = () => ({ bgPluginBindings: {
     nativeFetch() {}, risuFetch() {}, requestChatDataMain() {}, installProvider() {}, characterMetadata() {},
     allowedDbKeys: [], bodyInterceptors: [], registry: { providers: new Map(),
@@ -9,7 +10,7 @@ const bindings = () => ({ bgPluginBindings: {
         editoutput: new Set(), editprocess: new Set(), editdisplay: new Set() },
 } })
 describe('operation-bound plugin host eligibility', () => {
-    it.each(['OFF', 'ON', 'missing bindings', 'bundle failure'])('keeps existing capabilities while checking actual host bindings: %s', async mode => {
+    it.each(['OFF', 'ON', 'missing bindings', 'missing identity', 'bundle failure'])('keeps existing capabilities while checking actual host bindings: %s', async mode => {
         const source = readFileSync(new URL('./bgOrchestrator.cjs', import.meta.url), 'utf8')
         const start = source.indexOf("  app.get('/api/bg-orchestrate-capabilities'")
         const end = source.indexOf('\n  })', start) + '\n  })'.length
@@ -17,9 +18,9 @@ describe('operation-bound plugin host eligibility', () => {
         expect(end).toBeGreaterThan(start)
         let handler: (request: unknown, response: unknown) => Promise<void>
         let loads = 0, result: any
-        new Function('app', 'sessionAuthMiddleware', 'deps', 'hasPluginBindings', 'loadBundle', 'serverChatInputOwner', 'serverChatCommitOwner', source.slice(start, end))(
+        new Function('app', 'sessionAuthMiddleware', 'deps', 'hasPluginBindings', 'hasPluginHostIdentity', 'loadBundle', 'serverChatInputOwner', 'serverChatCommitOwner', source.slice(start, end))(
             { get: (_path: string, _auth: unknown, callback: typeof handler) => { handler = callback } },
-            () => {}, { bgPluginDependencies: { enabled: mode !== 'OFF' } }, hasPluginBindings,
+            () => {}, { bgPluginDependencies: mode === 'missing identity' ? {enabled:true} : {...dependencies(),enabled:mode!=='OFF'} }, hasPluginBindings, hasPluginHostIdentity,
             async () => { loads++; if (mode === 'bundle failure') throw Error('synthetic load failure'); return mode === 'missing bindings' ? {} : bindings() }, {}, {},
         )
         await handler!(null, { json: (value: unknown) => { result = value } })
@@ -27,17 +28,18 @@ describe('operation-bound plugin host eligibility', () => {
             clientInputPreparationVersion: 1, serverInputBaseVersion: 1, serverChatCommitVersion: 1,
             inputCommandFoundationVersion: 4, chatExecutionProjectionVersion: 1,
             serverPluginHostVersion: mode === 'ON' ? 1 : 0 })
-        expect(loads).toBe(mode === 'OFF' ? 0 : 1)
+        expect(loads).toBe(mode === 'OFF' || mode === 'missing identity' ? 0 : 1)
     })
     it('requires the exact start conditions and complete native bindings', () => {
         const control = { resultKeyVersion: 1, serverChatCommitVersion: 1 }, bg = bindings()
-        expect(canStartPluginHost('full', control, { enabled: true }, bg)).toBe(true)
-        expect(canStartPluginHost('prepared', control, { enabled: true }, bg)).toBe(false)
-        expect(canStartPluginHost('full', { ...control, resultKeyVersion: 0 }, { enabled: true }, bg)).toBe(false)
-        expect(canStartPluginHost('full', { ...control, serverChatCommitVersion: 0 }, { enabled: true }, bg)).toBe(false)
+        expect(canStartPluginHost('full', control, dependencies(), bg)).toBe(true)
+        expect(canStartPluginHost('full', control, {enabled:true}, bg)).toBe(false)
+        expect(canStartPluginHost('prepared', control, dependencies(), bg)).toBe(false)
+        expect(canStartPluginHost('full', { ...control, resultKeyVersion: 0 }, dependencies(), bg)).toBe(false)
+        expect(canStartPluginHost('full', { ...control, serverChatCommitVersion: 0 }, dependencies(), bg)).toBe(false)
         expect(canStartPluginHost('full', control, { enabled: false }, bg)).toBe(false)
         expect(hasPluginBindings(null)).toBe(false)
         ;(bg.bgPluginBindings as any).nativeFetch = undefined
-        expect(canStartPluginHost('full', control, { enabled: true }, bg)).toBe(false)
+        expect(canStartPluginHost('full', control, dependencies(), bg)).toBe(false)
     })
 })

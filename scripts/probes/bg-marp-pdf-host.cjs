@@ -25,7 +25,7 @@ async function main() {
     const { createBgPluginHost } = requireTarget('./server/node/bgPluginHost.cjs');
     const host = await createBgPluginHost({ database: root, getDatabase: () => root, getSelection: () => ({ characterIndex: 0, chatIndex: 0 }),
         hydrate: async v => v, bindings: bg.bgPluginBindings, signal: new AbortController().signal,
-        storageOwner: { getRoot: async () => root, writeRoot: async () => { throw Error('unexpected write'); },
+        storageOwner: { peekRoot: () => root, getRoot: async () => root, writeRoot: async () => { throw Error('unexpected write'); },
             kvGet: key => kv.get(key), kvSet: (key, value) => kv.set(key, value), kvDel: key => kv.delete(key),
             kvList: prefix => [...kv.keys()].filter(k => k.startsWith(prefix)), transaction: f => f() },
         beforeEffect: () => {}, publishNotification: row => { notices.push(row); return { status: 'stored' }; },

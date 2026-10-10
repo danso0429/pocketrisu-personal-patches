@@ -40,7 +40,7 @@ function savedPluginPermission(kvGet, plugin, permission, periodic = false, now 
 // Each instance belongs to one plugin operation. The root writer is the native
 // canonical storage queue; it persists the changed root before publishing ETag.
 function createPluginStorage({ plugin, getRoot, writeRoot, kvGet, kvSet, kvDel, kvList,
-    transaction, beforeEffect, assertActive = () => {}, onWrite = () => {}, now = Date.now }) {
+    transaction, beforeEffect, prepareActive = async () => {}, assertActive = () => {}, onWrite = () => {}, now = Date.now }) {
     const expected = new Map();
     const rootValue = (root, key) => ({ present: own(root.pluginCustomStorage, key),
         value: own(root.pluginCustomStorage, key) ? clone(root.pluginCustomStorage[key]) : undefined });
@@ -73,7 +73,7 @@ function createPluginStorage({ plugin, getRoot, writeRoot, kvGet, kvSet, kvDel, 
         const next = method === 'setItem' ? JSON.parse(boundedJson(args[1])) : undefined;
         await beforeEffect();
         await writeRoot(latest => {
-            assertActive();
+            assertActive(latest);
             check('root', key, rootValue(latest, key));
             const updated = { ...latest, pluginCustomStorage: { ...(latest.pluginCustomStorage ?? {}) },
                 pluginStorageMeta: { ...(latest.pluginStorageMeta ?? {}) } };
@@ -103,7 +103,7 @@ function createPluginStorage({ plugin, getRoot, writeRoot, kvGet, kvSet, kvDel, 
         const next = method === 'setItem' ? boundedJson(args[1]) : null;
         if (!expected.has(`local:${key}`)) remember('local', key, json(kvGet(valueKey(key))));
         await beforeEffect();
-        transaction(() => {
+        const commit = () => transaction(() => {
             assertActive();
             check('local', key, json(kvGet(valueKey(key))));
             if (next !== null) {
@@ -111,6 +111,14 @@ function createPluginStorage({ plugin, getRoot, writeRoot, kvGet, kvSet, kvDel, 
                 kvSet(metaKey(key), JSON.stringify({ plugin: plugin.name, updatedAt: now() }));
             } else { kvDel(valueKey(key)); kvDel(metaKey(key)); }
         });
+        try { commit(); }
+        catch (failure) {
+            if (failure?.code !== 'plugin_identity_reload_required') throw failure;
+            // The first transaction threw before writing anything. Reload once
+            // outside it; do not repeat the effect-intent/provider callback.
+            await prepareActive();
+            commit();
+        }
         remember('local', key, next === null ? null : JSON.parse(next));
     }
     async function argument(method, args) {
@@ -129,7 +137,7 @@ function createPluginStorage({ plugin, getRoot, writeRoot, kvGet, kvSet, kvDel, 
         if (!expected.has(`argument:${key}`)) remember('argument', key, value(current));
         await beforeEffect();
         await writeRoot(latest => {
-            assertActive();
+            assertActive(latest);
             check('argument', key, value(latest));
             const target = find(latest);
             // Copy only the matching entry and property. Never accept an entire

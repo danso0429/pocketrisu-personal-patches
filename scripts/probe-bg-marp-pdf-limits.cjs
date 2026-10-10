@@ -69,7 +69,7 @@ async function main() {
         const before = scratch.length, sessionStart = sessions.length;
         const host = await createBgPluginHost({ database: root, getDatabase: () => root, getSelection: () => ({ characterIndex: 0, chatIndex: 0 }),
             hydrate: async v => v, bindings: bg.bgPluginBindings, signal: abort.signal,
-            storageOwner: { getRoot: async () => {
+            storageOwner: { peekRoot: () => root, getRoot: async () => {
                 if (++reads === 18 && test.expected === 'cancel') cancelTimer = setTimeout(() => abort.abort(Error('synthetic operation cancel')), 50);
                 return root;
             }, writeRoot: async () => { throw Error('unexpected write'); }, kvGet: k => kv.get(k), kvSet: (k, v) => kv.set(k, v),

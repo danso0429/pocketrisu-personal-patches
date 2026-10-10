@@ -130,7 +130,7 @@ describe('server input shares the operation execution context', () => {
             })
             throw stop // Do not substitute a fake successful claim/host/main.
         })
-        await expect(h.run({ bgPluginDependencies: { enabled } }, 'char', 'chat', h.context().chat, 'full', {
+        await expect(h.run({ bgPluginDependencies: { enabled, storageOwner: { peekRoot: () => h.root } } }, 'char', 'chat', h.context().chat, 'full', {
             inputCommandVersion: 1, serverChatCommitVersion: 1, resultKeyVersion, beginInputTransform: begin,
         })).rejects.toBe(stop)
         expect(begin).toHaveBeenCalledTimes(1)

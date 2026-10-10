@@ -9,8 +9,11 @@ function hasPluginBindings(bg) {
             .every(key => registry[key] instanceof Set);
 }
 function canStartPluginHost(mode, control, dependencies, bg) {
-    return mode === 'full' && dependencies?.enabled === true
+    return mode === 'full' && hasPluginHostIdentity(dependencies)
         && control?.resultKeyVersion === 1 && control?.serverChatCommitVersion === 1
         && hasPluginBindings(bg);
 }
-module.exports = { hasPluginBindings, canStartPluginHost };
+function hasPluginHostIdentity(dependencies) {
+    return dependencies?.enabled === true && typeof dependencies.storageOwner?.peekRoot === 'function';
+}
+module.exports = { hasPluginBindings, hasPluginHostIdentity, canStartPluginHost };

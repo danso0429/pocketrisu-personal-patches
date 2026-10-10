@@ -44,8 +44,8 @@ function limiter(limit, signal) {
 
 async function createBgPluginHost({ database, bindings, getDatabase, getSelection, hydrate,
     storageOwner, beforeEffect, publishNotification, publishDiagnostic, operation, signal, onCriticalFailure = () => {} }) {
-    const entries = [], cleanups = [], notices = [], names = new Set();
-    let closed = false, tearingDown = false, noticeFailure = null;
+    const entries = [], cleanups = [], notices = [], names = new Set(), omittedNames = new Set();
+    let closed = false, tearingDown = false, noticeFailure = null, identityFailure = null;
     let messageCapacityReported = false;
     let diagnosticFailureReported = false;
     const publishSummaries = async () => {
@@ -82,13 +82,20 @@ async function createBgPluginHost({ database, bindings, getDatabase, getSelectio
     };
     const withApiBudget = async (entry, method, args, task) => {
         if (noticeFailure) throw noticeFailure;
+        if (identityFailure) throw identityFailure;
         try {
             let bytes = 0, charged = false;
             try {
                 bytes = measurePluginValue(args);
                 if (entry.pendingBytes + bytes > 4 * 1024 * 1024) throw fail('plugin_budget_exceeded');
                 entry.pendingBytes += bytes; charged = true;
-                const run = () => { entry.session.assertCurrent(); return task(); };
+                const run = async () => {
+                    entry.session.assertCurrent();
+                    await currentIdentity(phaseScope.getStore() ?? entry.lastPhase ?? 'load');
+                    entry.session.assertCurrent();
+                    if (closed || entry.failed || signal.aborted) throw fail('plugin_operation_closed');
+                    return task();
+                };
                 // Outbound methods can re-enter body/provider callbacks. Holding a
                 // host-work permit across them would deadlock a parallel batch.
                 return await (['nativeFetch', 'risuFetch', 'runLLMModel'].includes(method)
@@ -137,10 +144,10 @@ async function createBgPluginHost({ database, bindings, getDatabase, getSelectio
         charId: operation.charId, chatId: operation.chatId, createdAt: Date.now(),
         ...pluginMetadata(entry.plugin),
         phase, effectsMayHaveOccurred: entry.effects, failureIdentity: entry.identity });
-    const disable = (entry, code, api) => {
+    const disable = (entry, code, api, phaseOverride) => {
         if (entry.failed || entry.closing || signal.aborted || noticeFailure) return;
         entry.failed = true;
-        const phase = entry.lastPhase ?? phaseScope.getStore() ?? 'load';
+        const phase = phaseOverride ?? entry.lastPhase ?? phaseScope.getStore() ?? 'load';
         const event = { ...common(entry, phase), eventKey: `plugin:${entry.index}:${entry.identity}:${phase}:failure`,
             code: resourceFailures.has(code) ? 'plugin_host_limit'
                 : code === 'plugin_permission_missing' && !entry.effects ? code
@@ -154,9 +161,70 @@ async function createBgPluginHost({ database, bindings, getDatabase, getSelectio
         entry.abort.abort(fail(code));
         if (entry.session) void entry.session.close();
     };
+    const identityView = root => {
+        if (!root || typeof root !== 'object' || Array.isArray(root)
+            || (root.plugins !== undefined && !Array.isArray(root.plugins))) throw fail('plugin_identity_unavailable');
+        const all = root.plugins ?? [], counts = new Map(), enabled = all.filter(plugin => plugin?.enabled);
+        for (const plugin of all) if (plugin) counts.set(plugin.name, (counts.get(plugin.name) ?? 0) + 1);
+        const positions = new Map(enabled.map((plugin, index) => [plugin.name, index]));
+        const surviving = entries.filter(entry => entry.identityEligible && !entry.failed && counts.get(entry.plugin.name) === 1)
+            .map(entry => ({ entry, position: positions.get(entry.plugin.name) }))
+            .filter(({ entry, position }) => position !== undefined && position < 16
+                && enabled[position].script === entry.plugin.script && enabled[position].version === entry.plugin.version);
+        const reordered = new Set();
+        for (let left = 0; left < surviving.length; left++) for (let right = left + 1; right < surviving.length; right++) {
+            if (surviving[left].position > surviving[right].position) {
+                reordered.add(surviving[left].entry); reordered.add(surviving[right].entry);
+            }
+        }
+        return { counts, enabled, positions, reordered };
+    };
+    const validateIdentity = (root, phase) => {
+        const view = identityView(root);
+        for (const entry of entries) {
+            if (entry.failed) continue;
+            const position = view.positions.get(entry.plugin.name), current = view.enabled[position];
+            if (view.counts.get(entry.plugin.name) > 1) disable(entry, 'plugin_api_unsupported', 'plugin_identity_ambiguous', phase);
+            else if (!current || position >= 16 || current.script !== entry.plugin.script
+                || current.version !== entry.plugin.version || view.reordered.has(entry)) disable(entry, 'plugin_identity_changed', undefined, phase);
+        }
+        for (const [index, plugin] of view.enabled.entries()) {
+            if (!names.has(plugin.name) && !omittedNames.has(plugin.name)) {
+                omittedNames.add(plugin.name);
+                const entry = { plugin, index, effects: false, abort: new AbortController(), failed: false, identity: identityOf(plugin) };
+                disable(entry, 'plugin_api_unsupported', 'plugin_set_changed', phase);
+            }
+        }
+    };
+    const latchIdentityFailure = () => {
+        if (!identityFailure) { identityFailure = fail('plugin_identity_unavailable'); onCriticalFailure(identityFailure); }
+        return identityFailure;
+    };
+    const checkedIdentity = (root, phase) => {
+        try { validateIdentity(root, phase); }
+        catch { throw latchIdentityFailure(); }
+    };
+    const currentIdentity = async phase => {
+        if (closed || tearingDown) return;
+        if (identityFailure) throw identityFailure;
+        try {
+            if (typeof storageOwner.peekRoot !== 'function') throw fail('plugin_identity_unavailable');
+            let root = storageOwner.peekRoot();
+            // Cache invalidation is not identity loss. The ordinary hot path
+            // never enters the storage queue; cold recovery uses its owner.
+            if (root == null) root = await storageOwner.getRoot();
+            if (closed || tearingDown || signal.aborted) return;
+            checkedIdentity(root, phase);
+        } catch {
+            if (identityFailure) throw identityFailure;
+            if (closed || tearingDown || signal.aborted) throw fail('plugin_operation_closed');
+            throw latchIdentityFailure();
+        }
+    };
     const permission = (entry, name, periodic = false) => {
-        const raw = (getDatabase().plugins ?? []).find(plugin => plugin.name === entry.plugin.name);
-        if (!savedPluginPermission(storageOwner.kvGet, { ...entry.plugin, script: raw?.script ?? entry.plugin.script }, name, periodic)) {
+        // The grant belongs to the code actually loaded, not an independently
+        // captured operation DB. Canonical identity is checked at API boundaries.
+        if (!savedPluginPermission(storageOwner.kvGet, entry.plugin, name, periodic)) {
             disable(entry, 'plugin_permission_missing'); throw fail('plugin_permission_missing');
         }
         return true;
@@ -170,7 +238,11 @@ async function createBgPluginHost({ database, bindings, getDatabase, getSelectio
     };
     const effect = async entry => {
         if (closed || tearingDown || entry.failed || signal.aborted) throw fail('plugin_operation_closed');
+        await currentIdentity(phaseScope.getStore() ?? entry.lastPhase ?? 'load');
+        await noticesSettled();
+        if (entry.failed || signal.aborted) throw fail('plugin_operation_closed');
         await beforeEffect();
+        await currentIdentity(phaseScope.getStore() ?? entry.lastPhase ?? 'load');
         if (closed || tearingDown || entry.failed || signal.aborted) throw fail('plugin_operation_closed');
         entry.effects = true;
     };
@@ -184,15 +256,25 @@ async function createBgPluginHost({ database, bindings, getDatabase, getSelectio
     const invoke = (entry, kind, callback, contract = 'replacer') => async (...args) => {
         const provider = kind === 'provider';
         if (noticeFailure) throw noticeFailure;
+        if (identityFailure) throw identityFailure;
         if (closed || entry.failed) {
+            await noticesSettled();
             if (provider) throw fail('plugin_provider_failed');
             return args[0];
         }
         return phaseScope.run(kind, async () => {
             entry.lastPhase = kind;
             try {
+                await currentIdentity(kind);
+                await noticesSettled();
+                if (closed || tearingDown || signal.aborted) throw fail('plugin_operation_closed');
+                if (entry.failed) {
+                    if (provider) throw fail('plugin_provider_failed');
+                    return args[0];
+                }
                 if (provider) { permission(entry, 'provider', true); await effect(entry); }
                 const value = await callback(...args);
+                await currentIdentity(kind);
                 if (entry.failed) throw fail('plugin_hook_failed');
                 if (contract === 'replacer' && kind === 'before_request' && !Array.isArray(value)) throw fail('plugin_hook_result_invalid');
                 if (contract === 'replacer' && kind === 'after_request' && typeof value !== 'string') throw fail('plugin_hook_result_invalid');
@@ -205,6 +287,7 @@ async function createBgPluginHost({ database, bindings, getDatabase, getSelectio
                 return value;
             } catch (error) {
                 if (noticeFailure) throw noticeFailure;
+                if (identityFailure) throw identityFailure;
                 if (provider && error?.code === 'plugin_execution_failed' && !entry.session.failure && !signal.aborted) {
                     providerFailure(entry); await noticesSettled(); throw error;
                 }
@@ -269,16 +352,37 @@ async function createBgPluginHost({ database, bindings, getDatabase, getSelectio
             try { entry.plugin = clone(plugin); }
             catch { disable(entry, 'plugin_api_unsupported', 'plugin_record_size'); continue; }
             if (plugin.version !== '3.0' || typeof plugin.script !== 'string' || index >= 16) { disable(entry, 'plugin_api_unsupported', 'plugin_runtime'); continue; }
+            entry.identityEligible = true;
+        }
+        // Publish ambiguous-identity refusals before any guest initialization.
+        checkedIdentity(database, 'load');
+        await currentIdentity('load');
+        await noticesSettled();
+        for (const entry of entries) {
+            if (entry.failed) continue;
+            const { index, plugin } = entry;
             const abortSignal = AbortSignal.any([signal, entry.abort.signal]);
             const storage = createPluginStorage({ ...storageOwner, plugin: entry.plugin, beforeEffect: () => effect(entry),
-                assertActive: () => {
+                prepareActive: () => currentIdentity(phaseScope.getStore() ?? entry.lastPhase ?? 'load'),
+                assertActive: function(latest) {
+                    if (!closed && !tearingDown) {
+                        const provided = arguments.length > 0;
+                        const root = provided ? latest : storageOwner.peekRoot();
+                        if (!provided && root == null) throw fail('plugin_identity_reload_required');
+                        checkedIdentity(root, phaseScope.getStore() ?? entry.lastPhase ?? 'load');
+                    }
                     if (closed || tearingDown || entry.failed || signal.aborted) throw fail('plugin_operation_closed');
                     entry.session.assertCurrent();
                 },
                 onWrite({ group, key, present, value }) {
                     const active = getDatabase();
+                    const matches = group === 'argument' ? (active.plugins ?? []).filter(item => item.name === entry.plugin.name
+                        && item.script === entry.plugin.script && item.version === entry.plugin.version) : null;
+                    // A committed canonical write must not become a false guest
+                    // failure or recreate an absent operation-snapshot entry.
+                    if (matches && matches.length !== 1) return;
                     const target = group === 'root' ? (active.pluginCustomStorage ??= {})
-                        : (active.plugins.find(item => item.name === plugin.name).realArg ??= {});
+                        : (matches[0].realArg ??= {});
                     if (present) Object.defineProperty(target, key, { value, enumerable: true, writable: true, configurable: true });
                     else delete target[key];
                 },
@@ -399,7 +503,12 @@ async function createBgPluginHost({ database, bindings, getDatabase, getSelectio
                             default: return unsupported(method);
                         }
                     } catch (error) {
-                        if (!['plugin_invocation_expired', 'plugin_budget_exceeded'].includes(error?.code)) {
+                        if (error?.code === 'plugin_identity_unavailable') throw latchIdentityFailure();
+                        if (error?.code === 'plugin_identity_reload_required') {
+                            disable(entry, 'plugin_api_unsupported', 'plugin_identity_cache_unstable', phaseScope.getStore() ?? entry.lastPhase ?? 'load');
+                            throw error;
+                        }
+                        if (!identityFailure && !['plugin_invocation_expired', 'plugin_budget_exceeded'].includes(error?.code)) {
                             disable(entry, error?.code ?? 'plugin_hook_failed', method);
                         }
                         throw error;
@@ -407,7 +516,7 @@ async function createBgPluginHost({ database, bindings, getDatabase, getSelectio
                 }) }));
                 await phaseScope.run('load', () => entry.session.load());
                 if (!entry.failed) { entry.ready = true; install(entry); }
-            } catch (error) { disable(entry, error?.code ?? 'plugin_hook_failed'); }
+            } catch (error) { if (identityFailure) throw identityFailure; disable(entry, error?.code ?? 'plugin_hook_failed'); }
             await noticesSettled();
         }
     } catch (error) {
@@ -420,21 +529,10 @@ async function createBgPluginHost({ database, bindings, getDatabase, getSelectio
     }
     return {
         async refreshIdentity() {
-            const plugins = (getDatabase().plugins ?? []).filter(plugin => plugin?.enabled);
-            for (const entry of entries) {
-                const current = plugins[entry.index];
-                if (!current || current.name !== entry.plugin.name || current.script !== entry.plugin.script
-                    || current.version !== entry.plugin.version) disable(entry, 'plugin_identity_changed');
-            }
-            for (const [index, plugin] of plugins.entries()) {
-                if (!entries.some(entry => entry.plugin.name === plugin.name)) {
-                    const entry = { plugin, index, effects: false, abort: new AbortController(), failed: false, identity: identityOf(plugin) };
-                    disable(entry, 'plugin_api_unsupported', 'plugin_set_changed');
-                }
-            }
+            if (!closed && !tearingDown) checkedIdentity(getDatabase());
             await noticesSettled();
         },
-        assertNotifications: noticesSettled,
+        assertNotifications: async () => { if (identityFailure) throw identityFailure; await noticesSettled(); },
         async close() {
             if (closed) return;
             tearingDown = true;

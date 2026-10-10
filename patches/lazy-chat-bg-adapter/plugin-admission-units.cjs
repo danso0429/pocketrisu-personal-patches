@@ -15,7 +15,7 @@ module.exports = prior => {
     }
     add('server-import', 'server/node/bgOrchestrator.cjs',
         "const BUNDLE = path.join(__dirname, 'bgOrchBundle.mjs')",
-        "const { hasPluginBindings, canStartPluginHost } = require('./bgPluginEligibility.cjs')\nconst BUNDLE = path.join(__dirname, 'bgOrchBundle.mjs')");
+        "const { hasPluginBindings, hasPluginHostIdentity, canStartPluginHost } = require('./bgPluginEligibility.cjs')\nconst BUNDLE = path.join(__dirname, 'bgOrchBundle.mjs')");
     add('execution-predicate', 'server/node/bgOrchestrator.cjs',
         '    const bg = await loadBundle(deps.requestLogs)',
         `    const bg = await loadBundle(deps.requestLogs)
@@ -58,7 +58,7 @@ module.exports = prior => {
     res.json({`,
         `  app.get('/api/bg-orchestrate-capabilities', sessionAuthMiddleware, async (_req, res) => {
     let serverPluginHostVersion = 0
-    if (deps.bgPluginDependencies?.enabled === true) {
+    if (hasPluginHostIdentity(deps.bgPluginDependencies)) {
       try { serverPluginHostVersion = hasPluginBindings(await loadBundle(deps.requestLogs)) ? 1 : 0 }
       catch { /* Preserve existing capabilities when only the host bundle is unavailable. */ }
     }
