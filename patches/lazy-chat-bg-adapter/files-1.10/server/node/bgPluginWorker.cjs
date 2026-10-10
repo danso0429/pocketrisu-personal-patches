@@ -10,6 +10,7 @@ const apply = Reflect.apply;
 const signalAborted = Object.getOwnPropertyDescriptor(AbortSignal.prototype, 'aborted').get;
 const addListener = EventTarget.prototype.addEventListener, removeListener = EventTarget.prototype.removeEventListener;
 const getReader = ReadableStream.prototype.getReader, releaseReader = ReadableStreamDefaultReader.prototype.releaseLock;
+const cancelReader = ReadableStreamDefaultReader.prototype.cancel;
 const searchString = URLSearchParams.prototype.toString, dateString = Date.prototype.toISOString;
 const createObject = Object.create, defineProperty = Object.defineProperty, ownKeys = Object.keys;
 const setPrototype = Object.setPrototypeOf, isArray = Array.isArray, stringify = JSON.stringify;
@@ -275,7 +276,19 @@ function createPluginPeer({ send, dispatch, onFatal = () => {}, timeoutMs = 600_
                 }
             }
         } catch (error) { rollback(); throw error; }
-        return { encoded, rollback, release: budget.cleanup.length ? () => {} : () => onLargeEnd?.() };
+        const cancelLarge = () => {
+            // A refused call owns only its newly-created large descriptors.
+            // Other published functions/streams/signals may already be in use.
+            for (const entry of created) {
+                if (entry.kind !== 'stream' || !entry.slots.some(slot => slot[0] === 'largeString')) continue;
+                if (readers.get(entry.id) === entry.resource) {
+                    readers.delete(entry.id); ids.delete(entry.value);
+                    void apply(cancelReader, entry.resource.reader, []).catch(() => {});
+                }
+            }
+            for (const cleanup of budget.cleanup) cleanup();
+        };
+        return { encoded, rollback, cancelLarge, release: budget.cleanup.length ? () => {} : () => onLargeEnd?.() };
     }
 
     function unpack(value, depth = 0, budget = { nodes: 0, largePath: null }, path = '') {
@@ -418,7 +431,8 @@ function createPluginPeer({ send, dispatch, onFatal = () => {}, timeoutMs = 600_
             // storage/host bookkeeping chains; do not retain unused bodies.
             const settles = !(method === 'api' && ['nativeFetch', 'risuFetch', 'runLLMModel'].includes(args[0]))
                 && !['_pull', '_cancel'].includes(method);
-            pending.set(id, { resolve, reject, timer, context, settles, largeRead: localStringRead(method, args), returning: false });
+            pending.set(id, { resolve, reject, timer, context, settles, largeRead: localStringRead(method, args),
+                cancelLarge: serialization?.cancelLarge, returning: false });
             touchContext(context);
             try { emit({ kind: 'call', id, method, args: encoded, context }); }
             catch (error) {
@@ -477,6 +491,7 @@ function createPluginPeer({ send, dispatch, onFatal = () => {}, timeoutMs = 600_
                 const entry = pending.get(frame.id);
                 if (!entry || entry.returning || typeof frame.ok !== 'boolean') throw fail('plugin_rpc_protocol_invalid');
                 entry.returning = true;
+                if (!frame.ok) entry.cancelLarge?.();
                 const budget = { nodes: 0, largePath: entry.largeRead ? '' : null };
                 const value = frame.ok ? runContext(entry.context, () => unpack(frame.value, 0, budget)) : fail(errorCode({ code: frame.code }));
                 const finish = (value, ok) => {

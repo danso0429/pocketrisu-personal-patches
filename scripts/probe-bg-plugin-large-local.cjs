@@ -6,7 +6,8 @@ const { createPluginPeer, stringJSONBytes, reservePluginStorage, reservedPluginV
 
 function peers(t, dispatch, mutate = frame => frame, mutateParent = frame => [frame], timeouts = {}) {
     const frames = []; let parent, worker, fatal;
-    parent = createPluginPeer({ timeoutMs:timeouts.parent??600000, retainContext:timeouts.retain??(()=>()=>{}), dispatch, send: frame => { for (const changed of mutateParent(frame)) queueMicrotask(() => worker.receive(changed)); }, onFatal: code => { fatal = code; worker.close(code); } });
+    parent = createPluginPeer({ timeoutMs:timeouts.parent??600000, retainContext:timeouts.retain??(()=>()=>{}),
+        runContext:timeouts.runContext??((_context,task)=>task()), dispatch, send: frame => { for (const changed of mutateParent(frame)) queueMicrotask(() => worker.receive(changed)); }, onFatal: code => { fatal = code; worker.close(code); } });
     worker = createPluginPeer({ timeoutMs:timeouts.worker??600000, dispatch: () => { throw Error('unexpected callback'); }, send: frame => {
         const changed = mutate(frame); frames.push(changed); queueMicrotask(() => parent.receive(changed));
     }, onFatal: code => { fatal = code; parent.close(code); } });
@@ -17,6 +18,56 @@ function peers(t, dispatch, mutate = frame => frame, mutateParent = frame => [fr
 test('string JSON measurement matches actual escaping without allocating the whole wire value',()=>{
     for(const value of ['','ascii','\t\n\u0000','"\\','한글😀','\ud800X\udfff','x'.repeat(65535)+'😀',String.fromCharCode(...Array.from({length:65536},(_,i)=>i))])
         assert.equal(stringJSONBytes(value),Buffer.byteLength(JSON.stringify(value)));
+});
+
+test('negative reply cleans only new large descriptors and preserves ordinary published handles', async t => {
+    let expired = true, effects = 0;
+    const p = peers(t, () => { effects++; }, undefined, undefined, { runContext: (_context, task) => {
+        if (expired) throw Object.assign(Error('expired'), { code: 'plugin_invocation_expired' });
+        return task();
+    } });
+    const ordinary = new ReadableStream({ start(controller) { controller.enqueue('ordinary'); } });
+    await assert.rejects(p.worker.call('api', ['localPluginStorage.setItem', ['synthetic', 'x'.repeat(5 * 1024 * 1024),
+        value => 'callback-' + value, ordinary]]), { code: 'plugin_invocation_expired' });
+    assert.equal(effects, 0);
+    assert.equal(p.worker.stats().reservedLargeUnits, 0);
+    assert.equal(p.worker.stats().largeReservations, 0);
+    assert.equal(p.worker.stats().exports.streams, 1);
+    expired = false;
+    const args = p.frames[0].args[1][1][1];
+    assert.equal(await p.parent.call('_callback', [args[2][1], ['still-live']]), 'callback-still-live');
+    assert.deepEqual(await p.parent.call('_pull', [args[3][1]]), { done: false, value: 'ordinary' });
+    await p.parent.call('_cancel', [args[3][1]]);
+});
+
+test('late small and large setItem refusals leave the actual OS session healthy past the idle deadline', async t => {
+    const controls = [];
+    for (const large of [false, true]) {
+        let hook, writes = 0, late = 0;
+        const session = await createPluginSession({ runtimeMs: 40000, script: `
+            const storage=await Risuai.getLocalPluginStorage();let calls=0;
+            await Risuai.addProvider('synthetic',async()=>{
+                if(++calls===1)setTimeout(()=>storage.setItem('late',${large ? "'x'.repeat(5*1024*1024)" : "'small'"}).catch(()=>{}),50);
+                return {success:true,content:'call-'+calls};
+            });`, api(method, args) {
+                if (method === 'addProvider') hook = args[1];
+                else if (method === 'localPluginStorage.setItem') writes++;
+                else throw Error('unexpected API');
+            }, onLateCall: () => { late++; } });
+        t.after(() => session.close());
+        await session.load();
+        assert.deepEqual(await hook({}), { success: true, content: 'call-1' });
+        controls.push({ session, hook, writes: () => writes, late: () => late });
+    }
+    // Cross the documented 15s descriptor idle deadline, rather than shorten it.
+    await new Promise(resolve => setTimeout(resolve, 16200));
+    for (const control of controls) {
+        assert.equal(control.writes(), 0);
+        assert.equal(control.late(), 1);
+        assert.equal(control.session.failure, null);
+        assert.equal(control.session.activeScopes, 0);
+        assert.deepEqual(await control.hook({}), { success: true, content: 'call-2' });
+    }
 });
 
 test('storage credits reject before parsing and release after an inline reply',async t=>{
