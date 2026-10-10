@@ -77,6 +77,8 @@ export function notificationMessage(notification: BgNotification): string {
         case 'plugin_message': return `${plugin}: ${event.message}`
         case 'plugin_host_limit': return event.reason === 'notification_capacity'
             ? '서버 알림 보관 한도로 일부 플러그인 알림을 생략했어요. 생성 작업은 계속 진행해요.'
+            : event.eventKey.endsWith(':settlement-budget')
+                ? `${plugin}: 플러그인의 추가 처리 대기 한도에 도달했어요. 일부 처리가 끝나지 않았을 수 있으니 응답과 저장 상태를 확인해 주세요.`
             : event.eventKey.endsWith(':limit')
                 ? `${plugin}: 플러그인 API 호출이 실행 한도를 초과해 거부되었어요.`
                 : `${plugin}: 서버 플러그인 실행 한도에 도달해 이 플러그인의 요청을 중단했어요.`

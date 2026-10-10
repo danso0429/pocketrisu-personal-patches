@@ -12,7 +12,9 @@ const installedDirectory=process.argv[8]?path.resolve(process.argv[8]):null;
 const installedExpectations=process.argv[9]?path.resolve(process.argv[9]):null;
 const rawProviderCases=['happy-provider','input-provider','input-blocked-provider','missing-provider','off-provider','conflict-provider','failed-registration-provider','fallback-provider','missing-fallback-provider','retry-provider'];
 const auxiliaryCases=['aux-default','aux-expanded','aux-lua-default','aux-lua-expanded'];
-const installedCases=['installed-on','installed-off','installed-expired','installed-provider'];
+const installedCases=['installed-on','installed-off','installed-expired','installed-provider','installed-pagefold','installed-pagefold-cache','installed-pagefold-stat-conflict'];
+const pagefoldCase=scenario.startsWith('installed-pagefold');
+const pagefoldFont=pagefoldCase?path.resolve(process.argv[10]):null;
 assert.ok(['script','insert','value-copy','cache-evict','root-failure','constructor-failure','duplicate-start','selected-provider','duplicate-provider','nonselected-provider',...rawProviderCases,...auxiliaryCases,...installedCases].includes(scenario));
 assert.ok(['raw','prepared'].includes(route));
 const require=createRequire(path.join(target,'package.json')),Database=require('better-sqlite3');
@@ -91,6 +93,9 @@ if(installedCases.includes(scenario)){
     });
     const installedOriginal=data.plugins.find(plugin=>plugin.name==='risu_multiagent');
     assert.ok(installedOriginal);assert.equal(installedOriginal.script,script);
+    if(pagefoldCase){
+        data.aiModel=data.subModel='pluginmodel:::PageFold';data.nodeOnlyModelModeLock='legacy';data.characters[0].chats[0].useModelPreset=false;
+    }
     if(scenario==='installed-provider'){
         data.aiModel=data.subModel='pluginmodel:::synthetic-provider';data.nodeOnlyModelModeLock='legacy';data.characters[0].chats[0].useModelPreset=false;
         data.plugins.push({name:'synthetic-provider',version:'3.0',enabled:true,realArg:{},script:`
@@ -111,11 +116,19 @@ seed.send({scope:'pocketrisu-h1-client',command:'seed',runtimeRoot:runtime,targe
 assert.equal((await once(seed,'exit'))[0],0);
 const disk=new Database(path.join(runtime,'save/risuai.db'));
 const grants=[...new Set(data.plugins.flatMap(p=>['replacer','provider','db','mainDom'].map(name=>JSON.stringify([p.name,name]))))];
-disk.prepare('INSERT OR REPLACE INTO kv(key,value) VALUES(?,?)').run('cache/plugin-permissions/state.json',JSON.stringify({given:grants,denied:[],cache:grants.map(k=>[k+'_lastGrantTime',Date.now()-(scenario==='installed-expired'?4*86400000:0)])}));disk.close();
+disk.prepare('INSERT OR REPLACE INTO kv(key,value) VALUES(?,?)').run('cache/plugin-permissions/state.json',JSON.stringify({given:grants,denied:[],cache:grants.map(k=>[k+'_lastGrantTime',Date.now()-(scenario==='installed-expired'?4*86400000:0)])}));
+if(pagefoldCase){
+    const localKey=key=>'cache/plugin-storage/'+Buffer.from(key).toString('base64url')+'.json';
+    disk.prepare('INSERT OR REPLACE INTO kv(key,value) VALUES(?,?)').run(localKey('pagefold.config.v1'),JSON.stringify({activeProvider:'google',packagingMode:'maximum',google:{apiKey:'synthetic-only',model:'fixture-pagefold',baseUrl:'https://pagefold.example.test/v1beta'}}));
+    if(scenario==='installed-pagefold-cache')disk.prepare('INSERT OR REPLACE INTO kv(key,value) VALUES(?,?)').run(localKey('pagefold.font.noto-sans-cjk-kr.v1'),JSON.stringify(fs.readFileSync(pagefoldFont).toString('base64')));
+}
+disk.close();
 const events=[],server=fork(path.join(target,'server/node/server.cjs'),[],{cwd:runtime,
     execArgv:['--require',new URL('./probes/bg-marp-settings-preload.cjs',import.meta.url).pathname],
     env:{...process.env,PORT:'0',TUNNEL_DISABLED:'1',UPDATE_CHECK_DISABLED:'1',POCKETRISU_BG_PLUGIN_HOST_CANDIDATE:['off-provider','installed-off'].includes(scenario)?'0':'1',MARP_SETTINGS_PROBE:'1',
         MARP_INSTALLED_PROBE:installedCases.includes(scenario)?'1':'0',
+        MARP_PAGEFOLD_FONT:pagefoldFont??'',MARP_PAGEFOLD_TARGET:pagefoldCase?target:'',
+        MARP_PAGEFOLD_STATS_GATE:scenario==='installed-pagefold-stat-conflict'?'1':'0',
         MARP_SETTINGS_GATE:['duplicate-start','duplicate-provider','constructor-failure',...rawProviderCases,...auxiliaryCases,...installedCases].includes(scenario)?'':'analysis',
         MARP_AUX_CALLER_PROBE:auxiliaryCases.includes(scenario)?'1':'0',MARP_CONTEXT_SCENARIO:scenario},stdio:['ignore','pipe','pipe','ipc']});
 server.on('message',row=>events.push(row));const log=fs.createWriteStream(path.join(runtime,'server.log'));server.stdout.pipe(log);server.stderr.pipe(log);
@@ -144,6 +157,13 @@ try{
             rawText:'Synthetic raw input',settingsSnapshotRef:'synthetic-client-hint',submittedAt:Date.now()}}:{})};
     const start=await fetch(origin+'/api/bg-orchestrate',{method:'POST',headers,body:JSON.stringify(body)});assert.equal(start.status,200);
     const ack=await start.json();assert.equal(ack.started,true);assert.equal(ack.operationId,operationId);
+    if(scenario==='installed-pagefold-stat-conflict'){
+        await wait(()=>events.some(e=>e.event==='pagefold-stats-held'));
+        const key='cache/plugin-storage/'+Buffer.from('pagefold.stats.v1').toString('base64url')+'.json';
+        const write=await fetch(origin+'/api/write',{method:'POST',headers:{...headers,'content-type':'application/octet-stream','file-path':Buffer.from(key).toString('hex')},
+            body:Buffer.from(JSON.stringify({version:1,total:{requests:2,successes:2},daily:{},routes:{},recent:[]}))});
+        assert.equal(write.status,200,await write.clone().text());server.send({event:'release'});
+    }
     if(!['duplicate-start','duplicate-provider','constructor-failure',...rawProviderCases,...auxiliaryCases,...installedCases].includes(scenario)){
         await wait(()=>events.some(e=>e.event==='analysis'));
         if(scenario==='cache-evict'){
@@ -179,6 +199,49 @@ try{
     assert.notEqual(terminal.state,'cancelled');
     const response=await fetch(origin+'/api/chat-content/synthetic-character/0',{headers});assert.equal(response.status,200);
     const chat=await decodeRisuSave(new Uint8Array(await response.arrayBuffer()));
+    if(scenario==='installed-pagefold-stat-conflict'){
+        assert.equal(terminal.state,'chat-committed');assert.equal(chat.message.filter(m=>m.role==='user').length,1);assert.equal(chat.message.filter(m=>m.role==='char').length,1);
+        assert.equal(chat.message.find(m=>m.role==='char').data,'Synthetic PageFold answer');
+        assert.equal(events.filter(e=>e.event==='pagefold-model').length,1);assert.equal(events.filter(e=>e.event==='analysis').length,3);assert.equal(events.filter(e=>e.event==='main').length,0);
+        const db=new Database(path.join(runtime,'save/risuai.db'),{readonly:true});let notices,stats,input;
+        try{
+            const key='cache/plugin-storage/'+Buffer.from('pagefold.stats.v1').toString('base64url')+'.json';stats=JSON.parse(String(db.prepare('SELECT value FROM kv WHERE key=?').get(key).value));
+            notices=db.prepare('SELECT value FROM kv WHERE key LIKE ?').all('internal/bg-notifications/v1/%').map(row=>JSON.parse(String(row.value)).event);
+            input=route==='raw'?JSON.parse(String(db.prepare('SELECT value FROM kv WHERE key=?').get('internal/server-chat-input/v1/'+Buffer.from(operationId).toString('base64url')).value)):null;
+            assert.equal(db.prepare('PRAGMA quick_check').get().quick_check,'ok');
+        }finally{db.close();}
+        assert.equal(stats.total.requests,2);assert.ok(notices.some(n=>n.pluginName===installedExpected.providerName&&n.phase==='provider'&&n.code==='plugin_message'&&n.eventKey.endsWith(':local-conflict')&&n.effectsMayHaveOccurred===true));
+        assert.equal(notices.filter(n=>n.pluginName===installedExpected.providerName&&n.code==='plugin_provider_failed').length,0);
+        if(input)assert.equal(input.admission.rawText,'Synthetic raw input');
+        await new Promise(resolve=>setTimeout(resolve,2300));assert.equal(events.filter(e=>e.event==='pagefold-model').length,1);
+        fs.mkdirSync(output,{recursive:true});fs.writeFileSync(path.join(output,scenario+'-'+route+'.json'),JSON.stringify({scenario,route,runtime,terminal,events,notices,input,statistics:stats.total.requests,model:1,answers:1,scope:'actual native KV HTTP writer competing with unchanged original provider statistics CAS; competing value/answer retained, mandatory warning/no replay'},null,2),{flag:'wx',mode:0o600});
+        console.log(JSON.stringify({scenario,route,state:terminal.state,model:1,answers:1,retainedStatistics:2,replay:0}));return;
+    }
+    if(pagefoldCase){
+        assert.equal(terminal.state,'chat-committed');
+        assert.equal(chat.message.filter(m=>m.role==='user').length,1);assert.equal(chat.message.filter(m=>m.role==='char').length,1);
+        assert.equal(chat.message.find(m=>m.role==='char').data,'Synthetic PageFold answer');
+        assert.equal(events.filter(e=>e.event==='analysis').length,3);assert.equal(events.filter(e=>e.event==='main').length,0);
+        const models=events.filter(e=>e.event==='pagefold-model');assert.equal(models.length,1);assert.equal(models[0].pdfOracle,true);
+        assert.equal(events.filter(e=>e.event==='pagefold-font').length,scenario==='installed-pagefold-cache'?0:1);
+        assert.equal(events.filter(e=>['observation-error','validation-error','denied'].includes(e.event)||e.event==='socket-denied'&&!e.control).length,0);
+        const db=new Database(path.join(runtime,'save/risuai.db'),{readonly:true});let stats,cache,notices,journal;
+        try{
+            const localKey=key=>'cache/plugin-storage/'+Buffer.from(key).toString('base64url')+'.json';
+            stats=JSON.parse(String(db.prepare('SELECT value FROM kv WHERE key=?').get(localKey('pagefold.stats.v1')).value));
+            cache=JSON.parse(String(db.prepare('SELECT value FROM kv WHERE key=?').get(localKey('pagefold.font.noto-sans-cjk-kr.v1')).value));
+            notices=db.prepare('SELECT value FROM kv WHERE key LIKE ?').all('internal/bg-notifications/v1/%').map(r=>JSON.parse(String(r.value)).event);
+            journal=db.prepare('SELECT value FROM kv WHERE key LIKE ?').all('internal/server-chat-commit/v1/%').map(r=>JSON.parse(String(r.value)));
+            assert.equal(db.prepare('PRAGMA quick_check').get().quick_check,'ok');
+        }finally{db.close();}
+        assert.equal(stats.total.requests,1);assert.equal(stats.total.successes,1);assert.ok(Buffer.from(cache,'base64').equals(fs.readFileSync(pagefoldFont)));
+        assert.equal(journal.filter(row=>row.operationId===operationId).length,1);
+        assert.ok(notices.some(n=>n.pluginName===installedExpected.managementName&&n.code==='plugin_hook_failed'&&n.phase==='load'));
+        assert.ok(notices.every(n=>n.pluginName===installedExpected.managementName||n.pluginName===installedExpected.periodicName&&n.code==='plugin_late_call'));
+        await new Promise(resolve=>setTimeout(resolve,2300));assert.equal(events.filter(e=>e.event==='pagefold-model').length,1);
+        fs.mkdirSync(output,{recursive:true});fs.writeFileSync(path.join(output,scenario+'-'+route+'.json'),JSON.stringify({scenario,route,runtime,operationId,terminal,events,notices,journal,statistics:stats.total.requests,fontCacheBytes:Buffer.byteLength(cache),answers:1},null,2),{mode:0o600,flag:'wx'});
+        console.log(JSON.stringify({scenario,route,state:terminal.state,model:1,analysis:3,statistics:1,answers:1}));return;
+    }
     if(installedCases.includes(scenario)){
         const analyses=events.filter(e=>e.event==='analysis'),mains=events.filter(e=>e.event==='main');
         const omitted=['installed-off','installed-expired'].includes(scenario),pluginProvider=scenario==='installed-provider';
@@ -214,7 +277,9 @@ try{
                 for(const name of ['risu_multiagent',installedExpected.providerName])assert.ok(notices.some(n=>n.pluginName===name
                     &&n.code===(route==='prepared'?'plugin_hook_failed':'plugin_permission_missing')&&n.phase==='load'
                     &&n.effectsMayHaveOccurred===(route==='prepared')));
-                assert.equal(notices.length,3);
+                const periodic=notices.filter(n=>n.pluginName===installedExpected.periodicName&&n.code==='plugin_late_call'&&n.phase==='load');
+                assert.ok(periodic.length<=1);assert.ok(periodic.every(n=>n.effectsMayHaveOccurred===(route==='prepared')));
+                assert.equal(notices.length-periodic.length,3);
             }
             else{
                 assert.ok(diagnostics.length>0);

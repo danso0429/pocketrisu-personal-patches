@@ -17,6 +17,18 @@ function harness() {
 }
 
 describe('visible notification enqueue and independent ACK', () => {
+    it('distinguishes a protected local write refusal and settlement warning from terminal failures',()=>{
+        const h=harness(),base={...h.notice.event,pluginName:'synthetic',pluginVersion:'1',phase:'provider',effectsMayHaveOccurred:true}
+        const conflict={...h.notice,event:{...base,code:'plugin_message' as const,eventKey:'plugin:synthetic:provider:local-conflict',level:'error' as const,
+            message:'다른 작업에서 변경한 플러그인 값을 보존하고 이번 저장을 생략했어요. 요청은 플러그인의 오류 처리에 따라 완료되거나 중단될 수 있어요.'}}
+        const terminal={...h.notice,event:{...base,code:'plugin_hook_failed' as const,eventKey:'plugin:synthetic:provider:failure'}}
+        const settlement={...h.notice,event:{...base,code:'plugin_host_limit' as const,eventKey:'plugin:synthetic:settlement-budget',reason:'operation_budget' as const}}
+        expect(notificationMessage(conflict)).toContain('이번 저장을 생략')
+        expect(notificationMessage(terminal)).toBe('synthetic (1): 요청 처리 중 플러그인 오류가 발생했어요.')
+        expect(notificationMessage(settlement)).toContain('추가 처리 대기 한도')
+        expect(parseBgNotifications({notifications:[conflict]})).toEqual([conflict])
+        expect(parseBgNotifications({notifications:[settlement]})).toEqual([settlement])
+    })
     it('distinguishes refused API calls from terminal limits without a new reason or schema', () => {
         const h=harness()
         const event={...h.notice.event,code:'plugin_host_limit' as const,pluginName:'synthetic',pluginVersion:'1',

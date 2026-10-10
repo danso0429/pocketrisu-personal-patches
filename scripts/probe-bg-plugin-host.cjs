@@ -1,6 +1,7 @@
 'use strict';
 const test = require('node:test');
 const assert = require('node:assert/strict');
+const { createHash } = require('node:crypto');
 const { createRequire } = require('node:module');
 const path = require('node:path');
 const targetRequire = createRequire(path.resolve(process.argv[2], 'package.json'));
@@ -8,6 +9,7 @@ const Database = targetRequire('better-sqlite3');
 const { createBgPluginHost } = targetRequire('./server/node/bgPluginHost.cjs');
 const { createPluginStorage, savedPluginPermission } = targetRequire('./server/node/bgPluginStorage.cjs');
 const { createBgNotifications } = targetRequire('./server/node/bgNotifications.cjs');
+const { createPluginPeer } = targetRequire('./server/node/bgPluginWorker.cjs');
 const plugin = (name, script) => ({ name, script, version: '3.0', enabled: true, realArg: { sample: 'original' } });
 
 async function fixture(t, plugins, permissions = true, options = {}) {
@@ -37,6 +39,7 @@ async function fixture(t, plugins, permissions = true, options = {}) {
         const keys = plugins.flatMap(value => ['replacer', 'provider', 'db'].map(permission => JSON.stringify([value.name, permission])));
         kvSet('cache/plugin-permissions/state.json', JSON.stringify({ given: keys, denied: [], cache: keys.map(key => [key + '_lastGrantTime', Date.now()]) }));
     }
+    if (options.permissionState) kvSet('cache/plugin-permissions/state.json', JSON.stringify(options.permissionState));
     const owner = { kvGet, kvSet, kvDel, kvList, transaction: task => { options.beforeLocalTransaction?.(); return db.transaction(task)(); },
         peekRoot: () => options.peekRoot ? options.peekRoot(root) : root,
         getRoot: async () => { options.onRootRead?.(); return options.getRoot ? options.getRoot(root) : root; },
@@ -49,7 +52,7 @@ async function fixture(t, plugins, permissions = true, options = {}) {
             ? notifications.publishPluginFailure(event, identity) : notifications.publish(event)),
         publishDiagnostic: options.publishDiagnostic,
         onCriticalFailure: error => { options.onCriticalFailure?.(error); controller.abort(error); },
-        operation: { operationId: 'synthetic-operation', charId: 'synthetic-character', chatId: 'synthetic-chat', inputPreparedOnClient: options.prepared === true },
+        operation: { operationId: options.operationId ?? 'synthetic-operation', charId: 'synthetic-character', chatId: 'synthetic-chat', inputPreparedOnClient: options.prepared === true },
         signal: controller.signal, bindings });
     return { host, registry, bindings, notifications, owner, network, get root() { return root; },
         set root(value) { root = value; }, get effects() { return effects; }, get writes() { return writes; },
@@ -57,6 +60,168 @@ async function fixture(t, plugins, permissions = true, options = {}) {
         swapOperationDb() { operationDb = structuredClone(root); },
         controller, notices: () => notifications.claim('synthetic-consumer', 2).map(row => row.event) };
 }
+
+for (const form of ['given','digest','given-and-denied','denied','missing-time','null-time','expired','digest-mismatch']) {
+    test(`saved provider grant form ${form} never fabricates a permission answer`, async t => {
+        const code=`await Risuai.addProvider('grant-provider',async()=>({success:true,content:'granted-answer'}));`;
+        const p=plugin('grant-fixture',code),nameKey=JSON.stringify([p.name,'provider']);
+        const digest=createHash('sha256').update(form==='digest-mismatch'?code+'\n// prior identity':code).digest('hex')+'_provider';
+        const given=['given','given-and-denied','missing-time','null-time','expired'].includes(form)?[nameKey]:[];
+        const denied=['denied','given-and-denied'].includes(form)?[nameKey]:[];
+        const cache=[[digest,true],...(form==='missing-time'?[]:[[nameKey+'_lastGrantTime',form==='null-time'?null:Date.now()-(form==='expired'?4*86400000:0)]])];
+        const h=await fixture(t,[p],false,{permissionState:{given,denied,cache}});
+        const allowed=['given','digest','given-and-denied'].includes(form);
+        assert.equal(h.host.hasProvider('grant-provider'),allowed);
+        assert.equal(h.network.length,0);assert.equal(h.writes,0);
+        if(allowed){assert.deepEqual(await h.registry.providers.get('grant-provider')({}),{success:true,content:'granted-answer'});assert.deepEqual(h.notices(),[]);}
+        else{assert.equal(h.effects,0);assert.deepEqual(h.notices().map(n=>({code:n.code,phase:n.phase,effects:n.effectsMayHaveOccurred})),[{code:'plugin_permission_missing',phase:'load',effects:false}]);}
+    });
+}
+
+test('a pending large local write does not consume the ordinary API budget',async t=>{
+    let effectCount=0,held,release,logged,store;
+    const writing=new Promise(resolve=>{held=resolve;}),resume=new Promise(resolve=>{release=resolve;}),message=new Promise(resolve=>{logged=resolve;});
+    t.after(()=>release());
+    const h=await fixture(t,[plugin('large-pending',`await Risuai.addProvider('large-pending',async()=>{
+        await Risuai.nativeFetch('https://synthetic.invalid/ready',{});
+        const s=await Risuai.getLocalPluginStorage(),writing=s.setItem('large','x'.repeat(5*1024*1024));
+        await Risuai.nativeFetch('https://synthetic.invalid/after-write',{});await Risuai.log('ordinary API kept');await writing;
+        return {success:true,content:'kept'};
+    });`)],true,{
+        beforeEffect:async()=>{if(++effectCount===4){held();await resume;}},
+        nativeFetch:async url=>{if(url.endsWith('/after-write'))await writing;return new Response('synthetic');},
+        publishNotification:event=>{if(event.code==='plugin_message')logged();return store.publish(event);},
+    });
+    store=h.notifications;const result=h.registry.providers.get('large-pending')({});
+    const watchdog=setTimeout(()=>release(),5000);
+    try{await message;assert.equal(effectCount,4);assert.equal(h.owner.kvGet('cache/plugin-storage/'+Buffer.from('large').toString('base64url')+'.json'),null);
+        assert.deepEqual(h.notices().map(row=>row.code),['plugin_message']);release();assert.deepEqual(await result,{success:true,content:'kept'});
+    }finally{clearTimeout(watchdog);release();}
+});
+
+test('32MiB JSON local string boundary persists and cold-reads through actual SQLite and worker',async t=>{
+    const size=32*1024*1024-2;
+    const h=await fixture(t,[plugin('local-boundary',`await Risuai.addProvider('local-boundary',async()=>{
+        const s=await Risuai.getLocalPluginStorage();await s.setItem('boundary','x'.repeat(${size}));
+        const value=await s.getItem('boundary','ignored');return {success:true,content:String(value.length)};
+    });`)]);
+    assert.deepEqual(await h.registry.providers.get('local-boundary')({}),{success:true,content:String(size)});
+    const row=h.owner.kvGet('cache/plugin-storage/'+Buffer.from('boundary').toString('base64url')+'.json');
+    assert.equal(Buffer.byteLength(row),32*1024*1024);assert.equal(JSON.parse(row).length,size);assert.deepEqual(h.notices(),[]);
+});
+
+test('parallel large setters leave byte-rate room for a valid escaped ordinary frame',async t=>{
+    const h=await fixture(t,[plugin('paced-large',`await Risuai.addProvider('paced-large',async()=>{
+        const s=await Risuai.getLocalPluginStorage();await Promise.all([
+            s.setItem('first','x'.repeat(5*1024*1024)),s.setItem('second','y'.repeat(5*1024*1024)),
+            Risuai.nativeFetch('https://synthetic.invalid/ordinary',{method:'POST',body:'\\\\'.repeat(4*1024*1024-256)})
+        ]);return {success:true,content:'kept'};
+    });`)]);
+    assert.deepEqual(await h.registry.providers.get('paced-large')({}),{success:true,content:'kept'});
+    for(const key of ['first','second'])assert.equal(JSON.parse(h.owner.kvGet('cache/plugin-storage/'+Buffer.from(key).toString('base64url')+'.json')).length,5*1024*1024);
+    assert.equal(h.network.length,1);assert.equal(h.network[0].options.body.length,4*1024*1024-256);assert.deepEqual(h.notices(),[]);
+});
+
+for(const publication of ['stored','exception','capacity'])test(`large decoder contention ${publication} awaits its mandatory notice before any later API effect`,async t=>{
+    const holder=createPluginPeer({send:()=>{}});
+    const held=holder.call('api',['localPluginStorage.setItem',['held','x'.repeat(5*1024*1024)]]);held.catch(()=>{});t.after(()=>holder.close());
+    let store;
+    const h=await fixture(t,[plugin('large-refusal',`await Risuai.addProvider('large-refusal',async()=>{
+        const s=await Risuai.getLocalPluginStorage();let code;
+        try{await s.setItem('refused','x'.repeat(28*1024*1024));}catch(e){code=e.code;}
+        try{await Risuai.nativeFetch('https://synthetic.invalid/after-refusal',{});}catch{}
+        return {success:true,content:code};
+    });`)],true,{publishNotification:event=>{if(publication==='exception')throw Error('synthetic unavailable');if(publication==='capacity')return {status:'capacity'};return store.publish(event);}});
+    store=h.notifications;
+    const result=h.registry.providers.get('large-refusal')({});
+    if(publication==='stored'){
+        assert.deepEqual(await result,{success:true,content:'plugin_rpc_value_limit'});assert.equal(h.network.length,1);
+        assert.deepEqual(h.notices().map(n=>({code:n.code,phase:n.phase,reason:n.reason})),[{code:'plugin_host_limit',phase:'provider',reason:'operation_budget'}]);
+    }else{await assert.rejects(result,{code:'plugin_notification_unavailable'});assert.equal(h.controller.signal.aborted,true);assert.equal(h.network.length,0);}
+    assert.equal(h.owner.kvGet('cache/plugin-storage/'+Buffer.from('refused').toString('base64url')+'.json'),null);assert.equal(h.writes,0);
+});
+
+for(const mode of ['caught','uncaught','notice-exception','notice-capacity'])test(`local compare conflict ${mode} preserves competing data and original callback handling`,async t=>{
+    const key='cache/plugin-storage/'+Buffer.from('shared').toString('base64url')+'.json';let h,store;
+    h=await fixture(t,[plugin('local-cas',`await Risuai.addProvider('local-cas',async()=>{
+        const s=await Risuai.getLocalPluginStorage();await s.getItem('shared');await Risuai.nativeFetch('https://synthetic.invalid/barrier',{});
+        try{await s.setItem('shared',1);}catch(e){${mode==='uncaught'?'throw e;':`if(e.code!=='plugin_storage_conflict')throw e;`}}
+        await Risuai.nativeFetch('https://synthetic.invalid/after',{});return {success:true,content:'kept'};
+    });`)],true,{
+        nativeFetch:async url=>{if(url.endsWith('/barrier'))h.owner.kvSet(key,JSON.stringify(9));return new Response('synthetic');},
+        publishNotification:event=>{if(mode==='notice-exception')throw Error('synthetic unavailable');if(mode==='notice-capacity')return {status:'capacity'};return store.publish(event);},
+    });
+    store=h.notifications;const result=h.registry.providers.get('local-cas')({});
+    if(mode==='caught'){
+        assert.deepEqual(await result,{success:true,content:'kept'});assert.equal(h.network.length,2);
+        assert.deepEqual(h.notices().map(n=>({code:n.code,phase:n.phase,effects:n.effectsMayHaveOccurred})),[{code:'plugin_message',phase:'provider',effects:true}]);
+    }else if(mode==='uncaught'){
+        await assert.rejects(result,{code:'plugin_provider_failed'});assert.equal(h.network.length,1);
+        assert.deepEqual(h.notices().map(n=>n.code).sort(),['plugin_message','plugin_provider_failed']);
+    }else{
+        await assert.rejects(result,{code:'plugin_notification_unavailable'});assert.equal(h.controller.signal.aborted,true);assert.equal(h.network.length,1);
+    }
+    assert.equal(JSON.parse(h.owner.kvGet(key)),9);assert.equal(h.writes,0);
+});
+
+test('a new operation receives its local conflict warning after the prior operation warning was ACKed',async t=>{
+    const shared=await fixture(t,[]),consumer='synthetic-conflict-consumer';let h;
+    const key='cache/plugin-storage/'+Buffer.from('shared').toString('base64url')+'.json';
+    const p=plugin('per-operation-cas',`await Risuai.addProvider('per-operation-cas',async()=>{
+        const s=await Risuai.getLocalPluginStorage();await s.getItem('shared');await Risuai.nativeFetch('https://synthetic.invalid/barrier',{});
+        try{await s.setItem('shared',1);}catch(e){if(e.code!=='plugin_storage_conflict')throw e;}return {success:true,content:'kept'};
+    });`);
+    const ids=[];
+    for(const operationId of ['synthetic-conflict-one','synthetic-conflict-two']){
+        h=await fixture(t,[p],true,{operationId,publishNotification:(event,identity)=>identity?shared.notifications.publishPluginFailure(event,identity):shared.notifications.publish(event),
+            nativeFetch:async()=>{h.owner.kvSet(key,JSON.stringify(9));return new Response('synthetic');}});
+        assert.deepEqual(await h.registry.providers.get('per-operation-cas')({}),{success:true,content:'kept'});
+        const rows=shared.notifications.claim(consumer,2);assert.equal(rows.length,1);assert.equal(rows[0].event.operationId,operationId);
+        assert.ok(rows[0].event.eventKey.endsWith(':local-conflict'));ids.push(rows[0].id);
+        assert.deepEqual(shared.notifications.acknowledge(consumer,rows.map(row=>({id:row.id,token:row.token}))),[rows[0].id]);await h.host.close();
+    }
+    assert.notEqual(ids[0],ids[1]);
+});
+
+test('a native value growing during effect preparation is charged before comparison parsing',async t=>{
+    const Database=targetRequire('better-sqlite3'),db=new Database(':memory:');db.exec('CREATE TABLE kv(key TEXT PRIMARY KEY,value TEXT)');t.after(()=>db.close());
+    const key='cache/plugin-storage/'+Buffer.from('growth').toString('base64url')+'.json',charges=[],released=[];
+    const kvGet=key=>db.prepare('SELECT value FROM kv WHERE key=?').get(key)?.value??null;
+    const kvSet=(key,value)=>db.prepare('INSERT OR REPLACE INTO kv VALUES(?,?)').run(key,value);
+    const storage=createPluginStorage({plugin:plugin('growth',''),getRoot:async()=>({}),writeRoot:async()=>{},kvGet,kvSet,kvDel:()=>{},kvList:()=>[],transaction:task=>db.transaction(task)(),
+        beforeEffect:async()=>kvSet(key,JSON.stringify('x'.repeat(5*1024*1024))),
+        reserveLocal:bytes=>{charges.push(bytes);return()=>released.push(bytes);}});
+    assert.equal(await storage.local('getItem',['growth']),null);
+    await assert.rejects(storage.local('setItem',['growth','small']),{code:'plugin_storage_conflict'});
+    assert.ok(charges.some(bytes=>bytes>=5*1024*1024));assert.deepEqual([...released].sort((a,b)=>a-b),[...charges].sort((a,b)=>a-b));
+    assert.equal(JSON.parse(kvGet(key)).length,5*1024*1024);
+});
+
+test('ACKed operation conflict warnings exceed the failure-pool capacity without consuming terminal receipts',async t=>{
+    const h=await fixture(t,[]),consumer='synthetic-warning-capacity-consumer';
+    for(let index=0;index<1100;index++){
+        const event={operationId:'synthetic-warning-'+index,charId:'synthetic-character',chatId:'synthetic-chat',createdAt:Date.now(),
+            pluginName:'synthetic',pluginVersion:'1',phase:'provider',effectsMayHaveOccurred:true,code:'plugin_message',level:'error',
+            eventKey:'plugin:synthetic:provider:local-conflict',message:'Synthetic protected write warning'};
+        assert.equal(h.notifications.publish(event).status,'stored');const rows=h.notifications.claim(consumer,2);assert.equal(rows.length,1);
+        assert.equal(rows[0].event.operationId,event.operationId);assert.deepEqual(h.notifications.acknowledge(consumer,rows.map(row=>({id:row.id,token:row.token}))),[rows[0].id]);
+    }
+    assert.equal(h.owner.kvList('internal/bg-plugin-failure-receipts/v1/').length,0);
+    // Existing v2 reclamation is capacity-triggered, not eager after ACK.
+    assert.equal(h.owner.kvList('internal/bg-notifications/v1/').length,1024);
+    assert.equal(h.notifications.publish({operationId:'synthetic-terminal-after-warnings',charId:'synthetic-character',chatId:'synthetic-chat',createdAt:Date.now(),
+        eventKey:'input-host-unsupported',code:'input_host_unsupported',effectsMayHaveOccurred:true,api:'interactive_ui'}).status,'stored');
+    const terminal=h.notifications.claim(consumer,2);assert.equal(terminal.length,1);assert.equal(terminal[0].event.code,'input_host_unsupported');
+});
+
+test('unACKed guest message quota cannot consume mandatory protected-write warning admission',async t=>{
+    const h=await fixture(t,[]),base={charId:'synthetic-character',chatId:'synthetic-chat',pluginName:'synthetic',pluginVersion:'1',
+        phase:'provider',effectsMayHaveOccurred:true,code:'plugin_message',level:'error',message:'Synthetic message'};
+    for(let index=0;index<256;index++)assert.equal(h.notifications.publish({...base,createdAt:Date.now(),operationId:'synthetic-guest-'+index,eventKey:'plugin:0:message:1'}).status,'stored');
+    assert.equal(h.notifications.publish({...base,createdAt:Date.now(),operationId:'synthetic-guest-overflow',eventKey:'plugin:0:message:1'}).status,'capacity');
+    assert.equal(h.notifications.publish({...base,createdAt:Date.now(),operationId:'synthetic-parent-conflict',eventKey:'plugin:0:provider:local-conflict'}).status,'stored');
+    assert.equal(h.owner.kvList('internal/bg-notifications/v1/').length,257);assert.equal(h.owner.kvList('internal/bg-plugin-failure-receipts/v1/').length,0);
+});
 
 for (const prepared of [false,true])for(const loadFailure of [false,true])test(`conflicting provider names cannot dispatch the first owner, prepared=${prepared}, loadFailure=${loadFailure}`,async t=>{
     const h=await fixture(t,[

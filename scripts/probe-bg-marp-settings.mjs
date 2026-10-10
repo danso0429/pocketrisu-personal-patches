@@ -8,6 +8,7 @@ import { createHash } from 'node:crypto';
 
 // Explicit synthetic fixture/dependencies: no source or user database is bundled.
 const [target, original, fixture, playwrightRoot, chromiumPath, output, scenario] = process.argv.slice(2);
+const clientTarget=process.argv[9]?path.resolve(process.argv[9]):target;
 const scenarios = ['selection', 'override-clear', 'all-off', 'queue', 'latest', 'flush-hold', 'retry', 'request-deadline', 'analysis-deadline', 'read-interleave', 'native-read-interleave'];
 assert.ok(scenarios.includes(scenario), 'known scenario required');
 for (const file of [original, fixture, chromiumPath]) assert.ok(fs.existsSync(file));
@@ -37,7 +38,7 @@ for (const preset of data.modelPresets ?? []) preset.useStreaming = false;
 const runtime = fs.mkdtempSync('/tmp/marp-settings-');
 process.chdir(runtime);
 const { decodeRisuSave } = require(path.join(target, 'server/node/utils.cjs'));
-fs.symlinkSync(path.join(target, 'dist'), path.join(runtime, 'dist'));
+fs.symlinkSync(path.join(clientTarget, 'dist'), path.join(runtime, 'dist'));
 fs.writeFileSync(path.join(runtime, 'package.json'), JSON.stringify({ name: 'pocketrisu', version: '1.10.0' }));
 const password = createHash('sha256').update('synthetic-settings-password').digest('hex');
 const seed = fork(path.join(target, 'server/node/bgServerChatProcessClient.cjs'), [],

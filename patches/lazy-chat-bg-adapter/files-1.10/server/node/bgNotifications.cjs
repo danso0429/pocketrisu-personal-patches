@@ -109,8 +109,13 @@ function createBgNotifications({ db, kvGet, kvSet, kvDel, kvList, now = Date.now
         const id = idOf(event), previous = read(id);
         if (previous) return { status: JSON.stringify(previous.event) === JSON.stringify(event) ? 'duplicate' : 'conflict', id };
         const retained = unexpired(time);
-        if (event.code === 'plugin_message'
-            && retained.filter(row => !row.invalid && row.event.code === 'plugin_message' && row.deliveredAt === null).length >= MAX_PENDING_MESSAGES) {
+        // Parent-owned checked-write warnings are mandatory. They share the
+        // row cap and v2 ACK reclamation, but guest log/alert volume must not
+        // consume their admission budget. Guest event keys cannot select this.
+        const protectedWriteWarning = value => value.code === 'plugin_message' && value.eventKey.endsWith(':local-conflict');
+        if (event.code === 'plugin_message' && !protectedWriteWarning(event)
+            && retained.filter(row => !row.invalid && row.event.code === 'plugin_message'
+                && !protectedWriteWarning(row.event) && row.deliveredAt === null).length >= MAX_PENDING_MESSAGES) {
             return { status: 'capacity' };
         }
         if (retained.length >= MAX_ROWS) {

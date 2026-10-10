@@ -9,7 +9,8 @@ const { gzipSync } = require('node:zlib');
 const [target, fixturePath] = process.argv.slice(2, 4).map(value => path.resolve(value));
 const mode = process.argv[4] ?? 'normal';
 assert.ok(['normal', 'disabled', 'crash-input', 'crash-analysis', 'cold-read', 'provider', 'provider-stream', 'provider-off',
-    'retry-after-attach', 'retry-failed-settle', 'crash-after-attach', 'publication-fault', 'two-chat', 'display-role', 'budget-api'].includes(mode));
+    'retry-after-attach', 'retry-failed-settle', 'crash-after-attach', 'publication-fault', 'two-chat', 'display-role', 'budget-api', 'restart-toggle', 'restart-toggle-queued', 'old-client'].includes(mode));
+const twoChat=['two-chat','restart-toggle-queued'].includes(mode);
 const afterAttach = ['retry-after-attach', 'retry-failed-settle', 'crash-after-attach', 'publication-fault'].includes(mode);
 const pluginProvider = mode.startsWith('provider');
 const database = JSON.parse(fs.readFileSync(fixturePath, 'utf8'));
@@ -21,7 +22,7 @@ database.aiModel = database.subModel = 'gpt35';
 database.nodeOnlyModelModeLock = 'legacy'; database.openAIKey = 'synthetic'; database.streaming = false;
 database.characters[0].triggerscript = [];
 database.characters[0].chats[0].useModelPreset = false;
-if (mode === 'two-chat') {
+if (twoChat) {
     database.characters[0].chats.push({ ...structuredClone(database.characters[0].chats[0]), id: 'synthetic-second-chat', message: [] });
 }
 if (pluginProvider) {
@@ -50,7 +51,7 @@ database.plugins = [{ name: 'synthetic-generic', version: '3.0', enabled: true, 
         await Risuai.pluginStorage.setItem('synthetic-runs',count+1);
         const response=await Risuai.nativeFetch('https://analysis.example.test/v1',{method:'POST',body:'synthetic-analysis'});
         const result=await response.text();
-        ${mode === 'two-chat' ? "const character=await Risuai.getCharacter();return [...messages,{role:'system',content:'[before] '+result+' '+character.chats[character.chatPage].id}];" : "return [...messages,{role:'system',content:'[before] '+result}];"}
+        ${twoChat ? "const character=await Risuai.getCharacter();return [...messages,{role:'system',content:'[before] '+result+' '+character.chats[character.chatPage].id}];" : "return [...messages,{role:'system',content:'[before] '+result}];"}
     });
     await Risuai.addRisuReplacer('afterRequest',async text=>text+' [after]');
     await Risuai.addRisuScriptHandler('output',async text=>text+' [output]');
@@ -75,12 +76,12 @@ async function launch(crash) {
     server = fork(path.join(target, 'server/node/server.cjs'), [], { cwd: runtime,
         execArgv: ['--require', path.join(__dirname, 'probes/bg-plugin-process-preload.cjs')],
         env: { ...process.env, PORT: '0', POCKETRISU_PLUGIN_PROCESS_PROBE: '1',
-            POCKETRISU_PLUGIN_CRASH: crash && mode !== 'crash-after-attach' ? '1' : '0', POCKETRISU_BG_PLUGIN_HOST_CANDIDATE: ['disabled', 'provider-off'].includes(mode) ? '0' : '1',
+            POCKETRISU_PLUGIN_CRASH: crash && mode !== 'crash-after-attach' ? '1' : '0', POCKETRISU_BG_PLUGIN_HOST_CANDIDATE: ['disabled', 'provider-off'].includes(mode) || mode==='restart-toggle'&&launchIndex!==2 || mode==='restart-toggle-queued'&&launchIndex>1 ? '0' : '1',
             POCKETRISU_PLUGIN_AFTER_ATTACH_FAULT: afterAttach && mode !== 'publication-fault' ? '1' : '0',
             POCKETRISU_PLUGIN_PUBLICATION_FAULT: mode === 'publication-fault' && launchIndex === 1 ? '1' : '0',
             POCKETRISU_PLUGIN_AFTER_ATTACH_KILL: crash && mode === 'crash-after-attach' ? '1' : '0',
             POCKETRISU_PLUGIN_SETTLE_FAULT: mode === 'retry-failed-settle' ? '1' : '0',
-            POCKETRISU_PLUGIN_TWO_CHAT: mode === 'two-chat' ? '1' : '0',
+            POCKETRISU_PLUGIN_TWO_CHAT: twoChat ? '1' : '0',
             TUNNEL_DISABLED: '1', UPDATE_CHECK_DISABLED: '1' }, stdio: ['ignore', 'pipe', 'pipe', 'ipc'] });
     const log = fs.createWriteStream(path.join(runtime, `server-${launchIndex}.log`));
     server.stdout.pipe(log); server.stderr.pipe(log);
@@ -127,21 +128,57 @@ async function main() {
             resultKeyVersion: 1, resultOrderVersion: 1, startAckVersion: 1, serverChatCommitVersion: 1, inputCommandVersion: pluginProvider ? 0 : 1,
             inputCommand: { inputCommandId: 'synthetic-plugin-input', userMessageId: 'synthetic-plugin-user', rawText: 'synthetic-question',
                 settingsSnapshotRef: 'synthetic-ref', submittedAt: Date.now() } };
+    const currentHeaders=headers;
+    if(mode==='old-client'){
+        const oldStamp=JSON.parse(fs.readFileSync(path.resolve(process.argv[5]))).stamp;assert.notEqual(oldStamp,stamp);
+        // BG admission does not classify the stamp itself as execution
+        // authority. Exercise the declared-compatible wire contract once;
+        // this is distinct from the actual prior-browser Send comparator.
+        headers={...headers,'x-client-build':oldStamp};
+    }
     const started = await fetch(origin + '/api/bg-orchestrate', { method: 'POST', headers, body: JSON.stringify(body) });
     const startBody = await started.json();
     assert.equal(started.status, 200, JSON.stringify(startBody));
-    if (mode === 'two-chat') {
+    if(mode==='old-client'){
+        const staleClaim=await fetch(origin+'/api/bg-notifications/claim',{method:'POST',headers,body:JSON.stringify({consumerId:'synthetic-prior-consumer',messageVersion:2})});
+        assert.equal(staleClaim.status,426,await staleClaim.clone().text());
+        assert.equal((await staleClaim.json()).code,'CLIENT_UPGRADE_REQUIRED');
+        // Read-only normal-chat access remains available. Notification claim
+        // is a fenced writer; upgrading that reader cannot replay the job.
+        headers=currentHeaders;
+    }
+    if(mode==='restart-toggle'){
+        for(let index=1;index<=3;index++){
+            if(index>1){
+                server.kill('SIGTERM');assert.equal((await once(server,'exit'))[0],0);origin=await launch(false);headers=await credentials(origin,stamp);
+                const latest=await read(),nextBody={...body,operationId:'synthetic-toggle-'+index,currentChat:latest.chat,baseChatRevision:latest.revision,
+                    inputCommand:{...body.inputCommand,inputCommandId:'synthetic-toggle-input-'+index,userMessageId:'synthetic-toggle-user-'+index}};
+                const response=await fetch(origin+'/api/bg-orchestrate',{method:'POST',headers,body:JSON.stringify(nextBody)});assert.equal(response.status,200,await response.clone().text());
+            }
+            const cap=await fetch(origin+'/api/bg-orchestrate-capabilities',{headers});assert.equal(cap.status,200);assert.equal((await cap.json()).serverPluginHostVersion,index===2?1:0);
+            const chat=await wait(async()=>{const value=(await read()).chat;return value.message.filter(row=>row.role==='char').length===index?value:null;});
+            const users=chat.message.filter(row=>row.role==='user'),answers=chat.message.filter(row=>row.role==='char');assert.equal(users.length,index);
+            assert.equal(users.at(-1).data,index===2?'synthetic-question [input]':'synthetic-question');
+            assert.equal(answers.at(-1).data,index===2?'synthetic-answer [after] [output]':'synthetic-answer');
+            assert.equal(events.filter(row=>row.launchIndex===index&&row.event==='analysis').length,index===2?1:0);
+            assert.equal(events.filter(row=>row.launchIndex===index&&row.event==='provider').length,1);
+        }
+        assert.equal(events.filter(row=>row.event==='analysis').length,1);assert.equal(events.filter(row=>row.event==='provider').length,3);
+        console.log(JSON.stringify({passed:true,runtime,mode,launches,host:[0,1,0],inputs:3,answers:3,analysis:1,provider:3}));return;
+    }
+    if (twoChat) {
         await wait(() => events.some(message => message.event === 'analysis'));
         const secondResponse = await fetch(origin + '/api/chat-content/synthetic-character/1', { headers: { ...headers, 'x-chat-id': 'synthetic-second-chat' } });
         assert.equal(secondResponse.status, 200);
         const secondChat = await decodeRisuSave(new Uint8Array(await secondResponse.arrayBuffer()));
         const secondId = 'synthetic-second-operation';
-        const second = await fetch(origin + '/api/bg-orchestrate', { method: 'POST', headers, body: JSON.stringify({
+        const secondBody={
             ...body, operationId: secondId, selectedChatId: 'synthetic-second-chat', currentChat: secondChat,
             baseChatRevision: secondResponse.headers.get('x-chat-revision'), inputCommand: {
                 ...body.inputCommand, inputCommandId: 'synthetic-second-input', userMessageId: 'synthetic-second-user', rawText: 'second question',
             },
-        }) });
+        };
+        const second = await fetch(origin + '/api/bg-orchestrate', { method: 'POST', headers, body: JSON.stringify(secondBody) });
         assert.ok([200, 202].includes(second.status), JSON.stringify(await second.clone().json()));
         const secondAck = await second.json(); assert.equal(secondAck.operationId, secondId);
         assert.ok(secondAck.started === true || secondAck.accepted === true);
@@ -150,6 +187,28 @@ async function main() {
         await new Promise(resolve => setTimeout(resolve, 2000));
         assert.equal(events.filter(message => message.event === 'analysis').length, 1);
         assert.equal(events.filter(message => message.event === 'provider').length, 0);
+        if(mode==='restart-toggle-queued'){
+            const owned=new Database(path.join(runtime,'save/risuai.db'),{readonly:true});
+            let durable;
+            try{durable=[operationId,secondId].map(id=>JSON.parse(String(owned.prepare('SELECT value FROM kv WHERE key=?').get('internal/server-chat-input/v1/'+Buffer.from(id).toString('base64url')).value)));}
+            finally{owned.close();}
+            assert.deepEqual(durable.map(row=>row.admission.rawText),['synthetic-question','second question']);
+            server.kill('SIGKILL');await once(server,'exit');origin=await launch(false);headers=await credentials(origin,stamp);
+            const cap=await fetch(origin+'/api/bg-orchestrate-capabilities',{headers});assert.equal((await cap.json()).serverPluginHostVersion,0);
+            const retry=[];
+            for(const request of [body,secondBody]){
+                const response=await fetch(origin+'/api/bg-orchestrate',{method:'POST',headers,body:JSON.stringify(request)}),ack=await response.json();
+                assert.ok(response.status===409||response.status===200&&ack.reused===true,JSON.stringify(ack));
+                retry.push({status:response.status,reason:ack.reason??null,reused:ack.reused===true});
+            }
+            await new Promise(resolve=>setTimeout(resolve,2000));
+            assert.equal(events.filter(row=>row.launchIndex===2&&(row.event==='analysis'||row.event==='provider')).length,0);
+            const saved=new Database(path.join(runtime,'save/risuai.db'),{readonly:true});let retained;
+            try{retained=[operationId,secondId].map(id=>JSON.parse(String(saved.prepare('SELECT value FROM kv WHERE key=?').get('internal/server-chat-input/v1/'+Buffer.from(id).toString('base64url')).value)));assert.equal(saved.prepare('PRAGMA quick_check').get().quick_check,'ok');}
+            finally{saved.close();}
+            assert.deepEqual(retained.map(row=>row.admission.rawText),['synthetic-question','second question']);
+            console.log(JSON.stringify({passed:true,runtime,mode,host:[1,0],accepted:2,startupAnalysis:1,providerReplay:0,analysisReplay:0,retainedInputs:2,retry}));return;
+        }
         server.send({ event: 'release-first-analysis' });
         for (const [index, chatId] of [[0, 'synthetic-chat'], [1, 'synthetic-second-chat']]) {
             const chat = await wait(async () => {

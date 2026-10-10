@@ -86,6 +86,9 @@ Module._load = function(request, ...args) {
             const result = await call(method, args);
             if (method === 'getItem' || method === 'getArgument') emit({ event: 'read', group,
                 key: args[0], digest: digest(result) });
+            if(!released&&process.env.MARP_PAGEFOLD_STATS_GATE==='1'&&group==='local'&&method==='getItem'&&args[0]==='pagefold.stats.v1'){
+                emit({event:'pagefold-stats-held'});await hold(null,'pagefold-stat-read');
+            }
             if (!released && process.env.MARP_SETTINGS_GATE === 'read' && group === 'root'
                 && method === 'getItem' && args[0] === 'risu_multiagent_lite_config_vault_v1') {
                 emit({ event: 'read-held' });
@@ -130,6 +133,25 @@ async function hold(signal, id) {
 }
 globalThis.fetch = async(input, options = {}) => {
     const url = String(input);
+    if(process.env.MARP_PAGEFOLD_FONT){
+        if(url==='https://cdn.jsdelivr.net/gh/notofonts/noto-cjk@main/Sans/OTF/Korean/NotoSansCJKkr-Regular.otf'){
+            emit({event:'pagefold-font'});const bytes=require('node:fs').readFileSync(process.env.MARP_PAGEFOLD_FONT);let offset=0;
+            return new Response(new ReadableStream({pull(c){if(offset===bytes.length){c.close();return;}const next=Math.min(bytes.length,offset+65536);c.enqueue(new Uint8Array(bytes.subarray(offset,next)));offset=next;}},{highWaterMark:0}));
+        }
+        if(url==='https://pagefold.example.test/v1beta/models/fixture-pagefold:generateContent'){
+            const assert=require('node:assert/strict'),requireTarget=require('node:module').createRequire(require('node:path').join(process.env.MARP_PAGEFOLD_TARGET,'package.json'));
+            const pdfjs=await import(require('node:url').pathToFileURL(requireTarget.resolve('pdfjs-dist/legacy/build/pdf.mjs')).href);
+            assert.equal(new Headers(options.headers).get('x-goog-api-key'),'synthetic-only');assert.equal(options.method,'POST');
+            const body=JSON.parse(typeof options.body==='string'?options.body:Buffer.from(options.body).toString());
+            const bytes=Buffer.from(body.contents[0].parts[0].inlineData.data,'base64'),task=pdfjs.getDocument({data:new Uint8Array(bytes),isEvalSupported:false,disableFontFace:true});
+            try{
+                const document=await task.promise;let text='';for(let index=1;index<=document.numPages;index++){const page=await document.getPage(index);text+=(await page.getTextContent()).items.map(row=>row.str??'').join(' ');}
+                assert.ok((text+JSON.stringify(body)).includes('Synthetic'));assert.ok((text+JSON.stringify(body)).includes('MARP:v1:begin'));
+                emit({event:'pagefold-model',pdfBytes:bytes.length,pages:document.numPages,pdfOracle:true});
+            }finally{await task.destroy();}
+            return Response.json({candidates:[{content:{parts:[{text:'Synthetic PageFold answer'}]}}],usageMetadata:{promptTokenCount:25,candidatesTokenCount:5}});
+        }
+    }
     // These native best-effort relative calls have no Node HTTP origin. Keep
     // their real refusal (do not fake persistence), separate from external IO.
     if (url === '/api/logs' || url === '/api/pending-sends/synthetic-chat') {

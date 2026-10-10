@@ -1,6 +1,7 @@
 'use strict';
 const { createHash } = require('node:crypto');
-const { clonePluginValue } = require('./bgPluginValue.cjs');
+const { clonePluginValue, measurePluginValue } = require('./bgPluginValue.cjs');
+const { stringJSONBytes } = require('./bgPluginWorker.cjs');
 const { stableJSON } = require('./serverChatCommit.cjs');
 const error = code => Object.assign(new Error(code), { code });
 const own = (object, key) => Object.hasOwn(object ?? {}, key);
@@ -15,9 +16,11 @@ const keyOf = key => {
     return key;
 };
 const clone = clonePluginValue;
-const boundedJson = value => {
-    const text = JSON.stringify(clone(value));
-    if (text === undefined || Buffer.byteLength(text) > 4 * 1024 * 1024) throw error('plugin_storage_value_invalid');
+const LOCAL_VALUE_BYTES = 32 * 1024 * 1024;
+const boundedJson = (value, maxBytes = 4 * 1024 * 1024) => {
+    if (typeof value !== 'string') maxBytes = 4 * 1024 * 1024;
+    const text = JSON.stringify(clone(value, maxBytes));
+    if (text === undefined || Buffer.byteLength(text) > maxBytes) throw error('plugin_storage_value_invalid');
     return text;
 };
 
@@ -40,7 +43,8 @@ function savedPluginPermission(kvGet, plugin, permission, periodic = false, now 
 // Each instance belongs to one plugin operation. The root writer is the native
 // canonical storage queue; it persists the changed root before publishing ETag.
 function createPluginStorage({ plugin, getRoot, writeRoot, kvGet, kvSet, kvDel, kvList,
-    transaction, beforeEffect, prepareActive = async () => {}, assertActive = () => {}, onWrite = () => {}, now = Date.now }) {
+    transaction, beforeEffect, prepareActive = async () => {}, assertActive = () => {}, onWrite = () => {}, now = Date.now,
+    reserveLocal = () => () => {}, wrapLocalRead = task => task() }) {
     const expected = new Map();
     const rootValue = (root, key) => ({ present: own(root.pluginCustomStorage, key),
         value: own(root.pluginCustomStorage, key) ? clone(root.pluginCustomStorage[key]) : undefined });
@@ -98,28 +102,54 @@ function createPluginStorage({ plugin, getRoot, writeRoot, kvGet, kvSet, kvDel, 
             return method === 'keys' ? keys : method === 'length' ? keys.length : keys[args[0]];
         }
         const key = keyOf(args[0]);
-        if (method === 'getItem') return clone(remember('local', key, json(kvGet(valueKey(key)))));
-        if (!['setItem', 'removeItem'].includes(method)) throw error('plugin_api_unsupported');
-        const next = method === 'setItem' ? boundedJson(args[1]) : null;
-        if (!expected.has(`local:${key}`)) remember('local', key, json(kvGet(valueKey(key))));
-        await beforeEffect();
-        const commit = () => transaction(() => {
-            assertActive();
-            check('local', key, json(kvGet(valueKey(key))));
-            if (next !== null) {
-                kvSet(valueKey(key), next);
-                kvSet(metaKey(key), JSON.stringify({ plugin: plugin.name, updatedAt: now() }));
-            } else { kvDel(valueKey(key)); kvDel(metaKey(key)); }
-        });
-        try { commit(); }
-        catch (failure) {
-            if (failure?.code !== 'plugin_identity_reload_required') throw failure;
-            // The first transaction threw before writing anything. Reload once
-            // outside it; do not repeat the effect-intent/provider callback.
-            await prepareActive();
-            commit();
+        const previous = kvGet(valueKey(key));
+        const previousBytes = previous == null ? 0 : Buffer.byteLength(previous);
+        if (previousBytes > LOCAL_VALUE_BYTES) throw error('plugin_value_limit');
+        if (method === 'getItem' && previousBytes > 4 * 1024 * 1024) {
+            // Only a top-level JSON string receives the larger local budget.
+            // Reject large arrays/objects before JSON.parse can allocate nodes.
+            let index = 0, code;
+            do { code = Buffer.isBuffer(previous) ? previous[index] : previous.charCodeAt(index); index++; }
+            while ([9,10,13,32].includes(code));
+            if (code !== 34) throw error('plugin_value_limit');
         }
-        remember('local', key, next === null ? null : JSON.parse(next));
+        if (method === 'getItem') return wrapLocalRead(() => {
+            const value = remember('local', key, json(previous));
+            return clone(value, typeof value === 'string' ? LOCAL_VALUE_BYTES : 4 * 1024 * 1024);
+        }, previousBytes);
+        if (!['setItem', 'removeItem'].includes(method)) throw error('plugin_api_unsupported');
+        const nextEstimate = method !== 'setItem' ? 0 : typeof args[1] === 'string' ? stringJSONBytes(args[1])
+            : Math.min(LOCAL_VALUE_BYTES, measurePluginValue(args[1], LOCAL_VALUE_BYTES) * 6 + 2);
+        if (typeof args[1] === 'string' && nextEstimate > LOCAL_VALUE_BYTES) throw error('plugin_storage_value_invalid');
+        const release = reserveLocal(previousBytes + nextEstimate);
+        try {
+            const next = method === 'setItem' ? boundedJson(args[1], LOCAL_VALUE_BYTES) : null;
+            if (!expected.has(`local:${key}`)) remember('local', key, json(previous));
+            await beforeEffect();
+            const commit = () => transaction(() => {
+                assertActive();
+                const latest = kvGet(valueKey(key));
+                if (latest != null && Buffer.byteLength(latest) > LOCAL_VALUE_BYTES) throw error('plugin_value_limit');
+                const latestBytes = latest == null ? 0 : Buffer.byteLength(latest);
+                const releaseGrowth = reserveLocal(Math.max(0, latestBytes - previousBytes));
+                try {
+                    check('local', key, json(latest));
+                    if (next !== null) {
+                        kvSet(valueKey(key), next);
+                        kvSet(metaKey(key), JSON.stringify({ plugin: plugin.name, updatedAt: now() }));
+                    } else { kvDel(valueKey(key)); kvDel(metaKey(key)); }
+                } finally { releaseGrowth(); }
+            });
+            try { commit(); }
+            catch (failure) {
+                if (failure?.code !== 'plugin_identity_reload_required') throw failure;
+                // The first transaction threw before writing anything. Reload once
+                // outside it; do not repeat the effect-intent/provider callback.
+                await prepareActive();
+                commit();
+            }
+            remember('local', key, next === null ? null : JSON.parse(next));
+        } finally { release(); }
     }
     async function argument(method, args) {
         const key = keyOf(args[0]);

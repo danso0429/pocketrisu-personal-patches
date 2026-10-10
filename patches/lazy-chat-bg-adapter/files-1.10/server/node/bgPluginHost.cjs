@@ -5,6 +5,7 @@ const { randomUUID } = require('node:crypto');
 const { createPluginSession } = require('./bgPluginSession.cjs');
 const { createPluginStorage, savedPluginPermission } = require('./bgPluginStorage.cjs');
 const { clonePluginValue, measurePluginValue } = require('./bgPluginValue.cjs');
+const { reservePluginStorage, reservedPluginValue, stringJSONBytes } = require('./bgPluginWorker.cjs');
 const { createTransportCounter } = require('./bgPluginDiagnostics.cjs');
 
 const fail = code => Object.assign(new Error(code), { code });
@@ -66,7 +67,7 @@ async function createBgPluginHost({ database, bindings, getDatabase, getSelectio
             }
         }
     };
-    let rootWrites = 0, writtenBytes = 0, networkCalls = 0;
+    let rootWrites = 0, writtenBytes = 0, localWrites = 0, localWrittenBytes = 0, networkCalls = 0;
     const apiSlots = limiter(64, signal), writeSlots = limiter(2, signal);
     const reportApiLimit = async entry => {
         if (noticeFailure) throw noticeFailure;
@@ -86,9 +87,13 @@ async function createBgPluginHost({ database, bindings, getDatabase, getSelectio
         try {
             let bytes = 0, charged = false;
             try {
-                bytes = measurePluginValue(args);
-                if (entry.pendingBytes + bytes > 4 * 1024 * 1024) throw fail('plugin_budget_exceeded');
-                entry.pendingBytes += bytes; charged = true;
+                const local = method.startsWith('localPluginStorage.');
+                const counter = local ? 'pendingLocalBytes' : 'pendingBytes';
+                const maxBytes = local ? 32 * 1024 * 1024 + 8192 : 4 * 1024 * 1024;
+                const largeStringWrite = method === 'localPluginStorage.setItem' && typeof args[1] === 'string';
+                bytes = measurePluginValue(args, largeStringWrite ? maxBytes : 4 * 1024 * 1024);
+                if (entry[counter] + bytes > maxBytes) throw fail('plugin_budget_exceeded');
+                entry[counter] += bytes; charged = counter;
                 const run = async () => {
                     entry.session.assertCurrent();
                     await currentIdentity(phaseScope.getStore() ?? entry.lastPhase ?? 'load');
@@ -102,8 +107,9 @@ async function createBgPluginHost({ database, bindings, getDatabase, getSelectio
                     ? run() : entry.apiSlots.run(() => apiSlots.run(run)));
             } finally {
                 // Issued-request cleanup is not a new call with expired authority.
-                // Release byte/slot ownership before awaiting any durable warning.
-                if (charged) entry.pendingBytes -= bytes;
+                // API-limit notices below await only after releasing byte/slot
+                // ownership. Task-owned conflict notices retain their charges.
+                if (charged) entry[charged] -= bytes;
             }
         } catch (error) {
             if (['plugin_budget_exceeded', 'plugin_value_limit'].includes(error?.code)
@@ -113,10 +119,16 @@ async function createBgPluginHost({ database, bindings, getDatabase, getSelectio
             throw noticeFailure ?? error;
         }
     };
-    const write = async (args, task) => {
-        const bytes = Buffer.byteLength(JSON.stringify(args) ?? '');
-        if (rootWrites >= 64 || writtenBytes + bytes > 8 * 1024 * 1024) throw fail('plugin_budget_exceeded');
-        rootWrites++; writtenBytes += bytes;
+    const write = async (args, task, local = false) => {
+        const bytes = local && typeof args[0] === 'string' && typeof args[1] === 'string' ? stringJSONBytes(args[0]) + stringJSONBytes(args[1]) + 3
+            : Buffer.byteLength(JSON.stringify(local ? args.slice(0, args.length > 1 ? 2 : 1) : args) ?? '');
+        if (local) {
+            if (localWrites >= 64 || localWrittenBytes + bytes > 64 * 1024 * 1024) throw fail('plugin_budget_exceeded');
+            localWrites++; localWrittenBytes += bytes;
+        } else {
+            if (rootWrites >= 64 || writtenBytes + bytes > 8 * 1024 * 1024) throw fail('plugin_budget_exceeded');
+            rootWrites++; writtenBytes += bytes;
+        }
         return writeSlots.run(task);
     };
     const record = (event, capacityIsCritical = true) => {
@@ -124,7 +136,7 @@ async function createBgPluginHost({ database, bindings, getDatabase, getSelectio
             event.code === 'plugin_message' ? undefined : event.failureIdentity)).then(result => {
             if (result?.status === 'capacity') {
                 if (!capacityIsCritical) return;
-                if (event.code === 'plugin_message') {
+                if (event.code === 'plugin_message' && !event.eventKey.endsWith(':local-conflict')) {
                     if (messageCapacityReported) return;
                     messageCapacityReported = true;
                     return record({ ...event, code: 'plugin_host_limit', reason: 'notification_capacity',
@@ -353,7 +365,7 @@ async function createBgPluginHost({ database, bindings, getDatabase, getSelectio
             if (names.has(plugin.name)) continue; // Native v3 loader keeps the first name.
             names.add(plugin.name);
             const entry = { plugin: { name: plugin.name, script: '', version: plugin.version }, index, registrations: [], unload: [], abort: new AbortController(),
-                session: null, failed: false, ready: false, effects: operation.inputPreparedOnClient === true, messageCount: 0, pendingBytes: 0 };
+                session: null, failed: false, ready: false, effects: operation.inputPreparedOnClient === true, messageCount: 0, pendingBytes: 0, pendingLocalBytes: 0 };
             entry.transport = createTransportCounter(); entry.diagnosticId = randomUUID();
             entry.identity = identityOf(plugin);
             entry.apiSlots = limiter(16, entry.abort.signal);
@@ -372,6 +384,7 @@ async function createBgPluginHost({ database, bindings, getDatabase, getSelectio
             const { index, plugin } = entry;
             const abortSignal = AbortSignal.any([signal, entry.abort.signal]);
             const storage = createPluginStorage({ ...storageOwner, plugin: entry.plugin, beforeEffect: () => effect(entry),
+                reserveLocal: reservePluginStorage, wrapLocalRead: reservedPluginValue,
                 prepareActive: () => currentIdentity(phaseScope.getStore() ?? entry.lastPhase ?? 'load'),
                 assertActive: function(latest) {
                     if (!closed && !tearingDown) {
@@ -410,6 +423,8 @@ async function createBgPluginHost({ database, bindings, getDatabase, getSelectio
             try {
             entry.session = await phaseScope.run('load', () => createPluginSession({ script: plugin.script, signal: abortSignal,
                 onFailure: code => disable(entry, code), onLateCall: () => reportLate(entry),
+                onSettlementTimeout: () => record({ ...common(entry, phaseScope.getStore() ?? entry.lastPhase ?? 'load'),
+                    code: 'plugin_host_limit', reason: 'operation_budget', eventKey: `plugin:${entry.index}:settlement-budget` }),
                 onLocalLimit: () => { entry.session.assertCurrent(); return reportApiLimit(entry); },
                 api: (method, args) => withApiBudget(entry, method, args, async () => {
                     if (closed || entry.failed || signal.aborted) throw fail('plugin_operation_closed');
@@ -420,7 +435,7 @@ async function createBgPluginHost({ database, bindings, getDatabase, getSelectio
                             const [group, action] = method.split('.');
                             if (!['getItem', 'setItem', 'removeItem', 'keys', 'key', 'length'].includes(action)) return unsupported(method);
                             const task = () => (group === 'pluginStorage' ? storage.root : storage.local)(action, args);
-                            return ['setItem', 'removeItem'].includes(action) ? await write(args, task) : await task();
+                            return ['setItem', 'removeItem'].includes(action) ? await write(args, task, group === 'localPluginStorage') : await task();
                         }
                         switch (method) {
                             case 'getArgument': return await storage.argument(method, args);
@@ -512,6 +527,24 @@ async function createBgPluginHost({ database, bindings, getDatabase, getSelectio
                             default: return unsupported(method);
                         }
                     } catch (error) {
+                        if (error?.code === 'plugin_storage_conflict' && method.startsWith('localPluginStorage.')
+                            && !closed && !tearingDown && !entry.failed && !signal.aborted && !noticeFailure && !identityFailure) {
+                            // The checked local transaction wrote nothing. Keep
+                            // the competing value and let the unchanged callback
+                            // handle its rejected API call; root/identity failures
+                            // remain terminal. Never hide this refusal.
+                            const phase = phaseScope.getStore() ?? entry.lastPhase ?? 'load';
+                            const conflicts = entry.storageConflicts ??= new Map();
+                            // Operation-keyed v2 messages are reclaimable after
+                            // ACK; recurring soft refusals must not fill the
+                            // global terminal-failure receipt pool. Capacity is
+                            // still critical for this parent-owned warning.
+                            if (!conflicts.has(phase)) conflicts.set(phase, record({ ...common(entry, phase),
+                                code: 'plugin_message', level: 'error', eventKey: `plugin:${entry.index}:${entry.identity}:${phase}:local-conflict`,
+                                message: '다른 작업에서 변경한 플러그인 값을 보존하고 이번 저장을 생략했어요. 요청은 플러그인의 오류 처리에 따라 완료되거나 중단될 수 있어요.' }));
+                            await conflicts.get(phase);
+                            throw noticeFailure ?? error;
+                        }
                         if (error?.code === 'plugin_identity_unavailable') throw latchIdentityFailure();
                         if (error?.code === 'plugin_identity_reload_required') {
                             disable(entry, 'plugin_api_unsupported', 'plugin_identity_cache_unstable', phaseScope.getStore() ?? entry.lastPhase ?? 'load');

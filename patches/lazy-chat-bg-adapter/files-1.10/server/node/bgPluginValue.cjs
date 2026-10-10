@@ -2,14 +2,14 @@
 
 // Bound host-side copies before allocating a structured clone or JSON string.
 // The wire's frame limit is a second boundary, not a substitute for this one.
-function measurePluginValue(value) {
+function measurePluginValue(value, maxBytes = 4 * 1024 * 1024) {
     let bytes = 0, nodes = 0;
     const seen = new Set();
     const reject = () => { throw Object.assign(new Error('plugin_value_limit'), { code: 'plugin_value_limit' }); };
     const visit = (item, depth) => {
         if (++nodes > 100_000 || depth > 64) reject();
         if (typeof item === 'string') {
-            if (item.length > 4 * 1024 * 1024) reject();
+            if (item.length > maxBytes) reject();
             bytes += Buffer.byteLength(item);
         } else if (item && typeof item === 'object') {
             if (seen.has(item)) reject();
@@ -27,14 +27,15 @@ function measurePluginValue(value) {
             }
             seen.delete(item);
         } else bytes += 8;
-        if (bytes > 4 * 1024 * 1024) reject();
+        if (bytes > maxBytes) reject();
     };
     visit(value, 0);
     return bytes;
 }
 
-function clonePluginValue(value) {
-    measurePluginValue(value);
+function clonePluginValue(value, maxBytes) {
+    measurePluginValue(value, maxBytes);
+    if (typeof value === 'string') return value; // Immutable scalar; no duplicate allocation is needed.
     return structuredClone(value);
 }
 

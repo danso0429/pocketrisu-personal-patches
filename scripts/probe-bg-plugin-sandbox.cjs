@@ -81,7 +81,7 @@ test('native Buffer memory is bounded independently of the V8 heap', async () =>
         });
         const group = execFileSync('/usr/bin/systemctl', ['--user', 'show', command.unit, '-p', 'ControlGroup', '--value'], { encoding: 'utf8' }).trim();
         assert.ok(group);
-        assert.equal(fs.readFileSync(`/sys/fs/cgroup${group}/memory.max`, 'utf8').trim(), '268435456');
+        assert.equal(fs.readFileSync(`/sys/fs/cgroup${group}/memory.max`, 'utf8').trim(), '536870912');
         const slice = path.dirname(group);
         assert.equal(fs.readFileSync(`/sys/fs/cgroup${slice}/memory.max`, 'utf8').trim(), '1073741824');
         const [quota, period] = fs.readFileSync(`/sys/fs/cgroup${slice}/cpu.max`, 'utf8').trim().split(' ').map(Number);

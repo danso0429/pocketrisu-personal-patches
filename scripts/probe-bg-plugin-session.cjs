@@ -145,7 +145,7 @@ test('reentrant callback requests are bounded by invocation chain depth', async 
     assert.equal(session.activeScopes, 0);
 });
 
-test('a queued write rechecks authority after its originating hook returns', { timeout: 5000 }, async t => {
+test('a callback joins its accepted queued write before releasing authority', { timeout: 5000 }, async t => {
     let hook, release, started, completed, writes = 0, session;
     const gate = new Promise(resolve => { release = resolve; });
     const began = new Promise(resolve => { started = resolve; });
@@ -163,8 +163,86 @@ test('a queued write rechecks authority after its originating hook returns', { t
         },
     });
     t.after(async () => { release(); await session.close(); });
-    await session.load(); await hook('value'); await began;
+    await session.load(); let settled = false;
+    const callback = hook('value').then(value => { settled = true; return value; }); await began;
+    await new Promise(resolve => setTimeout(resolve, 100));
+    assert.equal(settled, false); assert.equal(writes, 0);
     release(); await finished;
-    assert.equal(writes, 0);
+    assert.equal(await callback, 'value'); assert.equal(writes, 1);
+    assert.equal(session.activeScopes, 0);
     assert.equal(session.failure, null);
+});
+
+test('settlement joins a promise read-write chain and preserves a thrown callback error', { timeout: 5000 }, async t => {
+    let hook, writes = 0, release, entered;
+    const began = new Promise(resolve => { entered = resolve; }), gate = new Promise(resolve => { release = resolve; });
+    const session = await createPluginSession({
+        script: `await Risuai.addRisuReplacer('beforeRequest',async()=>{
+            void Promise.resolve().then(async()=>{await Risuai.getArgument('state');await Risuai.setArgument('state','new');});
+            throw Error('original callback failure');
+        });`,
+        api: async (method, args) => {
+            if (method === 'addRisuReplacer') { hook = args[1]; return; }
+            if (method === 'getArgument') { entered(); await gate; return 'old'; }
+            assert.equal(method, 'setArgument'); writes++;
+        },
+    });
+    t.after(async () => { release(); await session.close(); }); await session.load();
+    let settled = false; const callback = hook([]).finally(() => { settled = true; });
+    callback.catch(() => {}); await began; await new Promise(resolve => setTimeout(resolve, 100));
+    assert.equal(settled, false); assert.equal(writes, 0); release();
+    await assert.rejects(callback, { code: 'plugin_execution_failed' });
+    assert.equal(writes, 1); assert.equal(session.activeScopes, 0); assert.equal(session.failure, null);
+});
+
+test('cancellation during callback settlement cannot commit the queued effect', { timeout: 5000 }, async t => {
+    let hook, release, entered, writes = 0;
+    const began = new Promise(resolve => { entered = resolve; }), gate = new Promise(resolve => { release = resolve; });
+    const controller = new AbortController();
+    const session = await createPluginSession({ signal: controller.signal,
+        script: `await Risuai.addRisuReplacer('beforeRequest',async x=>{void Risuai.setArgument('state','new').catch(()=>{});return x;});`,
+        api: async (method, args) => {
+            if (method === 'addRisuReplacer') { hook = args[1]; return; }
+            entered(); await gate; session.assertCurrent(); writes++;
+        },
+    });
+    t.after(async () => { release(); await session.close(); }); await session.load();
+    const callback = hook([]); callback.catch(() => {}); await began; controller.abort(); release();
+    await assert.rejects(callback); await session.close(); assert.equal(writes, 0); assert.equal(session.activeScopes, 0);
+});
+
+test('reentrant callback settlement ignores its outer pending model call', { timeout: 5000 }, async t => {
+    const hooks = {}, writes = [];
+    const session = await createPluginSession({
+        script: `await Risuai.addRisuReplacer('beforeRequest',async()=>{
+            const nested=await Risuai.runLLMModel({messages:[]});void Risuai.setArgument('outer','done');return nested;
+        });await Risuai.addRisuReplacer('afterRequest',async()=>{void Risuai.setArgument('nested','done');return 'nested-result';});`,
+        api: async (method, args) => {
+            if (method === 'addRisuReplacer') { hooks[args[0]] = args[1]; return; }
+            if (method === 'runLLMModel') return await hooks.afterRequest();
+            assert.equal(method, 'setArgument'); session.assertCurrent(); writes.push(args[0]);
+        },
+    });
+    t.after(() => session.close()); await session.load();
+    assert.equal(await hooks.beforeRequest(), 'nested-result');
+    assert.deepEqual(writes, ['nested', 'outer']); assert.equal(session.activeScopes, 0); assert.equal(session.failure, null);
+});
+
+test('non-quiescent RPC work has a bounded settlement warning without replacing the result', { timeout: 25000 }, async t => {
+    let hook, late = 0, limits = 0;
+    const session = await createPluginSession({ runtimeMs: 60000,
+        script: `await Risuai.addRisuReplacer('beforeRequest',async()=>{
+            void(async()=>{try{for(;;)await Risuai.getArgument('loop');}catch{}})();return 'unchanged-result';
+        });`,
+        api: async (method, args) => {
+            if (method === 'addRisuReplacer') { hook = args[1]; return; }
+            assert.equal(method, 'getArgument'); await new Promise(resolve => setTimeout(resolve, 10)); return null;
+        }, onLateCall: () => { late++; }, onSettlementTimeout: () => { limits++; },
+    });
+    t.after(() => session.close()); await session.load();
+    const started = performance.now(); assert.equal(await hook(), 'unchanged-result');
+    assert.ok(performance.now() - started < 22000); assert.equal(limits, 1);
+    await new Promise(resolve => setTimeout(resolve, 100));
+    assert.ok(late >= 1);
+    assert.equal(session.failure, null); assert.equal(session.activeScopes, 0);
 });

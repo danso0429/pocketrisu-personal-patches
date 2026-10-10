@@ -9,7 +9,7 @@ const chain = new AsyncLocalStorage();
 const failure = code => Object.assign(new Error(code), { code });
 
 async function createPluginSession({ script, api, signal, onFailure = () => {}, onLateCall = () => {},
-    onLocalLimit = async () => {}, runtimeMs = 600_000 }) {
+    onLocalLimit = async () => {}, onSettlementTimeout = () => {}, runtimeMs = 600_000 }) {
     if (typeof script !== 'string' || Buffer.byteLength(script) > 4 * 1024 * 1024
         || typeof api !== 'function') throw failure('plugin_script_invalid');
     const scopes = new Map(), current = new AsyncLocalStorage();
@@ -24,7 +24,7 @@ async function createPluginSession({ script, api, signal, onFailure = () => {}, 
     };
     const find = token => {
         const scope = scopes.get(token);
-        if (!scope || stopped) throw failure('plugin_invocation_expired');
+        if (!scope || stopped || signal?.aborted) throw failure('plugin_invocation_expired');
         return scope;
     };
     const release = token => {
@@ -47,7 +47,9 @@ async function createPluginSession({ script, api, signal, onFailure = () => {}, 
     // Every incoming method is run under its live parent-owned invocation.
     sandbox = await createPluginSandbox({ workerPath: path.join(__dirname, 'bgPluginWorker.cjs'),
         runtimeMs, signal, onFrame: frame => peer.receive(frame) });
-    peer = createPluginPeer({ send: sandbox.send, onFatal: fail, onExpiredContext: onLateCall, invoke, timeoutMs: runtimeMs,
+    peer = createPluginPeer({ send: sandbox.send, beforeLargePull: sandbox.beforeLargePull,
+        onLargeLimit: () => onLocalLimit('plugin_rpc_value_limit'),
+        onFatal: fail, onExpiredContext: onLateCall, invoke, timeoutMs: runtimeMs,
         getContext: () => current.getStore() ?? null,
         runContext(token, task) {
             const scope = find(token);
@@ -60,6 +62,12 @@ async function createPluginSession({ script, api, signal, onFailure = () => {}, 
         },
         dispatch(method, args) {
             find(current.getStore());
+            if (method === 'api_settlement_timeout') {
+                if (args.length !== 0) throw failure('plugin_api_request_invalid');
+                // Publish the bounded settlement budget warning. This report
+                // does not dispatch a storage/network/model task.
+                return onSettlementTimeout();
+            }
             if (method === 'api_local_limit') {
                 if (args.length !== 1 || !['plugin_rpc_frame_limit', 'plugin_rpc_value_limit'].includes(args[0])) {
                     throw failure('plugin_api_request_invalid');

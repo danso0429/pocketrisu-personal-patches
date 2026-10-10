@@ -74,7 +74,7 @@ async function sandboxCommand(workerPath, runtimeMs) {
     if (!libraries.size) throw sandboxError('plugin_sandbox_linkage_invalid');
     const unit = `pocketrisu-bg-plugin-${randomUUID()}.scope`;
     const args = ['--user', '--scope', '--quiet', '--collect', `--unit=${unit}`, '--slice=pocketrisu-bg-plugin.slice',
-        '-p', 'MemoryMax=256M', '-p', 'MemorySwapMax=0', '-p', 'TasksMax=24',
+        '-p', 'MemoryMax=512M', '-p', 'MemorySwapMax=0', '-p', 'TasksMax=24',
         '-p', 'CPUQuota=100%', '-p', `RuntimeMaxSec=${runtimeMs}ms`,
         '-p', 'TimeoutStopSec=1s', '-p', 'KillMode=control-group',
         '/usr/bin/prlimit', '--nofile=128:128', '--core=0:0', '--', '/usr/bin/bwrap',
@@ -84,7 +84,7 @@ async function sandboxCommand(workerPath, runtimeMs) {
         '--ro-bind', node, '/node', '--ro-bind', worker, '/worker.cjs'];
     for (const library of libraries) args.push('--ro-bind', library, library);
     args.push('--', '/node', '--permission', '--allow-fs-read=/worker.cjs',
-        '--max-old-space-size=128', '/worker.cjs', String(runtimeMs));
+        '--max-old-space-size=256', '/worker.cjs', String(runtimeMs));
     return { executable: '/usr/bin/systemd-run', args, env, unit };
 }
 
@@ -103,6 +103,7 @@ async function createPluginSandbox({ workerPath, runtimeMs = 600_000, signal, on
     let stopped = false, failure = null, pending = Buffer.alloc(0), pendingBytes = 0;
     let aggregateResumeTimer = null;
     let frameWindow = performance.now(), frames = 0, bytesInWindow = 0;
+    let outstandingLargeReplyBytes = 0;
     let resolveClosed;
     const closed = new Promise(resolve => { resolveClosed = resolve; });
     const stopUnit = () => {
@@ -209,6 +210,20 @@ async function createPluginSandbox({ workerPath, runtimeMs = 600_000, signal, on
     if (!channel) stop('plugin_sandbox_start_failed');
     return {
         unit: command.unit, closed, stop,
+        async beforeLargePull() {
+            // A 64K string slice can expand to six JSON bytes per code unit.
+            // Leave room for its entire reply before requesting the next one.
+            const replyBytes = 6 * 64 * 1024 + 4096;
+            for (;;) {
+                if (stopped) throw failure ?? sandboxError('plugin_sandbox_closed');
+                window();
+                if (bytesInWindow + outstandingLargeReplyBytes + replyBytes <= MAX_BYTES_PER_SECOND / 2) {
+                    outstandingLargeReplyBytes += replyBytes; let released = false;
+                    return () => { if (!released) { released = true; outstandingLargeReplyBytes -= replyBytes; } };
+                }
+                await new Promise(resolve => setTimeout(resolve, Math.max(1, 1001 - (performance.now() - frameWindow))));
+            }
+        },
         send(frame) {
             if (stopped) throw failure ?? sandboxError('plugin_sandbox_closed');
             let bytes;
