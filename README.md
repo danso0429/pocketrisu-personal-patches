@@ -4,7 +4,17 @@ Personal, all-or-nothing patch delivery for PocketRisu NodeOnly. The current
 stable release is `v0.2.3`, and its complete manifest graph targets exact
 PocketRisu `v1.10.0`.
 
-The `0.2.4-experimental.31` candidate admits raw selected-plugin providers through
+The `0.2.4-experimental.32` candidate restores unread stream/Response and callback/
+signal resources after refused serialization, while preserving published handles,
+original caps and fatal teardown. Actual v2/Lua auxiliary caller roles and original
+MARP main-only settings are measured through HTTP and normal-chat storage.
+BG adapter0.7.39 / Personal settings0.5.14; production stays hostOFF.
+[Handle/caller validation](docs/POCKETRISU-G1-7-HANDLE-CALLER-VALIDATION.md) records
+wire30/worker11/session9/host96, original protocol/resource and actual caller evidence.
+Final M7 installed-combination/admission/activation, actual providers and device/
+aggregate remain separate. Safe delivery is pending final consultation/readback.
+
+The `0.2.4-experimental.31` checkpoint admits raw selected-plugin providers through
 the eligible host and checks actual healthy registration before input effects.
 Missing/ambiguous providers fail without an implicit default model; native retry
 and input failure latches remain. BG adapter is0.7.38; Personal settings0.5.14
