@@ -69,7 +69,7 @@ const localStringRead = (method, args) => method === 'api' && Array.isArray(args
 function createPluginPeer({ send, dispatch, onFatal = () => {}, timeoutMs = 600_000, onExpiredContext = () => {},
     getContext = () => null, runContext = (_context, task) => task(),
     invoke = task => task(), retainContext = () => () => {}, localCallLimits = false, settleCallbacks = false,
-    beforeLargePull = async () => {}, onLargeLimit = async () => {} }) {
+    beforeLargePull = async () => {}, onLargeLimit = async () => {}, onSettlementTimeout }) {
     const pending = new Map(), functions = new Map(), remoteFunctions = new Map();
     const readers = new Map(), signals = new Map(), controllers = new Map();
     const remoteStreams = new Map();
@@ -100,13 +100,12 @@ function createPluginPeer({ send, dispatch, onFatal = () => {}, timeoutMs = 600_
             if (pendingContext(context) === 0 && incomingContexts.get(context) === 1) {
                 await immediate();
                 if (pendingContext(context) === 0 && incomingContexts.get(context) === 1
-                    && (contextActivity.get(context) ?? 0) === before) return;
+                    && (contextActivity.get(context) ?? 0) === before) return false;
             }
             if (performance.now() >= deadline) {
-                // A live-context notification only; no extra API effect and no
-                // manufactured callback success/failure. The owner awaits it.
-                await call('api_settlement_timeout', [], context);
-                return;
+                // Report with the callback reply, without consuming a data RPC
+                // slot. The parent awaits its notification before accepting it.
+                return true;
             }
         }
     }
@@ -432,7 +431,7 @@ function createPluginPeer({ send, dispatch, onFatal = () => {}, timeoutMs = 600_
             const settles = !(method === 'api' && ['nativeFetch', 'risuFetch', 'runLLMModel'].includes(args[0]))
                 && !['_pull', '_cancel'].includes(method);
             pending.set(id, { resolve, reject, timer, context, settles, largeRead: localStringRead(method, args),
-                cancelLarge: serialization?.cancelLarge, returning: false });
+                method, cancelLarge: serialization?.cancelLarge, returning: false });
             touchContext(context);
             try { emit({ kind: 'call', id, method, args: encoded, context }); }
             catch (error) {
@@ -447,7 +446,7 @@ function createPluginPeer({ send, dispatch, onFatal = () => {}, timeoutMs = 600_
             }
         });
     }
-    async function execute(method, args) {
+    async function execute(method, args, markSettlement = () => {}) {
         if (!Array.isArray(args)) throw fail('plugin_rpc_arguments_invalid');
         if (method === '_callback') {
             if (args.length !== 2 || !functions.has(args[0]) || !Array.isArray(args[1])) throw fail('plugin_rpc_callback_invalid');
@@ -456,7 +455,7 @@ function createPluginPeer({ send, dispatch, onFatal = () => {}, timeoutMs = 600_
             let result, error, rejected = false;
             try { result = await functions.get(args[0])(...args[1]); }
             catch (failure) { error = failure; rejected = true; }
-            await settleContext(context, started);
+            if (await settleContext(context, started)) markSettlement();
             if (rejected) throw error;
             return result;
         }
@@ -490,6 +489,9 @@ function createPluginPeer({ send, dispatch, onFatal = () => {}, timeoutMs = 600_
             } else if (frame.kind === 'return') {
                 const entry = pending.get(frame.id);
                 if (!entry || entry.returning || typeof frame.ok !== 'boolean') throw fail('plugin_rpc_protocol_invalid');
+                const settlementExpired = Object.hasOwn(frame, 'settlementExpired');
+                if (settlementExpired && (frame.settlementExpired !== true || entry.method !== '_callback'
+                    || typeof onSettlementTimeout !== 'function')) throw fail('plugin_rpc_protocol_invalid');
                 entry.returning = true;
                 if (!frame.ok) entry.cancelLarge?.();
                 const budget = { nodes: 0, largePath: entry.largeRead ? '' : null };
@@ -500,15 +502,22 @@ function createPluginPeer({ send, dispatch, onFatal = () => {}, timeoutMs = 600_
                     touchContext(entry.context); releaseTracking(entry.context);
                     if (ok) entry.resolve(value); else entry.reject(value);
                 };
-                if (!budget.marker) finish(value, frame.ok);
+                const complete = (value, ok) => {
+                    if (!settlementExpired) { finish(value, ok); return; }
+                    // Re-enter the original still-live invocation. Cancellation
+                    // or mandatory publication failure must not invent success.
+                    void Promise.resolve().then(() => runContext(entry.context, onSettlementTimeout))
+                        .then(() => finish(value, ok), error => finish(fail(errorCode(error)), false));
+                };
+                if (!budget.marker) complete(value, frame.ok);
                 else void runContext(entry.context, () => materialize(value, budget)).then(decoded => {
-                    finish(decoded.value, true); decoded.release();
+                    complete(decoded.value, true); decoded.release();
                 }, error => {
                     if (closed) return;
                     if (['plugin_rpc_value_invalid','plugin_rpc_stream_invalid'].includes(error?.code)) { fatal(error.code); return; }
                     try { void runContext(entry.context, async () => {
                         if (!closed && ['plugin_rpc_value_limit','plugin_value_limit'].includes(error?.code)) await onLargeLimit(error.code);
-                        finish(error, false);
+                        complete(error, false);
                     }).catch(failure => fatal(errorCode(failure))); }
                     catch (failure) { fatal(errorCode(failure)); }
                 });
@@ -535,17 +544,18 @@ function createPluginPeer({ send, dispatch, onFatal = () => {}, timeoutMs = 600_
                 incoming++;
                 if (settleCallbacks) incomingContexts.set(frame.context, (incomingContexts.get(frame.context) ?? 0) + 1);
                 touchContext(frame.context);
-                let decoded;
+                let decoded, settlementExpired = false;
                 void Promise.resolve().then(() => runContext(frame.context, () =>
                     materialize(args, budget).then(async result => {
                         decoded = result;
                         if (closed) throw fail('plugin_rpc_closed');
-                        return execute(frame.method, result.value);
+                        return execute(frame.method, result.value, () => { settlementExpired = true; });
                     }).then(value => {
                         decoded?.release(); decoded = null;
                         if (!closed) {
                             const serialization = serialize(value, localStringRead(frame.method, args) ? '' : null);
-                            try { emit({ kind: 'return', id: frame.id, ok: true, value: serialization.encoded }); }
+                            try { emit({ kind: 'return', id: frame.id, ok: true, value: serialization.encoded,
+                                ...(settlementExpired ? { settlementExpired: true } : {}) }); }
                             catch (error) { if (error.code === 'plugin_rpc_frame_limit' && error.oversize === true) serialization.rollback(); throw error; }
                             finally { serialization.release(); }
                         } else {
@@ -556,7 +566,8 @@ function createPluginPeer({ send, dispatch, onFatal = () => {}, timeoutMs = 600_
                     if (['plugin_rpc_value_invalid','plugin_rpc_stream_invalid'].includes(error?.code)) { fatal(error.code); return; }
                     try {
                         if (!closed && ['plugin_rpc_value_limit','plugin_value_limit'].includes(error?.code)) await runContext(frame.context, () => onLargeLimit(error.code));
-                        if (!closed) emit({ kind: 'return', id: frame.id, ok: false, code: errorCode(error) });
+                        if (!closed) emit({ kind: 'return', id: frame.id, ok: false, code: errorCode(error),
+                            ...(settlementExpired ? { settlementExpired: true } : {}) });
                     }
                     catch (sendError) { fatal(errorCode(sendError)); }
                 }).finally(() => {

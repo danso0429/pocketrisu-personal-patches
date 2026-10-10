@@ -246,3 +246,20 @@ test('non-quiescent RPC work has a bounded settlement warning without replacing 
     assert.ok(late >= 1);
     assert.equal(session.failure, null); assert.equal(session.activeScopes, 0);
 });
+
+test('obsolete settlement control requests cannot dispatch a host API', async t => {
+    let hook, calls = 0;
+    wireMutation = frame => frame.kind === 'call' && frame.method === 'api'
+        && frame.args?.[1]?.[0]?.[1] === 'getArgument'
+        ? { ...frame, method: 'api_settlement_timeout', args: ['array', []] } : frame;
+    let session;
+    try {
+        session = await createPluginSession({ script: `await Risuai.addRisuReplacer('beforeRequest',()=>Risuai.getArgument('synthetic'));`,
+            api(method, args) { if (method === 'addRisuReplacer') hook = args[1]; else calls++; } });
+    } finally { wireMutation = null; }
+    t.after(() => session.close());
+    await session.load();
+    await assert.rejects(hook(), { code: 'plugin_api_request_invalid' });
+    assert.equal(calls, 0);
+    assert.equal(session.failure, null);
+});

@@ -49,6 +49,7 @@ async function createPluginSession({ script, api, signal, onFailure = () => {}, 
         runtimeMs, signal, onFrame: frame => peer.receive(frame) });
     peer = createPluginPeer({ send: sandbox.send, beforeLargePull: sandbox.beforeLargePull,
         onLargeLimit: () => onLocalLimit('plugin_rpc_value_limit'),
+        onSettlementTimeout: () => { find(current.getStore()); return onSettlementTimeout(); },
         onFatal: fail, onExpiredContext: onLateCall, invoke, timeoutMs: runtimeMs,
         getContext: () => current.getStore() ?? null,
         runContext(token, task) {
@@ -62,12 +63,6 @@ async function createPluginSession({ script, api, signal, onFailure = () => {}, 
         },
         dispatch(method, args) {
             find(current.getStore());
-            if (method === 'api_settlement_timeout') {
-                if (args.length !== 0) throw failure('plugin_api_request_invalid');
-                // Publish the bounded settlement budget warning. This report
-                // does not dispatch a storage/network/model task.
-                return onSettlementTimeout();
-            }
             if (method === 'api_local_limit') {
                 if (args.length !== 1 || !['plugin_rpc_frame_limit', 'plugin_rpc_value_limit'].includes(args[0])) {
                     throw failure('plugin_api_request_invalid');
