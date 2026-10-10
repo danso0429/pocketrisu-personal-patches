@@ -7,8 +7,10 @@ const { createPluginPeer, stringJSONBytes, reservePluginStorage, reservedPluginV
 function peers(t, dispatch, mutate = frame => frame, mutateParent = frame => [frame], timeouts = {}) {
     const frames = []; let parent, worker, fatal;
     parent = createPluginPeer({ timeoutMs:timeouts.parent??600000, retainContext:timeouts.retain??(()=>()=>{}),
-        runContext:timeouts.runContext??((_context,task)=>task()), dispatch, send: frame => { for (const changed of mutateParent(frame)) queueMicrotask(() => worker.receive(changed)); }, onFatal: code => { fatal = code; worker.close(code); } });
+        getContext:timeouts.getContext??(()=>null), runContext:timeouts.runContext??((_context,task)=>task()), dispatch,
+        send: frame => { for (const changed of mutateParent(frame)) queueMicrotask(() => worker.receive(changed)); }, onFatal: code => { fatal = code; worker.close(code); } });
     worker = createPluginPeer({ timeoutMs:timeouts.worker??600000, localCallLimits:timeouts.localCallLimits??false,
+        workerSide:true, getContext:timeouts.getContext??(()=>null),
         dispatch: () => { throw Error('unexpected callback'); }, send: frame => {
         const changed = mutate(frame); frames.push(changed); queueMicrotask(() => parent.receive(changed));
     }, onFatal: code => { fatal = code; parent.close(code); } });
@@ -65,6 +67,72 @@ test('repeated pre-decode refusals do not accumulate new function, stream or sig
         assert.equal(stream.locked, false);
     }
     assert.deepEqual(p.worker.stats().exports, { functions: 0, streams: 0, signals: 0 });
+    assert.equal(p.fatal, undefined);
+});
+
+for (const acceptedFirst of [false, true]) test(`a refused publication preserves concurrent shared exports (accepted reply first: ${acceptedFirst})`, async t => {
+    const { AsyncLocalStorage } = require('node:async_hooks');
+    const context = new AsyncLocalStorage();
+    let refused, decoded, finish;
+    const refusalReady = new Promise(resolve => { refused = resolve; });
+    const decodedReady = new Promise(resolve => { decoded = resolve; });
+    let refusedFrame;
+    const p = peers(t, (_method, args) => {
+        decoded(args[1]);
+        return new Promise(resolve => { finish = resolve; });
+    }, undefined, frame => {
+        if (frame.argsUndecoded) { refusedFrame = frame; refused(); return []; }
+        return [frame];
+    }, { getContext: () => context.getStore() ?? null, runContext: (scope, task) => {
+        if (scope === 'expired') throw Object.assign(Error('expired'), { code: 'plugin_invocation_expired' });
+        return context.run(scope, task);
+    } });
+    const stream = new ReadableStream({ start(controller) { controller.enqueue('shared'); } });
+    const abort = new AbortController(), callback = value => 'shared-' + value;
+    const shared = [callback, stream, abort.signal];
+    const a = context.run('expired', () => p.worker.call('api', ['register', shared]));
+    const rejected = assert.rejects(a, { code: 'plugin_invocation_expired' });
+    await refusalReady;
+    const b = context.run('live', () => p.worker.call('api', ['register', shared]));
+    const exports = await decodedReady;
+    if (acceptedFirst) { finish(); await b; }
+    p.worker.receive(refusedFrame); await rejected;
+    assert.equal(await context.run('live', () => exports[0]('usable')), 'shared-usable');
+    const reader = context.run('live', () => exports[1].getReader());
+    assert.deepEqual(await context.run('live', () => reader.read()), { done: false, value: 'shared' });
+    abort.abort(); await new Promise(resolve => setImmediate(resolve));
+    assert.equal(exports[2].aborted, true);
+    await context.run('live', () => reader.cancel());
+    if (!acceptedFirst) { finish(); await b; }
+    assert.equal(p.fatal, undefined);
+});
+
+test('all concurrent undecoded refusals release their shared exports after the last reply', async t => {
+    const held = [];
+    const p = peers(t, () => { throw Error('must not dispatch'); }, undefined, frame => { held.push(frame); return []; },
+        { runContext: () => { throw Object.assign(Error('expired'), { code: 'plugin_invocation_expired' }); } });
+    const stream = new ReadableStream(), shared = [() => 'shared', stream, new AbortController().signal];
+    const rejected = [0, 1].map(() => assert.rejects(p.worker.call('api', ['register', shared]), { code: 'plugin_invocation_expired' }));
+    await new Promise(resolve => setImmediate(resolve));
+    assert.equal(held.length, 2);
+    p.worker.receive(held[0]);
+    assert.deepEqual(p.worker.stats().exports, { functions: 1, streams: 1, signals: 1 });
+    p.worker.receive(held[1]); await Promise.all(rejected);
+    assert.deepEqual(p.worker.stats().exports, { functions: 0, streams: 0, signals: 0 });
+    assert.equal(stream.locked, false);
+    assert.equal(p.fatal, undefined);
+});
+
+test('host-owned streams reject pulls from another invocation', async t => {
+    const { AsyncLocalStorage } = require('node:async_hooks');
+    const context = new AsyncLocalStorage();
+    const p = peers(t, () => new ReadableStream({ start(controller) { controller.enqueue('host-owned'); } }),
+        frame => frame.method === '_pull' ? { ...frame, context: 'other' } : frame,
+        undefined, { getContext: () => context.getStore() ?? null,
+            runContext: (scope, task) => context.run(scope, task) });
+    const stream = await context.run('owner', () => p.worker.call('api', ['read']));
+    const reader = stream.getReader();
+    await assert.rejects(context.run('other', () => reader.read()), { code: 'plugin_rpc_context_invalid' });
     assert.equal(p.fatal, undefined);
 });
 

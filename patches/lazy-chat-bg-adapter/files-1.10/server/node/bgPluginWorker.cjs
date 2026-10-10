@@ -69,12 +69,13 @@ const localStringRead = (method, args) => method === 'api' && Array.isArray(args
 
 function createPluginPeer({ send, dispatch, onFatal = () => {}, timeoutMs = 600_000, onExpiredContext = () => {},
     getContext = () => null, runContext = (_context, task) => task(),
-    invoke = task => task(), retainContext = () => () => {}, localCallLimits = false, settleCallbacks = false,
+    invoke = task => task(), retainContext = () => () => {}, localCallLimits = false, settleCallbacks = false, workerSide = false,
     beforeLargePull = async () => {}, onLargeLimit = async () => {}, onSettlementTimeout }) {
     const pending = new Map(), functions = new Map(), remoteFunctions = new Map();
     const readers = new Map(), signals = new Map(), controllers = new Map();
     const remoteStreams = new Map();
     const ids = new WeakMap(), reverseFunctions = new WeakMap();
+    const exportOwnership = new WeakMap();
     let sequence = 0, handle = 0, lastIncoming = 0, incoming = 0, closed = false, activity = 0;
     const incomingContexts = new Map(), contextActivity = new Map();
     const contextWaiters = new Map(), activityWaiters = new Set();
@@ -285,16 +286,27 @@ function createPluginPeer({ send, dispatch, onFatal = () => {}, timeoutMs = 600_
         let encoded;
         try { encoded = pack(value, 0, budget); }
         catch (error) { for (const cleanup of budget.cleanup) cleanup(); onLargeEnd?.(); throw error; }
-        const created = [];
+        const created = [], claims = [];
+        let claimsReleased = false;
         if (closed) { for (const cleanup of budget.cleanup) cleanup(); onLargeEnd?.(); throw fail('plugin_rpc_closed'); }
+        const finishExports = accepted => {
+            if (claimsReleased) return;
+            claimsReleased = true;
+            for (const state of claims) {
+                if (accepted) state.accepted = true;
+                state.pending--;
+                if (state.accepted || state.pending) continue;
+                ids.delete(state.value); exportOwnership.delete(state.value);
+                if (state.map.get(state.id) !== state.resource) continue;
+                state.map.delete(state.id);
+                if (state.kind === 'stream') apply(releaseReader, state.resource.reader, []);
+                if (state.kind === 'signal') apply(removeListener, state.value, ['abort', state.resource.abort]);
+            }
+        };
         const rollback = () => {
             for (const cleanup of budget.cleanup) cleanup();
             onLargeEnd?.();
-            for (const entry of created.reverse()) {
-                ids.delete(entry.value); entry.map.delete(entry.id);
-                if (entry.kind === 'stream') apply(releaseReader, entry.resource.reader, []);
-                if (entry.kind === 'signal') apply(removeListener, entry.value, ['abort', entry.resource.abort]);
-            }
+            finishExports(false);
             created.length = 0;
         };
         try {
@@ -312,8 +324,11 @@ function createPluginPeer({ send, dispatch, onFatal = () => {}, timeoutMs = 600_
                         apply(addListener, entry.value, ['abort', resource.abort, { once: true }]);
                     }
                     ids.set(entry.value, id); map.set(id, resource);
+                    exportOwnership.set(entry.value, { ...entry, id, map, resource, pending: 0, accepted: false });
                     created.push({ ...entry, id, map, resource });
                 }
+                const state = exportOwnership.get(entry.value);
+                state.pending++; claims.push(state);
                 for (const slot of entry.slots) {
                     slot[1] = id;
                     if (entry.kind === 'signal') slot[2] = apply(signalAborted, entry.value, []);
@@ -332,7 +347,8 @@ function createPluginPeer({ send, dispatch, onFatal = () => {}, timeoutMs = 600_
             }
             for (const cleanup of budget.cleanup) cleanup();
         };
-        return { encoded, rollback, cancelLarge, release: budget.cleanup.length ? () => {} : () => onLargeEnd?.() };
+        return { encoded, rollback, cancelLarge, finishExports,
+            release() { finishExports(true); if (!budget.cleanup.length) onLargeEnd?.(); } };
     }
 
     function unpack(value, depth = 0, budget = { nodes: 0, largePath: null }, path = '') {
@@ -475,7 +491,8 @@ function createPluginPeer({ send, dispatch, onFatal = () => {}, timeoutMs = 600_
             const settles = !(method === 'api' && ['nativeFetch', 'risuFetch', 'runLLMModel'].includes(args[0]))
                 && !['_pull', '_cancel'].includes(method);
             pending.set(id, { resolve, reject, timer, context, settles, largeRead: localStringRead(method, args),
-                method, cancelLarge: serialization?.cancelLarge, rollbackUndecoded: serialization?.rollback, returning: false });
+                method, cancelLarge: serialization?.cancelLarge, rollbackUndecoded: serialization?.rollback,
+                finishExports: serialization?.finishExports, returning: false });
             touchContext(context);
             try { emit({ kind: 'call', id, method, args: encoded, context }); }
             catch (error) {
@@ -506,7 +523,9 @@ function createPluginPeer({ send, dispatch, onFatal = () => {}, timeoutMs = 600_
         if (method === '_pull' || method === '_cancel') {
             if (args.length !== 1 || !readers.has(args[0])) throw fail('plugin_rpc_stream_invalid');
             const entry = readers.get(args[0]);
-            if (entry.context !== getContext()) throw fail('plugin_rpc_context_invalid');
+            // Host streams stay invocation-bound. Plugin-owned streams may be
+            // shared across invocations; their consumer is the authoritative host.
+            if (!workerSide && entry.context !== getContext()) throw fail('plugin_rpc_context_invalid');
             if (method === '_cancel') {
                 readers.delete(args[0]);
                 return entry.reader.cancel();
@@ -540,10 +559,10 @@ function createPluginPeer({ send, dispatch, onFatal = () => {}, timeoutMs = 600_
                 // Only a worker-side API sender trusts this host assertion. It
                 // cannot revoke host exports, or mean "failed after decoding".
                 if (argsUndecoded && (frame.argsUndecoded !== true || frame.ok || frame.code !== 'plugin_invocation_expired'
-                    || entry.method !== 'api' || !localCallLimits)) throw fail('plugin_rpc_protocol_invalid');
+                    || entry.method !== 'api' || !workerSide)) throw fail('plugin_rpc_protocol_invalid');
                 entry.returning = true;
                 if (argsUndecoded) entry.rollbackUndecoded?.();
-                else if (!frame.ok) entry.cancelLarge?.();
+                else { entry.finishExports?.(true); if (!frame.ok) entry.cancelLarge?.(); }
                 const budget = { nodes: 0, largePath: entry.largeRead ? '' : null };
                 const value = frame.ok ? runContext(entry.context, () => unpack(frame.value, 0, budget)) : fail(errorCode({ code: frame.code }));
                 const finish = (value, ok) => {
@@ -673,7 +692,7 @@ async function runWorker() {
     vm.runInContext('globalThis.window = globalThis; globalThis.self = globalThis;', context);
     const runtimeMs = Number(process.argv[2]);
     peer = createPluginPeer({ timeoutMs: Number.isSafeInteger(runtimeMs) && runtimeMs > 0 ? runtimeMs : 600_000,
-        localCallLimits: true, settleCallbacks: true,
+        localCallLimits: true, settleCallbacks: true, workerSide: true,
         onLargeLimit: code => peer.call('api_local_limit', [code]).catch(error => { if (error?.code !== code) throw error; }),
         getContext: () => invocation.getStore() ?? null,
         runContext: (context, task) => invocation.run(context, task), send(frame) {
