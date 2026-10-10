@@ -117,12 +117,18 @@ async function hold(signal, id) {
 }
 globalThis.fetch = async(input, options = {}) => {
     const url = String(input);
+    // These native best-effort relative calls have no Node HTTP origin. Keep
+    // their real refusal (do not fake persistence), separate from external IO.
+    if (url === '/api/logs' || url === '/api/pending-sends/synthetic-chat') {
+        emit({event:'internal-relative-refused',path:url,method:options.method??'GET'});
+        throw Error('relative URL has no server origin');
+    }
     const analysis = url === 'https://analysis.example.test/v1/chat/completions';
     const main = url.startsWith('https://api.openai.com/v1/chat/completions')
         || url === 'https://native-input.example.test/v1/chat/completions';
     if (!analysis && !main) {
         let destination;
-        try { const value = new URL(url); destination = value.origin + value.pathname; } catch { destination = typeof input; }
+        try { const value = new URL(url); destination = value.origin + value.pathname; } catch { destination = url.startsWith('/') ? url.slice(0,160) : typeof input; }
         emit({ event: 'denied', destination }); throw Error('synthetic outbound denied');
     }
     const body = JSON.parse(typeof options.body === 'string' ? options.body : Buffer.from(options.body).toString());

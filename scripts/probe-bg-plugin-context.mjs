@@ -8,7 +8,8 @@ import {createHash,randomUUID} from 'node:crypto';
 
 const [targetArgument,originalArgument,fixtureArgument,outputArgument,scenario,route='raw']=process.argv.slice(2);
 const [target,original,fixturePath,output]=[targetArgument,originalArgument,fixtureArgument,outputArgument].map(p=>path.resolve(p));
-assert.ok(['script','insert','value-copy','cache-evict','root-failure','constructor-failure','duplicate-start','selected-provider','duplicate-provider','nonselected-provider'].includes(scenario));
+const rawProviderCases=['happy-provider','input-provider','input-blocked-provider','missing-provider','off-provider','conflict-provider','failed-registration-provider','fallback-provider','missing-fallback-provider','retry-provider'];
+assert.ok(['script','insert','value-copy','cache-evict','root-failure','constructor-failure','duplicate-start','selected-provider','duplicate-provider','nonselected-provider',...rawProviderCases].includes(scenario));
 assert.ok(['raw','prepared'].includes(route));
 const require=createRequire(path.join(target,'package.json')),Database=require('better-sqlite3');
 const runtime=fs.mkdtempSync('/tmp/marp-settings-context-');process.chdir(runtime);
@@ -24,7 +25,7 @@ data.statics={...(data.statics??{}),messages:Number.isSafeInteger(data.statics?.
 data.plugins=[{name:'risu_multiagent',version:'3.0',enabled:true,script,realArg:{}}];
 data.pluginCustomStorage={risu_multiagent_lite_config_vault_v1:{config:{provider:'openai',baseUrl:'https://analysis.example.test/v1',apiKey:'synthetic-only',model:'fixture-A',
     agents:Object.fromEntries(['worldbuilding','plot','character'].map(name=>[name,{enabled:true,model:'fixture-'+name}]))}}};
-const provider=scenario.endsWith('provider'),selected=['selected-provider','duplicate-provider'].includes(scenario);
+const provider=scenario.endsWith('provider'),selected=['selected-provider','duplicate-provider',...rawProviderCases].includes(scenario);
 if(provider){
     data.plugins.push({name:'synthetic-provider',version:'3.0',enabled:true,realArg:{},script:`await Risuai.addProvider('synthetic-provider',async()=>{
         await Risuai.nativeFetch('https://analysis.example.test/v1/chat/completions',{method:'POST',headers:{authorization:'Bearer synthetic-only'},
@@ -37,6 +38,29 @@ if(provider){
 if(selected){data.aiModel=data.subModel='pluginmodel:::synthetic-provider';data.nodeOnlyModelModeLock='legacy';data.characters[0].chats[0].useModelPreset=false;
     data.plugins[0].realArg=Object.fromEntries(['worldbuilding','plot','character'].map(name=>[name+'_enabled','0']));
     for(const value of Object.values(data.pluginCustomStorage.risu_multiagent_lite_config_vault_v1.config.agents))value.enabled=false;}
+if(rawProviderCases.includes(scenario))data.plugins[1].script=['missing-provider','missing-fallback-provider'].includes(scenario)?'':`
+    let calls=0;
+    await Risuai.addProvider('synthetic-provider',async arg=>{
+        calls++;
+        ${scenario==='input-blocked-provider'?`
+        try { await Risuai.runLLMModel({messages:[{role:'user',content:'Blocked nested input'}],mode:'model',staticModel:'custom',allowPlugins:true}); } catch {}
+        try { await Risuai.nativeFetch('https://analysis.example.test/v1/chat/completions',{method:'POST',headers:{authorization:'Bearer synthetic-only'},body:JSON.stringify({model:'must-not-dispatch',messages:arg.prompt_chat})}); } catch {}
+        return {success:true,content:'Caught error cannot authorize partial input'};`:`
+        const response=await Risuai.nativeFetch('https://analysis.example.test/v1/chat/completions',{method:'POST',headers:{authorization:'Bearer synthetic-only'},
+            body:JSON.stringify({model:'fixture-provider',messages:arg.prompt_chat})});
+        if(!response.ok)throw Error('synthetic transport failed');
+        return {success:${scenario==='retry-provider'?'calls>1':'true'},content:'Synthetic provider answer'};`}
+    });`;
+if(['input-provider','input-blocked-provider'].includes(scenario))data.characters[0].triggerscript=[{
+    comment:'Synthetic provider input caller',type:'input',conditions:[],lowLevelAccess:true,
+    effect:[{type:'runLLM',value:'Synthetic input provider question',inputVar:'providerInput'}],
+}];
+if(scenario==='conflict-provider')data.plugins.push({...data.plugins[1],name:'synthetic-conflicting-plugin',
+    script:data.plugins[1].script.replace('Synthetic provider answer','Synthetic conflicting provider answer')});
+if(scenario==='failed-registration-provider')data.plugins.push({...data.plugins[1],name:'synthetic-failed-registration',
+    script:data.plugins[1].script+'\nthrow Error("Synthetic load failure after registration");'});
+if(scenario.endsWith('fallback-provider')){data.aiModel=data.subModel='gpt-4o';data.fallbackModels={...data.fallbackModels,model:['pluginmodel:::synthetic-provider']};}
+if(scenario==='retry-provider')data.requestRetrys=1;
 if(scenario==='duplicate-start')data.plugins.push({...data.plugins[0],realArg:{}});
 if(scenario==='duplicate-provider')data.plugins.push({...data.plugins[1],realArg:{}});
 if(route==='prepared')data.characters[0].chats[0].message.push({role:'user',data:'Synthetic prepared input',chatId:'synthetic-prepared-user'});
@@ -51,11 +75,12 @@ const grants=[...new Set(data.plugins.flatMap(p=>['replacer','provider','db','ma
 disk.prepare('INSERT OR REPLACE INTO kv(key,value) VALUES(?,?)').run('cache/plugin-permissions/state.json',JSON.stringify({given:grants,denied:[],cache:grants.map(k=>[k+'_lastGrantTime',Date.now()])}));disk.close();
 const events=[],server=fork(path.join(target,'server/node/server.cjs'),[],{cwd:runtime,
     execArgv:['--require',new URL('./probes/bg-marp-settings-preload.cjs',import.meta.url).pathname],
-    env:{...process.env,PORT:'0',TUNNEL_DISABLED:'1',UPDATE_CHECK_DISABLED:'1',POCKETRISU_BG_PLUGIN_HOST_CANDIDATE:'1',MARP_SETTINGS_PROBE:'1',
-        MARP_SETTINGS_GATE:['duplicate-start','duplicate-provider','constructor-failure'].includes(scenario)?'':'analysis',MARP_CONTEXT_SCENARIO:scenario},stdio:['ignore','pipe','pipe','ipc']});
+    env:{...process.env,PORT:'0',TUNNEL_DISABLED:'1',UPDATE_CHECK_DISABLED:'1',POCKETRISU_BG_PLUGIN_HOST_CANDIDATE:scenario==='off-provider'?'0':'1',MARP_SETTINGS_PROBE:'1',
+        MARP_SETTINGS_GATE:['duplicate-start','duplicate-provider','constructor-failure',...rawProviderCases].includes(scenario)?'':'analysis',MARP_CONTEXT_SCENARIO:scenario},stdio:['ignore','pipe','pipe','ipc']});
 server.on('message',row=>events.push(row));const log=fs.createWriteStream(path.join(runtime,'server.log'));server.stdout.pipe(log);server.stderr.pipe(log);
 const wait=async task=>{const end=Date.now()+60000;while(Date.now()<end){const value=await task();if(value)return value;await new Promise(r=>setTimeout(r,50));}throw Error('context probe deadline');};
 const operationId=randomUUID();
+async function run(){
 try{
     const origin='http://127.0.0.1:'+await wait(()=>events.find(e=>e.event==='ready')?.port);
     const login=await fetch(origin+'/api/login',{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({password})});assert.equal(login.status,200);
@@ -71,7 +96,7 @@ try{
             rawText:'Synthetic raw input',settingsSnapshotRef:'synthetic-client-hint',submittedAt:Date.now()}}:{})};
     const start=await fetch(origin+'/api/bg-orchestrate',{method:'POST',headers,body:JSON.stringify(body)});assert.equal(start.status,200);
     const ack=await start.json();assert.equal(ack.started,true);assert.equal(ack.operationId,operationId);
-    if(!['duplicate-start','duplicate-provider','constructor-failure'].includes(scenario)){
+    if(!['duplicate-start','duplicate-provider','constructor-failure',...rawProviderCases].includes(scenario)){
         await wait(()=>events.some(e=>e.event==='analysis'));
         if(scenario==='cache-evict'){
             const key=Buffer.from('database/database.bin').toString('hex');
@@ -90,6 +115,13 @@ try{
     const terminal=await wait(()=>{const db=new Database(path.join(runtime,'save/risuai.db'),{readonly:true});try{
         const raw=db.prepare('SELECT value FROM kv WHERE key=?').get('bg-orch-state-op:'+operationId)?.value;
         if(!raw)return null;const row=JSON.parse(String(raw));
+        if(route==='raw'&&['duplicate-provider','missing-provider','missing-fallback-provider','off-provider','input-blocked-provider','conflict-provider','failed-registration-provider'].includes(scenario)){
+            const input=db.prepare('SELECT value FROM kv WHERE key=?').get('internal/server-chat-input/v1/'+Buffer.from(operationId).toString('base64url'))?.value;
+            if(input){const record=JSON.parse(String(input));
+                if(record.inputState==='blocked_edit'&&(record.transformState==='not_run'
+                    || ['failed','delivery-failed','result-ready','delivered','cancelled'].includes(row.state)))return {...row,input:record};
+            }
+        }
         if(scenario==='constructor-failure'&&route==='raw'){
             const input=db.prepare('SELECT value FROM kv WHERE key=?').get('internal/server-chat-input/v1/'+Buffer.from(operationId).toString('base64url'))?.value;
             if(input&&JSON.parse(String(input)).transformState==='unknown')return {...row,inputTransformState:'unknown'};
@@ -99,6 +131,32 @@ try{
     assert.notEqual(terminal.state,'cancelled');
     const response=await fetch(origin+'/api/chat-content/synthetic-character/0',{headers});assert.equal(response.status,200);
     const chat=await decodeRisuSave(new Uint8Array(await response.arrayBuffer()));
+    if(route==='raw'&&(rawProviderCases.includes(scenario)||scenario==='duplicate-provider')){
+        const blocked=['duplicate-provider','missing-provider','missing-fallback-provider','off-provider','input-blocked-provider','conflict-provider','failed-registration-provider'].includes(scenario);
+        const analyses=events.filter(e=>e.event==='analysis'),mains=events.filter(e=>e.event==='main');
+        assert.equal(analyses.length,blocked?0:['input-provider','retry-provider'].includes(scenario)?2:1);assert.equal(mains.length,0);
+        for(const row of analyses)assert.equal(row.body.model,'fixture-provider');
+        assert.equal(chat.message.filter(m=>m.role==='user').length,blocked?0:1);
+        assert.equal(chat.message.filter(m=>m.role==='char').length,blocked?0:1);
+        assert.equal(events.filter(e=>['observation-error','validation-error','denied'].includes(e.event)).length,0);
+        const db=new Database(path.join(runtime,'save/risuai.db'),{readonly:true});let notices,journal;
+        try{notices=db.prepare('SELECT value FROM kv WHERE key LIKE ?').all('internal/bg-notifications/v1/%').map(r=>JSON.parse(String(r.value)).event);
+            journal=db.prepare('SELECT value FROM kv WHERE key LIKE ?').all('internal/server-chat-commit/v1/%').map(r=>JSON.parse(String(r.value)));}finally{db.close();}
+        if(blocked){assert.equal(terminal.input.inputState,'blocked_edit');assert.equal(terminal.input.admission.rawText,'Synthetic raw input');
+            assert.equal(terminal.input.transformState,scenario==='off-provider'?'not_run':'completed');
+            assert.equal(journal.length,0);
+            if(scenario!=='off-provider')assert.equal(terminal.input.terminal.api,scenario==='input-blocked-provider'?'browser_model_provider':'plugin_provider_unavailable');
+        }else{assert.ok(journal.some(row=>row.operationId===operationId));
+            assert.equal(chat.message.find(m=>m.role==='char').data,'Synthetic provider answer');
+            if(scenario==='input-provider')assert.equal(chat.scriptstate.$providerInput,'Synthetic provider answer');
+        }
+        if(scenario==='off-provider')assert.equal(events.filter(e=>e.event==='host'||e.event==='session-create').length,0);
+        if(scenario==='conflict-provider')assert.ok(notices.some(n=>n.pluginName==='synthetic-conflicting-plugin'&&n.phase==='load'&&n.code==='plugin_hook_failed'));
+        fs.mkdirSync(output,{recursive:true});fs.writeFileSync(path.join(output,scenario+'-'+route+'.json'),JSON.stringify({scenario,route,runtime,operationId,terminal,events,notices,journal,
+            analysis:analyses.length,main:0,answers:blocked?0:1,userMessages:blocked?0:1,
+            scope:'actual raw HTTP, registered provider and input-trigger dispatcher; synthetic providers; original MARP all agents OFF'},null,2));
+        console.log(JSON.stringify({scenario,route,analysis:analyses.length,main:0,answers:blocked?0:1,state:terminal.state,notices:notices.length}));return;
+    }
     const failure=selected||scenario==='root-failure'||scenario==='constructor-failure';assert.equal(chat.message.filter(m=>m.role==='char').length,failure?0:1);
     const expectedUsers=scenario==='constructor-failure'&&route==='raw'?0:1;
     assert.equal(chat.message.filter(m=>m.role==='user').length,expectedUsers);
@@ -141,3 +199,5 @@ try{
     console.log(JSON.stringify({scenario,route,analysis:analyses.length,main:mains.length,answers:failure?0:1,state:terminal.state,notices:notices.length}));
 }catch(error){fs.writeFileSync(path.join(runtime,'failure.json'),JSON.stringify({events,operationId},null,2));console.error(runtime,error);process.exitCode=1;}
 finally{if(server.exitCode===null&&server.signalCode===null){const done=once(server,'exit');server.kill('SIGTERM');await done;}}
+}
+await run();
