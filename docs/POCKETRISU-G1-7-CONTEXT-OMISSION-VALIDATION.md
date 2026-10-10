@@ -41,7 +41,7 @@ The maintained context probe uses the byte-original Lite0.9.2, synthetic credent
 
 All twelve cases pass in the frozen run. Counts distinguish analysis from main, initialization and saved answers. Failed prototype assumptions are retained separately: an interactive trigger remained in the shared seed, patch concurrency uses `calculateHash` rather than HTTP ETag, full save can recache before a missing peek is observed, and raw constructor failure uses the existing transform-unknown record rather than a terminal-result record.
 
-Raw selected-plugin-model input is still refused before provider execution by the existing preparation/context boundary. Loaded/missing selected-provider controls above therefore qualify the prepared route only; they do not widen raw provider admission or claim the selected raw caller works.
+At this checkpoint, raw selected-plugin-model input was refused before provider execution by the preparation/context boundary. Loaded/missing selected-provider controls above therefore qualify the prepared route only; they do not widen raw provider admission or claim the selected raw caller works. The later [experimental.31 raw-provider checkpoint](POCKETRISU-G1-7-RAW-PROVIDER-VALIDATION.md) separately qualifies the stated raw admission/registration scope and retains its remaining activation gates.
 
 ## Other gates and evidence scope
 

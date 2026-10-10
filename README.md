@@ -11,7 +11,10 @@ and input failure latches remain. BG adapter is0.7.38; Personal settings0.5.14
 and hostOFF are retained. Actual raw12/host94/session9 and full automatic gates
 are recorded in [raw provider validation](docs/POCKETRISU-G1-7-RAW-PROVIDER-VALIDATION.md).
 Remaining caller/handle, final M7/activation, actual-provider and device/aggregate
-gates stay open. This is an experimental candidate; safe delivery is pending.
+gates stay open. This experimental candidate is delivered with hostOFF:
+484 managed files/175 served scripts/five database checks, unchanged headers,
+operations103→103/removed0, active/model/pending0 and new error lines0.
+Actual authenticated capabilities returnHTTP200/hostVersion0; stable remains `v0.2.3`.
 
 The `0.2.4-experimental.30` checkpoint implements the selected analysis-context
 contract: omit unusable non-provider hooks, retain prior effects and chain output,

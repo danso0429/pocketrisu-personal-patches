@@ -55,4 +55,10 @@ Final source consultation found no scoped hostOFF-delivery blocker and prompted 
 
 With hostOFF, newly recognized plugin candidates may perform the existing capability lookup once while tab support is unknown, then remain on client preparation; cached OFF support avoids a per-send host check. This is a client classification change, not production raw-provider activation. The actual synthetic OFF preclaim chooses `latest_settings_require_client`, retaining blocked/not_run input and no host/session/provider.
 
-Safe hostOFF delivery is pending. No stable tag/release or production activation is included in this checkpoint. Live readback and rollback retention will be recorded only after execution.
+Runtime/package `0b75e5d`, actual caller probes `5b3f1c0` and qualification documents `d204812` were pushed after the207-path privacy sweep found no listed identifiers. No stable tag/release or production host activation occurred.
+
+Readonly live idle/hostOFF and exact seven-path plan preceded stop. The full-data recovery anchor was rehashed. A stopped application/patcher-state rollback of91,650,215bytes/1,642files and12 notification-namespace rows was independently verified before apply. Frontend/BG build/load retained database bytes. Restart/readback confirms484 managed hashes/modes,175 served JS assets, five database quick checks, unchanged headers, operation records103→103/removed0, input0, active/model/pending0, online/unstable0 and new error lines0. State SHA-256 `c68cf6167691c3dd0f1c2ce53456cffdb481e51b1a2c476d90239e89b01656ae` identifies this delivery.
+
+Actual authenticated loopback capability isHTTP200 with `serverPluginHostVersion=0`; no generation/provider request or browser boot-lock registration occurred. OFF tab caching is separately established by the maintained helper source/unit tests, not claimed as a physical-device observation.
+
+The new verified experimental.30 application/state rollback, previous experimental.29 normal rollback and full-data anchor remain. No backup, user database, `/tmp` or worktree was deleted in this checkpoint. No generation was cancelled. Previous ordinary-use device results are not expanded to raw provider activation; remaining M7/G1.10 device/aggregate gates remain open. Qualification audits remain while those admission gates are unresolved.
