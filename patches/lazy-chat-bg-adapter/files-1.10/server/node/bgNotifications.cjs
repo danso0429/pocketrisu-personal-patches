@@ -167,7 +167,8 @@ function createBgNotifications({ db, kvGet, kvSet, kvDel, kvList, now = Date.now
                 // a terminal limit. An untyped reclaimed legacy row is ambiguous:
                 // allow one fresh terminal notice, then persist its explicit kind.
                 const verifiedTerminal = notice
-                    ? !notice.event.eventKey.endsWith(':settlement-budget')
+                    ? notice.event.code === 'plugin_host_limit' && notice.event.reason === 'operation_budget'
+                        && !notice.event.eventKey.endsWith(':limit') && !notice.event.eventKey.endsWith(':settlement-budget')
                     : prior.kind === 'terminal_limit';
                 if (!terminalLimit || verifiedTerminal) return { status: 'duplicate', id: prior.id };
             }

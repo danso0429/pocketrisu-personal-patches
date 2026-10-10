@@ -29,6 +29,24 @@ function harness() {
 }
 
 describe('durable BG notification owner', () => {
+    it.each(['api-limit', 'message'])('does not mistake an extant %s notice for a legacy terminal receipt', kind => {
+        const h = harness(), identity = 'd'.repeat(64), prefix = 'internal/bg-plugin-failure-receipts/v1/'
+        const base = { ...h.event(), code: 'plugin_host_limit', pluginName: 'synthetic', pluginVersion: '1',
+            phase: 'provider', reason: 'operation_budget', effectsMayHaveOccurred: true }
+        const prior = kind === 'api-limit'
+            ? h.owner.publish({ ...base, eventKey: 'plugin:0:provider:limit' })
+            : h.owner.publish({ ...base, code: 'plugin_message', eventKey: 'plugin:0:message:1', message: 'prior message', level: 'info' })
+        const key = prefix + createHash('sha256').update(JSON.stringify([
+            identity, 'synthetic', '1', 'plugin_host_limit', 'provider', null, 'operation_budget', true,
+        ])).digest('hex')
+        h.deps.kvSet(key, JSON.stringify({ version: 1, id: prior.id, createdAt: base.createdAt,
+            expiresAt: base.createdAt + 48 * 60 * 60 * 1000 }))
+        const next = h.owner.publishPluginFailure({ ...base, eventKey: 'plugin:0:provider:failure' }, identity)
+        expect(next.status).toBe('stored')
+        expect(next.id).not.toBe(prior.id)
+        expect(h.deps.kvGet('internal/bg-notifications/v1/' + prior.id)).not.toBeNull()
+    })
+
     it('repairs an ambiguous existing terminal key without growing a full receipt pool', () => {
         const h = harness(), identity = 'c'.repeat(64), prefix = 'internal/bg-plugin-failure-receipts/v1/'
         const base = { ...h.event(), code: 'plugin_host_limit', pluginName: 'synthetic', pluginVersion: '1',
