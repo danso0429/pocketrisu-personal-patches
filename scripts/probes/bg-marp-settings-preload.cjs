@@ -9,18 +9,50 @@ if (process.env.MARP_SETTINGS_PROBE !== '1' || !process.cwd().startsWith('/tmp/m
 const emit = row => process.send?.({ ...row, at: performance.now() });
 const digest = value => createHash('sha256').update(JSON.stringify(value ?? null)).digest('hex');
 const originalLoad = Module._load;
+let contextOwner, failIdentity = process.env.MARP_CONTEXT_SCENARIO === 'constructor-failure';
+process.on('message', async row => {
+    if (row?.event !== 'context-mutate') return;
+    try {
+        if (!contextOwner || !process.env.MARP_CONTEXT_SCENARIO) throw Error('context mutation outside fixture');
+        if (row.kind === 'root-failure') failIdentity = true;
+        else await contextOwner.writeRoot(root => {
+            const plugins = root.plugins.map(p => ({ ...p }));
+            const name = row.kind === 'nonselected-provider' || row.kind === 'selected-provider' ? 'synthetic-provider' : 'risu_multiagent';
+            if (row.kind === 'script' || row.kind.endsWith('-provider')) {
+                const target = plugins.find(p => p.name === name); if (!target) throw Error('synthetic entry missing');
+                target.script += '\n// synthetic canonical replacement';
+            } else if (row.kind === 'insert') plugins.unshift({name:'synthetic-added',version:'3.0',enabled:true,realArg:{},
+                script:`await Risuai.nativeFetch('https://synthetic.invalid/must-not-run',{});`});
+            else if (row.kind !== 'value-copy') throw Error('unknown synthetic mutation');
+            return {...root,plugins};
+        });
+        emit({event:'context-mutated',kind:row.kind});
+    } catch { emit({event:'validation-error'}); }
+});
 Module._load = function(request, ...args) {
     const value = originalLoad.call(this, request, ...args);
+    if (request === './bgPluginSession.cjs') return {...value,createPluginSession:options=>{
+        emit({event:'session-create',sourceHash:createHash('sha256').update(options.script).digest('hex')});
+        return value.createPluginSession(options);
+    }};
     if (request === './bgPluginHost.cjs') return { ...value, createBgPluginHost: async options => {
         emit({ event: 'host', operationId: options.operation.operationId,
             assembly: settings(options.database) });
         const getRoot = options.storageOwner.getRoot;
+        contextOwner = options.storageOwner;
         const host = await value.createBgPluginHost({ ...options,
             publishNotification: (...args) => {
-                emit({event:'host-notice',code:args[0].code,pluginName:args[0].pluginName});
+                emit({event:'host-notice',code:args[0].code,pluginName:args[0].pluginName,
+                    phase:args[0].phase,api:args[0].api,effectsMayHaveOccurred:args[0].effectsMayHaveOccurred});
                 return options.publishNotification(...args);
             }, storageOwner: { ...options.storageOwner,
+            peekRoot: () => {
+                const root = failIdentity ? null : options.storageOwner.peekRoot();
+                if (root == null) emit({event:'identity-peek-miss'});
+                return root;
+            },
             getRoot: async () => {
+                if (failIdentity) throw Error('synthetic canonical reload failure');
                 const root = await getRoot();
                 emit({ event: 'root-read', operationId: options.operation.operationId, digest: digest(settings(root)) });
                 return root;
@@ -102,6 +134,8 @@ globalThis.fetch = async(input, options = {}) => {
         emit({ event: 'validation-error' }); throw Error('invalid synthetic authorization');
     }
     emit({ event: analysis ? 'analysis' : 'main', id, body });
+    if (main && contextOwner) emit({event:'notices-before-main',events:contextOwner.kvList('internal/bg-notifications/v1/')
+        .map(key=>JSON.parse(String(contextOwner.kvGet(key))).event).filter(Boolean)});
     const gate = process.env.MARP_SETTINGS_GATE;
     if (!released && ((analysis && id === 1 && gate === 'analysis') || (main && id === 1 && gate === 'main'))) {
         await hold(options.signal, (analysis ? 'analysis:' : 'main:') + id);
@@ -113,3 +147,5 @@ globalThis.fetch = async(input, options = {}) => {
         content: analysis ? 'Synthetic note ' + body.model : 'Synthetic settings answer' } }],
         usage: { prompt_tokens: 2, completion_tokens: 3 } });
 };
+// Close the actual HTTP/TCP/WS routes as well as fetch; never use real providers.
+require('./bg-marp-pdf-transport.cjs').installPdfHttpTransport(globalThis.fetch, emit);
