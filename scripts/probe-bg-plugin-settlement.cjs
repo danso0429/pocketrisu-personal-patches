@@ -103,6 +103,13 @@ test('the receiving peer still rejects a 65th concurrent incoming call', async t
     assert.deepEqual(f.warnings, []);
 });
 
+test('a worker refusal cannot revoke exports owned by a host-side API sender', async t => {
+    const f = fixture(t, { workerDispatch: () => 'original reply', mutate: frame => frame.kind === 'return'
+        ? { ...frame, ok: false, code: 'plugin_invocation_expired', argsUndecoded: true } : frame });
+    await assert.rejects(f.parent.call('api', [() => 'host function']), { code: 'plugin_rpc_protocol_invalid' });
+    assert.deepEqual(f.warnings, []);
+});
+
 test('closing during settlement wakes and releases context waiters without publishing a warning', async t => {
     const f = fixture(t);
     let entered;

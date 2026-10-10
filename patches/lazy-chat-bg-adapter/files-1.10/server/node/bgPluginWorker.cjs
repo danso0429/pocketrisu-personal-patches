@@ -27,7 +27,7 @@ function wireData(value) {
 }
 function wireJSON() { return wireData(this); }
 const LARGE_UNITS = 32 * 1024 * 1024, STRING_CHUNK = 64 * 1024;
-const SETTLEMENT_MAX_MS = 15_000, LARGE_PROGRESS_IDLE_MS = 15_000;
+const BOOTSTRAP_MAX_MS = 15_000, SETTLEMENT_MAX_MS = 15_000, LARGE_PROGRESS_IDLE_MS = 15_000;
 // Shared by all peers in the host process. Reservations cover both directions
 // and stay charged through dispatch, not merely until the last chunk arrives.
 let reservedLargeUnits = 0;
@@ -467,7 +467,7 @@ function createPluginPeer({ send, dispatch, onFatal = () => {}, timeoutMs = 600_
         }
         const id = ++sequence;
         return new Promise((resolve, reject) => {
-            const timer = setTimeout(() => fatal('plugin_rpc_timeout'), method === 'load' ? Math.min(callTimeout, 15_000) : callTimeout);
+            const timer = setTimeout(() => fatal('plugin_rpc_timeout'), method === 'load' ? Math.min(callTimeout, BOOTSTRAP_MAX_MS) : callTimeout);
             timer.unref?.();
             // A callback that returned without awaiting a network/model task
             // abandons that task under the existing scope-abort contract. Join
@@ -475,7 +475,7 @@ function createPluginPeer({ send, dispatch, onFatal = () => {}, timeoutMs = 600_
             const settles = !(method === 'api' && ['nativeFetch', 'risuFetch', 'runLLMModel'].includes(args[0]))
                 && !['_pull', '_cancel'].includes(method);
             pending.set(id, { resolve, reject, timer, context, settles, largeRead: localStringRead(method, args),
-                method, cancelLarge: serialization?.cancelLarge, returning: false });
+                method, cancelLarge: serialization?.cancelLarge, rollbackUndecoded: serialization?.rollback, returning: false });
             touchContext(context);
             try { emit({ kind: 'call', id, method, args: encoded, context }); }
             catch (error) {
@@ -536,8 +536,14 @@ function createPluginPeer({ send, dispatch, onFatal = () => {}, timeoutMs = 600_
                 const settlementExpired = Object.hasOwn(frame, 'settlementExpired');
                 if (settlementExpired && (frame.settlementExpired !== true || entry.method !== '_callback'
                     || typeof onSettlementTimeout !== 'function')) throw fail('plugin_rpc_protocol_invalid');
+                const argsUndecoded = Object.hasOwn(frame, 'argsUndecoded');
+                // Only a worker-side API sender trusts this host assertion. It
+                // cannot revoke host exports, or mean "failed after decoding".
+                if (argsUndecoded && (frame.argsUndecoded !== true || frame.ok || frame.code !== 'plugin_invocation_expired'
+                    || entry.method !== 'api' || !localCallLimits)) throw fail('plugin_rpc_protocol_invalid');
                 entry.returning = true;
-                if (!frame.ok) entry.cancelLarge?.();
+                if (argsUndecoded) entry.rollbackUndecoded?.();
+                else if (!frame.ok) entry.cancelLarge?.();
                 const budget = { nodes: 0, largePath: entry.largeRead ? '' : null };
                 const value = frame.ok ? runContext(entry.context, () => unpack(frame.value, 0, budget)) : fail(errorCode({ code: frame.code }));
                 const finish = (value, ok) => {
@@ -572,16 +578,17 @@ function createPluginPeer({ send, dispatch, onFatal = () => {}, timeoutMs = 600_
                 lastIncoming = frame.id;
                 // Materialize signal handles before reading a subsequent abort
                 // frame from the same pipe chunk, even if execution is deferred.
-                let args;
+                let args, decodingStarted = false;
                 const encoded = frame.args;
                 const localSet = frame.method === 'api' && encoded?.[0] === 'array' && encoded[1]?.length === 2
                     && encoded[1][0]?.[0] === 'value' && encoded[1][0]?.[1] === 'localPluginStorage.setItem'
                     && encoded[1][1]?.[0] === 'array' && encoded[1][1]?.[1]?.length >= 2;
                 const budget = { nodes: 0, largePath: localSet ? '/1/1' : null };
-                try { args = runContext(frame.context, () => unpack(frame.args, 0, budget)); }
+                try { args = runContext(frame.context, () => { decodingStarted = true; return unpack(frame.args, 0, budget); }); }
                 catch (error) {
                     if (error?.code !== 'plugin_invocation_expired') throw error;
-                    emit({ kind: 'return', id: frame.id, ok: false, code: error.code });
+                    emit({ kind: 'return', id: frame.id, ok: false, code: error.code,
+                        ...(!decodingStarted && frame.method === 'api' ? { argsUndecoded: true } : {}) });
                     onExpiredContext();
                     return;
                 }

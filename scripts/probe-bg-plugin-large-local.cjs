@@ -8,7 +8,8 @@ function peers(t, dispatch, mutate = frame => frame, mutateParent = frame => [fr
     const frames = []; let parent, worker, fatal;
     parent = createPluginPeer({ timeoutMs:timeouts.parent??600000, retainContext:timeouts.retain??(()=>()=>{}),
         runContext:timeouts.runContext??((_context,task)=>task()), dispatch, send: frame => { for (const changed of mutateParent(frame)) queueMicrotask(() => worker.receive(changed)); }, onFatal: code => { fatal = code; worker.close(code); } });
-    worker = createPluginPeer({ timeoutMs:timeouts.worker??600000, dispatch: () => { throw Error('unexpected callback'); }, send: frame => {
+    worker = createPluginPeer({ timeoutMs:timeouts.worker??600000, localCallLimits:timeouts.localCallLimits??false,
+        dispatch: () => { throw Error('unexpected callback'); }, send: frame => {
         const changed = mutate(frame); frames.push(changed); queueMicrotask(() => parent.receive(changed));
     }, onFatal: code => { fatal = code; parent.close(code); } });
     t.after(() => { parent.close(); worker.close(); assert.equal(parent.stats().reservedLargeUnits, 0);assert.equal(parent.stats().storageCredits,0); });
@@ -20,24 +21,51 @@ test('string JSON measurement matches actual escaping without allocating the who
         assert.equal(stringJSONBytes(value),Buffer.byteLength(JSON.stringify(value)));
 });
 
-test('negative reply cleans only new large descriptors and preserves ordinary published handles', async t => {
-    let expired = true, effects = 0;
-    const p = peers(t, () => { effects++; }, undefined, undefined, { runContext: (_context, task) => {
+test('pre-decode refusal restores fresh exports and preserves previously accepted handles', async t => {
+    let expired = false;
+    const accepted = [];
+    const p = peers(t, (_method, args) => { accepted.push(args[1]); }, undefined, undefined, { localCallLimits: true, runContext: (_context, task) => {
         if (expired) throw Object.assign(Error('expired'), { code: 'plugin_invocation_expired' });
         return task();
     } });
     const ordinary = new ReadableStream({ start(controller) { controller.enqueue('ordinary'); } });
+    const existingFunction = value => 'callback-' + value, existingSignal = new AbortController().signal;
+    await p.worker.call('api', ['register', [existingFunction, ordinary, existingSignal]]);
+    expired = true;
+    let cancelled = 0;
+    const fresh = new ReadableStream({ start(controller) { controller.enqueue('fresh'); }, cancel() { cancelled++; } });
     await assert.rejects(p.worker.call('api', ['localPluginStorage.setItem', ['synthetic', 'x'.repeat(5 * 1024 * 1024),
-        value => 'callback-' + value, ordinary]]), { code: 'plugin_invocation_expired' });
-    assert.equal(effects, 0);
+        existingFunction, ordinary, existingSignal, value => 'fresh-' + value, fresh, new AbortController().signal]]), { code: 'plugin_invocation_expired' });
+    assert.equal(accepted.length, 1);
     assert.equal(p.worker.stats().reservedLargeUnits, 0);
     assert.equal(p.worker.stats().largeReservations, 0);
     assert.equal(p.worker.stats().exports.streams, 1);
+    assert.equal(p.worker.stats().exports.functions, 1);
+    assert.equal(p.worker.stats().exports.signals, 1);
+    assert.equal(fresh.locked, false); assert.equal(cancelled, 0);
     expired = false;
-    const args = p.frames[0].args[1][1][1];
-    assert.equal(await p.parent.call('_callback', [args[2][1], ['still-live']]), 'callback-still-live');
-    assert.deepEqual(await p.parent.call('_pull', [args[3][1]]), { done: false, value: 'ordinary' });
-    await p.parent.call('_cancel', [args[3][1]]);
+    assert.equal(await accepted[0][0]('still-live'), 'callback-still-live');
+    const reader = accepted[0][1].getReader();
+    assert.deepEqual(await reader.read(), { done: false, value: 'ordinary' });
+    await reader.cancel();
+    assert.equal(accepted[0][2].aborted, false);
+    await p.worker.call('api', ['register', [value => 'fresh-' + value, fresh]]);
+    assert.equal(await accepted[1][0]('usable'), 'fresh-usable');
+    const freshReader = accepted[1][1].getReader();
+    assert.deepEqual(await freshReader.read(), { done: false, value: 'fresh' }); await freshReader.cancel();
+});
+
+test('repeated pre-decode refusals do not accumulate new function, stream or signal exports', async t => {
+    const p = peers(t, () => { throw Error('must not dispatch'); }, undefined, undefined,
+        { localCallLimits: true, runContext: () => { throw Object.assign(Error('expired'), { code: 'plugin_invocation_expired' }); } });
+    for (let index = 0; index < 80; index++) {
+        const stream = new ReadableStream();
+        await assert.rejects(p.worker.call('api', ['getArgument', ['ignored', () => index, stream, new AbortController().signal]]),
+            { code: 'plugin_invocation_expired' });
+        assert.equal(stream.locked, false);
+    }
+    assert.deepEqual(p.worker.stats().exports, { functions: 0, streams: 0, signals: 0 });
+    assert.equal(p.fatal, undefined);
 });
 
 test('late small and large setItem refusals leave the actual OS session healthy past the idle deadline', async t => {
