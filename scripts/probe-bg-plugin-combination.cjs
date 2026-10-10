@@ -132,6 +132,17 @@ async function close(state) {
     await state.host.close(); active.delete(state.host);
     for (const value of Object.values(state.registry)) assert.equal(value.size, 0);
     assert.equal(state.bindings.bodyInterceptors.length, 0);
+    assert.deepEqual(state.transportErrors, []);
+    assert.deepEqual(state.observed, state.profile.notices);
+    assert.equal(state.network.length, state.profile.analysisCalls);
+    assert.equal(state.writes.length, 0);
+}
+function assertDurableNotices(profile) {
+    const actual = rows().map(row => ({ index: inventory.findIndex(entry => entry.name === row.pluginName), code: row.code,
+        phase: row.phase, effectsMayHaveOccurred: row.effectsMayHaveOccurred }));
+    const intended = profile.notices.map(row => ({ ...row, effectsMayHaveOccurred: false }));
+    const sorted = values => values.map(row => JSON.stringify(row)).sort();
+    assert.deepEqual(sorted(actual), sorted(intended));
 }
 async function cleanup(state) {
     try { await state.host.close(); }
@@ -156,6 +167,7 @@ async function main() {
     for (const [index, profile] of expected.individual.entries()) {
         store('individual-' + index); results.push(await sequential(profile));
         assert.equal(rows().length, profile.notices.length);
+        assertDurableNotices(profile);
     }
     store('repeat-mixed');
     results.push(await sequential(expected.mixed));
@@ -163,12 +175,15 @@ async function main() {
     const afterReceipts = receipts();
     assert.equal(afterMixed, expected.mixed.notices.length);
     assert.equal(afterReceipts, expected.mixed.notices.length);
+    assertDurableNotices(expected.mixed);
     results.push(await sequential(expected.mixed));
     assert.equal(rows().length, afterMixed, 'repeat failure receipts must suppress only the same failures');
     assert.equal(receipts(), afterReceipts);
+    assertDurableNotices(expected.mixed);
     store('expired');
     results.push(await sequential(expected.expired));
     assert.equal(rows().length, expected.expired.notices.length);
+    assertDurableNotices(expected.expired);
     store('concurrent');
     const states = [];
     try {
@@ -189,6 +204,7 @@ async function main() {
         const closed = await settledResources(); assert.equal(closed.TasksCurrent, 0);
         assert.equal(rows().length, expected.mixed.notices.length);
         assert.equal(receipts(), expected.mixed.notices.length);
+        assertDurableNotices(expected.mixed);
         results.push({ name: 'independent-concurrent-hosts', hosts: states.length, loaded, closed,
             totalAnalysis: states.reduce((sum, state) => sum + state.network.length, 0) });
     } finally { await Promise.all(states.map(cleanup)); }

@@ -8,6 +8,8 @@ import {createHash,randomUUID} from 'node:crypto';
 
 const [targetArgument,originalArgument,fixtureArgument,outputArgument,scenario,route='raw']=process.argv.slice(2);
 const [target,original,fixturePath,output]=[targetArgument,originalArgument,fixtureArgument,outputArgument].map(p=>path.resolve(p));
+const installedDirectory=process.argv[8]?path.resolve(process.argv[8]):null;
+const installedExpectations=process.argv[9]?path.resolve(process.argv[9]):null;
 const rawProviderCases=['happy-provider','input-provider','input-blocked-provider','missing-provider','off-provider','conflict-provider','failed-registration-provider','fallback-provider','missing-fallback-provider','retry-provider'];
 const auxiliaryCases=['aux-default','aux-expanded','aux-lua-default','aux-lua-expanded'];
 const installedCases=['installed-on','installed-off','installed-expired','installed-provider'];
@@ -74,8 +76,8 @@ if(scenario==='duplicate-start')data.plugins.push({...data.plugins[0],realArg:{}
 if(scenario==='duplicate-provider')data.plugins.push({...data.plugins[1],realArg:{}});
 let installedInventory,installedExpected;
 if(installedCases.includes(scenario)){
-    const directory=path.resolve(process.argv[8]);
-    installedExpected=JSON.parse(fs.readFileSync(path.resolve(process.argv[9])));
+    const directory=installedDirectory;
+    installedExpected=JSON.parse(fs.readFileSync(installedExpectations));
     installedInventory=JSON.parse(fs.readFileSync(path.join(directory,'inventory.json')));
     assert.equal(installedInventory.length,6);
     assert.equal(installedExpected.sources.length,installedInventory.length);
@@ -194,15 +196,18 @@ try{
             diagnostics=db.prepare('SELECT value FROM kv WHERE key LIKE ?').all('internal/bg-plugin-transport/v1/%').map(r=>JSON.parse(String(r.value)));
         }finally{db.close();}
         assert.equal(journal.filter(row=>row.operationId===operationId).length,1);
+        const assertRecords=()=>{
         if(scenario==='installed-off'){
             assert.equal(events.filter(e=>e.event==='session-create').length,0);
             assert.equal(notices.length,6);assert.ok(notices.every(n=>n.api==='server_plugin_host_disabled'));
             assert.ok(notices.every(n=>n.code==='plugin_api_unsupported'&&n.phase==='load'&&n.effectsMayHaveOccurred===false));
             assert.deepEqual(notices.map(n=>n.pluginName).sort(),installedInventory.map(row=>row.name).sort());
+            assert.deepEqual(notices.map(n=>[n.pluginName,n.pluginVersion]).sort(),installedInventory.map((row,index)=>[row.name,installedExpected.pluginVersions[index]]).sort());
             assert.equal(diagnostics.length,0);
         }else{
             assert.deepEqual(events.filter(e=>e.event==='session-create').map(e=>e.sourceHash),data.plugins.map(plugin=>createHash('sha256').update(plugin.script).digest('hex')));
-            assert.ok(notices.some(n=>n.pluginName===installedExpected.managementName&&n.code==='plugin_hook_failed'&&n.phase==='load'));
+            assert.ok(notices.some(n=>n.pluginName===installedExpected.managementName&&n.code==='plugin_hook_failed'&&n.phase==='load'
+                &&n.effectsMayHaveOccurred===(route==='prepared')));
             if(scenario==='installed-expired'){
                 // Prepared input conservatively records prior effects, so the
                 // existing permission failure normalizes to a hook failure.
@@ -224,11 +229,18 @@ try{
                 assert.ok(notices.length-mandatory.length<=1);
             }
         }
+        };
+        assertRecords();
         await new Promise(resolve=>setTimeout(resolve,2300));
         assert.equal(events.filter(e=>e.event==='analysis').length,analyses.length);assert.equal(events.filter(e=>e.event==='main').length,mains.length);
-        assert.ok(!events.some(e=>e.event==='validation-error'||e.event==='socket-denied'&&!e.control));
+        assert.equal(events.filter(e=>['observation-error','validation-error','denied'].includes(e.event)||e.event==='socket-denied'&&!e.control).length,0);
+        const refreshed=new Database(path.join(runtime,'save/risuai.db'),{readonly:true});
+        try{notices=refreshed.prepare('SELECT value FROM kv WHERE key LIKE ?').all('internal/bg-notifications/v1/%').map(r=>JSON.parse(String(r.value)).event);
+            diagnostics=refreshed.prepare('SELECT value FROM kv WHERE key LIKE ?').all('internal/bg-plugin-transport/v1/%').map(r=>JSON.parse(String(r.value)));
+        }finally{refreshed.close();}
+        assertRecords();
         fs.mkdirSync(output,{recursive:true});fs.writeFileSync(path.join(output,scenario+'-'+route+'.json'),JSON.stringify({scenario,route,runtime,operationId,terminal,events,notices,journal,diagnostics,
-            analysis:analyses.length,main:mains.length,answers:1,scope:'current generated raw/prepared HTTP and normal-chat/journal with original installed combination; synthetic settings and providers; prepared seed is not browser input recovery'},null,2),{mode:0o600});
+            analysis:analyses.length,main:mains.length,answers:1,scope:'current generated raw/prepared HTTP and normal-chat/journal with original installed combination; synthetic settings and providers; prepared seed is not browser input recovery'},null,2),{mode:0o600,flag:'wx'});
         console.log(JSON.stringify({scenario,route,analysis:analyses.length,main:mains.length,answers:1,state:terminal.state,notices:notices.length}));return;
     }
     if(auxiliaryCases.includes(scenario)){
