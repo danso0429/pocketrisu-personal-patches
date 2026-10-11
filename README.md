@@ -53,8 +53,12 @@ be visible while its client marker remained uncertain and blocked the next Send.
 Only an exact validated committed receipt can transfer that marker to the existing
 hydration/ACK owner after the original attempt grace. Active or unproven work
 remains protected, and marker promotion alone never declares a result delivered.
-Actual browser settlement/next Send and server duplicate refusal after ACK pass;
-the natural-response iPhone background control remains a separate observation.
+Actual browser settlement/next Send and server duplicate refusal after ACK pass.
+The scoped iPhone control also confirms visible blocked-save notice and normal
+home/return after natural admission, with one server-generated answer saved
+before return and exact delivery ACK. Synthetic Hub outbound-denial logs remain
+separate from input/generation errors; broader provider/stream/aggregate gates
+are not supplied by this controlled result.
 
 The UI controls now initialize synthetic statistic counters and verify durable
 root writes, preserved full chat content and another Send after reopening.

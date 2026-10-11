@@ -6,6 +6,10 @@ Candidate `0.2.4-experimental.35`, BG adapter0.7.42 and lazy-chat-sync0.5.7; bas
 
 The separate [verification process and results record](POCKETRISU-G1-8-VERIFICATION-RECORD-2026-10-11.md) documents the automated sequence, withdrawn trigger-card device test, replacement iPhone notification control, observations and remaining scope.
 
+## Latest scoped closeout — 2026-10-12 KST
+
+The .39 correction and natural-response iPhone control are closed at verification record §18's scope. The user observed the previously missing blocked-save notice and normal return after the next input was admitted. Server evidence proves provider0/commit0 after the home report, later controlled generation once, exact normal-API input1/answer1/edit preservation before return, and completed/delivered/result ACK after return without a new bg-input error. Reported Hub Proxy errors are the isolated runtime's explicit outbound denial. L6 records the result without a source/version change or stable/host activation. Earlier unsupported timing/state/provider/stream/aggregate limits remain separate.
+
 ## Resulting behavior
 
 An exact already-applied receipt whose chat is absent from both metadata and hydrated storage is classified separately from pending publication. Real input finalization additionally requires unchanged persisted-root proof. Recovery does not restore the deleted chat or replay model/global/stat effects. Hydration-only absence, missing/corrupt journal and receipt/sequence mismatch remain unresolved rather than being treated as deletion.

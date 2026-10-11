@@ -53,6 +53,10 @@ R1/R2 are independent small commits with appropriate automatic gates and matched
 
 Before closing G1.8, reconcile the ordered-goals progress table, lifecycle plan/validation, latest verification record and JOURNAL waiting entries. State each completed automatic/device boundary and unresolved contract explicitly; do not turn broad G1.10/provider/stream gates into fabricated G1.8 passes. Stable/tag/host activation is not authorized by these synthetic controls.
 
+### Observed remainder closeout — 2026-10-12 KST
+
+Verification record §18 closes the .39 stored-answer marker correction and its natural-admission iPhone home/return control. The user observed the blocked-save display and later normal R7 return. Before return, actual normal-chat API evidence proves input1/answer1/provider1 and existing edit preservation after generation was released only following the home/provider0/commit0 inspection. The terminal input is completed, operation delivered/result ACKed and no new bg-input error is recorded. L6 closes result/README/version/changelog review, sweep/publication and the working structural reports. Scope remains the supported controlled-provider remainder; separate stage1/pre-admission timing, non-committed uncertainty and G1.9/G1.10/provider/aggregate boundaries are not promoted.
+
 ### Earlier failure-retest plan
 
 Current correction: the post-home provider-waiting0-call inspection and later generation/API save prove controlled generation after home, but deliberately delayed admission confirmation produced a~69s unknown notice. The subsequent natural-response Send exposed an uncertain marker left after a committed answer. Experimental.39 transfers only exact matured chat-committed markers to the existing accepted hydration/ACK owner. Source/browser reproduction and correction, counterexamples, automatic gates and pending natural-response device/delivery boundaries are recorded in verification record §18.

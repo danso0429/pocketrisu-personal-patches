@@ -4,7 +4,8 @@
 
 - Transfer an expired uncertain client marker to the existing accepted-marker recovery owner only after exact committed status/receipt/coordinate proof. Preserve original revisions, current-target checks, strict save and result ACK; retain active or unproven input protection.
 - Reuse the existing60s admission window and10s attempt budget for an awake-attempt grace. Do not replay the model, clear a marker by status alone or add durable tombstones.
-- Reproduce the old pre-POST next-Send refusal in the real input function and compiled UI. Cover pre-answer/current-answer settlement and save-confirmation wake, and verify actual next Send plus409 same-input refusal after result ACK. iPhone natural background return remains pending; hostOFF and stable release boundaries remain unchanged.
+- Reproduce the old pre-POST next-Send refusal in the real input function and compiled UI. Cover pre-answer/current-answer settlement and save-confirmation wake, and verify actual next Send plus409 same-input refusal after result ACK.
+- Close the scoped iPhone visible-notice and natural-admission home/return control: generation starts after the home observation, one answer is saved before return, exact result ACK settles, and no new input error is recorded. Synthetic Hub outbound-denial logs remain distinct; hostOFF, broader provider/stream/aggregate and stable release boundaries remain unchanged.
 
 ## 0.2.4-experimental.38 (preserve edits while answer publication recovers)
 

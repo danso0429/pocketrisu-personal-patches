@@ -398,6 +398,16 @@ Implementation/test/installer documentation commit `1df5fe1` was pushed to the e
 
 Independent readback matches installer, source/modes and all175served JS assets, reuses the immediately completed5database checks and observes authenticated capabilityHTTP200/input1/commit1/host0 and idle online state. The isolated device runtime was separately upgraded to the same corrected source/build while retaining its database, chat edits and cookie namespace. The next natural-response test is armed to return admission immediately and hold only the provider; no new user request is submitted by preparation. The user must refresh the test page, submit the disclosed new input once, move home after the composer clears and report the gesture. The operator verifies provider0/commit0 after that report, then releases and checks the ordinary chat API before return. This physical revalidation remains pending and is not supplied by the automatic browser result.
 
+### Natural-response iPhone closeout — 2026-10-12 KST
+
+The user refreshed the corrected test app, submitted the new disclosed input once and reported moving home after the composer cleared. The operator then verified that exact operation waiting with provider-finished0/commit0 and no held admission-response event. Only after that inspection was the provider released. Before user return the ordinary authenticated chat API returned200, exact input1/answer1, earlier edit preserved and provider1. Unlike the deliberately delayed-response trial, admission confirmation was not held.
+
+The user returned and reported normal operation, with only Hub Proxy errors. Post-return readback confirms the same input/answer/edit/provider counts. The durable input is completed, operation state is delivered and its result payload is absent after ACK. No bg-input error record exists after this operation's submitted time. Recent Hub error anchors were inspected independently and contain the explicit synthetic-runtime outbound denial; they predate this operation's submission and are ancillary test-environment observations, not silently erased or counted as a generation failure.
+
+The scoped remaining checks now close visible blocked-save notice, refusal/recovery edit preservation, next-Send availability after committed admission uncertainty, and natural-admission home/return with generation and canonical answer storage completed before return. The .39 source/test/installer delivery and this device result proceed through L6 documentation, version/README/changelog review, privacy sweep, candidate-branch publication and removal of the completed working L3 reports. Product source and installer remain `1df5fe1` / experimental.39; no additional source change, restart, paid call, cancellation or data cleanup is needed for this documentation closeout.
+
+This completion is bounded by the observed supported controlled-provider paths. It does not prove the separate stage1 class, delivery before the request reaches the server, internal iOS suspension, every uncertain non-committed terminal state, original paid-provider/MARP combinations, G1.9 streaming, aggregate G1.10 activation or stable release. Those boundaries are retained rather than counting all blue/green indicators or every future failure as passed.
+
 ## 관련 문서
 
 - [G1.8 구현 계획](POCKETRISU-G1-8-FAILURE-LIFECYCLE-PLAN.md)
