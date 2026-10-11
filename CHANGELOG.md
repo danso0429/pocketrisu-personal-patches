@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.2.4-experimental.35 (G1.8 failure and recovery lifecycle)
+
+- Classify exact applied receipts with both absent chat views without resurrection or effect replay; real input finalization and new journal retirement require unchanged durable-root proof.
+- Keep operation journal cache metadata without retained chat bodies. Retire only newly policy-marked input/response payloads after49h with exact receipt/reference checks and atomic compact receipts; preserve legacy journal bytes.
+- Add isolated v3 operation notices and independent durable retry intents under the existing1024-row/48h policy. Preserve input-attachment/state source metadata, existing unsupported ownership, retryable queued behavior and primary outcomes during publication failure. Derive partial-answer failure and edit/effect warnings from immutable commit facts.
+- Record native retry/fallback/exhaustion/next-send, actual process loss, browser return/lost ACK, SQLite rollback/reappearance and broad structural/runtime audits in the [G1.8 qualification record](docs/POCKETRISU-G1-8-FAILURE-LIFECYCLE-VALIDATION.md). Physical-device, paid-provider, activation and stable gates remain separate.
+
 ## 0.2.4-experimental.34 (M7 lifecycle audit repairs)
 
 - Keep settlement warnings distinct from terminal/API-limit events and separate across phases. Preserve legacy terminal receipts only with semantic ownership proof; backfill proven ownership without changing identity or expiry, and propagate transaction failure.

@@ -4,11 +4,11 @@ Personal, all-or-nothing patch delivery for PocketRisu NodeOnly. The current
 stable release is `v0.2.3`, and its complete manifest graph targets exact
 PocketRisu `v1.10.0`.
 
-The `0.2.4-experimental.34` candidate supports the unchanged original PageFold
+The `0.2.4-experimental.35` candidate supports the unchanged original PageFold
 provider's default font/emoji cache and statistics in the isolated host. Bounded
 local string transport, allocation/progress ownership and separate API budgets
 retain ordinary limits; caught local CAS refusals retain competing data and valid
-answers after a mandatory warning. BG adapter0.7.41 / Personal settings0.5.14;
+answers after a mandatory warning. BG adapter0.7.42 / Personal settings0.5.14;
 production remains hostOFF. See [M7 qualification](docs/POCKETRISU-G1-7-M7-QUALIFICATION-VALIDATION.md)
 for original-provider12, actual raw/prepared/admission and failure evidence,
 operational composition, support/activation conditions and remaining goal gates.
@@ -16,9 +16,11 @@ The follow-up audit repairs phase/receipt ownership, saturated settlement replie
 refused resource cleanup, concurrent shared exports and teardown result admission.
 Event-driven settlement preserves accepted bookkeeping without a busy wait.
 Repaired M7 qualification and independently checked OFF candidate delivery are
-closed at the documented scope. The existing absent-chat recovery classification and
-journal-retention follow-up remains explicit under G1.8; actual providers,
-device/aggregate qualification and live activation remain separate. Stable
+closed at the documented scope. [G1.8 lifecycle qualification](docs/POCKETRISU-G1-8-FAILURE-LIFECYCLE-VALIDATION.md)
+adds proven absent-target classification, metadata-only journal caches, authorized
+new-journal retirement after49h and durable v3 failure/interruption/edit/effect notices.
+Legacy journal bytes remain protected. Actual providers, physical-device/aggregate
+qualification and live activation remain separate. Stable
 remains `v0.2.3`.
 
 The preceding `0.2.4-experimental.32` candidate restores unread stream/Response and callback/
