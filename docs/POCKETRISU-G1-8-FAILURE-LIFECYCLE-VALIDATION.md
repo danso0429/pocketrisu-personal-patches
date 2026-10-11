@@ -2,6 +2,8 @@
 
 Candidate `0.2.4-experimental.35`, BG adapter0.7.42 and lazy-chat-sync0.5.7; baseline85cd2f9. See the [implementation plan](POCKETRISU-G1-8-FAILURE-LIFECYCLE-PLAN.md). This record distinguishes automated source qualification, OFF delivery and physical-device/activation gates.
 
+The separate [verification process and results record](POCKETRISU-G1-8-VERIFICATION-RECORD-2026-10-11.md) documents the automated sequence, withdrawn trigger-card device test, replacement iPhone notification control, observations and remaining scope.
+
 ## Resulting behavior
 
 An exact already-applied receipt whose chat is absent from both metadata and hydrated storage is classified separately from pending publication. Real input finalization additionally requires unchanged persisted-root proof. Recovery does not restore the deleted chat or replay model/global/stat effects. Hydration-only absence, missing/corrupt journal and receipt/sequence mismatch remain unresolved rather than being treated as deletion.
