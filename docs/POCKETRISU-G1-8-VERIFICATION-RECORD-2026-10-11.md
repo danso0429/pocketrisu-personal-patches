@@ -289,6 +289,8 @@ Server readback: two completed inputs, two provider calls, edited prior text ret
 
 The second-chat no-edit control is pending. Its procedure is to send D without editing, scroll/open the same screen, release only after actual assembly is confirmed, and verify no immediate or durable edit warning. Entire D/G1.8, the pending-publication write-fence decision, G1.9/G1.10/hostON/stable and the separate ordered-goals publication decision remain open. The applicable L3 report is retained until the complete scoped D/L6 closeout.
 
+The user also reported update and Hub server errors caused by the isolated runtime refusing other outbound requests. Hub traffic is deliberately outside the synthetic-provider boundary. The update suppression configuration was incorrect: the launch set `UPDATE_CHECK_DISABLED=1`, but official PocketRisu source reads `RISU_UPDATE_CHECK=false`. The automatic launch and private device-launch helper were corrected without altering the network boundary or production source. A fresh actual no-edit UI control passed with update-failure events0 and two Hub-refusal events, counted by their unique log anchors. After fresh checks of no active request/model/pending-send/nonterminal-input, only the isolated device process was restarted with the correct flag. Readback preserved both completed inputs, provider calls2, the edited prior text, both answers, canonical statistics2 and the ACKed edit notice. Earlier statements of no page errors/invalid saves do not mean the isolated server had no ancillary errors; update/Hub refusals are classified explicitly. The existing log entries were not erased, and a generation/commit error would still need separate diagnosis.
+
 ## 관련 문서
 
 - [G1.8 구현 계획](POCKETRISU-G1-8-FAILURE-LIFECYCLE-PLAN.md)

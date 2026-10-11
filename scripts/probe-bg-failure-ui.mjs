@@ -79,7 +79,7 @@ if (device && process.argv.includes('--prepare-device-only')) {
 }
 const server = fork(path.join(target, 'server/node/server.cjs'), [], {
   cwd: runtime, execArgv: ['--require', new URL('./probes/bg-failure-ui-preload.cjs', import.meta.url).pathname],
-  env: { ...process.env, PORT: mode==='edit-device' ? '6270' : device ? '6268' : '0', TUNNEL_DISABLED: '1', UPDATE_CHECK_DISABLED: '1',
+  env: { ...process.env, PORT: mode==='edit-device' ? '6270' : device ? '6268' : '0', TUNNEL_DISABLED: '1', RISU_UPDATE_CHECK: 'false',
     POCKETRISU_BG_PLUGIN_HOST_CANDIDATE: '0', G18_UI_PROBE: '1', G18_UI_DEVICE: device ? '1' : '0', G18_UI_FAST: fastFailure ? '1' : '0',
     G18_UI_COOKIE_NAMESPACE: isolatedCookies ? '1' : '0', G18_UI_COOKIE_NAME: mode==='edit-device'?'g18-edit-session':'g18-ui-session' },
   stdio: ['ignore', 'pipe', 'pipe', 'ipc'],
