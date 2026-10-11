@@ -9,6 +9,12 @@ if (process.env.MARP_SETTINGS_PROBE !== '1' || !process.cwd().startsWith('/tmp/m
 const emit = row => process.send?.({ ...row, at: performance.now() });
 const digest = value => createHash('sha256').update(JSON.stringify(value ?? null)).digest('hex');
 const originalLoad = Module._load;
+let noticeOutboxFault=process.env.G18_NOTICE_OUTBOX_FAULT==='1', operationNoticeOwner;
+process.on('message', row=>{
+    if(row?.event==='release-notice-outbox-fault'){
+        noticeOutboxFault=false;operationNoticeOwner.retry();emit({event:'notice-outbox-retried'});
+    }
+});
 let contextOwner, failIdentity = process.env.MARP_CONTEXT_SCENARIO === 'constructor-failure';
 process.on('message', async row => {
     if (row?.event !== 'context-mutate') return;
@@ -31,6 +37,14 @@ process.on('message', async row => {
 });
 Module._load = function(request, ...args) {
     const value = originalLoad.call(this, request, ...args);
+    if(request==='./bgOperationNotices.cjs'&&process.env.G18_NOTICE_OUTBOX_FAULT==='1')return {...value,
+        createBgOperationNotices:deps=>{
+            operationNoticeOwner=value.createBgOperationNotices({...deps,publish:event=>{
+                if(noticeOutboxFault)throw Error('synthetic operation notice outbox failure');
+                return deps.publish(event);
+            }});
+            return operationNoticeOwner;
+        }};
     if (request === './bgPluginSession.cjs') return {...value,createPluginSession:options=>{
         emit({event:'session-create',sourceHash:createHash('sha256').update(options.script).digest('hex')});
         return value.createPluginSession(options);
@@ -116,8 +130,11 @@ http.Server.prototype.listen = function(...args) {
     return listen.apply(this, args);
 };
 let released = false, analyses = 0, mains = 0;
+let nativeFailures = Number(process.env.G18_NATIVE_FAILURES || 0);
+if (!Number.isSafeInteger(nativeFailures) || nativeFailures < 0 || nativeFailures > 100) throw Error('invalid synthetic failure control');
 const waiting = new Set();
 process.on('message', message => {
+    if (message?.event === 'clear-native-failures') { nativeFailures = 0; return; }
     if (message?.event !== 'release') return;
     released = true;
     for (const done of waiting) done();
@@ -181,7 +198,7 @@ globalThis.fetch = async(input, options = {}) => {
     if (!released && ((analysis && id === 1 && gate === 'analysis') || (main && id === 1 && gate === 'main'))) {
         await hold(options.signal, (analysis ? 'analysis:' : 'main:') + id);
     }
-    if (main && id === 1 && process.env.MARP_SETTINGS_RETRY === '1') {
+    if (main && (id <= nativeFailures || (id === 1 && process.env.MARP_SETTINGS_RETRY === '1'))) {
         return Response.json({ error: { message: 'synthetic retry' } }, { status: 500 });
     }
     return Response.json({ choices: [{ index: 0, finish_reason: 'stop', message: { role: 'assistant',

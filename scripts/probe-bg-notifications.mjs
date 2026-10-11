@@ -21,8 +21,9 @@ process.chdir(runtime)
 const { chromium } = createRequire(path.join(dependencyRoot, 'package.json'))('playwright')
 const Database = createRequire(path.join(root, 'package.json'))('better-sqlite3')
 const includeMessages = process.argv.includes('--plugin-messages')
+const includeOperations = process.argv.includes('--operation-notices')
 const messageText = 'Synthetic <b>plain text</b>'
-const expectedNotices = includeMessages ? 4 : 1
+const expectedNotices = 1 + (includeMessages ? 3 : 0) + (includeOperations ? 4 : 0)
 fs.symlinkSync(path.join(root, 'dist'), path.join(runtime, 'dist'))
 fs.writeFileSync(path.join(runtime, 'package.json'), JSON.stringify({ name: 'pocketrisu', version: '1.10.0' }))
 const worker = fork(root + '/server/node/bgServerChatProcessClient.cjs', [], { cwd: runtime, stdio: ['ignore', 'pipe', 'pipe', 'ipc'] })
@@ -52,7 +53,7 @@ async function startServer() {
 }
 const rows = () => {
   const db = new Database(path.join(runtime, 'save/risuai.db'), { readonly: true })
-  try { return db.prepare("SELECT value FROM kv WHERE key LIKE 'internal/bg-notifications/v1/%'").all().map(row => JSON.parse(row.value)) }
+  try { return db.prepare("SELECT value FROM kv WHERE key LIKE 'internal/bg-notifications/v1/%' OR key LIKE 'internal/bg-notifications/v3/%'").all().map(row => JSON.parse(row.value)) }
   finally { db.close() }
 }
 async function until(predicate, label) {
@@ -115,6 +116,25 @@ try {
       }).status, 'stored')
     } finally { db.close() }
   }
+  if (includeOperations) {
+    const db = new Database(path.join(runtime, 'save/risuai.db'))
+    const req = createRequire(path.join(root, 'package.json'))
+    const deps = { db,
+      kvGet: key => db.prepare('SELECT value FROM kv WHERE key=?').get(key)?.value ?? null,
+      kvSet: (key, value) => db.prepare('INSERT OR REPLACE INTO kv (key,value,updated_at) VALUES (?,?,?)').run(key, value, Date.now()),
+      kvDel: key => db.prepare('DELETE FROM kv WHERE key=?').run(key),
+      kvList: prefix => db.prepare('SELECT key FROM kv WHERE substr(key,1,?)=?').all(prefix.length, prefix).map(row => row.key),
+    }
+    const outbox = req('./server/node/bgNotifications.cjs').createBgNotifications(deps)
+    const owner = req('./server/node/bgOperationNotices.cjs').createBgOperationNotices({ ...deps, publish: outbox.publish })
+    try {
+      for (const [code, reason] of [['operation_failed','generation_failed'],['operation_interrupted','after_main'],
+        ['chat_edit_unreflected','concurrent_edit'],['commit_effect_conflict','globals']]) {
+        assert.equal(owner.capture({ operationId:'synthetic-operation-notices', eventKey:'operation-'+code, code, reason,
+          charId:'synthetic-character',chatId:'synthetic-chat',createdAt:Date.now(),effectsMayHaveOccurred:true }),true)
+      }
+    } finally { db.close() }
+  }
   await startServer()
   let ackRequests = 0
   const second = await openHome(page => page.route('**/api/bg-notifications/ack', route => {
@@ -125,6 +145,14 @@ try {
   assert.equal(await second.page.locator('textarea').count(), 0, 'must notify on home without selecting the chat')
   if (includeMessages) for (const level of ['info', 'warning', 'error']) {
     await second.page.getByText('Synthetic (1): ' + messageText + ' ' + level, { exact: true }).waitFor()
+  }
+  if (includeOperations) {
+    for (const message of ['서버 요청이 실패했어요. 보존된 원문과 이미 저장된 결과를 확인해 주세요.',
+      'main 이후의 서버 처리 문맥이 사라졌어요. 보관된 결과를 확인해 주세요. 자동 재실행하지 않았어요.',
+      '응답은 저장했지만, 조립 이후 수정한 내용은 이번 생성에 반영되지 않았어요. 자동 재생성하지 않았어요.',
+      '답변은 저장했지만 전역 변수 변경 일부는 최신 값과 충돌해 반영하지 않았어요. 최신 값은 보존했어요.']) {
+      await second.page.getByText(message,{exact:true}).waitFor()
+    }
   }
   assert.equal(await second.page.locator('[data-sonner-toast] b').count(), 0, 'message markup must remain text')
   await until(() => rows().length === expectedNotices && rows().every(row => row.deliveredAt !== null)

@@ -8,8 +8,8 @@ const assert = require('node:assert/strict');
 const { gzipSync } = require('node:zlib');
 const [target, fixturePath] = process.argv.slice(2, 4).map(value => path.resolve(value));
 const mode = process.argv[4] ?? 'normal';
-assert.ok(['normal', 'disabled', 'crash-input', 'crash-analysis', 'cold-read', 'provider', 'provider-stream', 'provider-off',
-    'retry-after-attach', 'retry-failed-settle', 'crash-after-attach', 'publication-fault', 'two-chat', 'display-role', 'budget-api', 'restart-toggle', 'restart-toggle-queued', 'old-client'].includes(mode));
+assert.ok(['normal', 'disabled', 'crash-input', 'crash-analysis', 'crash-main', 'cold-read', 'provider', 'provider-stream', 'provider-off',
+    'retry-after-attach', 'retry-failed-settle', 'crash-after-attach', 'publication-fault', 'commit-fault-state-loss', 'two-chat', 'display-role', 'budget-api', 'restart-toggle', 'restart-toggle-queued', 'old-client'].includes(mode));
 const twoChat=['two-chat','restart-toggle-queued'].includes(mode);
 const afterAttach = ['retry-after-attach', 'retry-failed-settle', 'crash-after-attach', 'publication-fault'].includes(mode);
 const pluginProvider = mode.startsWith('provider');
@@ -76,9 +76,11 @@ async function launch(crash) {
     server = fork(path.join(target, 'server/node/server.cjs'), [], { cwd: runtime,
         execArgv: ['--require', path.join(__dirname, 'probes/bg-plugin-process-preload.cjs')],
         env: { ...process.env, PORT: '0', POCKETRISU_PLUGIN_PROCESS_PROBE: '1',
-            POCKETRISU_PLUGIN_CRASH: crash && mode !== 'crash-after-attach' ? '1' : '0', POCKETRISU_BG_PLUGIN_HOST_CANDIDATE: ['disabled', 'provider-off'].includes(mode) || mode==='restart-toggle'&&launchIndex!==2 || mode==='restart-toggle-queued'&&launchIndex>1 ? '0' : '1',
+            POCKETRISU_PLUGIN_CRASH: crash && !['crash-after-attach', 'crash-main'].includes(mode) ? '1' : '0',
+            POCKETRISU_PLUGIN_MAIN_CRASH: crash && mode === 'crash-main' ? '1' : '0', POCKETRISU_BG_PLUGIN_HOST_CANDIDATE: ['disabled', 'provider-off'].includes(mode) || mode==='restart-toggle'&&launchIndex!==2 || mode==='restart-toggle-queued'&&launchIndex>1 ? '0' : '1',
             POCKETRISU_PLUGIN_AFTER_ATTACH_FAULT: afterAttach && mode !== 'publication-fault' ? '1' : '0',
             POCKETRISU_PLUGIN_PUBLICATION_FAULT: mode === 'publication-fault' && launchIndex === 1 ? '1' : '0',
+            POCKETRISU_PLUGIN_COMMIT_SOURCE_FAULT: mode === 'commit-fault-state-loss' && launchIndex === 1 ? '1' : '0',
             POCKETRISU_PLUGIN_AFTER_ATTACH_KILL: crash && mode === 'crash-after-attach' ? '1' : '0',
             POCKETRISU_PLUGIN_SETTLE_FAULT: mode === 'retry-failed-settle' ? '1' : '0',
             POCKETRISU_PLUGIN_TWO_CHAT: twoChat ? '1' : '0',
@@ -207,6 +209,12 @@ async function main() {
             try{retained=[operationId,secondId].map(id=>JSON.parse(String(saved.prepare('SELECT value FROM kv WHERE key=?').get('internal/server-chat-input/v1/'+Buffer.from(id).toString('base64url')).value)));assert.equal(saved.prepare('PRAGMA quick_check').get().quick_check,'ok');}
             finally{saved.close();}
             assert.deepEqual(retained.map(row=>row.admission.rawText),['synthetic-question','second question']);
+            const notice=await fetch(origin+'/api/bg-notifications/claim',{method:'POST',headers,
+                body:JSON.stringify({consumerId:'synthetic-queued-restart-consumer',messageVersion:3})});
+            assert.equal(notice.status,200);
+            const interrupted=(await notice.json()).notifications.filter(row=>row.event.code==='operation_interrupted');
+            assert.deepEqual(interrupted.map(row=>row.event.operationId).sort(),[operationId,secondId].sort());
+            assert.ok(interrupted.every(row=>row.event.reason==='before_result'));
             console.log(JSON.stringify({passed:true,runtime,mode,host:[1,0],accepted:2,startupAnalysis:1,providerReplay:0,analysisReplay:0,retainedInputs:2,retry}));return;
         }
         server.send({ event: 'release-first-analysis' });
@@ -234,6 +242,29 @@ async function main() {
         assert.deepEqual(notices.map(row => row.event.code), ['plugin_message', 'plugin_message']);
         console.log(JSON.stringify({ passed: true, runtime, mode, beforeRelease: { analysis: 1, provider: 0 }, afterRelease: { analysis: 2, provider: 2 }, inputs: 2, answers: 2, crossChatHooks: 0 }));
         return;
+    }
+    if (mode === 'commit-fault-state-loss') {
+        await wait(() => events.some(row => row.event === 'terminal-state-fault'));
+        const disk = new Database(path.join(runtime, 'save/risuai.db'), { readonly: true });
+        const { operationResultKey, operationStateKey } = require(path.join(target, 'server/node/bgOrchestrationOperationStore.cjs'));
+        const { peekResult } = require(path.join(target, 'server/node/bgOrchestrationResultDelivery.cjs'));
+        const get = key => disk.prepare('SELECT value FROM kv WHERE key=?').get(key)?.value ?? null;
+        const paid = peekResult(get, operationResultKey(operationId));
+        assert.equal(paid.state, 'found'); assert.equal(paid.record.outcome, 'success');
+        assert.equal(paid.record.serverChatCommit.status, 'failed');
+        assert.deepEqual(paid.record.chat.message.filter(row => row.role === 'char').map(row => row.data), ['synthetic-answer [after] [output]']);
+        assert.equal(JSON.parse(String(get(operationStateKey(operationId)))).operationNotice, undefined);
+        disk.close(); server.kill('SIGKILL'); await once(server, 'exit');
+        origin = await launch(false); headers = await credentials(origin, stamp);
+        const notice = await fetch(origin + '/api/bg-notifications/claim', { method: 'POST', headers,
+            body: JSON.stringify({ consumerId: 'synthetic-commit-fault-consumer', messageVersion: 3 }) });
+        assert.equal(notice.status, 200);
+        assert.deepEqual((await notice.json()).notifications.filter(row => row.event.code === 'operation_failed')
+            .map(row => row.event.reason), ['commit_failed']);
+        assert.equal(events.filter(row => row.event === 'provider').length, 1);
+        assert.equal(events.filter(row => row.launchIndex === 2 && (row.event === 'provider' || row.event === 'analysis')).length, 0);
+        console.log(JSON.stringify({ passed: true, runtime, mode, durablePaidAnswer: 1, commit: 0,
+            commitFailureNotice: 1, providerReplay: 0, analysisReplay: 0 })); return;
     }
     if (mode === 'provider-off') {
         const result = await wait(async () => {
@@ -265,6 +296,12 @@ async function main() {
         assert.equal(retained.chat.message.filter(message => message.role === 'user').length, 1);
         assert.equal(events.filter(message => message.event === 'analysis').length, 1);
         assert.equal(events.filter(message => message.event === 'provider').length, 0);
+        if (mode === 'crash-after-attach') {
+            const notice = await fetch(origin + '/api/bg-notifications/claim', { method: 'POST', headers,
+                body: JSON.stringify({ consumerId: 'synthetic-attached-notice-consumer', messageVersion: 3 }) });
+            assert.equal(notice.status, 200);
+            expectAttachedNotice(await notice.json());
+        }
         console.log(JSON.stringify({ passed: true, runtime, mode, startupEffects: 1, retryStatus: 409,
             reason: retryBody.reason, input: 1, providerReplay: 0 }));
         return;
@@ -318,10 +355,20 @@ async function main() {
         const status = await statusResponse.json();
         if (mode === 'crash-input') assert.equal(status.state, 'input-transform-unknown');
         await new Promise(resolve => setTimeout(resolve, 2000));
-        assert.equal(events.filter(message => message.event === 'provider' || message.event === 'analysis').length, 0);
-        assert.equal(events.filter(message => message.event === 'analysis-crash').length, 1);
+        assert.equal(events.filter(message => message.launchIndex === 2 && (message.event === 'provider' || message.event === 'analysis')).length, 0);
+        assert.equal(events.filter(message => message.event === 'provider').length, mode === 'crash-main' ? 1 : 0);
+        assert.equal(events.filter(message => message.event === 'analysis').length, mode === 'crash-main' ? 1 : 0);
+        assert.equal(events.filter(message => message.event === (mode === 'crash-main' ? 'main-crash' : 'analysis-crash')).length, 1);
+        const noticeResponse = await fetch(origin + '/api/bg-notifications/claim', { method: 'POST', headers,
+            body: JSON.stringify({ consumerId: 'synthetic-crash-notice-consumer', messageVersion: 3 }) });
+        assert.equal(noticeResponse.status, 200);
+        const notices = (await noticeResponse.json()).notifications;
+        assert.deepEqual(notices.filter(row => row.event.code === 'operation_interrupted').map(row => row.event.reason), ['before_result']);
+        assert.ok(notices.every(row => row.event.code === 'operation_interrupted' || row.event.code === 'plugin_message'));
+        const retained = await read();
+        assert.equal(retained.chat.message.filter(row => row.role === 'char').length, 0);
         console.log(JSON.stringify({ passed: true, runtime, mode, launches, durableEffect: 1,
-            providerReplay: 0, analysisReplay: 0, retryStatus: retry.status, state: status.state }));
+            providerReplay: 0, analysisReplay: 0, interruptedNotice: 1, retryStatus: retry.status, state: status.state }));
         return;
     }
     const completed = await wait(async () => { const { chat } = await read(); return chat.message.some(message => message.role === 'char') ? chat : null; });
@@ -379,6 +426,10 @@ async function main() {
     console.log(JSON.stringify({ passed: true, runtime, input: users.length, answer: answers.length,
         nativeProviderFetches: provider.length, pluginProviderCalls: pluginProvider ? 1 : 0,
         analysis: 1, notices: notices.length, conversationHeader: true, mode }));
+}
+function expectAttachedNotice(body) {
+    assert.deepEqual(body.notifications.filter(row => row.event.code === 'operation_interrupted')
+        .map(row => row.event.reason), ['before_result']);
 }
 main().catch(error => {
     console.error(JSON.stringify({ passed: false, runtime, error: error.message,

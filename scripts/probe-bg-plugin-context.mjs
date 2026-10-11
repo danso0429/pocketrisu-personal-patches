@@ -14,8 +14,10 @@ const rawProviderCases=['happy-provider','input-provider','input-blocked-provide
 const auxiliaryCases=['aux-default','aux-expanded','aux-lua-default','aux-lua-expanded'];
 const installedCases=['installed-on','installed-off','installed-expired','installed-provider','installed-pagefold','installed-pagefold-cache','installed-pagefold-stat-conflict'];
 const pagefoldCase=scenario.startsWith('installed-pagefold');
+const nativeCases=['native-retry-0','native-retry-1','native-retry-2','native-fallback','native-final-failure','native-final-failure-outbox'];
+const nativeFailure=scenario.startsWith('native-final-failure');
 const pagefoldFont=pagefoldCase?path.resolve(process.argv[10]):null;
-assert.ok(['script','insert','value-copy','cache-evict','root-failure','constructor-failure','duplicate-start','selected-provider','duplicate-provider','nonselected-provider',...rawProviderCases,...auxiliaryCases,...installedCases].includes(scenario));
+assert.ok(['script','insert','value-copy','cache-evict','root-failure','constructor-failure','duplicate-start','selected-provider','duplicate-provider','nonselected-provider',...rawProviderCases,...auxiliaryCases,...installedCases,...nativeCases].includes(scenario));
 assert.ok(['raw','prepared'].includes(route));
 const require=createRequire(path.join(target,'package.json')),Database=require('better-sqlite3');
 const runtime=fs.mkdtempSync('/tmp/marp-settings-context-');process.chdir(runtime);
@@ -29,6 +31,11 @@ assert.equal(data.characters[0].chats[0].id,'synthetic-chat');assert.equal(data.
 data.characters[0].triggerscript=[];
 data.statics={...(data.statics??{}),messages:Number.isSafeInteger(data.statics?.messages)?data.statics.messages:0};
 data.plugins=[{name:'risu_multiagent',version:'3.0',enabled:true,script,realArg:{}}];
+if(nativeCases.includes(scenario)){
+    data.aiModel=data.subModel='gpt35';data.openAIKey='synthetic-only';data.nodeOnlyModelModeLock='legacy';data.characters[0].chats[0].useModelPreset=false;
+    data.requestRetrys=scenario.startsWith('native-retry-')?Number(scenario.at(-1)):nativeFailure?1:0;
+    data.fallbackModels={...data.fallbackModels,model:scenario==='native-fallback'?['gpt35','gpt4o']:[],submodel:[]};
+}
 data.pluginCustomStorage={risu_multiagent_lite_config_vault_v1:{config:{provider:'openai',baseUrl:'https://analysis.example.test/v1',apiKey:'synthetic-only',model:'fixture-A',
     agents:Object.fromEntries(['worldbuilding','plot','character'].map(name=>[name,{enabled:true,model:'fixture-'+name}]))}}};
 const provider=scenario.endsWith('provider'),selected=['selected-provider','duplicate-provider',...rawProviderCases].includes(scenario);
@@ -129,7 +136,9 @@ const events=[],server=fork(path.join(target,'server/node/server.cjs'),[],{cwd:r
         MARP_INSTALLED_PROBE:installedCases.includes(scenario)?'1':'0',
         MARP_PAGEFOLD_FONT:pagefoldFont??'',MARP_PAGEFOLD_TARGET:pagefoldCase?target:'',
         MARP_PAGEFOLD_STATS_GATE:scenario==='installed-pagefold-stat-conflict'?'1':'0',
-        MARP_SETTINGS_GATE:['duplicate-start','duplicate-provider','constructor-failure',...rawProviderCases,...auxiliaryCases,...installedCases].includes(scenario)?'':'analysis',
+        G18_NATIVE_FAILURES:nativeCases.includes(scenario)?String(nativeFailure?100:scenario==='native-fallback'?1:Number(scenario.at(-1))):'0',
+        G18_NOTICE_OUTBOX_FAULT:scenario==='native-final-failure-outbox'?'1':'0',
+        MARP_SETTINGS_GATE:['duplicate-start','duplicate-provider','constructor-failure',...rawProviderCases,...auxiliaryCases,...installedCases,...nativeCases].includes(scenario)?'':'analysis',
         MARP_AUX_CALLER_PROBE:auxiliaryCases.includes(scenario)?'1':'0',MARP_CONTEXT_SCENARIO:scenario},stdio:['ignore','pipe','pipe','ipc']});
 server.on('message',row=>events.push(row));const log=fs.createWriteStream(path.join(runtime,'server.log'));server.stdout.pipe(log);server.stderr.pipe(log);
 const wait=async task=>{const end=Date.now()+60000;while(Date.now()<end){if(server.exitCode!==null||server.signalCode!==null)throw Error('context server exited before assertion');const value=await task();if(value)return value;await new Promise(r=>setTimeout(r,50));}throw Error('context probe deadline');};
@@ -164,7 +173,7 @@ try{
             body:Buffer.from(JSON.stringify({version:1,total:{requests:2,successes:2},daily:{},routes:{},recent:[]}))});
         assert.equal(write.status,200,await write.clone().text());server.send({event:'release'});
     }
-    if(!['duplicate-start','duplicate-provider','constructor-failure',...rawProviderCases,...auxiliaryCases,...installedCases].includes(scenario)){
+    if(!['duplicate-start','duplicate-provider','constructor-failure',...rawProviderCases,...auxiliaryCases,...installedCases,...nativeCases].includes(scenario)){
         await wait(()=>events.some(e=>e.event==='analysis'));
         if(scenario==='cache-evict'){
             const key=Buffer.from('database/database.bin').toString('hex');
@@ -199,6 +208,61 @@ try{
     assert.notEqual(terminal.state,'cancelled');
     const response=await fetch(origin+'/api/chat-content/synthetic-character/0',{headers});assert.equal(response.status,200);
     const chat=await decodeRisuSave(new Uint8Array(await response.arrayBuffer()));
+    if(nativeCases.includes(scenario)){
+        const failed=nativeFailure;
+        const mains=events.filter(e=>e.event==='main'),analysis=events.filter(e=>e.event==='analysis');
+        const expectedAttempts=scenario.startsWith('native-retry-')?Number(scenario.at(-1))+1:2;
+        assert.equal(mains.length,expectedAttempts);
+        // Prepared fixtures seed one saved user message before launching;
+        // raw fixtures attach one through the actual input command.
+        assert.equal(chat.message.filter(m=>m.role==='user').length,1);
+        assert.equal(chat.message.filter(m=>m.role==='char').length,failed?0:1);
+        if(scenario==='native-fallback')assert.deepEqual(mains.map(e=>e.body.model),['gpt-3.5-turbo','gpt-4o']);
+        const db=new Database(path.join(runtime,'save/risuai.db'),{readonly:true});
+        let notices=db.prepare("SELECT value FROM kv WHERE key LIKE 'internal/bg-notifications/v3/%'").all().map(r=>JSON.parse(String(r.value)).event);
+        const commits=db.prepare("SELECT value FROM kv WHERE key LIKE 'internal/server-chat-commit/v1/%'").all().map(r=>JSON.parse(String(r.value)));
+        if(scenario==='native-final-failure-outbox'){
+            assert.deepEqual(notices,[]);
+            const intents=db.prepare("SELECT value FROM kv WHERE key LIKE 'internal/bg-operation-notice-intents/v1/%'").all().map(r=>JSON.parse(String(r.value)));
+            assert.equal(intents.length,1);assert.equal(intents[0].settled,null);assert.equal(intents[0].event.code,'operation_failed');
+        }
+        db.close();
+        if(scenario==='native-final-failure-outbox'){
+            server.send({event:'release-notice-outbox-fault'});
+            await wait(()=>events.some(e=>e.event==='notice-outbox-retried'));
+            const retryDb=new Database(path.join(runtime,'save/risuai.db'),{readonly:true});
+            try{notices=retryDb.prepare("SELECT value FROM kv WHERE key LIKE 'internal/bg-notifications/v3/%'").all().map(r=>JSON.parse(String(r.value)).event);}
+            finally{retryDb.close();}
+            assert.equal(events.filter(e=>e.event==='main').length,expectedAttempts);
+        }
+        assert.equal(notices.filter(e=>e.code==='operation_failed').length,failed?1:0);
+        assert.equal(commits.length,failed?0:1);
+        let nextHealthy=null;
+        if(failed&&route==='raw'){
+            server.send({event:'clear-native-failures'});
+            const nextId=randomUUID();
+            const nextBody={...body,operationId:nextId,currentChat:chat,baseChatRevision:response.headers.get('x-chat-revision'),
+                inputCommand:{inputCommandId:'input-'+nextId,userMessageId:'user-'+nextId,rawText:'Next healthy input',
+                    settingsSnapshotRef:'synthetic-client-hint',submittedAt:Date.now()}};
+            const sent=await fetch(origin+'/api/bg-orchestrate',{method:'POST',headers,body:JSON.stringify(nextBody)});
+            assert.equal(sent.status,200);assert.equal((await sent.json()).started,true);
+            await wait(()=>{const db=new Database(path.join(runtime,'save/risuai.db'),{readonly:true});try{
+                const value=db.prepare('SELECT value FROM kv WHERE key=?').get('bg-orch-state-op:'+nextId)?.value;
+                return value&&JSON.parse(String(value)).state==='chat-committed';}finally{db.close();}});
+            const restored=await fetch(origin+'/api/chat-content/synthetic-character/0',{headers});assert.equal(restored.status,200);
+            const healthy=await decodeRisuSave(new Uint8Array(await restored.arrayBuffer()));
+            assert.equal(healthy.message.filter(m=>m.role==='user').length,2);
+            assert.equal(healthy.message.filter(m=>m.role==='char').length,1);
+            assert.equal(events.filter(e=>e.event==='main').length,expectedAttempts+1);
+            nextHealthy={input:2,answers:1,additionalMain:1};
+        }
+        assert.equal(events.filter(e=>['observation-error','validation-error','denied'].includes(e.event)).length,0);
+        fs.writeFileSync(output,JSON.stringify({scenario,route,runtime,analysis:analysis.length,main:mains.length,
+            mainModels:mains.map(e=>e.body.model),input:chat.message.filter(m=>m.role==='user').length,
+            answers:chat.message.filter(m=>m.role==='char').length,commit:commits.length,notices,nextHealthy,events,
+            scope:'actual generated native retry/fallback/main failure with unchanged original MARP and synthetic transport'},null,2),{mode:0o600,flag:'wx'});
+        console.log(JSON.stringify({scenario,route,analysis:analysis.length,main:mains.length,answers:failed?0:1,notices:notices.length}));return;
+    }
     if(scenario==='installed-pagefold-stat-conflict'){
         assert.equal(terminal.state,'chat-committed');assert.equal(chat.message.filter(m=>m.role==='user').length,1);assert.equal(chat.message.filter(m=>m.role==='char').length,1);
         assert.equal(chat.message.find(m=>m.role==='char').data,'Synthetic PageFold answer');

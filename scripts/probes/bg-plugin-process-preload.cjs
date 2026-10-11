@@ -5,6 +5,25 @@ const os = require('node:os');
 const Module = require('node:module');
 if (process.env.POCKETRISU_PLUGIN_PROCESS_PROBE !== '1'
     || !process.cwd().startsWith(path.join(os.tmpdir(), 'pocketrisu-plugin-process-'))) throw Error('Synthetic probe only');
+if (process.env.POCKETRISU_PLUGIN_COMMIT_SOURCE_FAULT === '1') {
+    const load = Module._load;
+    Module._load = function(name, parent, ...rest) {
+        const value = load.call(this, name, parent, ...rest);
+        if (name === './serverChatCommitOwner.cjs' && parent?.filename.endsWith('/server/node/server.cjs')) {
+            return { ...value, createServerChatCommitOwner: deps => ({ ...value.createServerChatCommitOwner(deps),
+                async commitGenerationResult() { throw Error('synthetic canonical commit failure'); } }) };
+        }
+        if (name === './bgOrchestrator.cjs' && parent?.filename.endsWith('/server/node/server.cjs')) {
+            return (app, deps) => value(app, { ...deps, kvSet(key, record) {
+                if (key.startsWith('bg-orch-state-op:') && JSON.parse(String(record)).state === 'result-ready') {
+                    process.send?.({ event: 'terminal-state-fault' }); throw Error('synthetic terminal state write failure');
+                }
+                return deps.kvSet(key, record);
+            } });
+        }
+        return value;
+    };
+}
 if (process.env.POCKETRISU_PLUGIN_PUBLICATION_FAULT === '1') {
     const load = Module._load;
     Module._load = function (name, parent, ...rest) {
@@ -79,6 +98,10 @@ globalThis.fetch = async (input, options) => {
     if (url.startsWith('https://api.openai.com/v1/chat/completions')) {
         const body = JSON.parse(typeof options?.body === 'string' ? options.body : Buffer.from(options.body).toString('utf8'));
         process.send?.({ event: 'provider', body });
+        if (process.env.POCKETRISU_PLUGIN_MAIN_CRASH === '1') {
+            process.send?.({ event: 'main-crash' }, () => process.kill(process.pid, 'SIGKILL'));
+            return new Promise(() => {});
+        }
         return Response.json({ id: 'synthetic-completion', choices: [{ index: 0, finish_reason: 'stop',
             message: { role: 'assistant', content: 'synthetic-answer' } }], usage: { prompt_tokens: 10, completion_tokens: 5, total_tokens: 15 } });
     }
