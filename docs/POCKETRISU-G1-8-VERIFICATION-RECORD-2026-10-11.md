@@ -147,7 +147,7 @@ L5는 현재 시작하지 않는다. 입력이 확실히 저장/채택된 최종
 
 ## 10. 수정 후 재재검증 — 2026-10-11
 
-사용자 승인으로 §9의 차단을 수정했다. 후보는 `0.2.4-experimental.36`, adapter `0.7.43`이며 기준 commit은 `8a530d8`, 구현은 `abdd81f`, 시험/문서 후속은 `a52fbdd`다. 자동 검증과 OFF 전달·독립 readback을 마쳤다. 실제 iPhone L5는 사용자 결과 대기다.
+사용자 승인으로 §9의 차단을 수정했다. 후보는 `0.2.4-experimental.36`, adapter `0.7.43`이며 기준 commit은 `8a530d8`, 구현은 `abdd81f`, 시험/문서 후속은 `a52fbdd`다. 자동 검증과 OFF 전달·독립 readback을 마쳤다. 실제 iPhone L5는 사용자 결과 대기다. **이 절의 이전 UI 성공은 다음 Send/답변 범위였으며, 이후 root 저장 오류를 놓친 것을 §11에서 정정했다. 최신 시험 준비/저장 검증은 §11을 따른다.**
 
 ### 수정한 동작
 
@@ -187,6 +187,35 @@ Opus 5.5 source 검수에서 ACK 권한·원자성·늦은 발행 무효화·편
 수정 범위는 입력 receipt가 있고 현재 채팅의 원문을 확인할 수 있는 anchored 무답변 최종 실패다. 실패 입력을 의도적으로 삭제한 경우에는 부활시키지 않으며 기존 서버 predecessor fence가 남는다. 미확정 저장·evicted snapshot·부분 답변·실행 불확정·receipt 없는 만료 결과는 임의 정산하지 않는다. 이 조건을 일반적인 모든 실패/삭제 복구 완료로 확대하지 않는다.
 
 기기 시험은 정규 소스와 원본 플러그인·저장 권한 답을 사용하는 별도 합성 데이터 인스턴스에서 A/B/C로 수행한다. 유료 공급자를 호출하지 않으며, 해당 결과는 운영 사용자 DB나 실제 provider/hostON/stream/aggregate qualification과 구분한다. 실제 iPhone warm 복귀는 별도 사용자 관찰이며 홈 이동/잠금만으로 내부 OS suspension을 단정하지 않는다.
+
+## 11. 시험 통계 초기화 결함과 root 저장 검증 보강
+
+사용자가 B 준비 중 `Server rejected an invalid database update: server statistic count is invalid`와 전송 차단을 보고했다. 격리 DB의 root는 `statics:{}`이고 서버 답변 적용 ledger가1개였다. 실제 `copyServerOwnedRootState(current,current)`를 읽기 전용으로 실행해 같은 거절을 재현했다. 입력/답변 owner는 정상 원문·답변을 보존했지만 화면 설정/채팅 선택의 root 저장은 막힌 상태였다.
+
+### 원인 및 이전 claim 정정
+
+시험 seed의 `statics:{}`가 native `statics ??= {messages:0, imports:0}` 초기화를 건너뛰었다. A 답변 receipt의 stats는 `skipped`/delta0이었고 원문/답변 저장 성공은 정상 숫자 통계나 이후 browser root 쓰기를 검증하지 않았다. 이전 자동 UI 로그에도 동일 invalid-db 오류가 있었다. `pageErrors0`와 정상 답변만으로 시험 준비를 완료한 판단은 철회한다. §10의 source/ACK 정산, 빌드·suite·graph·OFF 전달 관찰은 각 실행 범위로 보존하되 root 저장 정상으로 확대하지 않는다. SQLite 파일 무결성과 애플리케이션 root 필드 유효성도 별개다.
+
+### 수정과 새 관찰
+
+제품 저장 검사는 변경하지 않았다. 유지 UI probe는 합성 seed의 누락된 통계 필드만 native 기본값으로 채우고 이미 존재하는 잘못된 값은 거절한다. 이 처리는 fixture 보정이며 native 하위 필드 migration을 흉내 낸다는 주장이 아니다. 자동 전용 `--invalid-stats-control`은 기존 불완전한 seed를 보존해 새 검사가 실패하는지 확인한다.
+
+검사는 console/DOM 오류·native dialog·DB 쓰기 non-2xx body를 수집한다. 답변 commit 뒤 실제 UI 채팅 전환/복귀로 root bytes와 선택 metadata가 저장되는 것을 확인하고, lazy root의 부분 메시지 대신 full canonical chat API로 원문/답변 보존을 대조한다. 재실행 뒤 실제 Send를 추가해 원문3·답변2·정상 main2·실패 main2·실패 알림1·표식0과 두 stats commit 각각 delta1/최종 count2를 검사한다. 비동기 영속 반영을 기존 bounded wait로 관찰하며 즉시 읽은 값으로 단정하지 않는다.
+
+| 새 시험 | 관찰 |
+|---|---|
+| 정상 seed / 전면 실제 Send | root 저장·재실행·추가 Send·원문3/답변2·stats2 통과 |
+| 정상 seed / 종료·재실행·쿠키 격리 | root 저장·추가 Send·원문3/답변2·stats2 통과 |
+| 즉시 실패 / 실제 result ACK 응답만 유실 | 동일 저장·추가 전송·통계 검증 통과 |
+| N+1 실제 UI 접수 / polling 지연 | 동일 저장·추가 전송·통계 검증 통과 |
+| 기존 `statics:{}` negative control | `canonical statistic count must remain valid after server answer commit` assertion으로 실패; skip/약화 없이 잘못된 seed를 검출 |
+| 같은 사용자 시험 HTTPS | 실제 로그인/capability200/host0/쿠키 보존·UI 채팅 전환 root 저장/복귀·A canonical 메시지 보존 통과 |
+
+기존 격리 DB는 terminal 입력/작업·ACK 완료·stats delta0/no effect를 확인하고 exact root bytes와 전체 합성 SQLite 사본을 보관했다. 시험 프로세스만 정지한 뒤 누락 `messages/imports` 두 필드에0을 넣었다. codec 왕복에서 두 필드 외 deep equality, 옛 bytes를 조건으로 한 UPDATE1행, 나머지 kv key/value/timestamp hash 불변을 검증했다. 이0은 기록된 계약과 일치하는 최소 기본값이며 실제 사용량 복원이나 A 통계 검증이 아니다. A 기록/로그인은 보존하고 운영 데이터·프로세스·저장 guard·tag는 바꾸지 않았다. 기존 시험 탭은 이전 메모리 상태를 버리도록 새로고침해야 한다.
+
+Opus 계획 검수에서 commit owner의 malformed 통계 허용과 이후 projection 거절의 비대칭도 source surface로 확인했다. 운영 root의 숫자 형식은 chunk-aware read-only 조회에서 정상 safe nonnegative integer였다; 값/사용자 콘텐츠는 출력하지 않았다. 잘못된 통계 root의 publication precondition은 별도 미해결 계약으로 남기며 이번 fixture 보정을 제품 수리로 주장하지 않는다. 실제 iPhone B/C·새 통계 경로는 사용자 결과 대기이고 hostON/실제 provider/aggregate/stable은 여전히 미통과다.
+
+Opus 최종 source 검수는 한정된 B 재개 차단 요소를 발견하지 않았다. 이후 unexpected native dialog 부재와 모든 관찰된 rejected-save body 수집 완료를 assertion으로 보강하고 전면·closed·lost ACK·queued 네 경로를 다시 통과했다. 정상 hash-conflict409 뒤 실제 durable root 저장 성공을 확인하며 통계 거절과 구분했다. Negative control은 UI 저장 전에 canonical count assertion으로 실패하므로 console/dialog/body/DOM 검출 채널 자체의 negative qualification은 아니다. 그 채널은 보조 수단이고 긍정 근거는 실제 영속 metadata와 full chat/API·추가 Send·stats receipt다. 기기 모드에서는 자동 browser assertion이 돌지 않으므로 사용자 문구와 시험 로그·root/receipt를 별도로 대조한다. 이전 A의 제한은 유지한다.
 
 ## 관련 문서
 

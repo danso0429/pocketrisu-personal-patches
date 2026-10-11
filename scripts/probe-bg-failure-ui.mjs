@@ -14,6 +14,8 @@ const fastFailure = process.argv.includes('--fast-failure');
 const loseResultAck = process.argv.includes('--lose-result-ack');
 const queueNext = process.argv.includes('--queue-next');
 const isolatedCookies = device || process.argv.includes('--isolate-cookies');
+const invalidStatsControl = process.argv.includes('--invalid-stats-control');
+assert.ok(!device || !invalidStatsControl, 'Invalid fixture control is automatic-only');
 const req = createRequire(path.join(target, 'package.json'));
 const Database = req('better-sqlite3');
 const runtime = fs.mkdtempSync(path.join(path.dirname(output), device ? 'g18-ui-device-' : 'g18-ui-auto-'));
@@ -21,12 +23,22 @@ process.chdir(runtime);
 const { decodeRisuSave } = req('./server/node/utils.cjs');
 const password = device ? randomBytes(6).toString('hex') : 'synthetic-ui-password';
 const data = JSON.parse(fs.readFileSync(fixtureFile));
+// Correct the synthetic seed, not the production validator. Native ??= only
+// initializes a missing statics object; this fixture previously supplied {}.
+if (!invalidStatsControl) {
+  data.statics ??= { messages: 0, imports: 0 };
+  assert.ok(typeof data.statics === 'object' && !Array.isArray(data.statics));
+  for (const field of ['messages', 'imports']) {
+    if (data.statics[field] === undefined) data.statics[field] = 0;
+    assert.ok(Number.isSafeInteger(data.statics[field]) && data.statics[field] >= 0, 'Invalid synthetic statistic: ' + field);
+  }
+}
 data.aiModel = data.subModel = 'gpt35'; data.openAIKey = 'synthetic-only';
 data.nodeOnlyModelModeLock = 'legacy'; data.moduleModelBindingsEnabled = false;
 data.requestRetrys = 1; data.fallbackModels = { ...data.fallbackModels, model: [], submodel: [] };
 data.characters[0].name = 'G1.8 재검증'; data.characters[0].triggerscript = [];
 const originalChat = data.characters[0].chats[0];
-data.characters[0].chats = (device ? ['전면 테스트', '복귀 테스트', '종료 테스트'] : ['UI test']).map((name, index) => ({
+data.characters[0].chats = (device ? ['전면 테스트', '복귀 테스트', '종료 테스트'] : ['UI test', 'UI save check']).map((name, index) => ({
   ...structuredClone(originalChat), id: index ? 'synthetic-chat-' + index : 'synthetic-chat', name,
   useModelPreset: false, message: [],
 }));
@@ -73,6 +85,13 @@ const readRows = prefix => {
   try { return db.prepare('SELECT value FROM kv WHERE key LIKE ?').all(prefix + '%').map(row => JSON.parse(String(row.value))); }
   finally { db.close(); }
 };
+async function readDatabase() {
+  const db = new Database(path.join(runtime, 'save/risuai.db'), { readonly: true });
+  try {
+    const bytes = db.prepare("SELECT value FROM kv WHERE key='database/database.bin'").get().value;
+    return { bytes: Buffer.from(bytes), data: await decodeRisuSave(new Uint8Array(bytes)) };
+  } finally { db.close(); }
+}
 async function until(fn, label) {
   for (let index = 0; index < 600; index++) { if (await fn()) return; if (server.exitCode !== null) throw Error('Server stopped'); await new Promise(r => setTimeout(r, 100)); }
   throw Error('Timeout: ' + label);
@@ -86,7 +105,11 @@ if (device) {
   const browser = await chromium.launch({ headless: true, executablePath: process.env.G18_CHROMIUM || chromium.executablePath() }).catch(async error => {
     server.kill('SIGTERM'); await once(server, 'exit'); throw error;
   });
-  const pageErrors = [], responses = [], snapshots = [], consoleEvents = [];
+  const pageErrors = [], responses = [], snapshots = [], consoleEvents = [], dialogs = [], saveResponses = [], saveBodyTasks = [];
+  function assertNoInvalidSave() {
+    assert.equal([...consoleEvents, ...dialogs, ...saveResponses.map(row => row.body || '')].some(text => text.includes('Server rejected an invalid database update') || text.includes('server statistic count is invalid')), false,
+      'browser database write must not be rejected');
+  }
   let context, page, backgroundPage, lostAcks = 0, delayedPolls = 0, releasePolls;
   const pollGate = new Promise(resolve => { releasePolls = resolve; });
   async function open(storageState) {
@@ -108,8 +131,17 @@ if (device) {
       } else await route.fallback();
     });
     page = await context.newPage(); page.on('pageerror', e => pageErrors.push(e.message));
+    page.on('dialog', dialog => { dialogs.push(dialog.message()); void dialog.dismiss(); });
     page.on('console', message => { if (message.type() === 'error' || message.text().includes('[bg-orch]')) consoleEvents.push(message.text()); });
     page.on('response', r => { if (r.url().includes('/api/bg-orchestrate')) responses.push({ url: new URL(r.url()).pathname, status: r.status() }); });
+    page.on('response', r => {
+      const request = r.request();
+      if (!['GET','HEAD'].includes(request.method()) && /\/api\/(?:write|patch|db)/.test(new URL(r.url()).pathname)) {
+        const row = { path: new URL(r.url()).pathname, method: request.method(), status: r.status() };
+        saveResponses.push(row);
+        if (r.status() >= 400) saveBodyTasks.push(r.text().then(text => { row.body = text.slice(0, 1000); }).catch(() => { row.bodyError = 'response-body-unavailable'; }));
+      }
+    });
     await page.goto(origin, { waitUntil: 'domcontentloaded' });
     if (!storageState) {
       await page.getByText('Input your password.', { exact: false }).waitFor();
@@ -183,6 +215,31 @@ if (device) {
     assert.equal(healthy.message.filter(row => row.role === 'user')[0].chatId, failedChat.message.find(row => row.role === 'user').chatId);
     assert.deepEqual(healthy.message.filter(row => row.role === 'char').map(row => row.data), ['G1.8 정상 응답 확인 완료']);
     assert.equal(events.filter(row => row.event === 'main' && !row.failed).length, 1);
+    // A successful answer alone did not prove root writes. Change actual UI
+    // chat metadata after commit and observe durable storage, then return.
+    const rootBefore = await readDatabase();
+    assertNoInvalidSave();
+    assert.ok(Number.isSafeInteger(rootBefore.data.statics?.messages) && rootBefore.data.statics.messages >= 0,
+      'canonical statistic count must remain valid after server answer commit');
+    const { copyServerOwnedRootState } = req('./server/node/serverChatExecutionProjection.cjs');
+    assert.doesNotThrow(() => copyServerOwnedRootState(rootBefore.data, rootBefore.data));
+    await page.locator('[data-risu-chat-idx="1"]').click();
+    await until(async () => {
+      assertNoInvalidSave();
+      assert.equal(await page.getByText('Server rejected an invalid database update', { exact: false }).count(), 0);
+      return (await readDatabase()).data.characters[0].chatPage === 1;
+    }, 'UI chat switch must persist after server answer commit');
+    const rootAfter = await readDatabase();
+    assert.notDeepEqual(rootAfter.bytes, rootBefore.bytes, 'root bytes must change after UI save');
+    assert.ok(Number.isSafeInteger(rootAfter.data.statics.messages) && rootAfter.data.statics.messages >= 0);
+    const savedChatResponse = await fetch(origin + '/api/chat-content/synthetic-character/0', { headers: apiHeaders });
+    assert.equal(savedChatResponse.status, 200);
+    const savedChat = await decodeRisuSave(new Uint8Array(await savedChatResponse.arrayBuffer()));
+    // Lazy root metadata can omit unhydrated messages. Compare full canonical
+    // chat reads across the root write, not a partial root chat placeholder.
+    assert.deepEqual(savedChat.message, healthy.message);
+    await page.locator('[data-risu-chat-idx="0"]').click();
+    await until(async () => { assertNoInvalidSave(); return (await readDatabase()).data.characters[0].chatPage === 0; }, 'return chat metadata must persist');
     await until(() => readRows('internal/bg-notifications/v3/')[0].deliveredAt !== null, 'delivery ACK');
     const after = await context.storageState(); await context.close(); await open(after);
     await page.waitForTimeout(5500);
@@ -190,7 +247,34 @@ if (device) {
     assert.equal(readRows('internal/bg-notifications/v3/').length, 1);
     assert.equal(await page.evaluate(() => Object.keys(localStorage).filter(key => key.startsWith('bg-server-input-v3:')).length), 0,
       'both failed and queued completed raw input markers must settle before a following Send');
+    await page.locator('textarea').fill('G1.8 정상 확인 저장 후');
+    const followingSend = page.getByRole('button', { name: 'Send', exact: true });
+    assert.equal(await followingSend.isEnabled(), true); await followingSend.click();
+    await until(async () => {
+      assertNoInvalidSave();
+      const response = await fetch(origin + '/api/chat-content/synthetic-character/0', { headers: apiHeaders });
+      assert.equal(response.status, 200);
+      const value = await decodeRisuSave(new Uint8Array(await response.arrayBuffer()));
+      return value.message.filter(row => row.role === 'char').length === 2;
+    }, 'Send must still commit after UI root save and reopening');
+    const finalResponse = await fetch(origin + '/api/chat-content/synthetic-character/0', { headers: apiHeaders });
+    const finalChat = await decodeRisuSave(new Uint8Array(await finalResponse.arrayBuffer()));
+    assert.deepEqual(finalChat.message.filter(row => row.role === 'user').map(row => row.data), [rawText, 'G1.8 정상 확인', 'G1.8 정상 확인 저장 후']);
+    assert.deepEqual(finalChat.message.filter(row => row.role === 'char').map(row => row.data), ['G1.8 정상 응답 확인 완료', 'G1.8 정상 응답 확인 완료']);
+    assert.equal(events.filter(row => row.event === 'main' && !row.failed).length, 2);
+    await until(async () => (await page.evaluate(() => Object.keys(localStorage).filter(key => key.startsWith('bg-server-input-v3:')).length)) === 0, 'following completed input marker must settle');
+    await until(async () => (await readDatabase()).data.statics.messages === 2,
+      'both completed message statistic effects must be durable');
+    const finalRoot = await readDatabase(); assert.equal(finalRoot.data.statics.messages, 2);
+    const commits = readRows('internal/server-chat-commit/v1/'); assert.equal(commits.length, 2);
+    assert.ok(commits.every(row => row.canonicalWrite.effects.stats.status === 'committed' && row.canonicalWrite.staticsMessagesAppliedDelta === 1));
+    assert.equal(readRows('internal/bg-notifications/v3/').length, 1);
     assert.deepEqual(pageErrors, []);
+    await Promise.all(saveBodyTasks);
+    assert.ok(saveResponses.filter(row => row.status >= 400).every(row => typeof row.body === 'string'),
+      'all observed rejected save response bodies must be captured');
+    assert.deepEqual(dialogs, [], 'unexpected native dialogs must not be silently dismissed');
+    assertNoInvalidSave();
     if (isolatedCookies) {
       const cookies = await context.cookies();
       assert.equal(cookies.find(cookie => cookie.name === 'risu-session')?.value, 'production-cookie-control');
@@ -199,13 +283,15 @@ if (device) {
     if (loseResultAck) assert.equal(lostAcks, 1);
     const receipts = readRows('bg-orch-state-op:').filter(row => row.failedInputSettlement);
     assert.equal(receipts.length, 1);
-    fs.writeFileSync(output, JSON.stringify({ passed: true, mode, runtime, source: target, failedMain: 2, healthyMain: 1,
-      inputs: 2, answers: 1, notices: 1, noticeAck: true, redisplay: 0, failedInputReceipts: receipts.length,
-      lostAcks, fastFailure, queueNext, delayedPolls, pageErrors, responses, snapshots, consoleEvents }, null, 2), { mode: 0o600, flag: 'wx' });
-    console.log(JSON.stringify({ passed: true, mode, failedMain: 2, healthyMain: 1, inputs: 2, answers: 1 }));
+    fs.writeFileSync(output, JSON.stringify({ passed: true, mode, runtime, source: target, failedMain: 2, healthyMain: 2,
+      inputs: 3, answers: 2, staticsMessages: finalRoot.data.statics.messages, statsCommits: commits.length,
+      notices: 1, noticeAck: true, redisplay: 0, failedInputReceipts: receipts.length,
+      lostAcks, fastFailure, queueNext, delayedPolls, invalidStatsControl, rootWriteVerified: true,
+      pageErrors, dialogs, saveResponses, responses, snapshots, consoleEvents }, null, 2), { mode: 0o600, flag: 'wx' });
+    console.log(JSON.stringify({ passed: true, mode, failedMain: 2, healthyMain: 2, inputs: 3, answers: 2, rootWriteVerified: true }));
   } catch (error) {
     if (page && !page.isClosed()) { await page.screenshot({ path: path.join(runtime, 'failed-probe.png') }).catch(() => {}); snapshots.push({ error: error.message, texts: (await page.locator('body').innerText().catch(() => '')).slice(-4000) }); }
-    fs.writeFileSync(output, JSON.stringify({ passed: false, mode, runtime, error: error.message, events, pageErrors, responses, snapshots, consoleEvents }, null, 2), { mode: 0o600, flag: 'wx' });
+    fs.writeFileSync(output, JSON.stringify({ passed: false, mode, runtime, error: error.message, events, pageErrors, dialogs, saveResponses, responses, snapshots, consoleEvents }, null, 2), { mode: 0o600, flag: 'wx' });
     throw error;
   } finally { await browser.close(); if (server.exitCode === null) { server.kill('SIGTERM'); await once(server, 'exit'); } }
 }
