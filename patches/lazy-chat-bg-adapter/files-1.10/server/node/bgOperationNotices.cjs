@@ -42,7 +42,9 @@ function commitEvents(record) {
     if (record.recovery.notificationGenerationFailed === true) {
         events.push(normalizeEvent({ ...base, eventKey: 'operation:terminal', code: 'operation_failed', reason: 'generation_failed' }));
     }
-    if (record.commitReceipt.effects.chat.reason === 'concurrent-chat-edit-preserved') {
+    if (record.commitReceipt.promptInputsChanged === true
+        || (record.commitReceipt.promptInputsChanged === undefined
+            && record.commitReceipt.effects.chat.reason === 'concurrent-chat-edit-preserved')) {
         events.push(normalizeEvent({ ...base, eventKey: 'commit:edit-unreflected', code: 'chat_edit_unreflected', reason: 'concurrent_edit' }));
     }
     for (const kind of ['globals', 'stats']) if (['conflict', 'failed'].includes(record.commitReceipt.effects[kind].status)) {

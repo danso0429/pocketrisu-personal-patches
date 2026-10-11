@@ -8,15 +8,20 @@ import { createRequire } from 'node:module';
 import { createHash, randomBytes } from 'node:crypto';
 const [targetArg, depsArg, fixtureArg, inventoryArg, outputArg, mode = 'foreground'] = process.argv.slice(2);
 const [target, deps, fixtureFile, inventoryDir, output] = [targetArg, depsArg, fixtureArg, inventoryArg, outputArg].map(p => path.resolve(p));
-assert.ok(['foreground', 'closed', 'warm', 'device'].includes(mode));
-const device = mode === 'device';
+assert.ok(['foreground', 'closed', 'warm', 'device', 'edit-positive', 'edit-negative', 'edit-device'].includes(mode));
+const device = mode === 'device' || mode === 'edit-device';
+const editProbe = mode.startsWith('edit-');
 const fastFailure = process.argv.includes('--fast-failure');
 const loseResultAck = process.argv.includes('--lose-result-ack');
+const removeSettledInput = process.argv.includes('--remove-settled-input');
+assert.ok(!removeSettledInput || (loseResultAck && !device && !editProbe),'Removed-input control requires an automatic lost-ACK failure trial');
 const queueNext = process.argv.includes('--queue-next');
 const isolatedCookies = device || process.argv.includes('--isolate-cookies');
 const invalidStatsControl = process.argv.includes('--invalid-stats-control');
 assert.ok(!device || !invalidStatsControl, 'Invalid fixture control is automatic-only');
 const req = createRequire(path.join(target, 'package.json'));
+assert.ok(fs.existsSync(path.join(target,'server/node/bgOrchBundle.mjs')),'Build the BG bundle before preparing the UI trial');
+assert.ok(fs.existsSync(path.join(target,'dist/build-stamp.json')),'Build the frontend before preparing the UI trial');
 const Database = req('better-sqlite3');
 const runtime = fs.mkdtempSync(path.join(path.dirname(output), device ? 'g18-ui-device-' : 'g18-ui-auto-'));
 process.chdir(runtime);
@@ -38,9 +43,12 @@ data.nodeOnlyModelModeLock = 'legacy'; data.moduleModelBindingsEnabled = false;
 data.requestRetrys = 1; data.fallbackModels = { ...data.fallbackModels, model: [], submodel: [] };
 data.characters[0].name = 'G1.8 재검증'; data.characters[0].triggerscript = [];
 const originalChat = data.characters[0].chats[0];
-data.characters[0].chats = (device ? ['전면 테스트', '복귀 테스트', '종료 테스트'] : ['UI test', 'UI save check']).map((name, index) => ({
+data.characters[0].chats = (mode==='edit-device' ? ['수정 알림 테스트','수정 없는 대조'] : device ? ['전면 테스트', '복귀 테스트', '종료 테스트'] : ['UI test', 'UI save check']).map((name, index) => ({
   ...structuredClone(originalChat), id: index ? 'synthetic-chat-' + index : 'synthetic-chat', name,
-  useModelPreset: false, message: [],
+  useModelPreset: false, message: editProbe ? [
+    {role:'user',data:'G1.8 편집 전 문장',chatId:'synthetic-prior-edit-user'},
+    {role:'char',data:'G1.8 편집 시험의 앞선 답변',chatId:'synthetic-prior-edit-answer'},
+  ] : [],
 }));
 data.plugins = JSON.parse(fs.readFileSync(path.join(inventoryDir, 'inventory.json'))).map(row => {
   assert.equal(path.basename(row.file), row.file);
@@ -64,11 +72,16 @@ assert.ok(Array.isArray(JSON.parse(permissionBytes).given));
 const seedDb = new Database(path.join(runtime, 'save/risuai.db'));
 seedDb.prepare('INSERT OR REPLACE INTO kv(key,value) VALUES(?,?)').run('cache/plugin-permissions/state.json', permissionBytes);
 seedDb.close();
+if (device && process.argv.includes('--prepare-device-only')) {
+  fs.writeFileSync(output,JSON.stringify({runtime,password,source:target,port:mode==='edit-device'?6270:6268,
+    cookieName:mode==='edit-device'?'g18-edit-session':'g18-ui-session',ready:false,prepared:true},null,2),{mode:0o600,flag:'wx'});
+  console.log(JSON.stringify({prepared:true,runtime,mode}));process.exit(0);
+}
 const server = fork(path.join(target, 'server/node/server.cjs'), [], {
   cwd: runtime, execArgv: ['--require', new URL('./probes/bg-failure-ui-preload.cjs', import.meta.url).pathname],
-  env: { ...process.env, PORT: device ? '6268' : '0', TUNNEL_DISABLED: '1', UPDATE_CHECK_DISABLED: '1',
+  env: { ...process.env, PORT: mode==='edit-device' ? '6270' : device ? '6268' : '0', TUNNEL_DISABLED: '1', UPDATE_CHECK_DISABLED: '1',
     POCKETRISU_BG_PLUGIN_HOST_CANDIDATE: '0', G18_UI_PROBE: '1', G18_UI_DEVICE: device ? '1' : '0', G18_UI_FAST: fastFailure ? '1' : '0',
-    G18_UI_COOKIE_NAMESPACE: isolatedCookies ? '1' : '0' },
+    G18_UI_COOKIE_NAMESPACE: isolatedCookies ? '1' : '0', G18_UI_COOKIE_NAME: mode==='edit-device'?'g18-edit-session':'g18-ui-session' },
   stdio: ['ignore', 'pipe', 'pipe', 'ipc'],
 });
 const log = fs.createWriteStream(path.join(runtime, 'server.log'), { mode: 0o600 });
@@ -110,10 +123,18 @@ if (device) {
     assert.equal([...consoleEvents, ...dialogs, ...saveResponses.map(row => row.body || '')].some(text => text.includes('Server rejected an invalid database update') || text.includes('server statistic count is invalid')), false,
       'browser database write must not be rejected');
   }
-  let context, page, backgroundPage, lostAcks = 0, delayedPolls = 0, releasePolls;
+  let context, page, backgroundPage, lostAcks = 0, delayedPolls = 0, releasePolls, holdProof=removeSettledInput;
   const pollGate = new Promise(resolve => { releasePolls = resolve; });
   async function open(storageState) {
     context = await browser.newContext(storageState ? { storageState } : {});
+    if(editProbe)await context.addInitScript(()=>{
+      const seen=new WeakSet();(window).__g18ObservedToasts=[];
+      const scan=()=>{for(const toast of document.querySelectorAll('.risu-toast')){
+        const title=toast.querySelector('.risu-toast-title')?.textContent?.trim();
+        if(title&&!seen.has(toast)){seen.add(toast);(window).__g18ObservedToasts.push(title);}
+      }};
+      new MutationObserver(scan).observe(document,{childList:true,subtree:true,characterData:true});
+    });
     if (isolatedCookies && !storageState) await context.addCookies([{ name:'risu-session', value:'production-cookie-control', url:origin }]);
     await context.route('**/*', route => route.request().url().startsWith(origin + '/') ? route.continue() : route.abort());
     if (loseResultAck) await context.route('**/api/bg-orchestrate-result/**', async route => {
@@ -123,6 +144,8 @@ if (device) {
         await route.abort();
       } else await route.fallback();
     });
+    if(removeSettledInput)await context.route('**/api/bg-orchestrate-status/**',route=>
+      holdProof&&lostAcks>0?route.abort():route.fallback());
     if (queueNext) await context.route('**/api/bg-orchestrate-chat-state/**', async route => {
       const revision = new URL(route.request().url()).searchParams.get('revision');
       if (revision && /^[0-9a-z]+-[0-9a-z]+-[0-9a-z]+$/.test(revision)) {
@@ -154,6 +177,71 @@ if (device) {
   const failureText = '서버 요청이 실패했어요. 저장된 원문이나 결과가 있다면 확인해 주세요.';
   const rawText = 'G1.8 실패 확인 ' + mode;
   try {
+    if (editProbe) {
+      await open(); await page.locator('textarea').fill('G1.8 정상 확인 D ' + mode);
+      await page.getByRole('button', {name:'Send',exact:true}).click();
+      await until(()=>events.some(row=>row.event==='edit-held'),'actual prompt assembly');
+      const held = events.find(row=>row.event==='edit-held');
+      assert.equal(held.beforeEdit,true); assert.equal(held.afterEdit,false);
+      const login = await fetch(origin+'/api/login',{method:'POST',headers:{'content-type':'application/json'},
+        body:JSON.stringify({password:createHash('sha256').update(password).digest('hex')})});
+      assert.equal(login.status,200);
+      const headers={'risu-auth':(await login.json()).token,'x-chat-id':'synthetic-chat',
+        'x-client-build':JSON.parse(fs.readFileSync(path.join(target,'dist/build-stamp.json'))).stamp};
+      const readChat=async()=>{
+        const response=await fetch(origin+'/api/chat-content/synthetic-character/0',{headers});
+        assert.equal(response.status,200);return decodeRisuSave(new Uint8Array(await response.arrayBuffer()));
+      };
+      const prior = page.locator('[data-chat-id="synthetic-prior-edit-user"]');
+      await prior.scrollIntoViewIfNeeded();
+      if(mode==='edit-positive'){
+        await prior.locator('.button-icon-edit').click();
+        await prior.locator('textarea').fill('G1.8 편집 후 문장');
+        await prior.locator('.button-icon-edit').click();
+        await until(async()=>{
+          assertNoInvalidSave();return (await readChat()).message.find(row=>row.chatId==='synthetic-prior-edit-user')?.data==='G1.8 편집 후 문장';
+        },'actual UI edit must persist before provider release');
+      }else{
+        await page.locator('body').evaluate(element=>element.scrollIntoView());
+        assert.equal((await readChat()).message.find(row=>row.chatId==='synthetic-prior-edit-user').data,'G1.8 편집 전 문장');
+      }
+      server.send({event:'release-edit'});
+      await page.getByText('G1.8 수정 전 문맥 응답 확인 완료',{exact:false}).waitFor({timeout:60000});
+      const noticeText='응답은 저장했지만, 조립 이후 수정한 내용은 이번 생성에 반영되지 않았어요. 자동 재생성하지 않았어요.';
+      const immediateText='생성 준비가 시작된 뒤 대화가 수정됐어요. 저장된 답변에는 그 수정이 반영되지 않았으며, 수정 내용은 유지했어요.';
+      const expectedNotices=mode==='edit-positive'?1:0;
+      if(expectedNotices)await page.getByText(noticeText,{exact:true}).waitFor({timeout:60000});
+      await until(async()=>(await readDatabase()).data.statics.messages===1,'one durable answer statistic');
+      const chat=await readChat();
+      assert.equal(chat.message.find(row=>row.chatId==='synthetic-prior-edit-user').data,
+        expectedNotices?'G1.8 편집 후 문장':'G1.8 편집 전 문장');
+      assert.equal(chat.message.filter(row=>row.data==='G1.8 수정 전 문맥 응답 확인 완료').length,1);
+      assert.equal(events.filter(row=>row.event==='main').length,1);
+      const notices=readRows('internal/bg-notifications/v3/').filter(row=>row.event.code==='chat_edit_unreflected');
+      assert.equal(notices.length,expectedNotices);
+      if(expectedNotices)await until(()=>readRows('internal/bg-notifications/v3/').filter(row=>row.event.code==='chat_edit_unreflected').every(row=>row.deliveredAt!==null),'edit notice ACK');
+      const observedToasts=await page.evaluate(()=>window.__g18ObservedToasts);
+      assert.equal(observedToasts.filter(text=>text===noticeText).length,expectedNotices);
+      assert.equal(observedToasts.filter(text=>text===immediateText).length,expectedNotices,
+        'count the existing immediate notice separately from the durable server notice');
+      const storage=await context.storageState();await context.close();await open(storage);
+      await page.waitForTimeout(5500);assert.equal(await page.getByText(noticeText,{exact:true}).count(),0);
+      const reopenedToasts=await page.evaluate(()=>window.__g18ObservedToasts);
+      assert.equal(reopenedToasts.filter(text=>text===noticeText||text===immediateText).length,0);
+      assert.equal(readRows('internal/bg-notifications/v3/').filter(row=>row.event.code==='chat_edit_unreflected').length,expectedNotices);
+      await page.locator('textarea').fill('G1.8 정상 확인 저장 후');
+      await page.getByRole('button',{name:'Send',exact:true}).click();
+      await page.getByText('G1.8 정상 응답 확인 완료',{exact:false}).waitFor({timeout:60000});
+      await until(async()=>(await readDatabase()).data.statics.messages===2,'next Send must remain usable');
+      const finalChat=await readChat();
+      assert.equal(finalChat.message.find(row=>row.chatId==='synthetic-prior-edit-user').data,chat.message.find(row=>row.chatId==='synthetic-prior-edit-user').data);
+      assert.equal(events.filter(row=>row.event==='main').length,2);
+      await Promise.all(saveBodyTasks);assertNoInvalidSave();assert.deepEqual(pageErrors,[]);assert.deepEqual(dialogs,[]);
+      fs.writeFileSync(output,JSON.stringify({passed:true,mode,runtime,source:target,heldPrompt:held,
+        healthyMain:2,notices:expectedNotices,immediateNotices:expectedNotices,observedToasts,reopenedToasts,
+        redisplay:0,statistics:2,editPreserved:true,nextSend:true,pageErrors,dialogs,saveResponses},null,2),{mode:0o600,flag:'wx'});
+      console.log(JSON.stringify({passed:true,mode,notices:expectedNotices,editPreserved:true,nextSend:true}));
+    } else {
     await open(); await page.locator('textarea').fill(rawText);
     await page.getByRole('button', { name: 'Send', exact: true }).click();
     await until(() => events.some(row => row.event === 'main' && row.failed), 'actual server main admission');
@@ -198,8 +286,25 @@ if (device) {
     snapshots.push({ stage: 'failed-ui', texts: (await page.locator('body').innerText()).slice(-3000) });
     await page.screenshot({ path: path.join(runtime, 'failure-ui.png') });
     // Dismiss only the native error modal if it is present; never alter busy state.
+    if(removeSettledInput)await page.getByText('백그라운드 생성이 답변 없이 끝났어요. 해당 채팅에서 다시 보내주세요.',{exact:true}).waitFor();
     if (await page.getByText('백그라운드 생성이 답변 없이 끝났어요. 해당 채팅에서 다시 보내주세요.', { exact: true }).count())
       await page.getByRole('button', { name: 'Confirm', exact: true }).click();
+    if(removeSettledInput){
+      await until(()=>lostAcks===1,'actual failed result ACK must be lost after server acceptance');
+      assert.equal(await page.evaluate(()=>Object.keys(localStorage).filter(key=>key.startsWith('bg-server-input-v3:')).length),1,
+        'retain the actual failed marker while status transport is unavailable');
+      const id=failedChat.message.find(row=>row.role==='user').chatId;
+      const row=page.locator('[data-chat-id="'+id+'"]');await row.scrollIntoViewIfNeeded();
+      await row.locator('.button-icon-remove').click();
+      await page.getByRole('button',{name:'이 메시지만 삭제',exact:true}).or(
+        page.getByRole('button',{name:'Remove this message only',exact:true})).click();
+      await until(async()=>{
+        assertNoInvalidSave();const r=await fetch(origin+'/api/chat-content/synthetic-character/0',{headers:apiHeaders});
+        assert.equal(r.status,200);const c=await decodeRisuSave(new Uint8Array(await r.arrayBuffer()));
+        return !c.message.some(message=>message.chatId===id);
+      },'deliberately removed failed raw input must be durable');
+      holdProof=false;
+    }
     if (!queueNext) {
       await page.locator('textarea').fill('G1.8 정상 확인');
       const send = page.getByRole('button', { name: 'Send', exact: true });
@@ -211,8 +316,9 @@ if (device) {
     await page.getByText('G1.8 정상 응답 확인 완료', { exact: false }).waitFor({ timeout: 60000 });
     const healthyResponse = await fetch(origin + '/api/chat-content/synthetic-character/0', { headers: apiHeaders });
     const healthy = await decodeRisuSave(new Uint8Array(await healthyResponse.arrayBuffer()));
-    assert.deepEqual(healthy.message.filter(row => row.role === 'user').map(row => row.data), [rawText, 'G1.8 정상 확인']);
-    assert.equal(healthy.message.filter(row => row.role === 'user')[0].chatId, failedChat.message.find(row => row.role === 'user').chatId);
+    assert.deepEqual(healthy.message.filter(row => row.role === 'user').map(row => row.data), [...(removeSettledInput?[]:[rawText]), 'G1.8 정상 확인']);
+    if(!removeSettledInput)assert.equal(healthy.message.filter(row => row.role === 'user')[0].chatId, failedChat.message.find(row => row.role === 'user').chatId);
+    else assert.equal(healthy.message.some(row=>row.chatId===failedChat.message.find(row=>row.role==='user').chatId),false);
     assert.deepEqual(healthy.message.filter(row => row.role === 'char').map(row => row.data), ['G1.8 정상 응답 확인 완료']);
     assert.equal(events.filter(row => row.event === 'main' && !row.failed).length, 1);
     // A successful answer alone did not prove root writes. Change actual UI
@@ -259,7 +365,7 @@ if (device) {
     }, 'Send must still commit after UI root save and reopening');
     const finalResponse = await fetch(origin + '/api/chat-content/synthetic-character/0', { headers: apiHeaders });
     const finalChat = await decodeRisuSave(new Uint8Array(await finalResponse.arrayBuffer()));
-    assert.deepEqual(finalChat.message.filter(row => row.role === 'user').map(row => row.data), [rawText, 'G1.8 정상 확인', 'G1.8 정상 확인 저장 후']);
+    assert.deepEqual(finalChat.message.filter(row => row.role === 'user').map(row => row.data), [...(removeSettledInput?[]:[rawText]), 'G1.8 정상 확인', 'G1.8 정상 확인 저장 후']);
     assert.deepEqual(finalChat.message.filter(row => row.role === 'char').map(row => row.data), ['G1.8 정상 응답 확인 완료', 'G1.8 정상 응답 확인 완료']);
     assert.equal(events.filter(row => row.event === 'main' && !row.failed).length, 2);
     await until(async () => (await page.evaluate(() => Object.keys(localStorage).filter(key => key.startsWith('bg-server-input-v3:')).length)) === 0, 'following completed input marker must settle');
@@ -284,11 +390,12 @@ if (device) {
     const receipts = readRows('bg-orch-state-op:').filter(row => row.failedInputSettlement);
     assert.equal(receipts.length, 1);
     fs.writeFileSync(output, JSON.stringify({ passed: true, mode, runtime, source: target, failedMain: 2, healthyMain: 2,
-      inputs: 3, answers: 2, staticsMessages: finalRoot.data.statics.messages, statsCommits: commits.length,
+      inputs: 3, retainedInputs:removeSettledInput?2:3, answers: 2, staticsMessages: finalRoot.data.statics.messages, statsCommits: commits.length,
       notices: 1, noticeAck: true, redisplay: 0, failedInputReceipts: receipts.length,
-      lostAcks, fastFailure, queueNext, delayedPolls, invalidStatsControl, rootWriteVerified: true,
+      lostAcks, fastFailure, queueNext, delayedPolls, invalidStatsControl, removeSettledInput, rootWriteVerified: true,
       pageErrors, dialogs, saveResponses, responses, snapshots, consoleEvents }, null, 2), { mode: 0o600, flag: 'wx' });
     console.log(JSON.stringify({ passed: true, mode, failedMain: 2, healthyMain: 2, inputs: 3, answers: 2, rootWriteVerified: true }));
+    }
   } catch (error) {
     if (page && !page.isClosed()) { await page.screenshot({ path: path.join(runtime, 'failed-probe.png') }).catch(() => {}); snapshots.push({ error: error.message, texts: (await page.locator('body').innerText().catch(() => '')).slice(-4000) }); }
     fs.writeFileSync(output, JSON.stringify({ passed: false, mode, runtime, error: error.message, events, pageErrors, dialogs, saveResponses, responses, snapshots, consoleEvents }, null, 2), { mode: 0o600, flag: 'wx' });

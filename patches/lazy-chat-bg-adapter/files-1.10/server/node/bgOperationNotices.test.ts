@@ -130,6 +130,22 @@ describe('durable operation notice source', () => {
         expect(commitEvents({ ...record, notificationVersion: undefined })).toEqual([])
     })
 
+    it.each([true,false])('uses anchored prompt-input change %s rather than an obsolete merge reason', changed => {
+        const h=harness(),record={operationId:'operation-anchor-edit-notice',notificationVersion:3,notificationCreatedAt:1_000_000,
+            recovery:{requestedCharId:'char-1',storedChatId:'chat-1'},commitReceipt:{promptInputsChanged:changed,
+                effects:{chat:{status:'committed'},globals:{status:'skipped'},stats:{status:'committed'}}}}
+        expect(commitEvents(record).map((event:any)=>event.code)).toEqual(changed?['chat_edit_unreflected']:[])
+        h.owner.captureCommit(record);h.makeOwner().captureCommit(record)
+        expect(h.deps.kvList(OPERATION_PREFIX)).toHaveLength(changed?1:0)
+    })
+
+    it('does not warn for an anchored unchanged prompt even when old merge metadata differs',()=>{
+        const record={operationId:'operation-anchor-unchanged',notificationVersion:3,notificationCreatedAt:1_000_000,
+            recovery:{requestedCharId:'char-1',storedChatId:'chat-1'},commitReceipt:{promptInputsChanged:false,
+                effects:{chat:{reason:'concurrent-chat-edit-preserved'},globals:{status:'skipped'},stats:{status:'committed'}}}}
+        expect(commitEvents(record)).toEqual([])
+    })
+
     it('keeps future-clock intent pending and retains source authority when capacity is occupied by corrupt bytes', () => {
         const h = harness(), future = { ...h.event(), createdAt: h.event().createdAt + 1000 }
         expect(h.owner.capture(future)).toBe(false)
