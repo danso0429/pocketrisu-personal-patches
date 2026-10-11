@@ -244,6 +244,8 @@ The user authorized concrete investigation and implementation of remaining G1.8 
 
 The two edit texts are intentionally retained: the existing page-local warning preserves immediate G1.3 feedback, and the new durable notice covers absence/recovery. This candidate does not unify their delivery identities. D instructions must name both texts and distinguish two notices from repeat delivery of the same notice.
 
+The same observed arrays also contain six existing hostOFF plugin-skipped notices in both positive and negative controls. These are separate source events, not edit warnings or a failed synthetic provider. Positive initial UI therefore has six skipped-plugin notices plus two edit texts; negative has six skipped-plugin notices and no edit text. The reopened-context observations contain none of these previous-operation notices. A later new Send may correctly produce its own new skipped-plugin notices.
+
 Automatic observations: server612 pass/12 existing skips; frontend2325 pass/4 existing skips; type0 errors/0 warnings; patcher52 outer test entries. Frontend build completed and the BG bundle loaded `sendChat=function`. The later server-only candidate reused artifacts only after all1,163 client/public file hashes and build-input bytes matched. Graph42 packs/1,569 units/490 managed paths/8 collisions, re-plan0, and original1,022 files/modes restored after exact revert. The R1-only generated checkpoint separately passed156 owner/projection/route tests. Real generated `db.cjs` rollback probes confirm that the checked state-writer failure and publication failure share the same exported SQLite handle as their record writes. There is no lint command in the official target manifest; type/build diagnostics are recorded without inventing a lint result.
 
 Failed runs remain excluded: the first edit trial lacked a built BG bundle and stopped before provider execution; the next reproduced the missing durable producer. Two removed-input harness attempts mishandled the native modal/action order. The maintained probe now checks bundle readiness and uses the actual visible message-only confirmation without forced clicks. No test assertion was removed, skipped or relaxed to obtain the final observations.
@@ -267,7 +269,15 @@ The isolated trial uses synthetic prior messages, the original installed plugin 
 | `수정 없는 대조`: Send/open/scroll | No warning without an edit | Send `G1.8 정상 확인 D` in the second trial chat. Open/scroll without changing messages. After the operator releases the held response, confirm one answer and no edit warning. |
 | Reopen and following Send | Preserve edit, answer and usable chat | Reopen the first trial chat, verify edited text and answer, then send `G1.8 정상 확인 저장 후`. Confirm a new normal synthetic answer and no repeated edit warning. Operator independently checks records, counts, ACK and saved state. |
 
-Physical D is pending. Automatic scope and OFF delivery/readback are recorded separately; no stable tag, activation or G1.9 work is implied.
+Physical D is pending. No stable tag, activation or G1.9 work is implied.
+
+### OFF delivery and independent readback
+
+The aggregate candidate was pushed and applied only after active request/model/pending-send and nonterminal-input checks. The verified full recovery anchor and stopped application/patcher backup were checked before source changes:1,648 files with matching bytes/modes, archive91,770,904 bytes. The18 planned paths were applied; frontend and BG build/load completed. Database file bytes were unchanged during stopped source/build application. After restart, five database integrity checks passed;490 managed source paths and175 served JavaScript assets matched the installed source/artifacts; external-header settings and167 existing journal rows retained their bytes. The process is online, active0, unstable restarts0, hostOFF, with authenticated capability HTTP200/input1/commit1/host0 and new error lines0. Independent readback rechecked source/modes, served assets, process/idleness and capability; it reused the immediately preceding post-restart five-database integrity result without an unnecessary repeated scan.
+
+Lifecycle state rows changed88→83. The five removed rows were already `delivered` and exceeded48hours at process start; the unchanged existing retention caller requires inactive operation, absent result payload, TTL expiry and notice-retirement eligibility. This is normal lifecycle metadata expiry, not agent cancellation or deletion of chat/user payloads. Removed identities, old states and timestamps are recorded privately. No terminal-state-count equality was used as a qualification gate.
+
+The current/previous rollback material and still-required device/recovery evidence remain protected. No temporary-directory or worktree cleanup was performed. The ordered-goals document is committed locally in its separate repository; its main-branch publication was rejected by automatic approval review and awaits the user's separate publication decision. PocketRisu source/results are published on the existing candidate branch. Physical D and the publication-fence design decision remain open.
 
 ## 관련 문서
 
