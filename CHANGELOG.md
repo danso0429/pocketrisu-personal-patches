@@ -2,6 +2,8 @@
 
 ## 0.2.4-experimental.38 (preserve edits while answer publication recovers)
 
+- Record scoped iPhone draft retention, independent other-chat publication, recovery/save and refresh preservation. One blocked-save notification invocation is logged; physical display remains unconfirmed. No stable release or host activation is implied.
+
 - Recover validated committed answers and finalize their input before accepting affected full/delta chat or root metadata writes. Recheck current revision after recovery; retain immutable receipts and once-only effects. Refuse persistent publication failure with a distinct save-blocked response, preserving the current view's edit without promising persistence after app closure.
 - Preserve unrelated chat/root writes and qualify explicit durable saves by their exact named scope. Keep genuine conflicts, unknown-response confirmation, ordinary unavailable-server retry and streaming checkpoints distinct from publication refusal.
 - Re-enlist edits suppressed by a hydration read through the ordinary save queue. Resolve current live arrays across result delivery and root replacement; keep known concurrent publications separate from local edits without storing additional chat snapshots. Ordinary chat opens do not add another full-history fingerprint.

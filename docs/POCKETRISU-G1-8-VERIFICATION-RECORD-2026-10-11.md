@@ -344,6 +344,20 @@ Delivery checkpoint: implementation/installer/documentation commit `a646988` was
 
 The isolated physical test server is prepared with synthetic data/provider and a distinct session-cookie namespace. Browser preflight verified HTTPS200, matched loaded assets, preserved both production and prior-test cookies, page errors0 and hostOFF capabilities. This is readiness evidence; it is not an iPhone result. The physical R4 gate must cover the real edit/save warning, repeated save without alert flood, another chat's normal request while the first draft remains blocked, recovery and visible saved edit/answer. L5 uses the UI-function/change/finger-scenario table; L6 follows that scoped response. This section does not declare whole G1.8, G1.9, host activation or stable release complete.
 
+### Physical R4 intermediate observation
+
+The iPhone user reported that the edited text remained after returning to the blocked chat. Read-only server inspection confirmed two committed operations: the first remained pending canonical publication with the original prior text and no published answer, while the other chat had its applied receipt and one published answer. Mobile Safari logs contained one publication-save-blocked notification record, alongside repeated refused-save diagnostics. The user did not clearly observe the transient notification and may have missed it while not watching the top of the screen; notification invocation is observed, physical visibility is not qualified. This is an intermediate result, not an L5 pass.
+
+After this observation the isolated test publication fault was released through its existing control. Recovery, another edit/save and reopen verification remain pending. No production fault, restart, cancellation or user-data deletion was performed for this step.
+
+### Physical R4 recovery and reopen closeout
+
+The release event was observed once. The user saved a third prior-message edit and reported no new apparent error. Read-only inspection then confirmed the exact third edit in the durable database, one answer in each chat and both matching applied commit identities. After the user refreshed the same test page, they reported unchanged normal behavior. A second read-only inspection confirmed the same saved edit, answer counts and applied identities; the publication-blocked notification still had one record with count1. No additional provider-finished or commit-result events appeared: each remained two for the two test requests.
+
+The scoped R4 device result closes current-view draft retention, unrelated-chat answer publication, recovery followed by edit/save, and refresh preservation. The transient warning's invocation and lack of repeated records are observed; its physical visibility remains unconfirmed and is not promoted to a passed display assertion. A permanently refused draft's durability after app closure is not claimed. Earlier D, A/B/C and automatic observations retain their individual limits.
+
+L6 reconciles this result with the lifecycle qualification, plan, README/version and changelog, publishes the documentation closeout and removes the completed R4 L3 working report. Runtime source, installer version and hostOFF stay at the delivered experimental.38 checkpoint. Remaining normal-generation absence/device coverage, actual-provider/MARP, stream, aggregate activation and stable gates are not qualified by this scoped result.
+
 ## 관련 문서
 
 - [G1.8 구현 계획](POCKETRISU-G1-8-FAILURE-LIFECYCLE-PLAN.md)

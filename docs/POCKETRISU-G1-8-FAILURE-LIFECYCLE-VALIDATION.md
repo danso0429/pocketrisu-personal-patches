@@ -1,6 +1,6 @@
 # G1.8 failure and recovery lifecycle qualification
 
-Current remainder candidate: experimental.37 / BG adapter0.7.44. Statistics preconditions, compact exact failed-input ACK/removal readiness and anchored edit notices extend the earlier checkpoints below. See verification record §13 for current source commits, actual UI/automated evidence and remaining D/device, pending-publication design-approval and whole-goal limits. Earlier checkpoint numbers in this document retain their original scope.
+Current remainder candidate: experimental.38 / BG adapter0.7.45 / lazy-chat-sync0.5.8. Statistics preconditions, compact exact failed-input ACK/removal, anchored edit notices and recover-before-write extend the earlier checkpoints below. See verification record §§13–16 for current source commits, automatic evidence, scoped D/R4 device results and remaining whole-goal limits. Earlier checkpoint numbers in this document retain their original scope.
 
 Candidate `0.2.4-experimental.35`, BG adapter0.7.42 and lazy-chat-sync0.5.7; baseline85cd2f9. See the [implementation plan](POCKETRISU-G1-8-FAILURE-LIFECYCLE-PLAN.md). This record distinguishes automated source qualification, OFF delivery and physical-device/activation gates.
 
@@ -39,6 +39,12 @@ Final follow-up consultation closed the committed-partial state/commit identity 
 The legacy prepared failure control retains its pre-seeded user message, makes two native attempts/six original analysis calls and produces one failure notice with no answer. An initial harness assertion incorrectly expected zero pre-seeded messages; the corrected strict assertion checks one, matching fixture construction. UI failure/interruption text qualifies availability of stored data rather than promising copies of unpersisted provider bytes or every legacy draft.
 
 ## Compatibility and rollback
+
+### Current recover-before-write checkpoint
+
+At implementation commit `a646988`, affected writes first recover a validated committed answer and finalize its input in the existing storage slot. Persistent recovery failure refuses the save with a distinct503; the client retains its current dirty view without claiming server acceptance. Other-chat writes remain independent. The delivered experimental.38 candidate passes the automatic and OFF-delivery boundaries recorded in verification record §16.
+
+The isolated iPhone R4 observation confirms retained edits while refused, an unrelated chat's saved answer, recovery followed by durable third-edit saving, and unchanged edit/one-answer-per-chat after refresh. Mobile logs record one blocked-save notification invocation; the user may have missed the transient display, so physical visibility remains unconfirmed. This scoped result does not qualify normal-generation absence/device routes, paid providers, streaming, host activation or stable release. The earlier whole-goal completion wording below describes the original checkpoint's qualified scope, not these later outstanding routes.
 
 Current v3 clients claim the merged outbox; older readers do not receive new codes. Actual old-source parsing accepts the compact absent-target archive, but that does not qualify arbitrary old-owner execution over live new v4 absence markers or new partial-failure records. After new work, code rollback must preserve the current recovery owners or separately qualify stored state. Never overwrite newer user data with an older backup merely to restore source compatibility.
 
