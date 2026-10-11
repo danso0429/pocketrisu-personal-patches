@@ -5,6 +5,7 @@ const { failedInputSettlement, validFailedInputSettlement, invalidateFailedInput
 const { writeOperationState, readOperationState } = store as any
 const operationId = 'operation-one', charId = 'char', chatId = 'chat'
 const input = { operationId, inputState: 'failed', transformState: 'completed',
+  terminal: {publication:'not_applicable',resultRevision:null},
   admission: { operationId, charId, chatId, userMessageId: 'message-one' },
   executionBaseRevision: 'a'.repeat(64), inputReceipt: { receiptId: 'b'.repeat(64) } }
 const result = { operationId, charId, chatId, resultId: 'result-one', kind: 'terminal-error', outcome: 'error',
@@ -34,6 +35,10 @@ describe('failed input exact result acknowledgement authority', () => {
   it.each(['queued','attached','completed','cancelled'])('refuses non-failed input %s', state => {
     expect(failedInputSettlement(result, { ...input, inputState: state })).toBeNull()
   })
+  it.each([{publication:'pending',resultRevision:null},{publication:'not_applicable',resultRevision:'c'.repeat(64)}])
+    ('leaves ordinary ACK available instead of granting failed-input authority for %j',terminal=>{
+      expect(failedInputSettlement(result,{...input,terminal})).toBeNull()
+    })
   it('retains only a matching delivered receipt across fresh metadata rewrites', () => {
     const values = new Map<string,string>(), get = (k:string) => values.get(k) ?? null, set = (k:string,v:string) => values.set(k,v)
     const receipt = failedInputSettlement(result, input)

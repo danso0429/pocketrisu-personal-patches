@@ -1,6 +1,7 @@
 'use strict';
 
 const crypto = require('node:crypto');
+const { failedInputSettlement, validFailedInputSettlement } = require('./bgFailedInputSettlement.cjs');
 const { currentAppliedLedger, appliedTargetAbsent, requireServerStatistics } = require('./serverChatExecutionProjection.cjs');
 const { captureAssemblyContext, captureAssemblyChat } = require('./serverChatAssemblyContext.cjs');
 const { captureInputTransformBase, resolveInputAttachment } = require('./chatInputAttach.cjs');
@@ -145,7 +146,17 @@ function validTargetAbsence(terminal) {
         && Number.isSafeInteger(proof.at) && proof.at >= terminal.at;
 }
 
+function matchingFailedInputSettlement(record, value) {
+    return record?.inputState === 'failed' && record.transformState === 'completed'
+        && record.terminal?.publication === 'not_applicable' && record.terminal.resultRevision == null
+        && validFailedInputSettlement(value, record.operationId, record.admission?.charId, record.admission?.chatId)
+        && value.inputReceiptId === (record.inputReceipt?.receiptId || record.inputReceiptId)
+        && value.userMessageId === record.admission.userMessageId
+        && value.attachedRevision === record.executionBaseRevision;
+}
+
 function parseRetiredRecord(parsed, expectedOperationId) {
+    if (own(parsed, 'failedInputSettlement') && !matchingFailedInputSettlement(parsed, parsed.failedInputSettlement)) return null;
     if (parsed.journalRetentionVersion !== undefined && parsed.journalRetentionVersion !== 1) return null;
     if (parsed.retiredDisposition !== undefined) {
         if (parsed.retiredDisposition !== 'applied_target_absent' || parsed.inputState !== 'completed'
@@ -218,6 +229,7 @@ function parseRecord(value, expectedOperationId = null) {
                 .includes(parsed.inputState)) {
             return null;
         }
+        if (own(parsed, 'failedInputSettlement') && !matchingFailedInputSettlement(parsed, parsed.failedInputSettlement)) return null;
         const admission = normalizeAdmission(parsed.admission);
         if (admission.inputPreparation === 'client' && (!parsed.clientClaim
             || (parsed.clientClaim.tokenHash !== null && !/^[a-f0-9]{64}$/.test(parsed.clientClaim.tokenHash))
@@ -479,18 +491,86 @@ function createServerChatInputOwner({
     function readFailedInputProof(operationId) {
         const record = read(operationId);
         if (!record || record.inputState !== 'failed' || record.transformState !== 'completed'
-            || !record.inputReceipt || !record.executionBaseRevision) return null;
+            || !(record.inputReceipt?.receiptId || record.inputReceiptId) || !record.executionBaseRevision) return null;
         const chat = currentChat(record.admission.charId, record.admission.chatId);
-        if (!containsOwnedInput(record, chat)) return null;
+        if (!Array.isArray(chat?.message)) return null;
+        const matches = chat.message.filter(message => message?.chatId === record.admission.userMessageId);
+        const acknowledgement = readFailedInputAcknowledgement(operationId);
+        const archivedPresence = record.recordVersion === 5 && record.attachmentPolicy === 'latest-v1'
+            && acknowledgement && matches.length === 1 && matches[0]?.role === 'user';
+        const absent = matches.length === 0 && !!acknowledgement;
+        if (!absent && !(matches.length === 1 && (containsOwnedInput(record, chat) || archivedPresence))) return null;
         return {
             contractVersion: 'bg_failed_input_proof.v1', operationId,
             charId: record.admission.charId, chatId: record.admission.chatId,
-            inputReceiptId: record.inputReceipt.receiptId,
+            inputReceiptId: record.inputReceipt?.receiptId || record.inputReceiptId,
             userMessageId: record.admission.userMessageId,
             attachedRevision: record.executionBaseRevision,
             currentRevision: chatRevision(chat),
             allowEditedInput: record.attachmentPolicy === 'latest-v1',
+            ...(absent ? { inputPresent: false } : {}),
         };
+    }
+
+    function readFailedInputAcknowledgement(operationId) {
+        const record = read(operationId);
+        if (!record) return null;
+        const rawState = kvGet(operationStateKey(operationId));
+        const state = readOperationState(kvGet, operationId);
+        const receipt = record.failedInputSettlement || state?.failedInputSettlement;
+        if (!matchingFailedInputSettlement(record, receipt)) return null;
+        // A present state must agree; expiration of an absent state never creates a new one.
+        if (rawState != null && (!state || state.operationId !== operationId || state.state !== 'delivered'
+            || state.charId !== record.admission.charId || state.chatId !== record.admission.chatId
+            || stableJSON(state.failedInputSettlement) !== stableJSON(receipt))) return null;
+        const rawResult = kvGet(operationResultKey(operationId));
+        if (rawResult != null) {
+            let result;
+            try { result = JSON.parse(String(rawResult)); } catch { return null; }
+            if (stableJSON(failedInputSettlement(result, record)) !== stableJSON(receipt)) return null;
+        }
+        return clone(receipt);
+    }
+
+    function acknowledgeFailedInputSynchronously(operationId, result, writeDelivered) {
+        try {
+            return sqliteDb.transaction(() => {
+                const record = read(operationId);
+                const receipt = failedInputSettlement(result, record);
+                if (!matchingFailedInputSettlement(record, receipt)) {
+                    throw new Error('failed input acknowledgement identity unavailable');
+                }
+                const next = { ...record, failedInputSettlement: receipt };
+                if (!parseRecord(encodeRecord(next), operationId)) throw new Error('failed input acknowledgement record invalid');
+                if (stableJSON(record.failedInputSettlement) !== stableJSON(receipt)) write(next);
+                const durable = writeDelivered(receipt);
+                if (!durable?.written) throw durable?.error || new Error('failed input acknowledgement state write failed');
+                return durable;
+            })();
+        } catch (error) { return { written: false, error }; }
+    }
+
+    function invalidateFailedInputSettlementSynchronously(operationId, publish) {
+        const record = read(operationId);
+        if (!record?.failedInputSettlement) return publish();
+        return sqliteDb.transaction(() => {
+            const current = read(operationId);
+            if (!current || !matchingFailedInputSettlement(current, current.failedInputSettlement)) {
+                throw new Error('failed input acknowledgement invalidation record unavailable');
+            }
+            const next = { ...current };
+            delete next.failedInputSettlement;
+            if (next.recordVersion === 5) next.retiredChecksum = retiredChecksum(next);
+            if (!parseRecord(encodeRecord(next), operationId)) throw new Error('failed input acknowledgement invalidation record invalid');
+            write(next);
+            return publish();
+        })();
+    }
+
+    function acknowledgedAbsentInput(record, chat) {
+        return record.inputState === 'failed' && Array.isArray(chat?.message)
+            && !chat.message.some(message => message?.chatId === record.admission.userMessageId)
+            && !!readFailedInputAcknowledgement(record.operationId);
     }
 
     function requiresExecutionPredecessor(record, chat) {
@@ -506,7 +586,7 @@ function createServerChatInputOwner({
         }
         if ((record.inputState === 'failed' || record.inputState === 'cancelled')
             && record.inputReceipt) {
-            return !containsOwnedInput(record, chat);
+            return !containsOwnedInput(record, chat) && !acknowledgedAbsentInput(record, chat);
         }
         return false;
     }
@@ -708,7 +788,8 @@ function createServerChatInputOwner({
                     record: clone(blocked),
                 };
             }
-            const resolvedRevision = predecessor.inputState === 'completed'
+            const acknowledgedAbsent = acknowledgedAbsentInput(predecessor, liveChat);
+            const resolvedRevision = acknowledgedAbsent ? chatRevision(liveChat) : predecessor.inputState === 'completed'
                 ? predecessor.terminal?.resultRevision
                 : predecessor.executionBaseRevision
                     || predecessor.admission.submittedBaseRevision;
@@ -728,7 +809,7 @@ function createServerChatInputOwner({
             const publishedChat = currentChat(record.admission.charId, record.admission.chatId);
             const publishedPredecessor = publishedChat && (predecessor.inputState === 'completed'
                 ? predecessor.terminal?.publication === 'published'
-                : !predecessor.inputReceipt || containsOwnedInput(predecessor, publishedChat));
+                : !predecessor.inputReceipt || containsOwnedInput(predecessor, publishedChat) || acknowledgedAbsent);
             if (liveRevision !== resolvedRevision && !publishedPredecessor) {
                 const publicationPending = predecessor.inputState === 'completed'
                     && liveRevision === predecessor.executionBaseRevision;
@@ -1862,6 +1943,9 @@ function createServerChatInputOwner({
         interruptClientPreparation,
         pendingProjection,
         readFailedInputProof,
+        readFailedInputAcknowledgement,
+        acknowledgeFailedInputSynchronously,
+        invalidateFailedInputSettlementSynchronously,
         hasPendingGeneration,
         retryNotifications,
         read: (operationId) => clone(read(operationId)),

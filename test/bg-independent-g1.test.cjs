@@ -44,3 +44,12 @@ test('G1 patch owners do not replace Archive Center source', () => {
     const files = [...adapter.units, ...lazy.units].map(candidate => candidate.file)
     assert.equal(files.some(file => /archive.center|archive-center|archive_center/i.test(file)), false)
 })
+
+test('failed input ACK invalidation is wired through every operation-keyed publication owner', () => {
+    for (const suffix of ['intermediate-invalidator', 'control-invalidator', 'terminal-invalidator', 'fallback-invalidator']) {
+        assert.match(unit(adapter, 'lazy-chat-bg-adapter:failed-input:' + suffix + ':1.10').content,
+            /invalidateFailedInputSettlement/)
+    }
+    assert.match(unit(adapter, 'lazy-chat-bg-adapter:failed-input:ack-receipt:1.10').content,
+        /acknowledgeFailedInputSynchronously\(operationId, delivery\.record, writeDelivered\)/)
+})

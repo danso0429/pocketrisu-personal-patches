@@ -17,7 +17,7 @@ const {
     settingsSnapshotKey,
 } = inputPackage as any
 const { createChatWriteJournal } = journalPackage as any
-const { operationResultKey, operationStateKey } = operationPackage as any
+const { operationResultKey, operationStateKey, writeOperationState } = operationPackage as any
 const { decodeRisuSave, encodeRisuSaveLegacy } = utilsPackage as any
 
 const cleanup: Array<() => void> = []
@@ -179,6 +179,91 @@ function makeHarness() {
 }
 
 describe('pre-canonical server chat input owner', () => {
+    async function failedAcknowledgementHarness() {
+        const h = makeHarness(), owner = h.makeOwner(), id = 'operation-owned-failed-ack'
+        await owner.admit(admission(id)); await owner.beginTransform(id)
+        await owner.attachTransformed(id, h.transformed(id))
+        owner.settleDurablySynchronously(id, 'failed')
+        const result = { operationId:id, charId:'char-1', chatId:'chat-1', resultId:'result-owned-failed-ack',
+            final:true, kind:'terminal-error', outcome:'error', anchorResultVersion:1, hasGeneratedAnswer:false }
+        h.kvSet(operationResultKey(id), JSON.stringify(result))
+        const acknowledge = () => owner.acknowledgeFailedInputSynchronously(id, result,
+            (receipt:any) => writeOperationState(h.kvSet,id,{...result,failedInputSettlement:receipt},'delivered'))
+        return { h, owner, id, result, acknowledge }
+    }
+    it('keeps exact failed ACK after lifecycle expiration and permits deliberately removed raw input', async () => {
+        const { h, owner, id, acknowledge } = await failedAcknowledgementHarness()
+        expect(acknowledge().written).toBe(true)
+        h.kvDel(operationResultKey(id)); h.kvDel(operationStateKey(id))
+        const chat = h.runtime.fullStore.get('char-1')!.get('chat-1')!
+        chat.message = baseChat().message
+        expect(owner.readFailedInputProof(id)).toMatchObject({ inputPresent:false, currentRevision:revision(chat) })
+        const next = 'operation-after-failed-deletion'
+        expect((await owner.admit({...admission(next),submittedBaseRevision:revision(chat)})).status).toBe('admitted')
+        expect(owner.read(id).admission.rawText).toBe('hello')
+        expect(h.kvGet(operationStateKey(id))).toBeNull()
+    })
+    it('rolls back the input ACK when its checked delivered-state writer fails', async () => {
+        const { h, owner, id, acknowledge } = await failedAcknowledgementHarness()
+        const before = h.kvGet(commandKey(id)), state = h.kvGet(operationStateKey(id))
+        h.failWriteAt(2)
+        expect(acknowledge().written).toBe(false)
+        expect(h.kvGet(commandKey(id))).toEqual(before)
+        expect(h.kvGet(operationStateKey(id))).toEqual(state)
+        expect(h.kvGet(operationResultKey(id))).not.toBeNull()
+        expect(owner.readFailedInputAcknowledgement(id)).toBeNull()
+    })
+    it('refreshes a previously queued successor against the current chat after exact failed ACK and removal', async () => {
+        const h=makeHarness(),owner=h.makeOwner(),id='operation-queued-failure',next='operation-queued-successor'
+        await owner.admit(admission(id));await owner.beginTransform(id);await owner.attachTransformed(id,h.transformed(id))
+        const attached=h.runtime.fullStore.get('char-1')!.get('chat-1')!
+        expect((await owner.admit({...admission(next),submittedBaseRevision:revision(attached)})).status).toBe('admitted')
+        expect(owner.read(next).executionPredecessorId).toBe(id)
+        owner.settleDurablySynchronously(id,'failed')
+        const result={operationId:id,charId:'char-1',chatId:'chat-1',resultId:'result-queued-failure',
+            final:true,kind:'terminal-error',outcome:'error',anchorResultVersion:1,hasGeneratedAnswer:false}
+        expect(owner.acknowledgeFailedInputSynchronously(id,result,(receipt:any)=>
+            writeOperationState(h.kvSet,id,{...result,failedInputSettlement:receipt},'delivered')).written).toBe(true)
+        h.kvDel(operationStateKey(id));attached.message=baseChat().message
+        const liveRevision=revision(attached)
+        expect(await owner.beginTransform(next)).toMatchObject({status:'started'})
+        expect(owner.read(next)).toMatchObject({effectiveBaseRevision:liveRevision,
+            predecessorResolution:{operationId:id,revision:liveRevision}})
+    })
+    it('refuses present mismatched/corrupt state and duplicate or wrong-role raw IDs', async () => {
+        const { h, owner, id, acknowledge } = await failedAcknowledgementHarness()
+        expect(acknowledge().written).toBe(true); h.kvDel(operationResultKey(id))
+        const state = h.kvGet(operationStateKey(id))
+        for (const invalid of ['broken', JSON.stringify({operationId:id,state:'running'}),
+            JSON.stringify({...JSON.parse(String(state)),operationId:'other-operation'})]) {
+            h.kvSet(operationStateKey(id),invalid)
+            expect(owner.readFailedInputAcknowledgement(id)).toBeNull()
+        }
+        h.kvDel(operationStateKey(id))
+        const chat = h.runtime.fullStore.get('char-1')!.get('chat-1')!
+        const raw = chat.message.at(-1)!
+        chat.message.push({...raw,role:'char'})
+        expect(owner.readFailedInputProof(id)).toBeNull()
+        chat.message = [{...raw,role:'char'}]
+        expect(owner.readFailedInputProof(id)).toBeNull()
+    })
+    it('retains compact ACK through retirement and atomically invalidates it on later publication', async () => {
+        const { h, owner, id, acknowledge } = await failedAcknowledgementHarness()
+        expect(acknowledge().written).toBe(true)
+        h.kvDel(operationResultKey(id)); h.kvDel(operationStateKey(id))
+        expect(await owner.retireTerminal(Date.now()+50*60*60*1000)).toContain(id)
+        expect(owner.read(id).recordVersion).toBe(5)
+        expect(owner.readFailedInputProof(id)).not.toBeNull()
+        h.runtime.fullStore.get('char-1')!.get('chat-1')!.message = baseChat().message
+        expect(owner.readFailedInputProof(id)?.inputPresent).toBe(false)
+        const before = h.kvGet(commandKey(id))
+        expect(() => owner.invalidateFailedInputSettlementSynchronously(id,()=>{throw new Error('publish failed')})).toThrow('publish failed')
+        expect(h.kvGet(commandKey(id))).toEqual(before)
+        owner.invalidateFailedInputSettlementSynchronously(id,()=>h.kvSet(operationResultKey(id),'new payload'))
+        expect(owner.read(id).recordVersion).toBe(5)
+        expect(owner.read(id).failedInputSettlement).toBeUndefined()
+        expect(owner.readFailedInputProof(id)).toBeNull()
+    })
     it('exposes only a currently owned failed input and preserves later latest-policy edits without writes', async () => {
         const h = makeHarness(), owner = h.makeOwner(), id = 'operation-failed-proof'
         await owner.admit(admission(id)); await owner.beginTransform(id)

@@ -6,6 +6,7 @@ export interface FailedInputProof {
     contractVersion: 'bg_failed_input_proof.v1'
     operationId: string; charId: string; chatId: string; inputReceiptId: string
     userMessageId: string; attachedRevision: string; currentRevision: string; allowEditedInput: boolean
+    inputPresent?: boolean
 }
 const hash = (value: unknown): value is string => typeof value === 'string' && /^[a-f0-9]{64}$/.test(value)
 export function parseFailedInputProof(value: unknown, marker: ServerInputMarker): FailedInputProof | null {
@@ -13,6 +14,7 @@ export function parseFailedInputProof(value: unknown, marker: ServerInputMarker)
     return p?.contractVersion === 'bg_failed_input_proof.v1' && p.operationId === marker.operationId
         && p.charId === marker.charId && p.chatId === marker.chatId && hash(p.inputReceiptId)
         && hash(p.attachedRevision) && hash(p.currentRevision) && typeof p.allowEditedInput === 'boolean'
+        && (p.inputPresent === undefined || typeof p.inputPresent === 'boolean')
         && typeof p.userMessageId === 'string' && p.userMessageId.length > 0 && p.userMessageId.length <= 255 ? p : null
 }
 function matchingAck(value: any, p: FailedInputProof, resultId?: string): boolean {
@@ -27,6 +29,7 @@ export async function settleFailedInput(options: {
     readProof: () => Promise<{ proof: unknown, acknowledgement: unknown } | null>
     readCanonical: () => Promise<{ chat: any, revision: string } | null>
     readLocal: () => any; savedBaseView: () => string | null; isCurrent: () => boolean
+    hasUnconfirmedWrite?: () => boolean
     adopt: (revision: string, allowedView: string) => Promise<boolean>
     acknowledge: (resultId: string) => Promise<'acked' | 'superseded' | 'unconfirmed'>
     clear: () => void
@@ -50,6 +53,20 @@ export async function settleFailedInput(options: {
     if (!live && !alreadyAcked) return 'unconfirmed'
     const canonical = await options.readCanonical()
     if (!canonical || canonical.revision !== p.currentRevision || !options.isCurrent()) return 'unconfirmed'
+    if (p.inputPresent === false) {
+        const missing = (chat: any) => Array.isArray(chat?.message)
+            && !chat.message.some((message: any) => message?.chatId === p.userMessageId)
+        if (!alreadyAcked || options.hasUnconfirmedWrite?.() !== false
+            || !missing(canonical.chat) || !missing(options.readLocal())) return 'unconfirmed'
+        const retry = await options.readProof()
+        const fresh = parseFailedInputProof(retry?.proof, marker)
+        if (!options.isCurrent() || !fresh || fresh.inputPresent !== false
+            || fresh.currentRevision !== canonical.revision || fresh.inputReceiptId !== p.inputReceiptId
+            || !matchingAck(retry?.acknowledgement, fresh, (evidence?.acknowledgement as any)?.resultId)
+            || options.hasUnconfirmedWrite?.() !== false || !missing(options.readLocal())) return 'unconfirmed'
+        options.clear()
+        return 'acked'
+    }
     const owned = (chat: any) => Array.isArray(chat?.message)
         ? chat.message.filter((message: any) => message?.chatId === p.userMessageId && message.role === 'user') : []
     const serverMessages = owned(canonical.chat)

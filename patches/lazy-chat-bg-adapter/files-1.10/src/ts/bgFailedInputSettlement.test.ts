@@ -60,6 +60,27 @@ describe('failed raw input settlement and next-send fence',()=>{
     const absent=harness();absent.chat.message=[]
     expect(await settleFailedInput(absent.options)).toBe('unconfirmed');expect(absent.options.acknowledge).not.toHaveBeenCalled()
   })
+  it('clears an already acknowledged deleted input without adoption or repeated ACK',async()=>{
+    const h=harness();Object.assign(h.proof,{inputPresent:false});h.chat.message=[];h.setLocal(h.base);h.ack(h.receipt)
+    const options={...h.options,hasUnconfirmedWrite:()=>false}
+    expect(await settleFailedInput(options)).toBe('acked')
+    expect(options.adopt).not.toHaveBeenCalled();expect(options.acknowledge).not.toHaveBeenCalled()
+    expect(options.clear).toHaveBeenCalledOnce();expect(options.readProof).toHaveBeenCalledTimes(2)
+  })
+  it.each(['no-ack','unconfirmed-write','unknown-write','wrong-role-id','superseded-proof','stale-view'])
+    ('keeps deleted-input metadata for unsafe %s',async condition=>{
+      const h=harness();Object.assign(h.proof,{inputPresent:false});h.chat.message=[];h.setLocal(h.base);h.ack(h.receipt)
+      const options={...h.options,hasUnconfirmedWrite:()=>false}
+      if(condition==='no-ack')h.ack(null)
+      if(condition==='unconfirmed-write')options.hasUnconfirmedWrite=()=>true
+      if(condition==='unknown-write')delete (options as any).hasUnconfirmedWrite
+      if(condition==='wrong-role-id')h.setLocal({id:'chat',message:[{chatId:'message-one',role:'char',data:'different'}]})
+      if(condition==='superseded-proof')options.readProof.mockImplementationOnce(async()=>({proof:h.proof,acknowledgement:h.receipt}))
+        .mockImplementationOnce(async()=>({proof:h.proof,acknowledgement:{...h.receipt,resultId:'result-newer'}}))
+      if(condition==='stale-view')options.isCurrent=()=>false
+      expect(await settleFailedInput(options)).toBe('unconfirmed')
+      expect(options.clear).not.toHaveBeenCalled();expect(options.adopt).not.toHaveBeenCalled();expect(options.acknowledge).not.toHaveBeenCalled()
+    })
   it('recovers a marker-removal storage failure from durable ACK without repeating ACK',async()=>{
     const h=harness();h.options.acknowledge.mockImplementation(async()=>{h.ack(h.receipt);return 'acked'})
     h.options.clear.mockImplementationOnce(()=>{throw Error('storage unavailable')})

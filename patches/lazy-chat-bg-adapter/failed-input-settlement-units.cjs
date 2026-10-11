@@ -13,16 +13,34 @@ module.exports = prior => {
     const orch = 'src/ts/bgOrchestrate.ts', server = 'server/node/bgOrchestrator.cjs', store = 'server/node/bgOrchestrationOperationStore.cjs';
     add('server-import', server, "const { peekResult, consumeResult, acknowledgeResult, inheritDeliveryClaim } = require('./bgOrchestrationResultDelivery.cjs')",
         "const { peekResult, consumeResult, acknowledgeResult, inheritDeliveryClaim } = require('./bgOrchestrationResultDelivery.cjs')\nconst { failedInputSettlement, validFailedInputSettlement, invalidateFailedInputSettlement } = require('./bgFailedInputSettlement.cjs')");
-    add('publication-invalidation', server, '    kvSet(key, JSON.stringify(record))\n', `    if (operationKeyed) {
+    add('publication-invalidation', server, '    kvSet(key, JSON.stringify(record))\n', `    const publish = () => {
+    if (operationKeyed) {
       if (typeof opts?.kvGet !== 'function') throw new Error('operation publication state unavailable')
       invalidateFailedInputSettlement(kvSet, operationStateKey(record.operationId), readOperationState(opts.kvGet, record.operationId))
     }
     kvSet(key, JSON.stringify(record))
+    }
+    if (operationKeyed && typeof opts?.invalidateFailedInputSettlement === 'function') opts.invalidateFailedInputSettlement(publish)
+    else publish()
 `);
+    add('intermediate-invalidator', server, '                kvGet: deps.kvGet,',
+        '                kvGet: deps.kvGet,\n                invalidateFailedInputSettlement: control && control.invalidateFailedInputSettlement,');
+    add('control-invalidator', server, '                nextPublishSequence: () => orchestrationRuns.nextPublishSequence(operationId, activeRun),',
+        '                invalidateFailedInputSettlement: typeof serverChatInputOwner?.invalidateFailedInputSettlementSynchronously === \'function\' ? publish => serverChatInputOwner.invalidateFailedInputSettlementSynchronously(operationId, publish) : undefined,\n                nextPublishSequence: () => orchestrationRuns.nextPublishSequence(operationId, activeRun),');
+    add('terminal-invalidator', server, '              resultId,\n              publishSeq,\n              serverChatCommitVersion,',
+        '              resultId,\n              publishSeq,\n              invalidateFailedInputSettlement: typeof serverChatInputOwner?.invalidateFailedInputSettlementSynchronously === \'function\' ? publish => serverChatInputOwner.invalidateFailedInputSettlementSynchronously(operationId, publish) : undefined,\n              serverChatCommitVersion,');
+    add('fallback-invalidator', server, '                publishSeq: orchestrationRuns.nextPublishSequence(operationId, activeRun),',
+        '                invalidateFailedInputSettlement: typeof serverChatInputOwner?.invalidateFailedInputSettlementSynchronously === \'function\' ? publish => serverChatInputOwner.invalidateFailedInputSettlementSynchronously(operationId, publish) : undefined,\n                publishSeq: orchestrationRuns.nextPublishSequence(operationId, activeRun),');
     add('status-proof', server, "        inputCommandId: inputCommand.admission.inputCommandId,\n        admissionSeq: inputCommand.admissionSeq,",
-        "        inputCommandId: inputCommand.admission.inputCommandId,\n        admissionSeq: inputCommand.admissionSeq,\n        failedInputProof: inputCommand.inputState === 'failed' && typeof serverChatInputOwner.readFailedInputProof === 'function' ? serverChatInputOwner.readFailedInputProof(operationId) : null,\n        failedInputAcknowledgement: inputCommand.inputState === 'failed' ? (() => { const state = readOperationState(kvGet, operationId); return state?.state === 'delivered' && validFailedInputSettlement(state.failedInputSettlement, operationId, charId, chatId) ? state.failedInputSettlement : null })() : null,");
+        "        inputCommandId: inputCommand.admission.inputCommandId,\n        admissionSeq: inputCommand.admissionSeq,\n        failedInputProof: inputCommand.inputState === 'failed' && typeof serverChatInputOwner.readFailedInputProof === 'function' ? serverChatInputOwner.readFailedInputProof(operationId) : null,\n        failedInputAcknowledgement: inputCommand.inputState === 'failed' ? serverChatInputOwner.readFailedInputAcknowledgement(operationId) : null,");
     add('ack-receipt', server, "        const durable = writeOperationState(kvSet, operationId, stateMeta, nextState)",
-        "        const failedReceipt = failedInputSettlement(delivery.record, serverChatInputOwner?.read(operationId))\n        const durable = writeOperationState(kvSet, operationId, { ...stateMeta, failedInputSettlement: failedReceipt }, nextState)");
+        "        const failedReceipt = failedInputSettlement(delivery.record, serverChatInputOwner?.read(operationId))\n        const writeDelivered = receipt => writeOperationState(kvSet, operationId, { ...stateMeta, failedInputSettlement: receipt }, nextState)\n        const durable = failedReceipt ? serverChatInputOwner.acknowledgeFailedInputSynchronously(operationId, delivery.record, writeDelivered) : writeDelivered(null)");
+    add('expired-result-response', server, "        const inputOperationState = !inputCommand", `        const failedAcknowledgement = inputCommand && kvGet(operationStateKey(operationId)) == null
+          ? serverChatInputOwner.readFailedInputAcknowledgement(operationId) : null
+        if (failedAcknowledgement && failedAcknowledgement.charId === charId && failedAcknowledgement.chatId === chatId) {
+          return res.json({ found: false, operationId, operationState: 'delivered', stage: 0, status: [] })
+        }
+        const inputOperationState = !inputCommand`);
     add('store-import', store, "const OPERATION_RESULT_PREFIX = 'bg-orch-result-op:'",
         "const { validFailedInputSettlement } = require('./bgFailedInputSettlement.cjs')\nconst OPERATION_RESULT_PREFIX = 'bg-orch-result-op:'");
     add('store-preserve', store, "      const previous = readOperationState(kvGet, operationId)",
@@ -73,6 +91,7 @@ module.exports = prior => {
     const isCurrent = () => (DBState as any)?.db?.characters?.find((row: any) => row.chaId === charId) === character
       && character.chats === chats && !!currentChat()
         return await settleFailedInput({ marker, data, isCurrent, readLocal: currentChat,
+            hasUnconfirmedWrite: () => forageStorage.realStorage.hasUnconfirmedChatWrite?.(charId, chatId) !== false,
             readProof: async () => {
                 const response = await fetchOrchestrationControl('/api/bg-orchestrate-status/' + encodeURIComponent(operationId)
                   + '?' + new URLSearchParams({ charId, chatId }), { method: 'GET', credentials: 'same-origin' })

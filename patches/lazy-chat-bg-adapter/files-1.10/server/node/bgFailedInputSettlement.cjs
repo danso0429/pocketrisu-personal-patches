@@ -13,6 +13,7 @@ function failedInputSettlement(result, input) {
         || result.anchorResultVersion !== 1 || result.hasGeneratedAnswer !== false
         || result.serverChatCommit || !input || input.inputState !== 'failed'
         || input.transformState !== 'completed' || !input.inputReceipt
+        || input.terminal?.publication !== 'not_applicable' || input.terminal.resultRevision != null
         || result.operationId !== input.operationId || result.operationId !== input.admission.operationId
         || result.charId !== input.admission.charId || result.chatId !== input.admission.chatId) return null;
     const receipt = { contractVersion: 'bg_failed_input_ack.v1', operationId: result.operationId,
