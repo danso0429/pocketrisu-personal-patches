@@ -147,8 +147,8 @@ try {
     await second.page.getByText('Synthetic (1): ' + messageText + ' ' + level, { exact: true }).waitFor()
   }
   if (includeOperations) {
-    for (const message of ['서버 요청이 실패했어요. 보존된 원문과 이미 저장된 결과를 확인해 주세요.',
-      'main 이후의 서버 처리 문맥이 사라졌어요. 보관된 결과를 확인해 주세요. 자동 재실행하지 않았어요.',
+    for (const message of ['서버 요청이 실패했어요. 저장된 원문이나 결과가 있다면 확인해 주세요.',
+      'main 이후의 서버 처리 문맥이 사라졌어요. 저장된 결과가 있다면 확인해 주세요. 자동 재실행하지 않았어요.',
       '응답은 저장했지만, 조립 이후 수정한 내용은 이번 생성에 반영되지 않았어요. 자동 재생성하지 않았어요.',
       '답변은 저장했지만 전역 변수 변경 일부는 최신 값과 충돌해 반영하지 않았어요. 최신 값은 보존했어요.']) {
       await second.page.getByText(message,{exact:true}).waitFor()
