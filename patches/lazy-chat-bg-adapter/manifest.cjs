@@ -25,7 +25,7 @@ const queueUnits = require('./queue-units.cjs')
 module.exports = {
     id: 'lazy-chat-bg-adapter',
     title: 'BG preserve integration for lazy chat storage',
-    version: '0.7.41',
+    version: '0.7.42',
     targets: {
         pocketrisu: {
             verified: ['1.10.0'],
@@ -2256,7 +2256,20 @@ async function ensureServerChatCommitCanonicalState() {
     cacheStrippedDatabase(normalizeJSON(stripChatsFromDb(database)));
 }
 
+async function readServerChatPersistedSnapshot() {
+    const raw = kvGet('database/database.bin');
+    if (!raw) return null;
+    const bytes = Buffer.from(raw);
+    const database = await decodeRisuSave(Buffer.from(bytes));
+    return { database, isCurrent: () => {
+        const latest = kvGet('database/database.bin');
+        return latest != null && bytes.equals(Buffer.from(latest));
+    } };
+}
+
 const serverChatInputOwner = createServerChatInputOwner({
+    readPersistedDatabase: readServerChatPersistedSnapshot,
+    recoverCompletedInput: operationId => serverChatCommitOwner.recover(operationId),
     chatWriteJournal,
     kvGet,
     kvSet,
@@ -2276,6 +2289,7 @@ const serverChatInputOwner = createServerChatInputOwner({
 });
 
 const serverChatCommitOwner = createServerChatCommitOwner({
+    readPersistedDatabase: readServerChatPersistedSnapshot,
     chatWriteJournal,
     kvGet,
     kvSet,
@@ -2373,12 +2387,18 @@ const serverChatCommitOwner = createServerChatCommitOwner({
             + serverChatRecovery.pendingInputs.length + ' input(s), '
             + serverChatRecovery.pendingCommits.length + ' commit(s)'
         );
+        logger.error('[ServerChatRecovery] Pending commit classes: '
+            + JSON.stringify(serverChatRecovery.classification.pending));
     } else if (serverChatRecovery.inputResults.length > 0
         || serverChatRecovery.commitResults.length > 0) {
         logger.info(
             '[ServerChatRecovery] Reconciled server chat journals in '
             + serverChatRecovery.passes + ' pass(es) before listen'
         );
+    }
+    if (serverChatRecovery.classification.appliedTargetAbsent > 0) {
+        logger.info('[ServerChatRecovery] Already-applied absent-target commits retained: '
+            + serverChatRecovery.classification.appliedTargetAbsent);
     }
     await startServer();
 `,
@@ -3990,3 +4010,4 @@ module.exports.units.push(...['bgRecoveryRead.ts', 'bgRecoveryRead.test.ts', 'bg
 })))
 module.exports.units.push(...require('./plugin-admission-units.cjs')(module.exports.units))
 module.exports.units.push(...require('./plugin-unavailable-units.cjs')(module.exports.units))
+module.exports.units.push(...require('./operation-notice-units.cjs')(module.exports.units))

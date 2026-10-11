@@ -12,6 +12,7 @@ module.exports = prior => {
             after: [...prior, ...related, ...units].filter(unit => unit.file === file).map(unit => unit.id) })
     }
     for (const file of ['server/node/bgNotifications.cjs', 'server/node/bgNotifications.test.ts',
+        'server/node/bgOperationNotices.cjs', 'server/node/bgOperationNotices.test.ts',
         'src/ts/bgNotifications.ts', 'src/ts/bgNotifications.test.ts',
         'src/lib/Others/BgNotificationDelivery.svelte']) {
         units.push({ id: `lazy-chat-bg-adapter:notifications:owned:${file}:1.10`, file,

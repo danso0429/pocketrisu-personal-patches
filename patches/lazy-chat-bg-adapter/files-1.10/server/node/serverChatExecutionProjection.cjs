@@ -6,6 +6,7 @@ const { stableJSON } = require('./serverChatCommit.cjs');
 const SERVER_CHAT_EXECUTION_STORE_CONTRACT = 'bg_chat_execution_store.v1';
 const SERVER_CHAT_EXECUTION_PROJECTION_CONTRACT = 'bg_chat_execution_projection.v1';
 const SERVER_CHAT_EXECUTION_FIELD = 'serverChatExecutionState';
+const SERVER_CHAT_COMMIT_APPLIED_FIELD = 'serverChatCommitApplied';
 const OPERATION_ID = /^[A-Za-z0-9_-]{8,128}$/;
 const SHA256 = /^[a-f0-9]{64}$/;
 const AC_STATES = new Set(['pending', 'settled', 'skipped', 'invalidated', 'disabled']);
@@ -15,6 +16,31 @@ const BROWSER_EFFECT_MAX_ROWS = 8192;
 
 function own(value, key) {
     return Object.prototype.hasOwnProperty.call(value, key);
+}
+
+function currentAppliedLedger(database) {
+    const value = database?.[SERVER_CHAT_COMMIT_APPLIED_FIELD];
+    if (value === undefined) return [];
+    if (!Array.isArray(value) || value.some(entry => !entry || typeof entry !== 'object'
+        || typeof entry.operationId !== 'string' || typeof entry.commitReceiptId !== 'string'
+        || !Number.isSafeInteger(entry.commitSequence) || entry.commitSequence <= 0)) {
+        throw new Error('server chat commit applied ledger is invalid');
+    }
+    if (new Set(value.map(entry => entry.operationId)).size !== value.length
+        || new Set(value.map(entry => entry.commitSequence)).size !== value.length) {
+        throw new Error('server chat commit applied ledger contains duplicate identities');
+    }
+    return value;
+}
+
+function appliedTargetAbsent(database, chatStore, identity) {
+    if (!Array.isArray(database?.characters) || !chatStore || typeof chatStore.get !== 'function') return false;
+    const applied = currentAppliedLedger(database).find(entry => entry.operationId === identity.operationId);
+    if (applied?.commitReceiptId !== identity.commitReceiptId || applied.commitSequence !== identity.commitSequence
+        || chatStore.get(identity.charId)?.has(identity.chatId)) return false;
+    const character = database.characters.find(entry => entry?.chaId === identity.charId);
+    return !character || (Array.isArray(character.chats)
+        && !character.chats.some(chat => chat?.id === identity.chatId));
 }
 
 function sha256(value) {
@@ -352,6 +378,9 @@ function copyServerOwnedRootState(currentDatabase, incomingDatabase) {
 }
 
 module.exports = {
+    SERVER_CHAT_COMMIT_APPLIED_FIELD,
+    currentAppliedLedger,
+    appliedTargetAbsent,
     SERVER_CHAT_EXECUTION_FIELD,
     SERVER_CHAT_EXECUTION_PROJECTION_CONTRACT,
     SERVER_CHAT_EXECUTION_STORE_CONTRACT,

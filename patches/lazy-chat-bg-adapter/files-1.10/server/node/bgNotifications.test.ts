@@ -3,7 +3,7 @@ import { createRequire } from 'node:module'
 import { createHash } from 'node:crypto'
 import { afterEach, describe, expect, it } from 'vitest'
 const require = createRequire(import.meta.url)
-const { createBgNotifications, PREFIX, LEASE_MS, MAX_ROWS } = require('./bgNotifications.cjs')
+const { createBgNotifications, PREFIX, OPERATION_PREFIX, LEASE_MS, MAX_ROWS } = require('./bgNotifications.cjs')
 const cleanup: Array<() => void> = []
 afterEach(() => { while (cleanup.length) cleanup.pop()!() })
 
@@ -29,6 +29,51 @@ function harness() {
 }
 
 describe('durable BG notification owner', () => {
+    it('keeps fixed operation notices in v3 and preserves v1/v2 reader and ACK compatibility', () => {
+        const h = harness()
+        const legacy = h.owner.publish(h.event('operation-legacy'))
+        h.advance(1)
+        const modern = h.owner.publish({ ...h.event('operation-modern'), eventKey: 'operation:terminal',
+            code: 'operation_failed', reason: 'generation_failed', rawText: 'private draft', credential: 'private credential' })
+        expect(h.deps.kvGet(PREFIX + modern.id)).toBeNull()
+        const stored = h.deps.kvGet(OPERATION_PREFIX + modern.id)
+        expect(JSON.parse(stored).version).toBe(3)
+        expect(stored).not.toContain('private draft')
+        expect(stored).not.toContain('private credential')
+        expect(h.owner.claim('reader-legacy', 2).map((row: any) => row.id)).toEqual([legacy.id])
+        const delivered = h.owner.claim('reader-modern', 3)
+        expect(delivered.map((row: any) => row.id)).toEqual([modern.id])
+        expect(h.owner.acknowledge('reader-modern', [{ id: modern.id, token: delivered[0].token }])).toEqual([modern.id])
+        expect(h.owner.claim('another-modern', 3)).toEqual([])
+        expect(h.owner.publish({ ...h.event('operation-modern'), createdAt: 1_000_001,
+            eventKey: 'operation:terminal', code: 'operation_failed', reason: 'generation_failed' }).status).toBe('duplicate')
+    })
+
+    it('isolates corrupt v3 rows while sharing capacity and original expiry across namespaces', () => {
+        const h = harness(), corruptKey = OPERATION_PREFIX + 'c'.repeat(64)
+        h.deps.kvSet(corruptKey, 'bad')
+        h.owner.publish(h.event('operation-readable'))
+        const modern = h.owner.publish({ ...h.event('operation-expiry'), eventKey: 'operation:terminal',
+            code: 'operation_interrupted', reason: 'before_result' })
+        expect(h.owner.claim('reader-merged', 3).map((row: any) => row.id)).toHaveLength(2)
+        h.advance(48 * 60 * 60 * 1000)
+        expect(h.owner.claim('reader-expired', 3)).toEqual([])
+        expect(h.deps.kvGet(OPERATION_PREFIX + modern.id)).toBeNull()
+        expect(h.deps.kvGet(corruptKey)).toBe('bad')
+    })
+
+    it('reclaims only acknowledged v3 tombstones under the unchanged shared row cap', () => {
+        const h = harness()
+        for (let i = 0; i < MAX_ROWS; i++) h.owner.publish({ ...h.event('operation-v3-' + i),
+            eventKey: 'operation:terminal', code: 'operation_failed', reason: 'commit_failed' })
+        const event = { ...h.event('operation-v3-overflow'), eventKey: 'operation:terminal',
+            code: 'operation_failed', reason: 'commit_failed' }
+        expect(h.owner.publish(event).status).toBe('capacity')
+        const claimed = h.owner.claim('consumer-v3-cap', 3)
+        expect(h.owner.acknowledge('consumer-v3-cap', claimed.map((row: any) => ({ id: row.id, token: row.token })))).toHaveLength(claimed.length)
+        expect(h.owner.publish(event).status).toBe('stored')
+        expect(h.deps.kvList(OPERATION_PREFIX)).toHaveLength(MAX_ROWS)
+    })
     it.each(['api-limit', 'message'])('does not mistake an extant %s notice for a legacy terminal receipt', kind => {
         const h = harness(), identity = 'd'.repeat(64), prefix = 'internal/bg-plugin-failure-receipts/v1/'
         const base = { ...h.event(), code: 'plugin_host_limit', pluginName: 'synthetic', pluginVersion: '1',

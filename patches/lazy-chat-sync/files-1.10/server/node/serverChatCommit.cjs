@@ -467,7 +467,7 @@ function normalizeCommitRequest(value) {
         'bindingEpoch', 'hostChangeSeq', 'inputReceipt', 'claimEpoch', 'chat',
         'metadata', 'hostChangeIntent', 'owners', 'effectIntents', 'acOwner',
         'acState', 'readyForNextTurn', 'awaitingMetadata', 'committedAt',
-        'executionAnchorRevision',
+        'executionAnchorRevision', 'notificationGenerationFailed',
     ]));
     if (source.contractVersion !== SERVER_CHAT_COMMIT_CONTRACT) {
         throw invalidCommit('contractVersion is unsupported');
@@ -542,6 +542,9 @@ function normalizeCommitRequest(value) {
     if (typeof source.readyForNextTurn !== 'boolean' || typeof source.awaitingMetadata !== 'boolean') {
         throw invalidCommit('readyForNextTurn/awaitingMetadata must be boolean');
     }
+    if (source.notificationGenerationFailed !== undefined && source.notificationGenerationFailed !== true) {
+        throw invalidCommit('notificationGenerationFailed must be true when present');
+    }
     const expected = {
         operationId,
         charId: requestedCharId,
@@ -597,6 +600,7 @@ function normalizeCommitRequest(value) {
         hostChangeIntent,
         owners,
         effectIntents: normalizeEffectIntents(source.effectIntents),
+        ...(source.notificationGenerationFailed === true ? { notificationGenerationFailed: true } : {}),
         ...(source.executionAnchorRevision !== undefined
             ? { executionAnchorRevision: requireRevision('executionAnchorRevision', source.executionAnchorRevision) }
             : {}),
@@ -805,7 +809,12 @@ function normalizeStoredRecord(value, expectedOperationId = null) {
             return null;
         }
         if (expectedOperationId && record.operationId !== expectedOperationId) return null;
+        if (record.journalRetentionVersion !== undefined && record.journalRetentionVersion !== 1) return null;
+        if (record.notificationVersion !== undefined && (record.notificationVersion !== 3
+            || !Number.isSafeInteger(record.notificationCreatedAt) || record.notificationCreatedAt <= 0)) return null;
         const material = requirePlainObject('storedRecord.recovery', record.recovery);
+        if (material.notificationGenerationFailed !== undefined
+            && (material.notificationGenerationFailed !== true || record.notificationVersion !== 3)) return null;
         if (record.recordVersion === 2 || record.recordVersion === 3) {
             const anchor = requirePlainObject('anchorResolution', material.anchorResolution);
             rejectUnexpectedKeys('anchorResolution', anchor, new Set(['sourceFingerprint', 'baseRevision', 'unreflected',
@@ -1038,6 +1047,7 @@ function createServerChatCommitter({
             {
                 awaitingMetadata: normalized.awaitingMetadata,
                 commitOperationId: normalized.operationId,
+                retentionVersion: 1,
             },
         );
         const journalInfo = journal.describePreparedStage(preparedChat);
@@ -1085,6 +1095,9 @@ function createServerChatCommitter({
                     canonicalWrite,
                 );
                 const record = {
+                    journalRetentionVersion: 1,
+                    notificationVersion: 3,
+                    notificationCreatedAt: Date.now(),
                     recordVersion: typeof normalized.anchorResolution?.promptInputsChanged === 'boolean' ? 3 : normalized.anchorResolution ? 2 : 1,
                     contractVersion: SERVER_CHAT_COMMIT_CONTRACT,
                     operationId: normalized.operationId,
@@ -1218,6 +1231,7 @@ function createServerChatCommitter({
 
     async function recoverStored(record) {
         const publicationErrors = [];
+        let disposition = 'published';
         let durableChat = null;
         try {
             durableChat = await journal.restoreDurableStage(
@@ -1248,19 +1262,21 @@ function createServerChatCommitter({
         }
         if (publicationErrors.length === 0) {
             try {
-                await publishCanonicalState(record, {
+                const outcome = await publishCanonicalState(record, {
                     chat: durableChat?.chat || null,
                     recovery: true,
                 });
+                if (outcome?.disposition === 'absent_applied') disposition = 'absent_applied';
             } catch (error) {
                 publicationErrors.push(publicError(error));
             }
         }
         return committedResult(
             record,
-            publicationErrors.length > 0 ? 'commit_recovery_pending' : 'commit_recovered',
+            publicationErrors.length > 0 ? 'commit_recovery_pending'
+                : disposition === 'absent_applied' ? 'commit_applied_target_absent' : 'commit_recovered',
             true,
-            publicationErrors.length > 0 ? 'pending_recovery' : 'published',
+            publicationErrors.length > 0 ? 'pending_recovery' : disposition,
             publicationErrors,
         );
     }

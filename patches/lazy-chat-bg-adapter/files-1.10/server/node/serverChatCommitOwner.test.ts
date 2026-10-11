@@ -10,11 +10,15 @@ import journalPackage from './chatWriteJournal.cjs'
 import operationPackage from './bgOrchestrationOperationStore.cjs'
 import ownerPackage from './serverChatCommitOwner.cjs'
 import utilsPackage from './utils.cjs'
+import noticePackage from './bgOperationNotices.cjs'
+import notificationPackage from './bgNotifications.cjs'
 
 const { commitStorageKey, stableJSON } = commitPackage as any
 const { commandKey, createServerChatInputOwner } = inputPackage as any
 const { createChatWriteJournal } = journalPackage as any
 const { operationResultKey, operationStateKey } = operationPackage as any
+const { createBgOperationNotices } = noticePackage as any
+const { createBgNotifications } = notificationPackage as any
 const {
     SERVER_CHAT_COMMIT_APPLIED_FIELD,
     SERVER_CHAT_COMMIT_SEQUENCE_KEY,
@@ -126,7 +130,13 @@ function makeHarness() {
         }
         set.run(key, typeof value === 'string' ? value : Buffer.from(value), Date.now())
     }
-    const kvDel = (key: string) => del.run(key)
+    const kvDel = (key: string) => {
+        if (failNextKey === key) {
+            failNextKey = null
+            throw new Error('injected-owner-write-failure')
+        }
+        return del.run(key)
+    }
     const escapedPrefix = (prefix: string) => `${prefix.replace(/[\\%_]/g, '\\$&')}%`
     const kvList = (prefix: string) => (
         list.all(escapedPrefix(prefix)) as Array<{ key: string }>
@@ -182,19 +192,31 @@ function makeHarness() {
             runtime.database = database
         },
         scheduleChatStorePersist: () => { runtime.schedules += 1 },
+        readPersistedDatabase: async () => {
+            const raw = kvGet('synthetic/persisted-root')
+            if (!raw) return null
+            const bytes = Buffer.from(raw)
+            return { database: await decodeRisuSave(Buffer.from(bytes)), isCurrent: () => {
+                const latest = kvGet('synthetic/persisted-root')
+                return latest !== null && bytes.equals(latest)
+            } }
+        },
     }
-    const makeInputOwner = (journal = makeJournal()) => createServerChatInputOwner({
+    const makeInputOwner = (journal = makeJournal(), options: any = {}) => createServerChatInputOwner({
         ...ownerDependencies,
         chatWriteJournal: journal,
         encodeSettingsSnapshot: encodeRisuSaveLegacy,
+        ...options,
     })
     const makeOwner = (
         journal = makeJournal(),
         serverChatInputOwner: any = null,
+        options: any = {},
     ) => createServerChatCommitOwner({
         ...ownerDependencies,
         chatWriteJournal: journal,
         serverChatInputOwner,
+        ...options,
     })
     const primeOperation = (
         operationId: string,
@@ -241,6 +263,14 @@ function makeHarness() {
         makeOwner,
         primeOperation,
         commitInput,
+        persistRoot() {
+            const database = structuredClone(runtime.database)
+            for (const character of database.characters) {
+                character.chats = character.chats.map((metadata: any) =>
+                    structuredClone(runtime.fullStore.get(character.chaId)?.get(metadata.id) || metadata))
+            }
+            kvSet('synthetic/persisted-root', Buffer.from(encodeRisuSaveLegacy(database)))
+        },
         failNextWriteTo(key: string) { failNextKey = key },
     }
 }
@@ -272,7 +302,11 @@ describe('server-owned BG chat commit', () => {
     })
 
     it('commits over a saved earlier edit and retains variables, metadata and replay identity', async () => {
-        const harness = makeHarness(), owner = harness.makeOwner()
+        const harness = makeHarness()
+        const noticeDeps = { db: harness.db, kvGet: harness.kvGet, kvSet: harness.kvSet, kvDel: harness.kvDel, kvList: harness.kvList }
+        const outbox = createBgNotifications(noticeDeps)
+        const notices = createBgOperationNotices({ ...noticeDeps, publish: outbox.publish })
+        const owner = harness.makeOwner(undefined, null, { notifyCommit: notices.captureCommit })
         const before: any = baseChat()
         before.message.unshift({ role: 'char', chatId: 'history', data: 'original' })
         before.scriptstate = { a: '0', b: '0' }
@@ -299,11 +333,41 @@ describe('server-owned BG chat commit', () => {
         expect(harness.runtime.database.characters[0].chats[0]).toMatchObject({ name: 'Renamed', folderId: 'new-folder' })
         expect(harness.runtime.database.statics.messages).toBe(11)
         expect(harness.runtime.database.globalChatVariables.mood).toBe('new')
+        expect(outbox.claim('consumer-edit-source', 3).map((row: any) => [row.event.code, row.event.reason]))
+            .toEqual([['chat_edit_unreflected', 'concurrent_edit']])
         stored.message[0].data = 'later edit'
         expect(await owner.commitGenerationResult(request)).toMatchObject({ status: 'committed', reused: true })
         expect(harness.runtime.database.statics.messages).toBe(11)
         expect(await harness.makeOwner().recover(operationId)).toMatchObject({ status: 'committed' })
         expect(harness.runtime.fullStore.get('char-1')!.get('chat-1')!.message[0].data).toBe('later edit')
+    })
+
+    it('retains a committed partial answer and reconstructs its failure notice after outbox failure without replay', async () => {
+        const h = makeHarness(), id = 'operation-partial-notice', before = baseChat()
+        const deps = { db: h.db, kvGet: h.kvGet, kvSet: h.kvSet, kvDel: h.kvDel, kvList: h.kvList }
+        const outbox = createBgNotifications(deps)
+        let failing = true
+        const notices = createBgOperationNotices({ ...deps, publish: (event: any) => {
+            if (failing) throw Error('injected-partial-outbox-failure')
+            return outbox.publish(event)
+        } })
+        const owner = h.makeOwner(undefined, null, { notifyCommit: notices.captureCommit })
+        h.primeOperation(id)
+        const request = h.commitInput(id, { ...result(withAnswer(before, 'retained partial answer', 'answer-partial'), 'old', 'new'),
+            threw: 'synthetic post-main error' }, 1, revision(before))
+        expect(await owner.commitGenerationResult(request)).toMatchObject({ status: 'committed' })
+        expect(h.runtime.fullStore.get('char-1')!.get('chat-1').message.at(-1).data).toBe('retained partial answer')
+        expect(h.runtime.database.statics.messages).toBe(11)
+        expect(outbox.claim('consumer-partial-source', 3)).toEqual([])
+        expect(h.kvList('internal/bg-operation-notice-intents/v1/')).toHaveLength(1)
+        failing = false
+        h.makeOwner(undefined, null, { notifyCommit: notices.captureCommit }).retryNotifications()
+        notices.retry()
+        expect(outbox.claim('consumer-partial-source', 3).map((row: any) => [row.event.code, row.event.reason]))
+            .toEqual([['operation_failed', 'generation_failed']])
+        expect(await owner.commitGenerationResult(request)).toMatchObject({ status: 'committed', reused: true })
+        expect(h.runtime.database.statics.messages).toBe(11)
+        expect(h.kvList('internal/bg-notifications/v3/')).toHaveLength(1)
     })
 
     it.each(['input_deleted', 'chat_deleted', 'unknown_suffix'])('retains the result without writing a chat on %s', async reason => {
@@ -555,8 +619,9 @@ describe('server-owned BG chat commit', () => {
         )
         const committed = await owner.commitGenerationResult(input)
         expect(committed.status).toBe('committed')
+        harness.persistRoot()
         harness.kvDel(operationStateKey(operationId))
-        const later = Date.parse(input.committedAt) + 50 * 60 * 60 * 1000
+        const later = Date.now() + 50 * 60 * 60 * 1000
         const receiptKey = 'internal/server-chat-commit-receipt/v1/'
             + Buffer.from(operationId).toString('base64url')
         harness.failNextWriteTo(receiptKey)
@@ -605,6 +670,7 @@ describe('server-owned BG chat commit', () => {
             inputReceipt: attached.record.inputReceipt,
         })
         expect(committed).toMatchObject({ status: 'committed', publication: 'published' })
+        harness.persistRoot()
         harness.kvDel(operationStateKey(operationId))
         const later = Date.now() + 50 * 60 * 60 * 1000
         expect(await inputOwner.retireTerminal(later)).toEqual([operationId])
@@ -630,7 +696,7 @@ describe('server-owned BG chat commit', () => {
         expect(harness.runtime.database.statics.messages).toBe(11)
     })
 
-    it('never republishes a deleted normal chat merely to retire its old commit', async () => {
+    it('keeps metadata-present hydration absence pending instead of republishing during retirement', async () => {
         const harness = makeHarness()
         const owner = harness.makeOwner()
         const operationId = 'operation-c2-retire-deleted-chat-1'
@@ -650,6 +716,239 @@ describe('server-owned BG chat commit', () => {
         )).toEqual([])
         expect(harness.runtime.fullStore.get('char-1')?.has('chat-1')).toBe(false)
         expect(harness.kvGet(commitStorageKey(operationId))).not.toBeNull()
+    })
+
+    it('classifies a validated already-applied commit as absent only when both target views are absent', async () => {
+        const harness = makeHarness()
+        const owner = harness.makeOwner()
+        const operationId = 'operation-g18-applied-absent'
+        const before = baseChat()
+        harness.primeOperation(operationId)
+        const committed = await owner.commitGenerationResult(harness.commitInput(
+            operationId, result(withAnswer(before, 'preserved journal answer', 'assistant-g18'), 'old', 'new'),
+            1, revision(before),
+        ))
+        expect(committed).toMatchObject({ status: 'committed', publication: 'published' })
+        harness.runtime.fullStore.get('char-1')?.delete('chat-1')
+        harness.runtime.database.characters[0].chats = []
+        const statsBefore = harness.runtime.database.statics.messages
+        const globalBefore = structuredClone(harness.runtime.database.globalChatVariables)
+        const journalKey = JSON.parse(harness.kvGet(commitStorageKey(operationId)).toString('utf8')).journal.storageKey
+        const journalBefore = harness.kvGet(journalKey)
+        const recovered = await owner.recover(operationId)
+        expect(recovered).toMatchObject({ status: 'committed', publication: 'absent_applied' })
+        expect(harness.runtime.database.characters[0].chats).toEqual([])
+        expect(harness.runtime.fullStore.get('char-1')?.has('chat-1')).toBe(false)
+        expect(harness.runtime.database.statics.messages).toBe(statsBefore)
+        expect(harness.runtime.database.globalChatVariables).toEqual(globalBefore)
+        expect(harness.kvGet(journalKey)).toEqual(journalBefore)
+        expect((await reconcileServerChatRecovery({ serverChatInputOwner: { recoverAll: async () => [] },
+            serverChatCommitOwner: owner })).stalled).toBe(false)
+    })
+
+    for (const broken of ['hydration', 'journal', 'receipt', 'sequence', 'duplicate-ledger', 'invalid-metadata']) {
+        it(`retains recovery failure for an applied missing target with broken ${broken} proof`, async () => {
+            const harness = makeHarness()
+            const owner = harness.makeOwner()
+            const operationId = 'operation-g18-proof-' + broken
+            const before = baseChat()
+            harness.primeOperation(operationId)
+            const committed = await owner.commitGenerationResult(harness.commitInput(
+                operationId, result(withAnswer(before, 'answer', 'assistant-proof'), 'old', 'new'),
+                1, revision(before),
+            ))
+            expect(committed.status).toBe('committed')
+            harness.runtime.fullStore.get('char-1')?.delete('chat-1')
+            if (broken !== 'hydration') harness.runtime.database.characters[0].chats = []
+            if (broken === 'journal') harness.kvDel(JSON.parse(harness.kvGet(commitStorageKey(operationId)).toString('utf8')).journal.storageKey)
+            if (broken === 'receipt') harness.runtime.database[SERVER_CHAT_COMMIT_APPLIED_FIELD][0].commitReceiptId = 'different-receipt'
+            if (broken === 'sequence') harness.runtime.database[SERVER_CHAT_COMMIT_APPLIED_FIELD][0].commitSequence++
+            if (broken === 'duplicate-ledger') harness.runtime.database[SERVER_CHAT_COMMIT_APPLIED_FIELD].push(
+                { ...harness.runtime.database[SERVER_CHAT_COMMIT_APPLIED_FIELD][0] })
+            if (broken === 'invalid-metadata') delete harness.runtime.database.characters
+            const recovered = await owner.recover(operationId)
+            expect(recovered.publication).toBe('pending_recovery')
+            expect(harness.runtime.fullStore.get('char-1')?.has('chat-1')).toBe(false)
+        })
+    }
+
+    for (const persistedDeletion of [false, true]) {
+        it(`requires durable absence before input-first completion and journal retirement (persisted=${persistedDeletion})`, async () => {
+            const h = makeHarness(), journal = h.makeJournal()
+            let commitOwner: any
+            const inputOwner = h.makeInputOwner(journal, {
+                recoverCompletedInput: (id: string) => commitOwner.recover(id),
+            })
+            commitOwner = h.makeOwner(journal, inputOwner)
+            const id = 'operation-g18-durable-' + persistedDeletion
+            const before = baseChat()
+            await inputOwner.admit(inputAdmission(id, before, 'retained input'))
+            await inputOwner.beginTransform(id)
+            const attached = await inputOwner.attachTransformed(id, inputTransform(id, before, 'retained input'))
+            const inputChat = h.runtime.fullStore.get('char-1')!.get('chat-1')
+            h.primeOperation(id, 'chat-1', 'running-result-consumed')
+            const publishMarker = inputOwner.markResultPublishedSynchronously
+            inputOwner.markResultPublishedSynchronously = () => { throw new Error('injected-publication-marker-failure') }
+            const committed = await commitOwner.commitGenerationResult({
+                ...h.commitInput(id, result(withAnswer(inputChat, 'paid answer', 'answer-durable'), 'old', 'new'),
+                    inputChat.message.length, attached.record.executionBaseRevision),
+                settingsDigest: attached.record.admission.settingsContextDigest,
+                inputReceipt: attached.record.inputReceipt,
+            })
+            expect(committed).toMatchObject({ status: 'committed', publication: 'published' })
+            inputOwner.markResultPublishedSynchronously = publishMarker
+            expect(inputOwner.read(id).terminal.publication).toBe('pending')
+            const inputKey = inputOwner.read(id).journal.storageKey
+            const commitKey = JSON.parse(h.kvGet(commitStorageKey(id)).toString('utf8')).journal.storageKey
+            const inputBytes = Buffer.from(h.kvGet(inputKey)), commitBytes = Buffer.from(h.kvGet(commitKey))
+            h.persistRoot()
+            h.runtime.database.characters[0].chats = []
+            h.runtime.fullStore.get('char-1')!.delete('chat-1')
+            if (persistedDeletion) h.persistRoot()
+            if (persistedDeletion) {
+                h.failNextWriteTo(commandKey(id))
+                expect(await inputOwner.recoverAll()).toMatchObject([{ operationId: id, status: 'pending_recovery' }])
+                expect(inputOwner.read(id).terminal.targetAbsent).toBeUndefined()
+                expect(h.kvGet(inputKey)).toEqual(inputBytes)
+                expect(h.kvGet(commitKey)).toEqual(commitBytes)
+            }
+            const recovered = await inputOwner.recoverAll()
+            expect(recovered).toMatchObject([{ operationId: id, status: persistedDeletion ? 'completed' : 'pending_recovery' }])
+            expect(h.runtime.fullStore.get('char-1')?.has('chat-1')).toBe(false)
+            expect(h.runtime.database.characters[0].chats).toEqual([])
+            expect(inputOwner.read(id).terminal.publication).toBe('pending')
+            expect(inputOwner.read(id).terminal.targetAbsent !== undefined).toBe(persistedDeletion)
+            expect(h.kvGet(inputKey)).toEqual(inputBytes)
+            expect(h.kvGet(commitKey)).toEqual(commitBytes)
+            h.kvDel(operationStateKey(id))
+            const later = Date.now() + 50 * 60 * 60 * 1000
+            if (persistedDeletion) {
+                h.failNextWriteTo(inputKey)
+                await expect(inputOwner.retireTerminal(later)).rejects.toThrow('injected-owner-write-failure')
+                expect(inputOwner.read(id)).toMatchObject({ recordVersion: 4 })
+                expect(h.kvGet(inputKey)).toEqual(inputBytes)
+                expect(h.kvGet(commitKey)).toEqual(commitBytes)
+            }
+            expect(await inputOwner.retireTerminal(later)).toEqual(persistedDeletion ? [id] : [])
+            if (persistedDeletion) {
+                h.failNextWriteTo(commitKey)
+                await expect(commitOwner.retireRecoveries(later)).rejects.toThrow('injected-owner-write-failure')
+                expect(commitOwner.readGenerationCommit(id).retired).not.toBe(true)
+                expect(h.kvGet(commitKey)).toEqual(commitBytes)
+                expect(journal.size()).toBe(1)
+            }
+            expect(await commitOwner.retireRecoveries(later)).toEqual(persistedDeletion ? [id] : [])
+            if (persistedDeletion) {
+                expect(h.kvGet(inputKey)).toBeNull()
+                expect(h.kvGet(commitKey)).toBeNull()
+                expect(inputOwner.read(id)).toMatchObject({ recordVersion: 5 })
+                expect(inputOwner.read(id)).toMatchObject({ retiredDisposition: 'applied_target_absent',
+                    terminal: { publication: 'published' } })
+                expect(inputOwner.read(id).terminal.publishedAt).toBeUndefined()
+                const compact = Buffer.from(h.kvGet(commandKey(id)))
+                expect(inputOwner.markResultPublishedSynchronously(id, committed.receipt.storedRevision)).toBe(true)
+                expect(h.kvGet(commandKey(id))).toEqual(compact)
+                expect(commitOwner.readGenerationCommit(id)).toMatchObject({ status: 'committed', retired: true,
+                    receipt: { commitReceiptId: committed.receipt.commitReceiptId } })
+                expect(journal.size()).toBe(0)
+                const recreated = baseChat()
+                recreated.message[0].data = 'later recreated chat'
+                h.runtime.database.characters[0].chats = [{ id: 'chat-1', name: 'Recreated', _stub: true }]
+                h.runtime.fullStore.get('char-1')!.set('chat-1', recreated)
+                expect(await inputOwner.recoverAll()).toEqual([])
+                expect(await commitOwner.recover(id)).toMatchObject({ status: 'committed', retired: true })
+                expect(h.runtime.fullStore.get('char-1')!.get('chat-1')).toEqual(recreated)
+                expect(inputOwner.markResultPublishedSynchronously(id, committed.receipt.storedRevision)).toBe(true)
+                expect(h.kvGet(commandKey(id))).toEqual(compact)
+                const next = await inputOwner.admit(inputAdmission(id + '-next', recreated, 'fresh input'))
+                expect(next.status).toBe('admitted')
+            } else {
+                expect(h.kvGet(inputKey)).toEqual(inputBytes)
+                expect(h.kvGet(commitKey)).toEqual(commitBytes)
+            }
+            expect(h.runtime.database.statics.messages).toBe(11)
+            expect(h.runtime.database.globalChatVariables.mood).toBe('new')
+        })
+    }
+
+    it('retires published new journals after a later user-message deletion without restoring that message', async () => {
+        const h = makeHarness(), journal = h.makeJournal(), inputOwner = h.makeInputOwner(journal)
+        const owner = h.makeOwner(journal, inputOwner), id = 'operation-g18-published-edit'
+        const before = baseChat()
+        await inputOwner.admit(inputAdmission(id, before, 'input later deleted'))
+        await inputOwner.beginTransform(id)
+        const attached = await inputOwner.attachTransformed(id, inputTransform(id, before, 'input later deleted'))
+        const inputChat = h.runtime.fullStore.get('char-1')!.get('chat-1')
+        h.primeOperation(id, 'chat-1', 'running-result-consumed')
+        const committed = await owner.commitGenerationResult({
+            ...h.commitInput(id, result(withAnswer(inputChat, 'kept answer', 'answer-kept'), 'old', 'new'),
+                inputChat.message.length, attached.record.executionBaseRevision),
+            settingsDigest: attached.record.admission.settingsContextDigest, inputReceipt: attached.record.inputReceipt,
+        })
+        expect(committed.status).toBe('committed')
+        const current = h.runtime.fullStore.get('char-1')!.get('chat-1')
+        current.message = current.message.filter((message: any) => message.chatId !== attached.record.inputReceipt.messageId)
+        h.persistRoot(); h.kvDel(operationStateKey(id))
+        const later = Date.now() + 50 * 60 * 60 * 1000
+        expect(await inputOwner.retireTerminal(later)).toEqual([id])
+        expect(await owner.retireRecoveries(later)).toEqual([id])
+        expect(h.runtime.fullStore.get('char-1')!.get('chat-1').message.some((message: any) =>
+            message.chatId === attached.record.inputReceipt.messageId)).toBe(false)
+        expect(h.runtime.fullStore.get('char-1')!.get('chat-1').message.at(-1).data).toBe('kept answer')
+        expect(journal.size()).toBe(0)
+    })
+
+    for (const stale of [false, true]) {
+        it(`decodes the persisted root once per commit-retirement pass and defers an invalidated snapshot (stale=${stale})`, async () => {
+            const h = makeHarness(), journal = h.makeJournal()
+            let decodes = 0
+            const owner = h.makeOwner(journal, null, { readPersistedDatabase: async () => {
+                decodes++
+                const bytes = Buffer.from(h.kvGet('synthetic/persisted-root'))
+                const database = await decodeRisuSave(Buffer.from(bytes))
+                if (stale) {
+                    h.runtime.database.characters[0].description = 'newer user setting'
+                    h.persistRoot()
+                }
+                return { database, isCurrent: () => bytes.equals(h.kvGet('synthetic/persisted-root')) }
+            } })
+            const ids = []
+            for (let i = 0; i < 3; i++) {
+                const id = 'operation-g18-root-pass-' + i, before = structuredClone(h.runtime.fullStore.get('char-1')!.get('chat-1'))
+                h.primeOperation(id)
+                expect((await owner.commitGenerationResult(h.commitInput(id,
+                    result(withAnswer(before, 'answer-' + i, 'answer-pass-' + i), 'old', 'new'),
+                    before.message.length, revision(before)))).status).toBe('committed')
+                h.kvDel(operationStateKey(id)); ids.push(id)
+            }
+            h.persistRoot()
+            const retired = await owner.retireRecoveries(Date.now() + 50 * 60 * 60 * 1000)
+            expect(decodes).toBe(1)
+            expect(retired.sort()).toEqual(stale ? [] : ids.sort())
+            if (stale) for (const id of ids) expect(h.kvGet(commitStorageKey(id))).not.toBeNull()
+        })
+    }
+
+    it('retains a missing journal candidate while retiring another healthy commit', async () => {
+        const h = makeHarness(), journal = h.makeJournal()
+        const healthy = 'operation-g18-z-healthy', broken = 'operation-g18-a-broken'
+        const orderedKeys = (prefix: string) => h.kvList(prefix).sort((a: string, b: string) =>
+            a === commitStorageKey(broken) ? -1 : b === commitStorageKey(broken) ? 1 : a.localeCompare(b))
+        const owner = h.makeOwner(journal, null, { kvList: orderedKeys })
+        for (const id of [healthy, broken]) {
+            const before = structuredClone(h.runtime.fullStore.get('char-1')!.get('chat-1'))
+            h.primeOperation(id)
+            expect((await owner.commitGenerationResult(h.commitInput(id,
+                result(withAnswer(before, id, 'answer-' + id), 'old', 'new'),
+                before.message.length, revision(before)))).status).toBe('committed')
+            h.kvDel(operationStateKey(id))
+        }
+        const brokenJournal = JSON.parse(h.kvGet(commitStorageKey(broken)).toString('utf8')).journal.storageKey
+        h.kvDel(brokenJournal); h.persistRoot()
+        expect(orderedKeys('internal/server-chat-commit/v1/')[0]).toBe(commitStorageKey(broken))
+        expect(await owner.retireRecoveries(Date.now() + 50 * 60 * 60 * 1000)).toEqual([healthy])
+        expect(h.kvGet(commitStorageKey(broken))).not.toBeNull()
+        expect(h.kvGet(commitStorageKey(healthy))).toBeNull()
     })
 
     it('records a per-key conflict and preserves the newer canonical global value', async () => {

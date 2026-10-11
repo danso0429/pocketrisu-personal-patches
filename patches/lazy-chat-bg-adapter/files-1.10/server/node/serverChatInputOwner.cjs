@@ -1,10 +1,13 @@
 'use strict';
 
 const crypto = require('node:crypto');
+const { currentAppliedLedger, appliedTargetAbsent } = require('./serverChatExecutionProjection.cjs');
 const { captureAssemblyContext, captureAssemblyChat } = require('./serverChatAssemblyContext.cjs');
 const { captureInputTransformBase, resolveInputAttachment } = require('./chatInputAttach.cjs');
 const {
     SERVER_CHAT_INPUT_RECEIPT_CONTRACT,
+    commitStorageKey,
+    normalizeStoredRecord,
     stableJSON,
 } = require('./serverChatCommit.cjs');
 const {
@@ -135,7 +138,20 @@ function retiredChecksum(record) {
     return sha256(stableJSON(body));
 }
 
+function validTargetAbsence(terminal) {
+    const proof = terminal?.targetAbsent;
+    return proof?.version === 1 && /^[a-f0-9]{64}$/.test(proof.commitReceiptId || '')
+        && Number.isSafeInteger(proof.commitSequence) && proof.commitSequence > 0
+        && Number.isSafeInteger(proof.at) && proof.at >= terminal.at;
+}
+
 function parseRetiredRecord(parsed, expectedOperationId) {
+    if (parsed.journalRetentionVersion !== undefined && parsed.journalRetentionVersion !== 1) return null;
+    if (parsed.retiredDisposition !== undefined) {
+        if (parsed.retiredDisposition !== 'applied_target_absent' || parsed.inputState !== 'completed'
+            || parsed.journalRetentionVersion !== 1 || parsed.terminal?.publication !== 'published'
+            || !validTargetAbsence(parsed.terminal) || parsed.terminal.publishedAt !== undefined) return null;
+    } else if (parsed.terminal?.targetAbsent !== undefined) return null;
     if (parsed.recordVersion !== 5
         || parsed.contractVersion !== SERVER_CHAT_INPUT_COMMAND_CONTRACT
         || !validOperationId(parsed.operationId)
@@ -188,6 +204,9 @@ function parseRecord(value, expectedOperationId = null) {
     if (!value || Buffer.byteLength(value) > SERVER_CHAT_INPUT_MAX_RECORD_BYTES) return null;
     try {
         const parsed = JSON.parse(Buffer.isBuffer(value) ? value.toString('utf8') : String(value));
+        if (parsed?.journalRetentionVersion !== undefined && parsed.journalRetentionVersion !== 1) return null;
+        if (parsed?.terminal?.targetAbsent !== undefined
+            && (parsed.inputState !== 'completed' || !validTargetAbsence(parsed.terminal))) return null;
         if (parsed?.recordVersion === 5) {
             return parseRetiredRecord(parsed, expectedOperationId);
         }
@@ -409,6 +428,8 @@ function createServerChatInputOwner({
     encodeSettingsSnapshot,
     isExternalGenerationActive = () => false,
     publishNotification = null,
+    readPersistedDatabase = null,
+    recoverCompletedInput = null,
 }) {
     const dependencies = {
         chatWriteJournal,
@@ -460,6 +481,7 @@ function createServerChatInputOwner({
         if (record.inputState === 'blocked_edit') return !record.userResolvedAt;
         if (!TERMINAL_INPUT_STATES.has(record.inputState)) return true;
         if (record.inputState === 'completed') {
+            if (!chat && hasAppliedTargetAbsence(record)) return false;
             const resultRevision = record.terminal?.resultRevision;
             const liveRevision = chat ? chatRevision(chat) : null;
             if (liveRevision === resultRevision) return false;
@@ -470,6 +492,17 @@ function createServerChatInputOwner({
             return !containsOwnedInput(record, chat);
         }
         return false;
+    }
+
+    function hasAppliedTargetAbsence(record, database = getDbCache()?.[databaseKey]) {
+        if (!validTargetAbsence(record.terminal)) return false;
+        try {
+            return appliedTargetAbsent(database, getFullChatStore(), {
+                operationId: record.operationId, commitReceiptId: record.terminal.targetAbsent.commitReceiptId,
+                commitSequence: record.terminal.targetAbsent.commitSequence,
+                charId: record.admission.charId, chatId: record.admission.chatId,
+            });
+        } catch { return false; }
     }
 
     function latestReplacement(record) {
@@ -727,7 +760,7 @@ function createServerChatInputOwner({
                 inputCommandVersion: 1,
                 inputCommandId: next.admission.inputCommandId,
                 admissionSeq: next.admissionSeq,
-            }, 'queued');
+            }, 'queued', kvGet);
             if (!operation.written) throw operation.error || new Error('operation state write failed');
             return { status: 'ready', record: clone(next) };
         })());
@@ -865,6 +898,7 @@ function createServerChatInputOwner({
             )).at(-1) || null;
             const record = {
                 recordVersion: 4,
+                journalRetentionVersion: 1,
                 attachmentPolicy: 'latest-v1',
                 transformBaseRevision: null,
                 attachmentBaseRevision: null,
@@ -903,6 +937,8 @@ function createServerChatInputOwner({
                 lastOperationId: admission.operationId,
             }));
             const operation = writeOperationState(kvSet, admission.operationId, {
+                notificationSourceVersion: 1,
+                notificationCreatedAt: Date.now(),
                 charId: admission.charId,
                 chatId: admission.chatId,
                 baseChatRevision: admission.submittedBaseRevision,
@@ -911,7 +947,7 @@ function createServerChatInputOwner({
                 inputCommandVersion: 1,
                 inputCommandId: admission.inputCommandId,
                 admissionSeq: record.admissionSeq,
-            }, 'queued');
+            }, 'queued', kvGet);
             if (!operation.written) throw operation.error || new Error('operation state write failed');
             return { status: 'admitted', reused: false, record: clone(record) };
             })();
@@ -1146,7 +1182,8 @@ function createServerChatInputOwner({
                 before.admission.charId,
                 before.admission.chatId,
                 chat,
-                { awaitingMetadata: false, commitOperationId: journalOperationId(operationId) },
+                { awaitingMetadata: false, commitOperationId: journalOperationId(operationId),
+                    ...(before.journalRetentionVersion === 1 ? { retentionVersion: 1 } : {}) },
             );
             const journal = chatWriteJournal.describePreparedStage(prepared);
             const outcome = sqliteDb.transaction(() => {
@@ -1243,7 +1280,7 @@ function createServerChatInputOwner({
                     inputCommandVersion: 1,
                     inputCommandId: record.admission.inputCommandId,
                     admissionSeq: record.admissionSeq,
-                }, 'queued');
+                }, 'queued', kvGet);
                 if (!operation.written) throw operation.error || new Error('operation state write failed');
                 return { status: 'attached', reused: false, record: clone(next) };
             })();
@@ -1388,6 +1425,8 @@ function createServerChatInputOwner({
             || record.terminal.resultRevision !== resultRevision) {
             return false;
         }
+        // Archived receipts are immutable. They never attest current hydration.
+        if (record.recordVersion === 5) return true;
         if (record.terminal.publication === 'published') return true;
         write({
             ...record,
@@ -1402,6 +1441,23 @@ function createServerChatInputOwner({
 
     function releaseSettingsContext(operationId) {
         return settingsSnapshots.delete(operationId);
+    }
+
+    function markResultTargetAbsentSynchronously(operationId, resultRevision, receipt) {
+        const record = read(operationId);
+        if (!record || record.recordVersion !== 4 || record.inputState !== 'completed' || record.terminal?.resultRevision !== resultRevision
+            || receipt?.operationId !== operationId || receipt.storedRevision !== resultRevision
+            || receipt.inputReceiptId !== record.inputReceipt?.receiptId
+            || !/^[a-f0-9]{64}$/.test(receipt.commitReceiptId || '')
+            || !Number.isSafeInteger(receipt.commitSequence) || receipt.commitSequence <= 0) return false;
+        const next = { ...record, terminal: { ...record.terminal, targetAbsent: {
+            version: 1, commitReceiptId: receipt.commitReceiptId, commitSequence: receipt.commitSequence,
+            at: record.terminal.targetAbsent?.at || Date.now(),
+        } } };
+        if (!hasAppliedTargetAbsence(next)) return false;
+        if (!record.terminal.targetAbsent
+            || stableJSON(record.terminal.targetAbsent) !== stableJSON(next.terminal.targetAbsent)) write(next);
+        return true;
     }
 
     function blockEditSynchronously(operationId, reason) {
@@ -1582,6 +1638,20 @@ function createServerChatInputOwner({
         if (attached.length > 0) await ensureCanonicalState();
         const results = [];
         for (const record of records) {
+            if (record.recordVersion === 5) continue;
+            if (record.inputState === 'completed' && typeof recoverCompletedInput === 'function') {
+                try {
+                    const outcome = await recoverCompletedInput(record.operationId);
+                    const matches = outcome?.status === 'committed'
+                        && outcome.receipt?.inputReceiptId === record.inputReceipt?.receiptId
+                        && outcome.receipt?.storedRevision === record.terminal?.resultRevision;
+                    results.push({ operationId: record.operationId,
+                        status: matches && ['published', 'absent_applied'].includes(outcome.publication)
+                            ? 'completed' : 'pending_recovery',
+                        reason: matches ? outcome.reason : 'completed_input_commit_mismatch' });
+                } catch { results.push({ operationId: record.operationId, status: 'pending_recovery' }); }
+                continue;
+            }
             if (record.admission.inputPreparation === 'client' && record.inputState === 'queued'
                 && !readSettingsSnapshotRecord(record)) {
                 const updated = { ...record, inputState: 'blocked_edit',
@@ -1623,33 +1693,83 @@ function createServerChatInputOwner({
             throw new Error('server input retirement time is invalid');
         }
         await ensureCanonicalState();
-        const retired = await queueStorageOperation(() => sqliteDb.transaction(() => {
-            const records = allRecords();
-            const referenced = new Set(records.filter((record) => (
+        const retired = await queueStorageOperation(async () => {
+            const referencedBy = records => new Set(records.filter(record =>
                 record.inputState === 'queued' || record.inputState === 'attached'
                 || (record.inputState === 'blocked_edit' && !record.userResolvedAt)
-            )).flatMap((record) => [
-                record.queuePredecessorId, record.executionPredecessorId,
-            ]).filter(Boolean));
+            ).flatMap(record => [record.queuePredecessorId, record.executionPredecessorId]).filter(Boolean));
+            const eligibleRecord = (record, referenced) => record.recordVersion === 4
+                && (['completed', 'failed', 'cancelled'].includes(record.inputState)
+                    || (record.inputState === 'blocked_edit' && record.userResolvedAt))
+                && record.terminal?.at && now - record.terminal.at > SERVER_CHAT_INPUT_RETIRE_AFTER_MS
+                && (record.inputState !== 'completed' || record.terminal.publication === 'published'
+                    || (record.journalRetentionVersion === 1 && hasAppliedTargetAbsence(record)))
+                && !referenced.has(record.operationId)
+                && kvGet(operationResultKey(record.operationId)) == null
+                && kvGet(operationStateKey(record.operationId)) == null
+                && !requiresExecutionPredecessor(record, currentChat(record.admission.charId, record.admission.chatId));
+            const captured = allRecords(), initialRefs = referencedBy(captured), prepared = new Map();
+            let invalidJournals = 0;
+            for (const record of captured) {
+                if (!eligibleRecord(record, initialRefs) || record.journalRetentionVersion !== 1 || !record.journal) continue;
+                try {
+                    const token = await chatWriteJournal.prepareRetirement(record.admission.charId, record.admission.chatId, {
+                        expectedStorageKey: record.journal.storageKey,
+                        validate: candidate => chatRevision(candidate.chat) === record.executionBaseRevision,
+                    });
+                    if (token.record.storageBytes !== record.journal.storageBytes) {
+                        throw Object.assign(new Error('Input journal receipt size differs'), { code: 'CHAT_JOURNAL_RECORD_INVALID' });
+                    }
+                    prepared.set(record.operationId, { token, fingerprint: sha256(stableJSON(record)) });
+                } catch (error) {
+                    if (error?.code !== 'CHAT_JOURNAL_RECORD_INVALID') throw error;
+                    invalidJournals++;
+                }
+            }
+            const snapshot = [...prepared.keys()].some(id => captured.find(record => record.operationId === id)?.inputState === 'completed')
+                && typeof readPersistedDatabase === 'function' ? await readPersistedDatabase() : null;
+            let snapshotCurrent = false;
+            const durableCompletion = record => {
+                if (!snapshotCurrent) return false;
+                const commit = normalizeStoredRecord(kvGet(commitStorageKey(record.operationId)), record.operationId);
+                if (!commit || commit.commitReceipt.inputReceiptId !== record.inputReceipt?.receiptId
+                    || commit.commitReceipt.storedRevision !== record.terminal.resultRevision
+                    || !currentAppliedLedger(snapshot.database).some(entry => entry.operationId === record.operationId
+                        && entry.commitReceiptId === commit.commitReceipt.commitReceiptId
+                        && entry.commitSequence === commit.commitSequence)) return false;
+                if (record.terminal.publication === 'pending') return hasAppliedTargetAbsence(record, snapshot.database);
+                const durableChat = snapshot.database.characters?.find(character => character?.chaId === record.admission.charId)
+                    ?.chats?.find(chat => chat?.id === record.admission.chatId);
+                return Array.isArray(durableChat?.message) || appliedTargetAbsent(snapshot.database, getFullChatStore(), {
+                    operationId: record.operationId, commitReceiptId: commit.commitReceipt.commitReceiptId,
+                    commitSequence: commit.commitSequence, charId: record.admission.charId, chatId: record.admission.chatId,
+                });
+            };
+            const retired = sqliteDb.transaction(() => {
+            snapshotCurrent = snapshot?.isCurrent() === true;
+            const records = allRecords();
+            const referenced = referencedBy(records);
             const eligible = [];
             for (const record of records) {
-                if (record.recordVersion !== 4
-                    || (!['completed', 'failed', 'cancelled'].includes(record.inputState)
-                        && !(record.inputState === 'blocked_edit' && record.userResolvedAt))
-                    || !record.terminal?.at
-                    || now - record.terminal.at <= SERVER_CHAT_INPUT_RETIRE_AFTER_MS
-                    || (record.inputState === 'completed'
-                        && record.terminal.publication !== 'published')
-                    || referenced.has(record.operationId)
-                    || kvGet(operationResultKey(record.operationId)) != null
-                    || kvGet(operationStateKey(record.operationId)) != null
-                    || requiresExecutionPredecessor(
-                        record,
-                        currentChat(record.admission.charId, record.admission.chatId),
-                    )) continue;
+                if (!eligibleRecord(record, referenced)) continue;
+                if (record.journalRetentionVersion === 1 && record.journal) {
+                    const candidate = prepared.get(record.operationId);
+                    if (!candidate || candidate.fingerprint !== sha256(stableJSON(record))
+                        || now - candidate.token.record.updatedAt <= SERVER_CHAT_INPUT_RETIRE_AFTER_MS
+                        || (record.inputState === 'completed' && !durableCompletion(record))) continue;
+                }
                 eligible.push(record);
             }
             for (const record of eligible) {
+                const terminal = { ...record.terminal };
+                const absentArchive = record.inputState === 'completed' && terminal.publication === 'pending';
+                if (absentArchive) {
+                    // V5's legacy field denotes historical durable settlement.
+                    // Keep the authoritative absent disposition separately;
+                    // do not alter the live V4 marker or fabricate publishedAt.
+                    terminal.publication = 'published';
+                    delete terminal.publishedAt;
+                } else delete terminal.targetAbsent;
                 const retired = {
                     ...record,
                     recordVersion: 5,
@@ -1665,11 +1785,24 @@ function createServerChatInputOwner({
                     globalIntent: null,
                     globalOutcomes: null,
                     retiredAt: now,
+                    terminal,
+                    ...(absentArchive ? { retiredDisposition: 'applied_target_absent' } : {}),
                 };
                 write({ ...retired, retiredChecksum: retiredChecksum(retired) });
+                const candidate = prepared.get(record.operationId);
+                if (candidate) chatWriteJournal.writeRetirement(candidate.token);
             }
             return eligible.map((record) => record.operationId);
-        })());
+            })();
+            for (const id of retired) {
+                const candidate = prepared.get(id);
+                if (candidate) chatWriteJournal.publishRetirement(candidate.token);
+            }
+            if (invalidJournals) {
+                try { console.warn('[ServerChatRecovery] input retirement retained invalid journal candidates: ' + invalidJournals); } catch {}
+            }
+            return retired;
+        });
         for (const operationId of retired) settingsSnapshots.delete(operationId);
         return retired;
     }
@@ -1703,6 +1836,7 @@ function createServerChatInputOwner({
         recoverAll,
         retireTerminal,
         releaseSettingsContext,
+        markResultTargetAbsentSynchronously,
         blockEditSynchronously,
         settingsSnapshotStats,
         settleDurablySynchronously,

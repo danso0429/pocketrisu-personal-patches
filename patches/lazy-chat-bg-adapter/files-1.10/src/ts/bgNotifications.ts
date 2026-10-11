@@ -1,6 +1,7 @@
 export type NotificationCode = 'input_host_unsupported' | 'plugin_permission_missing'
     | 'plugin_api_unsupported' | 'plugin_hook_failed' | 'plugin_provider_failed' | 'plugin_message'
-    | 'plugin_host_limit' | 'plugin_late_call'
+    | 'plugin_host_limit' | 'plugin_late_call' | 'operation_failed' | 'operation_interrupted'
+    | 'chat_edit_unreflected' | 'commit_effect_conflict'
 export interface BgNotification {
     id: string
     token: string
@@ -19,11 +20,19 @@ export interface BgNotification {
         phase?: string
         message?: string
         level?: 'info' | 'warning' | 'error'
-        reason?: 'notification_capacity' | 'operation_budget'
+        reason?: 'notification_capacity' | 'operation_budget' | 'generation_failed' | 'commit_failed'
+            | 'execution_context_lost' | 'before_result' | 'after_main' | 'concurrent_edit' | 'globals' | 'stats'
     }
 }
 const CODES = new Set<NotificationCode>(['input_host_unsupported', 'plugin_permission_missing',
-    'plugin_api_unsupported', 'plugin_hook_failed', 'plugin_provider_failed', 'plugin_message', 'plugin_host_limit', 'plugin_late_call'])
+    'plugin_api_unsupported', 'plugin_hook_failed', 'plugin_provider_failed', 'plugin_message', 'plugin_host_limit', 'plugin_late_call',
+    'operation_failed', 'operation_interrupted', 'chat_edit_unreflected', 'commit_effect_conflict'])
+const OPERATION_REASONS: Partial<Record<NotificationCode, ReadonlySet<string>>> = {
+    operation_failed: new Set(['generation_failed', 'commit_failed', 'execution_context_lost']),
+    operation_interrupted: new Set(['before_result', 'after_main']),
+    chat_edit_unreflected: new Set(['concurrent_edit']),
+    commit_effect_conflict: new Set(['globals', 'stats']),
+}
 const SEEN_KEY = 'bg-notification-seen-v1'
 const RETAIN_MS = 48 * 60 * 60 * 1000
 const identifier = (value: unknown): value is string => typeof value === 'string' && /^[A-Za-z0-9_-]{8,128}$/.test(value)
@@ -43,6 +52,7 @@ export function parseBgNotifications(value: unknown): BgNotification[] {
             || !text(event.eventKey, 160) || !text(event.charId, 255) || !text(event.chatId, 255)
             || !Number.isSafeInteger(event.createdAt) || event.createdAt <= 0
             || typeof event.effectsMayHaveOccurred !== 'boolean'
+            || (OPERATION_REASONS[event.code] && !OPERATION_REASONS[event.code]!.has(event.reason ?? ''))
             || ((event.code === 'input_host_unsupported' || event.code === 'plugin_api_unsupported')
                 && (typeof event.api !== 'string' || !/^[a-z][a-z0-9_]{2,63}$/.test(event.api)))
             || (event.code.startsWith('plugin_') && (!text(event.pluginName, 120) || !text(event.pluginVersion, 80)
@@ -63,6 +73,18 @@ export function notificationMessage(notification: BgNotification): string {
     const event = notification.event
     const plugin = `${event.pluginName} (${event.pluginVersion})`
     switch (event.code) {
+        case 'operation_failed': return event.reason === 'commit_failed'
+            ? '답변을 원래 채팅에 저장하지 못했어요. 보관된 결과와 저장 상태를 확인해 주세요.'
+            : event.reason === 'execution_context_lost'
+                ? '요청 처리 문맥을 잃어 작업을 이어갈 수 없어요. 보존된 원문을 확인해 주세요. 자동 재실행하지 않았어요.'
+                : '서버 요청이 실패했어요. 보존된 원문과 이미 저장된 결과를 확인해 주세요.'
+        case 'operation_interrupted': return event.reason === 'after_main'
+            ? 'main 이후의 서버 처리 문맥이 사라졌어요. 보관된 결과를 확인해 주세요. 자동 재실행하지 않았어요.'
+            : '서버 요청의 실행 문맥이 사라졌어요. 보존된 원문과 결과를 확인해 주세요. 자동 재실행하지 않았어요.'
+        case 'chat_edit_unreflected': return '응답은 저장했지만, 조립 이후 수정한 내용은 이번 생성에 반영되지 않았어요. 자동 재생성하지 않았어요.'
+        case 'commit_effect_conflict': return event.reason === 'globals'
+            ? '답변은 저장했지만 전역 변수 변경 일부는 최신 값과 충돌해 반영하지 않았어요. 최신 값은 보존했어요.'
+            : '답변은 저장했지만 통계 변경을 반영하지 못했어요.'
         case 'input_host_unsupported': return '서버에서 처리할 수 없는 입력 동작으로 멈췄어요. 원문은 해당 채팅에 보존했어요.'
         case 'plugin_permission_missing': return `${plugin}: 저장된 권한이 없거나 재확인이 필요해 플러그인을 적용하지 않았어요. 앱에서 권한을 확인해 주세요.`
         case 'plugin_api_unsupported': {

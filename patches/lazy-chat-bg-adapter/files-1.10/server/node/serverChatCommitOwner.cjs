@@ -23,12 +23,14 @@ const {
     applyCommitProjection,
     copyServerOwnedRootState,
     projectChatExecution,
+    SERVER_CHAT_COMMIT_APPLIED_FIELD,
+    currentAppliedLedger,
+    appliedTargetAbsent: checkAppliedTargetAbsent,
 } = require('./serverChatExecutionProjection.cjs');
 
 const SERVER_CHAT_COMMIT_SEQUENCE_KEY = 'internal/server-chat-commit-sequence/v1';
 const SERVER_CHAT_COMMIT_RECEIPT_PREFIX = 'internal/server-chat-commit-receipt/v1/';
 const SERVER_CHAT_COMMIT_RETIRE_AFTER_MS = 49 * 60 * 60 * 1000;
-const SERVER_CHAT_COMMIT_APPLIED_FIELD = 'serverChatCommitApplied';
 const SERVER_CHAT_COMMIT_GLOBAL_CONFLICT_FIELD = 'bgOrchestrationGlobalConflicts';
 
 function own(value, key) {
@@ -192,25 +194,6 @@ function globalAggregateStatus(outcomes) {
         : 'committed';
 }
 
-function currentAppliedLedger(database) {
-    const value = database?.[SERVER_CHAT_COMMIT_APPLIED_FIELD];
-    if (value === undefined) return [];
-    if (!Array.isArray(value) || value.some((entry) => (
-        !entry || typeof entry !== 'object'
-        || typeof entry.operationId !== 'string'
-        || typeof entry.commitReceiptId !== 'string'
-        || !Number.isSafeInteger(entry.commitSequence)
-        || entry.commitSequence <= 0
-    ))) {
-        throw new Error('server chat commit applied ledger is invalid');
-    }
-    if (new Set(value.map((entry) => entry.operationId)).size !== value.length
-        || new Set(value.map((entry) => entry.commitSequence)).size !== value.length) {
-        throw new Error('server chat commit applied ledger contains duplicate identities');
-    }
-    return value;
-}
-
 function currentStaticsLedger(statics) {
     const value = statics?.bgOrchestrationApplied;
     if (value === undefined) return [];
@@ -319,6 +302,31 @@ function pendingCommitRecovery(results) {
     ));
 }
 
+function recoveryClassification(commits) {
+    const summary = { appliedTargetAbsent: 0, pending: {} };
+    const classes = {
+        SERVER_CHAT_COMMIT_HYDRATION_ABSENT: 'hydration_missing',
+        SERVER_CHAT_COMMIT_HYDRATION_UNAVAILABLE: 'hydration_unavailable',
+        SERVER_CHAT_COMMIT_METADATA_UNAVAILABLE: 'metadata_invalid',
+        SERVER_CHAT_COMMIT_APPLIED_RECEIPT_MISMATCH: 'receipt_mismatch',
+        SERVER_CHAT_COMMIT_APPLIED_SEQUENCE_MISMATCH: 'receipt_sequence_mismatch',
+        CHAT_JOURNAL_RECORD_INVALID: 'journal_invalid',
+        SERVER_CHAT_COMMIT_INPUT_INVALID: 'payload_unavailable',
+    };
+    for (const entry of commits) {
+        if (entry.status === 'committed' && entry.publication === 'absent_applied') {
+            summary.appliedTargetAbsent++; continue;
+        }
+        if (entry.status === 'committed' && entry.publication !== 'pending_recovery') continue;
+        const kind = entry.reason === 'commit_record_invalid' ? 'record_invalid'
+            : entry.reason === 'commit_sequence_conflict' ? 'sequence_conflict'
+                : entry.reason === 'input_absence_marker_pending' ? 'input_marker_pending'
+                    : classes[entry.publicationErrors?.[0]?.code] || 'publication_unknown';
+        summary.pending[kind] = (summary.pending[kind] || 0) + 1;
+    }
+    return summary;
+}
+
 function recoveryPendingSignature(inputs, commits) {
     return stableJSON({
         inputs: inputs.map((entry) => ({
@@ -366,6 +374,7 @@ async function reconcileServerChatRecovery({
                 commitResults,
                 pendingInputs,
                 pendingCommits,
+                classification: recoveryClassification(commitResults),
             };
         }
         const signature = recoveryPendingSignature(pendingInputs, pendingCommits);
@@ -377,6 +386,7 @@ async function reconcileServerChatRecovery({
                 commitResults,
                 pendingInputs,
                 pendingCommits,
+                classification: recoveryClassification(commitResults),
             };
         }
         previousPendingSignature = signature;
@@ -388,6 +398,7 @@ async function reconcileServerChatRecovery({
         commitResults,
         pendingInputs,
         pendingCommits,
+        classification: recoveryClassification(commitResults),
     };
 }
 
@@ -408,6 +419,8 @@ function createServerChatCommitOwner({
     cacheStrippedDatabase,
     scheduleChatStorePersist,
     serverChatInputOwner = null,
+    readPersistedDatabase = null,
+    notifyCommit = null,
 }) {
     const dependencies = {
         chatWriteJournal,
@@ -517,14 +530,35 @@ function createServerChatCommitOwner({
             const ledger = currentAppliedLedger(current);
             const existing = ledger.find((entry) => entry.operationId === record.operationId);
             if (existing && existing.commitReceiptId !== record.commitReceipt.commitReceiptId) {
-                throw new Error('server chat commit applied ledger conflicts with receipt');
+                throw Object.assign(new Error('server chat commit applied ledger conflicts with receipt'),
+                    { code: 'SERVER_CHAT_COMMIT_APPLIED_RECEIPT_MISMATCH' });
             }
             if (existing) {
+                if (existing.commitSequence !== record.commitSequence) {
+                    throw Object.assign(new Error('server chat commit applied sequence conflicts with receipt'),
+                        { code: 'SERVER_CHAT_COMMIT_APPLIED_SEQUENCE_MISMATCH' });
+                }
                 const currentChat = getFullChatStore()?.get(record.recovery.requestedCharId)
                     ?.get(record.recovery.storedChatId)
                     || null;
                 if (!currentChat) {
-                    throw new Error('server chat execution projection chat is unavailable');
+                    if (!Array.isArray(current.characters)) {
+                        throw Object.assign(new Error('server chat commit metadata is unavailable'),
+                            { code: 'SERVER_CHAT_COMMIT_METADATA_UNAVAILABLE' });
+                    }
+                    const character = current.characters.find(entry => entry?.chaId === record.recovery.requestedCharId);
+                    if (character && !Array.isArray(character.chats)) {
+                        throw Object.assign(new Error('server chat commit metadata is unavailable'),
+                            { code: 'SERVER_CHAT_COMMIT_METADATA_UNAVAILABLE' });
+                    }
+                    const metadataPresent = character?.chats.some(chat => chat?.id === record.recovery.storedChatId);
+                    if (!metadataPresent && appliedTargetAbsent(current, record)) {
+                        // Recomputed from current canonical state on every call.
+                        // This does not persist absence or grant hydrated readiness.
+                        return { disposition: 'absent_applied' };
+                    }
+                    throw Object.assign(new Error('server chat execution projection chat is unavailable'),
+                        { code: metadataPresent ? 'SERVER_CHAT_COMMIT_HYDRATION_ABSENT' : 'SERVER_CHAT_COMMIT_HYDRATION_UNAVAILABLE' });
                 }
                 const projectedDatabase = { ...current };
                 const priorProjection = stableJSON(projectedDatabase.serverChatExecutionState);
@@ -572,6 +606,24 @@ function createServerChatCommitOwner({
         },
     });
 
+    function notifyRecordedCommit(operationId) {
+        if (typeof notifyCommit !== 'function') return;
+        try {
+            const record = committer.readRecovery(operationId);
+            if (record?.notificationVersion === 3) notifyCommit(record);
+        } catch {
+            try { console.warn('[BGOperationNotice] commit notice source retry deferred'); } catch {}
+        }
+    }
+
+    function retryNotifications() {
+        if (typeof notifyCommit !== 'function') return;
+        for (const key of kvList(SERVER_CHAT_COMMIT_PREFIX)) {
+            const id = operationIdFromCommitKey(key);
+            if (id) notifyRecordedCommit(id);
+        }
+    }
+
     function readRetiredReceipt(operationId) {
         const raw = kvGet(retiredReceiptKey(operationId));
         if (raw == null) return { status: 'missing', record: null };
@@ -605,14 +657,48 @@ function createServerChatCommitOwner({
             : current;
     }
 
-    function finalizeInputCommit(outcome) {
+    function appliedTargetAbsent(database, record) {
+        return checkAppliedTargetAbsent(database, getFullChatStore(), {
+            operationId: record.operationId, commitReceiptId: record.commitReceipt.commitReceiptId,
+            commitSequence: record.commitSequence, charId: record.recovery.requestedCharId, chatId: record.recovery.storedChatId,
+        });
+    }
+
+    function syntheticLegacyInput(record) {
+        const receipt = record.recovery?.inputReceipt;
+        return receipt?.inputCommandId === `input-${record.operationId}`
+            && receipt.receiptId === sha256(stableJSON({ operationId: record.operationId,
+                messageId: receipt.messageId, revision: record.recovery.baseChatRevision }));
+    }
+
+    async function finalizeInputCommit(outcome) {
         if (!serverChatInputOwner || outcome?.status !== 'committed'
             || !outcome.receipt || typeof outcome.receipt.operationId !== 'string'
             || outcome.receipt.operationId.length === 0) {
-            return;
+            return true;
         }
         serverChatInputOwner.releaseSettingsContext(outcome.receipt.operationId);
-        if (outcome.publication !== 'published') return;
+        if (outcome.publication === 'absent_applied') {
+            try {
+                const record = committer.readRecovery(outcome.receipt.operationId);
+                if (!record || record.commitReceipt.commitReceiptId !== outcome.receipt.commitReceiptId) return false;
+                const input = serverChatInputOwner.read(record.operationId);
+                if (!input) return syntheticLegacyInput(record);
+                if (input.recordVersion === 5) return input.inputReceiptId === record.commitReceipt.inputReceiptId
+                    && input.terminal?.resultRevision === record.commitReceipt.storedRevision;
+                if (typeof readPersistedDatabase !== 'function'
+                    || typeof serverChatInputOwner.markResultTargetAbsentSynchronously !== 'function') return false;
+                const snapshot = await readPersistedDatabase();
+                return sqliteDb.transaction(() => {
+                    if (!snapshot || snapshot.isCurrent() !== true
+                        || !appliedTargetAbsent(snapshot.database, record)
+                        || !appliedTargetAbsent(getDbCache()?.[databaseKey], record)) return false;
+                    return serverChatInputOwner.markResultTargetAbsentSynchronously(record.operationId,
+                        record.commitReceipt.storedRevision, { ...record.commitReceipt, commitSequence: record.commitSequence });
+                })();
+            } catch { return false; }
+        }
+        if (outcome.publication !== 'published') return true;
         try {
             serverChatInputOwner.markResultPublishedSynchronously(
                 outcome.receipt.operationId,
@@ -621,6 +707,7 @@ function createServerChatCommitOwner({
         } catch {
             // The durable commit remains authoritative. Startup reconciliation retries the marker.
         }
+        return true;
     }
 
     async function currentRevision(charId, chatId) {
@@ -784,6 +871,7 @@ function createServerChatCommitOwner({
             inputReceipt: committedInputReceipt,
             claimEpoch: null,
             chat: result.chat,
+            ...(result.threw ? { notificationGenerationFailed: true } : {}),
             metadata: chatMetadata(result.chat),
             hostChangeIntent,
             owners,
@@ -814,6 +902,7 @@ function createServerChatCommitOwner({
         if (inputReceipt) {
             await queueStorageOperation(() => finalizeInputCommit(outcome));
         }
+        if (outcome.status === 'committed') notifyRecordedCommit(operationId);
         return outcome;
     }
 
@@ -823,7 +912,11 @@ function createServerChatCommitOwner({
         if (status.status !== 'committed') return status;
         await ensureCanonicalState();
         const outcome = await committer.recover(operationId);
-        await queueStorageOperation(() => finalizeInputCommit(outcome));
+        if (outcome.status === 'committed') notifyRecordedCommit(operationId);
+        const finalized = await queueStorageOperation(() => finalizeInputCommit(outcome));
+        if (!finalized && outcome.publication === 'absent_applied') {
+            return { ...outcome, publication: 'pending_recovery', reason: 'input_absence_marker_pending' };
+        }
         return outcome;
     }
 
@@ -831,8 +924,14 @@ function createServerChatCommitOwner({
         if (kvList(SERVER_CHAT_COMMIT_PREFIX).length === 0) return [];
         await ensureCanonicalState();
         const outcomes = await committer.recoverAll();
-        await queueStorageOperation(() => {
-            for (const outcome of outcomes) finalizeInputCommit(outcome);
+        for (const outcome of outcomes) if (outcome.status === 'committed') notifyRecordedCommit(outcome.receipt.operationId);
+        await queueStorageOperation(async () => {
+            for (const outcome of outcomes) {
+                const finalized = await finalizeInputCommit(outcome);
+                if (!finalized && outcome.publication === 'absent_applied') {
+                    outcome.publication = 'pending_recovery'; outcome.reason = 'input_absence_marker_pending';
+                }
+            }
         });
         return outcomes;
     }
@@ -842,22 +941,18 @@ function createServerChatCommitOwner({
             throw new Error('server commit retirement time is invalid');
         }
         const retired = [];
+        let persistedSnapshot = null;
+        let invalidJournals = 0;
         for (const key of kvList(SERVER_CHAT_COMMIT_PREFIX)) {
             if (retired.length >= 32) break;
             const operationId = operationIdFromCommitKey(key);
             const record = operationId ? committer.readRecovery(operationId) : null;
             if (!record || readRetiredReceipt(operationId).status !== 'missing') continue;
             const input = serverChatInputOwner?.read(operationId) || null;
-            const receipt = record.recovery?.inputReceipt;
-            const syntheticLegacyInput = receipt?.inputCommandId === `input-${operationId}`
-                && receipt.receiptId === sha256(stableJSON({
-                    operationId,
-                    messageId: receipt.messageId,
-                    revision: record.recovery.baseChatRevision,
-                }));
+            const syntheticInput = syntheticLegacyInput(record);
             if ((input && (input.recordVersion !== 5
                     || input.inputReceiptId !== record.commitReceipt.inputReceiptId))
-                || (!input && !syntheticLegacyInput)) continue;
+                || (!input && !syntheticInput)) continue;
             const eligibleAt = input
                 ? input.retiredAt
                 : Date.parse(record.recovery?.hostChangeIntent?.committedAt);
@@ -868,10 +963,35 @@ function createServerChatCommitOwner({
                 || kvGet(operationStateKey(operationId)) != null) continue;
             const recovered = await recover(operationId);
             if (recovered.status !== 'committed'
-                || recovered.publication !== 'published'
+                || !['published', 'absent_applied'].includes(recovered.publication)
                 || recovered.receipt?.commitReceiptId !== record.commitReceipt.commitReceiptId) {
                 continue;
             }
+            // Legacy absent-target recovery material remains protected. Only
+            // new policy-marked records may retire their payload after49h.
+            if (recovered.publication === 'absent_applied' && record.journalRetentionVersion !== 1) continue;
+            let journalRetirement = null, snapshot = null;
+            if (record.journalRetentionVersion === 1) {
+                if (typeof readPersistedDatabase !== 'function') continue;
+                if (!persistedSnapshot) persistedSnapshot = await readPersistedDatabase();
+                snapshot = persistedSnapshot;
+                if (!snapshot) break;
+                try {
+                    journalRetirement = await chatWriteJournal.prepareRetirement(
+                        record.recovery.requestedCharId, record.recovery.storedChatId, {
+                            expectedStorageKey: record.journal.storageKey,
+                            validate: candidate => chatRevision(candidate.chat) === record.recovery.storedRevision,
+                        });
+                    if (journalRetirement.record.storageBytes !== record.journal.storageBytes) {
+                        throw Object.assign(new Error('Commit journal receipt size differs'), { code: 'CHAT_JOURNAL_RECORD_INVALID' });
+                    }
+                } catch (error) {
+                    if (error?.code !== 'CHAT_JOURNAL_RECORD_INVALID') throw error;
+                    invalidJournals++;
+                    continue;
+                }
+            }
+            let staleSnapshot = false;
             const changed = await queueStorageOperation(() => sqliteDb.transaction(() => {
                 const latest = committer.readRecovery(operationId);
                 const latestInput = serverChatInputOwner?.read(operationId) || null;
@@ -887,6 +1007,21 @@ function createServerChatCommitOwner({
                     || (input && latestInput?.recordVersion !== 5)
                     || kvGet(operationResultKey(operationId)) != null
                     || kvGet(operationStateKey(operationId)) != null) return false;
+                if (journalRetirement) {
+                    if (latest.journalRetentionVersion !== 1) return false;
+                    if (now - journalRetirement.record.updatedAt <= SERVER_CHAT_COMMIT_RETIRE_AFTER_MS) return false;
+                    if (snapshot.isCurrent() !== true) { staleSnapshot = true; return false; }
+                    const durableApplied = currentAppliedLedger(snapshot.database).find(entry => entry.operationId === operationId);
+                    if (durableApplied?.commitReceiptId !== record.commitReceipt.commitReceiptId
+                        || durableApplied.commitSequence !== record.commitSequence) return false;
+                    if (recovered.publication === 'absent_applied') {
+                        if (!appliedTargetAbsent(snapshot.database, record) || !appliedTargetAbsent(database, record)) return false;
+                    } else {
+                        const durableChat = snapshot.database.characters?.find(character => character?.chaId === record.recovery.requestedCharId)
+                            ?.chats?.find(chat => chat?.id === record.recovery.storedChatId);
+                        if (!Array.isArray(durableChat?.message)) return false;
+                    }
+                }
                 const tombstone = {
                     contractVersion: 'bg_server_commit_receipt.v1',
                     operationId,
@@ -898,9 +1033,17 @@ function createServerChatCommitOwner({
                     ...tombstone, checksum: retiredReceiptChecksum(tombstone),
                 }));
                 kvDel(commitStorageKey(operationId));
+                if (journalRetirement) chatWriteJournal.writeRetirement(journalRetirement);
                 return true;
             })());
-            if (changed) retired.push(operationId);
+            if (changed) {
+                if (journalRetirement) chatWriteJournal.publishRetirement(journalRetirement);
+                retired.push(operationId);
+            }
+            if (staleSnapshot) break;
+        }
+        if (invalidJournals) {
+            try { console.warn('[ServerChatRecovery] commit retirement retained invalid journal candidates: ' + invalidJournals); } catch {}
         }
         return retired;
     }
@@ -987,6 +1130,7 @@ function createServerChatCommitOwner({
         recover,
         recoverAll,
         retireRecoveries,
+        retryNotifications,
     };
 }
 

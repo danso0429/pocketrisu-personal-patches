@@ -17,6 +17,16 @@ function harness() {
 }
 
 describe('visible notification enqueue and independent ACK', () => {
+    it('validates fixed operation reasons and renders them without plugin metadata or arbitrary error text', () => {
+        const h = harness()
+        for (const [code, reason] of [['operation_failed', 'generation_failed'], ['operation_interrupted', 'after_main'],
+            ['chat_edit_unreflected', 'concurrent_edit'], ['commit_effect_conflict', 'globals']] as const) {
+            const row = { ...h.notice, event: { ...h.notice.event, code, reason } }
+            expect(parseBgNotifications({ notifications: [row] })).toHaveLength(1)
+            expect(notificationMessage(row)).not.toContain('undefined')
+            expect(() => parseBgNotifications({ notifications: [{ ...row, event: { ...row.event, reason: 'private provider error' } }] })).toThrow()
+        }
+    })
     it('distinguishes a protected local write refusal and settlement warning from terminal failures',()=>{
         const h=harness(),base={...h.notice.event,pluginName:'synthetic',pluginVersion:'1',phase:'provider',effectsMayHaveOccurred:true}
         const conflict={...h.notice,event:{...base,code:'plugin_message' as const,eventKey:'plugin:synthetic:provider:local-conflict',level:'error' as const,

@@ -106,6 +106,7 @@ function makeHarness() {
     const makeJournal = () => createChatWriteJournal({
         kvGet,
         kvSet,
+        kvDel,
         kvList,
         encode: encodeRisuSaveLegacy,
         decode: decodeRisuSave,
@@ -1523,7 +1524,7 @@ describe('pre-canonical server chat input owner', () => {
         expect(harness.kvGet(operationResultKey(operationId))).toBeNull()
     })
 
-    it('retires terminal input payload only after result/state release and keeps exact draft dedupe', async () => {
+    it('requires new-policy completion proof and preserves legacy journals during metadata retirement and exact draft dedupe', async () => {
         const harness = makeHarness()
         const owner = harness.makeOwner()
         const operationId = 'operation-input-retention-1'
@@ -1549,6 +1550,18 @@ describe('pre-canonical server chat input owner', () => {
         harness.kvSet(operationResultKey(operationId), JSON.stringify({ operationId }))
         expect(await owner.retireTerminal(afterHorizon)).toEqual([])
         harness.kvDel(operationResultKey(operationId))
+        // An input-only published marker is not a persisted generation receipt.
+        // The genuine paired completion proof is tested by the commit owner.
+        expect(await owner.retireTerminal(afterHorizon)).toEqual([])
+        const legacy = JSON.parse(harness.kvGet(commandKey(operationId)).toString('utf8'))
+        delete legacy.journalRetentionVersion
+        const journalKey = legacy.journal.storageKey
+        const legacyJournal = await decodeRisuSave(harness.kvGet(journalKey))
+        delete legacyJournal.retentionVersion
+        const journalBytes = Buffer.from(encodeRisuSaveLegacy(legacyJournal))
+        legacy.journal.storageBytes = journalBytes.byteLength
+        harness.kvSet(journalKey, journalBytes)
+        harness.kvSet(commandKey(operationId), JSON.stringify(legacy))
         harness.failWriteAt(1)
         await expect(owner.retireTerminal(afterHorizon))
             .rejects.toThrow('injected-input-write-failure')
@@ -1565,6 +1578,7 @@ describe('pre-canonical server chat input owner', () => {
         expect(owner.read(operationId)).toMatchObject({
             recordVersion: 5, admission: { inputCommandId: `input-${operationId}` },
         })
+        expect(harness.kvGet(journalKey)).toEqual(journalBytes)
         harness.kvSet(commandKey(operationId), JSON.stringify({
             ...stored,
             admission: { ...stored.admission, inputCommandId: 'forged-draft-id' },

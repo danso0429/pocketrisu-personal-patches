@@ -5,18 +5,29 @@ const { createHash, randomUUID } = require('node:crypto');
 // to another subsystem's TTL must not invalidate already stored notification rows.
 const NOTIFICATION_TTL_MS = 48 * 60 * 60 * 1000;
 const PREFIX = 'internal/bg-notifications/v1/';
+const OPERATION_PREFIX = 'internal/bg-notifications/v3/';
 const FAILURE_PREFIX = 'internal/bg-plugin-failure-receipts/v1/';
 const LEASE_MS = 30_000;
 const MAX_ROWS = 1024;
 const MAX_PENDING_MESSAGES = 256;
 const BATCH_SIZE = 8;
 const CODES = new Set(['input_host_unsupported', 'plugin_permission_missing',
-    'plugin_api_unsupported', 'plugin_hook_failed', 'plugin_provider_failed', 'plugin_message', 'plugin_host_limit', 'plugin_late_call']);
-const eventVersion = event => ['plugin_message', 'plugin_host_limit', 'plugin_late_call'].includes(event.code) ? 2 : 1;
+    'plugin_api_unsupported', 'plugin_hook_failed', 'plugin_provider_failed', 'plugin_message', 'plugin_host_limit', 'plugin_late_call',
+    'operation_failed', 'operation_interrupted', 'chat_edit_unreflected', 'commit_effect_conflict']);
+const OPERATION_REASONS = {
+    operation_failed: new Set(['generation_failed', 'commit_failed', 'execution_context_lost']),
+    operation_interrupted: new Set(['before_result', 'after_main']),
+    chat_edit_unreflected: new Set(['concurrent_edit']),
+    commit_effect_conflict: new Set(['globals', 'stats']),
+};
+const eventVersion = event => Object.hasOwn(OPERATION_REASONS, event.code) ? 3
+    : ['plugin_message', 'plugin_host_limit', 'plugin_late_call'].includes(event.code) ? 2 : 1;
+const eventPrefix = event => eventVersion(event) === 3 ? OPERATION_PREFIX : PREFIX;
 const identifier = value => typeof value === 'string' && /^[A-Za-z0-9_-]{8,128}$/.test(value);
 const text = (value, max) => typeof value === 'string' && value.length > 0 && value.length <= max
     && !/[\u0000-\u001f\u007f]/.test(value);
-const idOf = event => createHash('sha256').update(JSON.stringify([event.operationId, event.eventKey])).digest('hex');
+const idOf = event => createHash('sha256').update(JSON.stringify(eventVersion(event) === 3
+    ? [3, event.operationId, event.eventKey] : [event.operationId, event.eventKey])).digest('hex');
 class InvalidNotificationRecord extends Error {}
 
 function normalizeEvent(value) {
@@ -30,6 +41,10 @@ function normalizeEvent(value) {
         charId: value.charId, chatId: value.chatId, createdAt: value.createdAt,
         effectsMayHaveOccurred: value.effectsMayHaveOccurred,
     };
+    if (eventVersion(value) === 3) {
+        if (!OPERATION_REASONS[value.code].has(value.reason)) throw new Error('notification_reason_invalid');
+        event.reason = value.reason;
+    }
     if (value.code === 'input_host_unsupported' || value.code === 'plugin_api_unsupported') {
         if (typeof value.api !== 'string' || !/^[a-z][a-z0-9_]{2,63}$/.test(value.api)) throw new Error('notification_api_invalid');
         event.api = value.api;
@@ -64,13 +79,13 @@ function createBgNotifications({ db, kvGet, kvSet, kvDel, kvList, now = Date.now
         }
         return { invalid: true };
     };
-    function read(id) {
-        const raw = kvGet(PREFIX + id);
+    function readAt(id, prefix) {
+        const raw = kvGet(prefix + id);
         if (raw == null) return null;
         try {
         const row = JSON.parse(Buffer.isBuffer(raw) ? raw.toString('utf8') : String(raw));
         const event = normalizeEvent(row.event);
-        if (row.version !== eventVersion(event) || row.id !== id || idOf(event) !== id
+        if (row.version !== eventVersion(event) || eventPrefix(event) !== prefix || row.id !== id || idOf(event) !== id
             || row.expiresAt !== event.createdAt + NOTIFICATION_TTL_MS
             || (row.deliveredAt !== null && (!Number.isSafeInteger(row.deliveredAt) || row.deliveredAt <= 0))
             || (row.claim !== null && (!identifier(row.claim.consumerId) || !identifier(row.claim.token)
@@ -81,23 +96,38 @@ function createBgNotifications({ db, kvGet, kvSet, kvDel, kvList, now = Date.now
             deliveredAt: row.deliveredAt, claim: row.claim };
         } catch { throw new InvalidNotificationRecord('notification_record_invalid'); }
     }
-    const write = row => kvSet(PREFIX + row.id, JSON.stringify(row));
+    function read(id, prefix = null) {
+        if (prefix) return readAt(id, prefix);
+        const found = []; let invalid = null;
+        for (const namespace of [PREFIX, OPERATION_PREFIX]) {
+            try { const row = readAt(id, namespace); if (row) found.push(row); }
+            catch (error) {
+                if (!(error instanceof InvalidNotificationRecord)) throw error;
+                invalid = error; corrupt();
+            }
+        }
+        if (found.length > 1) throw new InvalidNotificationRecord('notification_identity_ambiguous');
+        if (found.length === 1) return found[0];
+        if (invalid) throw invalid;
+        return null;
+    }
+    const write = row => kvSet(eventPrefix(row.event) + row.id, JSON.stringify(row));
     function rows() {
-        return kvList(PREFIX).map(key => {
-            if (typeof key !== 'string' || !key.startsWith(PREFIX)) throw new Error('notification_key_invalid');
-            const id = key.slice(PREFIX.length);
+        return [PREFIX, OPERATION_PREFIX].flatMap(prefix => kvList(prefix).map(key => {
+            if (typeof key !== 'string' || !key.startsWith(prefix)) throw new Error('notification_key_invalid');
+            const id = key.slice(prefix.length);
             if (!/^[a-f0-9]{64}$/.test(id)) return corrupt();
-            try { return read(id) || corrupt(); }
+            try { return read(id, prefix) || corrupt(); }
             catch (error) {
                 if (error instanceof InvalidNotificationRecord) return corrupt();
                 throw error; // Storage I/O failure is not a malformed individual row.
             }
-        });
+        }));
     }
     function unexpired(time) {
         const kept = [];
         for (const row of rows()) {
-            if (!row.invalid && row.expiresAt <= time) kvDel(PREFIX + row.id);
+            if (!row.invalid && row.expiresAt <= time) kvDel(eventPrefix(row.event) + row.id);
             else kept.push(row);
         }
         return kept;
@@ -106,7 +136,7 @@ function createBgNotifications({ db, kvGet, kvSet, kvDel, kvList, now = Date.now
         const event = normalizeEvent(value), time = now();
         if (event.createdAt > time) throw new Error('notification_time_invalid');
         if (event.createdAt + NOTIFICATION_TTL_MS <= time) return { status: 'expired' };
-        const id = idOf(event), previous = read(id);
+        const id = idOf(event), previous = read(id, eventPrefix(event));
         if (previous) return { status: JSON.stringify(previous.event) === JSON.stringify(event) ? 'duplicate' : 'conflict', id };
         const retained = unexpired(time);
         // Parent-owned checked-write warnings are mandatory. They share the
@@ -119,12 +149,12 @@ function createBgNotifications({ db, kvGet, kvSet, kvDel, kvList, now = Date.now
             return { status: 'capacity' };
         }
         if (retained.length >= MAX_ROWS) {
-            // Only new v2 message receipts are reclaimable after ACK. Frozen v1
+            // Versioned v2/v3 receipts are reclaimable after ACK. Frozen v1
             // failure receipts and malformed records keep their original TTL.
-            const delivered = retained.filter(row => !row.invalid && row.version === 2 && row.deliveredAt !== null)
+            const delivered = retained.filter(row => !row.invalid && row.version >= 2 && row.deliveredAt !== null)
                 .sort((a, b) => a.deliveredAt - b.deliveredAt)[0];
             if (!delivered) return { status: 'capacity' };
-            kvDel(PREFIX + delivered.id);
+            kvDel(eventPrefix(delivered.event) + delivered.id);
         }
         write({ version: eventVersion(event), id, event, expiresAt: event.createdAt + NOTIFICATION_TTL_MS,
             deliveredAt: null, claim: null });
@@ -199,7 +229,7 @@ function createBgNotifications({ db, kvGet, kvSet, kvDel, kvList, now = Date.now
     });
     const claim = db.transaction((consumerId, messageVersion = 1) => {
         if (!identifier(consumerId)) throw new Error('notification_consumer_invalid');
-        if (![1, 2].includes(messageVersion)) throw new Error('notification_version_invalid');
+        if (![1, 2, 3].includes(messageVersion)) throw new Error('notification_version_invalid');
         const time = now(), result = [];
         for (const row of unexpired(time).filter(row => !row.invalid && row.version <= messageVersion)
             .sort((a, b) => a.event.createdAt - b.event.createdAt || a.id.localeCompare(b.id))) {
@@ -233,4 +263,4 @@ function createBgNotifications({ db, kvGet, kvSet, kvDel, kvList, now = Date.now
     return { publish, publishPluginFailure, claim, acknowledge };
 }
 
-module.exports = { createBgNotifications, normalizeEvent, PREFIX, LEASE_MS, MAX_ROWS, BATCH_SIZE, NOTIFICATION_TTL_MS };
+module.exports = { createBgNotifications, normalizeEvent, idOf, PREFIX, OPERATION_PREFIX, LEASE_MS, MAX_ROWS, BATCH_SIZE, NOTIFICATION_TTL_MS };
