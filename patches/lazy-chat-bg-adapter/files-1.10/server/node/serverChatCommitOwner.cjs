@@ -675,7 +675,7 @@ function createServerChatCommitOwner({
                 messageId: receipt.messageId, revision: record.recovery.baseChatRevision }));
     }
 
-    async function finalizeInputCommit(outcome) {
+    async function finalizeInputCommit(outcome, requirePublishedMarker = false) {
         if (!serverChatInputOwner || outcome?.status !== 'committed'
             || !outcome.receipt || typeof outcome.receipt.operationId !== 'string'
             || outcome.receipt.operationId.length === 0) {
@@ -704,12 +704,17 @@ function createServerChatCommitOwner({
         }
         if (outcome.publication !== 'published') return true;
         try {
-            serverChatInputOwner.markResultPublishedSynchronously(
+            const marked = serverChatInputOwner.markResultPublishedSynchronously(
                 outcome.receipt.operationId,
                 outcome.receipt.storedRevision,
             );
+            if (requirePublishedMarker && marked !== true) {
+                const record = committer.readRecovery(outcome.receipt.operationId);
+                return !!record && !serverChatInputOwner.read(record.operationId) && syntheticLegacyInput(record);
+            }
         } catch {
             // The durable commit remains authoritative. Startup reconciliation retries the marker.
+            if (requirePublishedMarker) return false;
         }
         return true;
     }
@@ -910,6 +915,100 @@ function createServerChatCommitOwner({
         }
         if (outcome.status === 'committed') notifyRecordedCommit(operationId);
         return outcome;
+    }
+
+    // Derived lookup summaries only: exact current record bytes are hashed on
+    // every read, and publication still revalidates the durable record. Never
+    // cache chat contents, settings, ledger authority or historical revisions.
+    const admissionRecordCache = new Map();
+    function admissionRecord(key) {
+        const raw = kvGet(key);
+        if (raw == null) { admissionRecordCache.delete(key); return null; }
+        const fingerprint = sha256(raw);
+        const cached = admissionRecordCache.get(key);
+        if (cached?.fingerprint === fingerprint) return cached.summary;
+        admissionRecordCache.delete(key);
+        const operationId = operationIdFromCommitKey(key);
+        const record = operationId ? committer.readRecovery(operationId) : null;
+        if (!record) return null;
+        const summary = {
+            operationId, commitSequence: record.commitSequence,
+            commitReceipt: { commitReceiptId: record.commitReceipt.commitReceiptId },
+            recovery: {
+                requestedCharId: record.recovery.requestedCharId,
+                storedChatId: record.recovery.storedChatId,
+                globalEffectKeys: [...new Set([...Object.keys(record.recovery.effectIntents.globalVariables.changed),
+                    ...record.recovery.effectIntents.globalVariables.deleted])],
+            },
+        };
+        admissionRecordCache.set(key, { fingerprint, summary });
+        if (admissionRecordCache.size > 256) admissionRecordCache.delete(admissionRecordCache.keys().next().value);
+        return summary;
+    }
+
+    // An ordinary writer calls this before CAS or any journal/cache mutation,
+    // while holding the existing storage slot. Never enqueue recovery here.
+    async function recoverBeforeWriteUnchecked({ charId, chatId, incomingDatabase } = {}) {
+        await ensureCanonicalState();
+        const current = getDbCache()?.[databaseKey];
+        const pending = [];
+        const keys = kvList(SERVER_CHAT_COMMIT_PREFIX);
+        const liveKeys = new Set(keys);
+        for (const key of admissionRecordCache.keys()) if (!liveKeys.has(key)) admissionRecordCache.delete(key);
+        for (const key of keys) {
+            const record = admissionRecord(key);
+            // Invalid records cannot prove a coordinate. Recovery diagnostics
+            // retain them; do not guess an affected user chat from their bytes.
+            if (!record || readRetiredReceipt(record.operationId).status === 'found') continue;
+            const operationId = record.operationId;
+            const applied = currentAppliedLedger(current).find(entry => entry.operationId === operationId);
+            const input = serverChatInputOwner?.read(operationId);
+            const absence = input?.terminal?.targetAbsent;
+            const finalizedAbsence = absence?.commitReceiptId === record.commitReceipt.commitReceiptId
+                && absence?.commitSequence === record.commitSequence
+                && appliedTargetAbsent(current, record);
+            if (applied?.commitReceiptId === record.commitReceipt.commitReceiptId
+                && applied.commitSequence === record.commitSequence
+                && (!input || input.recordVersion === 5 || input.terminal?.publication === 'published' || finalizedAbsence)) continue;
+            const recovery = record.recovery;
+            let affected = charId === recovery.requestedCharId && chatId === recovery.storedChatId;
+            if (incomingDatabase) {
+                const target = root => root?.characters?.find(character => character?.chaId === recovery.requestedCharId)
+                    ?.chats?.find(chat => chat?.id === recovery.storedChatId);
+                affected ||= !isDeepStrictEqual(target(current), target(incomingDatabase));
+                for (const key of recovery.globalEffectKeys) {
+                    affected ||= own(current?.globalChatVariables || {}, key) !== own(incomingDatabase.globalChatVariables || {}, key)
+                        || !isDeepStrictEqual(current?.globalChatVariables?.[key], incomingDatabase.globalChatVariables?.[key]);
+                }
+            }
+            if (affected) pending.push(record);
+        }
+        pending.sort((a, b) => a.commitSequence - b.commitSequence);
+        for (const record of pending) {
+            try {
+                const outcome = await committer.recoverInStorageSlot(record.operationId);
+                const finalized = await finalizeInputCommit(outcome, true);
+                if (outcome.status !== 'committed' || !['published', 'absent_applied'].includes(outcome.publication) || !finalized) {
+                    return { allowed: false, code: 'BG_PUBLICATION_SAVE_BLOCKED' };
+                }
+                notifyRecordedCommit(record.operationId);
+            } catch {
+                console.error('[BG write admission] Committed answer recovery failed');
+                return { allowed: false, code: 'BG_PUBLICATION_SAVE_BLOCKED' };
+            }
+        }
+        return { allowed: true, recovered: pending.length > 0 && !isDeepStrictEqual(current, getDbCache()?.[databaseKey]) };
+    }
+
+    async function recoverBeforeWrite(request) {
+        try {
+            return await recoverBeforeWriteUnchecked(request);
+        } catch {
+            // A rejected admission is never a successful write or a user
+            // conflict. Preserve the pending result and all current data.
+            console.error('[BG write admission] Canonical state lookup failed');
+            return { allowed: false, code: 'BG_SAVE_ADMISSION_UNAVAILABLE' };
+        }
     }
 
     async function recover(operationId) {
@@ -1129,6 +1228,7 @@ function createServerChatCommitOwner({
         currentRevision,
         discardRecovery,
         preserveDatabaseState,
+        recoverBeforeWrite,
         readChatProjection,
         readGenerationCommit,
         readEffectLineage,

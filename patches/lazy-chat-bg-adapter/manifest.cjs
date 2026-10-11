@@ -25,7 +25,7 @@ const queueUnits = require('./queue-units.cjs')
 module.exports = {
     id: 'lazy-chat-bg-adapter',
     title: 'BG preserve integration for lazy chat storage',
-    version: '0.7.44',
+    version: '0.7.45',
     targets: {
         pocketrisu: {
             verified: ['1.10.0'],
@@ -343,6 +343,20 @@ export async function peekServerChatSnapshot(
     return forageStorage.realStorage.peekChatContentSnapshot(chaId, chatIndex, chatId)
 }
 
+type HydrationDirtyCallback = (chaId: string, chatId: string, current: Chat) => void
+let hydrationDirtyCallback: HydrationDirtyCallback | null = null
+let hydrationChatsResolver: ((chaId: string) => Chat[] | null) | null = null
+const adoptedChatViews = new WeakMap<Chat, { revision: string, revisionOf: (chat: Chat) => string }>()
+
+export function setHydrationDirtyCallback(callback: HydrationDirtyCallback | null, resolveChats: ((chaId: string) => Chat[] | null) | null = null): void {
+    hydrationDirtyCallback = callback
+    hydrationChatsResolver = resolveChats
+}
+
+function recordHydrationPublication(current: Chat): void {
+    adoptedChatViews.set(current, { revision: orchestrationChatRevision(current), revisionOf: orchestrationChatRevision })
+}
+
 export async function adoptServerCommittedChat(
     chats: Chat[],
     chaId: string,
@@ -359,9 +373,14 @@ export async function adoptServerCommittedChat(
     revision?: string
     chat?: Chat
 }> {
-    const initialIndex = chats.findIndex(chat => chat?.id === chatId)
+    const getCurrentChats = (): Chat[] | null => {
+        const current = hydrationChatsResolver ? hydrationChatsResolver(chaId) : chats
+        return Array.isArray(current) ? current : null
+    }
+    const initialChats = getCurrentChats()
+    const initialIndex = initialChats?.findIndex(chat => chat?.id === chatId) ?? -1
     if (initialIndex < 0) return { adopted: false, reason: 'chat-missing' }
-    const initial = chats[initialIndex]
+    const initial = initialChats![initialIndex]
     const isCurrent = () => options.isCurrent?.() !== false
     if (!isCurrent()) return { adopted: false, reason: 'stale-recovery' }
     // Current canonical proof is separate from the older delegation/base proof.
@@ -401,6 +420,8 @@ export async function adoptServerCommittedChat(
     if (!mayReplace && !mayConfirmCurrent()) return { adopted: false, reason: 'save-unconfirmed' }
 
     const key = chatKey(chaId, chatId)
+    let published: Chat | null = null
+    let publishedView = ''
     acquireHydrationState(hydrationInFlight, hydrationInFlightCounts, key)
     try {
         const snapshot = await forageStorage.realStorage.peekChatContentSnapshot(
@@ -419,10 +440,11 @@ export async function adoptServerCommittedChat(
             }
         }
         const displayChat = { ...snapshot.chat, isStreaming: false, activeStreamingDisplayOptimizationMode: undefined }
-        const currentIndexBeforePaint = chats.findIndex(chat => chat?.id === chatId)
+        const beforePaintChats = getCurrentChats()
+        const currentIndexBeforePaint = beforePaintChats?.findIndex(chat => chat?.id === chatId) ?? -1
         if (!isCurrent()) return { adopted: false, reason: 'stale-recovery' }
         if (currentIndexBeforePaint < 0) return { adopted: false, reason: 'chat-removed' }
-        if (chats[currentIndexBeforePaint] !== initial) return { adopted: false, reason: 'local-slot-replaced' }
+        if (beforePaintChats![currentIndexBeforePaint] !== initial) return { adopted: false, reason: 'local-slot-replaced' }
         let currentView = ''
         if (!initial._placeholder) {
             try { currentView = revisionOf(initial) } catch { /* invalid local view */ }
@@ -441,10 +463,11 @@ export async function adoptServerCommittedChat(
         if (!mayReplace) return { adopted: false, reason: 'local-revision-conflict' }
         await yieldForHydrationPaint()
 
-        const currentIndex = chats.findIndex(chat => chat?.id === chatId)
+        const currentChats = getCurrentChats()
+        const currentIndex = currentChats?.findIndex(chat => chat?.id === chatId) ?? -1
         if (!isCurrent()) return { adopted: false, reason: 'stale-recovery' }
         if (currentIndex < 0) return { adopted: false, reason: 'chat-removed' }
-        const current = chats[currentIndex]
+        const current = currentChats![currentIndex]
         if (current !== initial) return { adopted: false, reason: 'local-slot-replaced' }
         if (!current._placeholder) {
             let currentRevision = ''
@@ -455,21 +478,20 @@ export async function adoptServerCommittedChat(
         }
 
         acquireHydrationState(hydrationJustApplied, hydrationJustAppliedCounts, key)
-        let published: Chat
-        let publishedView: string
         try {
-            chats[currentIndex] = displayChat
+            currentChats![currentIndex] = displayChat
             // Reactive arrays may wrap assigned objects. Return the actual
             // published slot so callers can verify identity after awaiting.
-            published = chats[currentIndex]
+            published = currentChats![currentIndex]
             forageStorage.realStorage.rememberChatContentSnapshot(chaId, chatId, snapshot)
             publishedView = revisionOf(published)
+            adoptedChatViews.set(published, { revision: publishedView, revisionOf })
             await tick()
         } finally {
             releaseHydrationState(hydrationJustApplied, hydrationJustAppliedCounts, key)
         }
         if (!isCurrent()) return { adopted: false, reason: 'stale-recovery' }
-        if (chats.find(chat => chat?.id === chatId) !== published) return { adopted: false, reason: 'local-slot-replaced' }
+        if (getCurrentChats()?.find(chat => chat?.id === chatId) !== published) return { adopted: false, reason: 'local-slot-replaced' }
         if (revisionOf(published) !== publishedView) return { adopted: false, reason: 'local-revision-conflict' }
         return {
             adopted: true,
@@ -478,6 +500,20 @@ export async function adoptServerCommittedChat(
         }
     } finally {
         releaseHydrationState(hydrationInFlight, hydrationInFlightCounts, key)
+        // A plain hydration Set suppresses the reactive dirty effect. Its
+        // release cannot rerun that effect, so retain edits made during the
+        // read even when the read failed or its server revision was stale.
+        const current = getCurrentChats()?.find(chat => chat?.id === chatId)
+        if (current && !current._placeholder && hydrationDirtyCallback) {
+            const basis = current === published ? { revision: publishedView, revisionOf }
+                : current === initial ? { revision: initialView, revisionOf }
+                : adoptedChatViews.get(current) ?? (!initial._placeholder ? { revision: initialView, revisionOf } : undefined)
+            if (basis) {
+                let changed = true
+                try { changed = basis.revisionOf(current) !== basis.revision } catch { /* cannot attest unchanged */ }
+                if (changed) hydrationDirtyCallback(chaId, chatId, current)
+            }
+        }
     }
 }
 `,
@@ -3978,6 +4014,11 @@ module.exports.units.push({
     after: priorClientOrchestrationUnits,
     targetVersions: pocketRisu1100,
 })
+module.exports.units.push(...['publicationSaveNotice.ts', 'publicationSaveNotice.test.ts'].map(name => ({
+    id: `lazy-chat-bg-adapter:owned:publication-notice:${name}:1.10`,
+    file: `src/ts/storage/${name}`, type: 'owned',
+    content: owned1100(`src/ts/storage/${name}`), targetVersions: pocketRisu1100,
+})))
 
 module.exports.units.push(...inputExecutionUnits(module.exports.units))
 module.exports.units.push(...require('./native-admission-units.cjs')(module.exports.units))
@@ -4013,3 +4054,10 @@ module.exports.units.push(...require('./plugin-unavailable-units.cjs')(module.ex
 module.exports.units.push(...require('./operation-notice-units.cjs')(module.exports.units))
 module.exports.units.push(...require('./failed-input-settlement-units.cjs')(module.exports.units))
 module.exports.units.push(...require('./statistics-preflight-units.cjs')(module.exports.units))
+module.exports.units.push(...require('./publication-write-units.cjs')(module.exports.units))
+module.exports.units.push({
+    id: 'lazy-chat-bg-adapter:owned:publication-write-client-tests:1.10',
+    file: 'src/ts/storage/nodeStorage.publicationWrite.test.ts', type: 'owned',
+    content: owned1100('src/ts/storage/nodeStorage.publicationWrite.test.ts'),
+    targetVersions: pocketRisu1100,
+})

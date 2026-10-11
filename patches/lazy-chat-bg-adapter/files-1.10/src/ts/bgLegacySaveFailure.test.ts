@@ -15,11 +15,15 @@ function nativeSave() {
     }
     visit(source)
     if (pieces.length !== 2) throw new Error('Native save boundaries changed')
+    const nodeSource = ts.createSourceFile('nodeStorage.ts', readFileSync('src/ts/storage/nodeStorage.ts', 'utf8'), ts.ScriptTarget.ES2022, true)
+    const publicationError = nodeSource.statements.find(node => ts.isClassDeclaration(node) && node.name?.text === 'PublicationSaveBlockedError')
+    if (!publicationError) throw new Error('Composed publication error declaration is missing')
+    pieces.push(publicationError.getText(nodeSource).replace(/^export /, ''))
     const emitted = ts.transpileModule(pieces.join('\n'), {
         compilerOptions: { target: ts.ScriptTarget.ES2022, module: ts.ModuleKind.None },
     }).outputText
     return new Function(`
-        let saveInFlight = null, changed = false, savetrys = 0, deferredFailureRetries = 0, deferredRecoveryTimer = null;
+        let saveInFlight = null, changed = false, savetrys = 0, deferredFailureRetries = 0, deferredRecoveryTimer = null, publicationSaveBlockedNotified = false;
         let requeued = 0, alerts = 0;
         const saving = { state: false }, changeTracker = { root: true };
         const takeTrackedChanges = () => ({ root: true });

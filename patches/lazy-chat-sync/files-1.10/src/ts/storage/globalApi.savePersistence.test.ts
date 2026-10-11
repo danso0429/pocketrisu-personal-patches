@@ -11,6 +11,7 @@ import { assignMissingChatIdsToNewCharacters } from './chatIdentityRepair'
 import chatDelta from '../../../server/node/chatDelta.cjs'
 
 vi.mock('./database.svelte', () => ({ createBotPresetTemplate: () => ({}) }))
+vi.mock('../alert', () => ({ notifyError: vi.fn() }))
 vi.mock('../globalApi.svelte', () => ({ forageStorage: { realStorage: null } }))
 vi.mock('./chatStorage', async () => {
     const source = ts.createSourceFile(
@@ -41,12 +42,16 @@ const {
     decodeRisuSave,
     findDangerousChatOps,
 } = await import('./risuSave')
+const { notifyError } = await import('../alert')
+const { notifyPublicationSaveBlocked, clearPublicationSaveBlockedNotice } = await import('./publicationSaveNotice')
 
 type ChatIdentity = { chaId: string, chatId: string }
 type HarnessOptions = {
     baselineChats?: any[]
+    baselinePayloads?: any[]
     currentChats?: any[]
     failPayloadIds?: string[]
+    publicationBlockedIds?: string[]
     mutateDuringPayload?: (state: { current: any, chatId: string }) => void
     forcedPatchRejections?: Array<ChatIdentity | null>
     rejectInvariantAlways?: boolean
@@ -54,6 +59,13 @@ type HarnessOptions = {
 }
 
 const sourceText = fs.readFileSync('src/ts/globalApi.svelte.ts', 'utf8')
+// Compose the actual error declaration just as the actual save functions are
+// composed below. No parallel implementation of its fields or message.
+const nodeStorageSource = ts.createSourceFile('nodeStorage.ts', fs.readFileSync('src/ts/storage/nodeStorage.ts', 'utf8'), ts.ScriptTarget.Latest, true)
+const publicationErrorDeclaration = nodeStorageSource.statements.find(node => ts.isClassDeclaration(node) && node.name?.text === 'PublicationSaveBlockedError')
+const PublicationSaveBlockedError = publicationErrorDeclaration
+    ? new Function(ts.transpile(publicationErrorDeclaration.getText(nodeStorageSource).replace(/^export /, ''), { target: ts.ScriptTarget.ES2022 }) + '; return PublicationSaveBlockedError;')()
+    : null
 const source = ts.createSourceFile(
     'globalApi.svelte.ts',
     sourceText,
@@ -177,13 +189,15 @@ async function createHarness(options: HarnessOptions = {}) {
     const payloads = new Map<string, any>()
     const events: string[] = []
     const alerts: unknown[] = []
+    clearPublicationSaveBlockedNotice()
+    vi.mocked(notifyError).mockImplementation(message => { alerts.push(new Error(String(message))) })
     const flushes: boolean[] = []
     const idleWaiters: Array<{ resolve: () => void, reject: (error: Error) => void }> = []
     const sleeps: number[] = []
     const failPayloadIds = new Set(options.failPayloadIds ?? [])
     let payloadGateUsed = false
 
-    for (const existing of options.baselineChats ?? []) {
+    for (const existing of [...(options.baselineChats ?? []), ...(options.baselinePayloads ?? [])]) {
         if (existing && Array.isArray(existing.message)) {
             payloads.set(existing.id, structuredClone(existing))
         }
@@ -289,9 +303,13 @@ async function createHarness(options: HarnessOptions = {}) {
         changed: false,
         saving: { state: false },
         deferredFailureRetries: 0,
+        PublicationSaveBlockedError,
+        notifyPublicationSaveBlocked,
+        clearPublicationSaveBlockedNotice,
         deferredRecoveryTimer: null,
         ManualSaveConflictError,
         alertError: (error: unknown) => alerts.push(error),
+        notifyError: (message: string) => alerts.push(new Error(message)),
         forageStorage,
         showPersistWarningOnce() {},
         showChatGuardToastThrottled() {},
@@ -321,6 +339,10 @@ async function createHarness(options: HarnessOptions = {}) {
                 await options.payloadGate
             }
             options.mutateDuringPayload?.({ current, chatId })
+            if (options.publicationBlockedIds?.includes(chatId)) {
+                if (!PublicationSaveBlockedError) throw new Error('Composed publication error is unavailable')
+                throw new PublicationSaveBlockedError()
+            }
             if (failPayloadIds.has(chatId)) {
                 throw new Error(`Injected payload failure for ${chatId}`)
             }
@@ -385,6 +407,40 @@ afterEach(() => {
 })
 
 describe('composed chat save persistence', () => {
+    test('a blocked chat retains its draft while another chat and root settings reach the server', async () => {
+        vi.useFakeTimers()
+        const baseline = [fullChat('chat-a', 'old A'), fullChat('chat-b', 'old B')]
+        const { chatToStub } = await import('./chatStorage')
+        const harness = await createHarness({ baselinePayloads: baseline, baselineChats: baseline.map(chat => JSON.parse(JSON.stringify(chatToStub(chat as any)))),
+            currentChats: [fullChat('chat-a', 'new A'), fullChat('chat-b', 'new B')], publicationBlockedIds: ['chat-a'] })
+        harness.current.language = 'ja'
+        harness.runtime.queueChat('character', 'chat-a')
+        harness.runtime.queueChat('character', 'chat-b')
+        harness.runtime.queueRoot()
+        await harness.runtime.triggerSave()
+        expect(harness.payloads.get('chat-a').message[0].data).toBe('old A')
+        expect(harness.payloads.get('chat-b').message[0].data).toBe('new B')
+        expect(harness.serverDb().language).toBe('ja')
+        expect(harness.current.characters[0].chats[0].message[0].data).toBe('new A')
+        expect(harness.runtime.state().tracker.chat).toContainEqual(['character', 'chat-a'])
+        expect(harness.alerts).toHaveLength(1)
+        await harness.runtime.triggerSave()
+        expect(harness.alerts).toHaveLength(1)
+    })
+    test('strict save qualifies its named chat/root despite an unrelated blocked draft', async () => {
+        vi.useFakeTimers()
+        const baseline = [fullChat('chat-a', 'old A'), fullChat('chat-b', 'old B')]
+        const { chatToStub } = await import('./chatStorage')
+        const harness = await createHarness({ baselinePayloads: baseline, baselineChats: baseline.map(chat => JSON.parse(JSON.stringify(chatToStub(chat as any)))),
+            currentChats: [fullChat('chat-a', 'new A'), fullChat('chat-b', 'new B')], publicationBlockedIds: ['chat-a'] })
+        harness.runtime.queueChat('character', 'chat-a')
+        await expect(harness.runtime.durableSave({ chat: ['character', 'chat-b'], root: true })).resolves.toBeUndefined()
+        expect(harness.payloads.get('chat-b').message[0].data).toBe('new B')
+        expect(harness.flushes).toHaveLength(1)
+        expect(harness.runtime.state().tracker.chat).toContainEqual(['character', 'chat-a'])
+        await expect(harness.runtime.durableSave({ chat: ['character', 'chat-a'], root: true })).rejects.toBeInstanceOf(PublicationSaveBlockedError)
+        expect(harness.flushes).toHaveLength(1)
+    })
     test('S01 saves an untracked empty payload before publishing metadata', async () => {
         const harness = await createHarness()
 

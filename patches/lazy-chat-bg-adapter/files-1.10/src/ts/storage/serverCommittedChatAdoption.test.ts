@@ -28,7 +28,8 @@ vi.mock('./database.svelte', async () => {
         isChatStub: (value: any) => value?._stub === true && !Array.isArray(value?.message) }
 })
 
-const { adoptServerCommittedChat, ensureChatHydrated, isHydrating, peekServerChatSnapshot } = await import('./chatStorage')
+const { adoptServerCommittedChat, ensureChatHydrated, isHydrating, peekServerChatSnapshot, setHydrationDirtyCallback } = await import('./chatStorage')
+afterEach(() => setHydrationDirtyCallback(null))
 
 function chat(data: string) {
     return {
@@ -39,6 +40,105 @@ function chat(data: string) {
 }
 
 describe('server-committed chat adoption', () => {
+    it('does not fingerprint a normal chat open without an overlapping reader', async () => {
+        const merge = await import('../bgOrchestrationMerge')
+        const fingerprint = vi.spyOn(merge, 'orchestrationChatRevision')
+        const chats = [{ id: 'chat-1', name: 'chat', message: [], _placeholder: true }] as any
+        const storage = new NodeStorage({ invalidate: vi.fn() } as any); storageMock.realStorage = storage
+        vi.spyOn(storage, 'peekChatContentSnapshot').mockResolvedValue({ chat: { ...chat('hydrated'), note: '', localLore: [] }, revision: 'hydrated', encodedBytes: 100 })
+        try {
+            expect(await ensureChatHydrated(chats, 0, 'char-1')).not.toBeNull()
+            expect(chats[0].message[0].data).toBe('hydrated')
+            expect(fingerprint).not.toHaveBeenCalled()
+        } finally { fingerprint.mockRestore() }
+    })
+    for (const clone of [false, true]) it(`resolves the live chat array after another result swaps it; clone=${clone}`, async () => {
+        const initial = { ...chat('before'), note: '', localLore: [] }, captured = [initial], live = { chats: captured }
+        const storage = new NodeStorage({ invalidate: vi.fn() } as any); storageMock.realStorage = storage
+        let release!: (snapshot: any) => void
+        vi.spyOn(storage, 'peekChatContentSnapshot').mockImplementation(() => new Promise(resolve => { release = resolve }))
+        const dirty = vi.fn(); setHydrationDirtyCallback(dirty, () => live.chats)
+        const pending = adoptServerCommittedChat(captured, 'char-1', 'chat-1', 'answer', [orchestrationChatRevision(initial)], orchestrationChatRevision)
+        live.chats = clone ? structuredClone(captured) : captured.slice()
+        if (clone) live.chats[0].message[0].data = 'live edit'
+        release({ chat: { ...structuredClone(initial), message: [...initial.message, { role: 'char', data: 'answer', chatId: 'a' }] }, revision: 'answer', encodedBytes: 100 })
+        const outcome = await pending
+        if (clone) {
+            expect(outcome.adopted).toBe(false)
+            expect(dirty).toHaveBeenCalledWith('char-1', 'chat-1', live.chats[0])
+            expect(live.chats[0].message[0].data).toBe('live edit')
+        } else {
+            expect(outcome.adopted).toBe(true)
+            expect(outcome.chat).toBe(live.chats[0])
+            expect(live.chats[0].message).toHaveLength(2)
+            expect(dirty).not.toHaveBeenCalled()
+        }
+    })
+    for (const edit of [false, true]) it(`tracks a normal hydration publication during a committed read without echo; edit=${edit}`, async () => {
+        const placeholder = { id: 'chat-1', name: 'chat', message: [], _placeholder: true } as any, chats = [placeholder]
+        const storage = new NodeStorage({ invalidate: vi.fn() } as any); storageMock.realStorage = storage
+        let release!: (snapshot: any) => void
+        vi.spyOn(storage, 'peekChatContentSnapshot').mockImplementationOnce(() => new Promise(resolve => { release = resolve }))
+            .mockResolvedValue({ chat: { ...chat('hydrated'), note: '', localLore: [] }, revision: 'hydrated', encodedBytes: 100 })
+        const dirty = vi.fn(); setHydrationDirtyCallback(dirty, () => chats)
+        const pending = adoptServerCommittedChat(chats, 'char-1', 'chat-1', 'answer', [], orchestrationChatRevision)
+        await ensureChatHydrated(chats, 0, 'char-1')
+        if (edit) chats[0].message[0].data = 'edit after hydration'
+        release({ chat: chat('not published yet'), revision: 'older', encodedBytes: 100 })
+        expect((await pending).adopted).toBe(false)
+        expect(dirty).toHaveBeenCalledTimes(edit ? 1 : 0)
+        expect(chats[0].message[0].data).toBe(edit ? 'edit after hydration' : 'hydrated')
+    })
+    for (const streaming of [false, true]) it(`enlists an edit during an unpublished canonical read; streaming=${streaming}`, async () => {
+        const local = { ...chat('before'), note: '', localLore: [], isStreaming: streaming }, chats = [local]
+        const storage = new NodeStorage({ invalidate: vi.fn() } as any); storageMock.realStorage = storage
+        let release!: (snapshot: any) => void
+        vi.spyOn(storage, 'peekChatContentSnapshot').mockImplementation(() => new Promise(resolve => { release = resolve }))
+        const dirty = vi.fn((_chaId: string, _chatId: string, current: any) => {
+            expect(isHydrating('char-1', 'chat-1')).toBe(false)
+            expect(current).toBe(local)
+        })
+        setHydrationDirtyCallback(dirty)
+        const initial = orchestrationChatRevision(local)
+        const pending = adoptServerCommittedChat(chats, 'char-1', 'chat-1', 'unpublished-answer', [initial], orchestrationChatRevision)
+        expect(isHydrating('char-1', 'chat-1')).toBe(true)
+        local.message[0].data = 'edit during read'
+        expect(dirty).not.toHaveBeenCalled()
+        release({ chat: chat('before'), revision: 'before-publication', encodedBytes: 100 })
+        expect(await pending).toMatchObject({ adopted: false, reason: 'server-revision-mismatch' })
+        expect(dirty).toHaveBeenCalledTimes(1)
+        expect(local.message[0].data).toBe('edit during read')
+    })
+    it('enlists a local edit even when the canonical read rejects', async () => {
+        const local = { ...chat('before'), note: '', localLore: [] }, chats = [local]
+        const storage = new NodeStorage({ invalidate: vi.fn() } as any); storageMock.realStorage = storage
+        let fail!: (error: Error) => void
+        vi.spyOn(storage, 'peekChatContentSnapshot').mockImplementation(() => new Promise((_resolve, reject) => { fail = reject }))
+        const dirty = vi.fn(); setHydrationDirtyCallback(dirty)
+        const pending = adoptServerCommittedChat(chats, 'char-1', 'chat-1', 'answer', [orchestrationChatRevision(local)], orchestrationChatRevision)
+        local.message[0].data = 'retained after failed read'; fail(new Error('synthetic read unavailable'))
+        await expect(pending).rejects.toThrow('synthetic read unavailable')
+        expect(dirty).toHaveBeenCalledWith('char-1', 'chat-1', local)
+        expect(isHydrating('char-1', 'chat-1')).toBe(false)
+    })
+    for (const edit of [false, true]) it(`does not echo a concurrent publication but enlists its subsequent edit; edit=${edit}`, async () => {
+        const local = { ...chat('before'), note: '', localLore: [] }, chats = [local]
+        const storage = new NodeStorage({ invalidate: vi.fn() } as any); storageMock.realStorage = storage
+        const reads: Array<(snapshot: any) => void> = []
+        vi.spyOn(storage, 'peekChatContentSnapshot').mockImplementation(() => new Promise(resolve => reads.push(resolve)))
+        const dirty = vi.fn(); setHydrationDirtyCallback(dirty)
+        const initial = orchestrationChatRevision(local)
+        const first = adoptServerCommittedChat(chats, 'char-1', 'chat-1', 'r1', [initial], orchestrationChatRevision)
+        const second = adoptServerCommittedChat(chats, 'char-1', 'chat-1', 'r2', [initial], orchestrationChatRevision)
+        reads[1]({ chat: { ...chat('new canonical'), note: '', localLore: [] }, revision: 'r2', encodedBytes: 100 })
+        expect((await second).adopted).toBe(true)
+        expect(dirty).not.toHaveBeenCalled()
+        if (edit) chats[0].message[0].data = 'user edit after other publication'
+        reads[0]({ chat: chat('older canonical'), revision: 'r1', encodedBytes: 100 })
+        expect((await first).adopted).toBe(false)
+        expect(dirty).toHaveBeenCalledTimes(edit ? 1 : 0)
+        expect(chats[0].message[0].data).toBe(edit ? 'user edit after other publication' : 'new canonical')
+    })
     it.each(['older-first', 'newer-first', 'edit-between'])('CAP concurrent adoption (%s)', async order => {
         const local = { ...chat('base'), note: '', localLore: [], isStreaming: false }
         const chats = [local]

@@ -313,6 +313,35 @@ Required tests: pending/published actual write/restart controls, raw/prepared an
 
 The previous comparison-guard attempts failed real cold recovery controls and were withdrawn. The repository bug-fix protocol requires a structural flow/impact review and explicit user approval before the alternative architecture. This proposal is concrete and reviewable but **not implemented or deployed**. D remains closed at its observed scope; whole G1.8/stable/hostON remains open.
 
+## 16. Approved recover-before-write implementation (.38)
+
+The user selected option1 after the structural flow and impact review: recover the existing committed answer before an affected save, and retain a visibly unsaved current-view draft when recovery remains blocked. Section15 records the preceding unimplemented proposal; this section supersedes that status. The candidate is experimental.38, BG adapter0.7.45/lazy0.5.8. Device and live delivery observations are separate gates, not inferred from source or test success.
+
+### Contract and implementation
+
+- An exact validated non-retired commit lacking its matching current applied identity is recovered within the existing storage slot, without recursively queueing recovery. Input finalization is included. Full/delta chat and root full/patch writers then use current CAS; immutable receipts and once-only effects remain unchanged.
+- Known persistent publication failure returns `BG_PUBLICATION_SAVE_BLOCKED`; an unclassified canonical lookup failure returns `BG_SAVE_ADMISSION_UNAVAILABLE` and follows ordinary unavailable-server handling. Neither is a successful write or a user conflict. Coarse server diagnostics do not copy user content.
+- The client retains its acknowledged basis and current-view dirty tracker. A partial batch can save unrelated chats and root settings; an explicit durable caller only qualifies its own named scope when that root actually succeeded. A root body containing protected metadata/global changes remains refused as a whole. This is not durable deferred-edit storage, and app closure may lose an unsaved draft.
+- Hydration reads formerly suppressed an edit's dirty effect while a plain Set was held, with no reactive wake on release. Finalization now re-enlists changed live views through the ordinary queue, preserves streaming checkpoint cadence and resolves the actual current chat array. Known owned/ordinary publications are compared against their observed publication fingerprint to avoid echoing them; foreign full replacements are conservatively compared against the initial full view and can cause an extra guarded write.
+- Derived owner summaries are bounded256 and rechecked against exact current record bytes on every lookup. Current ledger/input/retired proof is fresh; recovery revalidates the full record. This does not restore the withdrawn cache/base revision guard. Normal chat opening computes no additional publication fingerprint unless another reader overlaps.
+
+### Evidence observed before device/delivery closeout
+
+- Paired-build real generated server/SQLite/restart controls:22 cases covering full/delta, old-view/answer-inclusive edit, target/parent deletion and rename through root full/patch, unrelated settings while publication is blocked, valid pre-publication statistic repair and rejection of an unproven post-publication counter increase. Affected saves are503 while blocked, then current CAS409/rebase and200; edits/deletions remain after restart, provider/effects are not replayed and receipt bytes are unchanged.
+- Actual no-pending canonical lookup fault: four routes503 with the distinct unavailable explanation, zero mutation, then saving resumes after release. The patch/full fallback status distinction is preserved.
+- Actual browser native Send/pencil/save trial: one blocked warning, retained local edit and unchanged server text while blocked; another chat of the same character starts generation and reaches an actual result ACK200 while the first is blocked; release produces normal CAS/rebase and one saved answer per chat/statistic12, without dialogues or page errors. This is a controlled provider/publication-fault trial, not a paid-provider or iOS observation.
+- A detached-array hypothesis was reproduced on the preceding code with two failed actual-adoption assertions. Maintained controls now cover live slice/clone replacement, failed/stale reads, streaming/non-streaming edits, concurrent known publication without echo and subsequent edit. Test-only malformed startup seeds, missing browser executable and held-read fixture errors were retained and excluded; assertions and production validators were not weakened.
+- Earlier full server630pass/12existing skips is reused for the last client-only changes only after all108 generated server source/test files match. Full client/type/build and focused results for the final frozen candidate, plus installer re-plan/exact revert, are completed in their own receipts before delivery; no pending run is labeled passed.
+- Owner lookup measurement on ARM:50 rows warm median about2.5ms;200 rows about13–15ms, versus about23–31ms and105–109ms without summary reuse. Cold validation remains about26–33ms/107–109ms; larger-than256 working sets may lose reuse.
+
+### Scope and remaining gates
+
+Final automatic checkpoint: full frontend2341pass/4existing skips; the normal-open cost guard additionally passes82focused/4existing skips, including a no-fingerprint ordinary open. Type0errors/0warnings, frontend build and BG bundle load succeed. Installer roundtrip observes42packs/1596units/495managed paths/8collisions, re-plan0, exact1022original file bytes/modes restored, clean disabled delivery and empty requested intent. Final actual native-Send/pencil two-chat controls preserve the refused draft, observe one notice and X's ACK200 before releasing Y, then normal CAS/save. Positive/no-edit compiled-provider controls preserve edits, distinguish the two warning sources and pass reopen/following-Send. Physical R4 and production delivery remain separate observations below.
+
+Opus source counsel identified and helped refine typed-error preservation, strict-save scope, absence handling, hydration dirty tracking, live-array resolution and normal-open fingerprint cost. Codex verified findings with source and execution; agreement alone did not qualify them. Natural failure frequency, first-paint interaction, mobile suspension, arbitrary storage corruption and host-on direct plugin writes are not inferred. Permanently unrecoverable affected data remains refused under approved option1, with no cancellation/deletion escape added.
+
+The physical R4 gate must cover the real edit/save warning, repeated save without alert flood, another chat's normal request while the first draft remains blocked, recovery and visible saved edit/answer. L5 uses the UI-function/change/finger-scenario table; L6 follows that scoped response. This section does not declare whole G1.8, G1.9, host activation or stable release complete.
+
 ## 관련 문서
 
 - [G1.8 구현 계획](POCKETRISU-G1-8-FAILURE-LIFECYCLE-PLAN.md)

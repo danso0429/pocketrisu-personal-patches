@@ -1281,19 +1281,23 @@ function createServerChatCommitter({
         );
     }
 
-    async function recover(operationId) {
+    // Caller must already own the storage queue slot. The queued public entry
+    // remains the default for callers outside a storage operation.
+    async function recoverInStorageSlot(operationId) {
         const normalized = requireIdentifier('operationId', operationId, 128);
         if (!OPERATION_ID.test(normalized)) throw invalidCommit('operationId format is invalid');
-        return queueStorageOperation(async () => {
-            const stored = readStored(normalized);
-            if (stored.state === 'invalid') {
-                return { status: 'conflict', reason: 'commit_record_invalid', receipt: null, reused: false };
-            }
-            if (stored.state === 'missing') {
-                return { status: 'missing', reason: 'commit_not_found', receipt: null, reused: false };
-            }
-            return recoverStored(stored.record);
-        });
+        const stored = readStored(normalized);
+        if (stored.state === 'invalid') {
+            return { status: 'conflict', reason: 'commit_record_invalid', receipt: null, reused: false };
+        }
+        if (stored.state === 'missing') {
+            return { status: 'missing', reason: 'commit_not_found', receipt: null, reused: false };
+        }
+        return recoverStored(stored.record);
+    }
+
+    async function recover(operationId) {
+        return queueStorageOperation(() => recoverInStorageSlot(operationId));
     }
 
     async function recoverAll() {
@@ -1355,7 +1359,7 @@ function createServerChatCommitter({
             : null;
     }
 
-    return { commit, status, recover, recoverAll, readRecovery };
+    return { commit, status, recover, recoverInStorageSlot, recoverAll, readRecovery };
 }
 
 module.exports = {

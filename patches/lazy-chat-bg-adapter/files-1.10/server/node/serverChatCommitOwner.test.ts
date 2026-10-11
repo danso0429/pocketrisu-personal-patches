@@ -277,6 +277,61 @@ function makeHarness() {
 }
 
 describe('server-owned BG chat commit', () => {
+    it('a warm record summary still checks the current applied ledger and never replays statistics', async () => {
+        const h = makeHarness(), owner = h.makeOwner(), id = 'operation-admission-summary';
+        h.primeOperation(id);
+        await owner.commitGenerationResult(h.commitInput(id, result(withAnswer(baseChat(), 'retained answer', 'summary-answer'), 'old', 'new'), 1, revision(baseChat())));
+        const bytes = Buffer.from(h.kvGet(commitStorageKey(id)));
+        expect(await owner.recoverBeforeWrite({ charId: 'char-1', chatId: 'chat-1' })).toMatchObject({ allowed: true, recovered: false });
+        h.runtime.database[SERVER_CHAT_COMMIT_APPLIED_FIELD] = [];
+        h.runtime.cacheFailures = 1;
+        expect(await owner.recoverBeforeWrite({ charId: 'char-1', chatId: 'chat-1' })).toMatchObject({ allowed: false, code: 'BG_PUBLICATION_SAVE_BLOCKED' });
+        expect(await owner.recoverBeforeWrite({ charId: 'char-1', chatId: 'chat-1' })).toMatchObject({ allowed: true, recovered: true });
+        expect(h.runtime.database.statics.messages).toBe(11);
+        expect(Buffer.from(h.kvGet(commitStorageKey(id)))).toEqual(bytes);
+    });
+    it('returns typed save refusal when canonical hydration throws without mutating storage', async () => {
+        const h = makeHarness(), owner = h.makeOwner();
+        const before = structuredClone(h.runtime.database);
+        h.runtime.ensureCanonicalHook = () => { throw new Error('synthetic hydration unavailable') };
+        expect(await owner.recoverBeforeWrite({ charId: 'char-1', chatId: 'chat-1' }))
+            .toEqual({ allowed: false, code: 'BG_SAVE_ADMISSION_UNAVAILABLE' });
+        expect(h.runtime.database).toEqual(before);
+        expect(h.runtime.schedules).toBe(0);
+    });
+    for (const mode of ['chat', 'rename', 'delete', 'parent-delete', 'global', 'other-chat', 'setting', 'counter-repair'] as const) {
+        for (const blocked of [false, true]) it(`admits ${mode} after publication recovery; blocked=${blocked}`, async () => {
+            const h = makeHarness(), owner = h.makeOwner(), id = `operation-admit-${mode}-${blocked}`;
+            h.primeOperation(id);
+            h.runtime.cacheFailures = 1;
+            const answer = withAnswer(baseChat(), 'retained answer', 'admission-answer');
+            const outcome = await owner.commitGenerationResult(h.commitInput(id, result(answer, 'old', 'new'), 1, revision(baseChat())));
+            expect(outcome.publication).toBe('pending_recovery');
+            const immutable = Buffer.from(h.kvGet(commitStorageKey(id)));
+            h.runtime.cacheFailures = blocked ? 1 : 0;
+            const incoming = structuredClone(h.runtime.database);
+            if (mode === 'rename') incoming.characters[0].chats[0].name = 'new name';
+            if (mode === 'delete') incoming.characters[0].chats = [];
+            if (mode === 'parent-delete') incoming.characters = [];
+            if (mode === 'global') incoming.globalChatVariables.mood = 'later';
+            if (mode === 'setting') incoming.theme = 'new-theme';
+            if (mode === 'counter-repair') incoming.statics.messages = 12;
+            const affects = !['other-chat', 'setting', 'counter-repair'].includes(mode);
+            const admission = await owner.recoverBeforeWrite(mode === 'chat' || mode === 'other-chat'
+                ? { charId: 'char-1', chatId: mode === 'chat' ? 'chat-1' : 'other-chat' }
+                : { incomingDatabase: incoming });
+            expect(admission.allowed).toBe(!(affects && blocked));
+            expect(admission.recovered ?? false).toBe(affects && !blocked);
+            expect(Buffer.from(h.kvGet(commitStorageKey(id)))).toEqual(immutable);
+            expect(h.runtime.database.statics.messages).toBe(affects && !blocked ? 11 : 10);
+            expect(h.runtime.fullStore.get('char-1')!.get('chat-1')).toEqual(affects && !blocked ? answer : baseChat());
+            // Repeated admission cannot replay the statistic effect.
+            if (!blocked && affects) {
+                expect((await owner.recoverBeforeWrite({ charId: 'char-1', chatId: 'chat-1' })).allowed).toBe(true);
+                expect(h.runtime.database.statics.messages).toBe(11);
+            }
+        });
+    }
     for (const [name, statics] of [
         ['absent', undefined], ['empty', {}], ['array', []], ['null', null],
         ['string', { messages: '3' }], ['negative', { messages: -1 }],
@@ -865,6 +920,12 @@ describe('server-owned BG chat commit', () => {
             expect(h.runtime.database.characters[0].chats).toEqual([])
             expect(inputOwner.read(id).terminal.publication).toBe('pending')
             expect(inputOwner.read(id).terminal.targetAbsent !== undefined).toBe(persistedDeletion)
+            const incoming = structuredClone(h.runtime.database);
+            incoming.globalChatVariables.mood = 'later';
+            const admission = await commitOwner.recoverBeforeWrite({ incomingDatabase: incoming });
+            expect(admission.allowed).toBe(persistedDeletion);
+            expect(admission.recovered ?? false).toBe(false);
+            expect(h.runtime.database.globalChatVariables.mood).toBe('new');
             expect(h.kvGet(inputKey)).toEqual(inputBytes)
             expect(h.kvGet(commitKey)).toEqual(commitBytes)
             h.kvDel(operationStateKey(id))

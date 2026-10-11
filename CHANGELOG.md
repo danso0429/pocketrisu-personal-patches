@@ -1,5 +1,13 @@
 # Changelog
 
+## 0.2.4-experimental.38 (preserve edits while answer publication recovers)
+
+- Recover validated committed answers and finalize their input before accepting affected full/delta chat or root metadata writes. Recheck current revision after recovery; retain immutable receipts and once-only effects. Refuse persistent publication failure with a distinct save-blocked response, preserving the current view's edit without promising persistence after app closure.
+- Preserve unrelated chat/root writes and qualify explicit durable saves by their exact named scope. Keep genuine conflicts, unknown-response confirmation, ordinary unavailable-server retry and streaming checkpoints distinct from publication refusal.
+- Re-enlist edits suppressed by a hydration read through the ordinary save queue. Resolve current live arrays across result delivery and root replacement; keep known concurrent publications separate from local edits without storing additional chat snapshots. Ordinary chat opens do not add another full-history fingerprint.
+- Coalesce autosave and model-job recovery notices while unresolved work remains. Keep a recovery job unclaimed on refusal; prune notice identities only after complete successful job-list reads.
+- Validate the changed routes with real SQLite, paired-build HTTP/restart and actual browser controls. Source/installer, scoped device, live OFF delivery and aggregate boundaries are recorded separately in verification record section16. No stable release or host activation is implied.
+
 ## 0.2.4-experimental.37 (G1.8 remaining failure and edit paths)
 
 - Validate canonical message counters before raw/prepared admission, fresh assembly, response transaction, first publication and root preservation. Keep exact prior applied receipts and valid initial/repair paths; refuse the typed unsafe start without client model fallback.

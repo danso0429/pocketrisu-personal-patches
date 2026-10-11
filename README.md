@@ -4,11 +4,11 @@ Personal, all-or-nothing patch delivery for PocketRisu NodeOnly. The current
 stable release is `v0.2.3`, and its complete manifest graph targets exact
 PocketRisu `v1.10.0`.
 
-The `0.2.4-experimental.37` candidate supports the unchanged original PageFold
+The `0.2.4-experimental.38` candidate supports the unchanged original PageFold
 provider's default font/emoji cache and statistics in the isolated host. Bounded
 local string transport, allocation/progress ownership and separate API budgets
 retain ordinary limits; caught local CAS refusals retain competing data and valid
-answers after a mandatory warning. BG adapter0.7.44 / Personal settings0.5.14;
+answers after a mandatory warning. BG adapter0.7.45 / Lazy sync0.5.8 / Personal settings0.5.14;
 production remains hostOFF. See [M7 qualification](docs/POCKETRISU-G1-7-M7-QUALIFICATION-VALIDATION.md)
 for original-provider12, actual raw/prepared/admission and failure evidence,
 operational composition, support/activation conditions and remaining goal gates.
@@ -39,8 +39,14 @@ positive/negative edit and lost-ACK/native-removal controls pass. The existing
 immediate assembly warning and durable server warning are counted separately.
 The scoped iPhone D/G1.3 edit-notice gate now passes positive edit/save,
 both warning sources, reopen/no redisplay, following Send and the no-edit
-warning control. The pending-publication design question remains open;
-see sections13–14 of the same record. These changes do not close whole G1.8.
+warning control. The approved .38 remainder recovers a committed answer before
+accepting an affected edit or deletion. Persistent refusal retains the current
+view's dirty edit and explains that it is not saved across app closure. Other
+chat/root writes retain their normal scope checks. Edits made during an
+asynchronous hydration read return to the ordinary dirty queue using the live
+chat array; known server publications are not echoed as user edits. See
+sections15–16 of the same record for automated evidence and remaining device
+and whole-G1.8 gates.
 
 The UI controls now initialize synthetic statistic counters and verify durable
 root writes, preserved full chat content and another Send after reopening.
