@@ -919,6 +919,32 @@ describe('server chat commit route precedence', () => {
         })
     })
 
+    for (const [name, statics] of [['missing', {}], ['array', []], ['negative', { messages:-1 }], ['string', { messages:'10' }]] as const)
+    it(`rejects ${name} canonical statistics over HTTP before execution and permits an explicit repaired request`, async () => {
+        const h=detachedCommitHarness({});const url=await startHTTPBridge(h);
+        h.runtime.database.statics=structuredClone(statics);
+        const rejected=await fetch(url+'/api/bg-orchestrate',{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify(h.inputBody())});
+        expect(rejected.status).toBe(409);
+        expect(await rejected.json()).toMatchObject({handled:false,reason:'server_statistics_invalid'});
+        expect(h.previewCalls()).toBe(0);expect(h.commitCalls).toHaveLength(0);expect(h.inputOwner.read(h.operationId)).toBeNull();
+        h.runtime.database.statics={messages:10};
+        const repaired=await fetch(url+'/api/bg-orchestrate',{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify(h.inputBody())});
+        expect(repaired.status).toBe(200);
+        for(let n=0;n<40&&!h.finished();n++)await new Promise(resolve=>setTimeout(resolve,0));
+        expect(h.finished()).toBe(true);expect(h.previewCalls()).toBe(1);expect(h.commitCalls).toHaveLength(1);
+        expect(h.runtime.database.statics.messages).toBe(11);
+    });
+
+    it('reports the typed prepared refusal without starting a provider or allowing an ambiguous replay', async () => {
+        const h=detachedCommitHarness({}), url=await startHTTPBridge(h);
+        h.runtime.database.statics={};
+        const body:any=h.inputBody();delete body.inputCommand;delete body.inputCommandVersion;
+        const response=await fetch(url+'/api/bg-orchestrate',{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify(body)});
+        expect(response.status).toBe(503);
+        expect(await response.json()).toMatchObject({handled:false,started:false,reason:'server_statistics_invalid'});
+        expect(h.previewCalls()).toBe(0);expect(h.commitCalls).toHaveLength(0);
+    });
+
     it('continues one AC-off turn after the HTTP start client has gone away', async () => {
         let releasePreview!: () => void
         const previewGate = new Promise<void>((resolve) => { releasePreview = resolve })

@@ -49,6 +49,15 @@ function record(
 }
 
 describe('server chat execution projection', () => {
+    for (const [name, next] of [['missing', {}], ['empty', {statics:{}}], ['array', {statics:[]}], ['negative', {statics:{messages:-1}}], ['null', {statics:{messages:null}}]] as const)
+    it(`rejects a ${name} statistic root write before the first server ledger`, () => {
+        expect(()=>copyServerOwnedRootState({statics:{messages:10}},next))
+            .toThrow('server statistic count is invalid');
+    });
+    it('permits explicit valid counters for a new or unowned malformed root without reconstructing them', () => {
+        expect(copyServerOwnedRootState({},{})).toEqual({});
+        expect(copyServerOwnedRootState({statics:{}},{statics:{messages:12}})).toEqual({statics:{messages:12}});
+    });
     it('accumulates matching message owners across committed revisions', () => {
         const input = message('user', 'hello', 'user-1')
         const first = message('char', 'first', 'assistant-1')

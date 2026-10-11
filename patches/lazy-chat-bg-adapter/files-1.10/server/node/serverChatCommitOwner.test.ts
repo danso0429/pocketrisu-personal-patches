@@ -156,6 +156,7 @@ function makeHarness() {
         schedules: 0,
         ensures: 0,
         cacheFailures: 0,
+        ensureCanonicalHook: null as null | (() => void | Promise<void>),
     }
     let queue = Promise.resolve<unknown>(undefined)
     const queueStorageOperation = <T>(operation: () => T | Promise<T>): Promise<T> => {
@@ -180,7 +181,7 @@ function makeHarness() {
         sqliteDb: db,
         queueStorageOperation,
         chatRevision: revision,
-        ensureCanonicalState: async () => { runtime.ensures += 1 },
+        ensureCanonicalState: async () => { runtime.ensures += 1; await runtime.ensureCanonicalHook?.() },
         getDbCache: () => ({ [databaseKey]: runtime.database }),
         getFullChatStore: () => runtime.fullStore,
         databaseKey,
@@ -276,6 +277,52 @@ function makeHarness() {
 }
 
 describe('server-owned BG chat commit', () => {
+    for (const [name, statics] of [
+        ['absent', undefined], ['empty', {}], ['array', []], ['null', null],
+        ['string', { messages: '3' }], ['negative', { messages: -1 }],
+        ['fraction', { messages: 1.5 }], ['unsafe', { messages: Number.MAX_SAFE_INTEGER + 1 }],
+    ] as const) {
+        for (const delta of [0, 1]) it(`refuses ${name} statistics before committing delta ${delta}`, async () => {
+            const h = makeHarness(), owner = h.makeOwner(), id = `operation-stat-${name}-${delta}`;
+            h.runtime.database.statics = structuredClone(statics);
+            const before = structuredClone(h.runtime.database), chat = baseChat(); h.primeOperation(id);
+            const value = { ...result(withAnswer(chat, 'retained answer', `answer-${id}`), 'old', 'new'), staticsMessagesDelta: delta };
+            await expect(owner.commitGenerationResult(h.commitInput(id, value, 1, revision(chat))))
+                .rejects.toMatchObject({code:'SERVER_CHAT_STATISTICS_INVALID'});
+            expect(h.runtime.database).toEqual(before);
+            expect(h.runtime.fullStore.get('char-1')!.get('chat-1')).toEqual(chat);
+            expect(h.kvGet(commitStorageKey(id))).toBeNull();
+            expect(h.kvGet(SERVER_CHAT_COMMIT_SEQUENCE_KEY)).toBeNull();
+        });
+    }
+    it('rejects statistic overflow without publishing an answer or rebuilding the count', async () => {
+        const h=makeHarness(), owner=h.makeOwner(), id='operation-stat-overflow', chat=baseChat();
+        h.runtime.database.statics.messages=Number.MAX_SAFE_INTEGER;h.primeOperation(id);
+        await expect(owner.commitGenerationResult(h.commitInput(id,result(withAnswer(chat,'retained','overflow-answer'),'old','new'),1,revision(chat))))
+            .rejects.toMatchObject({code:'SERVER_CHAT_STATISTICS_INVALID'});
+        expect(h.runtime.database.statics.messages).toBe(Number.MAX_SAFE_INTEGER);
+        expect(h.kvGet(commitStorageKey(id))).toBeNull();
+    });
+    it('validates prepared assembly statistics before provider execution', async () => {
+        const h=makeHarness(), owner=h.makeOwner();const admitted=await owner.captureBase('char-1','chat-1',baseChat());h.runtime.database.statics={};
+        await expect(owner.captureBase('char-1','chat-1',baseChat())).rejects.toMatchObject({code:'SERVER_CHAT_STATISTICS_INVALID'});
+        await expect(owner.readAssemblyContext('char-1','chat-1',admitted.anchor)).rejects.toMatchObject({code:'SERVER_CHAT_STATISTICS_INVALID'});
+        expect(h.runtime.schedules).toBe(0);
+    });
+    it('preserves a committed result when statistics become invalid before publication and recovers once', async () => {
+        const h=makeHarness(), owner=h.makeOwner(), id='operation-stat-publication', chat=baseChat();h.primeOperation(id);
+        h.runtime.ensureCanonicalHook=()=>{if(h.runtime.ensures===2)h.runtime.database.statics={};};
+        const committed=await owner.commitGenerationResult(h.commitInput(id,result(withAnswer(chat,'recover once','stat-recover-answer'),'old','new'),1,revision(chat)));
+        expect(committed).toMatchObject({status:'committed',publication:'pending_recovery'});
+        expect(h.runtime.database.serverChatCommitApplied).toBeUndefined();
+        expect(h.runtime.database.globalChatVariables).toEqual({mood:'old'});
+        expect(h.kvGet(commitStorageKey(id))).not.toBeNull();
+        h.runtime.ensureCanonicalHook=null;h.runtime.database.statics={messages:10};
+        expect(await owner.recover(id)).toMatchObject({status:'committed',publication:'published'});
+        expect(h.runtime.database.statics.messages).toBe(11);
+        expect(await owner.recover(id)).toMatchObject({status:'committed'});
+        expect(h.runtime.database.statics.messages).toBe(11);
+    });
     it('samples latest assembly settings and body together without exposing an aliased graph', async () => {
         const harness = makeHarness(), owner = harness.makeOwner()
         const admitted = await owner.captureBase('char-1', 'chat-1', baseChat())

@@ -89,6 +89,7 @@ function makeHarness() {
                 chats: [{ id: 'chat-1', name: 'Chat', _stub: true }],
             }],
             globalChatVariables: { mood: 'old' },
+            statics: { messages: 0 },
         } as any,
         fullStore: new Map([['char-1', new Map([['chat-1', baseChat()]])]]),
         schedules: 0,
@@ -206,6 +207,21 @@ describe('pre-canonical server chat input owner', () => {
         expect(await owner.admit(admission(next))).toMatchObject({status:'admitted'})
         expect(await owner.beginTransform(next)).toMatchObject({status:'blocked'})
         expect(h.runtime.fullStore.get('char-1')!.get('chat-1')!.message).toEqual(baseChat().message)
+    })
+    it('refuses missing statistic counters before raw admission without creating an input', async () => {
+        const h=makeHarness(), owner=h.makeOwner();h.runtime.database.statics={};
+        expect(await owner.admit(admission('operation-invalid-statistics'))).toMatchObject({status:'conflict',reason:'server_statistics_invalid'});
+        expect(owner.read('operation-invalid-statistics')).toBeNull();
+        expect(h.runtime.schedules).toBe(0);
+        expect(h.runtime.fullStore.get('char-1')!.get('chat-1')).toEqual(baseChat());
+    })
+    it('blocks a queued raw input before transformation when canonical counters become invalid', async () => {
+        const h=makeHarness(), owner=h.makeOwner(), id='operation-statistics-change';
+        await owner.admit(admission(id));h.runtime.database.statics={messages:-1};
+        expect(await owner.beginTransform(id)).toMatchObject({status:'blocked',reason:'server_statistics_invalid'});
+        expect(owner.read(id)).toMatchObject({transformState:'not_run',inputState:'blocked_edit',inputReceipt:null});
+        expect(owner.read(id).admission.rawText).toBe('hello');
+        expect(h.runtime.database.globalChatVariables).toEqual({mood:'old'});
     })
     it('keeps a pre-effect unavailable host retryable with a compatible projection and truthful notice', async () => {
         const h = makeHarness()

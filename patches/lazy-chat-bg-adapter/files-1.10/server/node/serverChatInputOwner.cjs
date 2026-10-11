@@ -1,7 +1,7 @@
 'use strict';
 
 const crypto = require('node:crypto');
-const { currentAppliedLedger, appliedTargetAbsent } = require('./serverChatExecutionProjection.cjs');
+const { currentAppliedLedger, appliedTargetAbsent, requireServerStatistics } = require('./serverChatExecutionProjection.cjs');
 const { captureAssemblyContext, captureAssemblyChat } = require('./serverChatAssemblyContext.cjs');
 const { captureInputTransformBase, resolveInputAttachment } = require('./chatInputAttach.cjs');
 const {
@@ -887,6 +887,11 @@ function createServerChatInputOwner({
             if (!snapshotDatabase || typeof snapshotDatabase !== 'object') {
                 throw new Error('server input settings snapshot source is unavailable');
             }
+            try { requireServerStatistics(snapshotDatabase); }
+            catch (error) {
+                if (error.code !== 'SERVER_CHAT_STATISTICS_INVALID') throw error;
+                return { status: 'conflict', reason: 'server_statistics_invalid' };
+            }
             const settingsSnapshotRef = settingsSnapshotKey(command.operationId);
             const settingsSnapshot = Buffer.from(encodeSettingsSnapshot(snapshotDatabase));
             if (settingsSnapshot.byteLength <= 0
@@ -1033,6 +1038,15 @@ function createServerChatInputOwner({
                 write(blocked);
                 settingsSnapshots.delete(operationId);
                 return { status: 'blocked', reason: 'chat_deleted', record: clone(blocked) };
+            }
+            try { requireServerStatistics(getDbCache()[databaseKey]); }
+            catch (error) {
+                if (error.code !== 'SERVER_CHAT_STATISTICS_INVALID') throw error;
+                const blocked = { ...record, inputState: 'blocked_edit',
+                    terminal: { state: 'blocked_edit', reason: 'server_statistics_invalid', at: Date.now() } };
+                write(blocked);
+                settingsSnapshots.delete(operationId);
+                return { status: 'blocked', reason: 'server_statistics_invalid', record: clone(blocked) };
             }
             const context = captureAssemblyContext(getDbCache()[databaseKey], current,
                 record.admission.charId, record.admission.chatId);

@@ -26,6 +26,7 @@ const {
     SERVER_CHAT_COMMIT_APPLIED_FIELD,
     currentAppliedLedger,
     appliedTargetAbsent: checkAppliedTargetAbsent,
+    requireServerStatistics,
 } = require('./serverChatExecutionProjection.cjs');
 
 const SERVER_CHAT_COMMIT_SEQUENCE_KEY = 'internal/server-chat-commit-sequence/v1';
@@ -257,15 +258,12 @@ function applyGlobalOutcomes(database, record) {
 function applyStaticsOutcome(database, record) {
     const appliedDelta = record.canonicalWrite.staticsMessagesAppliedDelta;
     if (record.canonicalWrite.effects.stats.status !== 'committed' || appliedDelta <= 0) return;
-    if (!database.statics || typeof database.statics !== 'object') {
-        throw new Error('server chat commit statics owner is unavailable');
-    }
+    requireServerStatistics(database);
     const statics = { ...database.statics };
     const ledger = currentStaticsLedger(statics);
     const prior = ledger.find((entry) => entry.operationId === record.operationId)?.cumulative || 0;
     if (prior < appliedDelta) {
-        statics.messages = (Number.isFinite(statics.messages) ? statics.messages : 0)
-            + (appliedDelta - prior);
+        statics.messages = requireServerStatistics(database, appliedDelta - prior) + (appliedDelta - prior);
     }
     const withoutOperation = ledger.filter((entry) => entry.operationId !== record.operationId);
     withoutOperation.push({ operationId: record.operationId, cumulative: appliedDelta });
@@ -310,6 +308,7 @@ function recoveryClassification(commits) {
         SERVER_CHAT_COMMIT_METADATA_UNAVAILABLE: 'metadata_invalid',
         SERVER_CHAT_COMMIT_APPLIED_RECEIPT_MISMATCH: 'receipt_mismatch',
         SERVER_CHAT_COMMIT_APPLIED_SEQUENCE_MISMATCH: 'receipt_sequence_mismatch',
+        SERVER_CHAT_STATISTICS_INVALID: 'statistics_invalid',
         CHAT_JOURNAL_RECORD_INVALID: 'journal_invalid',
         SERVER_CHAT_COMMIT_INPUT_INVALID: 'payload_unavailable',
     };
@@ -482,7 +481,10 @@ function createServerChatCommitOwner({
                 request.effectIntents.globalVariables,
             );
             const staticsDelta = request.effectIntents.staticsMessagesDelta;
-            const hasStatics = database.statics && typeof database.statics === 'object';
+            requireServerStatistics(database);
+            const priorStats = currentStaticsLedger(database.statics)
+                .find(entry => entry.operationId === request.operationId)?.cumulative || 0;
+            requireServerStatistics(database, Math.max(0, staticsDelta - priorStats));
             const inputCommand = serverChatInputOwner?.read(request.operationId) || null;
             if (inputCommand) {
                 if (inputCommand.inputReceipt?.receiptId !== request.inputReceipt.receiptId
@@ -506,14 +508,10 @@ function createServerChatCommitOwner({
                     },
                     metadata: { status: 'committed' },
                     globals: { status: globalAggregateStatus(outcomes) },
-                    stats: staticsDelta === 0
-                        ? { status: 'skipped' }
-                        : hasStatics
-                            ? { status: 'committed' }
-                            : { status: 'failed', reason: 'statics-owner-unavailable' },
+                    stats: staticsDelta === 0 ? { status: 'skipped' } : { status: 'committed' },
                 },
                 globalVariableOutcomes: outcomes,
-                staticsMessagesAppliedDelta: hasStatics ? staticsDelta : 0,
+                staticsMessagesAppliedDelta: staticsDelta,
                 promptEffectsResolved: true,
             };
         },
@@ -582,6 +580,12 @@ function createServerChatCommitOwner({
                 throw new Error('server chat commit publication chat is unavailable');
             }
             const nextDatabase = { ...current };
+            requireServerStatistics(current);
+            const statsDelta = record.canonicalWrite.effects.stats.status === 'committed'
+                ? record.canonicalWrite.staticsMessagesAppliedDelta : 0;
+            const priorStats = currentStaticsLedger(current.statics)
+                .find(entry => entry.operationId === record.operationId)?.cumulative || 0;
+            requireServerStatistics(current, Math.max(0, statsDelta - priorStats));
             publishMetadata(
                 nextDatabase,
                 record.recovery.requestedCharId,
@@ -718,6 +722,7 @@ function createServerChatCommitOwner({
 
     async function captureBase(charId, chatId, submittedChat) {
         await ensureCanonicalState();
+        requireServerStatistics(getDbCache()?.[databaseKey]);
         const exists = getDbCache()?.[databaseKey]?.characters
             ?.find(character => character?.chaId === charId)?.chats?.some(chat => chat?.id === chatId);
         const canonicalChat = exists ? getFullChatStore()?.get(charId)?.get(chatId) || null : null;
@@ -739,6 +744,7 @@ function createServerChatCommitOwner({
         await ensureCanonicalState();
         return queueStorageOperation(() => {
             const database = getDbCache()?.[databaseKey];
+            requireServerStatistics(database);
             const characterIndex = database?.characters?.findIndex(character => character?.chaId === charId) ?? -1;
             const character = characterIndex >= 0 ? database.characters[characterIndex] : null;
             const chatIndex = character?.chats?.findIndex(chat => chat?.id === chatId) ?? -1;

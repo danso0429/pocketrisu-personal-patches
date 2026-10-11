@@ -265,6 +265,22 @@ function projectChatExecution({
     };
 }
 
+function requireServerStatistics(database, additionalDelta = 0) {
+    const statics = database?.statics;
+    const count = statics?.messages;
+    if (!statics || typeof statics !== 'object' || Array.isArray(statics)
+        || !own(statics, 'messages') || !Number.isSafeInteger(count) || count < 0) {
+        throw Object.assign(new Error('server statistic count is invalid'),
+            { code: 'SERVER_CHAT_STATISTICS_INVALID', reason: 'server_statistics_invalid' });
+    }
+    if (!Number.isSafeInteger(additionalDelta) || additionalDelta < 0
+        || !Number.isSafeInteger(count + additionalDelta)) {
+        throw Object.assign(new Error('server statistic count exceeds safe count'),
+            { code: 'SERVER_CHAT_STATISTICS_INVALID', reason: 'server_statistics_invalid' });
+    }
+    return count;
+}
+
 function copyServerOwnedRootState(currentDatabase, incomingDatabase) {
     if (!incomingDatabase || typeof incomingDatabase !== 'object' || Array.isArray(incomingDatabase)) {
         throw new Error('incoming database is invalid');
@@ -338,12 +354,15 @@ function copyServerOwnedRootState(currentDatabase, incomingDatabase) {
     }
     const hasServerEffect = Array.isArray(current.serverChatCommitApplied)
         && current.serverChatCommitApplied.length > 0;
+    if (!hasServerEffect && oldEffects.length === 0 && submittedEffects.length === 0 && nextCutoff === 0
+        && (own(current, 'statics') || own(next, 'statics'))) {
+        // A normal root write must not poison statistics while a first BG
+        // request is executing, before a server effect ledger exists.
+        requireServerStatistics(next);
+    }
     if (hasServerEffect || oldEffects.length > 0 || submittedEffects.length > 0
         || nextCutoff > 0) {
-        const currentCount = currentStatics?.messages;
-        if (!Number.isSafeInteger(currentCount) || currentCount < 0) {
-            throw new Error('server statistic count is invalid');
-        }
+        const currentCount = requireServerStatistics(current);
         const newDelta = newEffects.reduce((sum, effect) => sum + effect.delta, 0);
         const expectedCount = currentCount + newDelta;
         if (!Number.isSafeInteger(expectedCount)) {
@@ -386,6 +405,7 @@ module.exports = {
     SERVER_CHAT_EXECUTION_STORE_CONTRACT,
     applyCommitProjection,
     copyServerOwnedRootState,
+    requireServerStatistics,
     projectChatExecution,
     readProjectionStore,
     reconcileOwners,

@@ -1,6 +1,7 @@
 // Never copy an arbitrary response body into persisted client logs.
 const knownStartReasons = new Set([
     'chat-generation-active',
+    'server_statistics_invalid',
     'server-chat-commit-unavailable',
     'server-chat-commit-base-read-failed',
     'server-chat-commit-base-unavailable',

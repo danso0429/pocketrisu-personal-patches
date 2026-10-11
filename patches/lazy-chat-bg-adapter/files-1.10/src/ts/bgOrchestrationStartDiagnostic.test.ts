@@ -2,6 +2,10 @@ import { describe, expect, it } from 'vitest'
 import { orchestrationStartDiagnostic } from './bgOrchestrationStartDiagnostic'
 
 describe('orchestration start diagnostics', () => {
+    it('retains the typed statistics refusal for the no-client-replay branch', () => {
+        expect(orchestrationStartDiagnostic(503, 'server_statistics_invalid')).toBe('server_statistics_invalid')
+        expect(orchestrationStartDiagnostic(409, 'server_statistics_invalid')).toBe('server_statistics_invalid')
+    })
     it('records the stale-input cause without changing start classification', () => {
         expect(orchestrationStartDiagnostic(409, 'server-chat-commit-input-stale'))
             .toBe('server-chat-commit-input-stale')
