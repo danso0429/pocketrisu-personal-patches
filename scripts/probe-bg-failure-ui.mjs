@@ -13,6 +13,7 @@ const device = mode === 'device';
 const fastFailure = process.argv.includes('--fast-failure');
 const loseResultAck = process.argv.includes('--lose-result-ack');
 const queueNext = process.argv.includes('--queue-next');
+const isolatedCookies = device || process.argv.includes('--isolate-cookies');
 const req = createRequire(path.join(target, 'package.json'));
 const Database = req('better-sqlite3');
 const runtime = fs.mkdtempSync(path.join(path.dirname(output), device ? 'g18-ui-device-' : 'g18-ui-auto-'));
@@ -54,7 +55,8 @@ seedDb.close();
 const server = fork(path.join(target, 'server/node/server.cjs'), [], {
   cwd: runtime, execArgv: ['--require', new URL('./probes/bg-failure-ui-preload.cjs', import.meta.url).pathname],
   env: { ...process.env, PORT: device ? '6268' : '0', TUNNEL_DISABLED: '1', UPDATE_CHECK_DISABLED: '1',
-    POCKETRISU_BG_PLUGIN_HOST_CANDIDATE: '0', G18_UI_PROBE: '1', G18_UI_DEVICE: device ? '1' : '0', G18_UI_FAST: fastFailure ? '1' : '0' },
+    POCKETRISU_BG_PLUGIN_HOST_CANDIDATE: '0', G18_UI_PROBE: '1', G18_UI_DEVICE: device ? '1' : '0', G18_UI_FAST: fastFailure ? '1' : '0',
+    G18_UI_COOKIE_NAMESPACE: isolatedCookies ? '1' : '0' },
   stdio: ['ignore', 'pipe', 'pipe', 'ipc'],
 });
 const log = fs.createWriteStream(path.join(runtime, 'server.log'), { mode: 0o600 });
@@ -89,6 +91,7 @@ if (device) {
   const pollGate = new Promise(resolve => { releasePolls = resolve; });
   async function open(storageState) {
     context = await browser.newContext(storageState ? { storageState } : {});
+    if (isolatedCookies && !storageState) await context.addCookies([{ name:'risu-session', value:'production-cookie-control', url:origin }]);
     await context.route('**/*', route => route.request().url().startsWith(origin + '/') ? route.continue() : route.abort());
     if (loseResultAck) await context.route('**/api/bg-orchestrate-result/**', async route => {
       if (route.request().method() === 'DELETE' && lostAcks === 0) {
@@ -188,6 +191,11 @@ if (device) {
     assert.equal(await page.evaluate(() => Object.keys(localStorage).filter(key => key.startsWith('bg-server-input-v3:')).length), 0,
       'both failed and queued completed raw input markers must settle before a following Send');
     assert.deepEqual(pageErrors, []);
+    if (isolatedCookies) {
+      const cookies = await context.cookies();
+      assert.equal(cookies.find(cookie => cookie.name === 'risu-session')?.value, 'production-cookie-control');
+      assert.ok(cookies.some(cookie => cookie.name === 'g18-ui-session'));
+    }
     if (loseResultAck) assert.equal(lostAcks, 1);
     const receipts = readRows('bg-orch-state-op:').filter(row => row.failedInputSettlement);
     assert.equal(receipts.length, 1);

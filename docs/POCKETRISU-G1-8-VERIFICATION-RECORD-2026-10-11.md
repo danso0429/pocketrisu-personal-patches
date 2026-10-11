@@ -105,7 +105,7 @@ G1.8 구현·자동 qualification·구조/runtime 검수·OFF 후보 전달과 �
 
 ## 9. 실제 UI Send 재검증 — 2026-10-11
 
-사용자 요청으로 [재검증 계획](POCKETRISU-G1-8-FAILURE-LIFECYCLE-PLAN.md#g18-재검증-계획--2026-10-11)의 자동 선행 검증을 실행했다. **현재 결론은 실제 UI의 실패 후 다음 Send 미통과이며 L5 준비 미완료다.** §8의 종결은 이전 자동/API 및 시험용 알림 전달 범위의 역사적 결과다.
+사용자 요청으로 [재검증 계획](POCKETRISU-G1-8-FAILURE-LIFECYCLE-PLAN.md#g18-재검증-계획--2026-10-11)의 자동 선행 검증을 실행했다. **이 시점의 결론은 실제 UI의 실패 후 다음 Send 미통과이며 L5 준비 미완료였다.** 수정 후 현재 결과는 §10을 따른다. §8의 종결은 이전 자동/API 및 시험용 알림 전달 범위의 역사적 결과다.
 
 ### 새 검증 방식
 
@@ -144,6 +144,37 @@ Opus 5.5는 표식의 최종 실패 종결 경로 누락과 다음 Send 차단�
 현재 환경의 브라우저 실행 파일 차이, 권한 fixture 준비, ordinary chat 조회의 JWT 인증·chat identity 누락으로 실패한 초기 실행은 통과에서 제외했다. BG 세션과 ordinary-chat reader 인증을 코드대로 분리한 최종 실행 결과를 사용했다. 초기 helper import의 작업용 logs DB는 open reference 부재를 확인한 뒤 비공개 기록 위치에 이동·보존했다. fixture 기대값·native 호출 수·UI Send assertion을 줄이거나 localStorage 표식을 지워 통과시키지 않았다.
 
 L5는 현재 시작하지 않는다. 입력이 확실히 저장/채택된 최종 실패에 대해 새 접수를 허용할 proof를 검토하고, running/unknown/partial/commit-failed 상태의 원문·결과·효과 보존과 no-replay를 함께 확인해야 한다. 실제 warm iPhone, 수정 미반영 D/G1.3, 실제 공급자·stream·최종 조합·stable gate는 미통과로 유지한다. 운영 코드·데이터·PM2·프록시·host 설정·tag/release는 변경하지 않았다.
+
+## 10. 수정 후 재재검증 — 2026-10-11
+
+사용자 승인으로 §9의 차단을 수정했다. 후보는 `0.2.4-experimental.36`, adapter `0.7.43`이며 기준 commit은 `8a530d8`이다. 현재 단계는 자동 검증 완료 및 OFF 전달 준비다. 실제 기기 L5·운영 readback은 아직 이 문단의 통과 증거가 아니다.
+
+### 수정한 동작
+
+서버는 실패 입력이 현재 canonical 채팅에 속하는지 기존 입력 owner와 같은 규칙으로 확인하고, 원문/설정을 노출하지 않는 식별 proof를 제공한다. 클라이언트는 확정된 무답변 최종 실패만 정산한다. 정확한 result ACK가 삭제한 payload와 입력 receipt를 바탕으로 버전 있는 ACK 기록을 남겨, 응답 유실이나 표식 삭제 저장 오류 뒤에도 확인할 수 있다. 새 결과가 같은 operation에 발행되면 이전 기록을 먼저 무효화한다. 단순 `acked:true / absent`, 과거 adoptedRevision, 부분/불확정/commit-fault 결과는 표식 해제 권한이 아니다.
+
+이미 있는 입력의 최신 편집은 덮어쓰지 않는다. 입력이 로컬에 없으면 현재 화면과 기억된 정상 저장 snapshot이 모두 원래 접수 기준과 같고 미확정 쓰기가 없을 때만 기존 guarded adoption을 사용한다. 채택 뒤 같은 기준의 N+1 표식도 기존 전진 함수로 갱신한다. Send 직전 정산은 `input-failed` 한 작업으로 한정해 성공 결과의 claim을 다른 기기에서 가져오지 않는다.
+
+### 실제 자동 관찰
+
+| 경로 | 결과 |
+|---|---|
+| 실제 UI 전면 실패→다음 Send | 실패 main2, 원문 보존, 정확한 ACK, 정상 main1, 원문2·답변1. |
+| UI 전송 뒤 브라우저 종료·복귀 | 같은 저장/알림/다음 Send 결과, 재실행 알림 중복0·pageErrors0. |
+| 즉시 실패 + 실제 ACK 처리 후 응답만 유실 | durable ACK 확인으로 복구, 추가 provider replay 없이 정상 다음 답변. failed-ui에 없던 원문이 다음 Send 전에 채택돼 빠른 실패 경로도 실행됐다. |
+| 실패 중 실제 UI로 N+1 접수 + polling 응답 지연 | backend에서 다음 답변을 먼저 저장한 뒤 UI 복귀를 검증했다. 원문2/답변1, 실패·완료 raw 표식 모두0, pageErrors0. |
+| 기존 원본 MARP native 경로 | retry2 analysis9/main3; outbox 장애와 최종 실패/API 다음 정상 요청의 호출 수·보존 검증 통과. |
+| 관련 회귀/구조 | 서버570 pass/기존 skip12, 주요 client flow139 pass와 후기 변경분123 pass(중복 합산하지 않음), patcher 외부 entry52 pass. 타입/Svelte0 errors/0 warnings. |
+| 전체 frontend | 첫 실행은2313 pass/기존 skip4와 jobRecovery import timeout4. 해당 파일은 수정 전·후 독립 실행 모두45 pass. Node25 시험 webstorage를 끈 재실행은2317 pass/기존 skip4이며 assertions·제품 timeout/cap·skip은 바꾸지 않았다. 원인 단정 대신 실행 환경 차이를 기록했다. |
+| 빌드/패처 조합 | frontend/BG build·sendChat load 확인, source490 pair drift0. 42packs/1562units/490managed/8기존 qualified collisions·re-plan0·원본1022파일 byte/mode exact revert를 확인했다. |
+
+Opus 5.5 source 검수에서 ACK 권한·원자성·늦은 발행 무효화·편집 보존의 출고 차단 요소는 발견되지 않았다. 제기된 N+1 기준 전진 누락, 전체 reconcile 호출 범위, 저장 오류 catch와 성공 result claim 부작용은 반영·재검증했다. 자문 자체를 실행 통과로 계산하지 않는다.
+
+### 범위와 기기 gate
+
+수정 범위는 입력 receipt가 있고 현재 채팅의 원문을 확인할 수 있는 anchored 무답변 최종 실패다. 실패 입력을 의도적으로 삭제한 경우에는 부활시키지 않으며 기존 서버 predecessor fence가 남는다. 미확정 저장·evicted snapshot·부분 답변·실행 불확정·receipt 없는 만료 결과는 임의 정산하지 않는다. 이 조건을 일반적인 모든 실패/삭제 복구 완료로 확대하지 않는다.
+
+기기 시험은 정규 소스와 원본 플러그인·저장 권한 답을 사용하는 별도 합성 데이터 인스턴스에서 A/B/C로 수행한다. 유료 공급자를 호출하지 않으며, 해당 결과는 운영 사용자 DB나 실제 provider/hostON/stream/aggregate qualification과 구분한다. 실제 iPhone warm 복귀는 별도 사용자 관찰이며 홈 이동/잠금만으로 내부 OS suspension을 단정하지 않는다.
 
 ## 관련 문서
 

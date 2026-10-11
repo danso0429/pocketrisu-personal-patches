@@ -4,11 +4,11 @@ Personal, all-or-nothing patch delivery for PocketRisu NodeOnly. The current
 stable release is `v0.2.3`, and its complete manifest graph targets exact
 PocketRisu `v1.10.0`.
 
-The `0.2.4-experimental.35` candidate supports the unchanged original PageFold
+The `0.2.4-experimental.36` candidate supports the unchanged original PageFold
 provider's default font/emoji cache and statistics in the isolated host. Bounded
 local string transport, allocation/progress ownership and separate API budgets
 retain ordinary limits; caught local CAS refusals retain competing data and valid
-answers after a mandatory warning. BG adapter0.7.42 / Personal settings0.5.14;
+answers after a mandatory warning. BG adapter0.7.43 / Personal settings0.5.14;
 production remains hostOFF. See [M7 qualification](docs/POCKETRISU-G1-7-M7-QUALIFICATION-VALIDATION.md)
 for original-provider12, actual raw/prepared/admission and failure evidence,
 operational composition, support/activation conditions and remaining goal gates.
@@ -22,6 +22,13 @@ new-journal retirement after49h and durable v3 failure/interruption/edit/effect 
 Legacy journal bytes remain protected. Actual providers, physical-device/aggregate
 qualification and live activation remain separate. Stable
 remains `v0.2.3`.
+
+The .36 repair closes ordinary retained-input failures through canonical input
+identity and an exact no-answer result ACK. A versioned receipt survives lost ACK
+responses; partial/uncertain results and edited or deleted input views are not
+silently discarded or overwritten. Actual browser Send failure-to-next-Send and
+fast failure/ACK-loss controls pass. See the [re-verification record](docs/POCKETRISU-G1-8-VERIFICATION-RECORD-2026-10-11.md)
+for device gates and the separate existing deleted-input predecessor constraint.
 
 The preceding `0.2.4-experimental.32` candidate restores unread stream/Response and callback/
 signal resources after refused serialization, while preserving published handles,

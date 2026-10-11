@@ -10,6 +10,28 @@ const emit = row => {
   process.send?.(row);
 };
 const listen = http.Server.prototype.listen;
+// Cookies are host-scoped, not port-scoped. Keep a device test on another
+// HTTPS port from replacing the production application's session cookie.
+if (process.env.G18_UI_COOKIE_NAMESPACE === '1') {
+  const emitRequest = http.Server.prototype.emit;
+  http.Server.prototype.emit = function (event, ...args) {
+    if (event === 'request') {
+      const [request, response] = args;
+      const isolated = String(request.headers.cookie || '').split(';').map(value => value.trim())
+        .find(value => value.startsWith('g18-ui-session='));
+      request.headers.cookie = isolated ? 'risu-session=' + isolated.slice('g18-ui-session='.length) : '';
+      const setHeader = response.setHeader;
+      response.setHeader = function (name, value) {
+        if (String(name).toLowerCase() === 'set-cookie') {
+          const rename = cookie => String(cookie).replace(/^risu-session=/, 'g18-ui-session=');
+          value = Array.isArray(value) ? value.map(rename) : rename(value);
+        }
+        return setHeader.call(this, name, value);
+      };
+    }
+    return emitRequest.call(this, event, ...args);
+  };
+}
 http.Server.prototype.listen = function (...args) {
   if (typeof args[1] === 'string') args[1] = '127.0.0.1';
   else args.splice(1, 0, '127.0.0.1');
