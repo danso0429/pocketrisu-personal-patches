@@ -279,6 +279,16 @@ Lifecycle state rows changed88→83. The five removed rows were already `deliver
 
 The current/previous rollback material and still-required device/recovery evidence remain protected. No temporary-directory or worktree cleanup was performed. The ordered-goals document is committed locally in its separate repository; its main-branch publication was rejected by automatic approval review and awaits the user's separate publication decision. PocketRisu source/results are published on the existing candidate branch. Physical D and the publication-fence design decision remain open.
 
+## 14. iPhone D/G1.3 positive edit observation
+
+On the isolated experimental.37 / adapter0.7.44 candidate, the user sent the D text and reported the input-area server-generation indicator. The operator confirmed actual prompt assembly with the old prior text, one provider call, attached input and no answer. After the user edited and saved the prior message through the pencil control, a canonical read confirmed the new prior text while the request was still held. The operator released that existing synthetic response without another request or cancellation.
+
+The user supplied Mobile Safari/iOS records for both immediate `bg-assembly-context` and durable `bg-notification` warning texts and explicitly confirmed both appeared. The same edit outbox event subsequently had delivery ACK true. On reopening, the user explicitly reported no repeat notice and successful preservation of the edited text/answer. The following normal Send also answered.
+
+Server readback: two completed inputs, two provider calls, edited prior text retained, one D answer and one following healthy answer, canonical message statistic2 and two stats committed/delta1 receipts. The D receipt has `promptInputsChanged:true`; the following receipt false. Exactly one edit outbox event remains, ACK true. Human observations and server evidence therefore close the **positive edit/reopen/next-Send device scope**. They do not establish OS suspension or actual-provider behavior.
+
+The second-chat no-edit control is pending. Its procedure is to send D without editing, scroll/open the same screen, release only after actual assembly is confirmed, and verify no immediate or durable edit warning. Entire D/G1.8, the pending-publication write-fence decision, G1.9/G1.10/hostON/stable and the separate ordered-goals publication decision remain open. The applicable L3 report is retained until the complete scoped D/L6 closeout.
+
 ## 관련 문서
 
 - [G1.8 구현 계획](POCKETRISU-G1-8-FAILURE-LIFECYCLE-PLAN.md)
