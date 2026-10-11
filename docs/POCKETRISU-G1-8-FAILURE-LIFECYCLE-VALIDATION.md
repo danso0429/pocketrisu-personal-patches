@@ -1,5 +1,7 @@
 # G1.8 failure and recovery lifecycle qualification
 
+Current remainder candidate: experimental.37 / BG adapter0.7.44. Statistics preconditions, compact exact failed-input ACK/removal readiness and anchored edit notices extend the earlier checkpoints below. See verification record §13 for current source commits, actual UI/automated evidence and remaining D/device, pending-publication design-approval and whole-goal limits. Earlier checkpoint numbers in this document retain their original scope.
+
 Candidate `0.2.4-experimental.35`, BG adapter0.7.42 and lazy-chat-sync0.5.7; baseline85cd2f9. See the [implementation plan](POCKETRISU-G1-8-FAILURE-LIFECYCLE-PLAN.md). This record distinguishes automated source qualification, OFF delivery and physical-device/activation gates.
 
 The separate [verification process and results record](POCKETRISU-G1-8-VERIFICATION-RECORD-2026-10-11.md) documents the automated sequence, withdrawn trigger-card device test, replacement iPhone notification control, observations and remaining scope.

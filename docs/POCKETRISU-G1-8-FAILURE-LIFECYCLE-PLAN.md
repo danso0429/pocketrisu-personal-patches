@@ -39,7 +39,21 @@ Prefer metadata-only operation journal cache over a new generic cache abstractio
 
 Prefer a small operation-notice owner at existing final-state boundaries with source retry after restart. Exact consumer hooks and compatibility will be settled after tracing, without moving existing pack ownership. Distinguish source failure durability from UI enqueue, human observation and external provider cancellation.
 
-## G1.8 재검증 계획 — 2026-10-11
+## G1.8 remaining implementation units — 2026-10-11
+
+Baseline `0b48497`, experimental.36 / adapter0.7.43. User authorized investigation, implementation and revalidation of remaining G1.8 work. The ordered goals remain authority. G1.9 streaming is outside this implementation; actual-provider/hostON/aggregate/stable qualification stays separate. Earlier A/B/C observations retain the limitations in verification record §§11–12.
+
+| Unit | Result and preservation contract | Verification |
+|---|---|---|
+| R1 Canonical statistics preconditions | Refuse invalid/noninteger/negative/overflowing canonical message counters before new server-owned input/model execution and before response commit/publication. Do not invent historical counts or weaken root-write validation. If state changes after execution, preserve the generated result and original input without a false applied receipt or model replay. | Genuine owner/SQLite cases for absent/object/array/null/string/fraction/negative/unsafe counters, delta0 and positive deltas, valid counters, queued context refresh, transaction rollback and repair/retry without duplicate effects. Trace raw and prepared callers, publication/recovery and normal custom/local routes. |
+| R2 Deliberately removed settled failed input | Allow a new input after a user removes a previously ACK-settled no-answer failed raw input. Persist exact ACK authority bound to operation/chat/input receipt/message/attached revision in the owned V4 record and retain it in the compact V5 checksum. Expired operation state alone does not erase that proof. Any present mismatched/corrupt state, superseding result, unknown transformation or partial/generated answer refuses settlement. Preserve deletion and all earlier effects; no journal restoration or retry of the old request. | Genuine owner cases for removal after exact ACK, a queued successor, missing/mismatched ACK, newer results, atomic write errors, state/result expiration, V5 retirement, duplicate/wrong-role identity and client clear-only handling. Actual lost-ACK/native removal/next-Send UI control. No legacy record rewrite/backfill. |
+| R3 Edit-warning device qualification | Exercise a controlled successful native request held after actual prompt assembly. A prior-message edit must persist alongside one answer and one not-reflected notice; open/scroll/no edit must not warn. Original input/answer identity, next Send, ACK and no replay remain intact. | Maintained original-UI positive and negative controls first. Then prepare fresh isolated iPhone edit/no-edit chats and observe user gestures plus canonical chat/notice/receipt evidence. Original A/B/C records and production user data remain unchanged. |
+
+R1/R2 are independent small commits with appropriate automatic gates and matched installer rebuild. Source counsel precedes implementation and follows changed-path L1–L4. Graph/re-plan/exact revert, privacy sweep, idle/verified-backup OFF delivery and independent readback precede user device requests. R3 may require only test transport/setup changes if the existing edit-notice source satisfies its actual callers. Failed approaches and unqualified detection channels stay documented.
+
+Before closing G1.8, reconcile the ordered-goals progress table, lifecycle plan/validation, latest verification record and JOURNAL waiting entries. State each completed automatic/device boundary and unresolved contract explicitly; do not turn broad G1.10/provider/stream gates into fabricated G1.8 passes. Stable/tag/host activation is not authorized by these synthetic controls.
+
+### Earlier failure-retest plan
 
 상태: 계획 수립 단계. 아래 새 시험의 실행·통과, 시험 공급자 준비 또는 iPhone 시험 시작 가능 상태를 뜻하지 않는다. 이전 자동 검증과 시험용 v3 알림 표시/재실행 관찰은 해당 범위의 기존 증거로 보존한다.
 

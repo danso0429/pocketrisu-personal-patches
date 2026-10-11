@@ -227,6 +227,48 @@ C에서 사용자는 초록 원이 돌 때 강제 종료한 뒤 복귀하여 오
 
 관찰·범위 정정·README/CHANGELOG와 version 영향 검토를 closeout에 반영했다. 제품 소스/version/installer는 .36/.43에서 그대로이고 추가 stable tag/release는 없다. Fixture/root-write 수정의 L3 보고서는 기기 보정 결과까지 정리한 뒤 L6에서 제거했고, 별도 제품/aggregate gate에 필요한 기존 검수 자료는 보존했다. 합성 시험 프로세스와 복구 자료는 남은 기기 gate에 필요해 보존한다.
 
+## 13. Remaining G1.8 implementation and revalidation
+
+The user authorized concrete investigation and implementation of remaining G1.8 work. Source changes are isolated as `3603204` (statistics preconditions), `c434654` (durable failed-input ACK), and `7508972` (anchored edit notices and actual UI probes). Each source checkpoint includes its matching generated installer. The aggregate candidate is experimental.37 / BG adapter0.7.44; this is not a stable release.
+
+### Changes and evidence
+
+| Change | Observed result and preservation |
+|---|---|
+| Canonical statistics | Raw/prepared admission, fresh assembly, response transaction and first publication reject malformed or overflowing counters. The known refusal does not fall back to a client model call. Ordinary root writes also reject malformed incoming counters before the first BG ledger exists. No historical counts are invented. Valid counters, entirely absent initial-root statics, explicit valid repair and already-applied recovery retain their separate contracts. |
+| Failed input deliberately removed after exact ACK | Compact ACK authority is written with checked delivered state in one SQLite transaction and retained in V5 with its checksum. Expired state alone does not erase it. Missing input is clear-only: no adoption, raw restoration or repeated ACK. Unknown/pending local writes, wrong-role/duplicate IDs, mismatched state/result, partial/generated/unknown outcomes refuse the path. Existing legacy records are not rewritten. |
+| Queued successor | A successor admitted before the failure resolves against the current chat after exact failure ACK and deliberate removal. The old request is not executed again. Genuine owner assertions cover its effective base and execution predecessor. |
+| Actual lost-ACK/remove UI | The server accepts the exact failure ACK while the browser loses the response and status transport is unavailable. The actual native message-only removal confirmation deletes and saves the raw input. After status transport returns, the following Send, root save, reopened context and another Send succeed; deleted input stays absent, with two healthy answers and two durable statistic effects. Three admitted inputs and two retained inputs are distinct counts. |
+| Anchored edit producer | A held actual native request consumes the old prior message. Actual UI edit/save preserves the new prior text alongside one answer. The immutable receipt reports `promptInputsChanged:true`; the obsolete merge-reason predicate previously produced no durable edit notice. The corrected producer uses that flag, retaining the old reason only when the flag is absent. Explicit false produces no edit notice. |
+| Edit UI positive/negative | Positive: one existing immediate assembly warning **and** one durable server edit notice, separately observed in rendered toast elements; both absent in a newly opened context. Negative: opening/scrolling without editing produces neither warning. Both retain usable following Send, correct answer counts and durable statistics. “One notice” in earlier probes counted only the server outbox row, not total visible warnings. |
+
+The two edit texts are intentionally retained: the existing page-local warning preserves immediate G1.3 feedback, and the new durable notice covers absence/recovery. This candidate does not unify their delivery identities. D instructions must name both texts and distinguish two notices from repeat delivery of the same notice.
+
+Automatic observations: server612 pass/12 existing skips; frontend2325 pass/4 existing skips; type0 errors/0 warnings; patcher52 outer test entries. Frontend build completed and the BG bundle loaded `sendChat=function`. The later server-only candidate reused artifacts only after all1,163 client/public file hashes and build-input bytes matched. Graph42 packs/1,569 units/490 managed paths/8 collisions, re-plan0, and original1,022 files/modes restored after exact revert. The R1-only generated checkpoint separately passed156 owner/projection/route tests. Real generated `db.cjs` rollback probes confirm that the checked state-writer failure and publication failure share the same exported SQLite handle as their record writes. There is no lint command in the official target manifest; type/build diagnostics are recorded without inventing a lint result.
+
+Failed runs remain excluded: the first edit trial lacked a built BG bundle and stopped before provider execution; the next reproduced the missing durable producer. Two removed-input harness attempts mishandled the native modal/action order. The maintained probe now checks bundle readiness and uses the actual visible message-only confirmation without forced clicks. No test assertion was removed, skipped or relaxed to obtain the final observations.
+
+### Source counsel and unresolved boundaries
+
+Opus reviewed the R1 plan and source, R2 durability/retirement/compatibility design, and the frozen final candidate. It found no verified R1/R2 blocker, identified the same-handle transaction premise, the two independent edit texts and the need for a live counter-only readback. The handle premise was traced and measured; the live counter was a valid safe nonnegative integer; both rendered edit texts are now separately asserted. Its inspection is source evidence, not a substitute for automated or device execution.
+
+A proposed historical-cache-revision publication guard failed four genuine process recovery/queue controls and was withdrawn before delivery. A narrower target-chat write fence while committed publication is unresolved is a **user-approval-pending design alternative**. It is not implemented by this candidate and prevents a whole-G1.8 completion claim. Ordinary model-time editing remains supported by the positive D probe.
+
+Other limitations remain explicit: old state-only ACK expires without backfill; an unacknowledged expired result does not gain authority; a new publication after a fresh client proof or an older-runtime rollback is not covered by an atomic client-clear guarantee. Physical iPhone D/G1.3, successful blue/green absence, real provider/MARP/hostON, G1.9 streaming and G1.10 aggregate/stable remain separate gates. A/B/C observations in §§11–12 keep their original limitations.
+
+### D / L5 remaining device procedure
+
+The isolated trial uses synthetic prior messages, the original installed plugin sources with existing permission fixtures, hostOFF and a synthetic provider. Operator readiness includes actual login, exact served bundle, capability and preserved production/previous-trial cookies. Private connection/password details belong in the operator channel, not this document.
+
+| UI function | Change under test | Device actions and expected observations |
+|---|---|---|
+| `수정 알림 테스트`: Send, prior-message pencil/save | Durable edit notice derived from actual prompt assembly | Send `G1.8 정상 확인 D`. Wait for the operator to confirm the actual prompt is held. Edit the earlier `G1.8 편집 전 문장` to `G1.8 편집 후 문장` with the pencil button, then press the pencil again to save. The operator verifies durable edit before releasing the synthetic answer. Confirm saved edit and one answer coexist. |
+| Immediate and server edit notices | Preserve existing feedback and add durable delivery | The existing text begins `생성 준비가 시작된 뒤 대화가 수정됐어요`; the durable text begins `응답은 저장했지만, 조립 이후 수정한 내용은`. In the foreground each may appear once; report each separately. After reopening, neither should repeat for this operation. |
+| `수정 없는 대조`: Send/open/scroll | No warning without an edit | Send `G1.8 정상 확인 D` in the second trial chat. Open/scroll without changing messages. After the operator releases the held response, confirm one answer and no edit warning. |
+| Reopen and following Send | Preserve edit, answer and usable chat | Reopen the first trial chat, verify edited text and answer, then send `G1.8 정상 확인 저장 후`. Confirm a new normal synthetic answer and no repeated edit warning. Operator independently checks records, counts, ACK and saved state. |
+
+Physical D is pending. Automatic scope and OFF delivery/readback are recorded separately; no stable tag, activation or G1.9 work is implied.
+
 ## 관련 문서
 
 - [G1.8 구현 계획](POCKETRISU-G1-8-FAILURE-LIFECYCLE-PLAN.md)

@@ -4,11 +4,11 @@ Personal, all-or-nothing patch delivery for PocketRisu NodeOnly. The current
 stable release is `v0.2.3`, and its complete manifest graph targets exact
 PocketRisu `v1.10.0`.
 
-The `0.2.4-experimental.36` candidate supports the unchanged original PageFold
+The `0.2.4-experimental.37` candidate supports the unchanged original PageFold
 provider's default font/emoji cache and statistics in the isolated host. Bounded
 local string transport, allocation/progress ownership and separate API budgets
 retain ordinary limits; caught local CAS refusals retain competing data and valid
-answers after a mandatory warning. BG adapter0.7.43 / Personal settings0.5.14;
+answers after a mandatory warning. BG adapter0.7.44 / Personal settings0.5.14;
 production remains hostOFF. See [M7 qualification](docs/POCKETRISU-G1-7-M7-QUALIFICATION-VALIDATION.md)
 for original-provider12, actual raw/prepared/admission and failure evidence,
 operational composition, support/activation conditions and remaining goal gates.
@@ -28,7 +28,17 @@ identity and an exact no-answer result ACK. A versioned receipt survives lost AC
 responses; partial/uncertain results and edited or deleted input views are not
 silently discarded or overwritten. Actual browser Send failure-to-next-Send and
 fast failure/ACK-loss controls pass. See the [re-verification record](docs/POCKETRISU-G1-8-VERIFICATION-RECORD-2026-10-11.md)
-for device gates and the separate existing deleted-input predecessor constraint.
+for the earlier device observations and their limits.
+
+The .37 remainder rejects invalid canonical counters before owned generation or
+publication, without guessing history or replaying the model in the client.
+Exact failed-input ACKs now survive operation-state expiry and compact retirement;
+deliberately removed acknowledged raw inputs stay absent while the next Send
+remains usable. Anchored prompt changes produce durable edit notices. Actual UI
+positive/negative edit and lost-ACK/native-removal controls pass. The existing
+immediate assembly warning and durable server warning are counted separately.
+Physical D/G1.3 and the proposed pending-publication write fence remain open;
+see section13 of the same record. These changes do not close whole G1.8.
 
 The UI controls now initialize synthetic statistic counters and verify durable
 root writes, preserved full chat content and another Send after reopening.
