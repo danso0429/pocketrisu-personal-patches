@@ -37,8 +37,10 @@ deliberately removed acknowledged raw inputs stay absent while the next Send
 remains usable. Anchored prompt changes produce durable edit notices. Actual UI
 positive/negative edit and lost-ACK/native-removal controls pass. The existing
 immediate assembly warning and durable server warning are counted separately.
-Physical D/G1.3 and the proposed pending-publication write fence remain open;
-see section13 of the same record. These changes do not close whole G1.8.
+The scoped iPhone D/G1.3 edit-notice gate now passes positive edit/save,
+both warning sources, reopen/no redisplay, following Send and the no-edit
+warning control. The pending-publication design question remains open;
+see sections13–14 of the same record. These changes do not close whole G1.8.
 
 The UI controls now initialize synthetic statistic counters and verify durable
 root writes, preserved full chat content and another Send after reopening.

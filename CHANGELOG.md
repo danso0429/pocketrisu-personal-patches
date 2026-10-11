@@ -6,6 +6,7 @@
 - Retain exact no-answer failure ACK in the owned input record and compact retirement checksum. Atomically pair the record with checked delivered-state writes and invalidate it before a replacement result. Preserve deliberately removed input, queued-successor readiness, current edits and conservative unknown/partial/mismatched boundaries without legacy backfill.
 - Derive durable edit notices from immutable anchored prompt-change receipts while preserving the existing immediate warning. Actual edit/no-edit, reopen/next-Send and lost-ACK/native-removal UI controls assert the two warning sources separately and preserve durable chats/statistic effects.
 - Record scoped automated results and remaining physical D/G1.3, pending-publication design approval, provider/stream/aggregate and stable gates in verification record section13. No host activation or stable release.
+- Close the scoped iPhone D/G1.3 edit-notice gate with reported positive edit/save, both warning sources, reopen/no redisplay, preserved edit/answer, following Send and negative-warning absence. Correct the isolated update-check flag, distinguish ancillary Hub refusal logs, and retain the separate pending-publication/whole-goal boundaries in section14.
 
 ## 0.2.4-experimental.36 (failed input settlement)
 
