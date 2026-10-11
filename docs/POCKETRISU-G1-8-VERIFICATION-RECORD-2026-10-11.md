@@ -103,6 +103,46 @@ G1.8 구현·자동 qualification·구조/runtime 검수·OFF 후보 전달과 �
 
 새 recovery 형식이 생성된 뒤에는 임의의 이전 owner 실행을 검증된 rollback으로 간주하지 않는다. 현재 복구 owner를 보존하거나 저장 상태와의 호환을 따로 검증해야 하며, 코드 rollback을 위해 최신 사용자 데이터를 이전 백업으로 덮어쓰지 않는다.
 
+## 9. 실제 UI Send 재검증 — 2026-10-11
+
+사용자 요청으로 [재검증 계획](POCKETRISU-G1-8-FAILURE-LIFECYCLE-PLAN.md#g18-재검증-계획--2026-10-11)의 자동 선행 검증을 실행했다. **현재 결론은 실제 UI의 실패 후 다음 Send 미통과이며 L5 준비 미완료다.** §8의 종결은 이전 자동/API 및 시험용 알림 전달 범위의 역사적 결과다.
+
+### 새 검증 방식
+
+유료 공급자를 호출하지 않는 별도 서버/SQLite와 실제 Chromium을 사용했다. 앱의 원래 Send 버튼으로 요청하고, 원래 native main caller의 공급자 transport만 제어했다. 입력 owner, busy flag, 복구 표식, 알림 producer/조회/ACK는 대체하거나 강제로 해제하지 않았다. 제어는 시험 전용 환경·cwd에서만 활성화되며 기존 HTTP/TCP/WS 경계도 외부 요청을 차단한다.
+
+실제 활성 플러그인 6개의 원본 hash가 보관된 시험 원본과 같은 것을 읽기 전용으로 확인하고, 실제 저장된 권한 답을 격리 fixture에 사용했다. 시험 DB의 모델·retry·binding은 명시적인 합성 설정이며 운영 설정을 바꾸지 않았다. 후보 source 486개는 현재 설치 owner와 일치하지만 이전 후보의 제공 asset 19개가 현재와 달랐다. 따라서 동일 현상을 현재 운영 소스와 현재 서빙 dist를 읽어 별도 synthetic cwd/save에서 재현해 오래된 bundle 가설을 배제했다. 운영 앱이나 사용자 DB에서 생성 실패를 유발한 시험은 아니다.
+
+### 관찰 결과
+
+| 경계 | 실제 결과 |
+|---|---|
+| 새 assertion의 native retry 0/1/2 | analysis 3/6/9, main 1/2/3. agent별 횟수·원문 문구/identity도 검사했다. |
+| fallback / prepared 최종 실패 | fallback 모델 순서와 analysis6/main2를 확인했다. prepared 실패는 저장된 사용자 입력1·답변0·실패 알림1이다. |
+| 실제 실패 producer와 outbox 장애 / API 다음 전송 | durable intent 보존과 추가 실패 main 없이 알림 발행을 확인했다. API 직접 다음 요청은 원문2·답변1·추가 main1을 통과했다. 이 결과를 UI Send로 확대하지 않는다. |
+| 강화된 기존 브라우저 outbox 시험 | notices5/logged5/ACK2/provider0/pageErrors0. 새 context에서 v3 네 종류 모두의 재표시 부재와 로그 증가 없음을 검사했다. 기존 producer1·직접 durable control4라는 범위는 그대로다. |
+| 실제 UI 실패 producer | retry1 fixture의 native 실패 main2, 원문1의 정확한 내용/identity, 답변0, v3 operation_failed/generation_failed 1개, intent published와 delivery ACK를 확인했다. |
+| 실패 뒤 같은 채팅의 UI Send | **실패.** 버튼이 사용 가능해 보여도 정상 문구의 다음 요청은 접수되지 않았다. 정상 main/답변0, 새 문구는 초안에 남았다. |
+| 현재 source/JS와 foreground·closed context 대조 | 같은 차단을 재현했다. 이전 후보의 asset 차이만으로 설명되지 않는다. |
+| headless warm visibility 대조 | 다른 탭을 활성화해도 원래 document가 visible이었다. hidden assertion이 실패했고 warm return 통과 증거에서 제외했다. |
+| 관련 gate / live readback | syntax·diff check, patcher 외부 test entry52/0fail. 읽기 전용 live source486·asset175·DB5·capability200·hostOFF·active0을 확인했다. 새 UI 실패로 전체 L1~L4 완료를 선언하지 않는다. |
+
+### 확인된 차단과 미확인 원인 범위
+
+실패 알림이 표시된 뒤 기존 앱 오류창의 Confirm을 누르고 같은 채팅의 Send로 정상 문구를 보냈다. 화면에는 `서버 입력을 시작하지 않았어요`와 `채팅이나 설정 상태를 확인한 뒤 다시 보내 주세요. 초안은 남겼어요.`가 나타났다. 클라이언트에는 이전 작업의 accepted 입력 표식이 recoveryOutcome `unverified-parked`로 남았다. SQLite에는 inputState failed / transformState completed, operation result-ready, published 실패 intent와 ACK된 v3 알림이 있었다.
+
+호출 구조는 최종 실패에 response commit receipt가 없으면 복구 표식을 보존/park하고, 다음 접수가 이전 accepted 표식의 비활성 상태를 만나 거절하는 경로다. 이전 서버 API 직접 다음 요청은 이 클라이언트 표식 검사를 거치지 않았다. 이 관찰만으로 운영 중 사용자에게 같은 문제가 발생했다고 단정하거나 experimental.35가 새로 만든 회귀라고 분류하지 않는다. 어느 구체 proof로 실패 입력의 정상 채팅 채택을 확인하고 접수 fence만 해제할지는 별도 설계·검증 대상이다.
+
+foreground에는 기존 오류 dialog, v3 실패 toast, host OFF의 플러그인 생략 안내6개가 함께 관찰됐다. 서로 다른 producer이며 전체 toast를 실패 중복으로 세지 않는다. notification ACK와 실패 결과의 복구 권한도 구분한다.
+
+### 제외된 실행과 다음 gate
+
+Opus 5.5는 표식의 최종 실패 종결 경로 누락과 다음 Send 차단을 소스와 진단 기록으로 확인했다. 첫 해제안의 `adoptedRevision` 존재만으로 원문 보존을 증명한다는 조건은 후속 대조에서 철회했다. 이 값은 과거 채택 기록이며 현재 로컬/영속 채팅이나 이후 편집·삭제의 보존을 증명하지 않는다. 실패 projection의 입력 receipt/메시지 identity 제공 여부와 현재 채팅 proof를 먼저 확정해야 한다. 기존 v1 result ACK의 exact operation/resultId·consumer claim·delivered 영속쓰기 후 payload 정리 순서는 코드를 확인했으나 새 실패 종결 ACK의 실제 재현은 수행하지 않았다. 자문만으로 수정 안전성이나 새 gate 통과를 주장하지 않는다.
+
+현재 환경의 브라우저 실행 파일 차이, 권한 fixture 준비, ordinary chat 조회의 JWT 인증·chat identity 누락으로 실패한 초기 실행은 통과에서 제외했다. BG 세션과 ordinary-chat reader 인증을 코드대로 분리한 최종 실행 결과를 사용했다. 초기 helper import의 작업용 logs DB는 open reference 부재를 확인한 뒤 비공개 기록 위치에 이동·보존했다. fixture 기대값·native 호출 수·UI Send assertion을 줄이거나 localStorage 표식을 지워 통과시키지 않았다.
+
+L5는 현재 시작하지 않는다. 입력이 확실히 저장/채택된 최종 실패에 대해 새 접수를 허용할 proof를 검토하고, running/unknown/partial/commit-failed 상태의 원문·결과·효과 보존과 no-replay를 함께 확인해야 한다. 실제 warm iPhone, 수정 미반영 D/G1.3, 실제 공급자·stream·최종 조합·stable gate는 미통과로 유지한다. 운영 코드·데이터·PM2·프록시·host 설정·tag/release는 변경하지 않았다.
+
 ## 관련 문서
 
 - [G1.8 구현 계획](POCKETRISU-G1-8-FAILURE-LIFECYCLE-PLAN.md)

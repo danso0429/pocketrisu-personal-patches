@@ -213,9 +213,14 @@ try{
         const mains=events.filter(e=>e.event==='main'),analysis=events.filter(e=>e.event==='analysis');
         const expectedAttempts=scenario.startsWith('native-retry-')?Number(scenario.at(-1))+1:2;
         assert.equal(mains.length,expectedAttempts);
+        assert.equal(analysis.length,expectedAttempts*3);
+        for(const role of ['worldbuilding','plot','character'])
+            assert.equal(analysis.filter(row=>row.body.model==='fixture-'+role).length,expectedAttempts);
         // Prepared fixtures seed one saved user message before launching;
         // raw fixtures attach one through the actual input command.
         assert.equal(chat.message.filter(m=>m.role==='user').length,1);
+        assert.equal(chat.message.find(m=>m.role==='user').data,
+            route==='raw'?body.inputCommand.rawText:'Synthetic prepared input');
         assert.equal(chat.message.filter(m=>m.role==='char').length,failed?0:1);
         if(scenario==='native-fallback')assert.deepEqual(mains.map(e=>e.body.model),['gpt-3.5-turbo','gpt-4o']);
         const db=new Database(path.join(runtime,'save/risuai.db'),{readonly:true});
@@ -252,8 +257,12 @@ try{
             const restored=await fetch(origin+'/api/chat-content/synthetic-character/0',{headers});assert.equal(restored.status,200);
             const healthy=await decodeRisuSave(new Uint8Array(await restored.arrayBuffer()));
             assert.equal(healthy.message.filter(m=>m.role==='user').length,2);
+            assert.deepEqual(healthy.message.filter(m=>m.role==='user').map(m=>m.data),
+                [body.inputCommand.rawText,'Next healthy input']);
+            assert.equal(healthy.message.find(m=>m.role==='user').chatId,chat.message.find(m=>m.role==='user').chatId);
             assert.equal(healthy.message.filter(m=>m.role==='char').length,1);
             assert.equal(events.filter(e=>e.event==='main').length,expectedAttempts+1);
+            assert.equal(events.filter(e=>e.event==='analysis').length,(expectedAttempts+1)*3);
             nextHealthy={input:2,answers:1,additionalMain:1};
         }
         assert.equal(events.filter(e=>['observation-error','validation-error','denied'].includes(e.event)).length,0);

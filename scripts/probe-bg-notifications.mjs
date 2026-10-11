@@ -167,6 +167,15 @@ try {
   assert.equal(await third.page.getByText('서버에서 처리할 수 없는 입력 동작으로 멈췄어요. 원문은 해당 채팅에 보존했어요.', { exact: true }).count(), 0)
   assert.equal(rows().length, expectedNotices)
   if (includeMessages) assert.equal(await third.page.getByText('Synthetic (1):', { exact: false }).count(), 0)
+  if (includeOperations) for (const message of [
+    '서버 요청이 실패했어요. 저장된 원문이나 결과가 있다면 확인해 주세요.',
+    'main 이후의 서버 처리 문맥이 사라졌어요. 저장된 결과가 있다면 확인해 주세요. 자동 재실행하지 않았어요.',
+    '응답은 저장했지만, 조립 이후 수정한 내용은 이번 생성에 반영되지 않았어요. 자동 재생성하지 않았어요.',
+    '답변은 저장했지만 전역 변수 변경 일부는 최신 값과 충돌해 반영하지 않았어요. 최신 값은 보존했어요.',
+  ]) assert.equal(await third.page.getByText(message, { exact: true }).count(), 0)
+  const reopenedLogs = new Database(path.join(runtime, 'save/logs.db'), { readonly: true })
+  assert.equal(reopenedLogs.prepare("SELECT count(*) AS count FROM logs WHERE source='bg-notification'").get().count, expectedNotices)
+  reopenedLogs.close()
   assert.equal(providerCalls, 0)
   assert.deepEqual(pageErrors, [])
   await third.context.close()
