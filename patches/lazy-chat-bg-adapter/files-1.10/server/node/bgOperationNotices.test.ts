@@ -4,6 +4,7 @@ import { afterEach, describe, expect, it } from 'vitest'
 const require = createRequire(import.meta.url)
 const { createBgNotifications, OPERATION_PREFIX, NOTIFICATION_TTL_MS, MAX_ROWS } = require('./bgNotifications.cjs')
 const { createBgOperationNotices, stateEvents, commitEvents, PREFIX } = require('./bgOperationNotices.cjs')
+const { operationStateKey, writeOperationState, readOperationState, operationResultKey } = require('./bgOrchestrationOperationStore.cjs')
 const cleanup: Array<() => void> = []
 afterEach(() => { while (cleanup.length) cleanup.pop()!() })
 
@@ -12,11 +13,13 @@ function harness() {
     db.exec('CREATE TABLE kv(key TEXT PRIMARY KEY,value TEXT NOT NULL)')
     cleanup.push(() => db.close())
     let time = 1_000_000, failingKey = '', failingPrefix = ''
+    const writes = new Map<string, number>()
     const deps = { db, now: () => time,
         kvGet: (key: string) => (db.prepare('SELECT value FROM kv WHERE key=?').get(key) as any)?.value ?? null,
         kvSet: (key: string, value: string) => {
             if (key === failingKey || (failingPrefix && key.startsWith(failingPrefix))) throw new Error('injected-operation-notice-failure')
             db.prepare('INSERT OR REPLACE INTO kv VALUES (?,?)').run(key, value)
+            writes.set(key, (writes.get(key) ?? 0) + 1)
         },
         kvDel: (key: string) => db.prepare('DELETE FROM kv WHERE key=?').run(key),
         kvList: (prefix: string) => (db.prepare('SELECT key FROM kv WHERE substr(key,1,?)=? ORDER BY key').all(prefix.length, prefix) as any[]).map(row => row.key),
@@ -24,6 +27,7 @@ function harness() {
     const outbox = createBgNotifications(deps)
     const makeOwner = () => createBgOperationNotices({ ...deps, publish: outbox.publish })
     return { deps, outbox, makeOwner, owner: makeOwner(),
+        writeCount: (key: string) => writes.get(key) ?? 0,
         failKey: (key: string) => { failingKey = key }, failPrefix: (prefix: string) => { failingPrefix = prefix },
         advance: (ms: number) => { time += ms },
         event: (id = 'operation-source-one') => ({ operationId: id, eventKey: 'operation:terminal',
@@ -41,6 +45,7 @@ describe('durable operation notice source', () => {
             expect(stateEvents({ ...state, state: stage })).toMatchObject([{ code: 'operation_interrupted',
                 reason: stage === 'running' ? 'before_result' : 'after_main' }])
             for (const options of [{ active: true }, { outcome: { committed: true } }, { outcome: { final: true } },
+                { outcome: { committed: true, final: true, failed: true } },
                 { outcome: { cancelled: true } }, { outcome: { noticeHandled: true } }]) {
                 expect(stateEvents({ ...state, state: stage }, options)).toEqual([])
             }
@@ -48,6 +53,55 @@ describe('durable operation notice source', () => {
         for (const stage of ['cancelled', 'delivered', 'chat-committed']) expect(stateEvents({ ...state, state: stage })).toEqual([])
         expect(stateEvents({ ...state, state: 'running' }, { outcome: { final: true, failed: true } }))
             .toMatchObject([{ code: 'operation_failed', reason: 'generation_failed' }])
+        expect(stateEvents({ ...state, state: 'running' }, { outcome: { final: true, failed: true, commitFailed: true } }))
+            .toMatchObject([{ code: 'operation_failed', reason: 'commit_failed' }])
+    })
+
+    it('keeps commit-owned partial identity separate from the state scan and allows state retirement', () => {
+        const h = harness(), event = h.event()
+        const state = { ...event, notificationSourceVersion: 1, notificationCreatedAt: event.createdAt, state: 'running' }
+        expect(h.owner.capture({ ...event, createdAt: event.createdAt + 1 })).toBe(false)
+        h.advance(1); h.owner.retry()
+        expect(h.owner.canRetireState(state, { outcome: { committed: true, final: true, failed: true } })).toBe(true)
+        h.owner.captureState(state, { outcome: { committed: true, final: true, failed: true } })
+        expect(h.deps.kvList(PREFIX)).toHaveLength(1)
+        expect(h.deps.kvList(OPERATION_PREFIX)).toHaveLength(1)
+    })
+
+    it('preserves a derived failure in actual state storage when intent capacity fails and result payload is evicted', () => {
+        const h = harness(), event = h.event()
+        const initial = writeOperationState(h.deps.kvSet, event.operationId, { ...event,
+            notificationSourceVersion: 1, notificationCreatedAt: event.createdAt }, 'running')
+        expect(initial.written).toBe(true)
+        h.failPrefix(PREFIX)
+        h.owner.captureState(initial.record, { outcome: { final: true, failed: true } })
+        expect(h.deps.kvList(PREFIX)).toEqual([])
+        const observed = readOperationState(h.deps.kvGet, event.operationId)
+        expect(observed.operationNotice).toEqual(event)
+        expect(observed.updatedAt).toBe(initial.record.updatedAt)
+        const observedWrites = h.writeCount(operationStateKey(event.operationId))
+        h.owner.captureState(observed, () => { throw Error('outcome should stay unnecessary') })
+        expect(h.writeCount(operationStateKey(event.operationId))).toBe(observedWrites)
+        expect(writeOperationState(h.deps.kvSet, event.operationId, observed, 'result-evicted').written).toBe(true)
+        expect(h.deps.kvGet(operationResultKey(event.operationId))).toBeNull()
+        h.failPrefix('')
+        h.makeOwner().captureState(readOperationState(h.deps.kvGet, event.operationId), () => { throw Error('evicted outcome unavailable') })
+        expect(h.outbox.claim('consumer-evicted-source', 3).map((row: any) => row.event)).toEqual([event])
+        expect(h.deps.kvList(PREFIX)).toHaveLength(1)
+        expect(h.deps.kvGet(operationStateKey(event.operationId))).toContain('operation:terminal')
+    })
+
+    it('does not materialize an expired derived source or refresh an old state during a sweep', () => {
+        const h = harness(), event = h.event()
+        const initial = writeOperationState(h.deps.kvSet, event.operationId, { ...event,
+            notificationSourceVersion: 1, notificationCreatedAt: event.createdAt }, 'running')
+        const raw = h.deps.kvGet(operationStateKey(event.operationId))
+        h.advance(NOTIFICATION_TTL_MS)
+        h.owner.captureState(initial.record)
+        expect(h.deps.kvGet(operationStateKey(event.operationId))).toBe(raw)
+        expect(h.writeCount(operationStateKey(event.operationId))).toBe(1)
+        expect(h.deps.kvList(PREFIX)).toEqual([])
+        expect(h.owner.canRetireState(initial.record)).toBe(true)
     })
 
     it('does not read outcomes for legacy, null or stamped states and bounds invalid-source retention by its fixed TTL', () => {

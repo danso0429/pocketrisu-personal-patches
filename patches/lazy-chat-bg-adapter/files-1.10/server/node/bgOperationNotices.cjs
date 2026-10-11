@@ -1,5 +1,6 @@
 'use strict';
 const { normalizeEvent, idOf, MAX_ROWS, NOTIFICATION_TTL_MS } = require('./bgNotifications.cjs');
+const { operationStateKey, readOperationState } = require('./bgOrchestrationOperationStore.cjs');
 const PREFIX = 'internal/bg-operation-notice-intents/v1/';
 const CODES = new Set(['operation_failed', 'operation_interrupted', 'chat_edit_unreflected', 'commit_effect_conflict']);
 
@@ -8,7 +9,9 @@ function stateEvents(state, options = {}) {
         || state.notificationCreatedAt <= 0) return [];
     if (state.operationNotice) {
         const event = normalizeEvent(state.operationNotice);
-        if (event.code !== 'operation_failed' || event.eventKey !== 'operation:terminal'
+        const terminal = event.code === 'operation_failed' && event.eventKey === 'operation:terminal';
+        const interrupted = event.code === 'operation_interrupted' && event.eventKey === 'operation:interrupted:' + event.reason;
+        if ((!terminal && !interrupted)
             || event.operationId !== state.operationId || event.charId !== state.charId || event.chatId !== state.chatId
             || event.createdAt !== state.notificationCreatedAt) throw new Error('operation_notice_source_mismatch');
         return [event];
@@ -17,9 +20,10 @@ function stateEvents(state, options = {}) {
     if (active || outcome?.noticeHandled || outcome?.cancelled || ['delivered', 'cancelled', 'chat-committed'].includes(state.state)) return [];
     const base = { operationId: state.operationId, charId: state.charId, chatId: state.chatId,
         createdAt: state.notificationCreatedAt, effectsMayHaveOccurred: true };
+    if (outcome?.committed) return [];
     if (outcome?.final && outcome.failed) return [normalizeEvent({ ...base, code: 'operation_failed',
         eventKey: 'operation:terminal', reason: outcome.commitFailed ? 'commit_failed' : 'generation_failed' })];
-    if (outcome?.final || outcome?.committed) return [];
+    if (outcome?.final) return [];
     if (state.state === 'delivery-failed') return [normalizeEvent({ ...base, code: 'operation_failed',
         eventKey: 'operation:terminal', reason: 'commit_failed' })];
     if (['queued', 'running', 'running-result-consumed', 'running-result-ready'].includes(state.state)) {
@@ -69,6 +73,19 @@ function createBgOperationNotices({ db, kvGet, kvSet, kvDel, kvList, publish, no
         } catch { throw new Error('operation_notice_record_invalid'); }
     }
     const write = (id, row) => kvSet(PREFIX + id, JSON.stringify(row));
+    const preserveStateEvent = db.transaction((state, event) => {
+        const current = readOperationState(kvGet, state.operationId);
+        if (!current || current.notificationSourceVersion !== 1
+            || current.notificationCreatedAt !== state.notificationCreatedAt
+            || current.charId !== state.charId || current.chatId !== state.chatId
+            || current.state !== state.state) return false;
+        if (current.operationNotice) return JSON.stringify(stateEvents(current)[0]) === JSON.stringify(event);
+        // Keep the observed fact independently of result payload eviction.
+        // Source time stays fixed. Materializing this fact writes state once;
+        // subsequent retries use the stamp without refreshing its KV clock.
+        kvSet(operationStateKey(state.operationId), JSON.stringify({ ...current, operationNotice: event }));
+        return true;
+    });
     function keyId(key) {
         if (typeof key !== 'string' || !key.startsWith(PREFIX) || !/^[a-f0-9]{64}$/.test(key.slice(PREFIX.length))) {
             throw new Error('operation_notice_record_invalid');
@@ -143,7 +160,12 @@ function createBgOperationNotices({ db, kvGet, kvSet, kvDel, kvList, publish, no
         } catch { deferred(); }
     }
     function captureState(state, options) {
-        try { for (const event of stateEvents(state, options)) capture(event); }
+        try { for (const event of stateEvents(state, options)) {
+            if (!state.operationNotice && event.createdAt + NOTIFICATION_TTL_MS > now()) {
+                try { if (!preserveStateEvent(state, event)) deferred(); } catch { deferred(); }
+            }
+            capture(event);
+        } }
         catch { deferred(); }
     }
     function canRetireState(state, options) {

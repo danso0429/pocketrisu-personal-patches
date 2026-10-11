@@ -80,6 +80,9 @@ const operationNotices = createBgOperationNotices({ db: sqliteDb, kvGet, kvSet, 
       const noticeHandled = input?.terminal?.reason === 'server_host_unsupported' && input.terminal.notificationVersion === 1
       const result = peekResult(kvGet, operationResultKey(operationId))
       const final = result.state === 'found' && result.record.final !== false && result.record.kind !== 'intermediate'
+      const nativeFailed = final && ['error', 'partial'].includes(result.record.outcome)
+      const commitFailed = final && result.record.serverChatCommit
+        && !['committed', 'cancelled'].includes(result.record.serverChatCommit.status)
       const settingsLost = input && ['queued', 'attached'].includes(input.inputState)
         && input.admission.inputPreparation !== 'client'
         && serverChatInputOwner.loadSettingsSnapshot(operationId).reason === 'settings_context_unavailable'
@@ -89,8 +92,10 @@ const operationNotices = createBgOperationNotices({ db: sqliteDb, kvGet, kvSet, 
         // client preparation and untouched/retryable queued work are distinct.
         inputIrretryable: settingsLost || input?.transformState === 'unknown' || input?.inputState === 'failed'
           || (input?.transformState === 'running' && input?.admission?.inputPreparation !== 'client'),
-        failed: final && ['error', 'partial'].includes(result.record.outcome),
-        commitFailed: final && result.record.serverChatCommit?.status === 'conflict' }
+        failed: !!(nativeFailed || commitFailed),
+        // Partial generation failure wins over a subsequent commit failure;
+        // successful-result commit faults and assembly-error commits do not.
+        commitFailed: !!commitFailed && result.record.outcome !== 'partial' }
     }
     const noticeStateOptions = operationId => orchestrationRuns.status(operationId) === 'running'
       ? { active: true } : { active: false, outcome: sourceOutcome(operationId) }

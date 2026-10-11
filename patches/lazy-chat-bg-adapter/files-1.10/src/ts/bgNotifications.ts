@@ -74,13 +74,13 @@ export function notificationMessage(notification: BgNotification): string {
     const plugin = `${event.pluginName} (${event.pluginVersion})`
     switch (event.code) {
         case 'operation_failed': return event.reason === 'commit_failed'
-            ? '답변을 원래 채팅에 저장하지 못했어요. 보관된 결과와 저장 상태를 확인해 주세요.'
+            ? '답변을 원래 채팅에 저장하지 못했어요. 저장된 결과가 있다면 저장 상태를 확인해 주세요.'
             : event.reason === 'execution_context_lost'
-                ? '요청 처리 문맥을 잃어 작업을 이어갈 수 없어요. 보존된 원문을 확인해 주세요. 자동 재실행하지 않았어요.'
-                : '서버 요청이 실패했어요. 보존된 원문과 이미 저장된 결과를 확인해 주세요.'
+                ? '요청 처리 문맥을 잃어 작업을 이어갈 수 없어요. 저장된 원문이나 결과가 있다면 확인해 주세요. 자동 재실행하지 않았어요.'
+                : '서버 요청이 실패했어요. 저장된 원문이나 결과가 있다면 확인해 주세요.'
         case 'operation_interrupted': return event.reason === 'after_main'
-            ? 'main 이후의 서버 처리 문맥이 사라졌어요. 보관된 결과를 확인해 주세요. 자동 재실행하지 않았어요.'
-            : '서버 요청의 실행 문맥이 사라졌어요. 보존된 원문과 결과를 확인해 주세요. 자동 재실행하지 않았어요.'
+            ? 'main 이후의 서버 처리 문맥이 사라졌어요. 저장된 결과가 있다면 확인해 주세요. 자동 재실행하지 않았어요.'
+            : '서버 요청의 실행 문맥이 사라졌어요. 저장된 원문이나 결과가 있다면 확인해 주세요. 자동 재실행하지 않았어요.'
         case 'chat_edit_unreflected': return '응답은 저장했지만, 조립 이후 수정한 내용은 이번 생성에 반영되지 않았어요. 자동 재생성하지 않았어요.'
         case 'commit_effect_conflict': return event.reason === 'globals'
             ? '답변은 저장했지만 전역 변수 변경 일부는 최신 값과 충돌해 반영하지 않았어요. 최신 값은 보존했어요.'
