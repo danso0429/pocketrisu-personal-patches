@@ -6,6 +6,7 @@
 - Persist a bounded, versioned ACK receipt in the existing delivered operation state. Recover response loss or marker-removal failure without accepting an unbound absent ACK; invalidate old authority before a replacement result publication.
 - Preserve latest input edits, strict-record checks, partial/uncertain/commit-fault results and existing retry/fallback, provider and host-OFF behavior. Missing local input is adopted only through the existing guarded path with a remembered unchanged admission base.
 - Add real UI foreground/cold-return/fast-failure/ACK-loss controls and owner/receipt/storage failure tests. Deliberately deleted failed input retains its existing predecessor fence without resurrection; physical iPhone, actual provider/stream/aggregate and stable gates remain separate.
+- Correct synthetic statistics initialization and strengthen UI controls with durable root metadata writes, full-chat preservation, another Send after reopening and exact statistic effects. Record scoped iPhone B/C failure recovery and C no-reappearance; preserve earlier A fixture limitations and unverified blue-stage/successful-generation/whole-goal boundaries.
 
 ## 0.2.4-experimental.35 (G1.8 failure and recovery lifecycle)
 

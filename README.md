@@ -30,6 +30,15 @@ silently discarded or overwritten. Actual browser Send failure-to-next-Send and
 fast failure/ACK-loss controls pass. See the [re-verification record](docs/POCKETRISU-G1-8-VERIFICATION-RECORD-2026-10-11.md)
 for device gates and the separate existing deleted-input predecessor constraint.
 
+The UI controls now initialize synthetic statistic counters and verify durable
+root writes, preserved full chat content and another Send after reopening.
+iPhone B/C observations correlate failure settlement and subsequent normal
+answers with server receipts; C's green-stage close/return also has an explicit
+no-reappearance observation. Earlier A's malformed fixture, C's extra request
+origin, blue-stage and successful-generation absence remain limited or pending.
+See sections11–12 of the same record; these are scoped failure controls, not
+whole G1.8, activation or stable qualification.
+
 The preceding `0.2.4-experimental.32` candidate restores unread stream/Response and callback/
 signal resources after refused serialization, while preserving published handles,
 original caps and fatal teardown. Actual v2/Lua auxiliary caller roles and original
