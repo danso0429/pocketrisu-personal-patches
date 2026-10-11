@@ -16,7 +16,7 @@ const { commitSnapshotRestore, createChatWriteJournal } = journalPackage as {
             chaId: string,
             chatId: string,
             chat: any,
-            options: { awaitingMetadata: boolean; commitOperationId?: string },
+            options: { awaitingMetadata: boolean; commitOperationId?: string; retentionVersion?: 1 },
         ) => Promise<any>
         describePreparedStage: (prepared: any) => { storageKey: string; storageBytes: number }
         writePreparedStage: (prepared: any) => { storageKey: string; storageBytes: number }
@@ -29,6 +29,9 @@ const { commitSnapshotRestore, createChatWriteJournal } = journalPackage as {
                 expectedStorageKey?: string
             },
         ) => Promise<any | null>
+        prepareRetirement: (chaId: string, chatId: string, options: any) => Promise<any>
+        writeRetirement: (prepared: any) => void
+        publishRetirement: (prepared: any) => void
         stage: (chaId: string, chatId: string, chat: any, options: { awaitingMetadata: boolean }) => Promise<void>
         restoreInto: (store: Map<string, Map<string, any>>) => Promise<void>
         clearAfterDatabasePersist: (database: any) => Promise<void>
@@ -40,6 +43,9 @@ const { commitSnapshotRestore, createChatWriteJournal } = journalPackage as {
             awaitingBytes: number
             maxAwaitingRecords: number
             maxAwaitingBytes: number
+            operationRecords: number
+            operationBytes: number
+            residentChatRecords: number
         }
     }
 }
@@ -82,6 +88,76 @@ function databaseWithChats(chats: any[]) {
 }
 
 describe('durable chat write journal', () => {
+    it('retires only a validated new operation payload and publishes memory cleanup after the durable transaction', async () => {
+        const { journal, kv } = makeHarness()
+        const payload = chat('new recoverable payload')
+        const prepared = await journal.prepareStage('char-1', payload.id, payload,
+            { awaitingMetadata: false, commitOperationId: 'operation-g18-retire', retentionVersion: 1 })
+        const descriptor = journal.writePreparedStage(prepared)
+        journal.publishPreparedStage(prepared)
+        const before = Buffer.from(kv.get(descriptor.storageKey)!)
+        const retirement = await journal.prepareRetirement('char-1', payload.id,
+            { expectedStorageKey: descriptor.storageKey, validate: value => value.chat.message[0].data === 'new recoverable payload' })
+        expect(() => journal.publishRetirement(retirement)).toThrow('not committed')
+        kv.set(descriptor.storageKey, Buffer.concat([before, Buffer.from(' ')]))
+        expect(() => journal.writeRetirement(retirement)).toThrow('changed')
+        expect(journal.size()).toBe(1)
+        kv.set(descriptor.storageKey, before)
+        journal.writeRetirement(retirement)
+        expect(kv.has(descriptor.storageKey)).toBe(false)
+        expect(journal.size()).toBe(1)
+        // Model a surrounding transaction rollback: durable bytes return,
+        // and the owner must not publish the failed retirement.
+        kv.set(descriptor.storageKey, before)
+        expect((await journal.restoreDurableStage('char-1', payload.id,
+            { expectedStorageKey: descriptor.storageKey })).chat).toEqual(payload)
+        journal.writeRetirement(retirement)
+        journal.publishRetirement(retirement)
+        expect(journal.size()).toBe(0)
+        expect(() => journal.publishRetirement(retirement)).toThrow('not committed')
+    })
+
+    it('preserves legacy and ordinary journals even if a caller asks to retire them', async () => {
+        const { journal, kv } = makeHarness()
+        const payload = chat('legacy payload')
+        const prepared = await journal.prepareStage('char-1', payload.id, payload,
+            { awaitingMetadata: false, commitOperationId: 'operation-g18-legacy' })
+        const descriptor = journal.writePreparedStage(prepared)
+        journal.publishPreparedStage(prepared)
+        const before = Buffer.from(kv.get(descriptor.storageKey)!)
+        await expect(journal.prepareRetirement('char-1', payload.id,
+            { expectedStorageKey: descriptor.storageKey })).rejects.toThrow('legacy')
+        await journal.stage('char-1', 'ordinary', chat('ordinary', 'ordinary'), { awaitingMetadata: false })
+        await expect(journal.prepareRetirement('char-1', 'ordinary', {})).rejects.toThrow('legacy')
+        expect(kv.get(descriptor.storageKey)).toEqual(before)
+        expect(journal.size()).toBe(2)
+    })
+    it('keeps operation payloads on disk and returns them on demand without retaining them in the ordinary chat cache', async () => {
+        const { journal, kv } = makeHarness()
+        const ordinary = chat('ordinary', 'chat-ordinary')
+        await journal.stage('char-1', ordinary.id, ordinary, { awaitingMetadata: false })
+        const operation = chat('operation payload', 'chat-operation')
+        const prepared = await journal.prepareStage('char-1', operation.id, operation,
+            { awaitingMetadata: false, commitOperationId: 'operation-g18-journal' })
+        const descriptor = journal.writePreparedStage(prepared)
+        journal.publishPreparedStage(prepared)
+        const stored = Buffer.from(kv.get(descriptor.storageKey)!)
+        expect(journal.stats()).toMatchObject({ records: 2, residentChatRecords: 1, operationRecords: 1,
+            operationBytes: stored.byteLength, awaitingRecords: 0 })
+        const restored = await journal.restoreDurableStage('char-1', operation.id,
+            { expectedStorageKey: descriptor.storageKey, validate: value => value.chat.message[0].data === 'operation payload' })
+        expect(restored.chat).toEqual(operation)
+        expect(journal.stats().residentChatRecords).toBe(1)
+        const restarted = makeHarness(kv).journal
+        const store = new Map<string, Map<string, any>>()
+        await restarted.restoreInto(store)
+        expect(store.get('char-1')?.get(ordinary.id)).toEqual(ordinary)
+        expect(store.get('char-1')?.has(operation.id)).toBe(false)
+        expect(restarted.stats()).toMatchObject({ residentChatRecords: 1, operationRecords: 1 })
+        await restarted.clearAfterDatabasePersist(databaseWithChats([{ id: ordinary.id }]))
+        expect(kv.get(descriptor.storageKey)).toEqual(stored)
+        expect(restarted.stats()).toMatchObject({ records: 1, residentChatRecords: 0, operationRecords: 1 })
+    })
     it('splits async preparation, synchronous durable write, and post-commit publication', async () => {
         const { journal, kv } = makeHarness()
         const prepared = await journal.prepareStage(

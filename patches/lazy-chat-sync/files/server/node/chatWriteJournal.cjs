@@ -1,4 +1,9 @@
 'use strict';
+const { createHash } = require('node:crypto');
+const digest = value => createHash('sha256').update(value).digest('hex');
+class InvalidJournalRecord extends Error {
+    constructor(message) { super(message); this.code = 'CHAT_JOURNAL_RECORD_INVALID'; }
+}
 
 const DEFAULT_PREFIX = 'internal/chat-write/v1/';
 const DEFAULT_MAX_AWAITING_RECORDS = 128;
@@ -71,13 +76,22 @@ function createChatWriteJournal({
 }) {
     const records = new Map();
     let preparedStages = new WeakSet();
+    let preparedRetirements = new WeakSet();
     let loadPromise = null;
     let loaded = false;
 
     function stats() {
         let awaitingRecords = 0;
         let awaitingBytes = 0;
+        let operationRecords = 0;
+        let operationBytes = 0;
+        let residentChatRecords = 0;
         for (const record of records.values()) {
+            if (record.chat) residentChatRecords += 1;
+            if (record.commitOperationId) {
+                operationRecords += 1;
+                operationBytes += record.storageBytes || 0;
+            }
             if (!record.awaitingMetadata) continue;
             awaitingRecords += 1;
             awaitingBytes += record.storageBytes || 0;
@@ -88,7 +102,18 @@ function createChatWriteJournal({
             awaitingBytes,
             maxAwaitingRecords,
             maxAwaitingBytes,
+            operationRecords,
+            operationBytes,
+            residentChatRecords,
         };
+    }
+
+    function cachedRecord(record, key, bytes) {
+        const cached = { ...record, storageKey: key, storageBytes: bytes };
+        // Operation consumers validate immutable payloads directly from KV.
+        // Keep their identity/pressure metadata, not every historical chat body.
+        if (record.commitOperationId) delete cached.chat;
+        return cached;
     }
 
     function isValidRecord(record) {
@@ -103,6 +128,8 @@ function createChatWriteJournal({
             && record.chat.id === record.chatId
             && Array.isArray(record.chat.message)
             && typeof record.awaitingMetadata === 'boolean'
+            && (record.retentionVersion === undefined
+                || (record.retentionVersion === 1 && typeof record.commitOperationId === 'string'))
             && (record.commitOperationId === undefined
                 || (typeof record.commitOperationId === 'string'
                     && /^[A-Za-z0-9_-]{8,128}$/.test(record.commitOperationId)));
@@ -125,11 +152,7 @@ function createChatWriteJournal({
                         record.chaId,
                         record.chatId,
                         record.commitOperationId || null,
-                    ), {
-                        ...record,
-                        storageKey: key,
-                        storageBytes: Buffer.byteLength(value),
-                    });
+                    ), cachedRecord(record, key, Buffer.byteLength(value)));
                 } catch (error) {
                     onInvalid(key, error);
                 }
@@ -149,7 +172,7 @@ function createChatWriteJournal({
         chaId,
         chatId,
         chat,
-        { awaitingMetadata, commitOperationId = null },
+        { awaitingMetadata, commitOperationId = null, retentionVersion = undefined },
     ) {
         await ensureLoaded();
         if (commitOperationId !== null
@@ -169,6 +192,7 @@ function createChatWriteJournal({
             awaitingMetadata: previous?.awaitingMetadata === true || awaitingMetadata === true,
             updatedAt: Date.now(),
             ...(commitOperationId ? { commitOperationId } : {}),
+            ...(retentionVersion !== undefined ? { retentionVersion } : {}),
         };
         if (!isValidRecord(record)) {
             throw new Error('Refusing to journal an invalid chat payload');
@@ -246,18 +270,15 @@ function createChatWriteJournal({
         if (prepared.writeCount < 1) {
             throw new Error('Refusing to publish an unwritten chat journal stage');
         }
-        records.set(prepared.key, {
-            ...prepared.record,
-            storageKey: prepared.keyOnDisk,
-            storageBytes: prepared.encoded.byteLength,
-        });
+        records.set(prepared.key, cachedRecord(prepared.record,
+            prepared.keyOnDisk, prepared.encoded.byteLength));
         preparedStages.delete(prepared);
     }
 
     // Rehydrate one transaction-committed record after a process restart or
     // after commit-before-publication failure. The caller remains responsible
     // for checking the chat hash/revision against its immutable commit record.
-    async function restoreDurableStage(
+    async function readDurableStage(
         chaId,
         chatId,
         { validate = () => true, expectedStorageKey = null } = {},
@@ -266,29 +287,75 @@ function createChatWriteJournal({
         if (typeof keyOnDisk !== 'string' || !keyOnDisk.startsWith(prefix)) {
             throw new Error('Refusing an invalid durable chat journal storage key');
         }
-        const value = kvGet(keyOnDisk);
-        if (!value) return null;
-        const record = await decode(value);
+        const raw = kvGet(keyOnDisk);
+        if (!raw) return null;
+        let value, record;
+        try { value = Buffer.from(raw); record = await decode(value); }
+        catch { throw new InvalidJournalRecord('Refusing an invalid encoded durable chat journal stage'); }
         if (!isValidRecord(record) || record.chaId !== chaId || record.chatId !== chatId) {
-            throw new Error('Refusing to restore an invalid durable chat journal stage');
+            throw new InvalidJournalRecord('Refusing to restore an invalid durable chat journal stage');
         }
         if (storageKey(prefix, chaId, chatId, record.commitOperationId || null) !== keyOnDisk) {
-            throw new Error('Refusing a durable chat journal stage with a mismatched storage key');
+            throw new InvalidJournalRecord('Refusing a durable chat journal stage with a mismatched storage key');
         }
         const accepted = validate(record);
         if (accepted && typeof accepted.then === 'function') {
             throw new Error('Durable chat journal validation must be synchronous');
         }
         if (!accepted) {
-            throw new Error('Refusing a durable chat journal stage rejected by its commit receipt');
+            throw new InvalidJournalRecord('Refusing a durable chat journal stage rejected by its commit receipt');
         }
+        return { record, value, keyOnDisk };
+    }
+
+    async function restoreDurableStage(chaId, chatId, options = {}) {
+        const loaded = await readDurableStage(chaId, chatId, options);
+        if (!loaded) return null;
+        const { record, value, keyOnDisk } = loaded;
         const durable = {
             ...record,
             storageKey: keyOnDisk,
             storageBytes: Buffer.byteLength(value),
         };
-        records.set(recordKey(chaId, chatId, record.commitOperationId || null), durable);
+        records.set(recordKey(chaId, chatId, record.commitOperationId || null),
+            cachedRecord(record, keyOnDisk, durable.storageBytes));
         return durable;
+    }
+
+    async function prepareRetirement(chaId, chatId, options) {
+        const loaded = await readDurableStage(chaId, chatId, options);
+        if (!loaded || loaded.record.retentionVersion !== 1 || !loaded.record.commitOperationId) {
+            throw new InvalidJournalRecord('Refusing to retire a missing or legacy operation journal');
+        }
+        if (!Number.isSafeInteger(loaded.record.updatedAt) || loaded.record.updatedAt <= 0) {
+            throw new InvalidJournalRecord('Refusing an operation journal without a valid server write time');
+        }
+        const prepared = { keyOnDisk: loaded.keyOnDisk,
+            record: cachedRecord(loaded.record, loaded.keyOnDisk, loaded.value.byteLength),
+            storageHash: digest(loaded.value), writeCount: 0 };
+        preparedRetirements.add(prepared);
+        return prepared;
+    }
+
+    // Like writePreparedStage, this is synchronous and belongs inside the
+    // source owner's SQLite transaction. Memory changes only after commit.
+    function writeRetirement(prepared) {
+        if (!preparedRetirements.has(prepared)) throw new Error('Unknown operation journal retirement');
+        const current = kvGet(prepared.keyOnDisk);
+        if (!current || digest(current) !== prepared.storageHash) {
+            throw new Error('Operation journal changed before retirement');
+        }
+        kvDel(prepared.keyOnDisk);
+        prepared.writeCount++;
+    }
+
+    function publishRetirement(prepared) {
+        if (!preparedRetirements.has(prepared) || !prepared.writeCount) {
+            throw new Error('Operation journal retirement is not committed');
+        }
+        const key = recordKey(prepared.record.chaId, prepared.record.chatId, prepared.record.commitOperationId);
+        if (records.get(key)?.storageKey === prepared.keyOnDisk) records.delete(key);
+        preparedRetirements.delete(prepared);
     }
 
     async function stage(chaId, chatId, chat, { awaitingMetadata }) {
@@ -340,6 +407,7 @@ function createChatWriteJournal({
     function resetMemory() {
         records.clear();
         preparedStages = new WeakSet();
+        preparedRetirements = new WeakSet();
         loaded = false;
         loadPromise = null;
     }
@@ -352,6 +420,9 @@ function createChatWriteJournal({
         writePreparedStage,
         publishPreparedStage,
         restoreDurableStage,
+        prepareRetirement,
+        writeRetirement,
+        publishRetirement,
         stage,
         restoreInto,
         clearAfterDatabasePersist,
