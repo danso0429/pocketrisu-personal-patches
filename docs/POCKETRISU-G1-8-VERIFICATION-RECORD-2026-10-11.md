@@ -217,6 +217,16 @@ Opus 계획 검수에서 commit owner의 malformed 통계 허용과 이후 proje
 
 Opus 최종 source 검수는 한정된 B 재개 차단 요소를 발견하지 않았다. 이후 unexpected native dialog 부재와 모든 관찰된 rejected-save body 수집 완료를 assertion으로 보강하고 전면·closed·lost ACK·queued 네 경로를 다시 통과했다. 정상 hash-conflict409 뒤 실제 durable root 저장 성공을 확인하며 통계 거절과 구분했다. Negative control은 UI 저장 전에 canonical count assertion으로 실패하므로 console/dialog/body/DOM 검출 채널 자체의 negative qualification은 아니다. 그 채널은 보조 수단이고 긍정 근거는 실제 영속 metadata와 full chat/API·추가 Send·stats receipt다. 기기 모드에서는 자동 browser assertion이 돌지 않으므로 사용자 문구와 시험 로그·root/receipt를 별도로 대조한다. 이전 A의 제한은 유지한다.
 
+## 12. iPhone 실패 복구 관찰 — B/C 후속
+
+통계 fixture 보정 뒤 사용자가 B 완료를 보고했다. 저장된 B 원문2·답변1, failed-input exact ACK 정산, 정상 stats committed/delta1, root chatPage 선택 저장과 self-write 허용을 확인했다. 서로 다른 B 실패 작업3개는 사용자가 추가 재생성/빈 입력 전송2회를 확인해 추가 요청과 대응한다. 한 작업의 중복 알림으로 계산하지 않는다. 홈/잠금 조작은 사용자 보고이며 내부 iOS suspension의 측정은 아니다.
+
+C에서 사용자는 초록 원이 돌 때 강제 종료한 뒤 복귀하여 오류창을 확인했다고 보고했다. 저장 기록은 C 실패 입력 정산·원문2·정상 답변1·stats committed/delta1, 모든 C operation delivered와 실패 알림 delivery ACK를 확인했다. 이어 사용자가 추가 재접속 때 같은 실패 알림이 나타나지 않았다고 명시했다. **C의 같은 알림 재표시 방지 항목은 사용자 관찰과 서버 ACK를 연결해 통과했다.** C 실패 알림2개는 서로 다른 작업이며 추가 작업의 조작 출처는 아직 미확인이다; 단일 동작 호출 수/알림 수까지 통과했다고 적지 않는다.
+
+현재 시험 instance의 입력6개는 failed/completed 각3개이며 operation10개는 모두 delivered, 실패 알림7개는 모두 ACK 상태다. A의 초기 malformed fixture·stats skipped/delta0 제한은 유지한다. 보정 후 B/C는 raw-input 실패 정산→다음 정상 Send/저장, C는 명시적인 cold return/재표시 부재를 확인한 범위다. 파란 원 단계, 정상 생성의 부재 중 완주, 실제 provider·hostON·stream·전체 조합·stable은 이 강제 실패 시험으로 검증되지 않았다. G1.8 전체 달성이나 release-ready 판정으로 확대하지 않는다.
+
+관찰·범위 정정·README/version 영향 검토를 closeout 문서에 반영한다. 제품 소스/version/installer는 .36/.43에서 그대로이고 추가 stable tag/release는 없다. Fixture/root-write 수정의 L3 보고서는 기기 보정 결과까지 정리한 뒤 L6에서 제거하며, 별도 제품/aggregate gate에 필요한 기존 검수 자료는 보존한다. 합성 시험 프로세스와 복구 자료는 남은 기기 gate에 필요해 보존한다.
+
 ## 관련 문서
 
 - [G1.8 구현 계획](POCKETRISU-G1-8-FAILURE-LIFECYCLE-PLAN.md)
