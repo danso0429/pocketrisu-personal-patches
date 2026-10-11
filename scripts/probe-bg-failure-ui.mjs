@@ -10,6 +10,9 @@ const [targetArg, depsArg, fixtureArg, inventoryArg, outputArg, mode = 'foregrou
 const [target, deps, fixtureFile, inventoryDir, output] = [targetArg, depsArg, fixtureArg, inventoryArg, outputArg].map(p => path.resolve(p));
 assert.ok(['foreground', 'closed', 'warm', 'device'].includes(mode));
 const device = mode === 'device';
+const fastFailure = process.argv.includes('--fast-failure');
+const loseResultAck = process.argv.includes('--lose-result-ack');
+const queueNext = process.argv.includes('--queue-next');
 const req = createRequire(path.join(target, 'package.json'));
 const Database = req('better-sqlite3');
 const runtime = fs.mkdtempSync(path.join(path.dirname(output), device ? 'g18-ui-device-' : 'g18-ui-auto-'));
@@ -51,7 +54,7 @@ seedDb.close();
 const server = fork(path.join(target, 'server/node/server.cjs'), [], {
   cwd: runtime, execArgv: ['--require', new URL('./probes/bg-failure-ui-preload.cjs', import.meta.url).pathname],
   env: { ...process.env, PORT: device ? '6268' : '0', TUNNEL_DISABLED: '1', UPDATE_CHECK_DISABLED: '1',
-    POCKETRISU_BG_PLUGIN_HOST_CANDIDATE: '0', G18_UI_PROBE: '1', G18_UI_DEVICE: device ? '1' : '0' },
+    POCKETRISU_BG_PLUGIN_HOST_CANDIDATE: '0', G18_UI_PROBE: '1', G18_UI_DEVICE: device ? '1' : '0', G18_UI_FAST: fastFailure ? '1' : '0' },
   stdio: ['ignore', 'pipe', 'pipe', 'ipc'],
 });
 const log = fs.createWriteStream(path.join(runtime, 'server.log'), { mode: 0o600 });
@@ -82,10 +85,25 @@ if (device) {
     server.kill('SIGTERM'); await once(server, 'exit'); throw error;
   });
   const pageErrors = [], responses = [], snapshots = [], consoleEvents = [];
-  let context, page, backgroundPage;
+  let context, page, backgroundPage, lostAcks = 0, delayedPolls = 0, releasePolls;
+  const pollGate = new Promise(resolve => { releasePolls = resolve; });
   async function open(storageState) {
     context = await browser.newContext(storageState ? { storageState } : {});
     await context.route('**/*', route => route.request().url().startsWith(origin + '/') ? route.continue() : route.abort());
+    if (loseResultAck) await context.route('**/api/bg-orchestrate-result/**', async route => {
+      if (route.request().method() === 'DELETE' && lostAcks === 0) {
+        const response = await route.fetch(); assert.equal(response.status(), 200);
+        assert.equal((await response.json()).acked, true); lostAcks++;
+        await route.abort();
+      } else await route.fallback();
+    });
+    if (queueNext) await context.route('**/api/bg-orchestrate-chat-state/**', async route => {
+      const revision = new URL(route.request().url()).searchParams.get('revision');
+      if (revision && /^[0-9a-z]+-[0-9a-z]+-[0-9a-z]+$/.test(revision)) {
+        const response = await route.fetch(); delayedPolls++;
+        await pollGate; await route.fulfill({ response });
+      } else await route.fallback();
+    });
     page = await context.newPage(); page.on('pageerror', e => pageErrors.push(e.message));
     page.on('console', message => { if (message.type() === 'error' || message.text().includes('[bg-orch]')) consoleEvents.push(message.text()); });
     page.on('response', r => { if (r.url().includes('/api/bg-orchestrate')) responses.push({ url: new URL(r.url()).pathname, status: r.status() }); });
@@ -105,6 +123,12 @@ if (device) {
     await page.getByRole('button', { name: 'Send', exact: true }).click();
     await until(() => events.some(row => row.event === 'main' && row.failed), 'actual server main admission');
     snapshots.push({ stage: 'server-owned', buttons: await page.getByRole('button').allTextContents(), texts: (await page.locator('body').innerText()).slice(-2400) });
+    if (queueNext) {
+      await until(async () => await page.locator('textarea').inputValue() === '', 'first draft cleared');
+      await page.locator('textarea').fill('G1.8 정상 확인');
+      await page.locator('textarea').press('Enter');
+      await until(() => readRows('internal/server-chat-input/v1/').length === 2, 'next input admitted while previous main is held');
+    }
     const state = await context.storageState();
     if (mode === 'closed') await context.close();
     if (mode === 'warm') {
@@ -113,6 +137,10 @@ if (device) {
     }
     server.send({ event: 'release' });
     await until(() => readRows('internal/bg-notifications/v3/').some(row => row.event.code === 'operation_failed'), 'real failure producer');
+    if (queueNext) {
+      await until(() => readRows('internal/server-chat-commit/v1/').length === 1, 'queued next answer committed before delayed UI polls resume');
+      releasePolls();
+    }
     // Ordinary chat reads require JWT; BG admission uses the browser session.
     // Obtain a read observer token without replacing the active UI session.
     const login = await fetch(origin + '/api/login', { method: 'POST', headers: { 'content-type': 'application/json' },
@@ -123,8 +151,9 @@ if (device) {
     const read = await fetch(origin + '/api/chat-content/synthetic-character/0', { headers: apiHeaders });
     assert.equal(read.status, 200, await read.clone().text());
     const failedChat = await decodeRisuSave(new Uint8Array(await read.arrayBuffer()));
-    assert.deepEqual(failedChat.message.filter(row => row.role === 'user').map(row => row.data), [rawText]);
-    assert.equal(failedChat.message.filter(row => row.role === 'char').length, 0);
+    if (queueNext) assert.deepEqual(failedChat.message.filter(row => row.role === 'user').map(row => row.data), [rawText, 'G1.8 정상 확인']);
+    else assert.deepEqual(failedChat.message.filter(row => row.role === 'user').map(row => row.data), [rawText]);
+    if (!queueNext) assert.equal(failedChat.message.filter(row => row.role === 'char').length, 0);
     const notices = readRows('internal/bg-notifications/v3/').filter(row => row.event.code === 'operation_failed');
     assert.equal(notices.length, 1); assert.equal(notices[0].event.chatId, 'synthetic-chat');
     assert.equal(events.filter(row => row.event === 'main' && row.failed).length, 2);
@@ -136,9 +165,11 @@ if (device) {
     // Dismiss only the native error modal if it is present; never alter busy state.
     if (await page.getByText('백그라운드 생성이 답변 없이 끝났어요. 해당 채팅에서 다시 보내주세요.', { exact: true }).count())
       await page.getByRole('button', { name: 'Confirm', exact: true }).click();
-    await page.locator('textarea').fill('G1.8 정상 확인');
-    const send = page.getByRole('button', { name: 'Send', exact: true });
-    assert.equal(await send.isEnabled(), true); await send.click();
+    if (!queueNext) {
+      await page.locator('textarea').fill('G1.8 정상 확인');
+      const send = page.getByRole('button', { name: 'Send', exact: true });
+      assert.equal(await send.isEnabled(), true); await send.click();
+    }
     await page.waitForTimeout(1000);
     snapshots.push({ stage: 'next-send', texts: (await page.locator('body').innerText()).slice(-2400), draft: await page.locator('textarea').inputValue(),
       clientMarkers: await page.evaluate(() => Object.fromEntries(Object.keys(localStorage).filter(key => key.includes('server-input') || key.includes('recovery')).map(key => [key, localStorage.getItem(key)]))) });
@@ -154,9 +185,15 @@ if (device) {
     await page.waitForTimeout(5500);
     assert.equal(await page.getByText(failureText, { exact: true }).count(), 0);
     assert.equal(readRows('internal/bg-notifications/v3/').length, 1);
+    assert.equal(await page.evaluate(() => Object.keys(localStorage).filter(key => key.startsWith('bg-server-input-v3:')).length), 0,
+      'both failed and queued completed raw input markers must settle before a following Send');
     assert.deepEqual(pageErrors, []);
+    if (loseResultAck) assert.equal(lostAcks, 1);
+    const receipts = readRows('bg-orch-state-op:').filter(row => row.failedInputSettlement);
+    assert.equal(receipts.length, 1);
     fs.writeFileSync(output, JSON.stringify({ passed: true, mode, runtime, source: target, failedMain: 2, healthyMain: 1,
-      inputs: 2, answers: 1, notices: 1, noticeAck: true, redisplay: 0, pageErrors, responses, snapshots, consoleEvents }, null, 2), { mode: 0o600, flag: 'wx' });
+      inputs: 2, answers: 1, notices: 1, noticeAck: true, redisplay: 0, failedInputReceipts: receipts.length,
+      lostAcks, fastFailure, queueNext, delayedPolls, pageErrors, responses, snapshots, consoleEvents }, null, 2), { mode: 0o600, flag: 'wx' });
     console.log(JSON.stringify({ passed: true, mode, failedMain: 2, healthyMain: 1, inputs: 2, answers: 1 }));
   } catch (error) {
     if (page && !page.isClosed()) { await page.screenshot({ path: path.join(runtime, 'failed-probe.png') }).catch(() => {}); snapshots.push({ error: error.message, texts: (await page.locator('body').innerText().catch(() => '')).slice(-4000) }); }

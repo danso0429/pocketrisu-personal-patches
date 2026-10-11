@@ -476,6 +476,23 @@ function createServerChatInputOwner({
         return matches.length === 1;
     }
 
+    function readFailedInputProof(operationId) {
+        const record = read(operationId);
+        if (!record || record.inputState !== 'failed' || record.transformState !== 'completed'
+            || !record.inputReceipt || !record.executionBaseRevision) return null;
+        const chat = currentChat(record.admission.charId, record.admission.chatId);
+        if (!containsOwnedInput(record, chat)) return null;
+        return {
+            contractVersion: 'bg_failed_input_proof.v1', operationId,
+            charId: record.admission.charId, chatId: record.admission.chatId,
+            inputReceiptId: record.inputReceipt.receiptId,
+            userMessageId: record.admission.userMessageId,
+            attachedRevision: record.executionBaseRevision,
+            currentRevision: chatRevision(chat),
+            allowEditedInput: record.attachmentPolicy === 'latest-v1',
+        };
+    }
+
     function requiresExecutionPredecessor(record, chat) {
         if (record.recordVersion === 5) return false;
         if (record.inputState === 'blocked_edit') return !record.userResolvedAt;
@@ -1830,6 +1847,7 @@ function createServerChatInputOwner({
         readPreparationBase,
         interruptClientPreparation,
         pendingProjection,
+        readFailedInputProof,
         hasPendingGeneration,
         retryNotifications,
         read: (operationId) => clone(read(operationId)),

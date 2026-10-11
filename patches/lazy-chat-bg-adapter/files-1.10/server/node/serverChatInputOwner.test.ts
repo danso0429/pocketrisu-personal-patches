@@ -178,6 +178,35 @@ function makeHarness() {
 }
 
 describe('pre-canonical server chat input owner', () => {
+    it('exposes only a currently owned failed input and preserves later latest-policy edits without writes', async () => {
+        const h = makeHarness(), owner = h.makeOwner(), id = 'operation-failed-proof'
+        await owner.admit(admission(id)); await owner.beginTransform(id)
+        await owner.attachTransformed(id, h.transformed(id))
+        expect(owner.readFailedInputProof(id)).toBeNull()
+        owner.settleDurablySynchronously(id, 'failed')
+        const record = owner.read(id), chat = h.runtime.fullStore.get('char-1')!.get('chat-1')!
+        h.failWriteAt(1)
+        expect(owner.readFailedInputProof(id)).toMatchObject({ operationId:id, charId:'char-1', chatId:'chat-1',
+            inputReceiptId:record.inputReceipt.receiptId, userMessageId:`user-${id}`, allowEditedInput:true })
+        chat.message.find((m:any)=>m.chatId===`user-${id}`)!.data='later user edit'
+        expect(owner.readFailedInputProof(id).currentRevision).toBe(revision(chat))
+        chat.message.push({ ...chat.message.find((m:any)=>m.chatId===`user-${id}`)! })
+        expect(owner.readFailedInputProof(id)).toBeNull()
+        chat.message = baseChat().message
+        expect(owner.readFailedInputProof(id)).toBeNull()
+        expect(owner.read(id).admission.rawText).toBe('hello')
+    })
+    it('keeps a deliberately deleted failed input absent and documents its existing predecessor fence', async () => {
+        const h = makeHarness(), owner = h.makeOwner(), id = 'operation-failed-deleted'
+        await owner.admit(admission(id)); await owner.beginTransform(id)
+        await owner.attachTransformed(id, h.transformed(id)); owner.settleDurablySynchronously(id,'failed')
+        h.runtime.fullStore.get('char-1')!.set('chat-1',baseChat())
+        expect(owner.readFailedInputProof(id)).toBeNull()
+        const next=id+'-next'
+        expect(await owner.admit(admission(next))).toMatchObject({status:'admitted'})
+        expect(await owner.beginTransform(next)).toMatchObject({status:'blocked'})
+        expect(h.runtime.fullStore.get('char-1')!.get('chat-1')!.message).toEqual(baseChat().message)
+    })
     it('keeps a pre-effect unavailable host retryable with a compatible projection and truthful notice', async () => {
         const h = makeHarness()
         const notifications = (notificationPackage as any).createBgNotifications({ db: h.db,

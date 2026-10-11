@@ -25,7 +25,7 @@ const queueUnits = require('./queue-units.cjs')
 module.exports = {
     id: 'lazy-chat-bg-adapter',
     title: 'BG preserve integration for lazy chat storage',
-    version: '0.7.42',
+    version: '0.7.43',
     targets: {
         pocketrisu: {
             verified: ['1.10.0'],
@@ -4011,3 +4011,4 @@ module.exports.units.push(...['bgRecoveryRead.ts', 'bgRecoveryRead.test.ts', 'bg
 module.exports.units.push(...require('./plugin-admission-units.cjs')(module.exports.units))
 module.exports.units.push(...require('./plugin-unavailable-units.cjs')(module.exports.units))
 module.exports.units.push(...require('./operation-notice-units.cjs')(module.exports.units))
+module.exports.units.push(...require('./failed-input-settlement-units.cjs')(module.exports.units))

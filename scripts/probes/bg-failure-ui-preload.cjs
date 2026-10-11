@@ -17,7 +17,7 @@ http.Server.prototype.listen = function (...args) {
   return listen.apply(this, args);
 };
 const held = new Set();
-let released = process.env.G18_UI_DEVICE === '1';
+let released = process.env.G18_UI_DEVICE === '1' || process.env.G18_UI_FAST === '1';
 process.on('message', message => {
   if (message?.event === 'release') { released = true; for (const release of held) release(); held.clear(); }
 });
