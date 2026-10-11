@@ -137,6 +137,8 @@ foreground에는 기존 오류 dialog, v3 실패 toast, host OFF의 플러그인
 
 ### 제외된 실행과 다음 gate
 
+격리 재현의 실제 저장 result에는 final terminal-error / anchorResultVersion1 / hasGeneratedAnswer false가 있지만 inputReceiptId·attachedRevision·userMessageId는 없었다. 별도 서버 입력 record에는 inputReceipt와 admission.userMessageId가 보존돼 있었다. 따라서 원문 proof의 서버 소유 위치는 확인했으나 실패 status/API가 이를 어떻게 클라이언트에 제공할지와 현재 채팅 채택 확인 방법은 후속 검토 사항이다. 과거 adoptedRevision stamp만으로 이 빈 연결을 대신하지 않는다.
+
 Opus 5.5는 표식의 최종 실패 종결 경로 누락과 다음 Send 차단을 소스와 진단 기록으로 확인했다. 첫 해제안의 `adoptedRevision` 존재만으로 원문 보존을 증명한다는 조건은 후속 대조에서 철회했다. 이 값은 과거 채택 기록이며 현재 로컬/영속 채팅이나 이후 편집·삭제의 보존을 증명하지 않는다. 실패 projection의 입력 receipt/메시지 identity 제공 여부와 현재 채팅 proof를 먼저 확정해야 한다. 기존 v1 result ACK의 exact operation/resultId·consumer claim·delivered 영속쓰기 후 payload 정리 순서는 코드를 확인했으나 새 실패 종결 ACK의 실제 재현은 수행하지 않았다. 자문만으로 수정 안전성이나 새 gate 통과를 주장하지 않는다.
 
 현재 환경의 브라우저 실행 파일 차이, 권한 fixture 준비, ordinary chat 조회의 JWT 인증·chat identity 누락으로 실패한 초기 실행은 통과에서 제외했다. BG 세션과 ordinary-chat reader 인증을 코드대로 분리한 최종 실행 결과를 사용했다. 초기 helper import의 작업용 logs DB는 open reference 부재를 확인한 뒤 비공개 기록 위치에 이동·보존했다. fixture 기대값·native 호출 수·UI Send assertion을 줄이거나 localStorage 표식을 지워 통과시키지 않았다.
