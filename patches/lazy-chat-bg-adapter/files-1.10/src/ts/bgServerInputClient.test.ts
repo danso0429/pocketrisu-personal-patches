@@ -1,6 +1,7 @@
 import { describe, expect, it, vi } from 'vitest'
-import { submitServerInputCommand, type ServerInputClientDependencies } from './bgServerInputClient'
-import { readServerInputMarkers } from './bgServerInputLedger'
+import { submitServerInputCommand, reconcileCommittedServerInputMarkers, type ServerInputClientDependencies } from './bgServerInputClient'
+import { readServerInputMarkers, writeServerInputMarker, updateServerInputMarker } from './bgServerInputLedger'
+import { SERVER_INPUT_START_WINDOW_MS, SERVER_INPUT_START_ATTEMPT_TIMEOUT_MS } from './bgServerInputStart'
 import { orchestrationChatRevision } from './bgOrchestrationMerge'
 
 const base = 'a'.repeat(64)
@@ -62,6 +63,82 @@ function makeHarness() {
 }
 
 describe('server-owned input client admission', () => {
+    describe('terminal uncertain marker transfer', () => {
+        const target = { charId: 'char-1', chatId: 'chat-1' }
+        function setup() {
+            const harness = makeHarness()
+            harness.deps.now = () => 80_000
+            writeServerInputMarker(harness.deps.storage, {
+                operationId: 'lost-start-operation', ...target,
+                localRevision: base, baseRevision: base, state: 'uncertain', createdAt: 1000,
+            })
+            const receipt = {
+                contractVersion: 'bg_server_chat_commit.v1', commitReceiptId: 'commit-proof',
+                operationId: 'lost-start-operation', resultId: 'result-proof', publishSeq: 1,
+                requestedCharId: target.charId, requestedChatId: target.chatId, storedChatId: target.chatId,
+                baseChatRevision: base, storedRevision: next, storageDisposition: 'original',
+                chatCommitted: true, finalContentHash: next,
+                effects: { chat: { status: 'committed' }, metadata: { status: 'committed' } },
+            }
+            const body = { accepted: true, operationId: receipt.operationId, state: 'chat-committed', serverChatCommit: receipt }
+            harness.status.mockImplementation(async () => ({ status: 200, body }))
+            const deps = { ...harness.deps, isIdle: () => true }
+            return { harness, deps, body }
+        }
+        it('promotes only the exact completed operation and retains its hydration/ACK proof', async () => {
+            const { deps } = setup()
+            const before = readServerInputMarkers(deps.storage, 80_000)[0]
+            expect(await reconcileCommittedServerInputMarkers(deps, target)).toBe(1)
+            expect(readServerInputMarkers(deps.storage, 80_000)).toEqual([{ ...before, state: 'accepted' }])
+        })
+        it.each(['input-generating', 'input-execution-unknown', 'input-cancelled', 'delivery-failed', 'result-ready'])('keeps %s uncertain', async state => {
+            const { deps, body } = setup()
+            body.state = state
+            expect(await reconcileCommittedServerInputMarkers(deps, target)).toBe(0)
+            expect(readServerInputMarkers(deps.storage, 80_000)[0].state).toBe('uncertain')
+        })
+        it.each(['operation', 'character', 'chat', 'receipt'])('rejects mismatched %s proof', async mismatch => {
+            const { deps, body } = setup()
+            if (mismatch === 'operation') body.operationId = 'wrong-operation'
+            if (mismatch === 'character') body.serverChatCommit.requestedCharId = 'wrong-character'
+            if (mismatch === 'chat') { body.serverChatCommit.requestedChatId = 'wrong-chat'; body.serverChatCommit.storedChatId = 'wrong-chat' }
+            if (mismatch === 'receipt') body.serverChatCommit.operationId = 'wrong-operation'
+            expect(await reconcileCommittedServerInputMarkers(deps, target)).toBe(0)
+            expect(readServerInputMarkers(deps.storage, 80_000)[0].state).toBe('uncertain')
+        })
+        it('does not read during the original start attempt grace or a same-tab admission', async () => {
+            const { deps, harness } = setup()
+            deps.now = () => 1000 + SERVER_INPUT_START_WINDOW_MS + SERVER_INPUT_START_ATTEMPT_TIMEOUT_MS - 1
+            expect(await reconcileCommittedServerInputMarkers(deps, target)).toBe(0)
+            deps.now = () => 80_000; deps.isIdle = () => false
+            expect(await reconcileCommittedServerInputMarkers(deps, target)).toBe(0)
+            expect(harness.status).not.toHaveBeenCalled()
+        })
+        it.each(['selection', 'admission', 'revision', 'removed'])('does not promote after %s changes during status read', async change => {
+            const { deps, harness, body } = setup()
+            harness.status.mockImplementation(async () => {
+                if (change === 'selection') deps.isCurrent = () => false
+                if (change === 'admission') deps.isIdle = () => false
+                if (change === 'revision') updateServerInputMarker(deps.storage, 'lost-start-operation', row => ({ ...row, localRevision: next }))
+                if (change === 'removed') deps.storage.removeItem('bg-server-input-v3:lost-start-operation')
+                return { status: 200, body }
+            })
+            expect(await reconcileCommittedServerInputMarkers(deps, target)).toBe(0)
+            expect(readServerInputMarkers(deps.storage, 80_000).every(row => row.state === 'uncertain')).toBe(true)
+        })
+        it.each(['unreachable', 'missing', 'invalid', 'http-error', 'quota'])('retains ownership when %s', async failure => {
+            const { deps, harness, body } = setup()
+            harness.status.mockImplementation(async () => {
+                if (failure === 'unreachable') throw new Error('offline')
+                if (failure === 'quota') deps.storage.setItem = () => { throw new Error('quota') }
+                return failure === 'missing' ? { status: 404, body: { operationId: body.operationId, state: 'missing' } as any }
+                    : failure === 'invalid' ? { status: 200, body: { ...body, serverChatCommit: null } as any }
+                    : { status: failure === 'http-error' ? 500 : 200, body }
+            })
+            expect(await reconcileCommittedServerInputMarkers(deps, target)).toBe(0)
+            expect(readServerInputMarkers(deps.storage, 80_000)[0].state).toBe('uncertain')
+        })
+    })
     it('retains the draft without acquiring a marker or legacy fallback when live configuration downgrades', async () => {
         const harness = makeHarness()
         harness.deps.configurationAllowed = () => false

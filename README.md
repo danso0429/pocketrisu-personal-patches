@@ -4,11 +4,11 @@ Personal, all-or-nothing patch delivery for PocketRisu NodeOnly. The current
 stable release is `v0.2.3`, and its complete manifest graph targets exact
 PocketRisu `v1.10.0`.
 
-The `0.2.4-experimental.38` candidate supports the unchanged original PageFold
+The `0.2.4-experimental.39` candidate supports the unchanged original PageFold
 provider's default font/emoji cache and statistics in the isolated host. Bounded
 local string transport, allocation/progress ownership and separate API budgets
 retain ordinary limits; caught local CAS refusals retain competing data and valid
-answers after a mandatory warning. BG adapter0.7.45 / Lazy sync0.5.8 / Personal settings0.5.14;
+answers after a mandatory warning. BG adapter0.7.46 / Lazy sync0.5.8 / Personal settings0.5.14;
 production remains hostOFF. See [M7 qualification](docs/POCKETRISU-G1-7-M7-QUALIFICATION-VALIDATION.md)
 for original-provider12, actual raw/prepared/admission and failure evidence,
 operational composition, support/activation conditions and remaining goal gates.
@@ -45,8 +45,16 @@ view's dirty edit and explains that it is not saved across app closure. Other
 chat/root writes retain their normal scope checks. Edits made during an
 asynchronous hydration read return to the ordinary dirty queue using the live
 chat array; known server publications are not echoed as user edits. See
-sections15–16 of the same record for automated evidence and remaining device
+sections15–18 of the same record for automated evidence and remaining device
 and whole-G1.8 gates.
+
+The .39 follow-up repairs a lost-admission-response case: a stored answer could
+be visible while its client marker remained uncertain and blocked the next Send.
+Only an exact validated committed receipt can transfer that marker to the existing
+hydration/ACK owner after the original attempt grace. Active or unproven work
+remains protected, and marker promotion alone never declares a result delivered.
+Actual browser settlement/next Send and server duplicate refusal after ACK pass;
+the natural-response iPhone background control remains a separate observation.
 
 The UI controls now initialize synthetic statistic counters and verify durable
 root writes, preserved full chat content and another Send after reopening.

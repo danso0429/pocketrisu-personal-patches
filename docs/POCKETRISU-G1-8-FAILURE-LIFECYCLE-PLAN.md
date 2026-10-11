@@ -55,6 +55,10 @@ Before closing G1.8, reconcile the ordered-goals progress table, lifecycle plan/
 
 ### Earlier failure-retest plan
 
+Current correction: the post-home provider-waiting0-call inspection and later generation/API save prove controlled generation after home, but deliberately delayed admission confirmation produced a~69s unknown notice. The subsequent natural-response Send exposed an uncertain marker left after a committed answer. Experimental.39 transfers only exact matured chat-committed markers to the existing accepted hydration/ACK owner. Source/browser reproduction and correction, counterexamples, automatic gates and pending natural-response device/delivery boundaries are recorded in verification record §18.
+
+Follow-up closeout: verification record §17 observes the blocked-save notification on iPhone and accepted-request confirmation/return with one provider call, saved edit/one new answer and normal refresh. The earlier physical-display uncertainty is resolved. This is an admission-confirmation indicator trial, not the separate stage1 indicator or pre-admission background delivery; banked H1 provider-release credit prevents a sustained-after-home computation claim. Broader G1.10 absence/provider/aggregate qualification remains distinct.
+
 Current R4 status: user-approved recover-before-write is implemented and delivered in experimental.38. Genuine HTTP/restart, browser and owner gates are recorded in verification record §16. The isolated iPhone test confirms retained refused edits, unrelated-chat publication, recovery/save and refresh preservation. One warning invocation is logged; physical visibility is unconfirmed. This closes the implemented publication-preservation defect's scoped retention/recovery gate, without treating remaining normal-generation absence/device coverage, provider/stream/aggregate or stable gates as passed. The earlier architecture-approval requirement is satisfied by the user's option1 decision.
 
 상태: 계획 수립 단계. 아래 새 시험의 실행·통과, 시험 공급자 준비 또는 iPhone 시험 시작 가능 상태를 뜻하지 않는다. 이전 자동 검증과 시험용 v3 알림 표시/재실행 관찰은 해당 범위의 기존 증거로 보존한다.

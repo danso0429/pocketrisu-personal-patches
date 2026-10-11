@@ -1,6 +1,6 @@
 # G1.8 failure and recovery lifecycle qualification
 
-Current remainder candidate: experimental.38 / BG adapter0.7.45 / lazy-chat-sync0.5.8. Statistics preconditions, compact exact failed-input ACK/removal, anchored edit notices and recover-before-write extend the earlier checkpoints below. See verification record §§13–16 for current source commits, automatic evidence, scoped D/R4 device results and remaining whole-goal limits. Earlier checkpoint numbers in this document retain their original scope.
+Current remainder candidate: experimental.39 / BG adapter0.7.46 / lazy-chat-sync0.5.8. Statistics preconditions, compact exact failed-input ACK/removal, anchored edit notices, recover-before-write and exact committed-uncertain-marker settlement extend the earlier checkpoints below. See verification record §§13–18 for current source commits, automatic evidence, scoped device results and remaining whole-goal limits. Earlier checkpoint numbers in this document retain their original scope.
 
 Candidate `0.2.4-experimental.35`, BG adapter0.7.42 and lazy-chat-sync0.5.7; baseline85cd2f9. See the [implementation plan](POCKETRISU-G1-8-FAILURE-LIFECYCLE-PLAN.md). This record distinguishes automated source qualification, OFF delivery and physical-device/activation gates.
 
@@ -41,6 +41,8 @@ The legacy prepared failure control retains its pre-seeded user message, makes t
 ## Compatibility and rollback
 
 ### Current recover-before-write checkpoint
+
+The later follow-up in verification record §17 closes the previously unconfirmed physical blocked-save notification display. It also observes home movement while the actual accepted request's confirmation response is held, recovery without another provider call, saved edit/one new answer and normal refresh. This qualifies admission-confirmation return; neither the separate stage1 indicator, server delivery before admission, nor sustained provider execution after home movement is inferred. The earlier R4 display limitation below is historical, superseded only for the observed notice-display objective.
 
 At implementation commit `a646988`, affected writes first recover a validated committed answer and finalize its input in the existing storage slot. Persistent recovery failure refuses the save with a distinct503; the client retains its current dirty view without claiming server acceptance. Other-chat writes remain independent. The delivered experimental.38 candidate passes the automatic and OFF-delivery boundaries recorded in verification record §16.
 

@@ -25,7 +25,7 @@ const queueUnits = require('./queue-units.cjs')
 module.exports = {
     id: 'lazy-chat-bg-adapter',
     title: 'BG preserve integration for lazy chat storage',
-    version: '0.7.45',
+    version: '0.7.46',
     targets: {
         pocketrisu: {
             verified: ['1.10.0'],
@@ -949,7 +949,7 @@ import {
     classifyCommittedRecoveryReason,
 } from './bgFinishedOperation'
 import { parseServerPendingInputs, type ServerPendingInput } from './bgServerPendingProjection'
-import { submitServerInputCommand, type ServerInputClientOutcome } from './bgServerInputClient'
+import { submitServerInputCommand, reconcileCommittedServerInputMarkers, type ServerInputClientOutcome } from './bgServerInputClient'
 import { adoptAttachedServerInputs } from './bgServerInputAdoption'
 import { recordBrowserMessageEffect } from './bgBrowserMessageEffects'
 import { requiresClientOwnedInputPreparation } from './bgServerInputProviderPolicy'
@@ -1088,6 +1088,20 @@ export async function reconcileServerPendingInputCommands(
     const currentChat = () => chats.find((candidate: any) => candidate?.id === chatId)
     const currentCharacter = () => (DBState as any)?.db?.characters?.find((c: any) => c?.chaId === charId)
     const isCurrentCharacter = () => currentCharacter() === character && character.chats === chats
+    await reconcileCommittedServerInputMarkers({
+        storage: localStorage,
+        isCurrent: () => isCurrentCharacter() && !!currentChat(),
+        isIdle: () => recoveryAdmissionDepth === 0,
+        status: async (operationId, signal) => {
+            const query = new URLSearchParams({ charId, chatId })
+            const response = await fetchOrchestrationControl(
+                '/api/bg-orchestrate-status/' + encodeURIComponent(operationId) + '?' + query.toString(),
+                { method: 'GET', credentials: 'same-origin', signal },
+            )
+            return { status: response.status, body: await readRecoveryJson(response) }
+        },
+    }, { charId, chatId })
+    if (!isCurrentCharacter()) return pending
     await adoptAttachedServerInputs({
         storage: localStorage,
         charId, chatId, pendingInputs: pending,

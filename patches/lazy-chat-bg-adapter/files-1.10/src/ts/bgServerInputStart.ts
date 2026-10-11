@@ -3,6 +3,9 @@ import {
     reconcileOrchestrationStart,
 } from './bgOrchestrationStart'
 
+export const SERVER_INPUT_START_WINDOW_MS = 60_000
+export const SERVER_INPUT_START_ATTEMPT_TIMEOUT_MS = 10_000
+
 interface HttpOutcome {
     status: number
     body: unknown
@@ -67,6 +70,7 @@ export async function reconcileServerInputStart(options: {
         },
         isCurrent: options.isCurrent,
         deadlineAt: options.deadlineAt,
+        attemptTimeoutMs: SERVER_INPUT_START_ATTEMPT_TIMEOUT_MS,
         now: options.now,
         wait: options.wait,
     })

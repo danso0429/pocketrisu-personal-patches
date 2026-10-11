@@ -540,6 +540,66 @@ describe('G1.12a terminal decisions', () => {
         expect(h.infos).toEqual([])
     })
 
+    it.each([false, true])('settles a terminal uncertain marker with already-visible answer=%s', async alreadyVisible => {
+        const ledger = await import('./bgServerInputLedger')
+        if (alreadyVisible) h.dbState.db.characters[0].chats[0] = chatWith(3)
+        ledger.writeServerInputMarker(localStorage, {
+            operationId: BOOT_OPERATION_ID, charId: CHAR_ID, chatId: CHAT_ID,
+            localRevision: orchestrationChatRevision(chatWith(2)), baseRevision: 'a'.repeat(64),
+            state: 'uncertain', createdAt: Date.now() - 80_000,
+        })
+        h.adopt.mockImplementation(async (chats: any[]) => {
+            if (!alreadyVisible) chats[0] = chatWith(3)
+            return { adopted: true, chat: chats[0] }
+        })
+        serve((operationId, method, url) => {
+            if (url.startsWith('/api/bg-orchestrate-status/')) return { status: 200, body: {
+                accepted: true, operationId: BOOT_OPERATION_ID, state: 'chat-committed',
+                serverChatCommit: receipt(BOOT_OPERATION_ID),
+            } }
+            if (isResultPeek(method, url)) return { status: 200, body: committedResult(operationId) }
+            if (url.startsWith('/api/bg-orchestrate-chat-state/')) return { status: 200, body: projection(operationId) }
+            if (isResultAck(method, url)) return { status: 200, body: { acked: true } }
+        })
+        const module = await import('./bgOrchestrate')
+        await module.reconcileServerPendingInputCommands(CHAR_ID, CHAT_ID, h.dbState.db.characters[0].chats[0])
+        expect(ledger.readServerInputMarkers(localStorage)).toEqual([])
+        expect(count(isResultAck)).toBe(1)
+        expect(h.adopt).toHaveBeenCalledTimes(1)
+        expect(h.dbState.db.characters[0].chats[0].message).toHaveLength(3)
+    })
+
+    it('retries a promoted uncertain operation after a save ACK without reopening the chat', async () => {
+        const ledger = await import('./bgServerInputLedger')
+        ledger.writeServerInputMarker(localStorage, { operationId: BOOT_OPERATION_ID, charId: CHAR_ID, chatId: CHAT_ID,
+            localRevision: orchestrationChatRevision(chatWith(2)), baseRevision: 'a'.repeat(64),
+            state: 'uncertain', createdAt: Date.now() - 16 * 60 * 1000 })
+        let saveConfirmed = false
+        h.adopt.mockImplementation(async (chats: any[]) => saveConfirmed
+            ? { adopted: true, chat: chats[0] }
+            : { adopted: false, reason: 'save-unconfirmed' })
+        serve((operationId, method, url) => {
+            if (url.startsWith('/api/bg-orchestrate-status/')) return { status: 200, body: {
+                accepted: true, operationId: BOOT_OPERATION_ID, state: 'chat-committed', serverChatCommit: receipt(BOOT_OPERATION_ID),
+            } }
+            if (isResultPeek(method, url)) return { status: 200, body: committedResult(operationId) }
+            if (url.startsWith('/api/bg-orchestrate-chat-state/')) return { status: 200, body: projection(operationId) }
+            if (isResultAck(method, url)) return { status: 200, body: { acked: true } }
+        })
+        const module = await import('./bgOrchestrate')
+        await module.reconcileServerPendingInputCommands(CHAR_ID, CHAT_ID, chatWith(2))
+        expect(ledger.readServerInputMarkers(localStorage)[0].state).toBe('accepted')
+        expect(count(isResultAck)).toBe(0)
+        expect(h.adopt).toHaveBeenCalledTimes(1)
+        saveConfirmed = true
+        window.dispatchEvent(new Event('bg-recovery-evidence'))
+        await vi.advanceTimersByTimeAsync(1)
+        await module.reconcileServerPendingInputCommands(CHAR_ID, CHAT_ID, chatWith(2))
+        expect(ledger.readServerInputMarkers(localStorage)).toEqual([])
+        expect(count(isResultAck)).toBe(1)
+        expect(h.sendChat).not.toHaveBeenCalled()
+    })
+
     it('wakes parked raw-input reconciliation through its own ledger', async () => {
         const ledger = await import('./bgServerInputLedger')
         ledger.writeServerInputMarker(localStorage, { operationId: BOOT_OPERATION_ID, charId: CHAR_ID, chatId: CHAT_ID,

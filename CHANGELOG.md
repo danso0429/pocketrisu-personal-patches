@@ -1,8 +1,15 @@
 # Changelog
 
+## 0.2.4-experimental.39 (settle committed inputs after admission uncertainty)
+
+- Transfer an expired uncertain client marker to the existing accepted-marker recovery owner only after exact committed status/receipt/coordinate proof. Preserve original revisions, current-target checks, strict save and result ACK; retain active or unproven input protection.
+- Reuse the existing60s admission window and10s attempt budget for an awake-attempt grace. Do not replay the model, clear a marker by status alone or add durable tombstones.
+- Reproduce the old pre-POST next-Send refusal in the real input function and compiled UI. Cover pre-answer/current-answer settlement and save-confirmation wake, and verify actual next Send plus409 same-input refusal after result ACK. iPhone natural background return remains pending; hostOFF and stable release boundaries remain unchanged.
+
 ## 0.2.4-experimental.38 (preserve edits while answer publication recovers)
 
 - Record scoped iPhone draft retention, independent other-chat publication, recovery/save and refresh preservation. One blocked-save notification invocation is logged; physical display remains unconfirmed. No stable release or host activation is implied.
+- Close the later iPhone blocked-save display and accepted-request confirmation/return checks, with durable edit/one new answer and no provider replay after recovery. Record transport-fixture and timing limits; this does not qualify pre-admission delivery or sustained background computation.
 
 - Recover validated committed answers and finalize their input before accepting affected full/delta chat or root metadata writes. Recheck current revision after recovery; retain immutable receipts and once-only effects. Refuse persistent publication failure with a distinct save-blocked response, preserving the current view's edit without promising persistence after app closure.
 - Preserve unrelated chat/root writes and qualify explicit durable saves by their exact named scope. Keep genuine conflicts, unknown-response confirmation, ordinary unavailable-server retry and streaming checkpoints distinct from publication refusal.

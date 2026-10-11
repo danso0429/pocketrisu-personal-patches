@@ -7,7 +7,8 @@ import {
     writeServerInputMarker,
     type ServerInputMarker,
 } from './bgServerInputLedger'
-import { reconcileServerInputStart } from './bgServerInputStart'
+import { reconcileServerInputStart, SERVER_INPUT_START_WINDOW_MS, SERVER_INPUT_START_ATTEMPT_TIMEOUT_MS } from './bgServerInputStart'
+import { serverChatCommitReceipt } from './bgServerCommitHydration'
 import type { MarkerStorage } from './bgOrchestrationPending'
 import type { ServerPendingInput } from './bgServerPendingProjection'
 import { boundedRecoveryRead, RECOVERY_BODY_TIMEOUT_MS } from './bgRecoveryRead'
@@ -60,6 +61,50 @@ const acceptedButBlocked = new Set([
     'input-transform-unknown', 'input-failed', 'input-cancelled',
     'result-ready', 'delivery-failed',
 ])
+
+// A lost admission reply can leave an uncertain marker after the server has
+// committed. Transfer only that proven terminal operation to the existing
+// accepted-marker hydration/ACK owner; promotion never acknowledges a result.
+export async function reconcileCommittedServerInputMarkers(
+    deps: Pick<ServerInputClientDependencies, 'storage' | 'status' | 'isCurrent' | 'now'> & { isIdle: () => boolean },
+    target: { charId: string; chatId: string },
+): Promise<number> {
+    const now = deps.now || Date.now
+    const grace = SERVER_INPUT_START_WINDOW_MS + SERVER_INPUT_START_ATTEMPT_TIMEOUT_MS
+    if (!deps.isCurrent() || !deps.isIdle()) return 0
+    let promoted = 0
+    for (const marker of readServerInputMarkers(deps.storage, now()).filter(row => (
+        row.charId === target.charId && row.chatId === target.chatId && row.state === 'uncertain'
+    ))) {
+        if (!deps.isCurrent() || !deps.isIdle()) break
+        if (now() - marker.createdAt < grace) continue
+        try {
+            const response = await boundedRecoveryRead(
+                signal => deps.status(marker.operationId, signal), RECOVERY_BODY_TIMEOUT_MS,
+            )
+            if (!deps.isCurrent() || !deps.isIdle()) continue
+            const body = response.body as Record<string, unknown> | null
+            const receipt = serverChatCommitReceipt(body)
+            if (classifyOrchestrationStatusResponse(response.status, body, marker.operationId) !== 'accepted'
+                || body?.state !== 'chat-committed' || !receipt
+                || receipt.operationId !== marker.operationId
+                || receipt.requestedCharId !== target.charId
+                || receipt.requestedChatId !== target.chatId) continue
+            let changed = false
+            const updated = updateServerInputMarker(deps.storage, marker.operationId, current => {
+                if (!deps.isCurrent() || !deps.isIdle() || current.state !== 'uncertain'
+                    || current.charId !== marker.charId || current.chatId !== marker.chatId
+                    || current.createdAt !== marker.createdAt || current.localRevision !== marker.localRevision
+                    || current.baseRevision !== marker.baseRevision || current.adoptedRevision !== marker.adoptedRevision
+                    || now() - current.createdAt < grace) return current
+                changed = true
+                return { ...current, state: 'accepted' }
+            })
+            if (updated && changed) promoted++
+        } catch { /* Keep ownership until exact status and marker storage are available. */ }
+    }
+    return promoted
+}
 
 export async function submitServerInputCommand(
     deps: ServerInputClientDependencies,
@@ -233,7 +278,7 @@ export async function submitServerInputCommand(
         start: signal => deps.start(body, signal),
         status: signal => deps.status(operationId, signal),
         isCurrent: deps.isCurrent,
-        deadlineAt: createdAt + 60_000,
+        deadlineAt: createdAt + SERVER_INPUT_START_WINDOW_MS,
         now,
         wait: deps.wait,
     })
