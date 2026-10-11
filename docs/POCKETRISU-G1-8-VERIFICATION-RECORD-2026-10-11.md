@@ -147,7 +147,7 @@ L5는 현재 시작하지 않는다. 입력이 확실히 저장/채택된 최종
 
 ## 10. 수정 후 재재검증 — 2026-10-11
 
-사용자 승인으로 §9의 차단을 수정했다. 후보는 `0.2.4-experimental.36`, adapter `0.7.43`이며 기준 commit은 `8a530d8`이다. 현재 단계는 자동 검증 완료 및 OFF 전달 준비다. 실제 기기 L5·운영 readback은 아직 이 문단의 통과 증거가 아니다.
+사용자 승인으로 §9의 차단을 수정했다. 후보는 `0.2.4-experimental.36`, adapter `0.7.43`이며 기준 commit은 `8a530d8`, 구현은 `abdd81f`, 시험/문서 후속은 `a52fbdd`다. 자동 검증과 OFF 전달·독립 readback을 마쳤다. 실제 iPhone L5는 사용자 결과 대기다.
 
 ### 수정한 동작
 
@@ -169,6 +169,12 @@ L5는 현재 시작하지 않는다. 입력이 확실히 저장/채택된 최종
 | 빌드/패처 조합 | frontend/BG build·sendChat load 확인, source490 pair drift0. 42packs/1562units/490managed/8기존 qualified collisions·re-plan0·원본1022파일 byte/mode exact revert를 확인했다. |
 
 Opus 5.5 source 검수에서 ACK 권한·원자성·늦은 발행 무효화·편집 보존의 출고 차단 요소는 발견되지 않았다. 제기된 N+1 기준 전진 누락, 전체 reconcile 호출 범위, 저장 오류 catch와 성공 result claim 부작용은 반영·재검증했다. 자문 자체를 실행 통과로 계산하지 않는다.
+
+### OFF 전달 및 기기 시험 준비
+
+후보 branch에 commit/push 후 활성 요청·native 생성·pending send0을 확인했다. 검증된 전체 복구 사본과 변경 전 앱/패처 상태를 보존했고, 새 앱 보관본1644파일의 내용·권한을 대조했다. 적용·frontend/BG build 동안 사용자 DB bytes와 설정이 바뀌지 않았음을 검사한 뒤 재시작했다. source490·JS175·DB5 무결성·online/unstable0·hostOFF·active0, operation105건 보존/삭제0, 기존 journal163행 보존, 오류 로그 증가0을 확인했다. 독립 readback은 source/mode·서빙 JS·idle·인증 capability200/hostVersion0을 새로 확인했고 DB 무결성은 직후 완료된 전달 검사의5개 결과를 재사용했다.
+
+운영 소스와 dist를 읽는 별도 합성 시험 서버에 원본 플러그인6개·저장 권한 답·시험 채팅3개를 준비했다. 별도 HTTPS 경로의 실제 Chromium 로그인/채팅 화면/capability200/hostOFF/pageErrors0과 운영 로그인 쿠키 보존을 확인했다. 생성·실패 알림은 준비 단계에서0이다. 시험 인증 쿠키만 분리하며 운영 HTTPS 경로는 보존했고 외부 공개를 활성화하지 않았다. 인증정보·주소·보관 경로는 비공개 기록에만 둔다. 실제 iPhone A/B/C 결과는 아직 없으며 stable tag/release도 수행하지 않았다.
 
 ### 범위와 기기 gate
 
