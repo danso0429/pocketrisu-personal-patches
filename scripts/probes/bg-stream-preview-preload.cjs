@@ -136,13 +136,26 @@ globalThis.fetch = async (input, options = {}) => {
     const body = JSON.parse(typeof options.body === 'string' ? options.body : Buffer.from(options.body).toString('utf8'));
     if (gemini ? !Array.isArray(body.contents)
         : body.model !== (marp ? 'synthetic-model' : 'gpt-3.5-turbo') || !Array.isArray(body.messages)) throw Error('Unexpected synthetic model');
-    if (marp && (body.stream !== true || new Headers(options.headers).get('authorization') !== 'Bearer synthetic-key')) {
+    const nonstreamLifecycle = process.env.G110_LIFECYCLE_CASE === 'stop-main-nonstream';
+    if (marp && (body.stream !== !nonstreamLifecycle || new Headers(options.headers).get('authorization') !== 'Bearer synthetic-key')) {
         emit({ event: 'validation-error' }); throw Error('Native preset stream/authentication mismatch');
     }
     const call = ++calls;
     const streaming = gemini ? url.includes(':streamGenerateContent') : body.stream === true;
     emit({ event: 'main', call, gemini, streaming,
         ...(marp ? { model: body.model, messages: body.messages, endpoint: url, ...lifecycleRequest(body, false) } : {}) });
+    if (nonstreamLifecycle) {
+        await new Promise((resolve, reject) => {
+            const cleanup = () => { waiting.delete(call); options.signal?.removeEventListener('abort', abort); };
+            const abort = () => { cleanup(); emit({ event: 'aborted', call }); reject(options.signal.reason); };
+            waiting.set(call, () => { cleanup(); resolve(); });
+            options.signal?.addEventListener('abort', abort, { once: true });
+            if (options.signal?.aborted) abort();
+        });
+        return Response.json({ choices: [{ index: 0, finish_reason: 'stop', message: { role: 'assistant',
+            content: '**G1.9 partial ' + call + '**\n\n<Thoughts>hidden-preview-thought</Thoughts>\n\n**G1.9 complete ' + call + '**' } }],
+            usage: { prompt_tokens: 2, completion_tokens: 3 } });
+    }
     if (!streaming && gemini) return Response.json({ candidates: [{ content: {role:'model',parts:[{text:'G1.9 nonstream answer'}]},finishReason:'STOP' }] });
     if (!streaming) return Response.json({ choices: [{ index: 0, finish_reason: 'stop',
         message: { role: 'assistant', content: 'G1.9 nonstream answer' } }],

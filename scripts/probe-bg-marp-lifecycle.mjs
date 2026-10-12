@@ -6,7 +6,7 @@ import { createMarpHarness, requests, prior, fullAnswer } from './probes/g110-ma
 
 const [targetArg, dependenciesArg, fixtureArg, originalArg, outputArg] = process.argv.slice(2);
 const scenario = process.argv.find(value => value.startsWith('--case='))?.slice('--case='.length) || 'queue-edit';
-assert.ok(['queue-edit', 'stop-analysis', 'stop-main', 'stop-analysis-queued'].includes(scenario), 'Only implemented lifecycle cases may run');
+assert.ok(['queue-edit', 'stop-analysis', 'stop-main', 'stop-main-nonstream', 'stop-analysis-queued'].includes(scenario), 'Only implemented lifecycle cases may run');
 const args = [targetArg, dependenciesArg, fixtureArg, originalArg, outputArg].map(value => path.resolve(value));
 const [target, dependencies, fixture, original, output] = args;
 const c = await createMarpHarness({ target, dependencies, fixture, original, output, scenario });
@@ -110,13 +110,27 @@ async function stopAndReturn() {
         await c.wait(() => c.events.some(event => event.event === 'analysis-held' && event.requestKey === requests[0]), 'analysis outstanding before Stop');
         assert.equal(c.events.filter(event => event.event === 'main').length, 0);
     } else {
-        await c.wait(async () => (await c.preview()).text?.includes('G1.9 partial 1'), 'main outstanding before Stop');
+        if (scenario === 'stop-main-nonstream') {
+            await c.wait(() => c.events.some(event => event.event === 'main' && event.requestKey === requests[0]), 'nonstream main outstanding before Stop');
+            const preview = await c.preview();
+            assert.equal(preview.streaming, false); assert.equal(preview.answerReady, false);
+            assert.equal(c.events.find(event => event.event === 'main').streaming, false);
+        } else await c.wait(async () => (await c.preview()).text?.includes('G1.9 partial 1'), 'main outstanding before Stop');
     }
     let queuedOperationId = null;
     if (queued) queuedOperationId = await c.send(requests[1]);
+    let deleteResponseHeld = false;
+    if (queued) await c.page.route('**/api/bg-orchestrate/*', async route => {
+        if (route.request().method() !== 'DELETE') return route.continue();
+        const response = await route.fetch();
+        deleteResponseHeld = true;
+        await c.wait(() => c.events.some(event => event.event === 'main' && event.requestKey === requests[1]), 'B starts before A DELETE reply');
+        await route.fulfill({ response });
+    });
     const stop = c.page.getByRole('button', { name: '생성 중지', exact: true });
     await stop.waitFor({ state: 'visible' });
-    assert.equal(await stop.count(), 1, 'Current operation Stop must be available in the requested phase');
+    // click re-resolves the unique visible control after any admission render.
+    // A separate count immediately after waitFor can sample a transient remount.
     await stop.click();
     await c.wait(() => c.events.some(event => event.event === (analysisStop ? 'analysis-aborted' : 'aborted')), 'Stop reaches current controller');
     if (analysisStop) assert.equal(c.events.filter(event => event.event === 'main' && event.requestKey === requests[0]).length, 0, 'Aborted analysis cannot fall through to main');
@@ -126,6 +140,9 @@ async function stopAndReturn() {
         validateOperation(requests[1], main);
         assert.equal(JSON.stringify(main.messages).includes('request:' + requests[0] + ' analysis:'), false);
         assert.equal(c.cancellations.length, 1);
+        assert.ok(deleteResponseHeld, 'actual DELETE response held until successor main');
+        await c.wait(async () => await stop.isVisible() && await stop.isEnabled()
+            && await stop.innerText() === '생성 중지', 'successor Stop survives old reply');
         c.server.send({ event: 'release', call: main.call });
         await c.wait(async () => (await c.readChat()).chat.message.some(row => row.data === fullAnswer(main.call)), 'queued successor canonical');
     }
@@ -135,6 +152,8 @@ async function stopAndReturn() {
     assert.equal(before.chat.message.filter(row => row.role === 'char').length, queued ? 1 : 0, 'Only the queued successor may save an answer');
     assert.equal(before.chat.message.filter(row => row.role === 'user' && row.data === requests[0]).length, 1);
     assert.equal(c.cancellations.length, 1); assert.ok(c.cancellations[0].endsWith('/' + operationId));
+    await c.wait(async () => await stop.count() === 0, 'confirmed cancelled/finished control disappears');
+    assert.equal((await c.page.evaluate(() => window.__g110Toasts)).some(text => text.includes('생성 중지 요청을 확인하지 못했어요')), false);
     const counts = { analysis: c.events.filter(event => event.event === 'analysis').length, main: c.events.filter(event => event.event === 'main').length };
     const state = await c.browserContext.storageState(); const closure = await c.killBrowser(); await c.open(state);
     await c.page.waitForTimeout(1000);
@@ -149,6 +168,8 @@ async function stopAndReturn() {
     await c.wait(async () => !await c.page.evaluate(() => Object.keys(localStorage).some(key => key.startsWith('bg-server-input-v3:'))), 'healthy successor marker settles');
     const final = await c.readChat(); assert.deepEqual(final.chat.message.slice(0, before.chat.message.length), before.chat.message);
     assert.equal(final.chat.message.filter(row => row.role === 'char').length, queued ? 2 : 1);
+    if (analysisStop) assert.equal(c.events.filter(event => event.event === 'main' && event.requestKey === requests[0]).length, 0,
+        'cancelled analysis never falls through to main, including after return and successor');
     return { operationId, queuedOperationId, before, returned, final, closure, countsBeforeReturn: counts, healthySuccessor: true };
 }
 

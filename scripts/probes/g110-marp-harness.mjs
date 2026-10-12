@@ -27,6 +27,7 @@ export async function createMarpHarness({ target, dependencies, fixture, origina
     const chat = character.chats[0]; chat.id = 'synthetic-chat'; chat.message = []; chat.scriptstate = {};
     character.chats = [chat];
     configureMarpFixture(data, original);
+    if (scenario === 'stop-main-nonstream') data.modelPresets[0].useStreaming = false;
     for (const agent of Object.values(data.pluginCustomStorage.risu_multiagent_lite_config_vault_v1.config.agents)) {
         agent.userPromptTemplate = 'G110_CURRENT={{user_input}}\nG110_HISTORY={{chat_history}}\nG110_WORLD={{context_world}}';
     }
