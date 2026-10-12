@@ -8,6 +8,7 @@ import {
     findRecoverableChatPayload,
 } from './chatSaveIntent'
 import { assignMissingChatIdsToNewCharacters } from './chatIdentityRepair'
+import { completeBgDurableSave, BG_SAVE_MAX_REBASE_ATTEMPTS, BG_DURABLE_SAVE_RETRY } from '../bgDurableSaveBarrier'
 import chatDelta from '../../../server/node/chatDelta.cjs'
 
 vi.mock('./database.svelte', () => ({ createBotPresetTemplate: () => ({}) }))
@@ -322,10 +323,9 @@ async function createHarness(options: HarnessOptions = {}) {
         requestDurableSaveImpl: async () => {
             throw new Error('Durable save implementation was not composed')
         },
-        completeBgDurableSave: async (committed: boolean, flush: () => Promise<void>) => {
-            if (!committed) throw new Error('durable save deferred; orchestration result retained')
-            await flush()
-        },
+        completeBgDurableSave,
+        BG_SAVE_MAX_REBASE_ATTEMPTS,
+        BG_DURABLE_SAVE_RETRY,
         async saveChatToServer(
             _chaId: string,
             _index: number,

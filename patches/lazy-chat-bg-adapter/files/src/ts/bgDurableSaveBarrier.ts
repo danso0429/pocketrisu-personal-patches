@@ -8,6 +8,11 @@
  * Keep this separate from chat transport revisions. BG merge revisions are a
  * semantic edit detector, while lazy-chat ETags are exact transport CAS tokens.
  */
+// Shared with the native autosave rebase policy. This is a persistence retry
+// bound, never a model/provider retry or a successful-save substitute.
+export const BG_SAVE_MAX_REBASE_ATTEMPTS = 5
+export const BG_DURABLE_SAVE_RETRY = 'BG_DURABLE_SAVE_RETRY'
+
 export async function completeBgDurableSave(
     committed: boolean,
     flushDatabase: () => Promise<unknown>,
