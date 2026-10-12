@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.2.4-experimental.41 (preparation and nonstream Stop)
+
+- Display the current server operation's Stop during preparation and nonstream provider waits, using validated metadata from the existing read-only preview endpoint. Do not synthesize an answer or introduce another execution/persistence owner.
+- Distinguish an available nonstream answer from preparation. Preserve canonical-row suppression and discard stale observation data on pause, errors and disposal.
+- Capture the cancellation target before awaiting its response. Preserve successor controls and retain confirmation or warning when observation clears while the request is pending.
+- Add reusable synthetic original-MARP lifecycle probes for queue/edit, analysis/main Stop, delayed cancellation replies, cold return and healthy subsequent sends. Actual providers, device evaluation, host activation and aggregate qualification remain separate gates.
+
 ## 0.2.4-experimental.40 (G1.9 server-owned stream preview)
 
 - Display the native server bundle's currently streaming answer through an authenticated, read-only, no-store endpoint. Keep only one locked active reader and a bounded latest display snapshot; omit unchanged text and release before another run takes the lock.
