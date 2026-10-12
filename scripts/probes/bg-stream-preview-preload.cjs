@@ -6,6 +6,10 @@ const emit = row => { if (process.connected) process.send({ ...row, at: performa
 const marp = process.env.G110_MARP_STREAM === '1';
 const lifecycle = process.env.G110_LIFECYCLE_CASE || '';
 const epoch = Number(process.env.G110_EPOCH || 0);
+let pagefoldModels = 0, releasePagefoldStatistics, pagefoldStatisticsReleased = false;
+process.on('message', value => { if (value?.event === 'release-pagefold-statistics') {
+    pagefoldStatisticsReleased = true; releasePagefoldStatistics?.();
+} });
 function lifecycleRequest(body, analysis) {
     if (!lifecycle) return {};
     const contents = body.messages.map(row => typeof row.content === 'string' ? row.content : JSON.stringify(row.content));
@@ -30,7 +34,8 @@ if (marp) {
             const operationId = options.operation.operationId;
             emit({ event: 'host', operationId });
             const host = await value.createBgPluginHost({ ...options, publishNotification: (...values) => {
-                emit({ event: 'host-notice', operationId, code: values[0].code, phase: values[0].phase });
+                emit({ event: 'host-notice', operationId, code: values[0].code, phase: values[0].phase,
+                    reason: values[0].reason, eventKey: values[0].eventKey });
                 return options.publishNotification(...values);
             } });
             const refresh = host.refreshIdentity.bind(host);
@@ -41,6 +46,18 @@ if (marp) {
                 return result;
             };
             return host;
+        } };
+        if (lifecycle.startsWith('pagefold-') && request === './bgPluginStorage.cjs') return { ...value, createPluginStorage: options => {
+            const storage = value.createPluginStorage(options);
+            return Object.fromEntries(Object.entries(storage).map(([group, call]) => [group, async (method, args) => {
+                const result = await call(method, args);
+                if (group === 'local' && method === 'getItem' && args[0] === 'pagefold.stats.v1'
+                    && pagefoldModels === 1 && !pagefoldStatisticsReleased) {
+                    emit({ event: 'pagefold-statistics-held' });
+                    await new Promise(resolve => { releasePagefoldStatistics = resolve; });
+                }
+                return result;
+            }]));
         } };
         if (lifecycle && request === './serverChatCommitOwner.cjs' && typeof value.createServerChatCommitOwner === 'function') {
             return { ...value, createServerChatCommitOwner: options => {
@@ -88,13 +105,45 @@ process.on('message', value => {
     if (value?.event === 'release') waiting.get(value.call)?.();
 });
 let calls = 0;
-let analyses = 0, releaseAnalysis, analysisReleased = false;
+let analyses = 0, moduleCalls = 0, releaseAnalysis, analysisReleased = false;
 process.on('message', row => {
     if (row?.event === 'release-analysis') { analysisReleased = true; releaseAnalysis?.(); }
 });
 globalThis.fetch = async (input, options = {}) => {
     options.signal?.throwIfAborted();
     const url = typeof input === 'string' ? input : input?.url || String(input);
+    if (lifecycle.startsWith('pagefold-') && url === 'https://pagefold.example.test/v1beta/models/fixture-pagefold:generateContent') {
+        const assert = require('node:assert/strict');
+        const requireTarget = require('node:module').createRequire(require('node:path').join(process.env.G110_PDF_TARGET, 'package.json'));
+        const pdfjsVersion = requireTarget('pdfjs-dist/package.json').version;
+        const pdfjs = await import(require('node:url').pathToFileURL(requireTarget.resolve('pdfjs-dist/legacy/build/pdf.mjs')).href);
+        assert.equal(new Headers(options.headers).get('x-goog-api-key'), 'synthetic-only');
+        const body = JSON.parse(typeof options.body === 'string' ? options.body : Buffer.from(options.body).toString('utf8'));
+        const bytes = Buffer.from(body.contents[0].parts[0].inlineData.data, 'base64');
+        const task = pdfjs.getDocument({ data: new Uint8Array(bytes), isEvalSupported: false, disableFontFace: true });
+        try {
+            const document = await task.promise; let text = '';
+            for (let index = 1; index <= document.numPages; index++) {
+                const page = await document.getPage(index); text += (await page.getTextContent()).items.map(row => row.str ?? '').join(' ') + '\n';
+            }
+            assert.ok(text.includes('MARP:v1:begin'));
+            const requestKey = [...text.matchAll(/G110_REQUEST_[A-Z0-9_]+/g)].at(-1)?.[0]; assert.ok(requestKey);
+            emit({ event: 'pagefold-main', call: ++pagefoldModels, epoch, requestKey, pdfBytes: bytes.length,
+                messages: [{ role: 'user', content: text }], pdfOracle: true, pdfjsVersion });
+        } finally { await task.destroy(); }
+        return Response.json({ candidates: [{ content: { parts: [{ text: 'G110_PAGEFOLD_ANSWER_' + pagefoldModels }] } }],
+            usageMetadata: { promptTokenCount: 25, candidatesTokenCount: 5 } });
+    }
+    if (lifecycle === 'module-binding' && url === 'https://module-input.example.test/v1/chat/completions') {
+        const body = JSON.parse(typeof options.body === 'string' ? options.body : Buffer.from(options.body).toString('utf8'));
+        if (body.model !== 'synthetic-module-model' || body.stream !== false
+            || new Headers(options.headers).get('authorization') !== 'Bearer synthetic-module-key'
+            || !JSON.stringify(body.messages).includes('G110_MODULE_QUERY')) throw Error('Unexpected module-selected request');
+        if (JSON.stringify(body.messages).includes('<!--MARP:v1:begin-->')) throw Error('MARP main notes leaked into module helper');
+        emit({ event: 'module', call: ++moduleCalls, model: body.model, endpoint: url, messages: body.messages, epoch });
+        return Response.json({ choices: [{ index: 0, finish_reason: 'stop', message: { role: 'assistant', content: 'G110_MODULE_RESULT' } }],
+            usage: { prompt_tokens: 2, completion_tokens: 3 } });
+    }
     if (marp && (url === '/api/logs' || url === '/api/pending-sends/synthetic-chat')) {
         emit({ event: 'internal-relative-refused', path: url });
         throw Error('relative URL has no server origin');

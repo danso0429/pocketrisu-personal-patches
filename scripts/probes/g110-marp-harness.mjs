@@ -11,7 +11,7 @@ export const requests = ['G110_REQUEST_FIRST', 'G110_REQUEST_QUEUED', 'G110_REQU
 export const prior = { id: 'synthetic-prior-edit-user', before: 'G110_BEFORE_QUARTZ', after: 'G110_AFTER_COBALT' };
 export const fullAnswer = call => '**G1.9 partial ' + call + '**\n\n<Thoughts>hidden-preview-thought</Thoughts>\n\n**G1.9 complete ' + call + '**';
 
-export async function createMarpHarness({ target, dependencies, fixture, original, output, scenario }) {
+export async function createMarpHarness({ target, dependencies, fixture, original, output, scenario, pagefoldSource, fontSource }) {
     const requireTarget = createRequire(path.join(target, 'package.json'));
     const Database = requireTarget('better-sqlite3');
     const runtime = fs.mkdtempSync(path.join(path.dirname(output), 'g19-stream-'));
@@ -28,6 +28,29 @@ export async function createMarpHarness({ target, dependencies, fixture, origina
     character.chats = [chat];
     configureMarpFixture(data, original);
     if (scenario === 'stop-main-nonstream') data.modelPresets[0].useStreaming = false;
+    if (scenario === 'module-binding') {
+        const preset = structuredClone(data.modelPresets[0]);
+        preset.id = 'synthetic-module-preset'; preset.name = 'Synthetic module'; preset.useStreaming = false;
+        preset.profileSnapshot.profileId = 'synthetic:module';
+        preset.profileSnapshot.endpoint.url = 'https://module-input.example.test/v1/chat/completions';
+        preset.profileSnapshot.modelId = 'synthetic-module-model';
+        preset.profileSnapshot.schema.find(field => field.key === 'modelId').default = 'synthetic-module-model';
+        preset.userValues.apiKey = 'synthetic-module-key';
+        data.modelPresets.push(preset); data.moduleModelBindingsEnabled = true;
+        data.moduleModelBindings = { 'synthetic-module': preset.id };
+        character.triggerscript = [{ comment: 'synthetic module selector', type: 'input', conditions: [], moduleId: 'synthetic-module',
+            effect: [{ type: 'v2RunLLM', valueType: 'value', value: 'G110_MODULE_QUERY', outputVar: 'moduleResult', model: 'submodel', streaming: false, indent: 0 }] }];
+        character.desc = 'Module result: {{getvar::moduleResult}}';
+    }
+    let pagefoldHash = null;
+    if (scenario.startsWith('pagefold-')) {
+        assert.ok(pagefoldSource && fontSource, 'Original PageFold and local font required');
+        const bytes = fs.readFileSync(pagefoldSource);
+        pagefoldHash = createHash('sha256').update(bytes).digest('hex');
+        const script = bytes.toString('utf8'); assert.ok(Buffer.from(script).equals(bytes));
+        data.plugins.push({ name: 'synthetic-pagefold', version: '3.0', enabled: true, script, realArg: {} });
+        data.aiModel = data.subModel = 'pluginmodel:::PageFold'; data.nodeOnlyModelModeLock = 'legacy'; chat.useModelPreset = false;
+    }
     for (const agent of Object.values(data.pluginCustomStorage.risu_multiagent_lite_config_vault_v1.config.agents)) {
         agent.userPromptTemplate = 'G110_CURRENT={{user_input}}\nG110_HISTORY={{chat_history}}\nG110_WORLD={{context_world}}';
     }
@@ -42,7 +65,16 @@ export async function createMarpHarness({ target, dependencies, fixture, origina
     const { encodeRisuSaveLegacy, decodeRisuSave } = requireTarget('./server/node/utils.cjs');
     const seed = requireTarget('./server/node/db.cjs');
     seed.kvSet('database/database.bin', Buffer.from(encodeRisuSaveLegacy(data)));
-    seed.kvSet('cache/plugin-permissions/state.json', JSON.stringify(marpGrants(data)));
+    const grants = marpGrants(data);
+    if (pagefoldHash) {
+        const key = JSON.stringify(['synthetic-pagefold', 'provider']);
+        grants.given.push(key); grants.cache.push([key + '_lastGrantTime', Date.now()]);
+        const localKey = name => 'cache/plugin-storage/' + Buffer.from(name).toString('base64url') + '.json';
+        seed.kvSet(localKey('pagefold.config.v1'), JSON.stringify({ activeProvider: 'google', packagingMode: 'maximum',
+            google: { apiKey: 'synthetic-only', model: 'fixture-pagefold', baseUrl: 'https://pagefold.example.test/v1beta' } }));
+        seed.kvSet(localKey('pagefold.font.noto-sans-cjk-kr.v1'), JSON.stringify(fs.readFileSync(fontSource).toString('base64')));
+    }
+    seed.kvSet('cache/plugin-permissions/state.json', JSON.stringify(grants));
     const persisted = await decodeRisuSave(seed.kvGet('database/database.bin'));
     const expected = readMarpExpectations(persisted, original);
     const initialStatistics = persisted.statics.messages;
@@ -52,10 +84,10 @@ export async function createMarpHarness({ target, dependencies, fixture, origina
     fs.writeFileSync(path.join(runtime, 'save/__password'), createHash('sha256').update(password).digest('hex'));
     const { chromium } = createRequire(path.join(dependencies, 'package.json'))('playwright');
     const context = {
-        target, runtime, output, scenario, Database, ...expected, initialStatistics,
+        target, runtime, output, scenario, Database, ...expected, pagefoldHash, initialStatistics,
         events: [], admissions: [], accepted: [], cancellations: [], pageErrors: [], consoleErrors: [], saves: [],
         server: null, browser: null, browserServer: null, page: null, browserContext: null, epoch: 0, port: 0,
-        browserHTTPAnalysis: 0, logStreams: [], authHeaders: null, saveObservers: [],
+        browserHTTPAnalysis: 0, browserHTTPModuleOrPagefold: 0, logStreams: [], authHeaders: null, saveObservers: [],
     };
     const c = context;
     c.wait = async (check, label) => {
@@ -72,7 +104,7 @@ export async function createMarpHarness({ target, dependencies, fixture, origina
             cwd: runtime, execArgv: ['--require', new URL('./bg-stream-preview-preload.cjs', import.meta.url).pathname],
             env: { ...process.env, PORT: String(c.port), TUNNEL_DISABLED: '1', RISU_UPDATE_CHECK: 'false',
                 POCKETRISU_BG_PLUGIN_HOST_CANDIDATE: '1', G19_STREAM_PROBE: '1', G110_MARP_STREAM: '1',
-                G110_LIFECYCLE_CASE: scenario, G110_EPOCH: String(epoch),
+                G110_LIFECYCLE_CASE: scenario, G110_EPOCH: String(epoch), G110_PDF_TARGET: target,
                 G110_CLOSE_ANALYSIS: epoch === 1 && (scenario === 'queue-edit' || scenario.startsWith('stop-analysis') || scenario === 'restart-analysis') ? '1' : '0' },
             stdio: ['ignore', 'pipe', 'pipe', 'ipc'],
         });
@@ -118,6 +150,8 @@ export async function createMarpHarness({ target, dependencies, fixture, origina
             const request = route.request();
             if (request.url().startsWith('https://analysis.example.test/')
                 || decodeURIComponent(request.headers()['risu-url'] || '').startsWith('https://analysis.example.test/')) c.browserHTTPAnalysis++;
+            if ([request.url(), decodeURIComponent(request.headers()['risu-url'] || '')]
+                .some(url => url.startsWith('https://module-input.example.test/') || url.startsWith('https://pagefold.example.test/'))) c.browserHTTPModuleOrPagefold++;
             return request.url().startsWith(c.origin + '/') ? route.continue() : route.abort();
         });
         c.page = await c.browserContext.newPage();
@@ -201,7 +235,16 @@ export async function createMarpHarness({ target, dependencies, fixture, origina
     };
     c.close = async () => {
         await Promise.allSettled([c.browser?.close(), c.browserServer?.close()]);
-        if (c.server?.exitCode === null && c.server?.signalCode === null) { const exited = once(c.server, 'exit'); c.server.kill('SIGTERM'); await exited; }
+        if (c.server?.exitCode === null && c.server?.signalCode === null) {
+            const exited = once(c.server, 'exit'); c.server.kill('SIGTERM');
+            let timer;
+            await Promise.race([exited, new Promise(resolve => { timer = setTimeout(resolve, 3000); })]);
+            clearTimeout(timer);
+            if (c.server.exitCode === null && c.server.signalCode === null) {
+                assert.ok(c.server.pid > 0 && c.server.pid !== process.pid);
+                c.server.kill('SIGKILL'); await exited;
+            }
+        }
         c.logStreams.forEach(log => log.end());
     };
     try { await c.startServer(); await c.open(); await c.authenticate(); }
