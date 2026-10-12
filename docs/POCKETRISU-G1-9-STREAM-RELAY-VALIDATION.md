@@ -20,7 +20,9 @@ Normal and partial completion both exposed first-next-Send settings-save-failed 
 
 Confirmed cancellation also left an accepted raw marker behind. DELETE success was rejected as input-hydration authority. A read-only cancelled-input proof validates durable cancelled state and current canonical ownership, or a never-started non-client transform with no receipt/owned row. Existing reconciliation/pre-admission consumers adopt only an unchanged saved base, advance peer markers and recheck proof/context/marker identity before exact metadata cleanup. Current and legacy aliases are cleared together; durable raw input, effects and deliberate deletion are preserved. Unknown/in-progress unattached transforms and unavailable/deleted attached targets remain protected.
 
-Independent implementation commits:12f1e46 settings persistence,3371119 native stream support,31cb01d cancellation proof/reconciliation. The preview/delivery implementation is the next reviewed unit.
+Independent implementation commits:12f1e46 settings persistence,3371119 native stream support,31cb01d cancellation proof/reconciliation,f731a6d preview/delivery,a2a84f8 Google stream support and31e2986 active observation/late Stop. Native Gemini and Vertex failure/Stop trials use the actual browser/server/SQLite path with controlled SSE and denied external transport. Each trial permits one next Send and observes exactly two provider calls; only Stop requests one cancellation. Idle preview GET count is zero. hostOFF restricts plugin execution, not native Gemini/Vertex reachability. The adviser's contrary initial premise was corrected before delivery. Late-Stop regression covers both retained-result and missing-result failures, including no cancelled input settlement.
+
+Final Opus5.5 delta review found no new blocker in the reviewed source. Its low-effort assertion was withdrawn as unsupported: configured model-specific effort is medium, while actual runtime effort is absent from bridge metadata. Review did not independently rerun probes. Temporary preview gaps after activity-read failure/hydration, and preexisting terminal paths without a durable delivery-failed record, remain prepared surfaces.
 
 ## Observed automatic evidence
 
@@ -50,6 +52,8 @@ The full suite's post-run localhost:3000 refusal messages are retained environme
 Initial probe setup errors are retained: omitted native fallback arrays, incorrectly parsed byte request bodies, unavailable default browser path, missing built Lua modules/document masking, manual cancellation missing a paired build header and composer Stop absent on the raw path. Tests were corrected using the real handler and current prerequisites, not weakened assertions. A trial started before a build finished observed an earlier UI and was excluded. The save harness now injects the actual durable barrier/constants rather than leaving extracted source imports undefined; original scheduler/deferred assertions remain.
 
 An earlier G1.8 original tree was removed by separately approved cleanup while this task was running. Its failed-reference comparison is excluded. A retained independent1,022-file inventory, matching applied baseline hashes and owned-path absences, supplies current revert comparisons. Original application/user data were never used as mutable test fixtures.
+
+A full-suite repetition in the restricted sandbox could not complete its HTTP-based environment and was terminated as excluded evidence; the repository suites are rerun with loopback binding available. A repeated HTTPS smoke initially matched two old/new completion labels; the corrected assertion identifies the unique input and new canonical row, preserving older synthetic answers.
 
 ## Delivery and device boundaries
 

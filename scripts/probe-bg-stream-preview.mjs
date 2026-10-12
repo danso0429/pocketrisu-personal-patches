@@ -13,6 +13,8 @@ assert.ok(['balanced', 'strong', 'off'].includes(displayMode));
 assert.ok(!pluginProvider || mode === 'foreground', 'Plugin-provider control is separately scoped');
 assert.ok(['foreground', 'closed', 'nonstream', 'failure', 'cancel', 'queue', 'navigation', 'continue', 'healthy-next', 'device'].includes(mode));
 const device = mode === 'device';
+const gemini = process.argv.includes('--gemini');
+const vertex = process.argv.includes('--vertex');
 const isolatedCookies = device || process.argv.includes('--isolated-cookies');
 const req = createRequire(path.resolve(target, 'package.json'));
 const Database = req('better-sqlite3');
@@ -20,6 +22,12 @@ const runtime = fs.mkdtempSync(path.join(path.dirname(path.resolve(output)), 'g1
 const data = JSON.parse(fs.readFileSync(fixture));
 data.statics = { messages: 0, imports: 0 };
 data.aiModel = data.subModel = 'gpt35'; data.openAIKey = 'synthetic-only'; data.requestRetrys = 0;
+if (gemini) { data.aiModel = data.subModel = 'gemini-2.5-flash'; data.google = { ...data.google, accessToken: 'synthetic-only' } }
+if (vertex) {
+    data.aiModel = data.subModel = 'gemini-2.5-flash-vertex';
+    data.google = { ...data.google, projectId: 'synthetic-project' }; data.vertexRegion = 'global';
+    data.vertexAccessToken = 'synthetic-only'; data.vertexAccessTokenExpires = Date.now() + 3600000;
+}
 data.useStreaming = mode !== 'nonstream'; data.autoTranslate = false;
 data.streamingDisplayOptimizationMode = displayMode;
 data.autoContinueChat = mode === 'continue'; data.autoContinueMinTokens = 0;
@@ -133,6 +141,10 @@ const open = async state => {
     }
     await page.locator('[data-char-id="synthetic-character"]').first().click();
     await page.locator('textarea').waitFor();
+    if (!state) {
+        await page.waitForTimeout(3500);
+        assert.equal(previewResponses.length, 0, 'idle chat must not poll the preview endpoint');
+    }
 };
 let authHeaders;
 const readChat = async () => {
@@ -264,7 +276,7 @@ try {
         assert.ok(cookies.some(cookie => cookie.name === 'g19-stream-session'));
     }
     assert.equal(events.filter(row => row.event === 'main').length, ['queue', 'failure', 'cancel', 'continue', 'healthy-next'].includes(mode) ? 2 : 1);
-    fs.writeFileSync(output, JSON.stringify({ passed: true, mode, pluginProvider, displayMode, runtime, events, errors, consoleErrors,
+    fs.writeFileSync(output, JSON.stringify({ passed: true, mode, gemini, vertex, pluginProvider, displayMode, runtime, events, errors, consoleErrors,
         previewPolls: previewResponses.length, cancellationRequests: cancelRequests.length,
         finalChat: await readChat() }, null, 2), { mode: 0o600, flag: 'wx' });
     console.log(JSON.stringify({ passed: true, mode, calls: events.filter(row => row.event === 'main').length, previewPolls: previewResponses.length }));

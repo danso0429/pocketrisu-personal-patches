@@ -39,14 +39,18 @@ let calls = 0;
 globalThis.fetch = async (input, options = {}) => {
     options.signal?.throwIfAborted();
     const url = typeof input === 'string' ? input : input?.url || String(input);
-    if (!url.startsWith('https://api.openai.com/v1/chat/completions')) {
+    const gemini = url.startsWith('https://generativelanguage.googleapis.com/v1beta/models/')
+        || url.startsWith('https://aiplatform.googleapis.com/v1/projects/synthetic-project/locations/global/publishers/google/models/');
+    if (!gemini && !url.startsWith('https://api.openai.com/v1/chat/completions')) {
         emit({ event: 'outbound-denied' }); throw Error('Synthetic runtime denies other outbound requests');
     }
     const body = JSON.parse(typeof options.body === 'string' ? options.body : Buffer.from(options.body).toString('utf8'));
-    if (body.model !== 'gpt-3.5-turbo' || !Array.isArray(body.messages)) throw Error('Unexpected synthetic model');
+    if (gemini ? !Array.isArray(body.contents) : body.model !== 'gpt-3.5-turbo' || !Array.isArray(body.messages)) throw Error('Unexpected synthetic model');
     const call = ++calls;
-    emit({ event: 'main', call, streaming: body.stream === true });
-    if (!body.stream) return Response.json({ choices: [{ index: 0, finish_reason: 'stop',
+    const streaming = gemini ? url.includes(':streamGenerateContent') : body.stream === true;
+    emit({ event: 'main', call, gemini, streaming });
+    if (!streaming && gemini) return Response.json({ candidates: [{ content: {role:'model',parts:[{text:'G1.9 nonstream answer'}]},finishReason:'STOP' }] });
+    if (!streaming) return Response.json({ choices: [{ index: 0, finish_reason: 'stop',
         message: { role: 'assistant', content: 'G1.9 nonstream answer' } }],
         usage: { prompt_tokens: 2, completion_tokens: 3 } });
     const first = device ? '**서버 응답 ' + call + '**\n\n<Thoughts>접힌 테스트 생각</Thoughts>\n\n응답 조각 1'
@@ -54,8 +58,9 @@ globalThis.fetch = async (input, options = {}) => {
     const tail = (device ? '\n\n**완료 ' + call + '**' : '</Thoughts>\n\n**G1.9 complete ' + call + '**')
         + (process.env.G19_STREAM_CONTINUE === '1' ? call === 1 ? ' continue' : '.' : '');
     const encode = new TextEncoder();
-    const frame = text => encode.encode('data: ' + JSON.stringify({ choices: [{ index: 0,
-        delta: { content: text }, finish_reason: null }] }) + '\n\n');
+    const frame = text => encode.encode('data: ' + JSON.stringify(gemini
+        ? { candidates: [{ content: { role: 'model', parts: [{ text }] } }] }
+        : { choices: [{ index: 0, delta: { content: text }, finish_reason: null }] }) + '\n\n');
     let cleanup, interval, finishTimer;
     return new Response(new ReadableStream({
         start(controller) {
@@ -73,8 +78,10 @@ globalThis.fetch = async (input, options = {}) => {
                     emit({ event: 'stream-failed', call }); return;
                 }
                 controller.enqueue(frame(tail));
-                controller.enqueue(encode.encode('data: ' + JSON.stringify({ choices: [{ index: 0,
-                    delta: {}, finish_reason: 'stop' }], usage: { prompt_tokens: 2, completion_tokens: 3 } }) + '\n\ndata: [DONE]\n\n'));
+                controller.enqueue(encode.encode('data: ' + JSON.stringify(gemini
+                    ? { candidates: [{ content: { role: 'model', parts: [] }, finishReason: 'STOP' }], usageMetadata: { promptTokenCount: 2, candidatesTokenCount: 3 } }
+                    : { choices: [{ index: 0, delta: {}, finish_reason: 'stop' }], usage: { prompt_tokens: 2, completion_tokens: 3 } })
+                    + (gemini ? '\n\n' : '\n\ndata: [DONE]\n\n')));
                 controller.close(); emit({ event: 'stream-finished', call });
             });
             controller.enqueue(frame(first)); emit({ event: 'partial', call });
