@@ -29,8 +29,8 @@ Final Opus5.5 delta review found no new blocker in the reviewed source. Its low-
 | Boundary | Observation |
 |---|---|
 | Full frontend |2,396 pass,4 existing skips. |
-| Full server |641 pass,12 existing skips. |
-| Patcher |52 outer entries passed before final documentation. Final graph/source pairing is rechecked before delivery. |
+| Full server |643 pass,12 existing skips on the final source, including both late-Stop result/ownership cases. |
+| Patcher |52 outer entries passed. Final afc5346 graph re-plan0, exact1,022-file byte/mode inventory, extra/missing0 and patcher state absent after revert. |
 | Settings/ownership contracts |43 focused persistence/cancellation/settings contracts; cancellation/client51; genuine input owner66. |
 | Source checks |Frontend and BG build/load passed; latest scoped Svelte check0 errors/0 warnings. |
 | Native foreground |Formatted partial text and folded thoughts appear before provider completion. Canonical assistant row absent before commit. Preview polling after input-adoption readiness enlists no save. |
@@ -43,7 +43,7 @@ Final Opus5.5 delta review found no new blocker in the reviewed source. Its low-
 | Lua caller |Actual Lua LLM late body failure and retained input latch each preserve the failure boundary, then permit one healthy call; corrected probes report two calls. |
 | Read-only observers |Concurrent authenticated preview GETs return the same current operation/row; no claim or durable write. Full multi-tab writer interaction remains aggregate scope. |
 | Graph/revert |Maintained full-set graph re-plan0 and exact1,022-file byte/mode revert to absent patcher state. Latest final graph is repeated after documentation/source consultation if code changes. |
-| HTTPS device preparation |Separate synthetic application and cookie namespace. Actual HTTPS browser observed body progression, Stop availability, unchanged production-control cookie, canonical answer before return, and no cancellation or page errors. |
+| HTTPS device preparation |Separate synthetic application and cookie namespace, reloaded on the latest paired source. Actual HTTPS browser observed body progression, Stop availability, unchanged production-control cookie, exactly one new canonical answer before return, and no cancellation or page errors. Older synthetic answers are retained. |
 
 The full suite's post-run localhost:3000 refusal messages are retained environmental diagnostics, not counted as extra assertion successes. The installed Chromium override was required because the browser tool's default version was absent; physical iPhone and current paid-provider behavior are not inferred from headless results.
 
@@ -57,6 +57,15 @@ A full-suite repetition in the restricted sandbox could not complete its HTTP-ba
 
 ## Delivery and device boundaries
 
-Final source consultation, privacy sweep, explicit-path commits/push, idle/verified-rollback hostOFF apply and independent source/asset/API readback are pending at this document checkpoint. Production activation, paid-provider calls, generation cancellation, user-data cleanup and stable release are not implied by automated qualification.
+Final source consultation, privacy sweep and explicit-path candidate push are complete at afc5346. Observed hostOFF delivery: managed source504, served JS175, DB5 quick_check=ok, online/unstable restarts0, active/model/pending0, authenticated capability200 with input/commit1 and plugin host0, inactive preview200/no-store. Independent source/asset/authentication readback passes; it reuses the immediately completed post-restart DB checks rather than repeating their full scan. Existing header settings,203 legacy journal rows and103 operation states are preserved; removed operations0/new error lines0. Source/build apply left stopped DB bytes unchanged.
+
+Verified app/state rollback is91,831,116bytes with1,651 byte/size/mode-checked files plus19 notification namespace rows, linked to the existing verified full-data anchor. Previously retained rollback/reference sets remain protected; no backup/user-data deletion or active-generation cancellation was performed. Runtime production plugin-host activation, paid-provider calls, physical iPhone and stable release are not implied by this candidate delivery. Additional final documentation does not change source or installer. The independent inactive-response probe's initial wrong streaming:false expectation is excluded; actual owner contract active:false is now asserted exactly.
 
 The separate HTTPS test contains synthetic data and a controlled provider only. Its remote outbound transport is denied. Required L5: formatted body progression, explicit Stop followed by one normal Send, one synthetic failure followed by a normal Send, home/lock/close and return with one preserved answer. Operator checks canonical storage separately from visible device reports. Internal OS suspension, requests before server reach, unknown transform outcomes, deliberate removal of a cancelled attachment, original-provider combinations and whole-G1 stable remain separate documented surfaces.
+
+| L5 screen/action | Change | Device check |
+|---|---|---|
+| Synthetic chat / Send | Read-only formatted partial answer | Send a normal short input. Observe sequential body pieces, bold text and initially folded thoughts before completion. Final answer appears once and input remains once. |
+| Preview / 생성 중지 | Exact current-operation cancellation | While pieces are growing, tap Stop once. Partial preview disappears without being saved as a completed answer. Send a new normal input once and verify completion. Stop does not cancel an already queued successor. |
+| Synthetic chat / failure input | Original stream error remains visible | Include 실패 in a test input. After controlled stream failure, observe retained partial/error behavior; then Send a normal input once and verify completion. |
+| Home, lock, close, return | Server execution survives observer teardown | Send a normal input and leave while pieces are growing. Wait for server completion, then return/reopen. Observe one final answer, no stale generating preview, and one successful next Send. This validates observable survival, not internal iOS suspension state. |

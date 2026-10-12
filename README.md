@@ -30,7 +30,12 @@ Markdown/HTML/style sanitization and thought folding use the native parser;
 card/module editdisplay regex, Lua/plugin hooks and automatic translation run
 only through the completed message's existing display path. A display-only
 256KiB UTF8 limit withholds oversized previews while retaining the exact full
-answer. G1.9 device results and whole-G1 activation/stable remain separate gates.
+answer. Preview observation starts only during selected-chat server activity.
+Native OpenAI/Google/Vertex stream error ownership and exact current-operation
+Stop preserve normal follow-up and durable failed-delivery ownership. Full
+automatic qualification and independently checked hostOFF delivery are recorded
+in the [G1.9 validation](docs/POCKETRISU-G1-9-STREAM-RELAY-VALIDATION.md).
+G1.9 device results and whole-G1 activation/stable remain separate gates.
 
 The .36 repair closes ordinary retained-input failures through canonical input
 identity and an exact no-answer result ACK. A versioned receipt survives lost ACK
