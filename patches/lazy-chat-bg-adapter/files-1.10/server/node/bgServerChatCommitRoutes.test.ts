@@ -16,8 +16,9 @@ const { createChatWriteJournal } = require('./chatWriteJournal.cjs') as any
 const { createServerChatCommitOwner } = require('./serverChatCommitOwner.cjs') as any
 const { createServerChatInputOwner } = require('./serverChatInputOwner.cjs') as any
 const { decodeRisuSave, encodeRisuSaveLegacy } = require('./utils.cjs') as any
-const { operationStateKey, writeOperationState } = require('./bgOrchestrationOperationStore.cjs') as {
+const { operationStateKey, operationResultKey, writeOperationState } = require('./bgOrchestrationOperationStore.cjs') as {
     operationStateKey: (operationId: string) => string
+    operationResultKey: (operationId: string) => string
     writeOperationState: (
         kvSet: (key: string, value: string) => void,
         operationId: string,
@@ -31,7 +32,7 @@ afterEach(async () => {
     while (cleanup.length > 0) await cleanup.pop()?.()
 })
 
-function routeHarness() {
+function routeHarness(options: { uncommittedDeliveryFailure?: boolean; missingResult?: boolean } = {}) {
     const activity = { busy: false, unavailable: false }
     const operationId = 'operation-c2-route-1'
     const receipt = {
@@ -49,9 +50,10 @@ function routeHarness() {
             operationId,
             charId: 'char-1',
             chatId: 'chat-1',
-            state: 'delivered',
+            state: options.uncommittedDeliveryFailure ? 'delivery-failed' : 'delivered',
         }),
     ]])
+    if (options.uncommittedDeliveryFailure && !options.missingResult) values.set(operationResultKey(operationId), 'retained-paid-result')
     const routes = new Map<string, (request: any, response: any) => unknown>()
     const app: Record<string, unknown> = {}
     for (const method of ['get', 'post', 'delete']) {
@@ -60,6 +62,7 @@ function routeHarness() {
         }
     }
     let cancelCalls = 0
+    const settleInput = vi.fn()
     registerBgOrchestrator(app, {
         sessionAuthMiddleware: () => {},
         kvGet: (key: string) => values.get(key) ?? null,
@@ -81,11 +84,12 @@ function routeHarness() {
                 submittedRevision: 'stale-submission-revision',
                 matches: false,
             }),
-            readGenerationCommit: (candidate: string) => candidate === operationId
+            readGenerationCommit: (candidate: string) => candidate === operationId && !options.uncommittedDeliveryFailure
                 ? { status: 'committed', receipt }
                 : { status: 'missing', receipt: null },
         },
         serverChatInputOwner: {
+            settleSynchronously: settleInput,
             hasPendingGeneration: () => {
                 if (activity.unavailable) throw new Error('activity unavailable')
                 return activity.busy
@@ -118,8 +122,21 @@ function routeHarness() {
         await handler(request, response)
         return result
     }
-    return { operationId, receipt, invoke, invokeAsync, activity, cancelCalls: () => cancelCalls }
+    return { operationId, receipt, invoke, invokeAsync, activity, cancelCalls: () => cancelCalls,
+        settleInput, stored: (key: string) => values.get(key) }
 }
+
+it.each([false, true])('preserves failed delivery and input ownership on late Stop (result missing=%s)', missingResult => {
+    const h = routeHarness({ uncommittedDeliveryFailure: true, missingResult })
+    const result = h.invoke('delete', '/api/bg-orchestrate/:operationId', {
+        params: { operationId: h.operationId }, query: { charId: 'char-1', chatId: 'chat-1' },
+    })
+    expect(result).toMatchObject({ status: 200, body: { cancelled: false, finished: true,
+        operationId: h.operationId, state: 'delivery-failed' } })
+    expect(h.stored(operationResultKey(h.operationId))).toBe(missingResult ? undefined : 'retained-paid-result')
+    expect(JSON.parse(h.stored(operationStateKey(h.operationId))!)).toMatchObject({ state: 'delivery-failed' })
+    expect(h.settleInput).not.toHaveBeenCalled()
+})
 
 function queuedRetryHarness(
     storedServerChatCommitVersion: 0 | 1,

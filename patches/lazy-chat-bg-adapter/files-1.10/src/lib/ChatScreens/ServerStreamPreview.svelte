@@ -1,14 +1,15 @@
 <script lang="ts">
     import { ParseMarkdown } from 'src/ts/parser/parser.svelte'
-    import { cancelObservedServerOperation } from 'src/ts/bgOrchestrate'
+    import { cancelObservedServerOperation, isServerOrchestrationEnabled } from 'src/ts/bgOrchestrate'
     import { notifyWarning } from 'src/ts/alert'
     import { closePreviewThoughts, createStreamPreviewObserver, readStreamPreview,
         type StreamPreview } from 'src/ts/bgStreamPreview'
 
-    let { charId, chatId, chat, name = '' }: {
+    let { charId, chatId, chat, name = '', active = false }: {
         charId: string; chatId: string;
         chat: { message?: { chatId?: string }[] } | null;
         name?: string;
+        active?: boolean;
     } = $props()
     let display = $state<{ preview: StreamPreview; html: string } | null>(null)
     let cancelling = $state<string | null>(null)
@@ -16,9 +17,9 @@
         ? display : null)
 
     $effect(() => {
-        const character = charId, selectedChat = chatId
+        const character = charId, selectedChat = chatId, observing = active
         display = null
-        if (!character || !selectedChat) return
+        if (!character || !selectedChat || !observing || !isServerOrchestrationEnabled()) return
         const observer = createStreamPreviewObserver({
             read: (previous, signal) => readStreamPreview(character, selectedChat, previous, signal),
             // Null character skips Lua/display triggers/plugin hooks, while the

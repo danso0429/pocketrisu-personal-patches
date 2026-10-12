@@ -19,6 +19,12 @@ module.exports = prior => {
             content: fs.readFileSync(path.join(__dirname, 'files-1.10', file), 'utf8') })
     }
     const server = 'server/node/bgOrchestrator.cjs'
+    add('late-stop-retain', server,
+        "      if (durable && (durable.state === 'delivered' || durable.state === 'result-ready')) {",
+        "      if (durable && ['delivered', 'result-ready', 'delivery-failed'].includes(durable.state)) {")
+    add('late-stop-client', 'src/ts/bgOrchestrate.ts',
+        "                && ['chat-committed', 'result-ready', 'delivered'].includes(data.state)) {",
+        "                && ['chat-committed', 'result-ready', 'delivered', 'delivery-failed'].includes(data.state)) {")
     add('owner', server, 'const _orchStatus = {}', `const _orchStatus = {}
 const { createBgStreamPreview } = require('./bgStreamPreview.cjs')
 const streamPreview = createBgStreamPreview()`)
@@ -66,6 +72,8 @@ const streamPreview = createBgStreamPreview()`)
     add('screen-slot', screen, '            {@render composerCluster()}', `            {@render composerCluster()}
             {#if pendingCharacter?.chaId && pendingChat?.id}
                 <ServerStreamPreview charId={pendingCharacter.chaId} chatId={pendingChat.id}
+                    active={(queueActivity?.charId === pendingCharacter.chaId && queueActivity?.chatId === pendingChat.id
+                        && queueActivity.busy === true) || currentChatGenerating}
                     chat={pendingChat} name={pendingCharacter.name} />
             {/if}`)
     add('observed-cancel', 'src/ts/bgOrchestrate.ts', 'let cancelPromise: Promise<boolean> | null = null',
