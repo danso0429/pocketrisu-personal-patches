@@ -1,5 +1,7 @@
 # G1.9 streaming relay
 
+Latest status —2026-10-12: implementation, automatic qualification, independently checked hostOFF delivery and the four instructed synthetic iPhone L5 scenarios are closed. Scoped L6 records the user report and read-only terminal/canonical verification in [G1.9 validation](POCKETRISU-G1-9-STREAM-RELAY-VALIDATION.md). The plan below retains design/verification intent; actual-provider/MARP, whole-G1 aggregate/activation/stable remain G1.10.
+
 2026-10-12 KST. Baseline c325ac8 / experimental.39 / BG adapter0.7.46. The ordered BG goals remain authority. G1.8 scoped closeout is preserved. G1.10 real-provider/aggregate/activation/stable and unchanged official AC G2 remain separate.
 
 ## Outcome and ownership

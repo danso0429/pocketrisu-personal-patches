@@ -9,6 +9,7 @@
 - Repair the native Node display frame and OpenAI/Google/Vertex pipe promise failures. Preserve original readable/partial outcomes and async-local context instead of suppressing failure or terminating the server. Retry only a known persistence retry before input admission, within the existing shared save boundary; do not replay providers/plugins or relax unknown/manual/publication refusal.
 - Observe previews only while the selected chat has server activity and orchestration is enabled. Preserve durable delivery-failed result/input ownership when Stop arrives late, including failures with no result payload.
 - Qualification, delivery and device evidence are recorded in the G1.9 plan and validation document. Host activation, actual paid-provider/MARP combinations, aggregate G1.10 and stable release remain separate gates.
+- Close the four instructed synthetic iPhone scenarios from the user's normal report and read-only canonical/terminal-state verification. Complete scoped G1.9 L6 without changing the runtime, installer, version or hostOFF activation boundary.
 
 ## 0.2.4-experimental.39 (settle committed inputs after admission uncertainty)
 

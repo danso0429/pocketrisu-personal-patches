@@ -2,6 +2,8 @@
 
 2026-10-12 KST. Baseline c325ac8. Candidate0.2.4-experimental.40 / BG adapter0.7.47. Stable remains0.2.3. G1.10 actual-provider/MARP, aggregate activation and stable release remain separate.
 
+Status: G1.9 implementation, automatic qualification, hostOFF delivery and scoped iPhone L5/L6 are closed. Next ordered goal is G1.10; this is not whole-G1 activation or stable release.
+
 ## Result and source ownership
 
 The selected chat shows a transient formatted server answer while the native full pipeline reads a streaming response. An authenticated no-store endpoint reads only the native displayed row, with operation/row identity and a monotonic display revision. It never creates a result claim, saves a provisional client message or acknowledges a result. Native canonical commit/recovery remains the sole answer owner. Nonstream and input/aux streams produce no answer preview.
@@ -69,3 +71,11 @@ The separate HTTPS test contains synthetic data and a controlled provider only. 
 | Preview / 생성 중지 | Exact current-operation cancellation | While pieces are growing, tap Stop once. Partial preview disappears without being saved as a completed answer. Send a new normal input once and verify completion. Stop does not cancel an already queued successor. |
 | Synthetic chat / failure input | Original stream error remains visible | Include 실패 in a test input. After controlled stream failure, observe retained partial/error behavior; then Send a normal input once and verify completion. |
 | Home, lock, close, return | Server execution survives observer teardown | Send a normal input and leave while pieces are growing. Wait for server completion, then return/reopen. Observe one final answer, no stale generating preview, and one successful next Send. This validates observable survival, not internal iOS suspension state. |
+
+## iPhone L5 and L6 closeout — 2026-10-12
+
+After the four-row instructions above, the user reported all looked normal. This closes the instructed formatted progression/thought folding, Stop-to-next-Send, controlled failure-to-next-Send and absence/return observation at the synthetic device scope. The report is a user observation, not a per-gesture timestamp trace; internal OS suspension and actual paid-provider/MARP behavior remain unmeasured here.
+
+Read-only post-report normal-chat API returns200 with unique message row IDs; the combined synthetic history has7 user rows/7 character rows, including earlier automatic checks and the fixture greeting. Operation aggregates are3 chat-committed/4 delivered/1 cancelled; input aggregates are6 completed/1 cancelled. No nonterminal operation/input remains and the actual preview endpoint returns exactly active:false. These aggregates are not attributed as one trial per device instruction. No new generation or cancellation was used for this readback. Initial verification-script errors (missing normal-chat JWT and missing await for the actual asynchronous codec) are excluded; the corrected verifier preserves the identity/unique-row/terminal assertions.
+
+L6 updates validation/README/CHANGELOG and the ordered-goals/JOURNAL checkpoint, records the retained audit conclusions, removes the completed structural working report and pushes documentation after the full tracked-range privacy sweep. Source/installer/version remain unchanged; experimental.40 and hostOFF are retained. Existing backups and the synthetic runtime remain protected; no test service/data removal is performed by this closeout. Stable/tag/aggregate qualification are separate.

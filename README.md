@@ -35,7 +35,9 @@ Native OpenAI/Google/Vertex stream error ownership and exact current-operation
 Stop preserve normal follow-up and durable failed-delivery ownership. Full
 automatic qualification and independently checked hostOFF delivery are recorded
 in the [G1.9 validation](docs/POCKETRISU-G1-9-STREAM-RELAY-VALIDATION.md).
-G1.9 device results and whole-G1 activation/stable remain separate gates.
+The instructed synthetic iPhone streaming, Stop/follow-up, failure/follow-up and
+absence/return observations passed, with scoped L6 recorded. Actual-provider/MARP
+and whole-G1 aggregate activation/stable remain G1.10 gates.
 
 The .36 repair closes ordinary retained-input failures through canonical input
 identity and an exact no-answer result ACK. A versioned receipt survives lost ACK
