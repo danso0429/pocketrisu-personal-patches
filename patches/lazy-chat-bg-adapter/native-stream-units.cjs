@@ -31,5 +31,13 @@ module.exports = prior => {
         `                        // The readable below still rejects on a source/body
                         // failure. Do not leave its piping promise unobserved.
                         void resRec.body.pipeTo(transtream.writable).catch(() => {})`)
+    const google = 'src/ts/process/request/google.ts'
+    add('google-pipe-error', google, '        f.body.pipeTo(transtream.writable)',
+        `        // Preserve readable error/abort propagation without a second
+        // unhandled rejection from the native piping promise.
+        void f.body.pipeTo(transtream.writable).catch(() => {})`)
+    add('google-tool-pipe-error', google, '                        resRec.body.pipeTo(transtream.writable)',
+        `                        // The reader remains the failure authority.
+                        void resRec.body.pipeTo(transtream.writable).catch(() => {})`)
     return units
 }
