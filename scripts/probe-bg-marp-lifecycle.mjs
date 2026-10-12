@@ -278,7 +278,9 @@ async function pagefoldWarningsAndReturn() {
     await c.wait(async () => (await c.readChat()).chat.message.some(row => row.data === 'G110_PAGEFOLD_ANSWER_1'), 'original provider answer canonical before browser return');
     const validatePdf = (requestKey, main) => {
         assert.equal(main.requestKey, requestKey);
+        assert.equal(main.messages[0].content.match(/<!--MARP:v1:end-->/g)?.length, 1, 'PDF has the complete analysis marker');
         const withoutNotes = main.messages[0].content.replace(/<!--MARP:v1:begin-->[\s\S]*?<!--MARP:v1:end-->/g, '');
+        assert.equal(withoutNotes.match(/Synthetic\s+note/g), null, 'analysis notes actually removed before user-input check');
         assert.ok(withoutNotes.includes(requestKey), 'current input retained outside MARP notes');
         validateOperation(requestKey, main);
     };
