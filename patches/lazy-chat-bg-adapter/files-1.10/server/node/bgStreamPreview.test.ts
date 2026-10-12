@@ -35,13 +35,21 @@ describe('read-only native streaming preview', () => {
         const native = chat(), relay = createBgStreamPreview(); let cancelled = false
         relay.begin(identity, () => native, () => cancelled)
         native.isStreaming = false
-        expect(relay.read('character', 'chat')).toEqual({ active: true, streaming: false, operationId: 'operation-one' })
+        expect(relay.read('character', 'chat')).toEqual({ active: true, streaming: false, operationId: 'operation-one', answerReady: true })
         native.isStreaming = true; native.message[1].role = 'user'
         expect(relay.read('character', 'chat').streaming).toBe(false)
         native.message[1].role = 'char'; cancelled = true
         expect(relay.read('character', 'chat')).toEqual({ active: false })
         cancelled = false; native.id = 'replaced'
         expect(relay.read('character', 'chat')).toEqual({ active: false })
+    })
+    it('distinguishes pre-answer control from a completed nonstream answer without relaying either body', () => {
+        const native = { id: 'chat', isStreaming: false, message: [{ role: 'user', data: 'private input' }] } as any
+        const relay = createBgStreamPreview(); const close = relay.begin(identity, () => native)
+        expect(relay.read('character', 'chat')).toEqual({ active: true, streaming: false, operationId: 'operation-one', answerReady: false })
+        native.message.push({ role: 'char', chatId: 'finished-row', data: 'finished private answer' })
+        expect(relay.read('character', 'chat')).toEqual({ active: true, streaming: false, operationId: 'operation-one', answerReady: true })
+        close(); expect(relay.read('character', 'chat')).toEqual({ active: false })
     })
     it('withholds oversized UTF8 data without changing the generated answer, then recovers', () => {
         const native = chat(), relay = createBgStreamPreview(); relay.begin(identity, () => native)

@@ -14,7 +14,7 @@ module.exports = prior => {
     }
     for (const file of ['server/node/bgStreamPreview.cjs', 'server/node/bgStreamPreview.test.ts',
         'src/ts/bgStreamPreview.ts', 'src/ts/bgStreamPreview.test.ts',
-        'src/lib/ChatScreens/ServerStreamPreview.svelte']) {
+        'src/lib/ChatScreens/ServerStreamPreview.svelte', 'src/lib/ChatScreens/ServerStreamPreview.test.ts']) {
         units.push({ id: prefix + file, file, type: 'owned', targetVersions,
             content: fs.readFileSync(path.join(__dirname, 'files-1.10', file), 'utf8') })
     }

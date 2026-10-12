@@ -1,11 +1,48 @@
 import { describe, expect, it, vi } from 'vitest'
-import { acceptStreamPreview, closePreviewThoughts, createStreamPreviewObserver, STREAM_PREVIEW_MAX_BYTES } from './bgStreamPreview'
+import { acceptStreamPreview, acceptActiveStreamOperation, closePreviewThoughts, createStreamPreviewObserver, STREAM_PREVIEW_MAX_BYTES } from './bgStreamPreview'
 const snapshot = (text = 'answer', revision = 1) => ({ active: true, streaming: true,
     operationId: 'op', rowChatId: 'actual-row', revision, text, oversized: false })
 const deferred = <T>() => { let resolve!: (value: T) => void; const promise = new Promise<T>(r => { resolve = r }); return { promise, resolve } }
 const flush = async () => { for (let n = 0; n < 8; n++) await Promise.resolve() }
 
 describe('stream display observation', () => {
+    it('validates current-operation metadata independently from formatted preview availability', () => {
+        expect(acceptActiveStreamOperation({ active: false })).toBeNull()
+        expect(acceptActiveStreamOperation({ active: true, streaming: false, operationId: 'A', answerReady: false })).toBe('A')
+        expect(acceptActiveStreamOperation({ active: true, streaming: false, operationId: 'A', answerReady: true })).toBeNull()
+        expect(acceptActiveStreamOperation(snapshot())).toBe(acceptStreamPreview(snapshot(), null)!.operationId)
+        for (const body of [{ active: true, streaming: false, answerReady: false },
+            { active: true, streaming: false, operationId: '', answerReady: false },
+            { active: true, streaming: false, operationId: 'A' },
+            { active: true, operationId: 'A', answerReady: false }]) {
+            expect(() => acceptActiveStreamOperation(body)).toThrow()
+        }
+    })
+    it('publishes active control through analysis, streaming, completion and successor without rendering analysis', async () => {
+        const operations: (string | null)[] = [], views: any[] = [], tasks: (() => void)[] = []
+        const read = vi.fn().mockResolvedValueOnce({ active: true, streaming: false, operationId: 'A', answerReady: false })
+            .mockResolvedValueOnce({ ...snapshot(), operationId: 'A' }).mockResolvedValueOnce({ active: false })
+            .mockResolvedValueOnce({ active: true, streaming: false, operationId: 'B', answerReady: false })
+        const render = vi.fn(async (row: any) => row.text)
+        const observer = createStreamPreviewObserver({ read, render, publish: value => views.push(value),
+            publishOperation: value => operations.push(value), visible: () => true,
+            schedule: task => { tasks.push(task); return 1 as any }, unschedule: () => {} })
+        observer.wake(); await flush()
+        for (let n = 0; n < 3; n++) { tasks.shift()!(); await flush() }
+        expect(operations).toEqual(['A', 'A', null, 'B']); expect(render).toHaveBeenCalledTimes(1)
+        observer.dispose(); expect(operations.at(-1)).toBeNull()
+    })
+    it('clears control on failed reads and pause and rejects old control after an ignored abort', async () => {
+        const late = deferred<unknown>(), controls: (string | null)[] = [], tasks: (() => void)[] = []
+        const read = vi.fn().mockResolvedValueOnce({ active: true, streaming: false, operationId: 'A', answerReady: false })
+            .mockRejectedValueOnce(Error('offline')).mockImplementationOnce(() => late.promise)
+        const observer = createStreamPreviewObserver({ read, render: async row => row.text, publish: () => {},
+            publishOperation: value => controls.push(value), visible: () => true,
+            schedule: task => { tasks.push(task); return 1 as any }, unschedule: () => {} })
+        observer.wake(); await flush(); tasks.shift()!(); await flush(); expect(controls).toEqual(['A', null])
+        tasks.shift()!(); observer.pause(); late.resolve({ active: true, streaming: false, operationId: 'old', answerReady: false })
+        await flush(); expect(controls).toEqual(['A', null, null]); observer.dispose(); expect(controls.at(-1)).toBeNull()
+    })
     it('orders by revision, accepts shrinking text and never invents unchanged text', () => {
         const first = acceptStreamPreview(snapshot('long answer'), null)!
         const next = acceptStreamPreview(snapshot('a', 2), first)!

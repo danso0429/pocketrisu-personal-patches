@@ -28,7 +28,8 @@ function createBgStreamPreview() {
         if (chat.isStreaming !== true || message?.role !== 'char'
             || !validId(message.chatId) || typeof message.data !== 'string') {
             owner.snapshot = null
-            return { active: true, streaming: false, operationId: owner.operationId }
+            return { active: true, streaming: false, operationId: owner.operationId,
+                answerReady: message?.role === 'char' }
         }
         const oversized = Buffer.byteLength(message.data, 'utf8') > STREAM_PREVIEW_MAX_BYTES
         const text = oversized ? '' : message.data

@@ -14,6 +14,19 @@ export interface StreamPreview {
     oversized: boolean
 }
 
+// Control authority comes from the current full-run owner, never from a queued
+// input or a provisional message. An available nonstream answer is too late.
+export function acceptActiveStreamOperation(body: any): string | null {
+    if (body?.active === false) return null
+    if (body?.active !== true || !validId(body.operationId)
+        || typeof body.streaming !== 'boolean') throw new Error('Invalid stream operation')
+    if (!body.streaming) {
+        if (typeof body.answerReady !== 'boolean') throw new Error('Unknown stream operation phase')
+        if (body.answerReady) return null
+    }
+    return body.operationId
+}
+
 export function acceptStreamPreview(body: any, previous: StreamPreview | null): StreamPreview | null {
     if (body?.active === false || (body?.active === true && body?.streaming === false)) return null
     if (body?.active !== true || body?.streaming !== true || !validId(body.operationId)
@@ -61,6 +74,7 @@ export interface StreamPreviewObserverDependencies {
     read(previous: StreamPreview | null, signal: AbortSignal): Promise<unknown>
     render(preview: StreamPreview): Promise<string>
     publish(value: { preview: StreamPreview; html: string } | null): void
+    publishOperation?(operationId: string | null): void
     visible(): boolean
     schedule?(task: () => void, delay: number): ReturnType<typeof setTimeout> | number
     unschedule?(timer: ReturnType<typeof setTimeout> | number): void
@@ -88,6 +102,7 @@ export function createStreamPreviewObserver(deps: StreamPreviewObserverDependenc
             const body: any = await deps.read(previous, controller.signal)
             if (!current()) return
             const next = acceptStreamPreview(body, previous)
+            deps.publishOperation?.(acceptActiveStreamOperation(body))
             active = body?.active === true
             if (!next) { previous = null; deps.publish(null) }
             else if (next !== previous) {
@@ -97,7 +112,7 @@ export function createStreamPreviewObserver(deps: StreamPreviewObserverDependenc
                 deps.publish({ preview: next, html })
             }
         } catch {
-            if (current()) { previous = null; deps.publish(null) }
+            if (current()) { previous = null; deps.publish(null); deps.publishOperation?.(null) }
         } finally {
             inFlight = false; controller = null
             if (!disposed && deps.visible()) {
@@ -107,7 +122,7 @@ export function createStreamPreviewObserver(deps: StreamPreviewObserverDependenc
         }
     }
     const pause = () => {
-        epoch++; clearTimer(); controller?.abort(); previous = null; deps.publish(null)
+        epoch++; clearTimer(); controller?.abort(); previous = null; deps.publish(null); deps.publishOperation?.(null)
     }
     return {
         wake: () => { void refresh() },
