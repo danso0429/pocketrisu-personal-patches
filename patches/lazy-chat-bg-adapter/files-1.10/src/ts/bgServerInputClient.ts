@@ -39,6 +39,7 @@ export interface ServerInputClientDependencies {
     start: (body: Record<string, unknown>, signal: AbortSignal) => Promise<HttpOutcome>
     status: (operationId: string, signal: AbortSignal) => Promise<HttpOutcome>
     settleFinishedInput?: (operationId: string) => Promise<boolean>
+    settleCancelledInput?: (operationId: string) => Promise<boolean>
     newId: () => string
     isCurrent: () => boolean
     now?: () => number
@@ -145,6 +146,10 @@ export async function submitServerInputCommand(
             return { kind: 'blocked', reason: 'prior-operation-unknown' }
         }
         const body = outcome.body as { state?: unknown; blockedByOperationId?: unknown }
+        if (body.state === 'input-cancelled' && deps.settleCancelledInput) {
+            try { if (await deps.settleCancelledInput(marker.operationId)) continue }
+            catch { return { kind: 'blocked', reason: 'prior-operation-unavailable' } }
+        }
         if (body.state === 'input-failed'
             && deps.settleFinishedInput) {
             try { if (await deps.settleFinishedInput(marker.operationId)) continue }

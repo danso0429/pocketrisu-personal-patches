@@ -4071,6 +4071,7 @@ module.exports.units.push(...require('./statistics-preflight-units.cjs')(module.
 module.exports.units.push(...require('./publication-write-units.cjs')(module.exports.units))
 module.exports.units.push(...require('./native-stream-units.cjs')(module.exports.units))
 module.exports.units.push(...require('./settings-save-retry-units.cjs')(module.exports.units))
+module.exports.units.push(...require('./cancelled-input-units.cjs')(module.exports.units))
 module.exports.units.push({
     id: 'lazy-chat-bg-adapter:owned:publication-write-client-tests:1.10',
     file: 'src/ts/storage/nodeStorage.publicationWrite.test.ts', type: 'owned',

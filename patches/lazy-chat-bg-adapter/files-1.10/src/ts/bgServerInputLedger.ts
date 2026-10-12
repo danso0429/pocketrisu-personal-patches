@@ -150,6 +150,18 @@ export function updateServerInputMarker(
     return true
 }
 
+// Exact lookup has no pruning/migration side effects on other operations.
+export function readServerInputMarker(storage: MarkerStorage, operationId: string): ServerInputMarker | null {
+    for (const prefix of [SERVER_INPUT_MARKER_PREFIX, ...LEGACY_SERVER_INPUT_MARKER_PREFIXES]) {
+        const raw = storage.getItem(prefix + operationId)
+        if (raw === null) continue
+        let value: unknown
+        try { value = JSON.parse(raw) } catch { return null }
+        return validMarker(value) && value.operationId === operationId ? value : null
+    }
+    return null
+}
+
 export function clearServerInputMarker(storage: MarkerStorage, operationId: string): void {
     storage.removeItem(markerKey(operationId))
     for (const prefix of LEGACY_SERVER_INPUT_MARKER_PREFIXES) storage.removeItem(prefix + operationId)

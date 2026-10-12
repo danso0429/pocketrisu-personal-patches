@@ -488,6 +488,30 @@ function createServerChatInputOwner({
         return matches.length === 1;
     }
 
+    function readCancelledInputProof(operationId) {
+        const record = read(operationId);
+        if (!record || record.inputState !== 'cancelled') return null;
+        const chat = currentChat(record.admission.charId, record.admission.chatId);
+        if (!Array.isArray(chat?.message)) return null;
+        const matches = chat.message.filter(message => message?.chatId === record.admission.userMessageId);
+        const attached = record.transformState === 'completed'
+            && !!(record.inputReceipt?.receiptId || record.inputReceiptId)
+            && !!record.executionBaseRevision && matches.length === 1 && containsOwnedInput(record, chat);
+        const untouched = record.transformState === 'not_run' && !record.inputReceipt && !record.inputReceiptId
+            && record.admission.inputPreparation !== 'client' && matches.length === 0;
+        if (!attached && !untouched) return null;
+        return {
+            contractVersion: 'bg_cancelled_input_proof.v1', operationId,
+            charId: record.admission.charId, chatId: record.admission.chatId,
+            attachment: attached ? 'attached' : 'none',
+            inputReceiptId: attached ? (record.inputReceipt?.receiptId || record.inputReceiptId) : null,
+            userMessageId: record.admission.userMessageId,
+            attachedRevision: attached ? record.executionBaseRevision : null,
+            currentRevision: chatRevision(chat),
+            allowEditedInput: attached && record.attachmentPolicy === 'latest-v1',
+        };
+    }
+
     function readFailedInputProof(operationId) {
         const record = read(operationId);
         if (!record || record.inputState !== 'failed' || record.transformState !== 'completed'
@@ -1943,6 +1967,7 @@ function createServerChatInputOwner({
         interruptClientPreparation,
         pendingProjection,
         readFailedInputProof,
+        readCancelledInputProof,
         readFailedInputAcknowledgement,
         acknowledgeFailedInputSynchronously,
         invalidateFailedInputSettlementSynchronously,

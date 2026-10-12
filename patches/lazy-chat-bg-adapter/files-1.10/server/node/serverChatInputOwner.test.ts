@@ -179,6 +179,32 @@ function makeHarness() {
 }
 
 describe('pre-canonical server chat input owner', () => {
+    it('provides read-only proof only for a cancelled input still present in canonical storage', async () => {
+        const h = makeHarness(), owner = h.makeOwner(), id = 'cancelled-input-proof'
+        await owner.admit(admission(id))
+        expect(owner.readCancelledInputProof(id)).toBeNull()
+        await owner.beginTransform(id)
+        await owner.attachTransformed(id, h.transformed(id))
+        expect(owner.settleSynchronously(id, 'cancelled')).toBe(true)
+        const before = h.kvGet(commandKey(id))
+        const proof = owner.readCancelledInputProof(id)
+        expect(proof).toMatchObject({ contractVersion: 'bg_cancelled_input_proof.v1', operationId: id,
+            charId: 'char-1', chatId: 'chat-1', attachment: 'attached', userMessageId: 'user-' + id })
+        expect(h.kvGet(commandKey(id))).toEqual(before)
+        h.runtime.fullStore.get('char-1')!.set('chat-1', baseChat())
+        expect(owner.readCancelledInputProof(id)).toBeNull()
+    })
+    it('distinguishes never-started cancellation from a running or unknown input transform', async () => {
+        for (const started of [false, true]) {
+            const h = makeHarness(), owner = h.makeOwner(), id = started ? 'cancel-running-transform' : 'cancel-unstarted-input'
+            await owner.admit(admission(id))
+            if (started) await owner.beginTransform(id)
+            expect(owner.settleSynchronously(id, 'cancelled')).toBe(true)
+            if (started) expect(owner.readCancelledInputProof(id)).toBeNull()
+            else expect(owner.readCancelledInputProof(id)).toMatchObject({ attachment: 'none', inputReceiptId: null,
+                attachedRevision: null, allowEditedInput: false })
+        }
+    })
     async function failedAcknowledgementHarness() {
         const h = makeHarness(), owner = h.makeOwner(), id = 'operation-owned-failed-ack'
         await owner.admit(admission(id)); await owner.beginTransform(id)
