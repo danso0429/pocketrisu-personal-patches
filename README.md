@@ -4,11 +4,11 @@ Personal, all-or-nothing patch delivery for PocketRisu NodeOnly. The current
 stable release is `v0.2.3`, and its complete manifest graph targets exact
 PocketRisu `v1.10.0`.
 
-The `0.2.4-experimental.39` candidate supports the unchanged original PageFold
+The `0.2.4-experimental.40` candidate supports the unchanged original PageFold
 provider's default font/emoji cache and statistics in the isolated host. Bounded
 local string transport, allocation/progress ownership and separate API budgets
 retain ordinary limits; caught local CAS refusals retain competing data and valid
-answers after a mandatory warning. BG adapter0.7.46 / Lazy sync0.5.8 / Personal settings0.5.14;
+answers after a mandatory warning. BG adapter0.7.47 / Lazy sync0.5.8 / Personal settings0.5.14;
 production remains hostOFF. See [M7 qualification](docs/POCKETRISU-G1-7-M7-QUALIFICATION-VALIDATION.md)
 for original-provider12, actual raw/prepared/admission and failure evidence,
 operational composition, support/activation conditions and remaining goal gates.
@@ -22,6 +22,15 @@ new-journal retirement after49h and durable v3 failure/interruption/edit/effect 
 Legacy journal bytes remain protected. Actual providers, physical-device/aggregate
 qualification and live activation remain separate. Stable
 remains `v0.2.3`.
+
+[G1.9 stream relay](docs/POCKETRISU-G1-9-STREAM-RELAY-PLAN.md) adds a transient
+formatted preview of server-owned streaming answers. Observation never saves a
+provisional message, claims or acknowledges a result, or cancels generation.
+Markdown/HTML/style sanitization and thought folding use the native parser;
+card/module editdisplay regex, Lua/plugin hooks and automatic translation run
+only through the completed message's existing display path. A display-only
+256KiB UTF8 limit withholds oversized previews while retaining the exact full
+answer. G1.9 device results and whole-G1 activation/stable remain separate gates.
 
 The .36 repair closes ordinary retained-input failures through canonical input
 identity and an exact no-answer result ACK. A versioned receipt survives lost ACK

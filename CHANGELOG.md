@@ -1,5 +1,14 @@
 # Changelog
 
+## 0.2.4-experimental.40 (G1.9 server-owned stream preview)
+
+- Display the native server bundle's currently streaming answer through an authenticated, read-only, no-store endpoint. Keep only one locked active reader and a bounded latest display snapshot; omit unchanged text and release before another run takes the lock.
+- Show a transient formatted answer without adding a client message, autosave entry, result claim or ACK. Preserve native Markdown/HTML/style sanitization and fold incomplete thought blocks only for display. Card/module editdisplay regex, Lua, plugin hooks and automatic translation are intentionally not run in the preview; the completed message retains its existing display behavior.
+- Keep observation teardown separate from generation cancellation. Navigation/hidden pages discard late reads and renders, while canonical commit and recovery remain the sole answer owners. Nonstream replies and input/aux streams do not create answer previews. Oversized preview bodies are withheld without truncating the generated answer.
+- Provide an explicit operation-scoped Stop for the observed raw server stream. Settle accepted cancelled input only through fresh canonical ownership or proven untouched-input evidence; synchronize a saved unchanged base and peer markers before clearing exact current/legacy protocol aliases. Durable raw data and unknown/deleted input protection remain.
+- Repair the native Node display frame and OpenAI pipe promise failures. Preserve original readable/partial outcomes and async-local context instead of suppressing failure or terminating the server. Retry only a known persistence retry before input admission, within the existing shared save boundary; do not replay providers/plugins or relax unknown/manual/publication refusal.
+- Qualification, delivery and device evidence are recorded in the G1.9 plan and validation document. Host activation, actual paid-provider/MARP combinations, aggregate G1.10 and stable release remain separate gates.
+
 ## 0.2.4-experimental.39 (settle committed inputs after admission uncertainty)
 
 - Transfer an expired uncertain client marker to the existing accepted-marker recovery owner only after exact committed status/receipt/coordinate proof. Preserve original revisions, current-target checks, strict save and result ACK; retain active or unproven input protection.

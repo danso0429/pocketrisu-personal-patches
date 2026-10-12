@@ -25,7 +25,7 @@ const queueUnits = require('./queue-units.cjs')
 module.exports = {
     id: 'lazy-chat-bg-adapter',
     title: 'BG preserve integration for lazy chat storage',
-    version: '0.7.46',
+    version: '0.7.47',
     targets: {
         pocketrisu: {
             verified: ['1.10.0'],
@@ -4072,6 +4072,7 @@ module.exports.units.push(...require('./publication-write-units.cjs')(module.exp
 module.exports.units.push(...require('./native-stream-units.cjs')(module.exports.units))
 module.exports.units.push(...require('./settings-save-retry-units.cjs')(module.exports.units))
 module.exports.units.push(...require('./cancelled-input-units.cjs')(module.exports.units))
+module.exports.units.push(...require('./stream-preview-units.cjs')(module.exports.units))
 module.exports.units.push({
     id: 'lazy-chat-bg-adapter:owned:publication-write-client-tests:1.10',
     file: 'src/ts/storage/nodeStorage.publicationWrite.test.ts', type: 'owned',

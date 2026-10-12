@@ -22,6 +22,10 @@ const modelMode = option('mode') || 'model'
 if (!['openai-compatible', 'anthropic-messages', 'google-gemini'].includes(adapter)) throw new Error('Unknown adapter')
 const moduleBinding = process.argv.includes('--module')
 const streaming = process.argv.includes('--stream')
+const lateStreamFailure = process.argv.includes('--late-stream-failure')
+const lateStreamLatch = process.argv.includes('--late-stream-latch')
+if ((lateStreamFailure || lateStreamLatch) && (!streaming || !luaLLM)) throw Error('Late stream probes require Lua LLM streaming')
+let injectedLateStream = false
 const endpointOverride = process.argv.includes('--endpoint-override')
 const classic = option('classic')
 const unsupported = option('unsupported')
@@ -107,8 +111,22 @@ async function syntheticFetch(input, init = {}) {
       { choices: [{ delta: { content: 'synthetic input result' } }] },
       { choices: [{ delta: {}, finish_reason: 'stop' }] },
     ]
-    return new Response(frames.map(frame => (frame.type ? `event: ${frame.type}\n` : '')
-      + `data: ${JSON.stringify(frame)}\n\n`).join(''), { headers: { 'Content-Type': 'text/event-stream' } })
+    const wireFrames = frames.map(frame => (frame.type ? `event: ${frame.type}\n` : '')
+      + `data: ${JSON.stringify(frame)}\n\n`)
+    if ((lateStreamFailure || lateStreamLatch) && !injectedLateStream) {
+      injectedLateStream = true
+      const inputScope = globalThis.__bgGetServerInputExecution?.()
+      let sent = false
+      return new Response(new ReadableStream({ pull(controller) {
+        if (!sent) { sent = true; controller.enqueue(new TextEncoder().encode(wireFrames[0])); return }
+        let failure = Error('synthetic late stream failure')
+        if (lateStreamLatch) {
+          try { inputScope.reject('synthetic_late_stream_api') } catch (error) { failure = error }
+        }
+        controller.error(failure)
+      } }, { highWaterMark: 0 }), { headers: { 'Content-Type': 'text/event-stream' } })
+    }
+    return new Response(wireFrames.join(''), { headers: { 'Content-Type': 'text/event-stream' } })
   }
   if (adapter === 'anthropic-messages') return Response.json({
     id: 'synthetic-response', type: 'message', role: 'assistant',
@@ -292,7 +310,7 @@ try {
   console.log(JSON.stringify({ admission, adapter, modelMode, moduleBinding, streaming, endpointOverride, classic, vertex, credentialSource, serverShim, localHttp,
     tokenCalls: tokenCalls.length, calls, resultVariables: result.chat.scriptstate, input: result.chat.message.at(-1).data }))
   ok = lua && !luaLLM ? calls.length === 0 && result?.chat?.scriptstate?.$nativeResult === 'lua-input-result'
-    : calls.length === 1 && result?.chat?.scriptstate?.$nativeResult === (process.argv.includes('--provider-error') ? 'null' : 'synthetic input result')
+    : calls.length === 1 && result?.chat?.scriptstate?.$nativeResult === (process.argv.includes('--provider-error') || lateStreamFailure ? 'null' : 'synthetic input result')
   if (similarity) ok = calls.length === 2 && result.chat.scriptstate.$nativeResult === 'alpha§beta'
     && calls.every(call => call.url === db.hypaCustomSettings.url + '/embeddings'
       && call.model === 'synthetic-embedding' && call.headers.authorization === 'Bearer synthetic-key')
@@ -317,10 +335,31 @@ try {
       && (adapter === 'google-gemini' || calls[0]?.model === 'synthetic-model')
     if (vertex) ok = ok && tokenCalls.length === 1
   }
+  if (lateStreamFailure) {
+    const nextChat = { ...structuredClone(chat), message: [], scriptstate: {} }
+    character.chats[0] = nextChat
+    const healthy = await transformer.transformServerChatInput(character, nextChat,
+      { rawText: 'healthy input', userMessageId: 'healthy-input', submittedAt: 124 },
+      bg.triggers, bg.scripts, value => { character.chats[0] = value })
+    ok = ok && healthy.scriptstate.$nativeResult === 'synthetic input result' && calls.length === 2
+    console.log(JSON.stringify({ lateStreamFailure: true, nextHealthy: ok, calls: calls.length }))
+  }
 } catch (error) {
   console.log(JSON.stringify({ probeError: error?.name, message: error?.message, code: error?.code, api: error?.api, calls: calls.length }))
   ok = !!unsupported && error?.code === 'BG_INPUT_HOST_UNSUPPORTED' && error?.api === unsupported
     && calls.length === 0 && !character.chats[0].message.some(message => message.chatId === 'synthetic-input')
+  if (lateStreamLatch) {
+    ok = error?.code === 'BG_INPUT_HOST_UNSUPPORTED' && error?.api === 'synthetic_late_stream_api'
+      && calls.length === 1 && !character.chats[0].message.some(message => message.chatId === 'synthetic-input')
+    const nextChat = { ...structuredClone(chat), message: [], scriptstate: {} }
+    character.chats[0] = nextChat
+    const transformer = createRequire(path.join(root, 'package.json'))('./server/node/serverChatInputTransform.cjs')
+    const healthy = await transformer.transformServerChatInput(character, nextChat,
+      { rawText: 'healthy input', userMessageId: 'healthy-input', submittedAt: 124 },
+      bg.triggers, bg.scripts, value => { character.chats[0] = value })
+    ok = ok && healthy.scriptstate.$nativeResult === 'synthetic input result' && calls.length === 2
+    console.log(JSON.stringify({ lateStreamLatch: true, nextHealthy: ok, calls: calls.length }))
+  }
 } finally {
   if (localServer) await new Promise(resolve => { localServer.close(resolve); localServer.closeAllConnections() })
   process.exit(ok ? 0 : 2)
