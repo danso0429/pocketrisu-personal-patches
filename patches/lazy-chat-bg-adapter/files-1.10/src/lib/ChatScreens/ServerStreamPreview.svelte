@@ -37,8 +37,8 @@
     // Reuse the existing upper request-status surface. This placeholder is
     // memory-only and never represents a completed result or paid effect.
     $effect(() => {
-        const operation = controlledOperation, selectedChat = chatId
-        if (!operation || DBState.db.showRequestStatus === false) return
+        const operation = controlledOperation, selectedChat = chatId, preview = displayed
+        if (!operation || preview || DBState.db.showRequestStatus === false) return
         let id: string | null = null
         const startedAt = Date.now()
         const unsubscribe = untrack(() => requestStatuses.subscribe(entries => {

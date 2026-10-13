@@ -27,8 +27,8 @@ Server preparation and nonstream waits use the existing upper request-status
 surface, with no separate composer status box or text Stop. The ordinary composer
 circle stops the observed server operation; raw queue drafts retain their Send
 action. Explicit text Stop appears only with an actual stream preview. Waiting
-status respects its display setting, yields to native request progress and clears
-with observation without saving an answer or cancelling generation. Late
+status respects its display setting, yields to native request progress and the
+actual stream preview, and clears with observation without saving an answer or cancelling generation. Late
 cancellation replies preserve the next operation's control. Synthetic original-MARP
 queue/edit, cancellation and cold-return probes remain separate from actual
 provider, physical-device, host activation and aggregate qualification gates.

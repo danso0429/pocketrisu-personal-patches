@@ -117,6 +117,15 @@ describe('current server operation control', () => {
         observer.publishOperation!(null)
         await vi.waitFor(() => expect(get(requestStatuses).size).toBe(0))
     })
+    it('replaces the waiting toast with the actual streaming preview and its stream-only Stop', async () => {
+        const { target, observer } = await render()
+        observer.publishOperation!('A')
+        await vi.waitFor(() => expect([...get(requestStatuses).values()].some(entry => entry.label === '서버 처리 중')).toBe(true))
+        observer.publish({ preview: { operationId: 'A', rowChatId: 'row-A', revision: 1, text: 'partial', oversized: false }, html: 'partial' })
+        await vi.waitFor(() => expect([...get(requestStatuses).values()].some(entry => entry.label === '서버 처리 중')).toBe(false))
+        expect(target.querySelector('[data-bg-stream-preview] .chattext')?.textContent).toBe('partial')
+        expect(target.querySelector('[data-bg-stream-preview] button')?.textContent).toContain('생성 중지')
+    })
     it('honors disabled request status while retaining the ordinary cancellation API', async () => {
         DBState.db.showRequestStatus = false
         vi.mocked(cancelObservedServerOperation).mockResolvedValue('cancelled')
