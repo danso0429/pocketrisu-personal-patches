@@ -32,7 +32,7 @@ module.exports = prior => {
         "            phase: init.phase ?? 'connecting',\n            phaseLabel: init.phaseLabel,")
     add('status-render-title', 'src/lib/UI/GUI/RequestStatusToast.svelte',
         '{PHASE_LABEL[entry.phase]}',
-        "{entry.phase === 'background' ? (entry.phaseLabel ?? PHASE_LABEL[entry.phase]) : PHASE_LABEL[entry.phase]}")
+        "{entry.relayed && entry.phase === 'connecting' ? '서버 처리 중' : entry.phase === 'background' ? (entry.phaseLabel ?? PHASE_LABEL[entry.phase]) : PHASE_LABEL[entry.phase]}")
     const server = 'server/node/bgOrchestrator.cjs'
     add('late-stop-retain', server,
         "      if (durable && (durable.state === 'delivered' || durable.state === 'result-ready')) {",

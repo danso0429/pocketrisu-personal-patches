@@ -12,7 +12,6 @@
     } = $props()
 
     let pending = $state<ServerPendingInput[]>([])
-    let unavailable = $state(false)
     let retryingId = $state('')
 
     async function retry(input: ServerPendingInput) {
@@ -54,7 +53,6 @@
         report?.({ charId: currentCharId, chatId: currentChatId, busy: null })
         if (!currentCharId || !currentChatId || !currentChat) {
             pending = []
-            unavailable = false
             return
         }
         let disposed = false
@@ -71,12 +69,10 @@
                 ])
                 if (!disposed) {
                     pending = result
-                    unavailable = false
                     report?.({ charId: currentCharId, chatId: currentChatId, busy })
                 }
             } catch {
                 if (!disposed) {
-                    unavailable = true
                     report?.({ charId: currentCharId, chatId: currentChatId, busy: null })
                 }
             } finally {
@@ -110,7 +106,7 @@
     })
 </script>
 
-{#if pending.length > 0 || unavailable}
+{#if pending.length > 0}
     <div class="mb-1 rounded-xl border border-darkborderc px-3 py-2 text-xs text-textcolor2" aria-live="polite">
         {#each pending as input (input.operationId)}
             <div>
@@ -134,8 +130,5 @@
                 {/if}
             </div>
         {/each}
-        {#if unavailable}
-            <div>서버 입력 상태를 확인할 수 없음</div>
-        {/if}
     </div>
 {/if}

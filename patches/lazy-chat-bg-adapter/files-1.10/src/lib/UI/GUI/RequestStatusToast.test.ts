@@ -2,7 +2,7 @@
 import { afterEach, expect, it } from 'vitest'
 import { flushSync, mount, unmount } from 'svelte'
 import { language } from 'src/lang'
-import { requestStatuses, startStatus, markPhase } from 'src/ts/status/requestStatus'
+import { requestStatuses, startStatus, markPhase, ingestRelayedStatuses } from 'src/ts/status/requestStatus'
 import RequestStatusToast from './RequestStatusToast.svelte'
 
 const mounted: Array<{ component: object; target: HTMLElement }> = []
@@ -41,4 +41,29 @@ it('uses the normal phase title after a background presentation changes phase', 
     markPhase('phase', 'responding', Date.now())
     flushSync()
     expect(target.querySelector('.rs-phase')?.textContent).toBe(language.requestStatus?.responding ?? 'Responding…')
+})
+it('renders a real relayed waiting entry as server processing and preserves model and progress detail', () => {
+    const entry = { id: 'relay', kind: 'main' as const, label: 'Preset', chatId: 'chat',
+        phase: 'connecting' as const, startedAt: Date.now(), badges: [{ key: 'pagefold', text: 'PDF 1' }] }
+    ingestRelayedStatuses([entry])
+    const target = render('relay')
+    expect(target.querySelector('.rs-phase')?.textContent).toBe('서버 처리 중')
+    expect(target.querySelector('.rs-detail')?.textContent).toBe('Preset')
+    expect(target.querySelector('.rs-row1')?.textContent).toContain('PDF 1')
+    ingestRelayedStatuses([{ ...entry, phase: 'responding' }])
+    flushSync()
+    expect(target.querySelector('.rs-phase')?.textContent).toBe(language.requestStatus?.responding ?? 'Responding…')
+    ingestRelayedStatuses([{ ...entry, phase: 'retrying', retryAttempt: 2 }])
+    flushSync()
+    expect(target.querySelector('.rs-phase')?.textContent).toBe(language.requestStatus?.retrying ?? 'Retrying…')
+    expect(target.querySelector('.rs-retry')?.textContent).toBe('#2')
+})
+it('labels server-relayed auxiliary waits without changing the local native request title', () => {
+    ingestRelayedStatuses([{ id: 'aux', kind: 'memory', label: 'Memory model', phase: 'connecting', startedAt: Date.now() }])
+    const relayed = render('aux')
+    expect(relayed.querySelector('.rs-phase')?.textContent).toBe('서버 처리 중')
+    expect(relayed.querySelector('.rs-detail')?.textContent).toBe('Memory model')
+    startStatus('local', { kind: 'main', label: 'Local model', phase: 'connecting', now: Date.now() })
+    const local = render('local')
+    expect(local.querySelector('.rs-phase')?.textContent).toBe(language.requestStatus?.connecting ?? 'Connecting…')
 })

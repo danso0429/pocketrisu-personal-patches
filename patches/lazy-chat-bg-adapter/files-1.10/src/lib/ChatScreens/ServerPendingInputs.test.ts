@@ -40,10 +40,37 @@ describe('blocked server input recovery control', () => {
         vi.mocked(reconcileServerPendingInputCommands).mockResolvedValue([])
         vi.mocked(readServerChatActivity).mockResolvedValueOnce(true).mockRejectedValueOnce(new Error('offline'))
         const onActivity = vi.fn()
-        render(vi.fn(async () => {}), onActivity)
+        const target = render(vi.fn(async () => {}), onActivity)
         await vi.waitFor(() => expect(onActivity).toHaveBeenLastCalledWith({ charId: 'char-1', chatId: 'chat-1', busy: true }))
         window.dispatchEvent(new Event('bg-server-input-updated'))
         await vi.waitFor(() => expect(onActivity).toHaveBeenLastCalledWith({ charId: 'char-1', chatId: 'chat-1', busy: null }))
+        expect(target.textContent).not.toContain('서버 입력 상태를 확인할 수 없음')
+        expect(target.querySelector('[aria-live]')).toBeNull()
+    })
+    it('shows no status-only card when the initial read fails but retains unknown activity', async () => {
+        vi.mocked(reconcileServerPendingInputCommands).mockRejectedValue(new Error('offline'))
+        const onActivity = vi.fn()
+        const target = render(vi.fn(async () => {}), onActivity)
+        await vi.waitFor(() => expect(onActivity).toHaveBeenCalledTimes(2))
+        expect(onActivity).toHaveBeenLastCalledWith({ charId: 'char-1', chatId: 'chat-1', busy: null })
+        expect(target.querySelector('[aria-live]')).toBeNull()
+        expect(target.textContent).not.toContain('서버 입력 상태를 확인할 수 없음')
+    })
+    it('retains a blocked input and its explicit retry control when the next read fails', async () => {
+        const blocked = { operationId: 'blocked', admissionSeq: 1, state: 'blocked_edit' as const,
+            retryAllowed: true, rawText: 'retained input', inputCommandId: 'draft' }
+        vi.mocked(reconcileServerPendingInputCommands).mockResolvedValueOnce([blocked]).mockRejectedValueOnce(new Error('offline'))
+        vi.mocked(readServerChatActivity).mockResolvedValue(false)
+        const retry = vi.fn(async () => {})
+        const onActivity = vi.fn()
+        const target = render(retry, onActivity)
+        await vi.waitFor(() => expect(target.textContent).toContain('retained input'))
+        window.dispatchEvent(new Event('bg-server-input-updated'))
+        await vi.waitFor(() => expect(onActivity).toHaveBeenLastCalledWith({ charId: 'char-1', chatId: 'chat-1', busy: null }))
+        expect(target.textContent).toContain('retained input')
+        expect(target.textContent).not.toContain('서버 입력 상태를 확인할 수 없음')
+        expect(target.querySelector('button')).not.toBeNull()
+        expect(retry).not.toHaveBeenCalled()
     })
     it('shows the exact blocked text and invokes only the explicit retry button', async () => {
         const blocked = {

@@ -4,11 +4,11 @@ Personal, all-or-nothing patch delivery for PocketRisu NodeOnly. The current
 stable release is `v0.2.3`, and its complete manifest graph targets exact
 PocketRisu `v1.10.0`.
 
-The `0.2.4-experimental.43` candidate supports the unchanged original PageFold
+The `0.2.4-experimental.44` candidate supports the unchanged original PageFold
 provider's default font/emoji cache and statistics in the isolated host. Bounded
 local string transport, allocation/progress ownership and separate API budgets
 retain ordinary limits; caught local CAS refusals retain competing data and valid
-answers after a mandatory warning. BG adapter0.7.50 / Lazy sync0.5.8 / Personal settings0.5.14;
+answers after a mandatory warning. BG adapter0.7.51 / Lazy sync0.5.8 / Personal settings0.5.14;
 production remains hostOFF. See [M7 qualification](docs/POCKETRISU-G1-7-M7-QUALIFICATION-VALIDATION.md)
 for original-provider12, actual raw/prepared/admission and failure evidence,
 operational composition, support/activation conditions and remaining goal gates.
@@ -25,8 +25,12 @@ remains `v0.2.3`.
 
 Server preparation and nonstream waits use the existing upper request-status
 surface with `서버 처리 중` as its primary title and no duplicate model detail,
-with no separate composer status box or text Stop. Ordinary background recovery
-and native model progress retain their existing titles. The ordinary composer
+with no separate composer status box or text Stop. Server-relayed connecting
+requests also use this primary title, retaining their actual model detail and
+kind chips. Local requests, ordinary recovery and later progress phases retain
+their existing titles. A transient pending-input read failure no longer renders
+a composer warning card; unknown activity remains fail-closed and real blocked
+inputs/recovery controls remain visible. The ordinary composer
 circle stops the observed server operation; raw queue drafts retain their Send
 action. Explicit text Stop appears only with an actual stream preview. Waiting
 status respects its display setting, yields to native request progress and the
@@ -34,6 +38,8 @@ actual stream preview, and clears with observation without saving an answer or c
 cancellation replies preserve the next operation's control. Synthetic original-MARP
 queue/edit, cancellation and cold-return probes remain separate from actual
 provider, physical-device, host activation and aggregate qualification gates.
+The current UI's physical streaming check is not recorded at the user's choice;
+automatic streaming evidence does not substitute for that device observation.
 
 [G1.9 stream relay](docs/POCKETRISU-G1-9-STREAM-RELAY-PLAN.md) adds a transient
 formatted preview of server-owned streaming answers. Observation never saves a

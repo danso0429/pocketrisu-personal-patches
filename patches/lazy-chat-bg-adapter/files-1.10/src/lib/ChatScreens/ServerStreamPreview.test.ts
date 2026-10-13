@@ -2,13 +2,15 @@
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { mount, unmount } from 'svelte'
 import ServerStreamPreview from './ServerStreamPreview.svelte'
+import RequestStatusToast from '../UI/GUI/RequestStatusToast.svelte'
 import { createStreamPreviewObserver, type StreamPreviewObserverDependencies } from 'src/ts/bgStreamPreview'
 import { cancelObservedServerOperation } from 'src/ts/bgOrchestrate'
 import { notifyWarning } from 'src/ts/alert'
 import { get } from 'svelte/store'
-import { requestStatuses, startStatus, clearStatus } from 'src/ts/status/requestStatus'
+import { requestStatuses, startStatus, clearStatus, ingestRelayedStatuses, clearRelayedStatuses } from 'src/ts/status/requestStatus'
 import { DBState } from 'src/ts/stores.svelte'
 vi.mock('src/ts/stores.svelte', () => ({ DBState: { db: { showRequestStatus: true } } }))
+vi.mock('src/lang', () => ({ language: { requestStatus: { connecting: '요청 중…', responding: '응답 중…' } } }))
 
 vi.mock('src/ts/bgStreamPreview', () => ({
     closePreviewThoughts: (text: string) => text,
@@ -38,6 +40,22 @@ function stream(observer: StreamPreviewObserverDependencies, operation = 'A') {
     observer.publish({ preview: { operationId: operation, rowChatId: 'row-' + operation, revision: 1, text: 'partial', oversized: false }, html: 'partial' })
 }
 describe('current server operation control', () => {
+    it('yields to one real relayed server-processing card and restores the generic wait when relay clears', async () => {
+        const { observer } = await render()
+        observer.publishOperation!('A')
+        await vi.waitFor(() => expect([...get(requestStatuses).values()].some(entry => entry.phaseLabel === '서버 처리 중')).toBe(true))
+        ingestRelayedStatuses([{ id: 'relay-main', chatId: 'chat', kind: 'main', label: 'Preset', phase: 'connecting', startedAt: Date.now() }])
+        await vi.waitFor(() => expect(get(requestStatuses).size).toBe(1))
+        expect(get(requestStatuses).get('relay-main')?.relayed).toBe(true)
+        const target = document.createElement('div'); document.body.appendChild(target)
+        const component = mount(RequestStatusToast, { target, props: { id: 'relay-main' } })
+        mounted.push({ component, target })
+        await vi.waitFor(() => expect(target.querySelector('.rs-phase')?.textContent).toBe('서버 처리 중'))
+        expect(target.querySelector('.rs-detail')?.textContent).toBe('Preset')
+        clearRelayedStatuses()
+        await vi.waitFor(() => expect([...get(requestStatuses).values()].some(entry => entry.phaseLabel === '서버 처리 중')).toBe(true))
+        expect(get(requestStatuses).size).toBe(1)
+    })
     it('retains an unconfirmed warning when observation clears during DELETE', async () => {
         let resolve!: (value: 'unconfirmed') => void
         vi.mocked(cancelObservedServerOperation).mockReturnValue(new Promise(done => { resolve = done }))

@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.2.4-experimental.44 (relayed waiting title and quiet status reads)
+
+- Use `서버 처리 중` for server-relayed connecting statuses as well as the generic waiting placeholder. Keep the real model detail, kind chips, PageFold badges and later progress phases; local request titles and ordinary background recovery remain unchanged.
+- Remove the transient composer-only unavailable-status message. Preserve unknown activity, conservative generation admission and existing blocked input/recovery controls when reads fail.
+- Exercise actual relayed cards and placeholder/native handoff, initial read failure and retained blocked input controls. The physical streaming check is not recorded at the user's choice; automatic stream regressions remain separate evidence.
+
 ## 0.2.4-experimental.43 (server waiting title)
 
 - Show `서버 처리 중` as the primary upper waiting-status title without a duplicate model detail. Preserve ordinary background recovery, native phase titles and PageFold badges through a local background presentation override.

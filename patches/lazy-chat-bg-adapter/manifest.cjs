@@ -25,7 +25,7 @@ const queueUnits = require('./queue-units.cjs')
 module.exports = {
     id: 'lazy-chat-bg-adapter',
     title: 'BG preserve integration for lazy chat storage',
-    version: '0.7.50',
+    version: '0.7.51',
     targets: {
         pocketrisu: {
             verified: ['1.10.0'],
