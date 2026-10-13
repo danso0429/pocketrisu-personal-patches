@@ -14,10 +14,25 @@ module.exports = prior => {
     }
     for (const file of ['server/node/bgStreamPreview.cjs', 'server/node/bgStreamPreview.test.ts',
         'src/ts/bgStreamPreview.ts', 'src/ts/bgStreamPreview.test.ts',
-        'src/lib/ChatScreens/ServerStreamPreview.svelte', 'src/lib/ChatScreens/ServerStreamPreview.test.ts']) {
+        'src/lib/ChatScreens/ServerStreamPreview.svelte', 'src/lib/ChatScreens/ServerStreamPreview.test.ts',
+        'src/lib/UI/GUI/RequestStatusToast.test.ts']) {
         units.push({ id: prefix + file, file, type: 'owned', targetVersions,
             content: fs.readFileSync(path.join(__dirname, 'files-1.10', file), 'utf8') })
     }
+    // Presentation override for the local server-wait placeholder. Phase and
+    // relay contracts stay unchanged; ordinary background recovery keeps its label.
+    add('status-entry-title', 'src/ts/status/requestStatus.ts',
+        '    phase: RequestPhase\n    thinkingTokens: number',
+        '    phase: RequestPhase\n    phaseLabel?: string                     // local background presentation only\n    thinkingTokens: number')
+    add('status-init-title', 'src/ts/status/requestStatus.ts',
+        '    phase?: RequestPhase\n    now: number',
+        '    phase?: RequestPhase\n    phaseLabel?: string\n    now: number')
+    add('status-start-title', 'src/ts/status/requestStatus.ts',
+        "            phase: init.phase ?? 'connecting',",
+        "            phase: init.phase ?? 'connecting',\n            phaseLabel: init.phaseLabel,")
+    add('status-render-title', 'src/lib/UI/GUI/RequestStatusToast.svelte',
+        '{PHASE_LABEL[entry.phase]}',
+        "{entry.phase === 'background' ? (entry.phaseLabel ?? PHASE_LABEL[entry.phase]) : PHASE_LABEL[entry.phase]}")
     const server = 'server/node/bgOrchestrator.cjs'
     add('late-stop-retain', server,
         "      if (durable && (durable.state === 'delivered' || durable.state === 'result-ready')) {",

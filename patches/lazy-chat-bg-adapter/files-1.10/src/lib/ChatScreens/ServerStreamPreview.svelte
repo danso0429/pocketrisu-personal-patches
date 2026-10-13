@@ -49,8 +49,8 @@
                 // Sonner may retain a dismissed DOM entry briefly. Reusing its
                 // id can preserve dismiss=true and hide the new presentation.
                 id = 'bg-server-processing:' + operation + ':' + ++processingPresentation
-                startStatus(id, { kind: 'main', label: '서버 처리 중', chatId: selectedChat,
-                    phase: 'background', now: startedAt })
+                startStatus(id, { kind: 'main', label: '', chatId: selectedChat,
+                    phase: 'background', phaseLabel: '서버 처리 중', now: startedAt })
             }
         }))
         return () => { unsubscribe(); if (id) clearStatus(id) }

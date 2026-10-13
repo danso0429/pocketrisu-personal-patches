@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.2.4-experimental.43 (server waiting title)
+
+- Show `서버 처리 중` as the primary upper waiting-status title without a duplicate model detail. Preserve ordinary background recovery, native phase titles and PageFold badges through a local background presentation override.
+- Include the waiting-to-stream-preview handoff and preserve stream-only text Stop, ordinary-circle cancellation and queued Send.
+- Cover the actual request-status card title, ordinary background recovery and transition back to normal progress in component tests. Physical-device evaluation remains a separate gate.
+
 ## 0.2.4-experimental.42 (upper server waiting status)
 
 - Remove the composer preparation/nonstream status box and its extra text Stop. Show server processing through the existing upper request-status surface; retain explicit text Stop only while an actual stream preview is displayed.

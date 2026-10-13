@@ -66,7 +66,7 @@ describe('current server operation control', () => {
         vi.mocked(cancelObservedServerOperation).mockResolvedValue('cancelled')
         const { target, observer, component } = await render()
         observer.publishOperation!('A')
-        await vi.waitFor(() => expect([...get(requestStatuses).values()].some(entry => entry.label === '서버 처리 중')).toBe(true))
+        await vi.waitFor(() => expect([...get(requestStatuses).values()].some(entry => entry.phaseLabel === '서버 처리 중')).toBe(true))
         expect(target.querySelector('section')).toBeNull()
         expect(target.querySelector('button')).toBeNull()
         expect(target.querySelector('.chattext')).toBeNull()
@@ -103,8 +103,9 @@ describe('current server operation control', () => {
     it('clears a placeholder for native progress and restores it without resetting an existing clock', async () => {
         const { observer } = await render()
         observer.publishOperation!('A')
-        const processing = () => [...get(requestStatuses).values()].find(entry => entry.label === '서버 처리 중')
+        const processing = () => [...get(requestStatuses).values()].find(entry => entry.phaseLabel === '서버 처리 중')
         await vi.waitFor(() => expect(processing()).toBeDefined())
+        expect(processing()!.label).toBe('')
         const id = processing()!.id, startedAt = processing()!.startedAt
         observer.publishOperation!('A')
         expect(processing()!.startedAt).toBe(startedAt)
@@ -120,9 +121,9 @@ describe('current server operation control', () => {
     it('replaces the waiting toast with the actual streaming preview and its stream-only Stop', async () => {
         const { target, observer } = await render()
         observer.publishOperation!('A')
-        await vi.waitFor(() => expect([...get(requestStatuses).values()].some(entry => entry.label === '서버 처리 중')).toBe(true))
+        await vi.waitFor(() => expect([...get(requestStatuses).values()].some(entry => entry.phaseLabel === '서버 처리 중')).toBe(true))
         observer.publish({ preview: { operationId: 'A', rowChatId: 'row-A', revision: 1, text: 'partial', oversized: false }, html: 'partial' })
-        await vi.waitFor(() => expect([...get(requestStatuses).values()].some(entry => entry.label === '서버 처리 중')).toBe(false))
+        await vi.waitFor(() => expect([...get(requestStatuses).values()].some(entry => entry.phaseLabel === '서버 처리 중')).toBe(false))
         expect(target.querySelector('[data-bg-stream-preview] .chattext')?.textContent).toBe('partial')
         expect(target.querySelector('[data-bg-stream-preview] button')?.textContent).toContain('생성 중지')
     })
