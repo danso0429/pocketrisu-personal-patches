@@ -69,9 +69,41 @@ const streamPreview = createBgStreamPreview()`)
                 if (outcome.kind === 'blocked') console.warn('[bg-input] admission blocked', outcome.reason)`)
     add('screen-import', screen, "    import ServerPendingInputs from './ServerPendingInputs.svelte';",
         "    import ServerPendingInputs from './ServerPendingInputs.svelte';\n    import ServerStreamPreview from './ServerStreamPreview.svelte';")
+    add('screen-control-ref', screen, '    let queueActivity = $state<ChatActivity | null>(null)',
+        `    let queueActivity = $state<ChatActivity | null>(null)
+    let serverStreamCanStop = $state(false)
+    let serverStreamPreview = $state<{ requestStopGeneration(): boolean } | undefined>()
+    const selectedServerBusy = $derived(isServerOrchestrationEnabled() && queueActivity?.charId === pendingCharacter?.chaId
+        && queueActivity?.chatId === pendingChat?.id && queueActivity?.busy === true)`)
+    add('screen-queue-draft', screen, '    let currentChatGenerating = $derived($generationStates.has(currentChatGenKey()))',
+        `    let currentChatGenerating = $derived($generationStates.has(currentChatGenKey()))
+    // Preserve queue Send without removing the ordinary Stop or discarding a draft.
+    const serverQueueDraft = $derived(selectedServerBusy && !currentChatGenerating && !$orchestrating
+        && !doingChatInputTranslate && messageInput.trim().length > 0)`)
+    add('screen-circle-pending', screen, '                {#if inputAdmissionBusy}',
+        `                {#if inputAdmissionBusy || (selectedServerBusy && !serverQueueDraft
+                    && !serverStreamCanStop && !currentChatGenerating && !doingChatInputTranslate && !$orchestrating)}`)
+    add('screen-circle-ready', screen,
+        "                {:else if currentChatGenerating || doingChatInputTranslate/* BG-PRESERVE:START orch-composer */ || $orchestrating/* BG-PRESERVE:END */}",
+        "                {:else if currentChatGenerating || doingChatInputTranslate/* BG-PRESERVE:START orch-composer */ || $orchestrating/* BG-PRESERVE:END */ || serverStreamCanStop}")
+    add('screen-queue-send', screen,
+        '                        <div class="loadmove chat-process-stage-{$chatProcessStage}"></div>\n                    </button>\n                {:else}',
+        `                        <div class="loadmove chat-process-stage-{$chatProcessStage}"></div>
+                    </button>
+                    {#if serverQueueDraft}
+                        <button onclick={send} aria-label={language.send}
+                            class="order-2 shrink-0 flex justify-center items-center w-9 h-9 rounded-full bg-primary text-white hover:bg-primary/80 transition-colors button-icon-send">
+                            <span data-personal-send-default aria-hidden="true"><Send size={18} class="shrink-0" /></span>
+                            <span data-personal-send-text class="personal-send-glyph" aria-hidden="true"></span>
+                        </button>
+                    {/if}
+                {:else}`)
+    add('screen-circle-cancel', screen, '        abortGeneration(currentChatGenKey())',
+        '        if (serverStreamPreview?.requestStopGeneration()) return\n        abortGeneration(currentChatGenKey())')
     add('screen-slot', screen, '            {@render composerCluster()}', `            {@render composerCluster()}
             {#if pendingCharacter?.chaId && pendingChat?.id}
-                <ServerStreamPreview charId={pendingCharacter.chaId} chatId={pendingChat.id}
+                <ServerStreamPreview bind:this={serverStreamPreview} onControl={(available) => { serverStreamCanStop = available }}
+                    charId={pendingCharacter.chaId} chatId={pendingChat.id}
                     active={(queueActivity?.charId === pendingCharacter.chaId && queueActivity?.chatId === pendingChat.id
                         && queueActivity.busy === true) || currentChatGenerating}
                     chat={pendingChat} name={pendingCharacter.name} />

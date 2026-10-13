@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.2.4-experimental.42 (upper server waiting status)
+
+- Remove the composer preparation/nonstream status box and its extra text Stop. Show server processing through the existing upper request-status surface; retain explicit text Stop only while an actual stream preview is displayed.
+- Connect the ordinary composer circle to the observed server operation with captured coordinates and per-operation cancellation guards. Preserve native/orchestrating fallback and raw queue Send without discarding a draft.
+- Respect the request-status display setting, replace generic waiting status with native progress, and clear it on observation teardown. Use fresh presentation IDs to avoid dismissed-toast reuse while preserving the current observation clock across progress changes.
+- Preserve stream formatting, canonical-row suppression, exact result ownership and background completion. Device and aggregate qualification remain separate from automatic synthetic UI checks.
+
 ## 0.2.4-experimental.41 (preparation and nonstream Stop)
 
 - Display the current server operation's Stop during preparation and nonstream provider waits, using validated metadata from the existing read-only preview endpoint. Do not synthesize an answer or introduce another execution/persistence owner.

@@ -129,8 +129,15 @@ async function stopAndReturn() {
         await c.wait(() => c.events.some(event => event.event === 'main' && event.requestKey === requests[1]), 'B starts before A DELETE reply');
         await route.fulfill({ response });
     });
-    const stop = c.page.getByRole('button', { name: '생성 중지', exact: true });
+    const ordinaryCircle = analysisStop || scenario === 'stop-main-nonstream';
+    const stop = ordinaryCircle ? c.page.locator('button[aria-labelledby="cancel"]')
+        : c.page.getByRole('button', { name: '생성 중지', exact: true });
     await stop.waitFor({ state: 'visible' });
+    if (ordinaryCircle) {
+        assert.equal(await c.page.locator('[data-bg-stream-preview]').count(), 0, 'no preparation/nonstream composer box');
+        assert.equal(await c.page.getByRole('button', { name: '생성 중지', exact: true }).count(), 0, 'no extra nonstream Stop');
+        await c.page.getByText('서버 처리 중', { exact: true }).waitFor();
+    }
     // click re-resolves the unique visible control after any admission render.
     // A separate count immediately after waitFor can sample a transient remount.
     await stop.click();
@@ -143,8 +150,8 @@ async function stopAndReturn() {
         assert.equal(JSON.stringify(main.messages).includes('request:' + requests[0] + ' analysis:'), false);
         assert.equal(c.cancellations.length, 1);
         assert.ok(deleteResponseHeld, 'actual DELETE response held until successor main');
-        await c.wait(async () => await stop.isVisible() && await stop.isEnabled()
-            && await stop.innerText() === '생성 중지', 'successor Stop survives old reply');
+        await c.wait(async () => await stop.isVisible() && await stop.isEnabled(), 'successor circle survives old reply');
+        await c.page.getByRole('button', { name: '생성 중지', exact: true }).waitFor();
         c.server.send({ event: 'release', call: main.call });
         await c.wait(async () => (await c.readChat()).chat.message.some(row => row.data === fullAnswer(main.call)), 'queued successor canonical');
     }

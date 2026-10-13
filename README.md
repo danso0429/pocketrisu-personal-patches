@@ -4,11 +4,11 @@ Personal, all-or-nothing patch delivery for PocketRisu NodeOnly. The current
 stable release is `v0.2.3`, and its complete manifest graph targets exact
 PocketRisu `v1.10.0`.
 
-The `0.2.4-experimental.41` candidate supports the unchanged original PageFold
+The `0.2.4-experimental.42` candidate supports the unchanged original PageFold
 provider's default font/emoji cache and statistics in the isolated host. Bounded
 local string transport, allocation/progress ownership and separate API budgets
 retain ordinary limits; caught local CAS refusals retain competing data and valid
-answers after a mandatory warning. BG adapter0.7.48 / Lazy sync0.5.8 / Personal settings0.5.14;
+answers after a mandatory warning. BG adapter0.7.49 / Lazy sync0.5.8 / Personal settings0.5.14;
 production remains hostOFF. See [M7 qualification](docs/POCKETRISU-G1-7-M7-QUALIFICATION-VALIDATION.md)
 for original-provider12, actual raw/prepared/admission and failure evidence,
 operational composition, support/activation conditions and remaining goal gates.
@@ -23,10 +23,13 @@ Legacy journal bytes remain protected. Actual providers, physical-device/aggrega
 qualification and live activation remain separate. Stable
 remains `v0.2.3`.
 
-The current-operation Stop also appears during server preparation and nonstream
-provider waits. It uses existing owner metadata without creating an answer row.
-Late cancellation replies preserve the next operation's control; confirmed
-completion suppresses only the matching operation. Synthetic original-MARP
+Server preparation and nonstream waits use the existing upper request-status
+surface, with no separate composer status box or text Stop. The ordinary composer
+circle stops the observed server operation; raw queue drafts retain their Send
+action. Explicit text Stop appears only with an actual stream preview. Waiting
+status respects its display setting, yields to native request progress and clears
+with observation without saving an answer or cancelling generation. Late
+cancellation replies preserve the next operation's control. Synthetic original-MARP
 queue/edit, cancellation and cold-return probes remain separate from actual
 provider, physical-device, host activation and aggregate qualification gates.
 
