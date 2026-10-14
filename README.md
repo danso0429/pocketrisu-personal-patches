@@ -4,11 +4,11 @@ Personal, all-or-nothing patch delivery for PocketRisu NodeOnly. The current
 stable release is `v0.2.3`, and its complete manifest graph targets exact
 PocketRisu `v1.10.0`.
 
-The `0.2.4-experimental.44` candidate supports the unchanged original PageFold
+The `0.2.4-experimental.45` candidate supports the unchanged original PageFold
 provider's default font/emoji cache and statistics in the isolated host. Bounded
 local string transport, allocation/progress ownership and separate API budgets
 retain ordinary limits; caught local CAS refusals retain competing data and valid
-answers after a mandatory warning. BG adapter0.7.51 / Lazy sync0.5.8 / Personal settings0.5.14;
+answers after a mandatory warning. BG adapter0.7.52 / Lazy sync0.5.8 / Personal settings0.5.14;
 production remains hostOFF. See [M7 qualification](docs/POCKETRISU-G1-7-M7-QUALIFICATION-VALIDATION.md)
 for original-provider12, actual raw/prepared/admission and failure evidence,
 operational composition, support/activation conditions and remaining goal gates.
@@ -23,18 +23,27 @@ Legacy journal bytes remain protected. Actual providers, physical-device/aggrega
 qualification and live activation remain separate. Stable
 remains `v0.2.3`.
 
-Server preparation and nonstream waits use the existing upper request-status
-surface with `서버 처리 중` as its primary title and no duplicate model detail,
-with no separate composer status box or text Stop. Server-relayed connecting
-requests also use this primary title, retaining their actual model detail and
-kind chips. Local requests, ordinary recovery and later progress phases retain
+Whole-server requests use one upper lifecycle card per operation: request,
+admission confirmation, predecessor waiting, preparation, model processing,
+postprocessing, canonical save, app adoption and completion. Captions follow
+actual operation state; quick stages may not be observed. Model details and
+PageFold badges appear under their operation's card, while local/unrelated
+requests retain their own status. Display is presentation-only and does not
+change execution, cancellation, data ownership or ACK policy. Completion can
+precede a delayed cleanup ACK when the answer is already durably adopted.
+
+Preparation and nonstream waits have no separate composer status box or text
+Stop. The lifecycle card distinguishes their actual stages; the generic server
+waiting fallback uses `서버 처리 중`. Local requests and ordinary recovery retain
 their existing titles. A transient pending-input read failure no longer renders
 a composer warning card; unknown activity remains fail-closed and real blocked
 inputs/recovery controls remain visible. The ordinary composer
 circle stops the observed server operation; raw queue drafts retain their Send
 action. Explicit text Stop appears only with an actual stream preview. Waiting
-status respects its display setting, yields to native request progress and the
-actual stream preview, and clears with observation without saving an answer or cancelling generation. Late
+fallback respects its display setting and yields to native/lifecycle progress
+and the actual stream preview. The lifecycle card continues through canonical
+save and app adoption. Removing a display never saves an answer or cancels
+generation. Late
 cancellation replies preserve the next operation's control. Synthetic original-MARP
 queue/edit, cancellation and cold-return probes remain separate from actual
 provider, physical-device, host activation and aggregate qualification gates.

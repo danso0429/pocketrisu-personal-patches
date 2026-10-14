@@ -1,5 +1,13 @@
 # Changelog
 
+## 0.2.4-experimental.45 (whole-request lifecycle status)
+
+- Track one upper status card per whole-server operation through request, queue, preparation, model processing, postprocessing, canonical save, app adoption and completion. Use actual phase/proof signals; do not fabricate percentage progress or delay short stages.
+- Group the operation's real model details and PageFold badges beneath its lifecycle card, preserving local requests and other operations. Scope relayed status pruning and clearing to the operation.
+- Preserve explicit Stop, queue Send, retries/continuations, recovery and delayed cleanup ACK behavior. Late earlier-stage packets cannot regress a save/adoption caption, and a late finished Stop is not cancellation.
+- Keep progress memory-only and additive to existing polls. The native stream preview retains its existing lifetime and cancellation authority. Physical streaming validation remains unrecorded.
+- Distinguish confirmed admission from model execution, close failed/expired requests, and retire consumed, replaced or parked presentations without fabricating local completion. Ignore stale native snapshots after closure.
+
 ## 0.2.4-experimental.44 (relayed waiting title and quiet status reads)
 
 - Use `서버 처리 중` for server-relayed connecting statuses as well as the generic waiting placeholder. Keep the real model detail, kind chips, PageFold badges and later progress phases; local request titles and ordinary background recovery remain unchanged.
