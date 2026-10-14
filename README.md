@@ -4,11 +4,11 @@ Personal, all-or-nothing patch delivery for PocketRisu NodeOnly. The current
 stable release is `v0.2.3`, and its complete manifest graph targets exact
 PocketRisu `v1.10.0`.
 
-The `0.2.4-experimental.47` candidate supports the unchanged original PageFold
+The `0.2.4-experimental.48` candidate supports the unchanged original PageFold
 provider's default font/emoji cache and statistics in the isolated host. Bounded
 local string transport, allocation/progress ownership and separate API budgets
 retain ordinary limits; caught local CAS refusals retain competing data and valid
-answers after a mandatory warning. BG adapter0.7.54 / Lazy sync0.5.8 / Personal settings0.5.14;
+answers after a mandatory warning. BG adapter0.7.55 / Lazy sync0.5.8 / Personal settings0.5.14;
 production remains hostOFF. See [M7 qualification](docs/POCKETRISU-G1-7-M7-QUALIFICATION-VALIDATION.md)
 for original-provider12, actual raw/prepared/admission and failure evidence,
 operational composition, support/activation conditions and remaining goal gates.
@@ -23,14 +23,11 @@ Legacy journal bytes remain protected. Actual providers, physical-device/aggrega
 qualification and live activation remain separate. Stable
 remains `v0.2.3`.
 
-BG plugin `nativeFetch` requests to the official OpenCode Go HTTPS endpoints
-fill missing session and application identification headers from the captured
-conversation. Session identity stays fixed across that conversation's operations;
-explicit headers, credentials, request bodies and custom endpoints retain their
-existing behavior. Original plugin scripts are unchanged. This applies to ordinary
-header records in the server host; foreground, deprecated `risuFetch` and other
-header formats retain their existing transport behavior. It does not change
-provider accounts, billing settings or provider usage eligibility.
+External request headers remain owned by explicitly enabled destination rules.
+Their conversation-session values and redirect scoping use the existing rule
+owner. Original plugin scripts, explicit caller headers, provider accounts and
+billing settings are unchanged. The automatic Go-header completion introduced
+in experimental.47 was removed because it suppressed a configured rule.
 
 Whole-server requests use one upper lifecycle card per operation: request,
 admission confirmation, predecessor waiting, preparation, model processing,

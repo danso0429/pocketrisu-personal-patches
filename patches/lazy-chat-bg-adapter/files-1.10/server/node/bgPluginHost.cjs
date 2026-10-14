@@ -7,7 +7,6 @@ const { createPluginStorage, savedPluginPermission } = require('./bgPluginStorag
 const { clonePluginValue, measurePluginValue } = require('./bgPluginValue.cjs');
 const { reservePluginStorage, reservedPluginValue, stringJSONBytes } = require('./bgPluginWorker.cjs');
 const { createTransportCounter } = require('./bgPluginDiagnostics.cjs');
-const { completeOpenCodeSessionHeaders } = require('./bgOpenCodeHeaders.cjs');
 
 const fail = code => Object.assign(new Error(code), { code });
 const { clean, identityOf, pluginMetadata } = require('./bgPluginMetadata.cjs');
@@ -46,7 +45,6 @@ function limiter(limit, signal) {
 
 async function createBgPluginHost({ database, bindings, getDatabase, getSelection, hydrate,
     storageOwner, beforeEffect, publishNotification, publishDiagnostic, operation, signal, onCriticalFailure = () => {} }) {
-    const openCodeConversation = { charId: operation?.charId, chatId: operation?.chatId };
     const entries = [], cleanups = [], notices = [], names = new Set(), omittedNames = new Set(), conflictedProviders = new Set();
     let closed = false, tearingDown = false, noticeFailure = null, identityFailure = null;
     let messageCapacityReported = false;
@@ -496,10 +494,8 @@ async function createBgPluginHost({ database, bindings, getDatabase, getSelectio
                                 const optionsSignal = method === 'nativeFetch' ? options.signal : options.abortSignal;
                                 await effect(entry);
                                 const scopeSignal = entry.session.currentSignal();
-                                const requestOptions = method === 'nativeFetch'
-                                    ? completeOpenCodeSessionHeaders(args[0], options, openCodeConversation) : options;
                                 return entry.transport.observe(method, [['operationCancelled', signal], ['entryClosed', entry.abort.signal],
-                                    ['scopeClosed', scopeSignal], ['requestAborted', optionsSignal]], () => bindings[method](args[0], { ...requestOptions,
+                                    ['scopeClosed', scopeSignal], ['requestAborted', optionsSignal]], () => bindings[method](args[0], { ...options,
                                     [method === 'nativeFetch' ? 'signal' : 'abortSignal']: AbortSignal.any([
                                         abortSignal, scopeSignal, ...(optionsSignal instanceof AbortSignal ? [optionsSignal] : [])]) }));
                             }

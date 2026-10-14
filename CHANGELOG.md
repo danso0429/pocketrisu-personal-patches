@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.2.4-experimental.48 (restore external-header rule ownership)
+
+- Restore the original BG plugin host and remove experimental.47's automatic Go-header completion. A generated caller header could suppress an explicitly enabled destination rule and bypass that rule's redirect scoping.
+- Keep conversation-session generation with the existing external-header rule owner. Preserve original plugin scripts, caller overrides, provider routes, credentials, billing settings and user data.
+- The isolated missing-session experiment omitted the separate rule KV even though production already had an enabled Go rule. Correct the isolated fixture rather than changing production's configured behavior; prior failed and capped-output observations remain separate.
+
 ## 0.2.4-experimental.47 (BG Go conversation headers)
 
 - Complete missing conversation-session and truthful application-identification headers for ordinary-record BG plugin `nativeFetch` requests to the official OpenCode Go HTTPS endpoints. Use captured conversation identity across operations without changing original plugin scripts.
