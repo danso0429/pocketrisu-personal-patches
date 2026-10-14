@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.2.4-experimental.47 (BG Go conversation headers)
+
+- Complete missing conversation-session and truthful application-identification headers for ordinary-record BG plugin `nativeFetch` requests to the official OpenCode Go HTTPS endpoints. Use captured conversation identity across operations without changing original plugin scripts.
+- Preserve explicit case-insensitive header overrides, secret references, credentials, bodies, aborts, custom endpoints and account/billing settings. Foreground requests, deprecated `risuFetch` and non-record header formats retain their previous behavior.
+- Add boundary, identity, override and mutation protection; qualify current server/build and installer graph/re-plan/exact-revert. Actual-provider and physical aggregate results remain separate from this automatic source qualification.
+
 ## 0.2.4-experimental.46 (lifecycle kind label)
 
 - Remove the redundant request-kind chip from the lifecycle card's upper row. Keep each actual model's kind, name, usage and badges in the detail row, and retain ordinary native request-kind labels.
