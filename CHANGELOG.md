@@ -3,6 +3,7 @@
 ## 0.2.4-experimental.46 (lifecycle kind label)
 
 - Remove the redundant request-kind chip from the lifecycle card's upper row. Keep each actual model's kind, name, usage and badges in the detail row, and retain ordinary native request-kind labels.
+- The user confirmed the single-kind display in the follow-up check. This scoped UI L5 is complete; other lifecycle/device, physical streaming and aggregate release boundaries remain separate.
 
 ## 0.2.4-experimental.45 (whole-request lifecycle status)
 
