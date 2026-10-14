@@ -23,16 +23,16 @@ module.exports = prior => {
     // relay contracts stay unchanged; ordinary background recovery keeps its label.
     add('status-entry-title', 'src/ts/status/requestStatus.ts',
         '    phase: RequestPhase\n    thinkingTokens: number',
-        '    phase: RequestPhase\n    phaseLabel?: string                     // local background presentation only\n    thinkingTokens: number')
+        '    phase: RequestPhase\n    phaseLabel?: string                     // presentation caption\n    pipeline?: boolean\n    pipelineOwner?: string\n    pipelineCharId?: string\n    pipelinePhase?: string\n    progressBarrier?: \'saving\' | \'saved\'\n    progressResume?: string\n    thinkingTokens: number')
     add('status-init-title', 'src/ts/status/requestStatus.ts',
         '    phase?: RequestPhase\n    now: number',
-        '    phase?: RequestPhase\n    phaseLabel?: string\n    now: number')
+        '    phase?: RequestPhase\n    phaseLabel?: string\n    pipeline?: boolean\n    pipelineOwner?: string\n    pipelineCharId?: string\n    pipelinePhase?: string\n    now: number')
     add('status-start-title', 'src/ts/status/requestStatus.ts',
         "            phase: init.phase ?? 'connecting',",
-        "            phase: init.phase ?? 'connecting',\n            phaseLabel: init.phaseLabel,")
+        "            phase: init.phase ?? 'connecting',\n            phaseLabel: init.phaseLabel,\n            pipeline: init.pipeline, pipelineOwner: init.pipelineOwner, pipelineCharId: init.pipelineCharId, pipelinePhase: init.pipelinePhase,")
     add('status-render-title', 'src/lib/UI/GUI/RequestStatusToast.svelte',
         '{PHASE_LABEL[entry.phase]}',
-        "{entry.relayed && entry.phase === 'connecting' ? '서버 처리 중' : entry.phase === 'background' ? (entry.phaseLabel ?? PHASE_LABEL[entry.phase]) : PHASE_LABEL[entry.phase]}")
+        "{entry.pipeline ? (entry.phaseLabel ?? PHASE_LABEL[entry.phase]) : entry.relayed && entry.phase === 'connecting' ? '서버 처리 중' : entry.phase === 'background' ? (entry.phaseLabel ?? PHASE_LABEL[entry.phase]) : PHASE_LABEL[entry.phase]}")
     const server = 'server/node/bgOrchestrator.cjs'
     add('late-stop-retain', server,
         "      if (durable && (durable.state === 'delivered' || durable.state === 'result-ready')) {",

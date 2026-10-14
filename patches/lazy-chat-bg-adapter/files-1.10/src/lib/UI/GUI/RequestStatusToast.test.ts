@@ -1,9 +1,11 @@
 // @vitest-environment happy-dom
 import { afterEach, expect, it } from 'vitest'
 import { flushSync, mount, unmount } from 'svelte'
+import { get } from 'svelte/store'
 import { language } from 'src/lang'
 import { requestStatuses, startStatus, markPhase, ingestRelayedStatuses } from 'src/ts/status/requestStatus'
 import RequestStatusToast from './RequestStatusToast.svelte'
+import { beginRequestProgress, setRequestProgress } from 'src/ts/bgRequestProgress'
 
 const mounted: Array<{ component: object; target: HTMLElement }> = []
 afterEach(async () => {
@@ -66,4 +68,22 @@ it('labels server-relayed auxiliary waits without changing the local native requ
     startStatus('local', { kind: 'main', label: 'Local model', phase: 'connecting', now: Date.now() })
     const local = render('local')
     expect(local.querySelector('.rs-phase')?.textContent).toBe(language.requestStatus?.connecting ?? 'Connecting…')
+})
+it('shows lifecycle captions and preserves the actual model details underneath one parent card', () => {
+    beginRequestProgress({ operationId: 'render-life', charId: 'char', chatId: 'chat' })
+    const id = [...get(requestStatuses).values()].find(entry => entry.pipelineOwner === 'render-life' && entry.pipeline)!.id
+    const target = render(id)
+    expect(target.querySelector('.rs-phase')?.textContent).toBe('요청 중')
+    ingestRelayedStatuses([{ id: 'render-model', kind: 'main', label: 'Actual preset', phase: 'responding',
+        startedAt: Date.now(), thinkingTokens: 4, responseTokens: 12, tokPerSec: 3,
+        badges: [{ key: 'pagefold', text: 'PDF pages 2', tone: 'info' }] }], 'render-life')
+    setRequestProgress('render-life', 'processing'); flushSync()
+    expect(target.querySelector('.rs-phase')?.textContent).toBe('서버 처리 중')
+    const detail = target.querySelector('[data-pipeline-model]')?.textContent
+    expect(detail).toContain('Actual preset'); expect(detail).toContain('4'); expect(detail).toContain('12'); expect(detail).toContain('3')
+    expect(target.textContent).toContain('PDF pages 2')
+    setRequestProgress('render-life', 'saving'); flushSync()
+    expect(target.querySelector('.rs-phase')?.textContent).toBe('답변 저장 중')
+    setRequestProgress('render-life', 'loading'); flushSync()
+    expect(target.querySelector('.rs-phase')?.textContent).toBe('답변 불러오는 중')
 })
