@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.2.4-experimental.46 (lifecycle kind label)
+
+- Remove the redundant request-kind chip from the lifecycle card's upper row. Keep each actual model's kind, name, usage and badges in the detail row, and retain ordinary native request-kind labels.
+
 ## 0.2.4-experimental.45 (whole-request lifecycle status)
 
 - Track one upper status card per whole-server operation through request, queue, preparation, model processing, postprocessing, canonical save, app adoption and completion. Use actual phase/proof signals; do not fabricate percentage progress or delay short stages.

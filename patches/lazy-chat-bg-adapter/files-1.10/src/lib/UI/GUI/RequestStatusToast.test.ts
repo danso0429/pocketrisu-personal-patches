@@ -51,6 +51,7 @@ it('renders a real relayed waiting entry as server processing and preserves mode
     const target = render('relay')
     expect(target.querySelector('.rs-phase')?.textContent).toBe('서버 처리 중')
     expect(target.querySelector('.rs-detail')?.textContent).toBe('Preset')
+    expect(target.querySelector('.rs-row1 .rs-chip')?.textContent).toBe(language.requestStatus?.kindMain ?? 'Main')
     expect(target.querySelector('.rs-row1')?.textContent).toContain('PDF 1')
     ingestRelayedStatuses([{ ...entry, phase: 'responding' }])
     flushSync()
@@ -79,6 +80,9 @@ it('shows lifecycle captions and preserves the actual model details underneath o
         badges: [{ key: 'pagefold', text: 'PDF pages 2', tone: 'info' }] }], 'render-life')
     setRequestProgress('render-life', 'processing'); flushSync()
     expect(target.querySelector('.rs-phase')?.textContent).toBe('서버 처리 중')
+    expect(target.querySelector('.rs-row1 .rs-chip')).toBeNull()
+    expect(target.querySelectorAll('[data-pipeline-model] .rs-chip')).toHaveLength(1)
+    expect(target.querySelector('[data-pipeline-model] .rs-chip')?.textContent).toBe(language.requestStatus?.kindMain ?? 'Main')
     const detail = target.querySelector('[data-pipeline-model]')?.textContent
     expect(detail).toContain('Actual preset'); expect(detail).toContain('4'); expect(detail).toContain('12'); expect(detail).toContain('3')
     expect(target.textContent).toContain('PDF pages 2')

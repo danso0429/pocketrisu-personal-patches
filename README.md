@@ -4,11 +4,11 @@ Personal, all-or-nothing patch delivery for PocketRisu NodeOnly. The current
 stable release is `v0.2.3`, and its complete manifest graph targets exact
 PocketRisu `v1.10.0`.
 
-The `0.2.4-experimental.45` candidate supports the unchanged original PageFold
+The `0.2.4-experimental.46` candidate supports the unchanged original PageFold
 provider's default font/emoji cache and statistics in the isolated host. Bounded
 local string transport, allocation/progress ownership and separate API budgets
 retain ordinary limits; caught local CAS refusals retain competing data and valid
-answers after a mandatory warning. BG adapter0.7.52 / Lazy sync0.5.8 / Personal settings0.5.14;
+answers after a mandatory warning. BG adapter0.7.53 / Lazy sync0.5.8 / Personal settings0.5.14;
 production remains hostOFF. See [M7 qualification](docs/POCKETRISU-G1-7-M7-QUALIFICATION-VALIDATION.md)
 for original-provider12, actual raw/prepared/admission and failure evidence,
 operational composition, support/activation conditions and remaining goal gates.
@@ -27,7 +27,9 @@ Whole-server requests use one upper lifecycle card per operation: request,
 admission confirmation, predecessor waiting, preparation, model processing,
 postprocessing, canonical save, app adoption and completion. Captions follow
 actual operation state; quick stages may not be observed. Model details and
-PageFold badges appear under their operation's card, while local/unrelated
+PageFold badges appear under their operation's card. Its upper row shows phase
+and elapsed time; request-kind chips appear only beside the actual model detail.
+Local/unrelated
 requests retain their own status. Display is presentation-only and does not
 change execution, cancellation, data ownership or ACK policy. Completion can
 precede a delayed cleanup ACK when the answer is already durably adopted.

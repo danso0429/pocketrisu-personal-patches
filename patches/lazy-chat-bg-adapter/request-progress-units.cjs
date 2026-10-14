@@ -207,6 +207,9 @@ import { beginRequestProgress, setRequestProgress, completeRequestProgress, reti
         "                requestProgressCancelResult(operationId, 'finished')\n                // Completion is not cancellation. Existing watch/boot recovery owns")
 
     const toast = 'src/lib/UI/GUI/RequestStatusToast.svelte'
+    add('hide-parent-kind', toast,
+        '                <span class="rs-chip">{KIND_LABEL[entry.kind]}</span>',
+        '                {#if !entry.pipeline}<span class="rs-chip">{KIND_LABEL[entry.kind]}</span>{/if}')
     add('model-details-source', toast,
         '    const entry = $derived($requestStatuses.get(id))',
         `    const entry = $derived($requestStatuses.get(id))
