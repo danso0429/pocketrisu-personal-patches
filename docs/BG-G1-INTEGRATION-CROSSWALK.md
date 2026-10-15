@@ -8,63 +8,179 @@ Integration input is pinned to `9259550..1feca1d`: **191 commits, 47 ordered uni
 - Units distinguish current behavior from repaired/reverted intermediate behavior. Historical hostOFF and incomplete checkpoints remain historical; later observations do not rewrite their original results.
 - Implementation, synthetic execution, actual-provider execution, user phone observation, delivery and admission are distinct evidence. A linked source/test is not a new runtime pass.
 - The private workspace records were used as process references. Raw records, personal deployment details, credentials and runtime evidence are not republished here. Public rows link existing sanitized validation documents. Early units with only baseline mentions were checked against canonical commits and their own validation documents.
-- README keeps its existing detailed checkpoint narrative; this index supplies order and current interpretation. Stable remains v0.2.3. The candidate remains experimental.50; no runtime/installer changes are part of this integration documentation.
+- README presents the large goals. The [checkpoint history](BG-G1-CHECKPOINT-HISTORY.md) preserves its prior detailed narrative; this index supplies exact order and current interpretation. Stable remains v0.2.3. The candidate remains experimental.50; no runtime/installer changes are part of this integration documentation.
 
 The ledger ends at `1feca1d`. Documentation-only follow-up `478969b` records the user's scoped L5 completion for .49/.50; subsequent documentation commits are outside the 191-commit feature-history snapshot.
 
 Candidate checkpoint numbers below abbreviate `0.2.4-experimental.N`. Commit ranges are **inclusive first-to-last**, not Git revision-selection syntax.
 
+## Goal index
+
+These headings follow the canonical G1 plan's goal order, not commit order.
+Each of the 47 units has one primary entry here for navigation; related entries
+show cross-goal dependencies and shared repairs, not additional implementations.
+The index does not create new plan goals or qualification passes. G1.5a/b and
+G1.12a/b remain subparts of their original goals.
+Foundation and UI/support units are filed under the goal they help for navigation:
+U00 under G1.0, U09 under G1.8, and U38–U42 under G1.10. Their unit identities
+remain unchanged; this is not a claim that the original plan assigned those IDs.
+Links use explicit HTML anchors intended for GitHub Markdown.
+
+<a id="g1-0"></a>
+
+### G1.0 — Restore existing server delegation
+
+Restore JSON admission and recovered-answer metadata on the current patcher foundation.
+
+Primary units: [U00](#u00), [U01](#u01). Related units: —. [Evidence](POCKETRISU-G1-0-ADMISSION-RECOVERY-2026-09-27.md).
+
+<a id="g1-1"></a>
+
+### G1.1 — Append answers at their input anchor
+
+Insert into the latest saved chat while preserving user edits and existing effect ownership.
+
+Primary units: [U07](#u07). Related units: [U34](#u34). [Evidence](POCKETRISU-G1-1-ANCHOR-COMMIT-VALIDATION.md).
+
+<a id="g1-2"></a>
+
+### G1.2 — Rebase app saves
+
+Reapply app edits after server changes without erasing new answers; retain continued saving after cache eviction.
+
+Primary units: [U03](#u03), [U04](#u04). Related units: [U34](#u34). [Evidence](POCKETRISU-G1-2-SAVE-AVAILABILITY-REPAIR.md).
+
+<a id="g1-3"></a>
+
+### G1.3 — Use assembly-time context
+
+Read saved chat and settings at assembly; retain anchored notices for relevant later edits.
+
+Primary units: [U08](#u08). Related units: [U33](#u33). [Evidence](POCKETRISU-G1-3-ASSEMBLY-CONTEXT-VALIDATION.md).
+
+<a id="g1-4"></a>
+
+### G1.4 — Queue inputs and protect controls
+
+Accept N+1 while N runs; gate reroll/continue/empty resend and keep Stop scoped to its operation.
+
+Primary units: [U13](#u13). Related units: [U38](#u38). [Evidence](POCKETRISU-G1-4-QUEUE-VALIDATION.md).
+
+<a id="g1-5"></a>
+
+### G1.5 — Decide eligibility per request
+
+G1.5a shares model/input context and native admission, retaining explicit app preparation for unsupported inputs. G1.5b qualifies original-provider execution within the documented M7 scope.
+
+Primary units: [U10](#u10), [U11](#u11), [U12](#u12), [U29](#u29). Related units: [U21](#u21), [U30](#u30). [Native evidence](POCKETRISU-G1-NATIVE-ADMISSION-VALIDATION.md); [M7 evidence](POCKETRISU-G1-7-M7-QUALIFICATION-VALIDATION.md).
+
+<a id="g1-6"></a>
+
+### G1.6 — Host server plugins
+
+Run per-plugin isolated processes with parent-owned RPC, permissions, storage and bounded lifecycle cleanup.
+
+Primary units: [U15](#u15), [U30](#u30). Related units: [U27](#u27), [U29](#u29). [Evidence](POCKETRISU-G1-6-PLUGIN-HOST-WIP.md).
+
+<a id="g1-7"></a>
+
+### G1.7 — Qualify the original MARP tunnel
+
+Check actual callers, transport abort, settings, identity, omission warnings and original-plugin combinations; synthetic evidence does not establish physical analysis quality.
+
+Primary units: [U20](#u20), [U21](#u21), [U22](#u22), [U23](#u23), [U24](#u24), [U25](#u25), [U26](#u26), [U27](#u27), [U28](#u28). Related units: [U29](#u29), [U30](#u30), [U37](#u37), [U44](#u44). [Evidence](POCKETRISU-G1-7-MARP-QUALIFICATION-VALIDATION.md).
+
+<a id="g1-8"></a>
+
+### G1.8 — Handle failures, retries and notices
+
+Preserve failures and exact acknowledgements; repair next Send, counters, edit/publication recovery and proven committed uncertain inputs.
+
+Primary units: [U09](#u09), [U14](#u14), [U31](#u31), [U32](#u32), [U33](#u33), [U34](#u34), [U35](#u35). Related units: [U20](#u20), [U36](#u36). [Evidence](POCKETRISU-G1-8-VERIFICATION-RECORD-2026-10-11.md).
+
+<a id="g1-9"></a>
+
+### G1.9 — Relay streaming progress
+
+Show formatted transient previews and current-operation Stop without transferring canonical save or result-acknowledgement ownership.
+
+Primary units: [U36](#u36). Related units: [U39](#u39), [U40](#u40). [Evidence](POCKETRISU-G1-9-STREAM-RELAY-VALIDATION.md).
+
+<a id="g1-10"></a>
+
+### G1.10 — Qualify and deliver the combination
+
+Connect automatic/browser/device evidence and request lifecycle UI. Scoped closeout retains physical MARP and other unrecorded limits; composer fixes have scoped L5 confirmation.
+
+Primary units: [U37](#u37), [U38](#u38), [U39](#u39), [U40](#u40), [U41](#u41), [U42](#u42), [U45](#u45), [U46](#u46). Related units: [U44](#u44). [Evidence](POCKETRISU-COMPOSER-ADMISSION-UI-VALIDATION.md).
+
+<a id="g1-11"></a>
+
+### G1.11 — Apply destination header rules
+
+Keep opt-in configured rules and caller overrides authoritative. The .47 automatic-header experiment was removed in .48.
+
+Primary units: [U02](#u02), [U43](#u43), [U44](#u44). Related units: [U11](#u11). [Evidence](POCKETRISU-G1-11-EXTERNAL-HEADERS-VALIDATION.md).
+
+<a id="g1-12"></a>
+
+### G1.12 — Reconcile finished server work
+
+G1.12a reconciles terminal/store evidence; CAP repairs capability return and bounded reads; G1.12b separates recovery from generation busy and fences stale suggestions.
+
+Primary units: [U05](#u05), [U06](#u06), [U16](#u16), [U17](#u17), [U18](#u18), [U19](#u19). Related units: [U32](#u32), [U35](#u35). [Evidence](POCKETRISU-G1-12B-RECOVERY-OWNERSHIP-VALIDATION.md).
+
 ## Ordered implementation units
 
 | Unit | Goal / candidate checkpoint | Canonical commit range / count | Implementation and retained behavior | Later correction or remaining scope | Public evidence |
 |---|---|---|---|---|---|
-| U00 | G1 foundation/rebase / 5 lineage | `1e6e974..a69f616` / 7 | Guarded server-owned input on the current patcher; retain current-main font/settings work. | Baseline carried into later admission repairs. | [validation](POCKETRISU-G1-CURRENT-MAIN-INTEGRATION-2026-09-27.md) |
-| U01 | G1.0 / 6 | `904aea9..2de90c6` / 3 | Repair existing JSON detached admission and retain recovered-answer metadata. | Current baseline; distinct from later plugin support. | [validation](POCKETRISU-G1-0-ADMISSION-RECOVERY-2026-09-27.md) |
-| U02 | G1.11 / 7 | `58909ff..874e64d` / 4 | Add opt-in destination-scoped external request header rules. | Retained; .47 automatic completion is removed by .48. | [validation](POCKETRISU-G1-11-EXTERNAL-HEADERS-VALIDATION.md) |
-| U03 | G1.2 / 8 | `4bbc135..c193ead` / 2 | Rebase stale chat saves without consuming client views. | Continued-save repair follows in .9. | [validation](POCKETRISU-G1-2-CHAT-SAVE-REBASE-VALIDATION.md) |
-| U04 | G1.2 repair / 9 | `a4ae61a..387a427` / 3 | Keep rebased chat views saveable after cache eviction. | Retained; later publication barriers are separate. | [validation](POCKETRISU-G1-2-SAVE-AVAILABILITY-REPAIR.md) |
-| U05 | G1.12 initial / 10 | `0d49cd8..0147caf` / 2 | Plan and close finished server operations rather than polling forever. | Failure notices/ACK repaired in .11; broader evidence-led recovery in .22/.24. | [validation](POCKETRISU-G1-12-FINISHED-OPERATION-VALIDATION.md) |
-| U06 | G1.12 repair / 11 | `da8f31f..1b29ab5` / 2 | Retain finished-failure notices and qualify ACK outcomes. | Superseded recovery decisions are identified by .22/.24/.36/.39; retained behavior is not replay permission. | [validation](POCKETRISU-G1-12-FINISHED-OPERATION-VALIDATION.md) |
-| U07 | G1.1 / 12 | `38f19d3..df0fcc0` / 3 | Append generated answers into the latest chat using anchors and preserve user edits. | Retained; .37 edit notices and .38 publication protection extend it. | [validation](POCKETRISU-G1-1-ANCHOR-COMMIT-VALIDATION.md) |
-| U08 | G1.3 / 13 | `11dffcf..6d06524` / 2 | Capture saved chat/settings when generation assembly starts. | Retained; no automatic regeneration after later edits. | [validation](POCKETRISU-G1-3-ASSEMBLY-CONTEXT-VALIDATION.md) |
-| U09 | Saved-answer UI / 14 | `43f19f6..a4ae2ab` / 3 | Move saved-answer feedback to upper notifications. | Retained; separate from later request-progress cards. | [validation](POCKETRISU-BG-SAVED-ANSWER-NOTICE-VALIDATION.md) |
-| U10 | G1.5a selection / 15 | `b820d1d..6001c46` / 2 | Share actual model/binding/fallback selection with input preflight and recheck attached input settings. | Preserve custom endpoints, static overrides and native retry/fallback semantics. | [validation](POCKETRISU-G1-5-REQUEST-POLICY-VALIDATION.md) |
-| U11 | G1.5a context / 16 | `72e0ce4..e872d3b` / 2 | Give input trigger/editinput the same operation abort, header identity and Node context as main. | Retained; this alone does not widen native admission. | [validation](POCKETRISU-G1-NATIVE-INPUT-CONTEXT-VALIDATION.md) |
-| U12 | G1.5a admission / 17 | `d5ee993..ca3473b` / 2 | Qualify native preset/module/custom input and explicit app preparation for unsupported operations. | Keep typed stop/raw-input preservation, revision-kind separation and explicit paid retry notice. | [validation](POCKETRISU-G1-NATIVE-ADMISSION-VALIDATION.md) |
-| U13 | G1.4 / 18 | `5f58802..ee00096` / 2 | Gate queued Send, reroll/continue and cancellation by actual server activity. | Retained; Stop remains scoped to one operation. | [validation](POCKETRISU-G1-4-QUEUE-VALIDATION.md) |
-| U14 | G1.8 foundation / 19 | `f66fac1..4c6fb4a` / 2 | Persist/deliver unsupported-input failure notices and their acknowledgements. | Extended to v3 request-failure/interruption/edit notices in .35. | [validation](POCKETRISU-G1-8-NOTIFICATION-FOUNDATION-VALIDATION.md) |
-| U15 | G1.6 / 20 | `5f39da8..0ce1086` / 6 | Add per-plugin per-operation OS-isolated sessions, generic APIs, storage and mandatory failure handling. | Initially default-OFF; original-plugin qualification and later controlled ON are separate. | [WIP record](POCKETRISU-G1-6-PLUGIN-HOST-WIP.md) |
-| U16 | G1.12a measurement / 21 | `e3ddeb7..e0bece4` / 3 | Temporarily observe bounded recovery timing without changing decisions. | Instrumentation removed in .22; capability return regression discovered later and repaired in CAP. | [plan / measured results](POCKETRISU-G1-12A-TERMINAL-RESULTS-PLAN.md) |
-| U17 | G1.12a / 22 | `ab14579..055abfe` / 4 | Reconcile actual terminal/current-view/strict-save evidence after suspension; bound control body/snapshot reads. | Old count-based permanent-conflict handling replaced; CAP return fix still needed at this checkpoint. | [plan / measured results](POCKETRISU-G1-12A-TERMINAL-RESULTS-PLAN.md) |
-| U18 | CAP / 23 | `3a44a22..7047115` / 9 | Repair return-expression composition and bound/cancel capability, original body and prior-marker reads. | Separate from G2 optional-API typeof discovery; ordinary-use check is scoped. | [validation](POCKETRISU-BG-CAP-ADMISSION-VALIDATION.md) |
-| U19 | G1.12b / 24 | `4d7bec8..4bce464` / 7 | Separate terminal recovery from generation busy; gate suggestions on current-chat proof; drain deferred scans. | Preserve old WIP history; latest implementation includes post-review ownership repairs. | [validation](POCKETRISU-G1-12B-RECOVERY-OWNERSHIP-VALIDATION.md) |
-| U20 | G1.7 lifecycle/diagnostics / 25 | `0f24c07..d2459fc` / 2 | Qualify original MARP lifecycle with synthetic providers and generic transport diagnostics; pass abort to actual native model transport. | Diagnostics do not establish private analysis quality; this record has no standalone .25 delivery/ON observation. | [validation](POCKETRISU-G1-7-MARP-QUALIFICATION-VALIDATION.md); [qualification plan](POCKETRISU-G1-7-MARP-HOST-QUALIFICATION-PLAN.md) |
-| U21 | G1.7 admission / 26 | `a2a3dc6` / 1 | Use actual live host capability before widening plugin input eligibility. | Candidate delivered with .27; no standalone .26 delivery/ON claim. Unknown/stale hints and draft-preserving veto remain. | [validation](POCKETRISU-G1-7-MARP-QUALIFICATION-VALIDATION.md) |
-| U22 | G1.7 unavailable host / 27 | `0985716..94694ec` / 6 | Continue supported BG without omitted plugin effects and issue required plugin/version/reason notices. | Delivered with host OFF, not MARP activation. Missing selected plugin providers fail rather than selecting an implicit native provider. | [validation](POCKETRISU-G1-7-OFF-CONTINUATION-VALIDATION.md); [mixed initialization](POCKETRISU-G1-7-M6-MIXED-INITIALIZATION-VALIDATION.md) |
-| U23 | G1.7 limits/settings / 28 | `f93c7ff..2f19437` / 7 | Expose recoverable API limit refusals; test original protocol/PDF/OAuth and saved settings. | Keep existing caps, fatal failures and ordinary calls; scoped OFF preservation is not MARP ON qualification. | [validation](POCKETRISU-G1-7-PROTOCOL-BUDGET-VALIDATION.md); [settings](POCKETRISU-G1-7-M4-SETTINGS-VALIDATION.md) |
-| U24 | G1.7 proxy/PDF/identity / 29 | `63e783b..78a16c1` / 10 | Preserve form bytes, report worker-local RPC refusal and characterize actual PDF/role/root identity boundaries. | Raw/provider identity work continues in .30/.31; source census is not full feature execution. | [validation](POCKETRISU-G1-7-PDF-PROXY-VALIDATION.md); [role / identity epochs](POCKETRISU-G1-7-ROLE-IDENTITY-EPOCH-VALIDATION.md) |
-| U25 | G1.7 context omission / 30 | `7b2854e..f735cef` / 4 | Omit invalid non-provider contexts with canonical identity checks and safe cache recovery. | Preserve earlier effects; selected-provider/identity failures still stop. Raw selected-provider admission follows in .31. | [validation](POCKETRISU-G1-7-CONTEXT-OMISSION-VALIDATION.md) |
-| U26 | G1.7 raw provider / 31 | `0b75e5d..b52bc9c` / 4 | Require actual healthy registration/ownership before raw selected-provider execution. | No implicit default model; ambiguous/failed providers rejected. | [validation](POCKETRISU-G1-7-RAW-PROVIDER-VALIDATION.md) |
-| U27 | G1.7 handles/callers / 32 | `0d2e882..690bca0` / 4 | Restore unpublished refused RPC resources and verify actual v2/Lua auxiliary caller roles/storage. | No whole-realm or consumed-stream reuse claim; detailed rejected operational publication stays private. | [validation](POCKETRISU-G1-7-HANDLE-CALLER-VALIDATION.md) |
-| U28 | M7 preparation / 32 unchanged | `ae2ece9..ac24278` / 4 | Connect goal subplans and verify unchanged installed-original combinations through actual HTTP admission. | Probe/docs-only checkpoint; no new runtime or general plugin admission. | [validation](POCKETRISU-G1-7-INSTALLED-COMBINATION-VALIDATION.md) |
-| U29 | M7/G1.5b / 33 | `f64d0ec..1bf28c5` / 2 | Support original provider font/cache/bookkeeping and accepted callback-RPC settlement under measured resource contracts. | Later .34 fixes lifecycle edges; startup recovery warning remains open until G1.8 work. | [validation](POCKETRISU-G1-7-M7-QUALIFICATION-VALIDATION.md) |
-| U30 | M7 post-review repairs / 34 | `58e7462..85cd2f9` / 13 | Repair settlement warning, large-transfer cleanup, legacy receipts, shared exports and teardown admission. | Retain accepted RPC-chain semantics, not arbitrary future timer completion. | [validation](POCKETRISU-G1-7-M7-QUALIFICATION-VALIDATION.md) |
-| U31 | G1.8 lifecycle / 35 | `b95b946..d0f0501` / 10 | Preserve operation metadata, validate conditional new-journal retirement and deliver v3 failures/interruption/edit notices. | Only qualified new journal entries use approved 49h retirement; old journal bytes remain protected. | [validation](POCKETRISU-G1-8-FAILURE-LIFECYCLE-VALIDATION.md) |
-| U32 | G1.8 failed input / 36 | `7dc00bd..0b48497` / 9 | Reproduce blocked next Send, settle exact failed input after no-answer ACK and repair malformed test-statistics evidence. | Current proof/ACK required; partial/unknown/edited/deleted cases are not blindly cleared. | [validation](POCKETRISU-G1-8-VERIFICATION-RECORD-2026-10-11.md) |
-| U33 | G1.8 statistics/ACK/edit / 37 | `3603204..e2156a8` / 10 | Validate canonical counters, preserve exact failed ACK through retirement and publish anchored edit notices. | Revision-only publication guard was rejected; pending-publication edit/delete loss still needs .38. | [validation](POCKETRISU-G1-8-VERIFICATION-RECORD-2026-10-11.md) |
-| U34 | G1.8 publication repair / 38 | `a646988..f33a0d2` / 3 | Recover committed publication before affected writes; retain dirty edits and show blocked-save when recovery fails. | Current-screen dirty retention is not save across app closure; unrelated writers keep scope. | [validation](POCKETRISU-G1-8-VERIFICATION-RECORD-2026-10-11.md) |
-| U35 | G1.8 uncertain input / 39 | `1df5fe1..c325ac8` / 3 | Promote only proven committed uncertain markers into existing hydration/ACK ownership after the original grace. | No new model replay or unconditional marker removal; R7 natural admission phone evidence is scoped. | [validation](POCKETRISU-G1-8-VERIFICATION-RECORD-2026-10-11.md) |
-| U36 | G1.9 / 40 | `12f1e46..3740c66` / 9 | Add formatted server-owned stream preview/Stop; fix Node frame scheduling, piping errors, durable-save retry and cancelled input settlement. | Common formatting only; no editdisplay hooks; display teardown does not cancel generation. | [validation](POCKETRISU-G1-9-STREAM-RELAY-VALIDATION.md) |
-| U37 | G1.10 combination/Stop / 41 | `6498e32..81529be` / 6 | Qualify original MARP edit/queue/module/restart/provider warnings and expose current Stop during preparation/nonstream generation. | Synthetic integrated evidence, actual-provider/device qualification remains separate. | [validation](POCKETRISU-MARP-BG-POST-IMPLEMENTATION-REVIEW.md) |
-| U38 | Wait/Stop UI / 42 | `00e5f8a` / 1 | Move normal preparation/nonstream waiting to the upper status surface and preserve ordinary circle Stop/queue Send. | Yielding to preview and primary title finish in .43. | [current UI / history](../README.md) |
-| U39 | Wait title/preview / 43 | `73beb80..49522f6` / 2 | Yield generic waiting to actual stream preview and use server-processing as the primary wait title. | Higher-priority relayed cards need .44; no broader device pass inferred. | [current UI / history](../README.md) |
-| U40 | Relayed wait follow-up / 44 | `2aa7ba2` / 1 | Fix the actual relayed connecting card title and remove transient composer read-status warnings. | Keep unknown activity conservative and preserve real recovery controls. | [current UI / history](../README.md) |
-| U41 | Whole-request progress / 45 | `d82488b..0291eb9` / 2 | Observe request/admission/queue/preparation/model/postprocess/save/adoption/completion in one lifecycle card. | Memory-only presentation; never replaces provider, commit, ACK, recovery or Stop authority. | [current UI / history](../README.md) |
-| U42 | Lifecycle kind chip / 46 | `17cfa97..0aa1db1` / 2 | Remove only duplicate parent kind; retain real model details/kind/usage/badges. | Scoped physical confirmation recorded; whole G1.10 remains separate. | [current UI / history](../README.md) |
-| U43 | Automatic header experiment / 47 | `834dcc0` / 1 | Add automatic Go conversation-header completion after an incomplete isolated fixture. | REVERTED by .48 because it suppressed configured rules/redirect scoping; not current functionality. | [validation](POCKETRISU-G1-11-EXTERNAL-HEADERS-VALIDATION.md) |
-| U44 | Header ownership/G1.10 closeout / 48 | `8adb75f..0729f2f` / 2 | Restore configured header-rule ownership; record isolated actual-provider and phone app-close/save/return observations. | Phone full MARP analysis/injection and latency root cause remain unconfirmed; additional device checks deferred. | [validation](POCKETRISU-G1-11-EXTERNAL-HEADERS-VALIDATION.md); [G1.10 observations](../README.md) / [closeout](../CHANGELOG.md#024-experimental48-restore-external-header-rule-ownership) |
-| U45 | Composer height / 49 | `cc0a490` / 1 | Wait for cleared DOM after successful unchanged-draft ACK before measuring height. | Preserve uncertain/rejected/changed drafts; scoped user L5 confirmed on 2026-10-15 in documentation follow-up 478969b. | [validation](POCKETRISU-COMPOSER-ADMISSION-UI-VALIDATION.md) |
-| U46 | Composer notices / 50 | `498537d..1feca1d` / 2 | Render only actionable pending notices with a persistent empty live region and full activity/polling. | Scoped user L5 confirmed with height fix; VoiceOver/translated-input UI and separate control gestures unmeasured. | [validation](POCKETRISU-COMPOSER-ADMISSION-UI-VALIDATION.md) |
+| <a id="u00"></a>U00 | G1 foundation/rebase / 5 lineage | `1e6e974..a69f616` / 7 | Guarded server-owned input on the current patcher; retain current-main font/settings work. | Baseline carried into later admission repairs. | [validation](POCKETRISU-G1-CURRENT-MAIN-INTEGRATION-2026-09-27.md) |
+| <a id="u01"></a>U01 | G1.0 / 6 | `904aea9..2de90c6` / 3 | Repair existing JSON detached admission and retain recovered-answer metadata. | Current baseline; distinct from later plugin support. | [validation](POCKETRISU-G1-0-ADMISSION-RECOVERY-2026-09-27.md) |
+| <a id="u02"></a>U02 | G1.11 / 7 | `58909ff..874e64d` / 4 | Add opt-in destination-scoped external request header rules. | Retained; .47 automatic completion is removed by .48. | [validation](POCKETRISU-G1-11-EXTERNAL-HEADERS-VALIDATION.md) |
+| <a id="u03"></a>U03 | G1.2 / 8 | `4bbc135..c193ead` / 2 | Rebase stale chat saves without consuming client views. | Continued-save repair follows in .9. | [validation](POCKETRISU-G1-2-CHAT-SAVE-REBASE-VALIDATION.md) |
+| <a id="u04"></a>U04 | G1.2 repair / 9 | `a4ae61a..387a427` / 3 | Keep rebased chat views saveable after cache eviction. | Retained; later publication barriers are separate. | [validation](POCKETRISU-G1-2-SAVE-AVAILABILITY-REPAIR.md) |
+| <a id="u05"></a>U05 | G1.12 initial / 10 | `0d49cd8..0147caf` / 2 | Plan and close finished server operations rather than polling forever. | Failure notices/ACK repaired in .11; broader evidence-led recovery in .22/.24. | [validation](POCKETRISU-G1-12-FINISHED-OPERATION-VALIDATION.md) |
+| <a id="u06"></a>U06 | G1.12 repair / 11 | `da8f31f..1b29ab5` / 2 | Retain finished-failure notices and qualify ACK outcomes. | Superseded recovery decisions are identified by .22/.24/.36/.39; retained behavior is not replay permission. | [validation](POCKETRISU-G1-12-FINISHED-OPERATION-VALIDATION.md) |
+| <a id="u07"></a>U07 | G1.1 / 12 | `38f19d3..df0fcc0` / 3 | Append generated answers into the latest chat using anchors and preserve user edits. | Retained; .37 edit notices and .38 publication protection extend it. | [validation](POCKETRISU-G1-1-ANCHOR-COMMIT-VALIDATION.md) |
+| <a id="u08"></a>U08 | G1.3 / 13 | `11dffcf..6d06524` / 2 | Capture saved chat/settings when generation assembly starts. | Retained; no automatic regeneration after later edits. | [validation](POCKETRISU-G1-3-ASSEMBLY-CONTEXT-VALIDATION.md) |
+| <a id="u09"></a>U09 | Saved-answer UI / 14 | `43f19f6..a4ae2ab` / 3 | Move saved-answer feedback to upper notifications. | Retained; separate from later request-progress cards. | [validation](POCKETRISU-BG-SAVED-ANSWER-NOTICE-VALIDATION.md) |
+| <a id="u10"></a>U10 | G1.5a selection / 15 | `b820d1d..6001c46` / 2 | Share actual model/binding/fallback selection with input preflight and recheck attached input settings. | Preserve custom endpoints, static overrides and native retry/fallback semantics. | [validation](POCKETRISU-G1-5-REQUEST-POLICY-VALIDATION.md) |
+| <a id="u11"></a>U11 | G1.5a context / 16 | `72e0ce4..e872d3b` / 2 | Give input trigger/editinput the same operation abort, header identity and Node context as main. | Retained; this alone does not widen native admission. | [validation](POCKETRISU-G1-NATIVE-INPUT-CONTEXT-VALIDATION.md) |
+| <a id="u12"></a>U12 | G1.5a admission / 17 | `d5ee993..ca3473b` / 2 | Qualify native preset/module/custom input and explicit app preparation for unsupported operations. | Keep typed stop/raw-input preservation, revision-kind separation and explicit paid retry notice. | [validation](POCKETRISU-G1-NATIVE-ADMISSION-VALIDATION.md) |
+| <a id="u13"></a>U13 | G1.4 / 18 | `5f58802..ee00096` / 2 | Gate queued Send, reroll/continue and cancellation by actual server activity. | Retained; Stop remains scoped to one operation. | [validation](POCKETRISU-G1-4-QUEUE-VALIDATION.md) |
+| <a id="u14"></a>U14 | G1.8 foundation / 19 | `f66fac1..4c6fb4a` / 2 | Persist/deliver unsupported-input failure notices and their acknowledgements. | Extended to v3 request-failure/interruption/edit notices in .35. | [validation](POCKETRISU-G1-8-NOTIFICATION-FOUNDATION-VALIDATION.md) |
+| <a id="u15"></a>U15 | G1.6 / 20 | `5f39da8..0ce1086` / 6 | Add per-plugin per-operation OS-isolated sessions, generic APIs, storage and mandatory failure handling. | Initially default-OFF; original-plugin qualification and later controlled ON are separate. | [WIP record](POCKETRISU-G1-6-PLUGIN-HOST-WIP.md) |
+| <a id="u16"></a>U16 | G1.12a measurement / 21 | `e3ddeb7..e0bece4` / 3 | Temporarily observe bounded recovery timing without changing decisions. | Instrumentation removed in .22; capability return regression discovered later and repaired in CAP. | [plan / measured results](POCKETRISU-G1-12A-TERMINAL-RESULTS-PLAN.md) |
+| <a id="u17"></a>U17 | G1.12a / 22 | `ab14579..055abfe` / 4 | Reconcile actual terminal/current-view/strict-save evidence after suspension; bound control body/snapshot reads. | Old count-based permanent-conflict handling replaced; CAP return fix still needed at this checkpoint. | [plan / measured results](POCKETRISU-G1-12A-TERMINAL-RESULTS-PLAN.md) |
+| <a id="u18"></a>U18 | CAP / 23 | `3a44a22..7047115` / 9 | Repair return-expression composition and bound/cancel capability, original body and prior-marker reads. | Separate from G2 optional-API typeof discovery; ordinary-use check is scoped. | [validation](POCKETRISU-BG-CAP-ADMISSION-VALIDATION.md) |
+| <a id="u19"></a>U19 | G1.12b / 24 | `4d7bec8..4bce464` / 7 | Separate terminal recovery from generation busy; gate suggestions on current-chat proof; drain deferred scans. | Preserve old WIP history; latest implementation includes post-review ownership repairs. | [validation](POCKETRISU-G1-12B-RECOVERY-OWNERSHIP-VALIDATION.md) |
+| <a id="u20"></a>U20 | G1.7 lifecycle/diagnostics / 25 | `0f24c07..d2459fc` / 2 | Qualify original MARP lifecycle with synthetic providers and generic transport diagnostics; pass abort to actual native model transport. | Diagnostics do not establish private analysis quality; this record has no standalone .25 delivery/ON observation. | [validation](POCKETRISU-G1-7-MARP-QUALIFICATION-VALIDATION.md); [qualification plan](POCKETRISU-G1-7-MARP-HOST-QUALIFICATION-PLAN.md) |
+| <a id="u21"></a>U21 | G1.7 admission / 26 | `a2a3dc6` / 1 | Use actual live host capability before widening plugin input eligibility. | Candidate delivered with .27; no standalone .26 delivery/ON claim. Unknown/stale hints and draft-preserving veto remain. | [validation](POCKETRISU-G1-7-MARP-QUALIFICATION-VALIDATION.md) |
+| <a id="u22"></a>U22 | G1.7 unavailable host / 27 | `0985716..94694ec` / 6 | Continue supported BG without omitted plugin effects and issue required plugin/version/reason notices. | Delivered with host OFF, not MARP activation. Missing selected plugin providers fail rather than selecting an implicit native provider. | [validation](POCKETRISU-G1-7-OFF-CONTINUATION-VALIDATION.md); [mixed initialization](POCKETRISU-G1-7-M6-MIXED-INITIALIZATION-VALIDATION.md) |
+| <a id="u23"></a>U23 | G1.7 limits/settings / 28 | `f93c7ff..2f19437` / 7 | Expose recoverable API limit refusals; test original protocol/PDF/OAuth and saved settings. | Keep existing caps, fatal failures and ordinary calls; scoped OFF preservation is not MARP ON qualification. | [validation](POCKETRISU-G1-7-PROTOCOL-BUDGET-VALIDATION.md); [settings](POCKETRISU-G1-7-M4-SETTINGS-VALIDATION.md) |
+| <a id="u24"></a>U24 | G1.7 proxy/PDF/identity / 29 | `63e783b..78a16c1` / 10 | Preserve form bytes, report worker-local RPC refusal and characterize actual PDF/role/root identity boundaries. | Raw/provider identity work continues in .30/.31; source census is not full feature execution. | [validation](POCKETRISU-G1-7-PDF-PROXY-VALIDATION.md); [role / identity epochs](POCKETRISU-G1-7-ROLE-IDENTITY-EPOCH-VALIDATION.md) |
+| <a id="u25"></a>U25 | G1.7 context omission / 30 | `7b2854e..f735cef` / 4 | Omit invalid non-provider contexts with canonical identity checks and safe cache recovery. | Preserve earlier effects; selected-provider/identity failures still stop. Raw selected-provider admission follows in .31. | [validation](POCKETRISU-G1-7-CONTEXT-OMISSION-VALIDATION.md) |
+| <a id="u26"></a>U26 | G1.7 raw provider / 31 | `0b75e5d..b52bc9c` / 4 | Require actual healthy registration/ownership before raw selected-provider execution. | No implicit default model; ambiguous/failed providers rejected. | [validation](POCKETRISU-G1-7-RAW-PROVIDER-VALIDATION.md) |
+| <a id="u27"></a>U27 | G1.7 handles/callers / 32 | `0d2e882..690bca0` / 4 | Restore unpublished refused RPC resources and verify actual v2/Lua auxiliary caller roles/storage. | No whole-realm or consumed-stream reuse claim; detailed rejected operational publication stays private. | [validation](POCKETRISU-G1-7-HANDLE-CALLER-VALIDATION.md) |
+| <a id="u28"></a>U28 | M7 preparation / 32 unchanged | `ae2ece9..ac24278` / 4 | Connect goal subplans and verify unchanged installed-original combinations through actual HTTP admission. | Probe/docs-only checkpoint; no new runtime or general plugin admission. | [validation](POCKETRISU-G1-7-INSTALLED-COMBINATION-VALIDATION.md) |
+| <a id="u29"></a>U29 | M7/G1.5b / 33 | `f64d0ec..1bf28c5` / 2 | Support original provider font/cache/bookkeeping and accepted callback-RPC settlement under measured resource contracts. | Later .34 fixes lifecycle edges; startup recovery warning remains open until G1.8 work. | [validation](POCKETRISU-G1-7-M7-QUALIFICATION-VALIDATION.md) |
+| <a id="u30"></a>U30 | M7 post-review repairs / 34 | `58e7462..85cd2f9` / 13 | Repair settlement warning, large-transfer cleanup, legacy receipts, shared exports and teardown admission. | Retain accepted RPC-chain semantics, not arbitrary future timer completion. | [validation](POCKETRISU-G1-7-M7-QUALIFICATION-VALIDATION.md) |
+| <a id="u31"></a>U31 | G1.8 lifecycle / 35 | `b95b946..d0f0501` / 10 | Preserve operation metadata, validate conditional new-journal retirement and deliver v3 failures/interruption/edit notices. | Only qualified new journal entries use approved 49h retirement; old journal bytes remain protected. | [validation](POCKETRISU-G1-8-FAILURE-LIFECYCLE-VALIDATION.md) |
+| <a id="u32"></a>U32 | G1.8 failed input / 36 | `7dc00bd..0b48497` / 9 | Reproduce blocked next Send, settle exact failed input after no-answer ACK and repair malformed test-statistics evidence. | Current proof/ACK required; partial/unknown/edited/deleted cases are not blindly cleared. | [validation](POCKETRISU-G1-8-VERIFICATION-RECORD-2026-10-11.md) |
+| <a id="u33"></a>U33 | G1.8 statistics/ACK/edit / 37 | `3603204..e2156a8` / 10 | Validate canonical counters, preserve exact failed ACK through retirement and publish anchored edit notices. | Revision-only publication guard was rejected; pending-publication edit/delete loss still needs .38. | [validation](POCKETRISU-G1-8-VERIFICATION-RECORD-2026-10-11.md) |
+| <a id="u34"></a>U34 | G1.8 publication repair / 38 | `a646988..f33a0d2` / 3 | Recover committed publication before affected writes; retain dirty edits and show blocked-save when recovery fails. | Current-screen dirty retention is not save across app closure; unrelated writers keep scope. | [validation](POCKETRISU-G1-8-VERIFICATION-RECORD-2026-10-11.md) |
+| <a id="u35"></a>U35 | G1.8 uncertain input / 39 | `1df5fe1..c325ac8` / 3 | Promote only proven committed uncertain markers into existing hydration/ACK ownership after the original grace. | No new model replay or unconditional marker removal; R7 natural admission phone evidence is scoped. | [validation](POCKETRISU-G1-8-VERIFICATION-RECORD-2026-10-11.md) |
+| <a id="u36"></a>U36 | G1.9 / 40 | `12f1e46..3740c66` / 9 | Add formatted server-owned stream preview/Stop; fix Node frame scheduling, piping errors, durable-save retry and cancelled input settlement. | Common formatting only; no editdisplay hooks; display teardown does not cancel generation. | [validation](POCKETRISU-G1-9-STREAM-RELAY-VALIDATION.md) |
+| <a id="u37"></a>U37 | G1.10 combination/Stop / 41 | `6498e32..81529be` / 6 | Qualify original MARP edit/queue/module/restart/provider warnings and expose current Stop during preparation/nonstream generation. | Synthetic integrated evidence, actual-provider/device qualification remains separate. | [validation](POCKETRISU-MARP-BG-POST-IMPLEMENTATION-REVIEW.md) |
+| <a id="u38"></a>U38 | Wait/Stop UI / 42 | `00e5f8a` / 1 | Move normal preparation/nonstream waiting to the upper status surface and preserve ordinary circle Stop/queue Send. | Yielding to preview and primary title finish in .43. | [UI snapshot](BG-G1-CHECKPOINT-HISTORY.md#recorded-source-and-qualification-snapshot) |
+| <a id="u39"></a>U39 | Wait title/preview / 43 | `73beb80..49522f6` / 2 | Yield generic waiting to actual stream preview and use server-processing as the primary wait title. | Higher-priority relayed cards need .44; no broader device pass inferred. | [UI snapshot](BG-G1-CHECKPOINT-HISTORY.md#recorded-source-and-qualification-snapshot) |
+| <a id="u40"></a>U40 | Relayed wait follow-up / 44 | `2aa7ba2` / 1 | Fix the actual relayed connecting card title and remove transient composer read-status warnings. | Keep unknown activity conservative and preserve real recovery controls. | [UI snapshot](BG-G1-CHECKPOINT-HISTORY.md#recorded-source-and-qualification-snapshot) |
+| <a id="u41"></a>U41 | Whole-request progress / 45 | `d82488b..0291eb9` / 2 | Observe request/admission/queue/preparation/model/postprocess/save/adoption/completion in one lifecycle card. | Memory-only presentation; never replaces provider, commit, ACK, recovery or Stop authority. | [UI snapshot](BG-G1-CHECKPOINT-HISTORY.md#recorded-source-and-qualification-snapshot) |
+| <a id="u42"></a>U42 | Lifecycle kind chip / 46 | `17cfa97..0aa1db1` / 2 | Remove only duplicate parent kind; retain real model details/kind/usage/badges. | Scoped physical confirmation recorded; whole G1.10 remains separate. | [UI snapshot](BG-G1-CHECKPOINT-HISTORY.md#recorded-source-and-qualification-snapshot) |
+| <a id="u43"></a>U43 | Automatic header experiment / 47 | `834dcc0` / 1 | Add automatic Go conversation-header completion after an incomplete isolated fixture. | REVERTED by .48 because it suppressed configured rules/redirect scoping; not current functionality. | [validation](POCKETRISU-G1-11-EXTERNAL-HEADERS-VALIDATION.md) |
+| <a id="u44"></a>U44 | Header ownership/G1.10 closeout / 48 | `8adb75f..0729f2f` / 2 | Restore configured header-rule ownership; record isolated actual-provider and phone app-close/save/return observations. | Phone full MARP analysis/injection and latency root cause remain unconfirmed; additional device checks deferred. | [validation](POCKETRISU-G1-11-EXTERNAL-HEADERS-VALIDATION.md); [G1.10 observations](BG-G1-CHECKPOINT-HISTORY.md#recorded-source-and-qualification-snapshot) / [closeout](../CHANGELOG.md#024-experimental48-restore-external-header-rule-ownership) |
+| <a id="u45"></a>U45 | Composer height / 49 | `cc0a490` / 1 | Wait for cleared DOM after successful unchanged-draft ACK before measuring height. | Preserve uncertain/rejected/changed drafts; scoped user L5 confirmed on 2026-10-15 in documentation follow-up 478969b. | [validation](POCKETRISU-COMPOSER-ADMISSION-UI-VALIDATION.md) |
+| <a id="u46"></a>U46 | Composer notices / 50 | `498537d..1feca1d` / 2 | Render only actionable pending notices with a persistent empty live region and full activity/polling. | Scoped user L5 confirmed with height fix; VoiceOver/translated-input UI and separate control gestures unmeasured. | [validation](POCKETRISU-COMPOSER-ADMISSION-UI-VALIDATION.md) |
 
 ## Corrections that must not disappear
 
