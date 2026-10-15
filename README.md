@@ -4,11 +4,11 @@ Personal, all-or-nothing patch delivery for PocketRisu NodeOnly. The current
 stable release is `v0.2.3`, and its complete manifest graph targets exact
 PocketRisu `v1.10.0`.
 
-The `0.2.4-experimental.48` candidate supports the unchanged original PageFold
+The `0.2.4-experimental.49` candidate supports the unchanged original PageFold
 provider's default font/emoji cache and statistics in the isolated host. Bounded
 local string transport, allocation/progress ownership and separate API budgets
 retain ordinary limits; caught local CAS refusals retain competing data and valid
-answers after a mandatory warning. BG adapter0.7.55 / Lazy sync0.5.8 / Personal settings0.5.14;
+answers after a mandatory warning. BG adapter0.7.56 / Lazy sync0.5.8 / Personal settings0.5.14;
 controlled host activation has been exercised. See [M7 qualification](docs/POCKETRISU-G1-7-M7-QUALIFICATION-VALIDATION.md)
 for original-provider12, actual raw/prepared/admission and failure evidence,
 operational composition, support/activation conditions and remaining goal gates.
@@ -30,6 +30,9 @@ billing settings are unchanged. The automatic Go-header completion introduced
 in experimental.47 was removed because it suppressed a configured rule.
 
 The current G1.10 checkpoint has completed scoped closeout with recorded limits.
+Successful server-owned input admission now waits for the cleared input to reach
+the DOM before measuring composer height. Changed drafts and uncertain admission
+retain their existing handling. Physical-device confirmation remains separate.
 Isolated actual-provider analysis/main generation, canonical storage before
 browser return and a healthy follow-up after a failed input were verified.
 On a physical device, app closure was followed by observed server-side answer

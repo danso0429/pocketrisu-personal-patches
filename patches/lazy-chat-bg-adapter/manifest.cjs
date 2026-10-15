@@ -25,7 +25,7 @@ const queueUnits = require('./queue-units.cjs')
 module.exports = {
     id: 'lazy-chat-bg-adapter',
     title: 'BG preserve integration for lazy chat storage',
-    version: '0.7.55',
+    version: '0.7.56',
     targets: {
         pocketrisu: {
             verified: ['1.10.0'],
@@ -1959,6 +1959,7 @@ function notifyFinishedServerFailure(operationId: string, data: any): void {
                             messageInputTranslate = ''
                             fileInput = []
                             removeChatDraft(draftChaId, draftChatId)
+                            await tick()
                             updateInputSizeAll()
                         } else {
                             notifySuccess('이전 입력은 서버에 접수됐고 새 초안은 남겼어요.')

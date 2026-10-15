@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.2.4-experimental.49 (composer height after server admission)
+
+- Measure composer height after Svelte applies the cleared input following a successful server-owned admission. Preserve changed drafts, uncertain/rejected admission and the ordinary send path.
+
 ## 0.2.4-experimental.48 (restore external-header rule ownership)
 
 - Complete the scoped G1.10 documentation closeout. Record actual-provider and physical app-close/storage/return observations separately from incomplete physical MARP analysis and deferred device scenarios. Further analysis trials are deferred; unrecorded scenarios are not passes. Runtime and installer versions remain unchanged; no stable release is published.
