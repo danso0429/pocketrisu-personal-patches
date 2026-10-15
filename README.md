@@ -4,6 +4,40 @@ Personal, all-or-nothing patch delivery for PocketRisu NodeOnly. The current
 stable release is `v0.2.3`, and its complete manifest graph targets exact
 PocketRisu `v1.10.0`.
 
+## Current candidate and implementation history
+
+The BG work consists of separate implementations and repairs. The
+[ordered crosswalk](docs/BG-G1-INTEGRATION-CROSSWALK.md) maps the pinned
+`9259550..1feca1d` history into 47 units and lists every one of its 191 commits.
+It preserves the original commits and distinguishes retained behavior, later
+repairs and reverted experiments. Documentation follow-up `478969b` records
+the two composer fixes' scoped L5 completion outside that history snapshot.
+
+The order below follows canonical commit ancestry; G1 numbering and retrospective
+record dates are not execution order. Work can have started earlier on another
+branch. Detailed checkpoint text below remains available with its original
+verification limits; the crosswalk explains later changes to those checkpoints.
+
+| Candidate checkpoints | Separate implementations and follow-ups |
+|---|---|
+| .5–.14 | Current-main foundation; detached admission; opt-in external headers; chat-save rebase and continued saving; finished-operation recovery; anchored answer append; assembly-time settings; upper saved-answer notices. |
+| .15–.20 | Shared model/binding selection, input operation context, qualified native admission and explicit app preparation; queue/control gating; notification foundation; isolated plugin-host foundation. |
+| .21–.24 | Recovery measurement and terminal reconciliation; CAP return/body/cancellation repair; recovery ownership and suggestions. G1.12b WIP predates CAP delivery. |
+| .25 / .26 / .27 | Original-MARP synthetic lifecycle and generic diagnostics; actual-capability admission; unavailable-host continuation with omission warnings. The .27 delivery retained host OFF; it did not activate MARP. |
+| .28–.32 | API-limit/settings qualification; proxy/PDF/role boundaries; context omission; selected raw-provider admission; refused handle and auxiliary-caller repair. |
+| .33–.34 | Original-provider font/cache/bookkeeping and accepted RPC settlement, followed by separate receipt/resource/teardown repairs. |
+| .35–.39 | Failure notices and conditional new-journal retirement; failed-input next Send; statistics/exact ACK/edit notices; recover-before-write publication; proven committed uncertain input. |
+| .40 | Stream relay plus Node scheduling, stream-error, durable-save retry and cancellation-settlement repairs. |
+| .41–.46 | Original-plugin combination probes; preparation/nonstream Stop; waiting/title/preview corrections; whole-request lifecycle and kind-label follow-ups. |
+| .47 → .48 | Automatic Go-header experiment, then its removal to restore configured destination-rule ownership; scoped G1.10 closeout with recorded limits. |
+| .49 / .50 | Composer height after successful admission; actionable notices with full activity/polling. Both received scoped user L5 confirmation on 2026-10-15. |
+
+The candidate installer is `0.2.4-experimental.50`; stable remains `v0.2.3`.
+Updating main changes the default installer from experimental.5 to experimental.50
+even without a stable tag. G2/RCM work is not implemented or qualified by this
+G1 history. The unchanged-original plugin goal and later integration qualification
+retain their own boundaries.
+
 The `0.2.4-experimental.50` candidate supports the unchanged original PageFold
 provider's default font/emoji cache and statistics in the isolated host. Bounded
 local string transport, allocation/progress ownership and separate API budgets

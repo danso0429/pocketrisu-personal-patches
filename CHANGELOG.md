@@ -182,6 +182,22 @@
 - The user reports ordinary requests as normal and connection testing as successful. Close only the scoped preservation check; hostOFF preprocessing/history absence, exact device/bundle/API-limit scenarios and M7/G1 aggregate remain separate.
 - Add eleven maintained synthetic settings scenarios through the original UI/server Send and an actual native-v3 hook comparator. Record per-hook retry refresh and the original concurrent vault/argument read boundary; runtime/installer/production remain unchanged. See `docs/POCKETRISU-G1-7-M4-SETTINGS-VALIDATION.md`.
 
+## 0.2.4-experimental.27 (unavailable-host continuation)
+
+- Continue supported BG when the plugin host is unavailable or OFF, preserving explicit plugin/version/reason warnings for omitted effects. Reject a missing selected plugin provider instead of silently substituting a native model.
+- Preserve raw input, caller settings and existing stop/notification ownership. This delivery includes the .26 admission connection, retains host OFF and does not qualify MARP activation. See [OFF continuation validation](docs/POCKETRISU-G1-7-OFF-CONTINUATION-VALIDATION.md).
+
+## 0.2.4-experimental.26 (actual-capability plugin admission)
+
+- Check the actual initialized host capability before relaxing plugin-input eligibility. Keep tab-local hints nonpersistent, verify unknown/ON before creating input ownership, and preserve drafts when a later configuration/capability check refuses admission.
+- Preserve raw/prepared admission identity and existing model/endpoint/MCP restrictions. This candidate was delivered with .27; no standalone .26 host activation is inferred. See [MARP qualification](docs/POCKETRISU-G1-7-MARP-QUALIFICATION-VALIDATION.md).
+
+## 0.2.4-experimental.25 (plugin lifecycle and transport diagnostics)
+
+- Distinguish expiry of an already-issued request during cleanup from an actual new API call after invocation closure. Propagate operation/invocation abort to the native model transport.
+- Add bounded generic transport summaries and authenticated read-only diagnostics in Request Logs. Do not infer response-body completion, provider retry counts or private MARP analysis quality from those summaries.
+- Original-MARP lifecycle observations use isolated synthetic providers; this checkpoint alone has no standalone delivery/host-ON observation in the process record. See [MARP qualification](docs/POCKETRISU-G1-7-MARP-QUALIFICATION-VALIDATION.md).
+
 ## 0.2.4-experimental.24 (BG recovery ownership and suggestions)
 
 - Separate terminal reconciliation from generation busy; scope cleanup and late callbacks to the captured operation, epoch and native lifecycle, including delayed starts and auto-continue.
