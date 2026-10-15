@@ -32,7 +32,9 @@ in experimental.47 was removed because it suppressed a configured rule.
 The current G1.10 checkpoint has completed scoped closeout with recorded limits.
 Successful server-owned input admission now waits for the cleared input to reach
 the DOM before measuring composer height. Changed drafts and uncertain admission
-retain their existing handling. Physical-device confirmation remains separate.
+retain their existing handling. The user confirmed both composer fixes as normal
+on 2026-10-15, completing their scoped physical L5. Translated-input UI,
+VoiceOver and broader device qualification remain separate.
 Routine server input progress uses the upper lifecycle card. The composer keeps
 only actionable recovery/preparation notices, with unchanged activity polling,
 generation locks and explicit retry controls.

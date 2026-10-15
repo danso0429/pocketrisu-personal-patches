@@ -57,4 +57,8 @@ The candidate was delivered with the existing plugin host enabled and server cha
 - Independent readback matched 510 managed files, the generated installer and the served main asset. Delivery readback also verified 175 served JS assets against the tested bundle.
 - PM2 online, unstable restarts 0, host capability 1 and server chat commit capability 1. Existing configured header bytes were unchanged, operation rows removed 0, new error-log lines 0.
 
-Physical iPhone height/card/control checks, translated-input UI and VoiceOver speech remain unverified. No stable tag/release was created.
+## Scoped physical L5 and documentation closeout
+
+On 2026-10-15 the user reported that both delivered fixes behaved normally and explicitly completed L5. This closes the composer-height restoration and duplicate progress-card checks. No physical pixel measurements or separate recovery-control gestures were reported. Translated-input UI, VoiceOver speech and broader G1/device qualification remain separate, unverified surfaces.
+
+L6 records this scoped result in the README, changelog and implementation record. The completed scoped structural/runtime audit was summarized before its temporary L3 file was removed. No runtime, installer or version change accompanies this documentation closeout, and no stable tag/release was created.

@@ -2,6 +2,7 @@
 
 ## 0.2.4-experimental.50 (actionable composer input notices)
 
+- Record the user's 2026-10-15 normal-use confirmation and scoped L5 completion for both composer height and duplicate-card fixes. Close their documentation follow-up without changing runtime/version or broader G1, translated-input and VoiceOver qualification.
 - Hide duplicate queued/attached/generating input cards while retaining recovery, unknown execution and client preparation notices. Keep full pending activity and polling for generation locks.
 - Keep an empty live region mounted so later actionable updates do not depend on inserting the live region with its first message. Preserve explicit retry identity, raw input and existing failure behavior.
 
