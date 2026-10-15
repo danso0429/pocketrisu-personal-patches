@@ -9,7 +9,7 @@ provider's default font/emoji cache and statistics in the isolated host. Bounded
 local string transport, allocation/progress ownership and separate API budgets
 retain ordinary limits; caught local CAS refusals retain competing data and valid
 answers after a mandatory warning. BG adapter0.7.55 / Lazy sync0.5.8 / Personal settings0.5.14;
-production remains hostOFF. See [M7 qualification](docs/POCKETRISU-G1-7-M7-QUALIFICATION-VALIDATION.md)
+controlled host activation has been exercised. See [M7 qualification](docs/POCKETRISU-G1-7-M7-QUALIFICATION-VALIDATION.md)
 for original-provider12, actual raw/prepared/admission and failure evidence,
 operational composition, support/activation conditions and remaining goal gates.
 The follow-up audit repairs phase/receipt ownership, saturated settlement replies,
@@ -19,8 +19,8 @@ Repaired M7 qualification and independently checked OFF candidate delivery are
 closed at the documented scope. [G1.8 lifecycle qualification](docs/POCKETRISU-G1-8-FAILURE-LIFECYCLE-VALIDATION.md)
 adds proven absent-target classification, metadata-only journal caches, authorized
 new-journal retirement after49h and durable v3 failure/interruption/edit/effect notices.
-Legacy journal bytes remain protected. Actual providers, physical-device/aggregate
-qualification and live activation remain separate. Stable
+Legacy journal bytes remain protected. Broader physical-device and aggregate
+qualification remain separate. Stable
 remains `v0.2.3`.
 
 External request headers remain owned by explicitly enabled destination rules.
@@ -28,6 +28,21 @@ Their conversation-session values and redirect scoping use the existing rule
 owner. Original plugin scripts, explicit caller headers, provider accounts and
 billing settings are unchanged. The automatic Go-header completion introduced
 in experimental.47 was removed because it suppressed a configured rule.
+
+The current G1.10 checkpoint has completed scoped closeout with recorded limits.
+Isolated actual-provider analysis/main generation, canonical storage before
+browser return and a healthy follow-up after a failed input were verified.
+On a physical device, app closure was followed by observed server-side answer
+storage; the user confirmed one answer, cleared processing status and a usable
+composer after returning. The physical MARP run showed transport activity and
+an HTTP response, but complete analysis/injection was not established. Its
+timeout cleanup was reproduced locally; the cause of the increased latency is
+unresolved. Further analysis trials are deferred. Additional physical checks
+for app switching, screen locking, settings-save propagation, edit/queue,
+Stop/recovery, controlled failure and module selection are explicitly unrecorded.
+These limits are retained rather than treated as passes. This documentation
+closeout changes no runtime, installer, account or billing setting and does not
+publish a stable release.
 
 Whole-server requests use one upper lifecycle card per operation: request,
 admission confirmation, predecessor waiting, preparation, model processing,
