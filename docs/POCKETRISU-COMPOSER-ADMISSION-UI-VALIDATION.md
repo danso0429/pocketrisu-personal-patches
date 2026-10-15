@@ -17,6 +17,7 @@ No server/provider/permission/settings owner is changed. The generated installer
 | Full frontend | 2,444 passed; 4 existing skips; 202 files passed / 1 skipped |
 | Full server | 644 passed; 12 existing skips; 46 files passed |
 | Patcher | 52 passed |
+| Compatibility / help | 74 passed / 5 existing skips; Korean help translation complete |
 | Svelte check | 0 errors / 0 warnings |
 | Production frontend build | Passed using the existing PocketRisu build script without output-directory overrides |
 | Complete graph | 42 packs / 1,725 units / 8 collisions / 512 paths |
@@ -46,3 +47,14 @@ Excluded setup attempts: a relative output path did not satisfy the existing har
 Scoped structural and runtime review traced the successful-clear branch, stale/changed drafts, display filtering, polling/activity/generation locks, retry identity, lifecycle cleanup and combined behavior. Read-only technical review found no blocking issue in the current implementation. No assertion was weakened to hide a functional failure.
 
 The live plan changes only DefaultChatScreen, ServerPendingInputs, its test and patcher state. Existing host configuration must be preserved. Before delivery, current owner activity must be checked; historical `running` records alone do not prove active generation. Application/state rollback material, safe patcher apply and independent served-asset/source readback are required. Delivery confirmation and physical L5 are separate observations; no stable tag is created by these automatic results.
+
+## Operational delivery
+
+The candidate was delivered with the existing plugin host enabled and server chat commit enabled. Read-only owner activity, model work, pending sends and active requests were idle before stop; historical running rows were not cancelled or deleted to make a count match.
+
+- Verified application/patcher-state rollback archive: 417 files, 82,895,893 bytes. No whole user-data backup or cleanup was needed for this UI-only change.
+- Patcher changed the reviewed four paths. Stopped SQLite database inode/size/mtime/ctime observations remained identical through apply and bundle replacement; all five databases passed quick_check.
+- Independent readback matched 510 managed files, the generated installer and the served main asset. Delivery readback also verified 175 served JS assets against the tested bundle.
+- PM2 online, unstable restarts 0, host capability 1 and server chat commit capability 1. Existing configured header bytes were unchanged, operation rows removed 0, new error-log lines 0.
+
+Physical iPhone height/card/control checks, translated-input UI and VoiceOver speech remain unverified. No stable tag/release was created.
