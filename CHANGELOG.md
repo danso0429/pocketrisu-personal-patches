@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.2.4-experimental.50 (actionable composer input notices)
+
+- Hide duplicate queued/attached/generating input cards while retaining recovery, unknown execution and client preparation notices. Keep full pending activity and polling for generation locks.
+- Keep an empty live region mounted so later actionable updates do not depend on inserting the live region with its first message. Preserve explicit retry identity, raw input and existing failure behavior.
+
 ## 0.2.4-experimental.49 (composer height after server admission)
 
 - Measure composer height after Svelte applies the cleared input following a successful server-owned admission. Preserve changed drafts, uncertain/rejected admission and the ordinary send path.

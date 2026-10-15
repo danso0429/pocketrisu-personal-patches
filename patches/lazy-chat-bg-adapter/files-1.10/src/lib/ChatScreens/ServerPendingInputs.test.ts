@@ -1,7 +1,7 @@
 // @vitest-environment happy-dom
 
 import { afterEach, describe, expect, it, vi } from 'vitest'
-import { mount, unmount } from 'svelte'
+import { mount, tick, unmount } from 'svelte'
 import ServerPendingInputs from './ServerPendingInputs.svelte'
 import { reconcileServerPendingInputCommands } from 'src/ts/bgOrchestrate'
 import { readServerChatActivity } from 'src/ts/bgChatActivity'
@@ -20,6 +20,7 @@ afterEach(async () => {
         await unmount(entry.component)
         entry.target.remove()
     }
+    vi.useRealTimers()
     vi.resetAllMocks()
     vi.restoreAllMocks()
 })
@@ -36,6 +37,66 @@ function render(onRetryBlocked: (input: any) => Promise<void>, onActivity?: (act
 }
 
 describe('blocked server input recovery control', () => {
+    it.each(['queued', 'attached', 'generating', 'waiting_predecessor'] as const)(
+        'keeps %s activity and fast polling without a visible card', async state => {
+            vi.useFakeTimers()
+            vi.mocked(reconcileServerPendingInputCommands).mockResolvedValue([{
+                operationId: 'active', admissionSeq: 1, state,
+            }])
+            vi.mocked(readServerChatActivity).mockResolvedValue(true)
+            const activity = vi.fn()
+            const target = render(vi.fn(async () => {}), activity)
+            await tick()
+            await vi.advanceTimersByTimeAsync(0)
+            await tick()
+            expect(target.querySelector('[aria-live]')?.textContent?.trim()).toBe('')
+            expect(target.querySelector('[aria-live] .border')).toBeNull()
+            expect(activity).toHaveBeenLastCalledWith({ charId: 'char-1', chatId: 'chat-1', busy: true })
+            expect(reconcileServerPendingInputCommands).toHaveBeenCalledTimes(1)
+            await vi.advanceTimersByTimeAsync(2000)
+            expect(reconcileServerPendingInputCommands).toHaveBeenCalledTimes(2)
+        },
+    )
+
+    it('keeps the live region and exact retry identity across mixed and changing states', async () => {
+        const blocked = { operationId: 'blocked', admissionSeq: 2, state: 'blocked_edit' as const,
+            retryAllowed: true, rawText: 'retained mixed draft', inputCommandId: 'mixed-draft-id' }
+        vi.mocked(reconcileServerPendingInputCommands)
+            .mockResolvedValueOnce([{ operationId: 'active', admissionSeq: 1, state: 'generating' }])
+            .mockResolvedValueOnce([{ operationId: 'active', admissionSeq: 1, state: 'generating' }, blocked])
+        vi.mocked(readServerChatActivity).mockResolvedValue(true)
+        const retry = vi.fn(async () => {})
+        const activity = vi.fn()
+        const target = render(retry, activity)
+        await vi.waitFor(() => expect(activity).toHaveBeenCalledTimes(2))
+        const region = target.querySelector('[aria-live]')
+        expect(region?.textContent?.trim()).toBe('')
+        window.dispatchEvent(new Event('bg-server-input-updated'))
+        await vi.waitFor(() => expect(target.textContent).toContain(blocked.rawText))
+        expect(target.querySelector('[aria-live]')).toBe(region)
+        expect(target.textContent).not.toContain('서버에서 답변 생성 중')
+        expect(target.querySelectorAll('button')).toHaveLength(1)
+        target.querySelector('button')?.click()
+        await vi.waitFor(() => expect(retry).toHaveBeenCalledWith(blocked))
+        expect(retry).toHaveBeenCalledTimes(1)
+        expect(activity).toHaveBeenLastCalledWith({ charId: 'char-1', chatId: 'chat-1', busy: true })
+    })
+
+    it.each([
+        { state: 'execution_unknown', text: '생성 상태 미확인' },
+        { state: 'attached', clientPreparation: 'waiting', text: '앱 입력 처리를 기다리는 중' },
+        { state: 'attached', clientPreparation: 'running', text: '앱 입력 처리 완료를 기다리는 중' },
+        { state: 'attached', reason: 'server_host_unsupported', text: '서버 입력 중단' },
+        { state: 'attached', reason: 'client_preparation_interrupted', text: '앱 입력 처리가 중단' },
+    ] as const)('preserves the actionable $text notice', async row => {
+        vi.mocked(reconcileServerPendingInputCommands).mockResolvedValue([{
+            operationId: 'actionable', admissionSeq: 1, ...row,
+        }])
+        const target = render(vi.fn(async () => {}))
+        await vi.waitFor(() => expect(target.textContent).toContain(row.text))
+        expect(target.querySelector('[aria-live] .border')).not.toBeNull()
+    })
+
     it('reports server activity without a local marker and fails closed when refresh fails', async () => {
         vi.mocked(reconcileServerPendingInputCommands).mockResolvedValue([])
         vi.mocked(readServerChatActivity).mockResolvedValueOnce(true).mockRejectedValueOnce(new Error('offline'))
@@ -45,7 +106,8 @@ describe('blocked server input recovery control', () => {
         window.dispatchEvent(new Event('bg-server-input-updated'))
         await vi.waitFor(() => expect(onActivity).toHaveBeenLastCalledWith({ charId: 'char-1', chatId: 'chat-1', busy: null }))
         expect(target.textContent).not.toContain('서버 입력 상태를 확인할 수 없음')
-        expect(target.querySelector('[aria-live]')).toBeNull()
+        expect(target.querySelector('[aria-live]')?.textContent?.trim()).toBe('')
+        expect(target.querySelector('[aria-live] .border')).toBeNull()
     })
     it('shows no status-only card when the initial read fails but retains unknown activity', async () => {
         vi.mocked(reconcileServerPendingInputCommands).mockRejectedValue(new Error('offline'))
@@ -53,7 +115,8 @@ describe('blocked server input recovery control', () => {
         const target = render(vi.fn(async () => {}), onActivity)
         await vi.waitFor(() => expect(onActivity).toHaveBeenCalledTimes(2))
         expect(onActivity).toHaveBeenLastCalledWith({ charId: 'char-1', chatId: 'chat-1', busy: null })
-        expect(target.querySelector('[aria-live]')).toBeNull()
+        expect(target.querySelector('[aria-live]')?.textContent?.trim()).toBe('')
+        expect(target.querySelector('[aria-live] .border')).toBeNull()
         expect(target.textContent).not.toContain('서버 입력 상태를 확인할 수 없음')
     })
     it('retains a blocked input and its explicit retry control when the next read fails', async () => {

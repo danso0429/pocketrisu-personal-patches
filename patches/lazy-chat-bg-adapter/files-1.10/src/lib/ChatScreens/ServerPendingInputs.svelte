@@ -13,6 +13,10 @@
 
     let pending = $state<ServerPendingInput[]>([])
     let retryingId = $state('')
+    const actionablePending = $derived(pending.filter(input => (
+        input.state === 'blocked_edit' || input.state === 'execution_unknown'
+        || !!input.clientPreparation || !!input.reason
+    )))
 
     async function retry(input: ServerPendingInput) {
         if (!onRetryBlocked || retryingId || input.retryAllowed !== true
@@ -106,9 +110,10 @@
     })
 </script>
 
-{#if pending.length > 0}
-    <div class="mb-1 rounded-xl border border-darkborderc px-3 py-2 text-xs text-textcolor2" aria-live="polite">
-        {#each pending as input (input.operationId)}
+<div aria-live="polite">
+{#if actionablePending.length > 0}
+    <div class="mb-1 rounded-xl border border-darkborderc px-3 py-2 text-xs text-textcolor2">
+        {#each actionablePending as input (input.operationId)}
             <div>
                 <div>{input.clientPreparation === 'running' ? '앱 입력 처리 완료를 기다리는 중: 처리 중인 앱을 열어 두세요.'
                     : input.clientPreparation === 'waiting' ? '앱 입력 처리를 기다리는 중'
@@ -132,3 +137,4 @@
         {/each}
     </div>
 {/if}
+</div>
