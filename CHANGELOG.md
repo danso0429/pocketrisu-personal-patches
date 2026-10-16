@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.2.4-experimental.54 (read-only chat-variable lookup)
+
+- Stop native `getChatVar` from initializing missing/null script state during reads. Preserve character/template default precedence and the genuine variable setter.
+- Add native getter/comparator regression coverage and a real commit-owner/outbox control preserving generated variables. Keep strict post-assembly edit detection and both warning consumers unchanged.
+- Restore 22 verified missing hashed assets additively in the existing deployment, with matching served hashes and no overwrite, DB change or restart. The user reports Send/Stop still fails after reload; asset restoration does not establish or resolve its cause.
+- Keep scoped physical warning verification pending. Stable remains v0.2.3.
+
 ## 0.2.4-experimental.53 (request identity and full date)
 
 - Forward the client's model through the model-job creation route to the existing SQLite field, so recovery logs retain it. Add HTTP-to-SQLite/readback regression coverage; preserve all existing upstream/journal/guard checks.

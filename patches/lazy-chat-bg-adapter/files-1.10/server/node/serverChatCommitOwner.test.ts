@@ -403,6 +403,31 @@ describe('server-owned BG chat commit', () => {
         expect(harness.kvList('internal/server-chat-commit/')).toEqual([])
     })
 
+    it('does not report a user edit for a first-chat answer with server-created variables', async () => {
+        const harness = makeHarness()
+        const noticeDeps = { db: harness.db, kvGet: harness.kvGet, kvSet: harness.kvSet, kvDel: harness.kvDel, kvList: harness.kvList }
+        const outbox = createBgNotifications(noticeDeps)
+        const notices = createBgOperationNotices({ ...noticeDeps, publish: outbox.publish })
+        const owner = harness.makeOwner(undefined, null, { notifyCommit: notices.captureCommit })
+        const before: any = baseChat()
+        expect(Object.hasOwn(before, 'scriptstate')).toBe(false)
+        harness.runtime.fullStore.get('char-1')!.set('chat-1', structuredClone(before))
+        const captured = await owner.captureBase('char-1', 'chat-1', before)
+        const generated: any = withAnswer(before, 'synthetic answer', 'first-answer')
+        generated.scriptstate = { $server: 'generated' }
+        const operationId = 'operation-first-chat-no-edit'
+        harness.primeOperation(operationId)
+        const outcome = await owner.commitGenerationResult({
+            ...harness.commitInput(operationId, result(generated, 'old', 'new'), 1, captured.revision),
+            anchor: captured.anchor,
+        })
+        expect(outcome).toMatchObject({ status: 'committed', receipt: { promptInputsChanged: false } })
+        const stored: any = harness.runtime.fullStore.get('char-1')!.get('chat-1')
+        expect(stored.message.map((message: any) => message.data)).toEqual(['hello', 'synthetic answer'])
+        expect(stored.scriptstate).toEqual({ $server: 'generated' })
+        expect(outbox.claim('consumer-first-chat-read', 3)).toEqual([])
+    })
+
     it('commits over a saved earlier edit and retains variables, metadata and replay identity', async () => {
         const harness = makeHarness()
         const noticeDeps = { db: harness.db, kvGet: harness.kvGet, kvSet: harness.kvSet, kvDel: harness.kvDel, kvList: harness.kvList }

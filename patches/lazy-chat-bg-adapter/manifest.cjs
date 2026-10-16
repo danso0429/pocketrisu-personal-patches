@@ -25,7 +25,7 @@ const queueUnits = require('./queue-units.cjs')
 module.exports = {
     id: 'lazy-chat-bg-adapter',
     title: 'BG preserve integration for lazy chat storage',
-    version: '0.7.57',
+    version: '0.7.58',
     targets: {
         pocketrisu: {
             verified: ['1.10.0'],
@@ -38,6 +38,51 @@ module.exports = {
         all: ['bg-preserve', 'lazy-chat-sync'],
     },
     units: [
+        {
+            id: 'lazy-chat-bg-adapter:assembly-variable-read-only:1.10',
+            file: 'src/ts/parser/chatVar.svelte.ts', type: 'replace',
+            anchor: "    chat.scriptstate ??= {}\n    const state = (chat.scriptstate['$' + key])",
+            content: "    const state = chat.scriptstate?.['$' + key]",
+            targetVersions: pocketRisu1100,
+        },
+        {
+            id: 'lazy-chat-bg-adapter:assembly-variable-read-tests:1.10',
+            file: 'src/ts/parser/tests/chatVar.svelte.test.ts', type: 'insert', where: 'before',
+            anchor: "test('can get a character default variable', () => {",
+            content: String.raw`import assemblyPackage from '../../../../server/node/serverChatAssemblyContext.cjs'
+
+test.each([undefined, null])('reads first-chat variables without changing chat inputs from %s', (initialState) => {
+  const chat: any = DBState.db.characters[0].chats[0]
+  Object.assign(chat, { id: 'synthetic-first-chat', note: '', localLore: [],
+    message: [{ role: 'user', data: 'synthetic question', chatId: 'input' }] })
+  if (initialState === undefined) delete chat.scriptstate
+  else chat.scriptstate = initialState
+  DBState.db.characters[0].defaultVariables = 'inherited=character value'
+  DBState.db.templateDefaultVariables = 'inherited=template value\nonlyTemplate=template fallback'
+  const before = structuredClone(chat)
+  expect(getChatVar('unset')).toBe('null')
+  expect(getChatVar('inherited')).toBe('character value')
+  expect(getChatVar('onlyTemplate')).toBe('template fallback')
+  expect(chat).toEqual(before)
+  expect((assemblyPackage as any).promptInputsChanged(before, chat)).toBe(false)
+})
+
+test('real first-chat variable writes still change the assembly inputs', () => {
+  const chat: any = DBState.db.characters[0].chats[0]
+  Object.assign(chat, { id: 'synthetic-first-chat', note: '', localLore: [],
+    message: [{ role: 'user', data: 'synthetic question', chatId: 'input' }] })
+  delete chat.scriptstate
+  const before = structuredClone(chat)
+  setChatVar('assigned', '2')
+  expect(getChatVar('assigned')).toBe('2')
+  expect(chat.scriptstate).toEqual({ $assigned: '2' })
+  expect((assemblyPackage as any).promptInputsChanged(before, chat)).toBe(true)
+})
+
+`,
+            requires: ['lazy-chat-bg-adapter:owned:serverChatAssemblyContext.cjs:1.10'],
+            targetVersions: pocketRisu1100,
+        },
         {
             id: 'lazy-chat-bg-adapter:owned:input-execution-context-tests:1.10',
             file: 'server/node/bgInputExecutionContext.test.ts', type: 'owned',
