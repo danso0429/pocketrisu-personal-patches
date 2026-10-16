@@ -1145,6 +1145,73 @@ describe('server-owned BG chat commit', () => {
             .toBe(1)
     })
 
+    it('reconciles three applied commits after ID-only repair without replaying answers or statistics', async () => {
+        const harness = makeHarness()
+        const original = baseChat()
+        for (let index = 1; index <= 12; index++) {
+            original.message.push({ role: 'char', data: `Legacy ${index}`, chatId: `legacy-${index}` })
+        }
+        harness.runtime.fullStore.get('char-1')!.set('chat-1', original)
+        const owner = harness.makeOwner()
+        let previous = original
+        const moods = ['old', 'first', 'second', 'third']
+        for (let index = 1; index <= 3; index++) {
+            const next = withAnswer(previous, `Answer ${index}`, `assistant-repair-${index}`)
+            const operationId = `operation-repair-${index}`
+            harness.primeOperation(operationId)
+            await owner.commitGenerationResult(harness.commitInput(operationId,
+                result(next, moods[index - 1], moods[index]), previous.message.length, revision(previous)))
+            previous = harness.runtime.fullStore.get('char-1')!.get('chat-1')!
+        }
+        const current = structuredClone(previous)
+        current.message.push({ ...structuredClone(original.message[1]), data: 'Recovered legacy variant one' })
+        current.message.push({ ...structuredClone(original.message[2]), data: 'Recovered legacy variant two' })
+        expect(current.message).toHaveLength(18)
+        harness.runtime.fullStore.get('char-1')!.set('chat-1', current)
+        const stats = structuredClone(harness.runtime.database.statics)
+        const globals = structuredClone(harness.runtime.database.globalChatVariables)
+        const ledger = structuredClone(harness.runtime.database[SERVER_CHAT_COMMIT_APPLIED_FIELD])
+        const recordKeys = harness.kvList('internal/server-chat-commit/v1/')
+        const records = recordKeys.map(key => Buffer.from(harness.kvGet(key)))
+        expect(await owner.readChatProjection('char-1', 'chat-1', revision(current)))
+            .toMatchObject({ status: 'conflict' })
+        expect((await owner.recoverAll()).every((entry: any) => entry.publication === 'pending_recovery')).toBe(true)
+
+        const repaired = structuredClone(current)
+        repaired.message[16].chatId = 'repaired-legacy-one'
+        repaired.message[17].chatId = 'repaired-legacy-two'
+        const expected = structuredClone(current)
+        expected.message[16].chatId = repaired.message[16].chatId
+        expected.message[17].chatId = repaired.message[17].chatId
+        expect(repaired).toEqual(expected)
+        harness.runtime.fullStore.get('char-1')!.set('chat-1', repaired)
+        harness.persistRoot()
+        const restarted = harness.makeOwner(harness.makeJournal())
+        const schedules = harness.runtime.schedules
+        const recovered = await restarted.recoverAll()
+        expect(recovered).toHaveLength(3)
+        expect(recovered.every((entry: any) => entry.publication === 'published')).toBe(true)
+        expect(harness.runtime.schedules).toBe(schedules + 1)
+        expect(harness.runtime.fullStore.get('char-1')!.get('chat-1')).toEqual(repaired)
+        expect(harness.runtime.database.statics).toEqual(stats)
+        expect(harness.runtime.database.globalChatVariables).toEqual(globals)
+        expect(harness.runtime.database[SERVER_CHAT_COMMIT_APPLIED_FIELD]).toEqual(ledger)
+        expect(recordKeys.map(key => Buffer.from(harness.kvGet(key)))).toEqual(records)
+        await restarted.recoverAll()
+        expect(harness.runtime.schedules).toBe(schedules + 1)
+        expect(await restarted.readChatProjection('char-1', 'chat-1', revision(repaired)))
+            .toMatchObject({ status: 'ok', projection: { owners: expect.any(Array) } })
+
+        const next = withAnswer(repaired, 'New response after repair', 'assistant-after-repair')
+        const operationId = 'operation-after-repair'
+        harness.primeOperation(operationId)
+        const committed = await restarted.commitGenerationResult(harness.commitInput(operationId,
+            result(next, 'third', 'fourth'), repaired.message.length, revision(repaired)))
+        expect(committed.status).toBe('committed')
+        expect(harness.runtime.fullStore.get('char-1')!.get('chat-1')!.message).toHaveLength(19)
+        expect(harness.runtime.database.statics.messages).toBe(stats.messages + 1)
+    })
+
     it('recovers two unflushed commits in commit-sequence order', async () => {
         const harness = makeHarness()
         const owner = harness.makeOwner()

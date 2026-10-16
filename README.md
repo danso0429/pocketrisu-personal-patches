@@ -40,15 +40,20 @@ Stable remains `v0.2.3`.
 
 ## BG goals and current scope
 
-The candidate installer is `0.2.4-experimental.54` (BG adapter `0.7.58`, lazy
+The candidate installer is `0.2.4-experimental.55` (BG adapter `0.7.59`, lazy
 sync `0.5.8`, Personal settings `0.5.14`). Stable remains `v0.2.3`. The G1
 crosswalk preserves its experimental.50 history snapshot; the usage candidate
 adds cost observation. The .54 follow-up makes native chat-variable reads
 read-only, preventing missing/null variable state from becoming an empty object
 and being mistaken for a post-assembly edit. Real setters and strict edit
 detection remain unchanged. See the [scoped record](docs/records/2026-10-16-bg-variable-read-and-asset-compatibility.md).
-Physical confirmation of this warning fix and diagnosis of the separate
-Send/Stop failure remain pending; automatic checks do not close either device gate.
+The .55 follow-up prevents native terminal recovery from writing during a live
+chat generation, joins concurrent recovery of one job, and rechecks current
+message identity after journal reads. Existing histories with duplicate IDs
+require explicit maintenance; the approved two-row repair is documented
+separately from installation in the [recovery record](docs/records/2026-10-17-bg-job-recovery-identity-repair.md).
+Physical confirmation of the warning fix and restored ordinary Send/Stop remain
+pending; automatic checks do not close these device gates.
 
 BG aims to run input preparation, required model requests, postprocessing and
 canonical chat storage on the server while the app is absent. The table follows

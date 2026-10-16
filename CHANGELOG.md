@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.2.4-experimental.55 (native terminal recovery identity)
+
+- Defer terminal model-job recovery while the same chat has any live generation, including continuations; retain recovery by a background poll owner.
+- Join concurrent recovery of the same job through save/claim, reacquire the current chat after awaited reads, and resolve the current generation index before insert/fill. Preserve deleted targets, current proxy objects, save retries and legacy jobs.
+- Keep the strict projection, anchor and commit identity checks. Add 18 native concurrency/ownership cases and a real SQLite control for three already-applied commits, ID-only repair, idempotent recovery and the next canonical answer.
+- Separate the explicitly approved historical two-row identity correction from installer behavior; preserve message content/order/count, first IDs, generation metadata, statistics and retained commit identity. See the scoped process record for execution status and device limits. Stable remains v0.2.3.
+
 ## 0.2.4-experimental.54 (read-only chat-variable lookup)
 
 - Stop native `getChatVar` from initializing missing/null script state during reads. Preserve character/template default precedence and the genuine variable setter.
