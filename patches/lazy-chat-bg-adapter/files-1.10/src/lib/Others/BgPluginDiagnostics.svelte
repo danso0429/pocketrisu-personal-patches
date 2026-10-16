@@ -4,7 +4,11 @@
     let opened = $state(false)
     let loading = $state(false)
     let failed = $state(false)
-    let rows = $state<Record<string, string | number>[]>([])
+    type AbsentApi = { api: string, phase: string }
+    let rows = $state<(Record<string, string | number> & { absentApis?: AbsentApi[] })[]>([])
+    const validLabel = (value: unknown) => typeof value === 'string' && value.length > 0 && value.length <= 80
+    const validAbsentApis = (value: unknown) => value === undefined || (Array.isArray(value) && value.length <= 32
+        && value.every((item: any) => !!item && typeof item === 'object' && validLabel(item.api) && validLabel(item.phase)))
     let refresh = $state(0)
     $effect(() => {
         if (!opened) return
@@ -27,7 +31,8 @@
                     || typeof row.id !== 'string' || !/^[a-f0-9-]{36}$/.test(row.id)
                     || typeof row.pluginName !== 'string' || row.pluginName.length > 120
                     || typeof row.pluginVersion !== 'string' || row.pluginVersion.length > 80
-                    || fields.some(field => !Number.isSafeInteger(row[field]) || row[field] < 0))) throw new Error('Invalid')
+                    || fields.some(field => !Number.isSafeInteger(row[field]) || row[field] < 0)
+                    || !validAbsentApis(row.absentApis))) throw new Error('Invalid')
                 if (!controller.signal.aborted) rows = data.summaries
             } catch {
                 if (!controller.signal.aborted) { failed = true; rows = [] }
@@ -58,6 +63,10 @@
                         <p>HTTP 상태 없는 반환 {row.resolvedWithoutStatus} · 거절·중단 합계 {row.rejected} · 응답 헤더/API 반환 대기 {row.pending}</p>
                         <p>거절·중단 중 콜백 signal {row.scopeClosed} · 작업 signal {row.operationCancelled} · 플러그인 signal {row.entryClosed} · 요청 signal {row.requestAborted}</p>
                         <p>기타 거절 {Number(row.rejected) - Number(row.scopeClosed) - Number(row.operationCancelled) - Number(row.entryClosed) - Number(row.requestAborted)} · 네트워크 실패 여부가 확인되지 않은 오류도 포함합니다.</p>
+                        {#if row.absentApis?.length}
+                            <p>서버 실행에서 제공하지 않는 API 확인 {row.absentApis.length}개: {row.absentApis.map(item => `${item.api} (${item.phase})`).join(', ')}</p>
+                            <p class="text-textcolor2 text-xs">플러그인이 이름을 확인했지만 서버 실행에 없는 API입니다. 이 기록만으로 플러그인을 중지하지 않으며, 최대 32개까지 표시합니다.</p>
+                        {/if}
                         <p class="text-textcolor2 text-xs">응답 헤더/API 반환·거절까지 누적 {row.durationMs}ms · 최대 {row.maxDurationMs}ms. 먼저 중단된 signal의 소유자를 셉니다. HTTP 상태 없는 반환에는 모델 API의 실패 반환도 포함합니다. 본문 수신·분석 성공과 timeout 원인은 판정하지 않습니다. 내부 proxy 재시도 수는 API 호출 수와 다를 수 있습니다.</p>
                     </article>
                 {/each}

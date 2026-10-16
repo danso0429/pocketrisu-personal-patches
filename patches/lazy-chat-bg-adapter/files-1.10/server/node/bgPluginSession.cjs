@@ -3,17 +3,30 @@ const { AsyncLocalStorage } = require('node:async_hooks');
 const { randomUUID } = require('node:crypto');
 const path = require('node:path');
 const { createPluginSandbox } = require('./bgPluginSandbox.cjs');
-const { createPluginPeer } = require('./bgPluginWorker.cjs');
+const { createPluginPeer, ABSENT_API_PULL } = require('./bgPluginWorker.cjs');
 
 const chain = new AsyncLocalStorage();
 const failure = code => Object.assign(new Error(code), { code });
+// Root API names the parent host dispatches (bgPluginHost.cjs re-exports this
+// list and refuses any other root name before its switch). The worker exposes
+// exactly these names; every other name reads as absent.
+const SUPPORTED_ROOT_METHODS = Object.freeze(['getArgument', 'setArgument', 'getArg', 'setArg', 'requestPluginPermission',
+    'addRisuReplacer', 'removeRisuReplacer', 'addRisuScriptHandler', 'removeRisuScriptHandler',
+    'registerBodyIntercepter', 'unregisterBodyIntercepter', 'addProvider', 'onUnload', 'nativeFetch', 'risuFetch',
+    'runLLMModel', 'getDatabase', 'getDatabaseMetadata', 'getCurrentCharacterIndex', 'getCurrentChatIndex',
+    'getChar', 'getCharacter', 'getCharacterFromIndex', 'getChatFromIndex', 'getRuntimeInfo',
+    'showContainer', 'hideContainer', 'registerSetting', 'registerButton', 'unregisterUIPart', 'setChatPanel',
+    'getRootDocument', 'alert', 'alertError', 'log']);
 
-async function createPluginSession({ script, api, signal, onFailure = () => {}, onLateCall = () => {},
+async function createPluginSession({ script, api, rootMethods, signal, onFailure = () => {}, onLateCall = () => {},
     onLocalLimit = async () => {}, onSettlementTimeout = () => {}, runtimeMs = 600_000 }) {
     if (typeof script !== 'string' || Buffer.byteLength(script) > 4 * 1024 * 1024
         || typeof api !== 'function') throw failure('plugin_script_invalid');
+    // The parent dispatcher's list is the only capability source; the worker
+    // validates it before running plugin code.
+    const exposed = Array.from(rootMethods ?? SUPPORTED_ROOT_METHODS);
     const scopes = new Map(), current = new AsyncLocalStorage();
-    let peer, sandbox, stopped = false, failureCode = null;
+    let peer, sandbox, stopped = false, failureCode = null, absentScope = null, absentPull = null;
     const fail = code => {
         if (stopped) return;
         stopped = true; failureCode = code;
@@ -36,7 +49,8 @@ async function createPluginSession({ script, api, signal, onFailure = () => {}, 
     const invoke = async task => {
         if (stopped) throw failure(failureCode ?? 'plugin_session_closed');
         const depth = (chain.getStore() ?? 0) + 1;
-        if (depth > 8 || scopes.size >= 64) throw failure('plugin_invocation_limit');
+        // An in-flight absent-API pull never takes an invocation slot.
+        if (depth > 8 || scopes.size - (absentScope !== null && scopes.has(absentScope) ? 1 : 0) >= 64) throw failure('plugin_invocation_limit');
         const token = randomUUID();
         const snapshot = AsyncLocalStorage.snapshot();
         scopes.set(token, { snapshot, refs: 1, depth, abort: new AbortController() });
@@ -81,8 +95,24 @@ async function createPluginSession({ script, api, signal, onFailure = () => {}, 
     void sandbox.closed.then(result => {
         if (!stopped) fail(result.error ?? 'plugin_session_exited');
     });
+    // Parent-initiated, single-flight read of the worker's bounded absent-API
+    // record. Failure only rejects this read; it never stops the session.
+    const pullOnce = async () => {
+        if (stopped || signal?.aborted) return null;
+        const token = randomUUID();
+        scopes.set(token, { snapshot: AsyncLocalStorage.snapshot(), refs: 1, depth: chain.getStore() ?? 0, abort: new AbortController() });
+        absentScope = token;
+        try { return await current.run(token, () => peer.call(ABSENT_API_PULL, [])); }
+        finally { release(token); if (absentScope === token) absentScope = null; }
+    };
     return {
-        load: () => invoke(() => peer.call('load', [script])),
+        load: () => invoke(() => peer.call('load', [script, exposed])),
+        pullAbsentApis() {
+            const next = (absentPull ?? Promise.resolve()).catch(() => {}).then(pullOnce);
+            absentPull = next;
+            void next.catch(() => {}).finally(() => { if (absentPull === next) absentPull = null; });
+            return next;
+        },
         assertCurrent: () => find(current.getStore()),
         currentSignal: () => find(current.getStore()).abort.signal,
         async close() {
@@ -98,4 +128,4 @@ async function createPluginSession({ script, api, signal, onFailure = () => {}, 
     };
 }
 
-module.exports = { createPluginSession, isPluginInvocation: () => (chain.getStore() ?? 0) > 0 };
+module.exports = { createPluginSession, SUPPORTED_ROOT_METHODS, isPluginInvocation: () => (chain.getStore() ?? 0) > 0 };

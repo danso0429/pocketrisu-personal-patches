@@ -236,6 +236,46 @@ require('./bgOrchestrator.cjs')(app, Object.assign({ bgPluginDependencies, sessi
     add('host-finally', 'server/node/bgOrchestrator.cjs',
         '    if (llmTimer) clearTimeout(llmTimer)\n    release()',
         '    if (llmTimer) clearTimeout(llmTimer)\n    try { if (pluginHost) await pluginHost.close() } finally { release() }');
+    // Foreground capability exposure: the guest proxy exposes only function-valued
+    // own keys of the host apiFactory, captured when the guest document is built.
+    add('guest-capability-proxy', 'src/ts/plugins/apiV3/factory.ts',
+        `    window.risuai = new Proxy({}, {
+        get: (target, prop) => {
+            if (propertyCache.has(prop)) {
+                return propertyCache.get(prop);
+            }
+            return (...args) => sendRequest('CALL_ROOT', { method: prop, args: args });
+        }
+    });
+`,
+        `    const supportedRootMethods = new Set(__POCKETRISU_SUPPORTED_ROOT_METHODS__);
+    const isSupportedRoot = (prop) => typeof prop === 'string' && supportedRootMethods.has(prop);
+    window.risuai = new Proxy({}, {
+        get: (target, prop) => {
+            if (propertyCache.has(prop)) {
+                return propertyCache.get(prop);
+            }
+            if (!isSupportedRoot(prop)) return undefined;
+            return (...args) => sendRequest('CALL_ROOT', { method: prop, args: args });
+        },
+        has: (target, prop) => propertyCache.has(prop) || isSupportedRoot(prop)
+    });
+`);
+    add('guest-capability-list', 'src/ts/plugins/apiV3/factory.ts',
+        `        this.messageHandlerRef = messageHandler;
+        window.addEventListener('message', this.messageHandlerRef);
+`,
+        String.raw`        this.messageHandlerRef = messageHandler;
+        window.addEventListener('message', this.messageHandlerRef);
+
+        // Escaped so no apiFactory key can close the script element or break the literal.
+        const supportedRootMethods = Object.keys(this.apiFactory).filter((key) => typeof this.apiFactory[key] === 'function');
+        const supportedRootLiteral = JSON.stringify(supportedRootMethods).replace(/[^\x20-\x3b\x3d\x3f-\x7e]/g,
+            (char) => '\\u' + char.charCodeAt(0).toString(16).padStart(4, '0'));
+        const guestBridgeScript = GUEST_BRIDGE_SCRIPT.replace('__POCKETRISU_SUPPORTED_ROOT_METHODS__', () => supportedRootLiteral);
+`);
+    add('guest-capability-bridge', 'src/ts/plugins/apiV3/factory.ts',
+        '                ${GUEST_BRIDGE_SCRIPT}\n', '                ${guestBridgeScript}\n');
     for (const [name, spaces] of [['early-abort-reason', 6], ['input-abort-reason', 8]]) {
         const indent = ' '.repeat(spaces);
         const anchor = `${indent}if (llmAbort.signal.aborted\n${indent}  || (control && typeof control.isCancelled === 'function' && control.isCancelled())) {`;

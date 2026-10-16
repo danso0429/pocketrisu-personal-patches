@@ -40,7 +40,7 @@ Stable remains `v0.2.3`.
 
 ## BG goals and current scope
 
-The candidate installer is `0.2.4-experimental.55` (BG adapter `0.7.59`, lazy
+The candidate installer is `0.2.4-experimental.56` (BG adapter `0.7.60`, lazy
 sync `0.5.8`, Personal settings `0.5.14`). Stable remains `v0.2.3`. The G1
 crosswalk preserves its experimental.50 history snapshot; the usage candidate
 adds cost observation. The .54 follow-up makes native chat-variable reads

@@ -2,13 +2,17 @@
 const { AsyncLocalStorage } = require('node:async_hooks');
 const { isDeepStrictEqual } = require('node:util');
 const { randomUUID } = require('node:crypto');
-const { createPluginSession } = require('./bgPluginSession.cjs');
+const { createPluginSession, SUPPORTED_ROOT_METHODS } = require('./bgPluginSession.cjs');
 const { createPluginStorage, savedPluginPermission } = require('./bgPluginStorage.cjs');
 const { clonePluginValue, measurePluginValue } = require('./bgPluginValue.cjs');
-const { reservePluginStorage, reservedPluginValue, stringJSONBytes } = require('./bgPluginWorker.cjs');
+const { reservePluginStorage, reservedPluginValue, stringJSONBytes, ABSENT_API_LIMIT, absentApiName } = require('./bgPluginWorker.cjs');
 const { createTransportCounter } = require('./bgPluginDiagnostics.cjs');
 
 const fail = code => Object.assign(new Error(code), { code });
+// SUPPORTED_ROOT_METHODS is the single source for the worker's exposed root names
+// and the dispatcher below; a name outside it is refused before the switch.
+const supportedRootMethods = new Set(SUPPORTED_ROOT_METHODS);
+const ABSENT_PULL_MS = 1000;
 const { clean, identityOf, pluginMetadata } = require('./bgPluginMetadata.cjs');
 const clone = clonePluginValue;
 const phaseScope = new AsyncLocalStorage();
@@ -53,11 +57,13 @@ async function createBgPluginHost({ database, bindings, getDatabase, getSelectio
         if (typeof publishDiagnostic !== 'function') return;
         for (const entry of entries) {
             const summary = entry.transport?.snapshot();
-            if (!summary?.calls) continue;
+            const absentApis = [...entry.absentApis ?? []].map(([api, phase]) => ({ api, phase }));
+            if (!summary || (!summary.calls && !absentApis.length)) continue;
             try {
                 const metadata = common(entry, entry.lastPhase ?? 'load');
                 await publishDiagnostic({ version: 1, id: entry.diagnosticId, createdAt: Date.now(),
-                    pluginName: metadata.pluginName, pluginVersion: metadata.pluginVersion, ...summary });
+                    pluginName: metadata.pluginName, pluginVersion: metadata.pluginVersion, ...summary,
+                    ...(absentApis.length ? { absentApis } : {}) });
             } catch {
                 if (!diagnosticFailureReported) {
                     diagnosticFailureReported = true;
@@ -170,6 +176,26 @@ async function createBgPluginHost({ database, bindings, getDatabase, getSelectio
         charId: operation.charId, chatId: operation.chatId, createdAt: Date.now(),
         ...pluginMetadata(entry.plugin),
         phase, effectsMayHaveOccurred: entry.effects, failureIdentity: entry.identity });
+    // Pull the worker's absent-name record at a parent-controlled point. The read
+    // is bounded, never disables, records no notice/effect and uses no API budget.
+    const collectAbsent = async (entry, phase, deadline = performance.now() + ABSENT_PULL_MS) => {
+        const session = entry.session;
+        const remaining = Math.floor(deadline - performance.now());
+        if (!session || entry.failed || session.failure || signal.aborted || remaining <= 0) return;
+        let timer;
+        try {
+            const result = await Promise.race([session.pullAbsentApis(),
+                new Promise(resolve => { timer = setTimeout(resolve, remaining, null); })]);
+            if (!result || typeof result !== 'object' || !Array.isArray(result.names)
+                || typeof result.overflow !== 'boolean') return;
+            const absent = entry.absentApis ??= new Map();
+            for (const name of result.names.slice(0, ABSENT_API_LIMIT)) {
+                if (absent.size >= ABSENT_API_LIMIT) break;
+                if (absentApiName(name) && !absent.has(name)) absent.set(name, phase);
+            }
+        } catch { /* A diagnostic read must not change the plugin outcome. */ }
+        finally { clearTimeout(timer); }
+    };
     const disable = (entry, code, api, phaseOverride) => {
         // A load failure after registration must not reveal a different owner
         // of the same selected name. Unknown, never-registered names are not inferred.
@@ -295,6 +321,8 @@ async function createBgPluginHost({ database, bindings, getDatabase, getSelectio
         }
         return phaseScope.run(kind, async () => {
             entry.lastPhase = kind;
+            let absentPulled = false;
+            const pullAbsent = async () => { if (!absentPulled) { absentPulled = true; await collectAbsent(entry, kind); } };
             try {
                 await currentIdentity(kind);
                 await noticesSettled();
@@ -306,6 +334,7 @@ async function createBgPluginHost({ database, bindings, getDatabase, getSelectio
                 }
                 if (provider) { permission(entry, 'provider', true); await effect(entry); }
                 const value = await callback(...args);
+                await pullAbsent();
                 await currentIdentity(kind);
                 if (closed || tearingDown || entry.closing) throw fail('plugin_operation_closed');
                 if (entry.failed) throw fail('plugin_hook_failed');
@@ -320,6 +349,8 @@ async function createBgPluginHost({ database, bindings, getDatabase, getSelectio
                 if (closed || tearingDown || entry.closing) throw fail('plugin_operation_closed');
                 return value;
             } catch (error) {
+                // Read before a possible disable closes the worker; never throws.
+                await pullAbsent();
                 if (noticeFailure) throw noticeFailure;
                 if (identityFailure) throw identityFailure;
                 if (closed || tearingDown || entry.closing) throw error;
@@ -439,6 +470,7 @@ async function createBgPluginHost({ database, bindings, getDatabase, getSelectio
             };
             try {
             entry.session = await phaseScope.run('load', () => createPluginSession({ script: plugin.script, signal: abortSignal,
+                rootMethods: SUPPORTED_ROOT_METHODS,
                 onFailure: code => disable(entry, code), onLateCall: () => reportLate(entry),
                 onSettlementTimeout: () => reportSettlementBudget(entry),
                 onLocalLimit: () => { entry.session.assertCurrent(); return reportApiLimit(entry); },
@@ -453,6 +485,7 @@ async function createBgPluginHost({ database, bindings, getDatabase, getSelectio
                             const task = () => (group === 'pluginStorage' ? storage.root : storage.local)(action, args);
                             return ['setItem', 'removeItem'].includes(action) ? await write(args, task, group === 'localPluginStorage') : await task();
                         }
+                        if (!supportedRootMethods.has(method)) return unsupported(method);
                         switch (method) {
                             case 'getArgument': return await storage.argument(method, args);
                             case 'setArgument': return await write(args, () => storage.argument(method, args));
@@ -573,8 +606,15 @@ async function createBgPluginHost({ database, bindings, getDatabase, getSelectio
                     }
                 }) }));
                 await phaseScope.run('load', () => entry.session.load());
+                await phaseScope.run('load', () => collectAbsent(entry, 'load'));
                 if (!entry.failed) { entry.ready = true; install(entry); }
-            } catch (error) { if (identityFailure) throw identityFailure; disable(entry, error?.code ?? 'plugin_hook_failed'); }
+            } catch (error) {
+                if (identityFailure) throw identityFailure;
+                // Read before disable closes the worker; never throws.
+                if (!entry.ready) await phaseScope.run('load', () => collectAbsent(entry, 'load'));
+                if (identityFailure) throw identityFailure;
+                disable(entry, error?.code ?? 'plugin_hook_failed');
+            }
             await noticesSettled();
         }
     } catch (error) {
@@ -603,11 +643,14 @@ async function createBgPluginHost({ database, bindings, getDatabase, getSelectio
             // Original callbacks may release local state and unregister hooks,
             // but cannot start effects. OS teardown remains authoritative.
             let timer;
+            // The final absent-API read shares the existing one-second unload bound.
+            const deadline = performance.now() + 1000;
             await Promise.race([
                 Promise.allSettled(entries.filter(entry => !entry.failed).flatMap(entry => entry.unload.map(callback => callback()))),
                 new Promise(resolve => { timer = setTimeout(resolve, 1000); }),
             ]);
             clearTimeout(timer);
+            await Promise.all(entries.map(entry => collectAbsent(entry, entry.lastPhase ?? 'load', deadline)));
             for (const entry of entries) entry.abort.abort(fail('plugin_operation_closed'));
             closed = true;
             apiSlots.close(); writeSlots.close();
@@ -619,4 +662,4 @@ async function createBgPluginHost({ database, bindings, getDatabase, getSelectio
     };
 }
 
-module.exports = { createBgPluginHost };
+module.exports = { createBgPluginHost, SUPPORTED_ROOT_METHODS };

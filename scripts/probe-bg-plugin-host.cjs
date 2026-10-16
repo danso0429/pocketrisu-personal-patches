@@ -3,13 +3,25 @@ const test = require('node:test');
 const assert = require('node:assert/strict');
 const { createHash } = require('node:crypto');
 const { createRequire } = require('node:module');
+const Module = require('node:module');
 const path = require('node:path');
 const targetRequire = createRequire(path.resolve(process.argv[2], 'package.json'));
+let wireMutation = null;
+const originalLoad = Module._load;
+Module._load = function(request, ...args) {
+    const value = originalLoad.call(this, request, ...args);
+    if (request === './bgPluginSandbox.cjs') return { ...value, createPluginSandbox: options => {
+        const mutation = wireMutation;
+        return value.createPluginSandbox({ ...options, onFrame: frame => options.onFrame(mutation ? mutation(frame) : frame) });
+    } };
+    return value;
+};
 const Database = targetRequire('better-sqlite3');
 const { createBgPluginHost } = targetRequire('./server/node/bgPluginHost.cjs');
 const { createPluginStorage, savedPluginPermission } = targetRequire('./server/node/bgPluginStorage.cjs');
 const { createBgNotifications } = targetRequire('./server/node/bgNotifications.cjs');
 const { createPluginPeer } = targetRequire('./server/node/bgPluginWorker.cjs');
+Module._load = originalLoad;
 const plugin = (name, script) => ({ name, script, version: '3.0', enabled: true, realArg: { sample: 'original' } });
 
 async function fixture(t, plugins, permissions = true, options = {}) {
@@ -45,6 +57,7 @@ async function fixture(t, plugins, permissions = true, options = {}) {
         getRoot: async () => { options.onRootRead?.(); return options.getRoot ? options.getRoot(root) : root; },
         writeRoot: async mutate => { await options.beforeRootWrite?.(); root = mutate(root); writes++; } };
     t.after(async () => { await host?.close(); db.close(); });
+    wireMutation = options.wireMutation ?? null;
     host = await createBgPluginHost({ database: options.separateRoot ? operationDb : root,
         getDatabase: () => options.separateRoot ? operationDb : root, getSelection: () => ({ characterIndex: 0, chatIndex: 0 }),
         hydrate: options.hydrate ?? (async value => structuredClone(value)), storageOwner: owner, beforeEffect: () => { effects++; return options.beforeEffect?.(); },
@@ -54,6 +67,7 @@ async function fixture(t, plugins, permissions = true, options = {}) {
         onCriticalFailure: error => { options.onCriticalFailure?.(error); controller.abort(error); },
         operation: { operationId: options.operationId ?? 'synthetic-operation', charId: 'synthetic-character', chatId: 'synthetic-chat', inputPreparedOnClient: options.prepared === true },
         signal: controller.signal, bindings });
+    wireMutation = null;
     return { host, registry, bindings, notifications, owner, network, get root() { return root; },
         set root(value) { root = value; }, get effects() { return effects; }, get writes() { return writes; },
         get operationDb() { return options.separateRoot ? operationDb : root; },
@@ -788,14 +802,43 @@ test('network preserves arbitrary target payload and shared effect gate', async 
     assert.equal(h.effects, 1);
 });
 
-test('unsupported API is recorded even when plugin catches the rejection', async t => {
+test('caught absent API call stays enabled, uses the hook result, and is diagnostic-only', async t => {
+    const diagnostics = [];
     const h = await fixture(t, [plugin('unsupported', `await Risuai.addRisuReplacer('beforeRequest',async xs=>{
-        try{await Risuai.setDatabase({plugins:[]});}catch{}return [];});`)]);
+        try{await Risuai.setDatabase({plugins:[]});}catch{}return [];});`)], true,
+        { publishDiagnostic: value => diagnostics.push(value) });
+    const input = [{ role: 'user', content: 'kept' }];
+    assert.deepEqual(await [...h.registry.replacerbeforeRequest][0](input), []);
+    assert.equal(h.root.plugins.length, 1);
+    assert.equal(h.root.plugins[0].enabled, true);
+    assert.deepEqual(h.notices(), []);
+    await h.host.close();
+    assert.deepEqual(diagnostics[0].absentApis, [{ api: 'setDatabase', phase: 'before_request' }]);
+});
+
+test('forged unknown root RPC bypassing the proxy keeps plugin_api_unsupported behavior', async t => {
+    const h = await fixture(t, [plugin('forged-unknown', `await Risuai.addRisuReplacer('beforeRequest',async xs=>{
+        await Risuai.getRuntimeInfo();return [];});`)], true, { wireMutation: frame => {
+        if (frame.kind === 'call' && frame.method === 'api' && frame.args?.[1]?.[0]?.[1] === 'getRuntimeInfo') {
+            return { ...frame, args: ['array', [['value', 'forgedUnknownRoot'], frame.args[1][1]]] };
+        }
+        return frame;
+    } });
     const input = [{ role: 'user', content: 'kept' }];
     assert.deepEqual(await [...h.registry.replacerbeforeRequest][0](input), input);
     assert.equal(h.root.plugins.length, 1);
     assert.equal(h.notices()[0].code, 'plugin_api_unsupported');
-    assert.equal(h.notices()[0].api, 'set_database');
+    assert.equal(h.notices()[0].api, 'forged_unknown_root');
+});
+
+test('exposed method rejected by parent policy keeps plugin_api_unsupported behavior', async t => {
+    const h = await fixture(t, [plugin('policy-rejected', `await Risuai.addRisuReplacer('beforeRequest',async xs=>{
+        await Risuai.getArg('another-plugin::sample');return [];});`)]);
+    const input = [{ role: 'user', content: 'kept' }];
+    assert.deepEqual(await [...h.registry.replacerbeforeRequest][0](input), input);
+    assert.equal(h.root.plugins.length, 1);
+    assert.equal(h.notices()[0].code, 'plugin_api_unsupported');
+    assert.equal(h.notices()[0].api, 'get_arg');
 });
 
 test('root and local writes preserve shared keys and ownership sidecars', async t => {
@@ -941,7 +984,12 @@ test('permission denial after an input effect is not labelled as never applied',
 });
 
 test('short unsupported names still produce valid noncritical failure notices', async t => {
-    const h = await fixture(t, [plugin('short-api', `await Risuai.x();`)]);
+    const h = await fixture(t, [plugin('short-api', `await Risuai.getRuntimeInfo();`)], true, { wireMutation: frame => {
+        if (frame.kind === 'call' && frame.method === 'api' && frame.args?.[1]?.[0]?.[1] === 'getRuntimeInfo') {
+            return { ...frame, args: ['array', [['value', 'x'], frame.args[1][1]]] };
+        }
+        return frame;
+    } });
     assert.equal(h.controller.signal.aborted, false);
     assert.equal(h.notices()[0].code, 'plugin_api_unsupported');
     assert.equal(h.notices()[0].api, 'unsupported_x');

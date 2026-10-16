@@ -1,5 +1,13 @@
 # Changelog
 
+## 0.2.4-experimental.56 (plugin capability exposure)
+
+- Make plugin feature detection match the API actually provided. In the foreground plugin iframe, `typeof risuai.name` and `'name' in risuai` now report a root API only when the host registry provides it as a function; other names, `then`, symbols and inherited object names read as absent. Calling an absent name throws a local `TypeError` instead of sending a request. Host-side dispatch still rejects unknown names.
+- Apply the same rule to the BG plugin worker. The host's supported root-method list is the single source for both the worker's exposed names and the host dispatcher; the worker refuses a missing or malformed list before running plugin code. Names reaching the host outside that list still disable the plugin with the existing unsupported-API notice.
+- Record absent-name reads in the BG plugin diagnostics screen as name and phase (at most 32 per plugin run). The host reads this bounded record from the worker after each load/hook settles and before close; the read never disables a plugin, records no notice or effect and uses no API, network, write or call-slot budget. A plugin that catches the `TypeError` stays enabled; an uncaught one follows the existing hook/load failure path. Existing diagnostics rows remain readable.
+- Install scope: the foreground change is part of the BG adapter (`lazy-chat-bg-adapter` 0.7.60), which is installed only when both `bg-preserve` and `lazy-chat-sync` are selected. Other selections keep the original foreground behavior.
+- Known limit: `initOldApiGlobal` keeps its pre-existing behavior of iterating the unawaited result of `_getOldKeys()`, so it still assigns no legacy globals. The legacy v2 names that are not v3 root functions (`safeGlobalThis`, `getSafeGlobalThis`, `safeIdbFactory`, `safeDocument`, `alertStore`, `SafeFunction`) remain unavailable there. If a plugin reads an absent name and the host then disables it in the same phase (policy-rejected call, forged unknown RPC or missing permission), the worker closes before that phase's absent names are read, so only the failure notice records that phase.
+
 ## 0.2.4-experimental.55 (native terminal recovery identity)
 
 - Defer terminal model-job recovery while the same chat has any live generation, including continuations; retain recovery by a background poll owner.

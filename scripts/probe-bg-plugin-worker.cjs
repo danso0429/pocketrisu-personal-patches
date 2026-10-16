@@ -4,6 +4,7 @@ const assert = require('node:assert/strict');
 const path = require('node:path');
 const { createPluginSandbox } = require('../patches/lazy-chat-bg-adapter/files-1.10/server/node/bgPluginSandbox.cjs');
 const { createPluginPeer } = require('../patches/lazy-chat-bg-adapter/files-1.10/server/node/bgPluginWorker.cjs');
+const { SUPPORTED_ROOT_METHODS } = require('../patches/lazy-chat-bg-adapter/files-1.10/server/node/bgPluginSession.cjs');
 const workerPath = path.resolve(__dirname, '../patches/lazy-chat-bg-adapter/files-1.10/server/node/bgPluginWorker.cjs');
 
 async function fixture(t, dispatch) {
@@ -12,7 +13,9 @@ async function fixture(t, dispatch) {
     peer = createPluginPeer({ send: sandbox.send, dispatch, timeoutMs: 5000, onFatal: code => sandbox.stop(code) });
     void sandbox.closed.then(result => peer.close(result.error ?? 'plugin_rpc_closed'));
     t.after(async () => { peer.close(); sandbox.stop(); await sandbox.closed; });
-    return { peer, sandbox };
+    // The worker now requires the parent's supported root list with load.
+    const call = (method, args, ...rest) => peer.call(method, method === 'load' ? [...args, SUPPORTED_ROOT_METHODS] : args, ...rest);
+    return { peer: { ...peer, call }, sandbox };
 }
 
 test('unmodified async initialization completes causal RPC chain before ready', async t => {
@@ -139,4 +142,28 @@ test('forged thenable replies cannot capture a parent Promise indefinitely', asy
         value: ['object', [['then', ['function', 1]]]] });
     await assert.rejects(pending, { code: 'plugin_rpc_thenable_unsupported' });
     assert.equal(peer.stats().closed, true);
+});
+
+test('a delayed absent-API pull outlives the call timeout without closing the peer', async () => {
+    const { ABSENT_API_PULL } = require('../patches/lazy-chat-bg-adapter/files-1.10/server/node/bgPluginWorker.cjs');
+    const relay = target => frame => setImmediate(() => target().receive(JSON.parse(JSON.stringify(frame))));
+    let release, fatal;
+    const held = new Promise(resolve => { release = resolve; });
+    const parent = createPluginPeer({ send: relay(() => worker), timeoutMs: 50, onFatal: code => { fatal = code; },
+        dispatch: () => { throw new Error('unexpected'); } });
+    const worker = createPluginPeer({ send: relay(() => parent), workerSide: true, dispatch: async (method, args) => {
+        if (method === ABSENT_API_PULL) { await held; return { names: ['late'], overflow: false }; }
+        return args;
+    } });
+    const pulling = parent.call(ABSENT_API_PULL, []);
+    await new Promise(resolve => setTimeout(resolve, 150));
+    assert.equal(fatal, undefined); assert.equal(parent.stats().closed, false);
+    release();
+    assert.deepEqual(await pulling, { names: ['late'], overflow: false });
+    assert.equal(fatal, undefined); assert.equal(parent.stats().pending, 0);
+    // Peer close still settles a pull that never receives a response.
+    const unanswered = parent.call(ABSENT_API_PULL, []);
+    parent.close();
+    await assert.rejects(unanswered, { code: 'plugin_rpc_closed' });
+    worker.close();
 });

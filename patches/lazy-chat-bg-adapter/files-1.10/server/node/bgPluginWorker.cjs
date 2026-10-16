@@ -66,6 +66,13 @@ const localStringRequest = (method, args) => method === 'api' && Array.isArray(a
     && args[0] === 'localPluginStorage.setItem' && Array.isArray(args[1]) && args[1].length >= 2;
 const localStringRead = (method, args) => method === 'api' && Array.isArray(args) && args.length === 2
     && args[0] === 'localPluginStorage.getItem' && Array.isArray(args[1]) && args[1].length >= 1;
+// Parent-to-worker read of the bounded absent-API record. It is single-flight
+// and is not charged against the ordinary 64-call RPC capacity on either side.
+const ABSENT_API_PULL = 'absent_api_pull';
+const ABSENT_API_LIMIT = 32, ROOT_METHOD_LIMIT = 256;
+const absentApiName = value => typeof value === 'string' && value.length > 0 && value.length <= 80
+    && !/[\u0000-\u001f\u007f]/.test(value);
+const rootMethodName = value => typeof value === 'string' && /^[A-Za-z_$][A-Za-z0-9_$]{0,79}$/.test(value);
 
 function createPluginPeer({ send, dispatch, onFatal = () => {}, timeoutMs = 600_000, onExpiredContext = () => {},
     getContext = () => null, runContext = (_context, task) => task(),
@@ -77,6 +84,7 @@ function createPluginPeer({ send, dispatch, onFatal = () => {}, timeoutMs = 600_
     const ids = new WeakMap(), reverseFunctions = new WeakMap();
     const exportOwnership = new WeakMap();
     let sequence = 0, handle = 0, lastIncoming = 0, incoming = 0, closed = false, activity = 0;
+    let absentPullPending = false, absentPullIncoming = 0;
     const incomingContexts = new Map(), contextActivity = new Map();
     const contextWaiters = new Map(), activityWaiters = new Set();
     const largeMarkers = new WeakMap(), largeReleases = new Set();
@@ -180,7 +188,7 @@ function createPluginPeer({ send, dispatch, onFatal = () => {}, timeoutMs = 600_
         touchActivity();
         for (const waiters of contextWaiters.values()) for (const wake of waiters) wake();
         for (const entry of pending.values()) { clearTimeout(entry.timer); entry.reject(fail(code)); }
-        pending.clear();
+        pending.clear(); absentPullPending = false;
         for (const controller of controllers.values()) controller.abort(fail(code));
         for (const entry of signals.values()) apply(removeListener, entry.signal, ['abort', entry.abort]);
         for (const entry of readers.values()) void entry.reader.cancel(code).catch(() => {});
@@ -469,7 +477,9 @@ function createPluginPeer({ send, dispatch, onFatal = () => {}, timeoutMs = 600_
     function call(method, args, context = getContext(), callTimeout = timeoutMs) {
         if (closed) return Promise.reject(fail('plugin_rpc_closed'));
         if (typeof method !== 'string' || !(context === null || typeof context === 'string')) return Promise.reject(fail('plugin_rpc_context_invalid'));
-        if (pending.size >= 64) return Promise.reject(fail('plugin_rpc_pending_limit'));
+        const absentPull = !workerSide && method === ABSENT_API_PULL;
+        const atLimit = () => absentPull ? absentPullPending : pending.size - (absentPullPending ? 1 : 0) >= 64;
+        if (atLimit()) return Promise.reject(fail('plugin_rpc_pending_limit'));
         let encoded, serialization;
         try { serialization = serialize(args, localStringRequest(method, args) ? '/1/1' : null); encoded = serialization.encoded; } catch (error) {
             if (closed) return Promise.reject(fail('plugin_rpc_closed'));
@@ -477,14 +487,17 @@ function createPluginPeer({ send, dispatch, onFatal = () => {}, timeoutMs = 600_
             method = 'api_local_limit'; encoded = ['array', [['value', error.code]]];
         }
         // Encoding may synchronously publish a nested call or close this peer.
-        if (closed || pending.size >= 64) {
+        if (closed || atLimit()) {
             serialization?.rollback();
             return Promise.reject(fail(closed ? 'plugin_rpc_closed' : 'plugin_rpc_pending_limit'));
         }
         const id = ++sequence;
         return new Promise((resolve, reject) => {
-            const timer = setTimeout(() => fatal('plugin_rpc_timeout'), method === 'load' ? Math.min(callTimeout, BOOTSTRAP_MAX_MS) : callTimeout);
-            timer.unref?.();
+            // The absent-API pull is diagnostic: no fatal timer. Single-flight bounds
+            // it; the response or peer close settles it, so a late reply stays valid.
+            const timer = absentPull ? null
+                : setTimeout(() => fatal('plugin_rpc_timeout'), method === 'load' ? Math.min(callTimeout, BOOTSTRAP_MAX_MS) : callTimeout);
+            timer?.unref?.();
             // A callback that returned without awaiting a network/model task
             // abandons that task under the existing scope-abort contract. Join
             // storage/host bookkeeping chains; do not retain unused bodies.
@@ -492,7 +505,8 @@ function createPluginPeer({ send, dispatch, onFatal = () => {}, timeoutMs = 600_
                 && !['_pull', '_cancel'].includes(method);
             pending.set(id, { resolve, reject, timer, context, settles, largeRead: localStringRead(method, args),
                 method, cancelLarge: serialization?.cancelLarge, rollbackUndecoded: serialization?.rollback,
-                finishExports: serialization?.finishExports, returning: false });
+                finishExports: serialization?.finishExports, returning: false, absentPull });
+            if (absentPull) absentPullPending = true;
             touchContext(context);
             try { emit({ kind: 'call', id, method, args: encoded, context }); }
             catch (error) {
@@ -568,6 +582,7 @@ function createPluginPeer({ send, dispatch, onFatal = () => {}, timeoutMs = 600_
                 const finish = (value, ok) => {
                     if (closed) return;
                     pending.delete(frame.id); clearTimeout(entry.timer);
+                    if (entry.absentPull) absentPullPending = false;
                     touchContext(entry.context); releaseTracking(entry.context);
                     if (ok) entry.resolve(value); else entry.reject(value);
                 };
@@ -591,8 +606,9 @@ function createPluginPeer({ send, dispatch, onFatal = () => {}, timeoutMs = 600_
                     catch (failure) { fatal(errorCode(failure)); }
                 });
             } else if (frame.kind === 'call') {
+                const absentPull = workerSide && frame.method === ABSENT_API_PULL;
                 if (!validId(frame.id) || frame.id <= lastIncoming || typeof frame.method !== 'string'
-                    || frame.method.length > 80 || incoming >= 64
+                    || frame.method.length > 80 || (absentPull ? absentPullIncoming >= 1 : incoming - absentPullIncoming >= 64)
                     || !(frame.context === null || (typeof frame.context === 'string' && frame.context.length <= 128))) throw fail('plugin_rpc_protocol_invalid');
                 lastIncoming = frame.id;
                 // Materialize signal handles before reading a subsequent abort
@@ -612,6 +628,7 @@ function createPluginPeer({ send, dispatch, onFatal = () => {}, timeoutMs = 600_
                     return;
                 }
                 incoming++;
+                if (absentPull) absentPullIncoming++;
                 if (settleCallbacks) incomingContexts.set(frame.context, (incomingContexts.get(frame.context) ?? 0) + 1);
                 touchContext(frame.context);
                 let decoded, settlementExpired = false;
@@ -643,6 +660,7 @@ function createPluginPeer({ send, dispatch, onFatal = () => {}, timeoutMs = 600_
                 }).finally(() => {
                     decoded?.release();
                     incoming--;
+                    if (absentPull) absentPullIncoming--;
                     if (settleCallbacks) {
                         const count = (incomingContexts.get(frame.context) ?? 1) - 1;
                         if (count) incomingContexts.set(frame.context, count); else incomingContexts.delete(frame.context);
@@ -673,11 +691,29 @@ async function runWorker() {
             : inspect(value, { depth: 2, maxArrayLength: 16, maxStringLength: 1024, customInspect: false, getters: false })) : args]);
     const storage = prefix => Object.fromEntries(['getItem', 'setItem', 'removeItem', 'clear', 'keys', 'key', 'length']
         .map(method => [method, (...args) => apiCall(`${prefix}.${method}`, args)]));
+    // Root names are supplied by the parent at load. Other string names read as
+    // absent and are recorded locally (bounded) until the parent pulls them.
+    let rootMethods = new Set(), absentOverflow = false;
+    const absentSeen = new Set(), absentPending = [];
+    const noteAbsent = key => {
+        if (absentSeen.has(key)) return;
+        if (absentSeen.size >= ABSENT_API_LIMIT || !absentApiName(key)) { absentOverflow = true; return; }
+        absentSeen.add(key); absentPending.push(key);
+    };
     const api = new Proxy({ apiVersion: '3.0', compatibleAPIVersions: ['3.0'], toJSON: () => ({ apiVersion: '3.0' }), pluginStorage: storage('pluginStorage'),
         getLocalPluginStorage: async () => storage('localPluginStorage') }, {
         get(target, key) {
             if (key === 'then' || typeof key !== 'string') return undefined;
-            return Object.hasOwn(target, key) ? target[key] : (...args) => apiCall(key, args);
+            if (Object.hasOwn(target, key)) return target[key];
+            if (rootMethods.has(key)) return (...args) => apiCall(key, args);
+            noteAbsent(key);
+            return undefined;
+        },
+        has(target, key) {
+            if (key === 'then' || typeof key !== 'string') return false;
+            if (Object.hasOwn(target, key) || rootMethods.has(key)) return true;
+            noteAbsent(key);
+            return false;
         },
     });
     const sandboxConsole = Object.fromEntries(Object.getOwnPropertyNames(console)
@@ -701,8 +737,18 @@ async function runWorker() {
         if (Buffer.byteLength(bytes) > 8 * 1024 * 1024) throw Object.assign(fail('plugin_rpc_frame_limit'), { oversize: true });
         channel.write(bytes);
     }, onFatal: () => process.exit(1), async dispatch(method, args) {
-        if (method === 'load' && !loaded && args.length === 1 && typeof args[0] === 'string') {
+        if (method === ABSENT_API_PULL && args.length === 0) {
+            const result = { names: absentPending.splice(0), overflow: absentOverflow };
+            absentOverflow = false;
+            return result;
+        }
+        if (method === 'load' && !loaded && typeof args[0] === 'string') {
             loaded = true;
+            // Reject a missing or malformed capability list before any plugin code runs.
+            const names = args[1];
+            if (args.length !== 2 || !isArray(names) || names.length < 1 || names.length > ROOT_METHOD_LIMIT
+                || !names.every(rootMethodName)) throw fail('plugin_bootstrap_invalid');
+            rootMethods = new Set(names);
             // Same wrapper contract as the browser guest; script bytes are not rewritten.
             await vm.runInContext(`(async () => {\n${args[0]}\n})()`, context, { timeout: 5000, filename: 'plugin.js' });
             await peer.waitForLoadIdle();
@@ -728,5 +774,6 @@ async function runWorker() {
     process.on('unhandledRejection', error => { if (error?.code !== 'plugin_invocation_expired') process.exit(1); });
 }
 
-module.exports = { createPluginPeer, reservePluginStorage, reservedPluginValue, stringJSONBytes };
+module.exports = { createPluginPeer, reservePluginStorage, reservedPluginValue, stringJSONBytes,
+    ABSENT_API_PULL, ABSENT_API_LIMIT, absentApiName };
 if (require.main === module) void runWorker().catch(() => process.exit(1));

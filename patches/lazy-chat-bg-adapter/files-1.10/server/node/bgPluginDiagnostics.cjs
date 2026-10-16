@@ -4,6 +4,7 @@ const PREFIX = 'internal/bg-plugin-transport/v1/';
 const TTL_MS = 48 * 60 * 60 * 1000;
 const MAX_ROWS = 256;
 const MAX_CALLS = 128;
+const MAX_ABSENT_APIS = 32;
 const MAX_DURATION_MS = 900000 * MAX_CALLS;
 const FIELDS = ['calls', 'nativeFetch', 'risuFetch', 'modelCalls', 'http1xx', 'http2xx', 'http3xx', 'http4xx', 'http5xx',
     'resolvedWithoutStatus', 'rejected', 'scopeClosed', 'operationCancelled', 'entryClosed', 'requestAborted',
@@ -29,6 +30,14 @@ function normalizeSummary(value) {
         || result.maxDurationMs > result.durationMs || result.maxDurationMs > 900000
         || result.durationMs > result.calls * 900000) {
         throw new Error('plugin_diagnostic_invalid');
+    }
+    // Optional bounded list of root API names a plugin read but the BG worker does
+    // not provide. Rows written before this field existed remain valid.
+    if (value.absentApis !== undefined) {
+        if (!Array.isArray(value.absentApis) || value.absentApis.length > MAX_ABSENT_APIS
+            || !value.absentApis.every(item => item && typeof item === 'object' && !Array.isArray(item)
+                && label(item.api, 80) && label(item.phase, 80))) throw new Error('plugin_diagnostic_invalid');
+        result.absentApis = value.absentApis.map(item => ({ api: item.api, phase: item.phase }));
     }
     return result;
 }
