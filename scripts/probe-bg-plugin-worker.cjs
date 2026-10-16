@@ -4,7 +4,8 @@ const assert = require('node:assert/strict');
 const path = require('node:path');
 const { createPluginSandbox } = require('../patches/lazy-chat-bg-adapter/files-1.10/server/node/bgPluginSandbox.cjs');
 const { createPluginPeer } = require('../patches/lazy-chat-bg-adapter/files-1.10/server/node/bgPluginWorker.cjs');
-const { SUPPORTED_ROOT_METHODS } = require('../patches/lazy-chat-bg-adapter/files-1.10/server/node/bgPluginSession.cjs');
+// Synthetic capability fixture for this standalone probe.
+const FIXTURE_ROOT_METHODS = ['addProvider', 'addRisuReplacer', 'log', 'nativeFetch', 'onUnload', 'registerSetting', 'removeRisuReplacer'];
 const workerPath = path.resolve(__dirname, '../patches/lazy-chat-bg-adapter/files-1.10/server/node/bgPluginWorker.cjs');
 
 async function fixture(t, dispatch) {
@@ -14,7 +15,7 @@ async function fixture(t, dispatch) {
     void sandbox.closed.then(result => peer.close(result.error ?? 'plugin_rpc_closed'));
     t.after(async () => { peer.close(); sandbox.stop(); await sandbox.closed; });
     // The worker now requires the parent's supported root list with load.
-    const call = (method, args, ...rest) => peer.call(method, method === 'load' ? [...args, SUPPORTED_ROOT_METHODS] : args, ...rest);
+    const call = (method, args, ...rest) => peer.call(method, method === 'load' ? [...args, FIXTURE_ROOT_METHODS] : args, ...rest);
     return { peer: { ...peer, call }, sandbox };
 }
 

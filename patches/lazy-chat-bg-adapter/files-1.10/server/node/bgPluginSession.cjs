@@ -7,24 +7,16 @@ const { createPluginPeer, ABSENT_API_PULL } = require('./bgPluginWorker.cjs');
 
 const chain = new AsyncLocalStorage();
 const failure = code => Object.assign(new Error(code), { code });
-// Root API names the parent host dispatches (bgPluginHost.cjs re-exports this
-// list and refuses any other root name before its switch). The worker exposes
-// exactly these names; every other name reads as absent.
-const SUPPORTED_ROOT_METHODS = Object.freeze(['getArgument', 'setArgument', 'getArg', 'setArg', 'requestPluginPermission',
-    'addRisuReplacer', 'removeRisuReplacer', 'addRisuScriptHandler', 'removeRisuScriptHandler',
-    'registerBodyIntercepter', 'unregisterBodyIntercepter', 'addProvider', 'onUnload', 'nativeFetch', 'risuFetch',
-    'runLLMModel', 'getDatabase', 'getDatabaseMetadata', 'getCurrentCharacterIndex', 'getCurrentChatIndex',
-    'getChar', 'getCharacter', 'getCharacterFromIndex', 'getChatFromIndex', 'getRuntimeInfo',
-    'showContainer', 'hideContainer', 'registerSetting', 'registerButton', 'unregisterUIPart', 'setChatPanel',
-    'getRootDocument', 'alert', 'alertError', 'log']);
 
 async function createPluginSession({ script, api, rootMethods, signal, onFailure = () => {}, onLateCall = () => {},
     onLocalLimit = async () => {}, onSettlementTimeout = () => {}, runtimeMs = 600_000 }) {
     if (typeof script !== 'string' || Buffer.byteLength(script) > 4 * 1024 * 1024
         || typeof api !== 'function') throw failure('plugin_script_invalid');
-    // The parent dispatcher's list is the only capability source; the worker
-    // validates it before running plugin code.
-    const exposed = Array.from(rootMethods ?? SUPPORTED_ROOT_METHODS);
+    // The caller's dispatcher supplies the only capability list (no fallback); the
+    // worker validates it again before running plugin code.
+    if (!Array.isArray(rootMethods) || !rootMethods.length
+        || !rootMethods.every(name => typeof name === 'string')) throw failure('plugin_bootstrap_invalid');
+    const exposed = [...rootMethods];
     const scopes = new Map(), current = new AsyncLocalStorage();
     let peer, sandbox, stopped = false, failureCode = null, absentScope = null, absentPull = null;
     const fail = code => {
@@ -128,4 +120,4 @@ async function createPluginSession({ script, api, rootMethods, signal, onFailure
     };
 }
 
-module.exports = { createPluginSession, SUPPORTED_ROOT_METHODS, isPluginInvocation: () => (chain.getStore() ?? 0) > 0 };
+module.exports = { createPluginSession, isPluginInvocation: () => (chain.getStore() ?? 0) > 0 };

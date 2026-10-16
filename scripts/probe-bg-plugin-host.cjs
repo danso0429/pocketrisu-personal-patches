@@ -12,7 +12,11 @@ Module._load = function(request, ...args) {
     const value = originalLoad.call(this, request, ...args);
     if (request === './bgPluginSandbox.cjs') return { ...value, createPluginSandbox: options => {
         const mutation = wireMutation;
-        return value.createPluginSandbox({ ...options, onFrame: frame => options.onFrame(mutation ? mutation(frame) : frame) });
+        // A mutation may return undefined to hold a frame and deliver it later.
+        return value.createPluginSandbox({ ...options, onFrame: frame => {
+            const next = mutation ? mutation(frame, options.onFrame) : frame;
+            if (next !== undefined) options.onFrame(next);
+        } });
     } };
     return value;
 };
@@ -1312,4 +1316,63 @@ test('parallel pending-byte refusals await one stored notice and release their o
     assert.equal(issued,2);assert.equal(published,1);assert.equal(h.root.plugins[0].realArg.sample,'2');
     const notices=h.notices();assert.equal(notices.length,1);assert.equal(notices[0].code,'plugin_host_limit');
     assert.equal(notices[0].effectsMayHaveOccurred,true);assert.equal(notices[0].phase,'before_request');
+});
+
+test('a .catch()-only call of an absent API throws before .catch attaches and follows the hook failure path', async t => {
+    // Before G2.2a the absent name was an RPC function, so .catch() received the
+    // rejection. It now reads as undefined; calling it throws a synchronous
+    // TypeError inside the hook before any .catch() can attach.
+    const diagnostics = [];
+    const h = await fixture(t, [plugin('catch-only-absent', `await Risuai.addRisuReplacer('beforeRequest',async xs=>{
+        Risuai.absentName().catch(()=>{});return [];});`)], true, { publishDiagnostic: value => diagnostics.push(value) });
+    const input = [{ role: 'user', content: 'kept' }];
+    assert.deepEqual(await [...h.registry.replacerbeforeRequest][0](input), input);
+    assert.equal(h.root.plugins.length, 1);
+    const notices = h.notices();
+    assert.deepEqual(notices.map(row => [row.code, row.phase]), [['plugin_hook_failed', 'before_request']]);
+    await h.host.close();
+    assert.deepEqual(diagnostics[0].absentApis, [{ api: 'absentName', phase: 'before_request' }]);
+});
+
+test('forged inherited object names are not dispatcher handlers', async t => {
+    for (const forged of ['toString', 'constructor', '__proto__', 'hasOwnProperty']) {
+        const h = await fixture(t, [plugin('forged-inherited', `await Risuai.addRisuReplacer('beforeRequest',async xs=>{
+            await Risuai.getRuntimeInfo();return [];});`)], true, { wireMutation: frame => {
+            if (frame.kind === 'call' && frame.method === 'api' && frame.args?.[1]?.[0]?.[1] === 'getRuntimeInfo') {
+                return { ...frame, args: ['array', [['value', forged], frame.args[1][1]]] };
+            }
+            return frame;
+        } });
+        const input = [{ role: 'user', content: 'kept' }];
+        assert.deepEqual(await [...h.registry.replacerbeforeRequest][0](input), input, forged);
+        assert.equal(h.notices()[0].code, 'plugin_api_unsupported', forged);
+    }
+});
+
+// Holds the two API call frames and delivers them to the parent in one tick.
+const sameTick = (first, second) => {
+    const held = [];
+    return (frame, deliver) => {
+        const api = frame.kind === 'call' && frame.method === 'api' ? frame.args?.[1]?.[0]?.[1] : null;
+        if (api !== first && api !== second) return frame;
+        held.push(frame);
+        if (held.length === 2) for (const item of held.splice(0)) deliver(item);
+        return undefined;
+    };
+};
+
+test('a synchronous registration refusal disables before a same-tick log is published', async t => {
+    const h = await fixture(t, [plugin('same-tick-log', `
+        Risuai.addRisuScriptHandler('bad',()=>{}).catch(()=>{});
+        Risuai.log('after-invalid').catch(()=>{});`)], true, { wireMutation: sameTick('addRisuScriptHandler', 'log') });
+    const notices = h.notices();
+    assert.equal(notices.some(row => row.code === 'plugin_message'), false);
+    assert.deepEqual(notices.map(row => [row.code, row.phase]), [['plugin_hook_failed', 'load']]);
+});
+
+test('a synchronous registration refusal wins over a same-tick policy-rejected getArg', async t => {
+    const h = await fixture(t, [plugin('same-tick-arg', `
+        Risuai.addRisuScriptHandler('bad',()=>{}).catch(()=>{});
+        Risuai.getArg('other::key').catch(()=>{});`)], true, { wireMutation: sameTick('addRisuScriptHandler', 'getArg') });
+    assert.deepEqual(h.notices().map(row => [row.code, row.phase]), [['plugin_hook_failed', 'load']]);
 });

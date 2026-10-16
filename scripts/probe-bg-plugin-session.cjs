@@ -13,8 +13,18 @@ Module._load = function(request, ...args) {
     } };
     return value;
 };
-const { createPluginSession } = require('../patches/lazy-chat-bg-adapter/files-1.10/server/node/bgPluginSession.cjs');
+const { createPluginSession: createSession } = require('../patches/lazy-chat-bg-adapter/files-1.10/server/node/bgPluginSession.cjs');
+// Synthetic capability fixture for this standalone probe (the product list is
+// derived from the host dispatcher, which needs a target tree to load).
+const FIXTURE_ROOT_METHODS = ['addProvider', 'addRisuReplacer', 'getArgument', 'setArgument', 'log', 'nativeFetch', 'runLLMModel'];
+const createPluginSession = options => createSession({ rootMethods: FIXTURE_ROOT_METHODS, ...options });
 Module._load = load;
+
+test('a session without a capability list fails closed before starting a worker', async () => {
+    for (const rootMethods of [undefined, [], [42]]) {
+        await assert.rejects(createSession({ script: 'void 0', api: async () => {}, rootMethods }), { code: 'plugin_bootstrap_invalid' });
+    }
+});
 
 for (const method of ['getArgument', 'nativeFetch']) test(`bootstrap still joins its unawaited ${method} initialization chain`, async t => {
     let hook, entered, release;

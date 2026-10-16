@@ -2,20 +2,141 @@
 const { AsyncLocalStorage } = require('node:async_hooks');
 const { isDeepStrictEqual } = require('node:util');
 const { randomUUID } = require('node:crypto');
-const { createPluginSession, SUPPORTED_ROOT_METHODS } = require('./bgPluginSession.cjs');
+const { createPluginSession } = require('./bgPluginSession.cjs');
 const { createPluginStorage, savedPluginPermission } = require('./bgPluginStorage.cjs');
 const { clonePluginValue, measurePluginValue } = require('./bgPluginValue.cjs');
 const { reservePluginStorage, reservedPluginValue, stringJSONBytes, ABSENT_API_LIMIT, absentApiName } = require('./bgPluginWorker.cjs');
 const { createTransportCounter } = require('./bgPluginDiagnostics.cjs');
 
 const fail = code => Object.assign(new Error(code), { code });
-// SUPPORTED_ROOT_METHODS is the single source for the worker's exposed root names
-// and the dispatcher below; a name outside it is refused before the switch.
-const supportedRootMethods = new Set(SUPPORTED_ROOT_METHODS);
 const ABSENT_PULL_MS = 1000;
 const { clean, identityOf, pluginMetadata } = require('./bgPluginMetadata.cjs');
 const clone = clonePluginValue;
 const phaseScope = new AsyncLocalStorage();
+
+// Handlers are plain functions so every check the former switch ran before its
+// first await still runs and throws synchronously inside the dispatcher's try.
+// A handler result is one of:
+// - Returned(value): the former case returned without await; the dispatcher
+//   returns the value unawaited (its rejection stays outside the try).
+// - Resume(pending, next): the former case awaited `pending` part-way; the
+//   dispatcher awaits it in its own frame, then runs `next` synchronously.
+// - any other value: the former case did `return await value`.
+class Returned { constructor(value) { this.value = value; } }
+class Resume { constructor(pending, next) { this.pending = pending; this.next = next; } }
+const returned = value => new Returned(value);
+const argumentAlias = (ctx, args, method) => {
+    if (typeof args[0] !== 'string') throw fail('plugin_api_arguments_invalid');
+    const [name, key] = args[0].split('::');
+    if (name !== ctx.plugin.name) return ctx.unsupported(method);
+    return method === 'getArg' ? ctx.storage.argument('getArgument', [key])
+        : ctx.write(args, () => ctx.storage.argument('setArgument', [key, args[1]]));
+};
+const networkFetch = (ctx, args, method) => {
+    const { entry, signal, abortSignal, bindings } = ctx;
+    if (ctx.countNetworkCall() > 128) throw fail('plugin_budget_exceeded');
+    if (typeof args[0] !== 'string' || !/^https?:\/\//i.test(args[0])
+        || ['risuai.xyz', 'risuai.net', 'sionyw.com'].some(domain => args[0].toLowerCase().includes(domain))) throw fail('plugin_fetch_target_invalid');
+    const options = args[1] ?? {};
+    if (!options || typeof options !== 'object' || Array.isArray(options)) throw fail('plugin_api_arguments_invalid');
+    const optionsSignal = method === 'nativeFetch' ? options.signal : options.abortSignal;
+    return new Resume(ctx.effect(entry), () => {
+        const scopeSignal = entry.session.currentSignal();
+        return returned(entry.transport.observe(method, [['operationCancelled', signal], ['entryClosed', entry.abort.signal],
+            ['scopeClosed', scopeSignal], ['requestAborted', optionsSignal]], () => bindings[method](args[0], { ...options,
+            [method === 'nativeFetch' ? 'signal' : 'abortSignal']: AbortSignal.any([
+                abortSignal, scopeSignal, ...(optionsSignal instanceof AbortSignal ? [optionsSignal] : [])]) })));
+    });
+};
+const hydrated = (ctx, character, pick) => new Resume(ctx.hydrate([character]), value => returned(pick(value)));
+const currentCharacter = ctx => {
+    const character = ctx.getDatabase().characters[ctx.getSelection().characterIndex];
+    return character ? hydrated(ctx, character, value => value[0]) : returned(undefined);
+};
+const noUi = () => returned(undefined);
+const message = (ctx, args, method) => {
+    const { entry } = ctx;
+    if (++entry.messageCount > 33) return returned(undefined);
+    const text = entry.messageCount === 33 ? '추가 플러그인 알림은 이 요청에서 생략되었어요.' : args.map(value => typeof value === 'string' ? value : JSON.stringify(value) ?? String(value))
+        .join(' ').replace(/[\u0000-\u0008\u000b\u000c\u000e-\u001f\u007f]/g, '').slice(0, 4096) || '(empty)';
+    return returned(ctx.record({ ...ctx.common(entry, phaseScope.getStore() ?? 'load'), code: 'plugin_message',
+        eventKey: `plugin:${ctx.index}:message:${entry.messageCount}`, message: text,
+        level: method === 'alertError' ? 'error' : 'info' }));
+};
+// The BG root API dispatcher. Its own keys are the only source of the names the
+// worker exposes: adding a handler here exposes it, and nothing else does.
+const ROOT_HANDLERS = Object.freeze({ __proto__: null,
+    getArgument: (ctx, args, method) => ctx.storage.argument(method, args),
+    setArgument: (ctx, args, method) => ctx.write(args, () => ctx.storage.argument(method, args)),
+    getArg: argumentAlias,
+    setArg: argumentAlias,
+    requestPluginPermission: (ctx, args) => returned(ctx.permission(ctx.entry, args[0])),
+    addRisuReplacer: (ctx, args) => {
+        ctx.permission(ctx.entry, 'replacer', true);
+        if (!['beforeRequest', 'afterRequest'].includes(args[0])) throw fail('plugin_registration_invalid');
+        ctx.register(ctx.entry, 'replacer', args[0], args[1]); return returned(undefined);
+    },
+    removeRisuReplacer: (ctx, args) => { ctx.remove(ctx.entry, 'replacer', args[0], args[1]); return returned(undefined); },
+    addRisuScriptHandler: (ctx, args) => {
+        if (!['input', 'output', 'process', 'display'].includes(args[0])) throw fail('plugin_registration_invalid');
+        ctx.register(ctx.entry, 'script', args[0], args[1]); return returned(undefined);
+    },
+    removeRisuScriptHandler: (ctx, args) => { ctx.remove(ctx.entry, 'script', args[0], args[1]); return returned(undefined); },
+    registerBodyIntercepter: (ctx, args) => {
+        ctx.permission(ctx.entry, 'replacer'); return returned({ id: ctx.register(ctx.entry, 'body', 'body', args[0]) });
+    },
+    unregisterBodyIntercepter: (ctx, args) => {
+        if (ctx.bindings.bodyInterceptors.some(row => row.id === args[0])
+            && !ctx.entry.registrations.some(row => row.id === args[0])) return ctx.unsupported('cross_plugin_interceptor_remove');
+        ctx.remove(ctx.entry, 'body', 'body', args[0]); return returned(undefined);
+    },
+    addProvider: (ctx, args) => {
+        if (typeof args[0] !== 'string' || !args[0] || args[0].length > 120) throw fail('plugin_registration_invalid');
+        ctx.permission(ctx.entry, 'provider', true); ctx.register(ctx.entry, 'provider', args[0], args[1], args[2]); return returned(undefined);
+    },
+    onUnload: (ctx, args) => {
+        if (ctx.entry.ready || typeof args[0] !== 'function' || ctx.entry.unload.length >= 64) throw fail('plugin_registration_invalid');
+        ctx.entry.unload.push(args[0]); return returned(undefined);
+    },
+    nativeFetch: networkFetch,
+    risuFetch: networkFetch,
+    runLLMModel: (ctx, args) => {
+        const { entry, signal, abortSignal, bindings } = ctx;
+        if (ctx.countNetworkCall() > 128) throw fail('plugin_budget_exceeded');
+        const options = args[0];
+        if (!options || !Array.isArray(options.messages)) throw fail('plugin_api_arguments_invalid');
+        return new Resume(ctx.effect(entry), () => {
+            const scopeSignal = entry.session.currentSignal();
+            const requestSignal = AbortSignal.any([abortSignal, scopeSignal]);
+            return returned(entry.transport.observe('modelCalls', [['operationCancelled', signal], ['entryClosed', entry.abort.signal],
+                ['scopeClosed', scopeSignal]], () => bindings.requestChatDataMain({ formated: options.messages, bias: {}, staticModel: options.staticModel,
+                blockPlugins: !options.allowPlugins, abortSignal: requestSignal }, options.mode, requestSignal)));
+        });
+    },
+    getDatabase: (ctx, args) => ctx.readDatabase(args[0]),
+    getDatabaseMetadata: (ctx, args) => ctx.readDatabase(args[0], true),
+    getCurrentCharacterIndex: ctx => returned(ctx.getSelection().characterIndex),
+    getCurrentChatIndex: ctx => returned(ctx.getSelection().chatIndex),
+    getChar: currentCharacter,
+    getCharacter: currentCharacter,
+    getCharacterFromIndex: (ctx, args) => {
+        if (!Number.isSafeInteger(args[0]) || args[0] < 0) throw fail('plugin_api_arguments_invalid');
+        const character = ctx.getDatabase().characters[args[0]];
+        return character ? hydrated(ctx, character, value => value[0]) : returned(undefined);
+    },
+    getChatFromIndex: (ctx, args) => {
+        if (args.length !== 2 || args.some(value => !Number.isSafeInteger(value) || value < 0)) throw fail('plugin_api_arguments_invalid');
+        const character = ctx.getDatabase().characters[args[0]];
+        return character ? hydrated(ctx, character, value => value[0]?.chats?.[args[1]] ?? null) : returned(null);
+    },
+    getRuntimeInfo: () => returned({ apiVersion: '3.0', platform: 'node', saveMethod: 'local' }),
+    showContainer: noUi, hideContainer: noUi, registerSetting: noUi, registerButton: noUi,
+    unregisterUIPart: noUi, setChatPanel: noUi,
+    getRootDocument: () => returned(null),
+    alert: message, alertError: message, log: message,
+});
+// Derived from the dispatcher table; sent to the worker at load.
+const SUPPORTED_ROOT_METHODS = Object.freeze(Object.keys(ROOT_HANDLERS));
 const resourceFailures = new Set(['plugin_budget_exceeded', 'plugin_value_limit', 'plugin_rpc_value_limit',
     'plugin_rpc_frame_limit',
     'plugin_rpc_pending_limit', 'plugin_rpc_handle_limit', 'plugin_sandbox_frame_limit',
@@ -468,6 +589,9 @@ async function createBgPluginHost({ database, bindings, getDatabase, getSelectio
                 if (selected.includes('characters') && metadata) result.characters = snapshot.characters.map(bindings.characterMetadata);
                 return clone(result);
             };
+            const rootContext = { entry, plugin, index, storage, abortSignal, signal, bindings, unsupported, readDatabase,
+                write, permission, register, remove, effect, record, common, getDatabase, getSelection, hydrate,
+                countNetworkCall: () => ++networkCalls };
             try {
             entry.session = await phaseScope.run('load', () => createPluginSession({ script: plugin.script, signal: abortSignal,
                 rootMethods: SUPPORTED_ROOT_METHODS,
@@ -485,96 +609,15 @@ async function createBgPluginHost({ database, bindings, getDatabase, getSelectio
                             const task = () => (group === 'pluginStorage' ? storage.root : storage.local)(action, args);
                             return ['setItem', 'removeItem'].includes(action) ? await write(args, task, group === 'localPluginStorage') : await task();
                         }
-                        if (!supportedRootMethods.has(method)) return unsupported(method);
-                        switch (method) {
-                            case 'getArgument': return await storage.argument(method, args);
-                            case 'setArgument': return await write(args, () => storage.argument(method, args));
-                            case 'getArg': case 'setArg': {
-                                if (typeof args[0] !== 'string') throw fail('plugin_api_arguments_invalid');
-                                const [name, key] = args[0].split('::');
-                                if (name !== plugin.name) return unsupported(method);
-                                return method === 'getArg' ? await storage.argument('getArgument', [key])
-                                    : await write(args, () => storage.argument('setArgument', [key, args[1]]));
-                            }
-                            case 'requestPluginPermission': return permission(entry, args[0]);
-                            case 'addRisuReplacer':
-                                permission(entry, 'replacer', true);
-                                if (!['beforeRequest', 'afterRequest'].includes(args[0])) throw fail('plugin_registration_invalid');
-                                register(entry, 'replacer', args[0], args[1]); return undefined;
-                            case 'removeRisuReplacer': remove(entry, 'replacer', args[0], args[1]); return undefined;
-                            case 'addRisuScriptHandler':
-                                if (!['input', 'output', 'process', 'display'].includes(args[0])) throw fail('plugin_registration_invalid');
-                                register(entry, 'script', args[0], args[1]); return undefined;
-                            case 'removeRisuScriptHandler': remove(entry, 'script', args[0], args[1]); return undefined;
-                            case 'registerBodyIntercepter':
-                                permission(entry, 'replacer'); return { id: register(entry, 'body', 'body', args[0]) };
-                            case 'unregisterBodyIntercepter':
-                                if (bindings.bodyInterceptors.some(row => row.id === args[0])
-                                    && !entry.registrations.some(row => row.id === args[0])) return unsupported('cross_plugin_interceptor_remove');
-                                remove(entry, 'body', 'body', args[0]); return undefined;
-                            case 'addProvider':
-                                if (typeof args[0] !== 'string' || !args[0] || args[0].length > 120) throw fail('plugin_registration_invalid');
-                                permission(entry, 'provider', true); register(entry, 'provider', args[0], args[1], args[2]); return undefined;
-                            case 'onUnload':
-                                if (entry.ready || typeof args[0] !== 'function' || entry.unload.length >= 64) throw fail('plugin_registration_invalid');
-                                entry.unload.push(args[0]); return undefined;
-                            case 'nativeFetch': case 'risuFetch': {
-                                if (++networkCalls > 128) throw fail('plugin_budget_exceeded');
-                                if (typeof args[0] !== 'string' || !/^https?:\/\//i.test(args[0])
-                                    || ['risuai.xyz', 'risuai.net', 'sionyw.com'].some(domain => args[0].toLowerCase().includes(domain))) throw fail('plugin_fetch_target_invalid');
-                                const options = args[1] ?? {};
-                                if (!options || typeof options !== 'object' || Array.isArray(options)) throw fail('plugin_api_arguments_invalid');
-                                const optionsSignal = method === 'nativeFetch' ? options.signal : options.abortSignal;
-                                await effect(entry);
-                                const scopeSignal = entry.session.currentSignal();
-                                return entry.transport.observe(method, [['operationCancelled', signal], ['entryClosed', entry.abort.signal],
-                                    ['scopeClosed', scopeSignal], ['requestAborted', optionsSignal]], () => bindings[method](args[0], { ...options,
-                                    [method === 'nativeFetch' ? 'signal' : 'abortSignal']: AbortSignal.any([
-                                        abortSignal, scopeSignal, ...(optionsSignal instanceof AbortSignal ? [optionsSignal] : [])]) }));
-                            }
-                            case 'runLLMModel': {
-                                if (++networkCalls > 128) throw fail('plugin_budget_exceeded');
-                                const options = args[0];
-                                if (!options || !Array.isArray(options.messages)) throw fail('plugin_api_arguments_invalid');
-                                await effect(entry);
-                                const scopeSignal = entry.session.currentSignal();
-                                const requestSignal = AbortSignal.any([abortSignal, scopeSignal]);
-                                return entry.transport.observe('modelCalls', [['operationCancelled', signal], ['entryClosed', entry.abort.signal],
-                                    ['scopeClosed', scopeSignal]], () => bindings.requestChatDataMain({ formated: options.messages, bias: {}, staticModel: options.staticModel,
-                                    blockPlugins: !options.allowPlugins, abortSignal: requestSignal }, options.mode, requestSignal));
-                            }
-                            case 'getDatabase': return await readDatabase(args[0]);
-                            case 'getDatabaseMetadata': return await readDatabase(args[0], true);
-                            case 'getCurrentCharacterIndex': return getSelection().characterIndex;
-                            case 'getCurrentChatIndex': return getSelection().chatIndex;
-                            case 'getChar': case 'getCharacter': {
-                                const character = getDatabase().characters[getSelection().characterIndex];
-                                return character ? (await hydrate([character]))[0] : undefined;
-                            }
-                            case 'getCharacterFromIndex': {
-                                if (!Number.isSafeInteger(args[0]) || args[0] < 0) throw fail('plugin_api_arguments_invalid');
-                                const character = getDatabase().characters[args[0]];
-                                return character ? (await hydrate([character]))[0] : undefined;
-                            }
-                            case 'getChatFromIndex': {
-                                if (args.length !== 2 || args.some(value => !Number.isSafeInteger(value) || value < 0)) throw fail('plugin_api_arguments_invalid');
-                                const character = getDatabase().characters[args[0]];
-                                return character ? (await hydrate([character]))[0]?.chats?.[args[1]] ?? null : null;
-                            }
-                            case 'getRuntimeInfo': return { apiVersion: '3.0', platform: 'node', saveMethod: 'local' };
-                            case 'showContainer': case 'hideContainer': case 'registerSetting': case 'registerButton':
-                            case 'unregisterUIPart': case 'setChatPanel': return undefined;
-                            case 'getRootDocument': return null;
-                            case 'alert': case 'alertError': case 'log': {
-                                if (++entry.messageCount > 33) return undefined;
-                                const message = entry.messageCount === 33 ? '추가 플러그인 알림은 이 요청에서 생략되었어요.' : args.map(value => typeof value === 'string' ? value : JSON.stringify(value) ?? String(value))
-                                    .join(' ').replace(/[\u0000-\u0008\u000b\u000c\u000e-\u001f\u007f]/g, '').slice(0, 4096) || '(empty)';
-                                return record({ ...common(entry, phaseScope.getStore() ?? 'load'), code: 'plugin_message',
-                                    eventKey: `plugin:${index}:message:${entry.messageCount}`, message,
-                                    level: method === 'alertError' ? 'error' : 'info' });
-                            }
-                            default: return unsupported(method);
-                        }
+                        // Own-property lookup only: inherited names are not handlers.
+                        const handler = Object.hasOwn(ROOT_HANDLERS, method) ? ROOT_HANDLERS[method] : null;
+                        if (!handler) return unsupported(method);
+                        // Same timing as the former switch: synchronous checks throw
+                        // here; see the Returned/Resume contract above ROOT_HANDLERS.
+                        let result = handler(rootContext, args, method);
+                        if (result instanceof Resume) result = result.next(await result.pending);
+                        if (result instanceof Returned) return result.value;
+                        return await result;
                     } catch (error) {
                         if (error?.code === 'plugin_storage_conflict' && method.startsWith('localPluginStorage.')
                             && !closed && !tearingDown && !entry.failed && !signal.aborted && !noticeFailure && !identityFailure) {

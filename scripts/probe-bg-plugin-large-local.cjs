@@ -1,7 +1,9 @@
 'use strict';
 const test = require('node:test');
 const assert = require('node:assert/strict');
-const { createPluginSession } = require('../patches/lazy-chat-bg-adapter/files-1.10/server/node/bgPluginSession.cjs');
+const { createPluginSession: createSession } = require('../patches/lazy-chat-bg-adapter/files-1.10/server/node/bgPluginSession.cjs');
+// Synthetic capability fixture for this standalone probe.
+const createPluginSession = options => createSession({ rootMethods: ['addProvider'], ...options });
 const { createPluginPeer, stringJSONBytes, reservePluginStorage, reservedPluginValue } = require('../patches/lazy-chat-bg-adapter/files-1.10/server/node/bgPluginWorker.cjs');
 
 function peers(t, dispatch, mutate = frame => frame, mutateParent = frame => [frame], timeouts = {}) {
@@ -319,7 +321,7 @@ test('large getter drain retains actual invocation after the bounded callback se
     let createDelayed;
     try{createDelayed=require(sessionPath).createPluginSession;}finally{Module._load=load;delete require.cache[sessionPath];}
     let hook,warnings=0,late=0;
-    const session=await createDelayed({runtimeMs:120000,script:`await Risuai.addProvider('synthetic',async()=>{
+    const session=await createDelayed({rootMethods:['addProvider'],runtimeMs:120000,script:`await Risuai.addProvider('synthetic',async()=>{
         const s=await Risuai.getLocalPluginStorage();void s.getItem('slow');return {success:true,content:'original result'};
     });`,api(method,args){if(method==='addProvider')hook=args[1];else if(method==='localPluginStorage.getItem')return 'x'.repeat(5*1024*1024);else throw Error('unexpected API');},onSettlementTimeout:()=>{warnings++;},onLateCall:()=>{late++;}});
     t.after(()=>session.close());await session.load();assert.deepEqual(await hook({}),{success:true,content:'original result'});

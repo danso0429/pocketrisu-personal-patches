@@ -4,6 +4,8 @@ const path = require('node:path');
 const assert = require('node:assert/strict');
 const { performance } = require('node:perf_hooks');
 const { createPluginSession } = require(path.resolve(process.argv[2], 'server/node/bgPluginSession.cjs'));
+// The target's dispatcher-derived capability list, as the host passes it.
+const { SUPPORTED_ROOT_METHODS } = require(path.resolve(process.argv[2], 'server/node/bgPluginHost.cjs'));
 const script = fs.readFileSync(path.resolve(process.argv[3]), 'utf8');
 
 async function probe(delay) {
@@ -11,7 +13,7 @@ async function probe(delay) {
     let session;
     const started = performance.now();
     try {
-        session = await createPluginSession({ script, signal: controller.signal, runtimeMs: 30000,
+        session = await createPluginSession({ script, rootMethods: SUPPORTED_ROOT_METHODS, signal: controller.signal, runtimeMs: 30000,
             onFailure: code => failures.push(code), api: async (method, args) => {
                 methods.push(method);
                 if (method === 'registerSetting' && delay) await new Promise(resolve => {
