@@ -3,6 +3,27 @@
 // Exact PocketRisu 1.10 anchors; files remain managed by the complete graph.
 module.exports = [
     {
+        id: 'usage-cost-estimate:job-model-route:1.10',
+        file: 'server/node/model-jobs.cjs', type: 'replace',
+        anchor: '                adapterKind: req.body?.adapterKind,\n                kind: req.body?.kind,',
+        content: '                adapterKind: req.body?.adapterKind,\n                model: req.body?.model,\n                kind: req.body?.kind,',
+        targetVersions: { pocketrisu: ['1.10.0'] },
+    },
+    {
+        id: 'usage-cost-estimate:job-model-test-input:1.10',
+        file: 'server/node/model-jobs.test.ts', type: 'replace',
+        anchor: "                adapterKind: 'openai',\n                streaming: true,",
+        content: "                adapterKind: 'openai',\n                model: 'synthetic-model-for-log',\n                streaming: true,",
+        targetVersions: { pocketrisu: ['1.10.0'] },
+    },
+    {
+        id: 'usage-cost-estimate:job-model-test-readback:1.10',
+        file: 'server/node/model-jobs.test.ts', type: 'replace',
+        anchor: '        expect(meta.bytes).toBe(Buffer.byteLength(expected))',
+        content: "        expect(meta.bytes).toBe(Buffer.byteLength(expected))\n        expect(meta.model).toBe('synthetic-model-for-log')",
+        targetVersions: { pocketrisu: ['1.10.0'] },
+    },
+    {
         "id": "usage-cost-estimate:store-import:1.10",
         "file": "server/node/request-logs.cjs",
         "type": "replace",
