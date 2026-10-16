@@ -1,6 +1,10 @@
 # PocketRisu Usage Cost and Cache Plan
 
 Revision: r3, 2026-10-16. Implementation authorized after plan review.
+Request-identity follow-up: experimental.53/pack0.1.2 forwards the submitted job
+model and labels missing historical identity without inventing it. Attempt rows
+use local YYMMDD HH:MM without inline status glyphs. This supersedes the earlier
+today-HH:MM/older-MM-DD display only; confidence and pricing contracts remain.
 Base: patcher `35c3270`, exact PocketRisu `1.10.0`.
 Candidate: `0.2.4-experimental.51`; new pack `usage-cost-estimate` `0.1.0`.
 Presentation follow-up: `0.2.4-experimental.52`, pack `0.1.1`: physical feedback

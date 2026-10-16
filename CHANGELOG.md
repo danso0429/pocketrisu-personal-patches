@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.2.4-experimental.53 (request identity and full date)
+
+- Forward the client's model through the model-job creation route to the existing SQLite field, so recovery logs retain it. Add HTTP-to-SQLite/readback regression coverage; preserve all existing upstream/journal/guard checks.
+- Label absent or blank model/provider fields as unrecorded and explain why a missing model cannot be priced. Preserve historical rows and recorded tokens without guessing identity or backfilling costs.
+- Show local YYMMDD HH:MM in each compact attempt, remove inline status glyphs, and retain success/abort state in accessible text and expanded details. Rebalance the narrow-screen columns for the longer timestamp.
+
 ## 0.2.4-experimental.52 (compact model totals)
 
 - Replace tall per-model cost cards with compact single-line rows, matching the attempt list. Keep request count, estimated cost, cached tokens/ratio and savings visible; tap or keyboard disclosure reveals the full model/provider, exact token totals, exclusions and duration.

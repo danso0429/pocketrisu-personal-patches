@@ -14,6 +14,7 @@
     const cumulative = $derived(summarizeCosts(report.cumulativeCostBuckets ?? []))
     const available = $derived(report.costVersion === 1)
     const number = (n: number) => n.toLocaleString()
+    const modelName = (value: string | null) => value?.trim() || language.usageCostModelMissing
     const compact = new Intl.NumberFormat(undefined, { notation: 'compact', maximumFractionDigits: 1 })
     const recorded = (n: number, reported: boolean | undefined, legacy: boolean) => (reported || (legacy && n > 0)) ? number(n) : '—'
     const modelCosts = $derived.by(() => {
@@ -103,15 +104,16 @@
             <article class="border-b border-darkborderc last:border-0 min-w-0">
                 <details>
                     <summary class="grid grid-cols-[minmax(0,1fr)_2rem_3.5rem_5.3rem_3.6rem] gap-1 px-2 py-1.5 text-[11px] leading-4 whitespace-nowrap tabular-nums cursor-pointer list-none [&::-webkit-details-marker]:hidden"
-                        aria-label={`${row.model ?? '—'} ${row.provider ?? ''} · ${language.usageRequests} ${number(row.requests)} · ${language.usageEstimatedCost} ${formatUsd(value?.cost ?? null)} · ${language.usageCachedTokens} ${number(row.cachedTokens)} · ${formatCacheRatio(row.inputTokens, row.cachedTokens)} · ${language.usageCacheSavings} ${formatUsd(value?.saved ?? null)}${value?.assumed ? ` · ${language.usageCostTierAssumed}` : ''}`}>
-                        <span class="truncate min-w-0" title={`${row.model ?? '—'} ${row.provider ?? ''}`}>{row.model ?? '—'}</span>
+                        aria-label={`${modelName(row.model)} ${row.provider ?? ''} · ${language.usageRequests} ${number(row.requests)} · ${language.usageEstimatedCost} ${formatUsd(value?.cost ?? null)} · ${language.usageCachedTokens} ${number(row.cachedTokens)} · ${formatCacheRatio(row.inputTokens, row.cachedTokens)} · ${language.usageCacheSavings} ${formatUsd(value?.saved ?? null)}${value?.assumed ? ` · ${language.usageCostTierAssumed}` : ''}`}>
+                        <span class="truncate min-w-0" title={`${modelName(row.model)} ${row.provider ?? ''}`}>{modelName(row.model)}</span>
                         <span class="text-right truncate" title={number(row.requests)}>{compact.format(row.requests)}</span>
                         <span class="text-right truncate" title={formatUsd(value?.cost ?? null)}>{value?.assumed ? '≈' : ''}{formatUsd(value?.cost ?? null)}</span>
                         <span class="text-right truncate" title={`${number(row.cachedTokens)} · ${formatCacheRatio(row.inputTokens, row.cachedTokens)}`}>{compact.format(row.cachedTokens)}·{formatCacheRatio(row.inputTokens, row.cachedTokens)}</span>
                         <span class="text-right truncate" title={formatUsd(value?.saved ?? null)}>{formatUsd(value?.saved ?? null)}</span>
                     </summary>
                     <div class="px-2 pb-2 text-xs text-textcolor2 whitespace-normal">
-                    <div class="font-mono break-all">{row.model ?? '—'} {row.provider ? `(${row.provider})` : ''}</div>
+                    <div class="font-mono break-all">{modelName(row.model)} ({row.provider?.trim() || language.usageCostProviderMissing})</div>
+                    {#if !row.model?.trim()}<div>{language.usageCostModelMissingHint}</div>{/if}
                     <div>{language.usageEstimatedCost} {formatUsd(value?.cost ?? null)}</div>
                     <div class="flex flex-wrap gap-x-3 gap-y-1 mt-1">
                     <span>{language.usageRequests} {number(row.requests)}</span>
@@ -137,7 +139,7 @@
 
     <h4 class="font-semibold text-sm mb-2">{language.usageCostRequests}</h4>
     <p class="text-xs text-textcolor2 mb-2">{language.usageCostAttemptBasis}</p>
-    <div class="grid grid-cols-[2.8rem_minmax(0,1fr)_3.5rem_4.6rem_3.6rem] gap-1 px-2 text-[11px] text-textcolor2 mb-1" aria-hidden="true">
+    <div class="grid grid-cols-[4.8rem_minmax(0,1fr)_3rem_4.3rem_3.3rem] gap-0.5 px-1 text-[10px] text-textcolor2 mb-1" aria-hidden="true">
         <span>{language.usageCostTime}</span><span>{language.usageCostModelFilter}</span>
         <span class="text-right">{language.usageCostEstimateShort}</span>
         <span class="text-right">{language.usageCostCacheShort}</span><span class="text-right">{language.usageCostSavedShort}</span>
@@ -151,18 +153,19 @@
             {@const ratio = context?.valid || (!context && row.cachedTokens > 0) ? formatCacheRatio(row.inputTokens, row.cachedTokens) : '—'}
             <article class="border-b border-darkborderc last:border-0 min-w-0">
                 <details>
-                    <summary class="grid grid-cols-[2.8rem_minmax(0,1fr)_3.5rem_4.6rem_3.6rem] gap-1 px-2 py-1.5 text-[11px] leading-4 whitespace-nowrap tabular-nums cursor-pointer list-none [&::-webkit-details-marker]:hidden"
-                        aria-label={`${recordedTime.full} · ${row.model ?? '—'} · ${state} · ${language.usageEstimatedCost} ${formatUsd(value.cost)} · ${language.usageCachedTokens} ${recorded(row.cachedTokens, context?.inputReported, !context)} · ${ratio}`}>
+                    <summary class="grid grid-cols-[4.8rem_minmax(0,1fr)_3rem_4.3rem_3.3rem] gap-0.5 px-1 py-1.5 text-[10px] leading-4 whitespace-nowrap tabular-nums cursor-pointer list-none [&::-webkit-details-marker]:hidden"
+                        aria-label={`${recordedTime.full} · ${modelName(row.model)} · ${state} · ${language.usageEstimatedCost} ${formatUsd(value.cost)} · ${language.usageCachedTokens} ${recorded(row.cachedTokens, context?.inputReported, !context)} · ${ratio}`}>
                         <span class="text-textcolor2" title={state}>
-                            <span aria-hidden="true">{context?.aborted ? '■' : row.success ? '✓' : '!'}</span><time datetime={recordedTime.iso} title={recordedTime.full}>{recordedTime.short}</time>
+                            <time datetime={recordedTime.iso} title={recordedTime.full}>{recordedTime.short}</time>
                         </span>
-                        <span class="truncate min-w-0" title={`${row.model ?? '—'} ${row.provider ?? ''}`}>{row.model ?? '—'}</span>
+                        <span class="truncate min-w-0" title={`${modelName(row.model)} ${row.provider ?? ''}`}>{modelName(row.model)}</span>
                         <span class="text-right truncate" title={formatUsd(value.cost)}>{value.assumed ? '≈' : ''}{formatUsd(value.cost)}</span>
                         <span class="text-right truncate" title={`${language.usageCachedTokens} ${recorded(row.cachedTokens, context?.inputReported, !context)} · ${ratio}`}>{context?.inputReported || (!context && row.cachedTokens > 0) ? compact.format(row.cachedTokens) : '—'}·{ratio}</span>
                         <span class="text-right truncate" title={`${language.usageCacheSavings} ${formatUsd(value.saved)}`}>{formatUsd(value.saved)}</span>
                     </summary>
                     <div class="px-2 pb-2 text-xs text-textcolor2 whitespace-normal">
-                        <div class="font-mono break-all">{row.model ?? '—'} {row.provider ? `(${row.provider})` : ''} · {state}</div>
+                        <div class="font-mono break-all">{modelName(row.model)} ({row.provider?.trim() || language.usageCostProviderMissing}) · {state}</div>
+                        {#if !row.model?.trim()}<div>{language.usageCostModelMissingHint}</div>{/if}
                         <div>{recordedTime.full} · {row.source} · #{row.id}</div>
                         <div>{language.usageInputTokens} {recorded(row.inputTokens, context?.inputReported, !context)} · {language.usageOutputTokens} {recorded(row.outputTokens, context?.outputReported, !context)}</div>
                         <div>{language.usageCachedTokens} {recorded(row.cachedTokens, context?.inputReported, !context)} · {ratio} · {language.usageReasoningTokens} {context?.accounting || row.reasoningTokens > 0 ? number(row.reasoningTokens) : '—'}</div>

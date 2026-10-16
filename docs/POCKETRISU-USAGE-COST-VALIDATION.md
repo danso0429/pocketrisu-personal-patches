@@ -3,6 +3,8 @@
 Candidate: `0.2.4-experimental.51`; pack `usage-cost-estimate` `0.1.0`.
 Current presentation candidate: `0.2.4-experimental.52`, pack `0.1.1`; see the
 model-row correction below. The original receipts remain the .51 baseline.
+Latest candidate: `0.2.4-experimental.53`, pack `0.1.2`; see request identity/date
+below. Earlier physical confirmations remain scoped to their original changes.
 Baseline: patcher `35c3270`, exact PocketRisu `1.10.0`. Date: 2026-10-16.
 Contract: [usage cost plan](POCKETRISU-USAGE-COST-COLUMNS-PLAN.md).
 
@@ -201,3 +203,59 @@ this record and the shared journal, and removes the completed temporary model-ro
 L3 report. The broader usage audit remains available for its unfinished scope.
 Runtime, package version, installer bytes and live delivery are unchanged by
 this documentation closeout. Stable remains `v0.2.3`; no tag/release is created.
+
+## Experimental.53 — request identity and full date
+
+The user reported missing fields in individual attempts and requested no check
+beside the timestamp plus a YYMMDD date. Read-only metadata observations confirmed
+persisted missing models with positive usage, including recovered-job entries with
+new accounting metadata. This was not solely a CSS rendering defect.
+
+The client request path and jobFetch already send the resolved model. Native
+POST /api/model-jobs omitted req.body.model when constructing createJob's argument,
+while createJob already persists arg.model and recovery logging reads job.model.
+The correction forwards that field only; it adds no column or historical update.
+The recovery path does not record the provider identity. It remains explicitly
+unrecorded rather than being guessed from current settings or adapter names.
+
+The native HTTP/local-upstream/SQLite/job-GET test was strengthened to submit and
+assert the model. Before the route fix it failed exactly on the missing model
+(one failed, 21 passed); after the fix the full server suite passed, including
+that assertion and the original upstream bytes, headers, journal and job guards.
+
+UI changes label null/empty/whitespace models as unrecorded, retain recorded token
+counts and unknown-cost evidence, and explain missing-model pricing exclusion.
+Every valid clock uses local YYMMDD HH:MM. Inline success/abort/failure glyphs are
+removed while state remains in aria labels and disclosure. The attempt summary
+uses 10px text and adjusted columns; model-total rows retain their .52 layout.
+
+| Check | Observed result |
+|---|---|
+| Focused client | 118 passed: pricing, cost collector/panel, jobFetch, recovery and native log collector |
+| Full server | 650 passed, 12 existing skips; actual HTTP/SQLite model readback included |
+| Patcher | 333 passed |
+| Svelte/help/build/BG | 0 errors/0 warnings, help keys passed, frontend build and BG built-in runtime load passed |
+| Real Chromium 149 | 375/390/1280px, 28px attempt rows, no horizontal overflow, model column at least 64px, full date fits its column |
+| Browser behavior | Missing-identity hints, no status glyphs, YYMMDD HH:MM, click/Enter disclosure, 50→100 pages, model filter→1, page errors 0 |
+| Full graph | 43 packs/1,769 units/523 changed paths/9 ordered collisions; re-plan zero |
+| Exact revert | All 1,022 baseline files match bytes/modes/links/paths; disabled and empty intent |
+| Installer | 8,531,097 bytes/0755; two builds identical; syntax valid |
+
+Installer SHA-256:
+`540eea44f66a15de7669d241f46ed362368dd7321fcb8eff908ceb6ac85ec104`.
+
+Opus consultation failed before review because its session quota was exhausted.
+No substitute model or repeated quota retry was used; no Opus approval is claimed.
+The scope was verified directly through the failing/passing native route test,
+unchanged assertions, full server and focused client checks, graph and browser.
+
+The initial generated patch wrapper was rejected due to a trailing-comma parse
+and unsupported numbered hunk syntax; the wrapper was corrected without changing
+product behavior to suit a fixture. No such failed patch was applied to live.
+
+Historical missing metadata is not backfilled or deleted. This fixes the known
+model-loss boundary for new jobs and makes old absence explicit; it does not
+promise to recover absent historical identity or infer unsupported prices.
+Direct billing, multi-process bootstrap and inherited observational log loss/
+duplication limits remain unchanged. Physical L5, final CI and live readback are
+recorded separately after observation. No stable tag or release is created.

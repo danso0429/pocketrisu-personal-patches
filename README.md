@@ -6,7 +6,7 @@ PocketRisu `v1.10.0`.
 
 ## Usage cost and cache candidate
 
-`0.2.4-experimental.52` adds selected-period and cumulative cost estimates,
+`0.2.4-experimental.53` adds selected-period and cumulative cost estimates,
 model totals, and a paginated list of recorded LLM attempts. Cached tokens,
 token-weighted cache ratio, reasoning tokens and gross cache savings remain
 readable on small screens. Each attempt occupies one compact line; tap it for
@@ -14,6 +14,10 @@ exact counts and cost evidence. Period/model/source filters apply consistently;
 cumulative cost keeps those filters while removing the date range.
 Model totals also use compact single-line rows, with exact counts and exclusion
 details available by tapping the row.
+Attempt timestamps use local `YYMMDD HH:MM` without inline status glyphs. Missing
+model/provider fields are explicitly labelled as unrecorded. Job creation now
+preserves the submitted model for later recovery logs; old missing fields remain
+unknown and are not reconstructed from current settings.
 The user confirmed the corrected model-row layout and disclosure as normal on
 2026-10-16, closing this scoped UI L5. This does not establish invoice accuracy
 or complete the other usage/device and aggregate-release scenarios.
@@ -36,7 +40,7 @@ Stable remains `v0.2.3`.
 
 ## BG goals and current scope
 
-The candidate installer is `0.2.4-experimental.52` (BG adapter `0.7.57`, lazy
+The candidate installer is `0.2.4-experimental.53` (BG adapter `0.7.57`, lazy
 sync `0.5.8`, Personal settings `0.5.14`). Stable remains `v0.2.3`. The G1
 crosswalk preserves its experimental.50 history snapshot; the usage candidate
 adds cost observation without changing BG execution or publication authority.

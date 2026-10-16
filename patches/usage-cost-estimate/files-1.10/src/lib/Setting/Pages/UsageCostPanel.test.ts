@@ -24,6 +24,24 @@ function render(value = report()) {
 }
 const flush = async () => { await tick(); await Promise.resolve(); await tick() }
 describe('usage cost readout and asynchronous list ownership', () => {
+    it.each([null, '', '   '])('labels unrecorded model %s without inventing cost and shows date without status glyphs', async (model) => {
+        vi.mocked(fetchUsageEntries).mockResolvedValue({ costVersion: 1, entries: [{ id: 8,
+            timestamp: new Date(2026, 9, 16, 3, 4).getTime(), model, provider: null,
+            source: 'main', success: 1, context: null, inputTokens: 100,
+            outputTokens: 20, cachedTokens: 80, reasoningTokens: 0 }], nextCursor: null })
+        const { target } = render(); await flush()
+        const time = target.querySelector('article time')!
+        const attempt = time.closest('article')!
+        const summary = attempt.querySelector('summary')!
+        expect(time.textContent).toBe('261016 03:04')
+        expect(summary.textContent).toContain('usageCostModelMissing')
+        expect(summary.textContent).not.toMatch(/[✓■!]/)
+        expect(summary.getAttribute('aria-label')).toContain('usageCostSuccess')
+        expect(attempt.textContent).toContain('usageCostProviderMissing')
+        expect(attempt.textContent).toContain('usageCostModelMissingHint')
+        expect(attempt.textContent).toContain('usageInputTokens 100')
+        expect(attempt.textContent).toContain('usageCostUnknown —')
+    })
     it('shows recorded cached and reasoning tokens at every width without claiming legacy costs', async () => {
         vi.mocked(fetchUsageEntries).mockResolvedValue({ costVersion: 1, entries: [], nextCursor: null })
         const { target } = render(); await flush()

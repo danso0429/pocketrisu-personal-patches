@@ -16,9 +16,9 @@ function row(overrides: Record<string, unknown> = {}, counts: Partial<CostBucket
 describe('usage/rate accounting across actual server context and client pricing', () => {
     it('preserves valid legacy dates and does not throw on an unrenderable recorded timestamp', () => {
         expect(formatUsageTime(0).iso).toBe('1970-01-01T00:00:00.000Z')
-        const today = new Date(2026, 9, 16, 12).getTime()
-        expect(formatUsageTime(new Date(2026, 9, 15, 12).getTime(), today).short).toBe('10-15')
-        expect(formatUsageTime(today, today).short).toBe(new Date(today).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', hour12: false }))
+        expect(formatUsageTime(new Date(2026, 9, 16, 0, 5).getTime()).short).toBe('261016 00:05')
+        expect(formatUsageTime(new Date(2025, 11, 31, 23, 59).getTime()).short).toBe('251231 23:59')
+        expect(formatUsageTime(new Date(2001, 0, 2, 3, 4).getTime()).short).toBe('010102 03:04')
         expect(formatUsageTime(1e99)).toEqual({ iso: undefined, full: '—', short: '—' })
         expect(estimateCost(row({ timestamp: 1e99 })).reason).toBe('usage')
     })

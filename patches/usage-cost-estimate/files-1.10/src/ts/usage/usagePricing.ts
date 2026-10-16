@@ -125,11 +125,11 @@ export function formatCacheRatio(input: number, cached: number): string {
     return value === null ? '—' : `${(100 * value).toFixed(1)}%`
 }
 
-export function formatUsageTime(timestamp: number, now = Date.now()) {
+export function formatUsageTime(timestamp: number) {
     const date = new Date(timestamp)
     if (!Number.isFinite(timestamp) || !Number.isFinite(date.getTime())) return { iso: undefined, full: '—', short: '—' }
-    const today = date.toDateString() === new Date(now).toDateString()
+    const pad = (value: number) => String(value).padStart(2, '0')
+    const day = `${String(date.getFullYear()).slice(-2).padStart(2, '0')}${pad(date.getMonth() + 1)}${pad(date.getDate())}`
     return { iso: date.toISOString(), full: date.toLocaleString(),
-        short: today ? date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', hour12: false })
-            : `${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}` }
+        short: `${day} ${pad(date.getHours())}:${pad(date.getMinutes())}` }
 }
