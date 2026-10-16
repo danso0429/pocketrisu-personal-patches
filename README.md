@@ -14,6 +14,9 @@ exact counts and cost evidence. Period/model/source filters apply consistently;
 cumulative cost keeps those filters while removing the date range.
 Model totals also use compact single-line rows, with exact counts and exclusion
 details available by tapping the row.
+The user confirmed the corrected model-row layout and disclosure as normal on
+2026-10-16, closing this scoped UI L5. This does not establish invoice accuracy
+or complete the other usage/device and aggregate-release scenarios.
 
 Initial rates cover qualified official Gemini API and Vertex Argon routes.
 Amounts are USD estimates from public rates, not verified invoice charges.

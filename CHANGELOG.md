@@ -3,7 +3,8 @@
 ## 0.2.4-experimental.52 (compact model totals)
 
 - Replace tall per-model cost cards with compact single-line rows, matching the attempt list. Keep request count, estimated cost, cached tokens/ratio and savings visible; tap or keyboard disclosure reveals the full model/provider, exact token totals, exclusions and duration.
-- Preserve pricing, filters, storage, request logging and individual attempt behavior. This addresses the physical screenshot feedback on the model section; device confirmation remains pending.
+- Preserve pricing, filters, storage, request logging and individual attempt behavior. This addresses the physical screenshot feedback on the model section.
+- Record the user's 2026-10-16 normal-use confirmation, closing scoped L5 for the compact model layout and disclosure. Complete the documentation follow-up with runtime/version unchanged; broader usage and aggregate-release gates remain separate.
 
 ## 0.2.4-experimental.51 (usage costs and cache accounting)
 

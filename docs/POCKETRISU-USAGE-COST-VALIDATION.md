@@ -121,8 +121,9 @@ Current and previous application recovery points are retained. No backup cleanup
 was performed as part of this delivery.
 
 The outgoing 22-path source/artifact sweep found no sensitive-pattern hits.
-GitHub CI started for `b25c53e`; its final result is recorded separately once known.
-Physical iPhone L5 remains pending. No stable tag or release was created.
+GitHub CI for `b25c53e` completed successfully. At .51 delivery physical iPhone
+L5 remained pending; see the scoped .52 confirmation below. No stable tag or
+release was created.
 
 ## Physical L5 preparation
 
@@ -162,8 +163,8 @@ Installer: 8,527,884 bytes, mode 0755, two builds identical, SHA-256
 `e61131ebd006a6a1abc17504b137845e6ea754d4024ce583842d9104e51f322e`.
 The live read-only plan changes only UsageCostPanel.svelte and patcher state.
 This UI-only correction does not migrate or copy a database; the existing verified
-schema recovery point remains available. Physical readability/touch confirmation
-remains L5; the earlier screenshot is feedback, not a pass.
+schema recovery point remains available. The earlier screenshot is failure feedback;
+the later normal-use confirmation below closes this correction's scoped L5.
 
 Opus identified a Korean compact-unit width risk. Browser measurements reproduced
 81px text in the former 74px cache column; the model cache column is now 5.3rem
@@ -183,5 +184,20 @@ root HTTP 200, 17 served script assets match local bytes, both cost API response
 are version 1/no-store. Existing usage including cost metadata is unchanged and
 quick_check is ok. BG bundle, plugin-host activation and header settings are
 unchanged. PM2 is online, unstable restarts zero, new error lines zero. No model
-call, database migration/copy or usage-data edit was performed. Source CI started;
-its final status is not inferred from these local and delivery checks.
+call, database migration/copy or usage-data edit was performed.
+
+### Scoped L5 and documentation closeout — 2026-10-16
+
+After .52 was deployed and the user was asked to refresh Usage → By model,
+check the single-line layout and tap to expand/collapse, the user replied
+“정상”. This closes the model-row correction's physical UI L5. It does not
+assert completion of the other period/filter/new-priced-usage scenarios above,
+physical VoiceOver/text-scaling variants or broader BG/release qualification.
+
+GitHub implementation run `38851071687` (`1c7682d`) and delivery-document run
+`38851214599` (`0f6169a`) both completed successfully. The earlier .51
+document run `38849494221` also succeeded. Scoped L6 updates README, changelog,
+this record and the shared journal, and removes the completed temporary model-row
+L3 report. The broader usage audit remains available for its unfinished scope.
+Runtime, package version, installer bytes and live delivery are unchanged by
+this documentation closeout. Stable remains `v0.2.3`; no tag/release is created.
