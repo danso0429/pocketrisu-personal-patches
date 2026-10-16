@@ -1,5 +1,13 @@
 # Changelog
 
+## 0.2.4-experimental.51 (usage costs and cache accounting)
+
+- Add period/cumulative filtered estimates, model costs and persistent paginated attempt details with cached tokens, cache ratio, reasoning and gross cache savings.
+- Keep each attempt on one compact line; disclose exact token counts and pricing evidence on tap or keyboard activation.
+- Preserve Gemini served tiers and count thinking once in billed output. Qualify prices by official product, region, tier and UTC request pricing day; use original job start for recovered pricing while retaining native log/filter timestamps.
+- Preserve old usage rows with additive nullable cost metadata. Distinguish unpriced, legacy, incomplete and failed-unreported attempts; never label missing accounting as zero cost. Keep API reads authenticated and non-cacheable, and body rotation independent of usage history.
+- Initial prices cover exact Argon on qualified official Gemini API and Vertex routes; unknown/custom/multi-region routes remain unpriced. Public promotional rates are estimates, with actual credits and non-token charges unverified. Stable remains v0.2.3.
+
 ## 0.2.4-experimental.50 (actionable composer input notices)
 
 - Record the user's 2026-10-15 normal-use confirmation and scoped L5 completion for both composer height and duplicate-card fixes. Close their documentation follow-up without changing runtime/version or broader G1, translated-input and VoiceOver qualification.

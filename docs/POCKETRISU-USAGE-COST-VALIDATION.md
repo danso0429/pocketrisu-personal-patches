@@ -1,0 +1,94 @@
+# Usage cost and cache validation
+
+Candidate: `0.2.4-experimental.51`; pack `usage-cost-estimate` `0.1.0`.
+Baseline: patcher `35c3270`, exact PocketRisu `1.10.0`. Date: 2026-10-16.
+Contract: [usage cost plan](POCKETRISU-USAGE-COST-COLUMNS-PLAN.md).
+
+## Result and evidence boundaries
+
+The candidate adds period/cumulative estimates, model totals and a compact,
+paginated attempt list. Each collapsed attempt shows time, model, cost, cached
+tokens/ratio and savings. Disclosure retains exact counts and pricing context.
+All monetary values are estimates of recorded usage, not invoice reconciliation.
+
+| Check | Observed result | Boundary |
+|---|---|---|
+| Patcher tests | 333 passed | Source/catalog/resolver/installer contracts |
+| Full frontend suite | 2,481 passed, 4 existing skips | Before final safe-timestamp delta |
+| Full server suite | 649 passed, 12 existing skips | Before final safe-timestamp delta |
+| Compatibility suite | 74 passed, 5 existing skips | Existing compatible paths |
+| Final focused frontend | 80 passed | Pricing, actual collector, panel and native Gemini parser |
+| Final focused server | 41 passed | Native request logs and real SQLite cost store |
+| Final Svelte check | 0 errors, 0 warnings | Final source |
+| Help keys | Passed | Earlier combined candidate; timestamp delta adds no keys |
+| Final frontend build | Completed | Existing build warnings retained |
+| Final BG bundle | Built, imported; sendChat is a function | Same candidate sources as frontend |
+| Browser | Chromium 149; widths 375, 390, 1280; 28px closed rows, no horizontal overflow | Actual component, production CSS, local test font, synthetic auth/data and real SQLite/HTTP; not full Settings navigation |
+| Browser interaction | 50→100 rows, model filter→1; click/Enter disclosure; no page errors | No provider call |
+| Whole graph | 43 packs, 1,766 units, 522 managed paths, 9 ordered collisions | Ninth collision orders usage no-store before entries-route; not unresolved ownership |
+| Fresh-source roundtrip | 1,022 baseline files restored in exact bytes/modes/links/paths; re-plan 0, disabled and empty intent | Isolated baseline, no user data |
+| Installer | Two builds byte-identical; syntax valid; 8,525,916 bytes, mode 0755 | SHA-256 below |
+| Live-database copy migration | Applied twice; old values unchanged in requests and usage; quick_check ok; old context NULL | Original opened read-only; only private copy migrated |
+
+Installer SHA-256:
+`f51d00813dc9ac6d7831c148c223a0a3ece1ff9a8cc23d83234b6798fddd1a6e`.
+
+Fourteen literal published-rate fixtures independently check product, region,
+tier and date boundaries. Parser tests check thinking inclusion once, service
+tiers and incomplete extra tool usage. SQLite tests cover old writers/reopen,
+shared filters, cursor caps/ties, unknown grouping and retained usage after body
+clearing. Async tests exercise late replies, retry, unmount and duplicate clicks.
+
+An adversarial finite legacy timestamp reproduced a Date RangeError. Final source
+renders an unknown clock safely and permits paging beyond that row. No historical
+row is rewritten and no arbitrary epoch threshold is introduced.
+
+Final Opus review also identified indistinguishable older days and a cursor
+asymmetry with native-admitted negative timestamps. Older rows now show MM-DD
+in the same compact width (today shows HH:MM), with the full date/time in the
+disclosure. Real SQLite pagination covers positive, out-of-Date-range and negative
+finite timestamps. Nonfinite values cannot be sent as JSON numbers; direct internal
+injection of Infinity remains outside the qualified cursor contract.
+
+The official Developer API reference places serviceTier inside usageMetadata.
+The Argon pricing section has one token rate per tier/date, without a long-context
+or separate modality tier; unrelated Pro thresholds are not applied. Native jobs
+persist target origin plus pathname, so recovered endpoint qualification has a path.
+Express-mode Vertex URLs without locations remain explicitly unpriced.
+
+## Runtime surfaces and exclusions
+
+- One synthetic 10,000-row run grouped into 15 contexts: aggregate 38.21ms,
+  first page 1.73ms. The timestamp index is used with temporary tie sorting.
+  This is not a latency guarantee; retained-history growth remains a measurement
+  surface. No destructive retention or speculative rollup was added.
+- Initial prices cover exact Argon on qualified official routes. Other models,
+  custom/reseller endpoints, Vertex Flex and unknown/multi-region locations are
+  unpriced. Missing historical accounting stays unknown. No paid provider trial.
+- Actual credits, invoice totals, tax, storage and other non-token charges remain
+  unverified. Native log delivery/recovery can omit or repeat observations; the
+  feature preserves native statistics and does not establish unique-charge receipts.
+- Browser geometry is separate from physical iPhone font scaling, touch and PWA
+  reload behavior. Physical L5 and a stable release are not completed by these checks.
+- Refresh and paginated reads are separate observations. A request completed between
+  the aggregate and page reads may appear before a later refresh includes it in the
+  cards; this is not a transactionally frozen report. Refresh before comparing totals.
+- Missing served tier is visibly marked as a Standard assumption. Request-body tier
+  fallback and actual account reconciliation are not implemented. Non-boolean status
+  metadata and concurrent first-time migration by multiple server processes are
+  unqualified; first-party writers use booleans and delivery stops the single process.
+
+## Delivery status
+
+Final Opus 5.5 consultation completed against the immutable full snapshot and
+the separate four-file date/cursor delta. It confirmed no blocking issue in the
+delta; official pricing/API premises were independently checked by Codex. Final
+focused tests, type check, build, graph roundtrip and compact browser checks were
+repeated after these changes. An extra ad-hoc BG import initially checked a named
+export that this bundle does not expose; the bundle's built-in global runtime load
+check passed, and the corrected ad-hoc runtime check passed. No product change
+was required for that test-harness mistake.
+
+Safe live delivery/readback is pending. No stable
+tag or release is authorized by this record. Delivery results will be appended
+after observing the deployed source, schema, bundle and authenticated endpoints.

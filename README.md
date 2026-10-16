@@ -4,12 +4,37 @@ Personal, all-or-nothing patch delivery for PocketRisu NodeOnly. The current
 stable release is `v0.2.3`, and its complete manifest graph targets exact
 PocketRisu `v1.10.0`.
 
+## Usage cost and cache candidate
+
+`0.2.4-experimental.51` adds selected-period and cumulative cost estimates,
+model totals, and a paginated list of recorded LLM attempts. Cached tokens,
+token-weighted cache ratio, reasoning tokens and gross cache savings remain
+readable on small screens. Each attempt occupies one compact line; tap it for
+exact counts and cost evidence. Period/model/source filters apply consistently;
+cumulative cost keeps those filters while removing the date range.
+
+Initial rates cover qualified official Gemini API and Vertex Argon routes.
+Amounts are USD estimates from public rates, not verified invoice charges.
+Unpriced models, legacy/incomplete usage and failed attempts without usage are
+identified separately; unknown costs are excluded rather than treated as free.
+Vertex promotional credits, assumed tiers and excluded non-token charges are
+explicit. Native logging remains observational, so omissions/repeated recovery
+records are not invoice reconciliation. Unsupported custom and multi-region routes
+remain unpriced.
+
+The additive metadata column and attempt list use existing usage storage;
+body rotation does not remove this list. Explicit usage clearing still does.
+Revert leaves the nullable column in place and preserves old rows. See the
+[execution plan](docs/POCKETRISU-USAGE-COST-COLUMNS-PLAN.md#execution-contract)
+and [validation record](docs/POCKETRISU-USAGE-COST-VALIDATION.md).
+Stable remains `v0.2.3`.
+
 ## BG goals and current scope
 
-The candidate installer is `0.2.4-experimental.50` (BG adapter `0.7.57`, lazy
-sync `0.5.8`, Personal settings `0.5.14`). Stable remains `v0.2.3`. Updating main
-from the crosswalk's `9259550` baseline changes its default installer from
-experimental.5 to experimental.50; it does not publish a stable release.
+The candidate installer is `0.2.4-experimental.51` (BG adapter `0.7.57`, lazy
+sync `0.5.8`, Personal settings `0.5.14`). Stable remains `v0.2.3`. The G1
+crosswalk preserves its experimental.50 history snapshot; the usage candidate
+adds cost observation without changing BG execution or publication authority.
 
 BG aims to run input preparation, required model requests, postprocessing and
 canonical chat storage on the server while the app is absent. The table follows
