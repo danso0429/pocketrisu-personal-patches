@@ -162,8 +162,8 @@ Installer: 8,527,884 bytes, mode 0755, two builds identical, SHA-256
 `e61131ebd006a6a1abc17504b137845e6ea754d4024ce583842d9104e51f322e`.
 The live read-only plan changes only UsageCostPanel.svelte and patcher state.
 This UI-only correction does not migrate or copy a database; the existing verified
-schema recovery point remains available. Final consultation and delivery results
-are recorded after completion. Physical readability/touch confirmation remains L5.
+schema recovery point remains available. Physical readability/touch confirmation
+remains L5; the earlier screenshot is feedback, not a pass.
 
 Opus identified a Korean compact-unit width risk. Browser measurements reproduced
 81px text in the former 74px cache column; the model cache column is now 5.3rem
@@ -174,3 +174,14 @@ model/provider identities can still require disclosure for full text; exact valu
 remain available there rather than forcing a wide page.
 Final Opus 5.5 follow-up found no new concrete issue in those three adjustments;
 the 35 tests, type check, production build and browser checks passed after them.
+
+Delivered source commit `1c7682d`. Two pre-stop activity checks were idle across
+owner chats, models, pending sends and HTTP requests. Verified 415 app/state backup
+files, applied the UI/state-only plan and deployed the matching frontend build.
+Readback: 520 managed source files match the tested candidate, re-plan zero,
+root HTTP 200, 17 served script assets match local bytes, both cost API responses
+are version 1/no-store. Existing usage including cost metadata is unchanged and
+quick_check is ok. BG bundle, plugin-host activation and header settings are
+unchanged. PM2 is online, unstable restarts zero, new error lines zero. No model
+call, database migration/copy or usage-data edit was performed. Source CI started;
+its final status is not inferred from these local and delivery checks.
