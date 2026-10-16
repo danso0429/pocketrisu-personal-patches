@@ -89,6 +89,50 @@ export that this bundle does not expose; the bundle's built-in global runtime lo
 check passed, and the corrected ad-hoc runtime check passed. No product change
 was required for that test-harness mistake.
 
-Safe live delivery/readback is pending. No stable
-tag or release is authorized by this record. Delivery results will be appended
-after observing the deployed source, schema, bundle and authenticated endpoints.
+The four functional commits were pushed to main: `4c810ea` (client accounting),
+`de5a0db` (storage/API), `05c98c7` (compact UI), `b25c53e` (qualified registration).
+The cumulative candidate is qualified; intermediate commits introduce inert units
+until registration and are not separate qualified installers.
+
+Live delivery completed after two idle checks: owner busy chats, running models,
+pending sends and active HTTP requests were all zero. The service was stopped
+before preserving and verifying 426 application/state files and a private usage DB
+backup. Final source hashes/modes matched the tested candidate; the matching
+frontend and BG bundles were deployed together. No generation was cancelled.
+
+Observed readback: 520 managed source files, re-plan zero; root HTTP 200; 17 served
+script assets matched local bytes; both authenticated usage endpoints returned
+costVersion 1 and no-store. Existing usage values remained unchanged, old context
+remained NULL, and database quick_check was ok. PM2 was online with zero unstable
+restarts and zero new error-log lines. Plugin host activation and configured
+external-header settings were preserved. No plugin array or chat data was changed
+by this delivery script. The 522 fresh-apply changed paths include state/intent;
+they are distinct from the 520 managed source files.
+
+BG bundle SHA-256:
+`e026fdcc66ab1086fdcf2ceb776300b8fbdf32ab2d25219aecfee7c34b7cd30b`.
+
+Source rollback can restore the previous app/state while leaving the additive
+nullable column and current usage intact. The verified stopped DB backup is an
+emergency recovery point; do not overwrite resumed-service data blindly with it.
+Current and previous application recovery points are retained. No backup cleanup
+was performed as part of this delivery.
+
+The outgoing 22-path source/artifact sweep found no sensitive-pattern hits.
+GitHub CI started for `b25c53e`; its final result is recorded separately once known.
+Physical iPhone L5 remains pending. No stable tag or release was created.
+
+## Physical L5 preparation
+
+Refresh the app to adopt the new build, then open Settings → System → Usage.
+No extra paid request is required just to inspect existing history.
+
+| UI | Change | Gesture and expected result |
+|---|---|---|
+| Individual attempt list | One compact line per attempt | Scroll on a narrow iPhone; time/date, model, cost and cache/savings columns remain on one line without page-wide horizontal scrolling. Tap a row to expand exact counts/full date/model; tap again to collapse. |
+| Period/model/source filters | Shared filtered totals and pages | Change each filter; cards, model totals and list follow it. Cumulative keeps model/source but drops dates. Refresh before comparing concurrent arrivals. |
+| Historical/unsupported entries | Explicit unknown cost | Existing rows without metadata show unknown/unpriced, with recorded positive tokens retained. They must not appear as confirmed free requests. |
+| Priced new usage, when ordinary use provides it | Cost and cache savings | On a supported official Argon request, compare collapsed values with expanded exact tokens; assumed tier is marked. No separate paid trial is required by this checklist. |
+
+Unexpected results include clipped numbers, tap not opening details, old-filter
+rows returning after a new selection, or missing metadata presented as known zero.
