@@ -191,6 +191,58 @@ describe('server-owned input client admission', () => {
         expect(harness.flushSettings).toHaveBeenCalledTimes(2)
     })
 
+    it.each([
+        ['local-revision', 'readLocalRevision'],
+        ['server-chat', 'peekServerChat'],
+        ['pending-inputs', 'readPendingInputs'],
+    ] as const)('reports only fixed diagnostic fields for %s failures', async (stage, dependency) => {
+        const harness = makeHarness()
+        const warning = vi.spyOn(console, 'warn').mockImplementation(() => {})
+        const rawText = request.rawText
+        harness.deps[dependency] = () => { throw new TypeError('private text / credential / endpoint') }
+        try {
+            await expect(submitServerInputCommand(harness.deps, request)).resolves.toEqual({
+                kind: 'blocked', reason: 'canonical-chat-unavailable',
+            })
+            expect(warning.mock.calls).toEqual([
+                ['[bg-input] canonical read failed:' + stage + ':TypeError'],
+            ])
+            expect(harness.start).not.toHaveBeenCalled()
+            expect(harness.deps.storage.length).toBe(0)
+            expect(request.rawText).toBe(rawText)
+        } finally { warning.mockRestore() }
+    })
+
+    it('does not log arbitrary error names or values', async () => {
+        const harness = makeHarness()
+        const warning = vi.spyOn(console, 'warn').mockImplementation(() => {})
+        const error = new Error('private content')
+        error.name = 'private error name'
+        harness.deps.peekServerChat = async () => { throw error }
+        try {
+            await expect(submitServerInputCommand(harness.deps, request)).resolves.toEqual({
+                kind: 'blocked', reason: 'canonical-chat-unavailable',
+            })
+            expect(warning.mock.calls).toEqual([
+                ['[bg-input] canonical read failed:server-chat:UnknownError'],
+            ])
+            expect(harness.start).not.toHaveBeenCalled()
+        } finally { warning.mockRestore() }
+    })
+
+    it('preserves failed admission when diagnostic logging itself throws', async () => {
+        const harness = makeHarness()
+        const warning = vi.spyOn(console, 'warn').mockImplementation(() => { throw new Error('logger unavailable') })
+        harness.deps.peekServerChat = async () => { throw new Error('read failed') }
+        try {
+            await expect(submitServerInputCommand(harness.deps, request)).resolves.toEqual({
+                kind: 'blocked', reason: 'canonical-chat-unavailable',
+            })
+            expect(harness.start).not.toHaveBeenCalled()
+            expect(harness.deps.storage.length).toBe(0)
+        } finally { warning.mockRestore() }
+    })
+
     it('blocks local edits made during canonical read and never starts paid work', async () => {
         const harness = makeHarness()
         let reads = 0

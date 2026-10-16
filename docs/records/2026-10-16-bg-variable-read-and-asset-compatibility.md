@@ -61,7 +61,7 @@ coverage for real post-assembly edits remains in place.
 - Frontend production build and BG orchestration bundle build exited zero.
 - Patcher: 333 passed. The first run found one stale adapter-version assertion;
   it was updated from 0.7.57 to 0.7.58 without removing or weakening checks.
-- Installer rebuild was byte-identical: 8,535,079 bytes, SHA-256
+- The getter-only installer rebuild was byte-identical: 8,535,079 bytes, SHA-256
   `1dfc0e79ed7cfe173f74776e9be14b289fbd504ce93b4eebe2387bc33f6a0dee`.
 - Isolated full apply/re-plan/revert: 43 packs, 1,771 units, 525 written paths,
   nine composed collisions, zero remaining plan changes. Revert restored all
@@ -108,8 +108,52 @@ The user confirmed the new YYMMDD timestamp and absence of status checks, then
 reported unchanged Send/Stop failure after refresh. Thus the current usage UI
 is present, and the restored asset defect does not establish the cause of the
 reported Send/Stop failure. The remaining issue is unresolved. Further
-diagnostic instrumentation was proposed separately; it must not be reported as
-implemented or as a fix before its own approval and evidence.
+diagnostic instrumentation was approved separately and added as described below.
+
+All 203 currently present JS/CSS responses, including restored files, were
+subsequently fetched and matched to their disk SHA-256 hashes. This proves
+server-side availability at that probe time, not successful execution in the
+device's module graph or successful decoding of a particular chat.
+
+## Approved admission diagnostics
+
+The user approved logging and deployment after reporting that refresh did not
+resolve Send/Stop. `bgServerInputClient` tracks `local-revision`, `server-chat`
+and `pending-inputs` immediately before the corresponding existing read. Its
+existing catch emits one fixed-category warning and returns the same
+`canonical-chat-unavailable` blocked outcome. It adds no retries, provider
+calls, cancellation, marker changes or draft clearing.
+
+The event's single first argument contains only the fixed event, stage and a
+whitelisted error name. It never receives the exception object, message, stack,
+chat text, identifier, endpoint or credentials. Unrecognized names and non-Error
+values become `UnknownError`. A failed logger is caught independently so it
+cannot change admission failure handling. The error name is read once before
+whitelist selection.
+
+Opus identified that existing log collection deduplicates by the first message,
+so stage and kind were moved into that single argument. Its proposed distinct
+unknown category was also retained. The wider server-read split was deferred:
+if the next result is `server-chat:TypeError`, import, transport and decode still
+require disambiguation; this initial instrumentation does not claim otherwise.
+Diagnostic delivery can itself fail, so absence of a warning cannot establish
+success or identify an alternate failure path. Stop remains a separate path.
+
+Tests inject failures in each of the three dependencies, assert the exact log
+argument, unchanged blocked result, no start and no recovery marker; additional
+controls cover an arbitrary exception name and logger failure. The final
+installer is 8,538,493 bytes, SHA-256
+`cfc4043d8daa4773719acb20f6f43a2e23a3375f6a07740a17c513470a267f32`.
+The getter-only checkpoint and final diagnostic installer are deliberately
+distinguished; the earlier full-suite results precede the diagnostic addition.
+
+For the final diagnostic source, the three affected frontend suites passed all
+135 tests, Svelte check reported zero errors/warnings, and both production
+builds exited zero. Patcher tests passed 333 cases. A separate final full graph
+round-trip repeated the same 43-pack/1,771-unit/525-path result and exact
+1,022-file baseline recovery. Final installer rebuild was byte-identical. The
+full frontend/server/compatibility counts above belong to the earlier getter
+snapshot; they are not presented as repeated runs after instrumentation.
 
 Future deployment staging must preserve verified previously served hashed
 JS/CSS files without replacing a current same-name file. A hash collision with

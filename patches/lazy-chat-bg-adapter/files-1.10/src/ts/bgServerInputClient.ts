@@ -203,11 +203,23 @@ export async function submitServerInputCommand(
     let localRevision: string
     let server: { revision: string; viewRevision: string } | null
     let pendingInputs: ServerPendingInput[]
+    let canonicalReadStage: 'local-revision' | 'server-chat' | 'pending-inputs' = 'local-revision'
     try {
         localRevision = deps.readLocalRevision()
+        canonicalReadStage = 'server-chat'
         server = await deps.peekServerChat()
+        canonicalReadStage = 'pending-inputs'
         pendingInputs = server ? await deps.readPendingInputs(server.revision) : []
-    } catch {
+    } catch (error) {
+        // Fixed categories only: errors may contain chat text, URLs or credentials.
+        // Diagnostics must never change the existing admission/draft outcome.
+        try {
+            const errorName = error instanceof Error ? error.name : 'UnknownError'
+            const errorKind = [
+                'Error', 'TypeError', 'RangeError', 'SyntaxError', 'AbortError', 'TimeoutError',
+            ].includes(errorName) ? errorName : 'UnknownError'
+            console.warn('[bg-input] canonical read failed:' + canonicalReadStage + ':' + errorKind)
+        } catch { /* Logging is observational. */ }
         return { kind: 'blocked', reason: 'canonical-chat-unavailable' }
     }
     if (!deps.isCurrent()) return { kind: 'blocked', reason: 'selection-changed' }
