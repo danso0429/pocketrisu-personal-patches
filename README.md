@@ -6,12 +6,14 @@ PocketRisu `v1.10.0`.
 
 ## Usage cost and cache candidate
 
-`0.2.4-experimental.51` adds selected-period and cumulative cost estimates,
+`0.2.4-experimental.52` adds selected-period and cumulative cost estimates,
 model totals, and a paginated list of recorded LLM attempts. Cached tokens,
 token-weighted cache ratio, reasoning tokens and gross cache savings remain
 readable on small screens. Each attempt occupies one compact line; tap it for
 exact counts and cost evidence. Period/model/source filters apply consistently;
 cumulative cost keeps those filters while removing the date range.
+Model totals also use compact single-line rows, with exact counts and exclusion
+details available by tapping the row.
 
 Initial rates cover qualified official Gemini API and Vertex Argon routes.
 Amounts are USD estimates from public rates, not verified invoice charges.
@@ -31,7 +33,7 @@ Stable remains `v0.2.3`.
 
 ## BG goals and current scope
 
-The candidate installer is `0.2.4-experimental.51` (BG adapter `0.7.57`, lazy
+The candidate installer is `0.2.4-experimental.52` (BG adapter `0.7.57`, lazy
 sync `0.5.8`, Personal settings `0.5.14`). Stable remains `v0.2.3`. The G1
 crosswalk preserves its experimental.50 history snapshot; the usage candidate
 adds cost observation without changing BG execution or publication authority.

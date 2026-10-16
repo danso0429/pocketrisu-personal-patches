@@ -1,8 +1,12 @@
 # PocketRisu Usage Cost and Cache Plan
 
-Revision: r2, 2026-10-16. Implementation authorized after plan review.
+Revision: r3, 2026-10-16. Implementation authorized after plan review.
 Base: patcher `35c3270`, exact PocketRisu `1.10.0`.
 Candidate: `0.2.4-experimental.51`; new pack `usage-cost-estimate` `0.1.0`.
+Presentation follow-up: `0.2.4-experimental.52`, pack `0.1.1`: physical feedback
+showed that compacting only attempts left the model cards too tall. Both model
+totals and individual attempts must use compact single-line summaries, with exact
+token totals, full identity and exclusions inside native disclosure.
 Stable remains `v0.2.3`. This document defines behavior; observed gate results
 belong in the validation record rather than being inferred from this plan.
 

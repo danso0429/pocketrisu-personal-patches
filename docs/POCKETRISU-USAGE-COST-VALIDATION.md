@@ -1,6 +1,8 @@
 # Usage cost and cache validation
 
 Candidate: `0.2.4-experimental.51`; pack `usage-cost-estimate` `0.1.0`.
+Current presentation candidate: `0.2.4-experimental.52`, pack `0.1.1`; see the
+model-row correction below. The original receipts remain the .51 baseline.
 Baseline: patcher `35c3270`, exact PocketRisu `1.10.0`. Date: 2026-10-16.
 Contract: [usage cost plan](POCKETRISU-USAGE-COST-COLUMNS-PLAN.md).
 
@@ -136,3 +138,39 @@ No extra paid request is required just to inspect existing history.
 
 Unexpected results include clipped numbers, tap not opening details, old-filter
 rows returning after a new selection, or missing metadata presented as known zero.
+
+## Experimental.52 — model-row correction
+
+Physical screenshot feedback rejected the model section's tall cards. The .51
+browser qualification measured compact attempt rows, not compact model totals.
+This correction also gives model totals a one-line 11px summary: model, request
+count, estimated cost, cached tokens/ratio and savings. Full model/provider,
+exact counts, unknown/exclusion reasons, assumption and duration remain inside
+the native disclosure. Pricing, persistence, filters, async ownership and attempt
+rows are unchanged. Top period/cumulative cards are outside this screenshot fix.
+
+Observed checks: 35 existing UI/pricing tests passed, patcher 333 passed,
+Svelte 0 errors/0 warnings and production build completed. Final Chromium with
+production CSS and synthetic SQLite/API measured model rows at 28px across
+375/390/1280px, no horizontal overflow, and verified click/Enter disclosure plus
+existing attempt pagination/filtering. An initial browser assertion incorrectly
+expected one request's input count in an aggregate row; it was corrected to the
+120-request aggregate without changing product code or weakening assertions.
+Whole graph and exact 1,022-file roundtrip passed again, with re-plan zero.
+
+Installer: 8,527,884 bytes, mode 0755, two builds identical, SHA-256
+`e61131ebd006a6a1abc17504b137845e6ea754d4024ce583842d9104e51f322e`.
+The live read-only plan changes only UsageCostPanel.svelte and patcher state.
+This UI-only correction does not migrate or copy a database; the existing verified
+schema recovery point remains available. Final consultation and delivery results
+are recorded after completion. Physical readability/touch confirmation remains L5.
+
+Opus identified a Korean compact-unit width risk. Browser measurements reproduced
+81px text in the former 74px cache column; the model cache column is now 5.3rem
+and the request header clips within its own column in English. Final measurements
+at 375/390px keep the four Korean cache strings within the 85px column. Model aria labels
+also retain savings and assumed-tier information. Large monetary totals and long
+model/provider identities can still require disclosure for full text; exact values
+remain available there rather than forcing a wide page.
+Final Opus 5.5 follow-up found no new concrete issue in those three adjustments;
+the 35 tests, type check, production build and browser checks passed after them.

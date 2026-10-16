@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.2.4-experimental.52 (compact model totals)
+
+- Replace tall per-model cost cards with compact single-line rows, matching the attempt list. Keep request count, estimated cost, cached tokens/ratio and savings visible; tap or keyboard disclosure reveals the full model/provider, exact token totals, exclusions and duration.
+- Preserve pricing, filters, storage, request logging and individual attempt behavior. This addresses the physical screenshot feedback on the model section; device confirmation remains pending.
+
 ## 0.2.4-experimental.51 (usage costs and cache accounting)
 
 - Add period/cumulative filtered estimates, model costs and persistent paginated attempt details with cached tokens, cache ratio, reasoning and gross cache savings.

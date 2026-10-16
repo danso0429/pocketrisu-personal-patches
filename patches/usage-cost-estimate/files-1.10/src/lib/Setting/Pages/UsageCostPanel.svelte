@@ -92,15 +92,28 @@
     {#if !available}<p role="status">{language.usageCostUnavailable}</p>{/if}
 
     <h4 class="font-semibold text-sm mb-2">{language.usageByModel}</h4>
-    <div class="grid gap-2 mb-4">
+    <div class="grid grid-cols-[minmax(0,1fr)_2rem_3.5rem_5.3rem_3.6rem] gap-1 px-2 text-[11px] text-textcolor2 mb-1" aria-hidden="true">
+        <span>{language.usageCostModelFilter}</span><span class="text-right truncate" title={language.usageRequests}>{language.usageRequests}</span>
+        <span class="text-right">{language.usageCostEstimateShort}</span>
+        <span class="text-right">{language.usageCostCacheShort}</span><span class="text-right">{language.usageCostSavedShort}</span>
+    </div>
+    <div class="border border-darkborderc rounded-md overflow-hidden mb-4" data-usage-models>
         {#each report.byModel as row (JSON.stringify([row.model, row.provider]))}
             {@const value = modelCosts.get(JSON.stringify([row.model, row.provider]))}
-            <article class="border border-darkborderc rounded-md p-3 min-w-0">
-                <div class="flex flex-wrap justify-between gap-2">
-                    <span class="font-mono break-all text-sm">{row.model ?? '—'} {row.provider ? `(${row.provider})` : ''}</span>
-                    <span class="tabular-nums">{language.usageEstimatedCost} {formatUsd(value?.cost ?? null)}</span>
-                </div>
-                <div class="text-xs text-textcolor2 flex flex-wrap gap-x-3 gap-y-1 mt-1">
+            <article class="border-b border-darkborderc last:border-0 min-w-0">
+                <details>
+                    <summary class="grid grid-cols-[minmax(0,1fr)_2rem_3.5rem_5.3rem_3.6rem] gap-1 px-2 py-1.5 text-[11px] leading-4 whitespace-nowrap tabular-nums cursor-pointer list-none [&::-webkit-details-marker]:hidden"
+                        aria-label={`${row.model ?? '—'} ${row.provider ?? ''} · ${language.usageRequests} ${number(row.requests)} · ${language.usageEstimatedCost} ${formatUsd(value?.cost ?? null)} · ${language.usageCachedTokens} ${number(row.cachedTokens)} · ${formatCacheRatio(row.inputTokens, row.cachedTokens)} · ${language.usageCacheSavings} ${formatUsd(value?.saved ?? null)}${value?.assumed ? ` · ${language.usageCostTierAssumed}` : ''}`}>
+                        <span class="truncate min-w-0" title={`${row.model ?? '—'} ${row.provider ?? ''}`}>{row.model ?? '—'}</span>
+                        <span class="text-right truncate" title={number(row.requests)}>{compact.format(row.requests)}</span>
+                        <span class="text-right truncate" title={formatUsd(value?.cost ?? null)}>{value?.assumed ? '≈' : ''}{formatUsd(value?.cost ?? null)}</span>
+                        <span class="text-right truncate" title={`${number(row.cachedTokens)} · ${formatCacheRatio(row.inputTokens, row.cachedTokens)}`}>{compact.format(row.cachedTokens)}·{formatCacheRatio(row.inputTokens, row.cachedTokens)}</span>
+                        <span class="text-right truncate" title={formatUsd(value?.saved ?? null)}>{formatUsd(value?.saved ?? null)}</span>
+                    </summary>
+                    <div class="px-2 pb-2 text-xs text-textcolor2 whitespace-normal">
+                    <div class="font-mono break-all">{row.model ?? '—'} {row.provider ? `(${row.provider})` : ''}</div>
+                    <div>{language.usageEstimatedCost} {formatUsd(value?.cost ?? null)}</div>
+                    <div class="flex flex-wrap gap-x-3 gap-y-1 mt-1">
                     <span>{language.usageRequests} {number(row.requests)}</span>
                     <span>{language.usageInputTokens} {number(row.inputTokens)}</span>
                     <span>{language.usageOutputTokens} {number(row.outputTokens)}</span>
@@ -114,10 +127,9 @@
                 {#if value?.incomplete}<div class="text-xs text-textcolor2">{language.usageCostIncomplete} {number(value.incomplete)}</div>{/if}
                 {#if value?.failedUnreported}<div class="text-xs text-textcolor2">{language.usageCostFailedNoUsage} {number(value.failedUnreported)}</div>{/if}
                 {#if value?.assumed}<div class="text-xs text-textcolor2">{language.usageCostTierAssumed}</div>{/if}
-                <details class="text-xs text-textcolor2 mt-1">
-                    <summary class="cursor-pointer">{language.usageCostDetails}</summary>
                     <div>{language.usageAvgDuration} {row.avgDurationMs === null ? '—' : `${number(row.avgDurationMs)}ms`}</div>
                     <div>{language.usageCostRecordedTokens}</div>
+                    </div>
                 </details>
             </article>
         {/each}
