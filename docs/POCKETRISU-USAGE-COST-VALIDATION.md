@@ -259,3 +259,34 @@ promise to recover absent historical identity or infer unsupported prices.
 Direct billing, multi-process bootstrap and inherited observational log loss/
 duplication limits remain unchanged. Physical L5, final CI and live readback are
 recorded separately after observation. No stable tag or release is created.
+
+### .53 delivery and observed recovery warning
+
+Commits `a936566` (route and regression protection) and `9292a18` (UI/registration)
+were pushed to main. The exact nine-path live plan changed language, model-job
+route/test, usage presentation/tests and patcher state. Before stopping PM2 id 1,
+the script verified 424 application/state backup files and recorded explicit
+application recovery commands. Both activity checks were idle across owner chats,
+models, pending sends and active HTTP requests. No database copy/schema change
+or historical backfill was performed.
+
+Readback: 521 managed source files match the tested candidate, re-plan zero,
+root HTTP 200, 17 served script assets match local bytes, two authenticated cost
+endpoints return version 1/no-store, prior usage including all cost metadata is
+unchanged, quick_check ok, PM2 online/unstable restarts zero. Plugin-host activation
+and external-header settings are unchanged. Matching frontend/BG artifacts were
+deployed together; no paid request or generation cancellation was performed.
+
+Two new stderr lines require separate disclosure: startup reconciliation reported
+zero pending inputs and three `publication_unknown` commits. The deployment was
+not treated as zero-error. Further operational writes stopped; no deletion,
+manual retry, forced recovery or automatic rollback was attempted. Read-only
+checks found the recovery server/input/commit source hashes unchanged and all
+107 retained commit records last updated before this deployment. This establishes
+that the warning concerns retained records, not that their prior classification,
+root cause or eventual recovery has been established. The warning remains an
+unresolved BG recovery surface and is not claimed fixed by this usage patch.
+
+The source CI run `38898295801` completed successfully. Physical confirmation
+of the new date/no-glyph/missing-label readout remains pending; no chat Send or
+extra paid generation is required to inspect those UI changes.
