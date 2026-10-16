@@ -139,6 +139,16 @@ require disambiguation; this initial instrumentation does not claim otherwise.
 Diagnostic delivery can itself fail, so absence of a warning cannot establish
 success or identify an alternate failure path. Stop remains a separate path.
 
+Direct source tracing shows expanded-composer Send closes the composer and
+calls the same `send()` function. A default empty-input action skips the
+nonempty raw-input admission branch, so its success does not demonstrate that
+typed ordinary admission works. The circular UI also has two branches: a
+disabled admission/busy indicator and a clickable generation Stop. Actual Stop
+dispatches to current orchestration ownership, stream-preview ownership or the
+native per-chat abort registry. This tracing identifies the required device
+distinction; it does not prove which branch the reported tap reached, and none
+of those controls were changed by the diagnostic patch.
+
 Tests inject failures in each of the three dependencies, assert the exact log
 argument, unchanged blocked result, no start and no recovery marker; additional
 controls cover an arbitrary exception name and logger failure. The final
@@ -160,7 +170,48 @@ JS/CSS files without replacing a current same-name file. A hash collision with
 different bytes must stop staging. Keep the newly built index authoritative;
 verify both current and retained responses after delivery.
 
-## Scope and remaining gates
+## Delivery receipt
+
+Source commits `5ec32ed` (getter) and `7137c9b` (diagnostics) were pushed to
+main. Final automatic checks and the read-only Opus final review preceded live
+apply. The consultant inspected the frozen final diff and receipts and found
+no blocking defect; its remaining observations are the explicit diagnostic and
+device limits above, not proof of runtime resolution.
+
+Before stopping the single expected application process, the delivery verified
+443 application/state backup files and saved exact recovery commands. Active
+owner work, running models, pending sends and active HTTP work were zero at the
+checks. Six planned paths were applied: the native getter/tests, admission
+client/tests, commit-owner tests and patcher state. Managed source increased
+from 521 to 523 files; all output hashes matched the tested candidate and the
+post-apply plan was empty.
+
+Staging retained 41 earlier hashed JS/CSS files before stopping. Same-name
+content was required to match, and every retained response was subsequently
+hash-verified. Newly built index and orchestration artifacts remained paired.
+Root HTTP returned 200, 17 current entry/preload responses matched disk,
+both usage endpoints returned 200/no-store, preexisting usage fields matched
+their earlier fingerprint and database quick-check returned `ok`. Existing host
+activation and destination-header configuration were preserved. The application
+was online with zero unstable restarts.
+
+Post-delivery source readback confirmed the getter no longer initializes state
+and the admission diagnostic is present. The actual compiled JS chunk containing
+the diagnostic was fetched and its bytes matched the deployed file. This proves
+serving, not that a particular browser loaded or executed that chunk.
+
+Restart emitted the same two-line recovery warning for three retained
+`publication_unknown` commits observed before this change. No cancellation,
+retry, recovery rewrite, deletion or automatic rollback was performed on those
+records. This known retained state is distinct from the current Send diagnosis.
+
+The implementation push's remote `patch-integrity` CI completed successfully
+(run `38913002423`, commit `7137c9b`); local passing checks above are independent
+evidence. No stable tag or release
+was created. The user must load the new page before the diagnostic can emit;
+an absent log alone cannot establish that the new code executed.
+
+## Remaining gates
 
 This is a G1.3 follow-up within existing assembly-context behavior; it creates
 no new G2/plugin sub-plan. No Archive Center/RCM code, settings, plugin list,
@@ -171,5 +222,5 @@ and aggregate release gates are independent.
 Physical verification of the warning fix remains pending: on the next ordinary
 new-chat request, leave the chat/settings untouched through completion and
 check that neither false edit warning appears. Do not infer this device result
-from automatic controls. Live delivery status is recorded separately when
-executed; this document alone is not a delivery receipt. Stable remains v0.2.3.
+from automatic controls. Send/Stop resolution remains unverified pending the
+next device attempt and its diagnostic signal. Stable remains v0.2.3.
