@@ -1148,3 +1148,576 @@ describe('RisuSavePatcher.set acknowledgement boundary', () => {
         expect(afterAcknowledgement.patch).toEqual([])
     })
 })
+
+// ──────────────────────────────────────────────────────────────────────────
+// Baseline restructure (see docs/POCKETRISU-SAVE-SYNC-BASELINE-RESTRUCTURE.md)
+//
+// Client/server hash agreement is the patch protocol: POST /api/patch is only
+// accepted when patcher.hash() equals calculateHash() of the server document.
+// These tests model the server with a document copy that applies every
+// accepted patch exactly like server.cjs does (validating applyPatch, then
+// normalizeJSON) and hashes it with the installed server/node/utils.cjs.
+// ──────────────────────────────────────────────────────────────────────────
+
+const { createRequire: baselineCreateRequire } = await import('module')
+const serverUtils = baselineCreateRequire(import.meta.url)('../../../server/node/utils.cjs')
+
+const serverHashOf = (doc: any): string => serverUtils.calculateHash(doc).toString(16)
+const snapshotServerHash = (p: any): string =>
+    serverUtils.calculateHash(serverUtils.normalizeJSON(p.baselineSnapshot())).toString(16)
+
+class ServerCopy {
+    doc: any
+    constructor(patcher: any) {
+        this.doc = structuredClone(patcher.baselineSnapshot())
+    }
+    hash() { return serverHashOf(this.doc) }
+    /** Same call shape as server.cjs: validate, mutate, ban prototype edits. */
+    apply(patch: any[]) {
+        const snapshot = structuredClone(this.doc)
+        // clone ops so server mutation can never alias patcher-owned values
+        const result = applyPatch(snapshot, structuredClone(patch), true, true, true)
+        this.doc = serverUtils.normalizeJSON(result.newDocument)
+    }
+}
+
+const bsToSave = (over: any = {}) => ({ ...emptyToSave(), ...over })
+const bsChar = (chaId: any, extra: any = {}) => ({ chaId, name: `n-${String(chaId)}`, chats: [], ...extra })
+const rawLast = (p: any) => p.lastSyncedDb
+
+/** Run one save against the server copy; returns what was observed. */
+async function bsSave(p: any, srv: ServerCopy, data: any, toSave: any, accept = true) {
+    const r = await p.set(structuredClone(data), toSave)
+    const expectedMatchesServer = r.expectedHash === srv.hash()
+    if (accept) {
+        srv.apply(r.patch)
+    } else {
+        r.rollback()
+    }
+    return { ...r, expectedMatchesServer }
+}
+
+describe('baseline restructure — A: absent (undefined) keys', () => {
+    test('A1 init with undefined-valued root keys: key absent, hash equals server hash', async () => {
+        const p = new RisuSavePatcher()
+        await p.init({ a: 1, gone: undefined, characters: [], botPresets: undefined, modules: undefined })
+        const db = rawLast(p)
+        expect(Object.hasOwn(db, 'gone')).toBe(false)
+        expect(Object.hasOwn(db, 'botPresets')).toBe(false)
+        expect(Object.hasOwn(db, 'modules')).toBe(false)
+        expect(p.hash()).toBe(snapshotServerHash(p))
+        expect(p.hash()).not.toBe('0')
+    })
+
+    test('A1b after set() on a baseline without botPresets/modules the keys stay absent', async () => {
+        const p = new RisuSavePatcher()
+        await p.init({ a: 1, characters: [] })
+        const srv = new ServerCopy(p)
+        const r = await bsSave(p, srv, { a: 1, characters: [] }, bsToSave({ root: true }))
+        expect(r.patch).toEqual([])
+        const db = rawLast(p)
+        expect(Object.hasOwn(db, 'botPresets')).toBe(false)
+        expect(Object.hasOwn(db, 'modules')).toBe(false)
+        expect(p.hash()).toBe(srv.hash())
+        expect(p.hash()).toBe(snapshotServerHash(p))
+        expect(p.hash()).not.toBe('0')
+    })
+
+    test('A2 (guard) root key changed to undefined keeps current behavior: replace with null, applies, hashes equal', async () => {
+        const p = new RisuSavePatcher()
+        await p.init({ a: 1, b: 2, characters: [], botPresets: [], modules: [] })
+        const srv = new ServerCopy(p)
+        const r = await bsSave(p, srv, { a: 1, b: undefined, characters: [], botPresets: [], modules: [] }, bsToSave({ root: true }))
+        expect(r.expectedMatchesServer).toBe(true)
+        expect(r.patch).toEqual([{ op: 'replace', path: '/b', value: null }])
+        expect(srv.doc.b).toBeNull()
+        expect(p.hash()).toBe(srv.hash())
+        expect(p.hash()).toBe(snapshotServerHash(p))
+    })
+
+    test('A3 (guard) undefined in baseline input and in data: stable across identical set() calls', async () => {
+        const p = new RisuSavePatcher()
+        await p.init({ a: 1, x: undefined, characters: [], botPresets: [], modules: [] })
+        const srv = new ServerCopy(p)
+        const data = { a: 1, x: undefined, characters: [], botPresets: [], modules: [] }
+        const toSave = bsToSave({ root: true })
+
+        const r1 = await bsSave(p, srv, data, toSave)
+        expect(r1.expectedMatchesServer).toBe(true)
+        expect(r1.patch).toEqual([{ op: 'add', path: '/x', value: null }])
+        expect(p.hash()).toBe(srv.hash())
+        const hashAfterFirst = p.hash()
+
+        const r2 = await bsSave(p, srv, data, toSave)
+        expect(r2.expectedMatchesServer).toBe(true)
+        expect(r2.expectedHash).toBe(hashAfterFirst)
+        expect(r2.patch).toEqual([])
+        expect(p.hash()).toBe(hashAfterFirst)
+        expect(p.hash()).toBe(srv.hash())
+        expect(p.hash()).toBe(snapshotServerHash(p))
+    })
+
+    test('A3b toSave flags on undefined botPresets/modules do not break the hash', async () => {
+        const p = new RisuSavePatcher()
+        await p.init({ a: 1, characters: [] })
+        const before = p.hash()
+        const srv = new ServerCopy(p)
+        const r = await bsSave(
+            p, srv,
+            { a: 1, characters: [], botPresets: undefined, modules: undefined },
+            bsToSave({ root: true, botPreset: true, modules: true }),
+        )
+        expect(p.hash()).toBe(srv.hash())
+        expect(p.hash()).toBe(snapshotServerHash(p))
+        expect(p.hash()).not.toBe('0')
+        expect(r.expectedHash).toBe(before)
+    })
+})
+
+describe('baseline restructure — B: character identity edge cases', () => {
+    async function drive(initial: any, steps: { data: any; toSave: any }[]) {
+        const p = new RisuSavePatcher()
+        await p.init(structuredClone(initial))
+        const srv = new ServerCopy(p)
+        expect(p.hash()).toBe(srv.hash())
+        for (const [i, s] of steps.entries()) {
+            const r = await bsSave(p, srv, s.data, s.toSave)
+            expect(r.expectedMatchesServer, `step ${i} expectedHash vs server`).toBe(true)
+            expect(p.hash(), `step ${i} client vs server hash`).toBe(srv.hash())
+            expect(p.hash(), `step ${i} client vs snapshot hash`).toBe(snapshotServerHash(p))
+            expect(p.hash()).not.toBe('0')
+        }
+        return { p, srv }
+    }
+
+    test('B1 characters without chaId', async () => {
+        const c = (name: string) => ({ name, chats: [] })
+        await drive(
+            { a: 1, botPresets: [], modules: [], characters: [c('x'), c('y')] },
+            [
+                { data: { a: 1, botPresets: [], modules: [], characters: [c('x2'), c('y')] }, toSave: bsToSave() },
+                { data: { a: 1, botPresets: [], modules: [], characters: [c('x2'), c('y'), c('z')] }, toSave: bsToSave() },
+                { data: { a: 1, botPresets: [], modules: [], characters: [c('y'), c('z')] }, toSave: bsToSave() },
+            ],
+        )
+    })
+
+    test('B2 duplicate chaId', async () => {
+        await drive(
+            { a: 1, botPresets: [], modules: [], characters: [bsChar('x', { name: '1' }), bsChar('x', { name: '2' })] },
+            [
+                {
+                    data: { a: 1, botPresets: [], modules: [], characters: [bsChar('x', { name: '1' }), bsChar('x', { name: '2b' })] },
+                    toSave: bsToSave({ character: ['x'] }),
+                },
+                {
+                    data: { a: 1, botPresets: [], modules: [], characters: [bsChar('x', { name: '1b' }), bsChar('x', { name: '2b' })] },
+                    toSave: bsToSave({ character: ['x'] }),
+                },
+                {
+                    data: { a: 1, botPresets: [], modules: [], characters: [bsChar('x', { name: '2b' })] },
+                    toSave: bsToSave(),
+                },
+            ],
+        )
+    })
+
+    for (const name of ['formatversion', 'characters', 'modules']) {
+        test(`B3 chaId equal to root key name "${name}"`, async () => {
+            const root = { a: 1, formatversion: 3, modules: [{ id: 'm1', v: 1 }] }
+            await drive(
+                { ...root, characters: [bsChar(name), bsChar('k')] },
+                [
+                    { data: { ...root, characters: [bsChar(name, { name: 'edit' }), bsChar('k')] }, toSave: bsToSave({ character: [name] }) },
+                    { data: { ...root, characters: [bsChar('k')] }, toSave: bsToSave() },
+                    { data: { ...root, characters: [bsChar('k'), bsChar(name)] }, toSave: bsToSave() },
+                ],
+            )
+        })
+    }
+
+    test('B4 reorder, middle delete, insert at front, all with unique ids', async () => {
+        const A = bsChar('A'), B = bsChar('B'), C = bsChar('C'), D = bsChar('D')
+        const N = bsChar('N')
+        await drive(
+            { a: 1, botPresets: [], modules: [], characters: [A, B, C, D] },
+            [
+                { data: { a: 1, botPresets: [], modules: [], characters: [D, C, B, A] }, toSave: bsToSave() },
+                { data: { a: 1, botPresets: [], modules: [], characters: [D, B, A] }, toSave: bsToSave() },
+                { data: { a: 1, botPresets: [], modules: [], characters: [N, D, B, A] }, toSave: bsToSave() },
+                { data: { a: 1, botPresets: [], modules: [], characters: [N, D, bsChar('B', { name: 'edited' }), A] }, toSave: bsToSave({ character: ['B'] }) },
+            ],
+        )
+    })
+})
+
+describe('baseline restructure — C: absent botPresets / modules', () => {
+    test('C1 botPresets absent in baseline: patch uses add and applies cleanly', async () => {
+        const p = new RisuSavePatcher()
+        await p.init({ a: 1, characters: [] })
+        const srv = new ServerCopy(p)
+        const presets = [{ id: 'p1', v: 1 }]
+        const r = await bsSave(p, srv, { a: 1, characters: [], botPresets: presets }, bsToSave({ botPreset: true }))
+        expect(r.expectedMatchesServer).toBe(true)
+        expect(r.patch).toEqual([{ op: 'add', path: '/botPresets', value: presets }])
+        expect(srv.doc.botPresets).toEqual(presets)
+        expect(p.hash()).toBe(srv.hash())
+    })
+
+    test('C1 modules absent in baseline: patch uses add and applies cleanly', async () => {
+        const p = new RisuSavePatcher()
+        await p.init({ a: 1, characters: [] })
+        const srv = new ServerCopy(p)
+        const mods = [{ id: 'm1', v: 1 }, { id: 'm2', v: 2 }]
+        const r = await bsSave(p, srv, { a: 1, characters: [], modules: mods }, bsToSave({ modules: true }))
+        expect(r.expectedMatchesServer).toBe(true)
+        expect(r.patch).toEqual([{ op: 'add', path: '/modules', value: mods }])
+        expect(srv.doc.modules).toEqual(mods)
+        expect(p.hash()).toBe(srv.hash())
+    })
+
+    test('C1 both absent, added together; later edits patch element-wise', async () => {
+        const p = new RisuSavePatcher()
+        await p.init({ a: 1, characters: [] })
+        const srv = new ServerCopy(p)
+        const presets = [{ id: 'p1', v: 1 }]
+        const mods = [{ id: 'm1', v: 1 }]
+        const r1 = await bsSave(p, srv, { a: 1, characters: [], botPresets: presets, modules: mods }, bsToSave({ botPreset: true, modules: true }))
+        expect(r1.patch.map((o: any) => o.op)).toEqual(['add', 'add'])
+        expect(p.hash()).toBe(srv.hash())
+        const r2 = await bsSave(
+            p, srv,
+            { a: 1, characters: [], botPresets: [{ id: 'p1', v: 2 }], modules: [{ id: 'm1', v: 2 }] },
+            bsToSave({ botPreset: true, modules: true }),
+        )
+        expect(r2.expectedMatchesServer).toBe(true)
+        expect(r2.patch).toEqual([
+            { op: 'replace', path: '/botPresets/0/v', value: 2 },
+            { op: 'replace', path: '/modules/0/v', value: 2 },
+        ])
+        expect(p.hash()).toBe(srv.hash())
+    })
+
+    test('C2 present keys: patch shape is unchanged (guard)', async () => {
+        const base = {
+            a: 1,
+            characters: [],
+            botPresets: [{ id: 'p1', v: 1 }],
+            modules: [{ id: 'm1', v: 1 }],
+        }
+        const p = new RisuSavePatcher()
+        await p.init(structuredClone(base))
+        const srv = new ServerCopy(p)
+
+        // same structure → element-wise
+        const r1 = await bsSave(p, srv, { ...base, botPresets: [{ id: 'p1', v: 2 }], modules: [{ id: 'm1', v: 2 }] }, bsToSave({ botPreset: true, modules: true }))
+        expect(r1.patch).toEqual([
+            { op: 'replace', path: '/botPresets/0/v', value: 2 },
+            { op: 'replace', path: '/modules/0/v', value: 2 },
+        ])
+        expect(p.hash()).toBe(srv.hash())
+
+        // structural → whole-array replace (key present, so replace is valid)
+        const r2 = await bsSave(
+            p, srv,
+            { ...base, botPresets: [{ id: 'p1', v: 2 }, { id: 'p2', v: 1 }], modules: [{ id: 'm1', v: 2 }, { id: 'm2', v: 1 }] },
+            bsToSave({ botPreset: true, modules: true }),
+        )
+        expect(r2.patch).toEqual([
+            { op: 'replace', path: '/botPresets', value: [{ id: 'p1', v: 2 }, { id: 'p2', v: 1 }] },
+            { op: 'replace', path: '/modules', value: [{ id: 'm1', v: 2 }, { id: 'm2', v: 1 }] },
+        ])
+        expect(p.hash()).toBe(srv.hash())
+    })
+
+    test('C2 present but empty arrays: structural change still uses replace (guard)', async () => {
+        const p = new RisuSavePatcher()
+        await p.init({ a: 1, characters: [], botPresets: [], modules: [] })
+        const srv = new ServerCopy(p)
+        const r = await bsSave(
+            p, srv,
+            { a: 1, characters: [], botPresets: [{ id: 'p1' }], modules: [{ id: 'm1' }] },
+            bsToSave({ botPreset: true, modules: true }),
+        )
+        expect(r.patch).toEqual([
+            { op: 'replace', path: '/botPresets', value: [{ id: 'p1' }] },
+            { op: 'replace', path: '/modules', value: [{ id: 'm1' }] },
+        ])
+        expect(p.hash()).toBe(srv.hash())
+    })
+
+    test('C3 add then rollback: key absent, hash restored, next set emits add again', async () => {
+        const p = new RisuSavePatcher()
+        await p.init({ a: 1, characters: [] })
+        const initialHash = p.hash()
+        const initialSnapshot = p.baselineSnapshot()
+        const data = { a: 1, characters: [], botPresets: [{ id: 'p1', v: 1 }], modules: [{ id: 'm1' }] }
+        const toSave = bsToSave({ botPreset: true, modules: true })
+
+        const first = await p.set(structuredClone(data), toSave)
+        expect(first.patch.every((o: any) => o.op === 'add')).toBe(true)
+        first.rollback()
+
+        expect(Object.hasOwn(rawLast(p), 'botPresets')).toBe(false)
+        expect(Object.hasOwn(rawLast(p), 'modules')).toBe(false)
+        expect(p.hash()).toBe(initialHash)
+        expect(p.baselineSnapshot()).toEqual(initialSnapshot)
+
+        const second = await p.set(structuredClone(data), toSave)
+        expect(second.patch).toEqual(first.patch)
+        expect(second.expectedHash).toBe(first.expectedHash)
+        expect(second.patch.every((o: any) => o.op === 'add')).toBe(true)
+    })
+})
+
+describe('baseline restructure — D: rollback consistency', () => {
+    const baseDb = () => ({
+        a: 1,
+        b: 'x',
+        characters: [
+            bsChar('c1', { name: 'one' }),
+            bsChar('c2', { name: 'two' }),
+            bsChar('c3', { name: 'three' }),
+        ],
+        botPresets: [{ id: 'p1', v: 1 }],
+        modules: [{ id: 'm1', v: 1 }],
+    })
+    const composite = () => ({
+        a: 2,
+        b: 'x',
+        c: 'new-root-key',
+        characters: [
+            bsChar('c1', { name: 'one-edited' }),
+            bsChar('c3', { name: 'three' }),
+            bsChar('c4', { name: 'four' }),
+        ],
+        botPresets: [{ id: 'p1', v: 5 }],
+        modules: [{ id: 'm1', v: 5 }, { id: 'm2', v: 1 }],
+    })
+    const allSave = () => bsToSave({ root: true, botPreset: true, modules: true, character: ['c1'] })
+
+    test('D1 composite set then rollback restores hash and snapshot; repeating is identical', async () => {
+        const p = new RisuSavePatcher()
+        await p.init(baseDb())
+        const hash0 = p.hash()
+        const snap0 = p.baselineSnapshot()
+
+        const first = await p.set(composite(), allSave())
+        expect(first.patch.length).toBeGreaterThan(0)
+        expect(p.hash()).not.toBe(hash0)
+        first.rollback()
+
+        expect(p.hash()).toBe(hash0)
+        expect(p.baselineSnapshot()).toEqual(snap0)
+
+        const second = await p.set(composite(), allSave())
+        expect(second.patch).toEqual(first.patch)
+        expect(second.expectedHash).toBe(first.expectedHash)
+
+        // and the accepted result is consistent with a server copy
+        const srv = new ServerCopy(p)
+        expect(p.hash()).toBe(snapshotServerHash(p))
+        expect(p.hash()).toBe(srv.hash())
+    })
+
+    test('D3 save1 ok, save2 rolled back, save3 is based on save1 only', async () => {
+        const p = new RisuSavePatcher()
+        await p.init(baseDb())
+        const srv = new ServerCopy(p)
+
+        const data1 = { ...baseDb(), a: 10 }
+        const s1 = await bsSave(p, srv, data1, bsToSave({ root: true }))
+        expect(s1.expectedMatchesServer).toBe(true)
+        expect(p.hash()).toBe(srv.hash())
+
+        const s2 = await bsSave(p, srv, composite(), allSave(), false)
+        expect(s2.patch.length).toBeGreaterThan(0)
+        // server never saw save2
+        expect(p.hash()).toBe(srv.hash())
+
+        const final = { ...composite(), a: 11 }
+        const s3 = await bsSave(p, srv, final, allSave())
+        expect(s3.expectedHash).toBe(s2.expectedHash)
+        expect(s3.expectedMatchesServer).toBe(true)
+        expect(srv.doc).toEqual(serverUtils.normalizeJSON(final))
+        expect(p.hash()).toBe(srv.hash())
+        expect(p.hash()).toBe(snapshotServerHash(p))
+    })
+})
+
+describe('baseline restructure — E: public surface', () => {
+    test('E1 mutating baselineSnapshot() output does not change patcher state', async () => {
+        const p = new RisuSavePatcher()
+        const db = {
+            a: { deep: [1, 2] },
+            characters: [bsChar('c1', { chats: [{ id: 'x', name: 'chat', message: [] }] })],
+            botPresets: [{ id: 'p1' }],
+            modules: [{ id: 'm1' }],
+        }
+        await p.init(structuredClone(db))
+        const hash0 = p.hash()
+        const snap = p.baselineSnapshot()
+        const pristine = structuredClone(snap)
+
+        snap.a.deep.push(99)
+        delete snap.modules
+        snap.characters[0].name = 'tampered'
+        snap.characters.push({ chaId: 'zzz' })
+        snap.botPresets[0].id = 'tampered'
+        snap.extra = true
+
+        expect(p.hash()).toBe(hash0)
+        expect(p.baselineSnapshot()).toEqual(pristine)
+        const r = await p.set(structuredClone(db), bsToSave({ root: true, botPreset: true, modules: true, character: ['c1'] }))
+        expect(r.patch).toEqual([])
+    })
+
+    test('E1 lastSyncedDb keeps the shape read by external code', async () => {
+        const p = new RisuSavePatcher()
+        const chat = { id: 'x', name: 'chat', message: [] }
+        await p.init({
+            a: 1,
+            characters: [bsChar('c1', { chats: [chat] }), bsChar('c2')],
+            botPresets: [{ id: 'p1' }],
+            modules: [{ id: 'm1' }],
+        })
+        const check = (expectedA: number) => {
+            const db = rawLast(p)
+            expect(Array.isArray(db.characters)).toBe(true)
+            expect(db.characters[0].chaId).toBe('c1')
+            expect(Array.isArray(db.characters[0].chats)).toBe(true)
+            expect(db.characters[0].chats[0].id).toBe('x')
+            expect(Array.isArray(db.botPresets)).toBe(true)
+            expect(Array.isArray(db.modules)).toBe(true)
+            expect(db.a).toBe(expectedA)
+            // personal-settings clones lastSyncedDb
+            expect(() => structuredClone(db)).not.toThrow()
+            expect(JSON.parse(JSON.stringify(db))).toEqual(p.baselineSnapshot())
+        }
+        check(1)
+        await p.set(
+            {
+                a: 2,
+                characters: [bsChar('c1', { name: 'edited', chats: [chat] }), bsChar('c2')],
+                botPresets: [{ id: 'p1', v: 1 }],
+                modules: [{ id: 'm1', v: 1 }],
+            },
+            bsToSave({ root: true, botPreset: true, modules: true, character: ['c1'] }),
+        )
+        expect(rawLast(p).a).toBe(2)
+        expect(rawLast(p).characters[0].name).toBe('edited')
+        check(2)
+    })
+
+    test('E1 lastSyncedDb characters is an array even when init data has none', async () => {
+        const p = new RisuSavePatcher()
+        await p.init({ a: 1 })
+        expect(rawLast(p).characters).toEqual([])
+        expect(Object.hasOwn(rawLast(p), 'botPresets')).toBe(false)
+        expect(Object.hasOwn(rawLast(p), 'modules')).toBe(false)
+    })
+})
+
+describe('baseline restructure — F: seeded fuzz equivalence with the server', () => {
+    function mulberry32(seed: number) {
+        let a = seed >>> 0
+        return () => {
+            a = (a + 0x6d2b79f5) >>> 0
+            let t = a
+            t = Math.imul(t ^ (t >>> 15), t | 1)
+            t ^= t + Math.imul(t ^ (t >>> 7), t | 61)
+            return ((t ^ (t >>> 14)) >>> 0) / 4294967296
+        }
+    }
+
+    function makeGen(R: () => number) {
+        const pick = <T,>(a: T[]): T => a[Math.floor(R() * a.length)]
+        const ids = ['a', 'b', 'c', 'd', 'e', 'f', 'formatversion', 'modules', 'characters']
+        const genChar = () => {
+            const m = R()
+            const chaId = m < 0.1 ? undefined : m < 0.2 ? 'dup' : pick(ids)
+            return {
+                chaId,
+                name: 'n' + Math.floor(R() * 3),
+                chats: R() < 0.8 ? [{ id: 'c1', name: 'x', message: [{ d: Math.floor(R() * 3) }], lastDate: 1 }] : undefined,
+            }
+        }
+        const genDb = () => {
+            const d: any = {}
+            if (R() < 0.85) d.characters = Array.from({ length: Math.floor(R() * 4) }, genChar)
+            if (R() < 0.7) d.botPresets = Array.from({ length: Math.floor(R() * 3) }, (_, i) => ({ id: R() < 0.9 ? 'p' + i : '', v: Math.floor(R() * 3) }))
+            if (R() < 0.7) d.modules = Array.from({ length: Math.floor(R() * 3) }, (_, i) => ({ id: R() < 0.9 ? 'm' + i : undefined, v: Math.floor(R() * 3) }))
+            if (R() < 0.5) d.formatversion = pick([3, 4])
+            for (const k of ['foo', 'bar', 'baz'])
+                if (R() < 0.5) d[k] = pick<any>([1, 's', { a: 1 }, [1, 2], null, undefined, true, 2.5])
+            return d
+        }
+        const genToSave = () => ({
+            character: R() < 0.3 ? ['a', 'b', 'dup'] : [],
+            chat: [] as [string, string][],
+            root: R() < 0.5,
+            botPreset: R() < 0.5,
+            modules: R() < 0.5,
+            plugins: false,
+            pluginCustomStorage: false,
+        })
+        return { genDb, genToSave }
+    }
+
+    test('F1 2,000 seeded init/set/rollback sequences: hashes equal the server and patches apply', async () => {
+        const SEQUENCES = 2000
+        const failures: Record<string, number> = {}
+        const samples: string[] = []
+        const fail = (kind: string, seq: number, step: string, info = '') => {
+            failures[kind] = (failures[kind] ?? 0) + 1
+            if (samples.length < 8) samples.push(`${kind} seq=${seq} ${step} ${info}`)
+        }
+
+        for (let seq = 0; seq < SEQUENCES; seq++) {
+            const R = mulberry32(0x5eed0000 + seq)
+            const { genDb, genToSave } = makeGen(R)
+            const base = genDb()
+            const p = new RisuSavePatcher()
+            await p.init(structuredClone(base))
+            const srv = new ServerCopy(p)
+
+            const check = (step: string) => {
+                const client = p.hash()
+                const viaSnapshot = snapshotServerHash(p)
+                if (client !== viaSnapshot) fail('hash!=serverHash(baselineSnapshot)', seq, step, `${client} vs ${viaSnapshot}`)
+                if (client === '0') fail('hash is "0"', seq, step)
+                if (client !== srv.hash()) fail('client!=server copy', seq, step, `${client} vs ${srv.hash()}`)
+            }
+            check('init')
+
+            const steps = 1 + Math.floor(R() * 4)
+            for (let k = 0; k < steps; k++) {
+                const data = R() < 0.5 ? structuredClone(base) : genDb()
+                if (!data.characters) data.characters = []
+                const toSave = genToSave()
+                let r: any
+                try {
+                    r = await p.set(structuredClone(data), toSave)
+                } catch (e: any) {
+                    fail('set threw', seq, `set${k}`, String(e?.message ?? e).slice(0, 80))
+                    break
+                }
+                if (r.expectedHash !== srv.hash()) fail('expectedHash!=server copy', seq, `set${k}`, `${r.expectedHash} vs ${srv.hash()}`)
+                const rollbackIt = R() < 0.3
+                if (rollbackIt) {
+                    r.rollback()
+                } else {
+                    try {
+                        srv.apply(r.patch)
+                    } catch (e: any) {
+                        fail('patch apply error', seq, `set${k}`, String(e?.message ?? e).slice(0, 80))
+                        break
+                    }
+                }
+                check(rollbackIt ? `rb${k}` : `set${k}`)
+            }
+        }
+
+        expect({ failures, samples }).toEqual({ failures: {}, samples: [] })
+    }, 60_000)
+})

@@ -838,68 +838,169 @@ export function diffArrayWithIdGuard(
 }
 
 export class RisuSavePatcher {
-    private lastSyncedDb: any;
-    private hashBlocks: { [key: string]: number } = {};
-    // Cheap change pre-check baselines. calculateHash over normalizeJSON'd data
-    // is the client↔server patch protocol (the server recomputes the same hash,
-    // see server.cjs expectedHash verification) and MUST NOT change — but when
-    // an entry's JSON is byte-identical to the baseline, the stored hash and
-    // baseline are still valid, so the expensive normalize+hash+diff can be
-    // skipped wholesale. String comparison is a native memcmp (~3x cheaper).
-    // Granularity matters: while typing into a root field (personaPrompt) or a
-    // module lorebook, that whole block changes on EVERY save — so baselines
-    // are kept per ROOT KEY and per MODULE, and only the changed entry pays
-    // normalize + protocol hash + diff.
-    // Maps (not plain objects): ids come from user-importable data, so a key
-    // like "__proto__" on a plain object would silently hit the prototype
-    // setter instead of storing — corrupting the skip checks and, worse, the
-    // modules hash fold. Map keys are also type-strict (1 !== "1").
-    private lastRootKeyJsons = new Map<string, string>();
-    private lastCharJsons = new Map<string, string>();
-    private lastModuleJsons = new Map<string, string>();
-    private moduleItemHashes = new Map<string, number>();
+    // All baseline state lives in ONE object. The hash memos and pre-check
+    // caches are derived from `db` and are only valid together with it, so
+    // set() works on a shallow copy and its rollback puts the previous object
+    // back as a whole — a baseline can never be paired with another
+    // baseline's memo.
+    private state: {
+        // Last server-confirmed document: normalizeJSON form with chats as
+        // stubs, `characters` always an array, no undefined-valued keys.
+        // Changed only through the mutation points below.
+        db: any
+        // Derived hash memo (a cache of calculateHash over `db`, never an
+        // independent source): root key → hash of db[key], `characters`
+        // excluded; position → hash of db.characters[i]. The server hashes
+        // the characters array in order, so characters are folded by
+        // position, never by chaId. hash() recomputes a missing entry from
+        // the baseline value.
+        rootHashes: Map<string, number>
+        charHashes: number[]
+        // Cheap change pre-check baselines. calculateHash over normalizeJSON'd
+        // data is the client↔server patch protocol (the server recomputes the
+        // same hash, see server.cjs expectedHash verification) and MUST NOT
+        // change — but when an entry's JSON is byte-identical to the baseline,
+        // the stored hash and baseline are still valid, so the expensive
+        // normalize+hash+diff can be skipped wholesale. String comparison is a
+        // native memcmp (~3x cheaper). Granularity matters: while typing into
+        // a root field (personaPrompt) or a module lorebook, that whole block
+        // changes on EVERY save — so baselines are kept per ROOT KEY, per
+        // character POSITION and per MODULE, and only the changed entry pays
+        // normalize + protocol hash + diff.
+        // Maps (not plain objects): ids come from user-importable data, so a
+        // key like "__proto__" on a plain object would silently hit the
+        // prototype setter instead of storing — corrupting the skip checks
+        // and, worse, the modules hash fold. Map keys are also type-strict
+        // (1 !== "1"). Characters are cached by position: chaIds can be
+        // missing or duplicated, and a cache keyed by them could match the
+        // JSON of a different character.
+        lastRootKeyJsons: Map<string, string>
+        lastCharJsons: string[]
+        lastModuleJsons: Map<string, string>
+        moduleItemHashes: Map<string, number>
+    } = {
+        db: undefined,
+        rootHashes: new Map(),
+        charHashes: [],
+        lastRootKeyJsons: new Map(),
+        lastCharJsons: [],
+        lastModuleJsons: new Map(),
+        moduleItemHashes: new Map(),
+    }
+
+    /**
+     * Read-only view of the baseline, kept for callers that inspect it
+     * (`globalApi.svelte.ts` save guards, the personal-settings strict save).
+     * Do not mutate it; use init() to replace the baseline.
+     */
+    get lastSyncedDb(): any {
+        return this.state.db
+    }
 
     hash(): string {
-        this.hashBlocks['characters'] = SEED_ARRAY;
-        for (const character of this.lastSyncedDb.characters) {
-            this.hashBlocks['characters'] = (Math.imul(this.hashBlocks['characters'], PRIME_MULTIPLIER) + this.hashBlocks[character.chaId]) >>> 0;
+        const characters: any[] = this.state.db.characters
+        let charactersHash = SEED_ARRAY;
+        for (let i = 0; i < characters.length; i++) {
+            charactersHash = (Math.imul(charactersHash, PRIME_MULTIPLIER) + this.characterHashAt(i)) >>> 0;
         }
 
-        const keys = Object.keys(this.lastSyncedDb)
+        const keys = Object.keys(this.state.db)
         let rootHash = SEED_OBJECT;
         for (const key of keys) {
-            rootHash += (Math.imul(calculateHash(key), PRIME_MULTIPLIER) + this.hashBlocks[key])
+            const block = key === 'characters' ? charactersHash : this.rootKeyHashAt(key)
+            rootHash += (Math.imul(calculateHash(key), PRIME_MULTIPLIER) + block)
         }
         return (rootHash >>> 0).toString(16);
     }
 
+    private rootKeyHashAt(key: string): number {
+        let hash = this.state.rootHashes.get(key)
+        if (hash === undefined) {
+            hash = calculateHash(this.state.db[key])
+            this.state.rootHashes.set(key, hash)
+        }
+        return hash
+    }
+
+    private characterHashAt(index: number): number {
+        let hash = this.state.charHashes[index]
+        if (hash === undefined) {
+            hash = calculateHash(this.state.db.characters[index])
+            this.state.charHashes[index] = hash
+        }
+        return hash
+    }
+
+    // ── Baseline mutation points ──
+    // The only places that change `state.db`. Each keeps the derived memo of
+    // the part it touches consistent: a known hash is stored, otherwise the
+    // entry is dropped so hash() recomputes it from the baseline value. They
+    // are shallow on purpose — values arrive from init()/set() already
+    // normalized, so no deep normalize of the whole baseline is needed.
+
+    /** Replace the whole baseline; memos and pre-check caches start empty. */
+    private replaceBaseline(db: any) {
+        this.state = {
+            db,
+            rootHashes: new Map(),
+            charHashes: [],
+            lastRootKeyJsons: new Map(),
+            lastCharJsons: [],
+            lastModuleJsons: new Map(),
+            moduleItemHashes: new Map(),
+        }
+    }
+
+    /** Set a root key (not `characters`). `undefined` removes the key and its memo. */
+    private writeRootKey(key: string, value: any, hash?: number) {
+        if (value === undefined) {
+            delete this.state.db[key]
+            this.state.rootHashes.delete(key)
+            return
+        }
+        this.state.db[key] = value
+        if (hash === undefined) this.state.rootHashes.delete(key)
+        else this.state.rootHashes.set(key, hash)
+    }
+
+    /** Replace the character list together with its per-position hashes. */
+    private writeCharacters(characters: any[], hashes: number[]) {
+        this.state.db.characters = characters
+        this.state.charHashes = hashes
+    }
+
+    /** Replace the character at `index` (the list was copied by set()). */
+    private writeCharacterAt(index: number, character: any, hash: number) {
+        this.state.db.characters[index] = character
+        this.state.charHashes[index] = hash
+    }
+
     /** Return the last server-confirmed JSON baseline for conflict rebasing. */
     baselineSnapshot(): any {
-        return normalizeJSON(this.lastSyncedDb)
+        return normalizeJSON(this.state.db)
     }
 
     async init(data: any) {
-        this.lastSyncedDb = normalizeJSON(data);
-        if (!Array.isArray(this.lastSyncedDb.characters)) {
-            this.lastSyncedDb.characters = [];
+        // normalizeJSON drops undefined-valued keys, so the baseline never
+        // holds a key without a hashable value.
+        const db = normalizeJSON(data);
+        if (!Array.isArray(db.characters)) {
+            db.characters = [];
         }
-        this.hashBlocks = {};
+        for (let i = 0; i < db.characters.length; i++) {
+            const character = db.characters[i];
+            // Hash with stubs only (matching set()) so hashes stay in sync
+            db.characters[i] = { ...character, chats: (character.chats || []).map((c: any) => chatToStub(c)) };
+        }
+        this.replaceBaseline(db)
+        const state = this.state
 
-        const keys = Object.keys(this.lastSyncedDb)
-
-        for (const key of keys) {
+        for (const key of Object.keys(db)) {
             if (key !== 'characters') {
-                this.hashBlocks[key] = calculateHash(this.lastSyncedDb[key]);
+                state.rootHashes.set(key, calculateHash(db[key]));
             }
         }
-
-        for (let i = 0; i < this.lastSyncedDb.characters.length; i++) {
-            const character = this.lastSyncedDb.characters[i];
-            // Hash with stubs only (matching set()) so hashes stay in sync
-            const withStubs = { ...character, chats: (character.chats || []).map((c: any) => chatToStub(c)) };
-            this.hashBlocks[character.chaId] = calculateHash(withStubs);
-            this.lastSyncedDb.characters[i] = withStubs;
-        }
+        state.charHashes = db.characters.map((character: any) => calculateHash(character))
 
         // Seed the cheap pre-check baselines from the NORMALIZED data, not the
         // raw input. The protocol baseline (what the server holds) is always the
@@ -909,22 +1010,17 @@ export class RisuSavePatcher {
         // causing the fast path to skip a change the server still needs. Seeding
         // from the normalized form means any normalize-affecting value (shared
         // ref, Date, non-finite) makes raw≠baseline and falls safely to full path.
-        const { characters: _c, botPresets: _b, modules: _m, ...normRootOnly } = this.lastSyncedDb
-        this.lastRootKeyJsons = new Map();
-        for (const key of Object.keys(normRootOnly)) {
-            this.lastRootKeyJsons.set(key, JSON.stringify(normRootOnly[key]))
+        for (const key of Object.keys(db)) {
+            if (key !== 'characters' && key !== 'botPresets' && key !== 'modules') {
+                state.lastRootKeyJsons.set(key, JSON.stringify(db[key]))
+            }
         }
-        this.lastCharJsons = new Map();
-        for (const character of this.lastSyncedDb.characters) {
-            if (character?.chaId) this.lastCharJsons.set(character.chaId, JSON.stringify(character))
-        }
-        this.lastModuleJsons = new Map();
-        this.moduleItemHashes = new Map();
-        const normModulesInit = Array.isArray(this.lastSyncedDb.modules) ? this.lastSyncedDb.modules : []
+        state.lastCharJsons = db.characters.map((character: any) => JSON.stringify(character))
+        const normModulesInit = Array.isArray(db.modules) ? db.modules : []
         for (const m of normModulesInit) {
             if (typeof m?.id === 'string' && m.id) {
-                this.lastModuleJsons.set(m.id, JSON.stringify(m))
-                this.moduleItemHashes.set(m.id, calculateHash(m))
+                state.lastModuleJsons.set(m.id, JSON.stringify(m))
+                state.moduleItemHashes.set(m.id, calculateHash(m))
             }
         }
     }
@@ -935,58 +1031,44 @@ export class RisuSavePatcher {
         /** Restore the baseline when the server does not accept this patch. */
         rollback: () => void
     }> {
+        const { compare } = await import('fast-json-patch')
+
         // set() historically advanced the local baseline before the server
         // accepted the patch. A 409/network error therefore made the retry use
         // a hash for data the server never stored, often cascading into an
-        // unsafe full-write fallback. Detach the mutable state cheaply (the
+        // unsafe full-write fallback. Detach the state object cheaply (the
         // method replaces array entries rather than mutating their children)
-        // and expose a rollback for the persistence layer.
-        const previousState = {
-            lastSyncedDb: this.lastSyncedDb,
-            hashBlocks: this.hashBlocks,
-            lastRootKeyJsons: this.lastRootKeyJsons,
-            lastCharJsons: this.lastCharJsons,
-            lastModuleJsons: this.lastModuleJsons,
-            moduleItemHashes: this.moduleItemHashes,
+        // and expose a rollback for the persistence layer. Everything below
+        // runs without awaiting, so no other call observes a half-built state.
+        const previousState = this.state
+        const last = previousState.db
+        const expectedHash: string = this.hash();
+        // Key order matches the earlier baseline assembly (characters,
+        // botPresets, modules, then root keys in data order): the remove ops
+        // of a later set() follow the baseline's key order.
+        this.state = {
+            db: { characters: [...last.characters] },
+            rootHashes: new Map(previousState.rootHashes),
+            charHashes: [...previousState.charHashes],
+            lastRootKeyJsons: new Map(previousState.lastRootKeyJsons),
+            lastCharJsons: [...previousState.lastCharJsons],
+            lastModuleJsons: new Map(previousState.lastModuleJsons),
+            moduleItemHashes: new Map(previousState.moduleItemHashes),
         }
-        this.lastSyncedDb = {
-            ...this.lastSyncedDb,
-            characters: Array.isArray(this.lastSyncedDb?.characters)
-                ? [...this.lastSyncedDb.characters]
-                : [],
-            modules: Array.isArray(this.lastSyncedDb?.modules)
-                ? [...this.lastSyncedDb.modules]
-                : this.lastSyncedDb?.modules,
-        }
-        this.hashBlocks = { ...this.hashBlocks }
-        this.lastRootKeyJsons = new Map(this.lastRootKeyJsons)
-        this.lastCharJsons = new Map(this.lastCharJsons)
-        this.lastModuleJsons = new Map(this.lastModuleJsons)
-        this.moduleItemHashes = new Map(this.moduleItemHashes)
+        const state = this.state
 
         let canRollback = true
         const rollback = () => {
             if (!canRollback) return
             canRollback = false
-            this.lastSyncedDb = previousState.lastSyncedDb
-            this.hashBlocks = previousState.hashBlocks
-            this.lastRootKeyJsons = previousState.lastRootKeyJsons
-            this.lastCharJsons = previousState.lastCharJsons
-            this.lastModuleJsons = previousState.lastModuleJsons
-            this.moduleItemHashes = previousState.moduleItemHashes
+            this.state = previousState
         }
 
         try {
-        const { compare } = await import('fast-json-patch')
-        const expectedHash: string = this.hash();
         const patch: any[] = []
 
-        const {
-            characters: lastCharacters = [],
-            botPresets: lastBotPresets,
-            modules: lastModules,
-            ...lastRoot
-        } = this.lastSyncedDb
+        if (Object.hasOwn(last, 'botPresets')) this.writeRootKey('botPresets', last.botPresets, state.rootHashes.get('botPresets'))
+        if (Object.hasOwn(last, 'modules')) this.writeRootKey('modules', last.modules, state.rootHashes.get('modules'))
 
         const {
             characters: curCharacters = [],
@@ -1005,8 +1087,10 @@ export class RisuSavePatcher {
         // as {key: value} yields the identical /key-rooted ops with escaping
         // handled by the library. Baselines are built from the NORMALIZED value
         // (see init()) so normalize-affected data always falls to the full path.
-        const nextRoot: any = {}
-        const removedRootKeys = new Set(Object.keys(lastRoot))
+        const removedRootKeys = new Set(Object.keys(last))
+        removedRootKeys.delete('characters')
+        removedRootKeys.delete('botPresets')
+        removedRootKeys.delete('modules')
         for (const key of Object.keys(curRoot)) {
             // An own '__proto__' key can't round-trip through JSON Patch — the
             // server's applyPatch rejects any op touching it (prototype-pollution
@@ -1018,7 +1102,7 @@ export class RisuSavePatcher {
             if (key === '__proto__') continue
             // hasOwn, not `in`: membership must match the baseline's OWN keys
             // (`in` would treat inherited names like 'toString' as present).
-            const hadKey = Object.hasOwn(lastRoot, key)
+            const hadKey = Object.hasOwn(last, key)
             let curKeyJson: string | undefined
             try { curKeyJson = JSON.stringify(curRoot[key]) } catch { curKeyJson = undefined }
             // Fast skip: raw JSON equals the normalized baseline ⇒ present and
@@ -1026,9 +1110,9 @@ export class RisuSavePatcher {
             // (toJSON()→undefined, bigint throw, function) — those never equal a
             // stored baseline string, so the explicit guard just makes the skip
             // not fire for them.
-            if (curKeyJson !== undefined && hadKey && curKeyJson === this.lastRootKeyJsons.get(key)) {
+            if (curKeyJson !== undefined && hadKey && curKeyJson === state.lastRootKeyJsons.get(key)) {
                 removedRootKeys.delete(key)
-                nextRoot[key] = lastRoot[key]
+                this.writeRootKey(key, last[key], state.rootHashes.get(key))
                 continue
             }
             // Decide presence by the NORMALIZED result, NOT by JSON.stringify of
@@ -1046,26 +1130,31 @@ export class RisuSavePatcher {
                 continue
             }
             removedRootKeys.delete(key)
-            const before = hadKey ? { [key]: lastRoot[key] } : {}
+            const before = hadKey ? { [key]: last[key] } : {}
             for (const p of compare(before, { [key]: normVal })) patch.push(p)
-            this.hashBlocks[key] = calculateHash(normVal)
-            this.lastRootKeyJsons.set(key, JSON.stringify(normVal))
-            nextRoot[key] = normVal
+            this.writeRootKey(key, normVal, calculateHash(normVal))
+            state.lastRootKeyJsons.set(key, JSON.stringify(normVal))
         }
         for (const key of removedRootKeys) {
             // Key deleted from the live db (or its value normalized to undefined)
             // → emit the remove op (escaping via compare) and drop its caches.
-            for (const p of compare({ [key]: lastRoot[key] }, {})) patch.push(p)
-            delete this.hashBlocks[key]
-            this.lastRootKeyJsons.delete(key)
+            for (const p of compare({ [key]: last[key] }, {})) patch.push(p)
+            this.writeRootKey(key, undefined)
+            state.lastRootKeyJsons.delete(key)
         }
 
         if (toSave.botPreset) {
             const normBotPresets = normalizeJSON(curBotPresets) ?? []
-            const ops = diffArrayWithIdGuard(compare, '/botPresets', lastBotPresets, normBotPresets, 'id')
+            // A baseline without botPresets has no path to replace (the
+            // server rejects `replace` on a missing key): add it. A present
+            // non-array value has no elements to diff: replace it whole.
+            const ops = !Object.hasOwn(last, 'botPresets')
+                ? [{ op: 'add', path: '/botPresets', value: normBotPresets }]
+                : !Array.isArray(last.botPresets)
+                    ? [{ op: 'replace', path: '/botPresets', value: normBotPresets }]
+                    : diffArrayWithIdGuard(compare, '/botPresets', last.botPresets, normBotPresets, 'id')
             for (const op of ops) patch.push(op)
-            this.hashBlocks['botPresets'] = calculateHash(normBotPresets);
-            this.lastSyncedDb.botPresets = normBotPresets;
+            this.writeRootKey('botPresets', normBotPresets, calculateHash(normBotPresets))
         }
 
         if (toSave.modules) {
@@ -1073,9 +1162,14 @@ export class RisuSavePatcher {
             // structural-vs-elementwise pivot: editing one module's lorebook
             // changes the modules block on every save, so only the edited
             // module should pay normalize + protocol hash + diff.
-            const lastModulesArr: any[] = Array.isArray(lastModules) ? lastModules : []
+            // A baseline without modules (or with a non-array value) has no
+            // elements to diff against: take the whole-value path, and `add`
+            // the key when it is absent (`replace` on a missing key fails on
+            // the server).
+            const hadModules = Object.hasOwn(last, 'modules')
+            const lastModulesArr: any[] = Array.isArray(last.modules) ? last.modules : []
             const curModulesArr: any[] = Array.isArray(curModules) ? curModules : []
-            let structural = lastModulesArr.length !== curModulesArr.length
+            let structural = !Array.isArray(last.modules) || lastModulesArr.length !== curModulesArr.length
             if (!structural) {
                 const lastModIds = lastModulesArr.map((m: any) => m?.id)
                 const curModIds = curModulesArr.map((m: any) => m?.id)
@@ -1091,49 +1185,50 @@ export class RisuSavePatcher {
                 // Structural change → single whole-array replace, exactly like
                 // diffArrayWithIdGuard, and rebuild the per-module baselines.
                 const normModules = normalizeJSON(curModulesArr) ?? []
-                patch.push({ op: 'replace', path: '/modules', value: normModules })
-                this.hashBlocks['modules'] = calculateHash(normModules);
-                this.lastSyncedDb.modules = normModules;
-                this.lastModuleJsons = new Map();
-                this.moduleItemHashes = new Map();
+                patch.push({ op: hadModules ? 'replace' : 'add', path: '/modules', value: normModules })
+                this.writeRootKey('modules', normModules, calculateHash(normModules))
+                state.lastModuleJsons = new Map();
+                state.moduleItemHashes = new Map();
                 for (const m of normModules) {
                     if (typeof m?.id === 'string' && m.id) {
-                        this.lastModuleJsons.set(m.id, JSON.stringify(m))
-                        this.moduleItemHashes.set(m.id, calculateHash(m))
+                        state.lastModuleJsons.set(m.id, JSON.stringify(m))
+                        state.moduleItemHashes.set(m.id, calculateHash(m))
                     }
                 }
             } else {
                 // Same structure (all ids valid, string-typed, aligned) → element-wise.
+                const nextModules = [...lastModulesArr]
                 for (let i = 0; i < curModulesArr.length; i++) {
                     const id = curModulesArr[i].id
                     let curModJson: string | null = null
                     try { curModJson = JSON.stringify(curModulesArr[i]) } catch { curModJson = null }
-                    if (curModJson !== null && curModJson === this.lastModuleJsons.get(id) && this.moduleItemHashes.has(id)) {
+                    if (curModJson !== null && curModJson === state.lastModuleJsons.get(id) && state.moduleItemHashes.has(id)) {
                         continue // unchanged: baseline slot + item hash stay valid
                     }
                     const normModule = normalizeJSON(curModulesArr[i])
                     for (const p of compare(lastModulesArr[i], normModule)) {
                         patch.push({ ...p, path: `/modules/${i}${p.path}` })
                     }
-                    this.moduleItemHashes.set(id, calculateHash(normModule))
-                    this.lastModuleJsons.set(id, JSON.stringify(normModule))
-                    this.lastSyncedDb.modules[i] = normModule
+                    state.moduleItemHashes.set(id, calculateHash(normModule))
+                    state.lastModuleJsons.set(id, JSON.stringify(normModule))
+                    nextModules[i] = normModule
                 }
                 // The protocol hash of the whole array is the documented fold of
                 // calculateHash over items (see calculateHash's array branch) —
                 // recompose it from the cached per-item hashes so the value is
                 // bit-identical to calculateHash(normalizeJSON(modules)).
                 let modulesHash = SEED_ARRAY
-                for (const m of (Array.isArray(this.lastSyncedDb.modules) ? this.lastSyncedDb.modules : [])) {
-                    const cached = (typeof m?.id === 'string') ? this.moduleItemHashes.get(m.id) : undefined
+                for (const m of nextModules) {
+                    const cached = (typeof m?.id === 'string') ? state.moduleItemHashes.get(m.id) : undefined
                     const itemHash = cached !== undefined ? cached : calculateHash(m)
                     modulesHash = (Math.imul(modulesHash, PRIME_MULTIPLIER) + itemHash) >>> 0
                 }
-                this.hashBlocks['modules'] = modulesHash
+                this.writeRootKey('modules', nextModules, modulesHash)
             }
         }
 
         // Detect structural changes (additions, deletions, reordering)
+        const lastCharacters: any[] = last.characters
         const lastIds = lastCharacters.map((c: any) => c?.chaId)
         const curIds = curCharacters.map((c: any) => c?.chaId)
         const structuralChange = lastIds.length !== curIds.length ||
@@ -1149,22 +1244,11 @@ export class RisuSavePatcher {
             // Structural change → replace entire characters array (safe for deletions/additions)
             const normChars = normalizeJSON(curCharacters.map(withStubs))
             patch.push({ op: 'replace', path: '/characters', value: normChars })
-            // Update all character hashes
-            for (const lastId of lastIds) {
-                if (lastId) delete this.hashBlocks[lastId];
-            }
-            for (const char of normChars) {
-                if (char?.chaId) {
-                    this.hashBlocks[char.chaId] = calculateHash(char);
-                }
-            }
-            this.lastSyncedDb.characters = normChars;
+            // Update all character hashes (by position)
+            this.writeCharacters(normChars, normChars.map((char: any) => calculateHash(char)))
             // Rebuild the cheap baselines from the NORMALIZED chars (the server's
             // state), not the raw input — see init().
-            this.lastCharJsons = new Map();
-            for (const char of normChars) {
-                if (char?.chaId) this.lastCharJsons.set(char.chaId, JSON.stringify(char))
-            }
+            state.lastCharJsons = normChars.map((char: any) => JSON.stringify(char))
         } else {
             // Same structure → per-character field-level diff (efficient)
             for (let i = 0; i < curCharacters.length; i++) {
@@ -1175,16 +1259,18 @@ export class RisuSavePatcher {
 
                 // Cheap pre-check: identical JSON ⇒ identical data ⇒ stored
                 // hash, baseline and (empty) diff are all still valid — skip
-                // the normalize + protocol hash + compare entirely.
+                // the normalize + protocol hash + compare entirely. Compared by
+                // position, so missing or duplicate chaIds cannot match the
+                // JSON of another character.
                 let curJson: string | null = null
                 try { curJson = JSON.stringify(withStubs(curChar)) } catch { curJson = null }
-                if (!trackedBySave && curCharId && curJson !== null && curJson === this.lastCharJsons.get(curCharId)) {
+                if (!trackedBySave && curJson !== null && curJson === state.lastCharJsons[i]) {
                     continue
                 }
 
                 const normChar = normalizeJSON(withStubs(curChar))
-                const curCharHash = curCharId ? calculateHash(normChar) : undefined
-                const changedByHash = !!(curCharId && curCharHash !== this.hashBlocks[curCharId])
+                const curCharHash = calculateHash(normChar)
+                const changedByHash = curCharHash !== this.characterHashAt(i)
 
                 if (trackedBySave || changedByHash) {
                     // Iterate instead of spreading — a single character's diff
@@ -1195,8 +1281,7 @@ export class RisuSavePatcher {
                         v.path = `/characters/${i}` + v.path;
                         patch.push(v);
                     }
-                    this.hashBlocks[normChar.chaId] = curCharHash ?? calculateHash(normChar);
-                    this.lastSyncedDb.characters[i] = normChar;
+                    this.writeCharacterAt(i, normChar, curCharHash)
                 }
                 // Refresh the cheap baseline from the NORMALIZED form (the
                 // server's actual state), not curJson — a raw baseline could
@@ -1204,17 +1289,8 @@ export class RisuSavePatcher {
                 // server's (shared ref → null → un-share), silently skipping a
                 // real change. Normalized baseline keeps such chars on the safe
                 // full path. normChar is cycle-free, so stringify won't throw.
-                if (curCharId) {
-                    this.lastCharJsons.set(curCharId, JSON.stringify(normChar))
-                }
+                state.lastCharJsons[i] = JSON.stringify(normChar)
             }
-        }
-
-        this.lastSyncedDb = {
-            characters: this.lastSyncedDb.characters,
-            botPresets: this.lastSyncedDb.botPresets,
-            modules: this.lastSyncedDb.modules,
-            ...nextRoot
         }
 
         return {

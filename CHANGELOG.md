@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.2.4-experimental.60 (save sync baseline)
+
+- Keep the patch-sync baseline and its hash cache in one state that changes only through a few internal functions, so they can no longer diverge. A new save previously sent every patch with the expected hash `0` because the baseline gained `botPresets` or `modules` keys without a value or hash, so each patch was rejected as a conflict and no change persisted.
+- Hash characters by array position, as the server does. Characters without a `chaId`, with duplicate `chaId`s, or with a `chaId` equal to a root key name no longer produce a hash that differs from the server's.
+- When the baseline has no `botPresets` or `modules`, the first patch adds the key instead of replacing it; the server rejected the replace with `OPERATION_PATH_UNRESOLVABLE`. Patches and hashes for databases that already synced correctly are unchanged.
+- A rejected patch still restores the previous baseline as a whole. Lazy chat sync 0.5.9. Stable remains v0.2.3.
+
 ## 0.2.4-experimental.59 (usage compact counts)
 
 - Show compact cache and request counts on the usage cost panel with K/M suffixes (for example `123.5K`) instead of the browser locale's units such as `12.3만`. Full values in tooltips keep the locale's grouping.
