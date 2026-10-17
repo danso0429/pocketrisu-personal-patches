@@ -15,7 +15,8 @@
     const available = $derived(report.costVersion === 1)
     const number = (n: number) => n.toLocaleString()
     const modelName = (value: string | null) => value?.trim() || language.usageCostModelMissing
-    const compact = new Intl.NumberFormat(undefined, { notation: 'compact', maximumFractionDigits: 1 })
+    // Fixed locale keeps K/M suffixes instead of locale units such as 만.
+    const compact = new Intl.NumberFormat('en-US', { notation: 'compact', maximumFractionDigits: 1 })
     const recorded = (n: number, reported: boolean | undefined, legacy: boolean) => (reported || (legacy && n > 0)) ? number(n) : '—'
     const modelCosts = $derived.by(() => {
         const map = new Map<string, NonNullable<UsageReport['costBuckets']>>()

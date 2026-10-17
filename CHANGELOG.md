@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.2.4-experimental.59 (usage compact counts)
+
+- Show compact cache and request counts on the usage cost panel with K/M suffixes (for example `123.5K`) instead of the browser locale's units such as `12.3만`. Full values in tooltips keep the locale's grouping.
+- Usage cost and cache accounting 0.1.3. Stable remains v0.2.3.
+
 ## 0.2.4-experimental.58 (persona gallery card size)
 
 - Keep persona gallery cards at a fixed 5rem size. With the full-width gallery, flexible columns made the cards grow and shrink as the UI width changed.

@@ -16,7 +16,7 @@ const related = ['bg-preserve', 'lazy-chat-bg-adapter', 'pagefold-model-preset',
     .flatMap(name => require(`../${name}/manifest.cjs`).units);
 const maintained = [...require('./client-units.cjs'), ...require('./server-units.cjs'), ...require('./ui-units.cjs')];
 module.exports = {
-    id: 'usage-cost-estimate', title: 'Usage cost and cache accounting', version: '0.1.2',
+    id: 'usage-cost-estimate', title: 'Usage cost and cache accounting', version: '0.1.3',
     targets: { pocketrisu: { verified: ['1.10.0'], reviewing: [] } }, userSelectable: true,
     units: [
         ...maintained.map(unit => ({ ...unit, after: related.filter(prior => prior.file === unit.file).map(prior => prior.id) })),

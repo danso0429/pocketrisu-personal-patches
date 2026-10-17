@@ -15,3 +15,14 @@ test('usage cost is a complete-delivery exact target with a reversible migration
     assert.equal(revertUnit(plan.outputs.get(unit.file), unit), unit.anchor);
     assert.ok(!pack.units.some(unit => /DROP TABLE|DROP COLUMN|DELETE FROM usage/.test(unit.content ?? unit.managed ?? '')));
 });
+
+test('usage panel compact counts use K/M suffixes regardless of browser locale', () => {
+    const panel = require('node:fs').readFileSync(require('node:path').join(
+        __dirname,
+        '../patches/usage-cost-estimate/files-1.10/src/lib/Setting/Pages/UsageCostPanel.svelte',
+    ), 'utf8');
+    assert.match(panel, /const compact = new Intl\.NumberFormat\('en-US', \{ notation: 'compact', maximumFractionDigits: 1 \}\)/);
+    const compact = new Intl.NumberFormat('en-US', { notation: 'compact', maximumFractionDigits: 1 });
+    assert.equal(compact.format(123456), '123.5K');
+    assert.equal(compact.format(1234567), '1.2M');
+});
