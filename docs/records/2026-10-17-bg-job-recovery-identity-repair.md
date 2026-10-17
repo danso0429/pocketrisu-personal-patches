@@ -250,8 +250,16 @@ server-rejected with 426, but device refresh is the observation that the new
 bundle became active. A successful projection read does not claim a paid
 production generation ran.
 
-Physical ordinary Send, actual Stop and the earlier no-edit new-chat warnings
-remain device gates. Cross-tab/device overlap and suspended journal sockets
+After loading the delivered build, the user confirmed all three scoped device
+checks as normal: ordinary Send in the repaired chat, the circular Stop control
+during generation, and the first response in a new chat without editing the
+conversation or settings. The ordinary Send check closes the reported
+`canonical-chat-unavailable` failure; Stop cancelled through the visible device
+control; neither of the two false post-assembly edit warnings recurred in the
+no-edit new-chat scenario. This closes the scoped physical gates for the .54
+variable-read warning and the .55 Send/Stop follow-up.
+
+Cross-tab/device overlap and suspended journal sockets
 remain explicit limits; the code adds no new recovery scheduler/deadline.
 Deferred jobs use existing boot/visibility/online discovery. Other malformed
 historical chats are not automatically rewritten. This is a G1 recovery
