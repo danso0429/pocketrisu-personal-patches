@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.2.4-experimental.61 (prompt input change diagnostic)
+
+- When a background result is committed and the chat's prompt inputs differ from the ones captured at assembly, log one `[bg-assembly]` warning line with the operation id and the names of the changed fields (for example `note:changed`, `message[1].data:changed`, `message.count:2→3`). Values and chat content are never logged, and at most 32 entries are listed.
+- The changed-inputs flag, receipts, notices and commit ordering are unchanged; the flag is now derived from the same comparison that produces the field names.
+- BG adapter 0.7.61. Stable remains v0.2.3.
+
 ## 0.2.4-experimental.60 (save sync baseline)
 
 - Keep the patch-sync baseline and its hash cache in one state that changes only through a few internal functions, so they can no longer diverge. A new save previously sent every patch with the expected hash `0` because the baseline gained `botPresets` or `modules` keys without a value or hash, so each patch was rejected as a conflict and no change persisted.

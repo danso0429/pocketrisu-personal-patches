@@ -3,7 +3,7 @@ import fs from 'node:fs'
 import os from 'node:os'
 import path from 'node:path'
 import Database from 'better-sqlite3'
-import { afterEach, describe, expect, it } from 'vitest'
+import { afterEach, describe, expect, it, vi } from 'vitest'
 import commitPackage from './serverChatCommit.cjs'
 import inputPackage from './serverChatInputOwner.cjs'
 import journalPackage from './chatWriteJournal.cjs'
@@ -417,10 +417,14 @@ describe('server-owned BG chat commit', () => {
         generated.scriptstate = { $server: 'generated' }
         const operationId = 'operation-first-chat-no-edit'
         harness.primeOperation(operationId)
+        const warn = vi.spyOn(console, 'warn').mockImplementation(() => {})
         const outcome = await owner.commitGenerationResult({
             ...harness.commitInput(operationId, result(generated, 'old', 'new'), 1, captured.revision),
             anchor: captured.anchor,
         })
+        const warned = warn.mock.calls.map(call => String(call[0])).filter(line => line.startsWith('[bg-assembly]'))
+        warn.mockRestore()
+        expect(warned).toEqual([])
         expect(outcome).toMatchObject({ status: 'committed', receipt: { promptInputsChanged: false } })
         const stored: any = harness.runtime.fullStore.get('char-1')!.get('chat-1')
         expect(stored.message.map((message: any) => message.data)).toEqual(['hello', 'synthetic answer'])
@@ -449,7 +453,12 @@ describe('server-owned BG chat commit', () => {
         const operationId = 'operation-anchor-owner-1'
         harness.primeOperation(operationId)
         const request = { ...harness.commitInput(operationId, result(generated, 'old', 'new'), 2, captured.revision), anchor: captured.anchor }
+        const warn = vi.spyOn(console, 'warn').mockImplementation(() => {})
         const outcome = await owner.commitGenerationResult(request)
+        const warned = warn.mock.calls.map(call => String(call[0])).filter(line => line.startsWith('[bg-assembly]'))
+        warn.mockRestore()
+        expect(warned).toEqual([`[bg-assembly] prompt inputs changed op=${operationId} changes=scriptstate:changed,message[0].data:changed`])
+        expect(warned[0]).not.toMatch(/saved user history|user|script history/)
         expect(outcome).toMatchObject({ status: 'committed', receipt: {
             promptInputsChanged: true,
             anchoredBaseRevision: revision(edited), effects: { chat: { reason: 'concurrent-chat-edit-preserved' } },

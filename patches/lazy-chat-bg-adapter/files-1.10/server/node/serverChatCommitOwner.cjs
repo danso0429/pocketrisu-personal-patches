@@ -3,7 +3,7 @@
 const crypto = require('node:crypto');
 const { isDeepStrictEqual } = require('node:util');
 const { captureChatAnchor, checkChatAnchor, resolveChatAnchor, anchoredAssistantMessages, invalidAnchor } = require('./chatAnchorCommit.cjs');
-const { captureAssemblyContext, promptInputsChanged } = require('./serverChatAssemblyContext.cjs');
+const { captureAssemblyContext, describePromptInputChanges, promptInputChanges } = require('./serverChatAssemblyContext.cjs');
 const {
     HOST_CHANGE_INTENT_CONTRACT,
     SERVER_CHAT_COMMIT_CONTRACT,
@@ -901,13 +901,15 @@ function createServerChatCommitOwner({
             const latest = metadata ? getFullChatStore()?.get(charId)?.get(chatId) || null : null;
             const resolved = resolveChatAnchor(anchor, request.chat, latest, metadata);
             if (resolved.status === 'conflict') return resolved;
+            const changes = promptInputChanges(anchor.chat,
+                metadata && own(metadata, 'modules') ? { ...latest, modules: metadata.modules } : latest);
+            if (changes.length > 0) console.warn(describePromptInputChanges(operationId, changes));
             return {
                 chat: resolved.chat,
                 metadata: chatMetadata(resolved.chat),
                 baseRevision: chatRevision(latest),
                 unreflected: resolved.unreflected,
-                promptInputsChanged: promptInputsChanged(anchor.chat,
-                    metadata && own(metadata, 'modules') ? { ...latest, modules: metadata.modules } : latest),
+                promptInputsChanged: changes.length > 0,
             };
         } : null);
         if (inputReceipt) {
