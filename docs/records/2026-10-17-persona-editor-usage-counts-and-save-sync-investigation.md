@@ -12,9 +12,10 @@ left open, in order. Times are UTC unless stated.
 | Persona gallery fixed card size, add-persona dialog labels | Committed `9de0274`, pushed, delivered |
 | Usage cost panel compact counts with K/M suffixes | Committed `4f61ac5`, pushed, delivered |
 | Content-etag reference document (alternative "D-1") | Committed `900fbb6`, pushed |
-| New-save persistence failure | Root cause found; a first fix based on a wrong premise was reverted; the restructuring ("C") was implemented and verified in isolation (`0.2.4-experimental.60`, lazy-chat-sync 0.5.9); see section 6.2.6 for its commit and delivery state |
+| New-save persistence failure | Root cause found; a first fix based on a wrong premise was reverted; the restructuring ("C") was committed `2bda466`, pushed, delivered and device-checked (`0.2.4-experimental.60`, lazy-chat-sync 0.5.9) |
+| Post-assembly edit warning on a new chat | Cause not determined from data; field-name diagnostic committed `fb0251b`, pushed, delivered (`.61`, lazy-chat-bg-adapter 0.7.61) |
 | Patcher baseline restructuring design document | Committed with the C implementation |
-| Device check (L5) | Partly reported by the user; see section 3.5 |
+| Device check (L5) | Reported normal by the user for all delivered changes; see sections 3.5 and 6.2.7 |
 
 Package versions: `0.2.4-experimental.57` (`5dbef89`), `.58` (`9de0274`),
 `.59` (`4f61ac5`). Stable remains `v0.2.3`.
@@ -107,9 +108,9 @@ Reported by the user before `9de0274`: the gallery size change while
 resizing (fixed in `9de0274`), the untranslated "Add persona" title (fixed in
 `9de0274`), and the BG plugin diagnostics screen opening normally. The
 diagnostics entry shown was dated 2026-10-15, before this delivery, so the new
-absent-API record of `.56` was not yet observed. Re-check of `9de0274` and
-`4f61ac5` on the device, folder create/import persistence after reload, and a
-post-delivery BG plugin run are still to be reported.
+absent-API record of `.56` was not yet observed. The later device check of
+`9de0274`, `4f61ac5` and folder create/duplicate/import persistence is in
+section 6.2.7.
 
 ## 4. Usage compact counts (`usage-cost-estimate`)
 
@@ -352,7 +353,67 @@ Not verified: the real conflict/rebase path in a browser (blocked by the tab
 guard; covered by unit tests D1/D3 and the unchanged `globalApi` rebase code);
 a server-side use of the bundled patcher during BG generation (needs a real
 model call). Observation: a native `beforeunload` prompt appeared on reloads
-about six seconds after an edit; its cause was not determined.
+about six seconds after an edit (resolved in section 6.3).
+
+#### 6.2.7 Delivery and device check of C
+
+Commits `2bda466` (implementation, tests, design document) and `ce639a6`
+(this record) were pushed; CI succeeded. Delivered with the procedure of
+section 5 in 14:56:30–14:57:55 UTC; readback: root 200, PM2 online with 0
+unstable restarts, served entry matched disk, installed `risuSave.ts` equal
+to the pack file and present in the rebuilt BG bundle, 5 database
+`quick_check` ok, status current with lazy-chat-sync 0.5.9, 412 old assets
+retained, no new error-log lines after start. Backup:
+`backups/20261017-pre-exp60`.
+
+The user reported on the device: a BG generation completed and remained after
+reload; persona memo saves, gallery card size, folder create/duplicate/import
+persistence, Korean labels and K/M usage counts were all normal.
+
+### 6.3 Reload confirmation prompt
+
+The browser's "changes may not be saved" prompt on reload comes from
+`src/preload.ts`, which registers an unconditional `beforeunload` handler. The
+file is identical to pristine PocketRisu 1.10.0, so the prompt is upstream
+behavior; browsers show it only after user interaction with the page. No
+change was made.
+
+### 6.4 Post-assembly edit warnings on a new chat's first answer
+
+After C was delivered, the user saw two warnings on a new chat's first BG
+answer: the response was saved without post-assembly edits, and the
+conversation changed after preparation. A record from 2026-10-16 describes the
+same symptom; one cause (native `getChatVar` initializing `scriptstate` on
+read) was fixed in `0.2.4-experimental.54`, and other paths were listed as not
+covered.
+
+Code reading (no data opened):
+
+- `promptInputsChanged` (lazy-chat-bg-adapter `serverChatAssemblyContext.cjs`)
+  compares 14 chat fields and 7 message fields between the assembly snapshot
+  and the latest canonical chat and returns one boolean; only that boolean is
+  persisted, and the assembly snapshot is not stored, so the changed fields
+  cannot be recovered from data.
+- Remaining paths that can change compared fields on a new chat: slash
+  `getvar` initializes `scriptstate` on read (`command.ts`), variable writes
+  and triggers create `scriptstate`, lore writes change `localLore`, and
+  database normalizers add empty `note`/`localLore`. Which one ran was not
+  determined.
+- The client patch built by `RisuSavePatcher` carries chat stubs (id, name,
+  date, folder, `modules`); `modules` is the only compared field it can touch.
+  For well-formed data C's patches were identical to the old ones, so C is
+  unlikely to be the cause (inference).
+
+Change `fb0251b` (lazy-chat-bg-adapter 0.7.61, `.61`): the flag is derived
+from a comparison that also returns change descriptors, and the commit owner
+logs one line `[bg-assembly] prompt inputs changed op=<id> changes=…` (field
+names, change kind, message indexes and count; no values; at most 32 entries).
+The flag, receipts, notices and commit ordering are unchanged; equivalence
+with the old function was tested over 6,004 cases. Server suite 663 pass / 12
+skipped (652 before plus 11 new); patcher `npm test` 341/0/3. Delivered
+15:29:41–15:30:42 UTC with the same procedure and readback (adapter 0.7.61,
+444 old assets retained). Backup: `backups/20261017-pre-exp61`. The cause is to
+be read from that log line the next time the warning appears.
 
 ## 7. Incidents
 
@@ -377,13 +438,11 @@ about six seconds after an edit; its cause was not determined.
 
 ## 8. Open items
 
-- C delivery to the live installation and device check, including whether the
-  `beforeunload` prompt appears.
-- Device re-check for `9de0274` and `4f61ac5`, folder create/import
-  persistence, and a post-delivery BG plugin run (section 3.5).
-- K5 runtime use of the bundled patcher on the server; K7 hash difference;
-  1.14.0 first-save flow.
+- Cause of the post-assembly edit warning: read the `[bg-assembly]` log line
+  at its next occurrence (section 6.4).
+- A post-delivery BG plugin run on the diagnostics screen (absent-API record
+  of `.56`).
+- The real conflict/rebase path of C in a browser; K5 runtime use of the
+  bundled patcher on the server; K7 hash difference; 1.14.0 first-save flow.
 - The rebase merge's strict statistics check (`count()`) was left unchanged as
   an intended invariant.
-- Isolated scratch trees used for testing remain to be cleaned up at the end
-  of the work.
