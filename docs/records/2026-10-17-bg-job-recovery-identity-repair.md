@@ -213,18 +213,42 @@ IDs into the repaired deployment. Refresh remains necessary for new code.
 
 ## Delivery status and remaining qualification
 
-At this record's implementation checkpoint, source and maintenance validation
-are complete; live data correction and final delivery receipt are pending.
-Delivery requires active work zero, verified application recovery files before
-stop, then a fresh verified SQLite backup before the approved identity write.
+Source commit `fcaf4c5` was pushed to main and its remote `patch-integrity` CI
+completed successfully (run `38924619885`). Active owner work, running models,
+pending sends, active HTTP requests and target-chat unclaimed terminal jobs
+were all zero before delivery. The single expected process was PM2 id 1 at the
+exact application cwd.
+
+Delivery verified 459 application/state files before stopping. After stop it
+created a fresh 978,612,224-byte SQLite backup with `quick_check=ok` and a
+recorded hash/WAL-safe restore command, then repeated the exact repair target
+verification before installer or data writes. The approved repair changed two
+message IDs in the 18-row chat. Readback confirmed text/order/count, generation
+metadata and every other field were preserved; no ordinary chat journal was
+pending. The repaired database and final database both passed `quick_check`.
+
+The installer moved managed source from 523 to 524 files and post-apply plan
+reported zero changes. It retained 61 previously served immutable hashed
+assets; 17 current entry/preload responses matched disk. Root HTTP returned
+200. Both usage endpoints returned 200/no-store and all preexisting usage rows
+through the delivery boundary retained their exact fingerprint. Host activation
+and configured destination-header state were unchanged.
+
+After restart the target input-base read succeeded, projection returned 200 and
+pending inputs were empty. The entire expected repaired chat matched; protected
+statistics, globals and applied ledger matched their pre-repair fingerprints.
+The process was online at id 1 with zero unstable restarts and no new stderr
+lines. No provider request, cancellation, automatic restore or historical
+message deletion occurred.
 The recorded restore uses SQLite's backup API with the process stopped to
 handle destination WAL safely. No automatic restore/restart follows an
 unexpected outcome. Old immutable hashed assets are retained and hash-checked.
 
-After delivery, verify the entire expected repaired chat, protected statistics,
-globals/applied ledger, old usage values, source hashes, both build artifacts,
-and HTTP input-base/projection. Only a successful projection read is an
-automatic prerequisite; it does not claim a paid production generation ran.
+Those automatic checks are now observed. The first refreshed device load must
+still re-read the target chat fingerprint; old and missing build stamps are
+server-rejected with 426, but device refresh is the observation that the new
+bundle became active. A successful projection read does not claim a paid
+production generation ran.
 
 Physical ordinary Send, actual Stop and the earlier no-edit new-chat warnings
 remain device gates. Cross-tab/device overlap and suspended journal sockets
