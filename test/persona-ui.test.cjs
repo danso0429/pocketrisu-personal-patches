@@ -50,7 +50,7 @@ test('folder images use shared asset storage and can return to the default icon'
         (unit) => unit.id === 'persona-organizer:folder-interface',
     )
 
-    assert.equal(manifest.version, '0.11.1')
+    assert.equal(manifest.version, '0.11.2')
     assert.deepEqual(manifest.targets, {
         pocketrisu: {
             verified: ['1.10.0'],
@@ -141,6 +141,23 @@ test('the persona plus menu is local, closable, and preserves create and import 
     assert.match(source, /name: `\$\{clone\.name\} \(Copy\)`/)
     assert.match(source, /\{language\.personaDuplicate\}/)
     assert.match(source, /DBState\.db\.selectedPersona = 0/)
+})
+
+test('the persona plus menu is available inside a folder and files new personas there', () => {
+    const folderToolbar = source.slice(
+        source.indexOf('<div class="folder-toolbar">'),
+        source.indexOf('<div class="organizer-toolbar">'),
+    )
+    const rootToolbar = source.slice(
+        source.indexOf('<div class="organizer-toolbar">'),
+        source.indexOf('<div class="page-shell">'),
+    )
+
+    assert.match(source, /\{#snippet addPersonaButton\(\)\}[\s\S]*<BaseRoundedButton onClick=\{\(\) => addPersonaDialogOpen = true\}>/)
+    assert.match(folderToolbar, /\{:else\}[\s\S]*\{@render addPersonaButton\(\)\}/)
+    assert.match(rootToolbar, /\{:else\}[\s\S]*\{@render addPersonaButton\(\)\}/)
+    assert.match(folderToolbar, /class="folder-members-button"[^>]*>\s*<UsersIcon /)
+    assert.match(source, /function duplicatePersona\(\): void \{[\s\S]*folderId: activeFolderId \?\? clone\.folderId/)
 })
 
 test('persona organizer owns exactly the settings editor and native selection popup', () => {
@@ -248,12 +265,44 @@ test('persona image gallery supports multi-add, explicit selection, and non-dest
     assert.match(source, /addPersonaImagePaths\(persona, paths\)/)
     assert.match(source, /selectPersonaImage\(persona, path\)/)
     assert.match(source, /removePersonaImagePath\(persona, path\)/)
-    assert.match(source, />Persona images</)
-    assert.match(source, /\{addingPersonaImages \? "Adding\.\.\." : "Add images"\}/)
+    assert.match(source, />페르소나 이미지</)
+    assert.match(source, /\{addingPersonaImages \? "추가 중\.\.\." : "이미지 추가"\}/)
     assert.match(source, /class:persona-gallery-active=\{editorPersona\?\.icon === image\}/)
     assert.match(source, /aria-pressed=\{editorPersona\?\.icon === image\}/)
-    assert.match(source, />Active</)
+    assert.match(source, />사용 중</)
     assert.doesNotMatch(source, /deleteAsset|removeAsset|forageStorage\.removeItem/)
+})
+
+test('persona image gallery and export image dialog use Korean labels', () => {
+    for (const english of [
+        'Persona images',
+        'Select the image used for user messages',
+        '"Adding..."',
+        '"Add images"',
+        'Add the first persona image',
+        '>Active<',
+        'Use persona image',
+        'Remove persona image',
+        'Remove from this persona',
+        'Select export image',
+        'Choose the image embedded',
+        'This persona has no image',
+        'Export with persona image',
+        '>Selected<',
+        '"Exporting..."',
+        '"Export with default image"',
+        '"Export selected image"',
+    ]) {
+        assert.ok(!source.includes(english), `untranslated label: ${english}`)
+    }
+})
+
+test('persona editor stacks the image gallery above full-width fields at every width', () => {
+    const panelRule = source.match(/\.persona-editor-panel \{[^}]*\}/)
+    assert.ok(panelRule)
+    assert.match(panelRule[0], /grid-template-columns: minmax\(0, 1fr\);/)
+    assert.doesNotMatch(source, /minmax\(13rem, 18rem\)/)
+    assert.doesNotMatch(source, /@media \(max-width: 720px\)/)
 })
 
 test('persona image gallery replaces the duplicate large active-image preview', () => {
@@ -266,7 +315,7 @@ test('persona image gallery replaces the duplicate large active-image preview', 
     assert.doesNotMatch(source, /Active image/)
     assert.doesNotMatch(source, /selectUserImg/)
     assert.match(source, /class:persona-gallery-active=\{editorPersona\?\.icon === image\}/)
-    assert.match(source, />Active</)
+    assert.match(source, />사용 중</)
 })
 
 test('persona PNG export chooses a gallery image without changing the active image', () => {
@@ -286,11 +335,11 @@ test('persona PNG export chooses a gallery image without changing the active ima
         /readImage\(exportImage\)/,
     )
     assert.match(source, /<Button onclick=\{openPersonaExportDialog\}>\{language\.export\}<\/Button>/)
-    assert.match(source, /\{#snippet title\(\)\}Select export image\{\/snippet\}/)
-    assert.match(source, /This does not change the active image/)
+    assert.match(source, /\{#snippet title\(\)\}엑스포트 이미지 선택\{\/snippet\}/)
+    assert.match(source, /사용 중인 이미지는 바뀌지 않습니다/)
     assert.match(source, /aria-pressed=\{exportPersonaImage === image\}/)
     assert.match(source, /await exportUserPersona\(exportPersonaImage \?\? ""\)/)
-    assert.match(source, /"Export selected image"/)
+    assert.match(source, /"선택한 이미지로 엑스포트"/)
     assert.doesNotMatch(
         source,
         /function exportSelectedPersona[\s\S]*selectPersonaImage\(/,

@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.2.4-experimental.57 (persona editor layout)
+
+- Stack the persona editor at every width: the image gallery sits at the top of the persona box and the name, note and description fields follow it at the full box width. The previous two-column layout only collapsed on a narrow viewport, so a narrowed PocketRisu UI on a wide screen squeezed the description field into a thin column; the fields now follow the container width.
+- Translate the persona image gallery and the export image dialog into Korean.
+- Show the create/import persona button inside a folder as well. Creating, importing or duplicating a persona from there files it in the open folder; at the root, duplication keeps the source persona's folder as before. The folder's member-selection button now uses a people icon so it is distinct from the create button.
+- Persona organizer 0.11.2. Stable remains v0.2.3.
+
 ## 0.2.4-experimental.56 (plugin capability exposure)
 
 - Make plugin feature detection match the API actually provided. In the foreground plugin iframe, `typeof risuai.name` and `'name' in risuai` now report a root API only when the host registry provides it as a function; other names, `then`, symbols and inherited object names read as absent. Calling an absent name throws a local `TypeError` instead of sending a request. Host-side dispatch still rejects unknown names.

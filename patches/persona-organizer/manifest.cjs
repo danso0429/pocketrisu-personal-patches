@@ -34,7 +34,7 @@ const personaDefault1100 = `    if(!Array.isArray(data.personas) || data.persona
 module.exports = {
     id: 'persona-organizer',
     title: 'Persona organizer',
-    version: '0.11.1',
+    version: '0.11.2',
     targets: {
         pocketrisu: {
             verified: ['1.10.0'],

@@ -11,6 +11,7 @@
         PencilIcon,
         PlusIcon,
         Trash2Icon,
+        UsersIcon,
     } from "@lucide/svelte"
     import { onDestroy } from "svelte"
     import { language } from "src/lang"
@@ -485,6 +486,7 @@
             ...clone,
             name: `${clone.name} (Copy)`,
             id: v4(),
+            folderId: activeFolderId ?? clone.folderId,
         })
         addPersonaDialogOpen = false
         changeUserPersona(DBState.db.personas.length - 1, "noSave")
@@ -577,6 +579,23 @@
     </button>
 {/snippet}
 
+{#snippet addPersonaButton()}
+    <div class="flex justify-center items-center mx-1" title="Create or import persona">
+        <BaseRoundedButton onClick={() => addPersonaDialogOpen = true}>
+            <svg viewBox="0 0 24 24" width="1.2em" height="1.2em">
+                <path
+                    fill="none"
+                    stroke="currentColor"
+                    stroke-linecap="round"
+                    stroke-linejoin="round"
+                    stroke-width="2"
+                    d="M12 6v6m0 0v6m0-6h6m-6 0H6"
+                />
+            </svg>
+        </BaseRoundedButton>
+    </div>
+{/snippet}
+
 {#snippet deletePersonaRow(persona: RisuPersona)}
     <div class="delete-persona-row">
         {#if persona.icon === ""}
@@ -642,7 +661,7 @@
                     </button>
                 {:else}
                     <button class="folder-members-button" title="Add or remove personas" onclick={openMembershipEditor}>
-                        <span aria-hidden="true">+</span>
+                        <UsersIcon size={18} />
                     </button>
                     <button
                         class="toolbar-text-button folder-image-button"
@@ -672,6 +691,7 @@
                     <button title="Remove folder but keep personas" onclick={() => removeFolder(openGroup.folder!)}>
                         <Trash2Icon size={17} />
                     </button>
+                    {@render addPersonaButton()}
                 {/if}
             </div>
         {:else}
@@ -718,20 +738,7 @@
                     >
                         Delete
                     </button>
-                    <div class="flex justify-center items-center mx-1" title="Create or import persona">
-                        <BaseRoundedButton onClick={() => addPersonaDialogOpen = true}>
-                            <svg viewBox="0 0 24 24" width="1.2em" height="1.2em">
-                                <path
-                                    fill="none"
-                                    stroke="currentColor"
-                                    stroke-linecap="round"
-                                    stroke-linejoin="round"
-                                    stroke-width="2"
-                                    d="M12 6v6m0 0v6m0-6h6m-6 0H6"
-                                />
-                            </svg>
-                        </BaseRoundedButton>
-                    </div>
+                    {@render addPersonaButton()}
                 {/if}
             </div>
         {/if}
@@ -829,8 +836,8 @@
         <div class="persona-image-gallery">
             <div class="persona-image-gallery-header">
                 <div>
-                    <h3>Persona images</h3>
-                    <p>Select the image used for user messages. Added images stay available here.</p>
+                    <h3>페르소나 이미지</h3>
+                    <p>사용자 메시지에 쓸 이미지를 선택합니다. 추가한 이미지는 여기에 계속 남습니다.</p>
                 </div>
                 <button
                     class="persona-image-add"
@@ -838,13 +845,13 @@
                     onclick={addPersonaImages}
                 >
                     <PlusIcon size={17} />
-                    <span>{addingPersonaImages ? "Adding..." : "Add images"}</span>
+                    <span>{addingPersonaImages ? "추가 중..." : "이미지 추가"}</span>
                 </button>
             </div>
             {#if editorPersonaImages.length === 0}
                 <button class="persona-image-empty" onclick={addPersonaImages}>
                     <ImageIcon size={22} />
-                    <span>Add the first persona image</span>
+                    <span>첫 페르소나 이미지 추가</span>
                 </button>
             {:else}
                 <div class="persona-image-grid">
@@ -855,7 +862,7 @@
                         >
                             <button
                                 class="persona-gallery-select"
-                                aria-label={`Use persona image ${imageIndex + 1}`}
+                                aria-label={`페르소나 이미지 ${imageIndex + 1} 사용`}
                                 aria-pressed={editorPersona?.icon === image}
                                 onclick={() => usePersonaImage(image)}
                             >
@@ -865,13 +872,13 @@
                                     <span class="persona-gallery-image bg-textcolor2" style={imageStyle}></span>
                                 {/await}
                                 {#if editorPersona?.icon === image}
-                                    <span class="persona-gallery-active-label">Active</span>
+                                    <span class="persona-gallery-active-label">사용 중</span>
                                 {/if}
                             </button>
                             <button
                                 class="persona-gallery-remove"
-                                aria-label={`Remove persona image ${imageIndex + 1}`}
-                                title="Remove from this persona"
+                                aria-label={`페르소나 이미지 ${imageIndex + 1} 제거`}
+                                title="이 페르소나에서 제거"
                                 onclick={() => removePersonaImage(image)}
                             >
                                 <Trash2Icon size={15} />
@@ -923,15 +930,15 @@
     closeOnEscape={!exportingPersona}
     closeOnOutsideClick={!exportingPersona}
 >
-    {#snippet title()}Select export image{/snippet}
+    {#snippet title()}엑스포트 이미지 선택{/snippet}
     {#snippet description()}
-        Choose the image embedded in this Persona PNG. This does not change the active image.
+        페르소나 PNG에 넣을 이미지를 고릅니다. 사용 중인 이미지는 바뀌지 않습니다.
     {/snippet}
     {#snippet children()}
         {#if editorPersonaImages.length === 0}
             <div class="persona-export-default">
                 <ImageIcon size={24} />
-                <span>This persona has no image. A default image will be exported.</span>
+                <span>이 페르소나에는 이미지가 없습니다. 기본 이미지로 엑스포트합니다.</span>
             </div>
         {:else}
             <div class="persona-image-grid">
@@ -939,7 +946,7 @@
                     <button
                         class="persona-gallery-card persona-gallery-select"
                         class:persona-gallery-active={exportPersonaImage === image}
-                        aria-label={`Export with persona image ${imageIndex + 1}`}
+                        aria-label={`페르소나 이미지 ${imageIndex + 1}로 엑스포트`}
                         aria-pressed={exportPersonaImage === image}
                         onclick={() => exportPersonaImage = image}
                     >
@@ -949,7 +956,7 @@
                             <span class="persona-gallery-image bg-textcolor2" style={imageStyle}></span>
                         {/await}
                         {#if exportPersonaImage === image}
-                            <span class="persona-gallery-active-label">Selected</span>
+                            <span class="persona-gallery-active-label">선택됨</span>
                         {/if}
                     </button>
                 {/each}
@@ -962,7 +969,7 @@
             disabled={exportingPersona}
             onclick={() => exportPersonaDialogOpen = false}
         >
-            Cancel
+            취소
         </ShButton>
         <ShButton
             variant="primary"
@@ -970,10 +977,10 @@
             onclick={exportSelectedPersona}
         >
             {exportingPersona
-                ? "Exporting..."
+                ? "엑스포트 중..."
                 : editorPersonaImages.length === 0
-                    ? "Export with default image"
-                    : "Export selected image"}
+                    ? "기본 이미지로 엑스포트"
+                    : "선택한 이미지로 엑스포트"}
         </ShButton>
     {/snippet}
 </ShDialog>
@@ -1531,7 +1538,7 @@
         display: grid;
         width: 100%;
         max-width: 100%;
-        grid-template-columns: minmax(13rem, 18rem) minmax(0, 1fr);
+        grid-template-columns: minmax(0, 1fr);
         align-items: start;
         gap: 1rem;
         border: 1px solid var(--color-darkborderc);
@@ -1674,11 +1681,6 @@
         .page-track,
         .page-dot {
             transition-duration: 1ms;
-        }
-    }
-    @media (max-width: 720px) {
-        .persona-editor-panel {
-            grid-template-columns: minmax(0, 1fr);
         }
     }
     @media (max-width: 374px) {
