@@ -25,7 +25,7 @@ const queueUnits = require('./queue-units.cjs')
 module.exports = {
     id: 'lazy-chat-bg-adapter',
     title: 'BG preserve integration for lazy chat storage',
-    version: '0.7.61',
+    version: '0.7.62',
     targets: {
         pocketrisu: {
             verified: ['1.10.0'],
@@ -43,6 +43,20 @@ module.exports = {
             file: 'src/ts/parser/chatVar.svelte.ts', type: 'replace',
             anchor: "    chat.scriptstate ??= {}\n    const state = (chat.scriptstate['$' + key])",
             content: "    const state = chat.scriptstate?.['$' + key]",
+            targetVersions: pocketRisu1100,
+        },
+        {
+            id: 'lazy-chat-bg-adapter:slash-getvar-read-only:1.10',
+            file: 'src/ts/process/command.ts', type: 'replace',
+            anchor: "            chat.scriptstate = chat.scriptstate ?? {}\n            pipe = (chat.scriptstate['$' + namedArg['key']]).toString() ?? 'null'",
+            content: "            pipe = (chat.scriptstate?.['$' + namedArg['key']]).toString() ?? 'null'",
+            targetVersions: pocketRisu1100,
+        },
+        {
+            id: 'lazy-chat-bg-adapter:owned:command-variable-read-test:1.10',
+            file: 'src/ts/process/commandVariableRead.test.ts',
+            type: 'owned',
+            content: owned1100('src/ts/process/commandVariableRead.test.ts'),
             targetVersions: pocketRisu1100,
         },
         {

@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.2.4-experimental.62 (slash getvar read-only)
+
+- Reading a chat variable with the `/getvar` slash command no longer creates or replaces the chat's `scriptstate`. The read previously added an empty `scriptstate` to a chat that had none (or replaced a `null` one), which a background generation could report as a changed conversation. Returned values and the error for a missing variable are unchanged; `/setvar` and `/addvar` still create `scriptstate`.
+- BG adapter 0.7.62. Stable remains v0.2.3.
+
 ## 0.2.4-experimental.61 (prompt input change diagnostic)
 
 - When a background result is committed and the chat's prompt inputs differ from the ones captured at assembly, log one `[bg-assembly]` warning line with the operation id and the names of the changed fields (for example `note:changed`, `message[1].data:changed`, `message.count:2→3`). Values and chat content are never logged, and at most 32 entries are listed.
