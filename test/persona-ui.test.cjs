@@ -50,7 +50,7 @@ test('folder images use shared asset storage and can return to the default icon'
         (unit) => unit.id === 'persona-organizer:folder-interface',
     )
 
-    assert.equal(manifest.version, '0.11.2')
+    assert.equal(manifest.version, '0.11.3')
     assert.deepEqual(manifest.targets, {
         pocketrisu: {
             verified: ['1.10.0'],
@@ -133,7 +133,7 @@ test('folder delete mode cannot navigate out before done or cancel', () => {
 test('the persona plus menu is local, closable, and preserves create and import actions', () => {
     assert.match(source, /let addPersonaDialogOpen = \$state\(false\)/)
     assert.match(source, /<BaseRoundedButton onClick=\{\(\) => addPersonaDialogOpen = true\}>/)
-    assert.match(source, /<ShDialog[\s\S]*bind:open=\{addPersonaDialogOpen\}[\s\S]*closable=\{true\}[\s\S]*Close[\s\S]*<\/ShDialog>/)
+    assert.match(source, /bind:open=\{addPersonaDialogOpen\}[^]*?closable=\{true\}[^]*?\{#snippet title\(\)\}페르소나 추가\{\/snippet\}[^]*?addPersonaDialogOpen = false\}>\s*닫기\s*<\/ShButton>[^]*?<\/ShDialog>/)
     assert.match(source, /function createPersona\(\): void \{[\s\S]*name: "New Persona"[\s\S]*folderId: activeFolderId \?\? undefined/)
     assert.match(source, /async function importPersonaFromDialog\(\): Promise<void> \{[\s\S]*await importUserPersona\(activeFolderId \?\? undefined\)/)
     assert.doesNotMatch(source, /alertSelect/)
@@ -303,6 +303,9 @@ test('persona editor stacks the image gallery above full-width fields at every w
     assert.match(panelRule[0], /grid-template-columns: minmax\(0, 1fr\);/)
     assert.doesNotMatch(source, /minmax\(13rem, 18rem\)/)
     assert.doesNotMatch(source, /@media \(max-width: 720px\)/)
+    const gridRule = source.match(/\.persona-image-grid \{[^}]*\}/)
+    assert.ok(gridRule)
+    assert.match(gridRule[0], /grid-template-columns: repeat\(auto-fill, 5rem\);/)
 })
 
 test('persona image gallery replaces the duplicate large active-image preview', () => {

@@ -993,7 +993,7 @@
     closeOnEscape={true}
     closeOnOutsideClick={true}
 >
-    {#snippet title()}Add persona{/snippet}
+    {#snippet title()}페르소나 추가{/snippet}
     {#snippet children()}
         <div class="flex flex-col gap-2">
             <ShButton variant="outline" className="w-full justify-start" onclick={createPersona}>
@@ -1009,7 +1009,7 @@
     {/snippet}
     {#snippet footer()}
         <ShButton variant="outline" onclick={() => addPersonaDialogOpen = false}>
-            Close
+            닫기
         </ShButton>
     {/snippet}
 </ShDialog>
@@ -1622,7 +1622,7 @@
     }
     .persona-image-grid {
         display: grid;
-        grid-template-columns: repeat(auto-fill, minmax(4.4rem, 1fr));
+        grid-template-columns: repeat(auto-fill, 5rem);
         gap: 0.55rem;
     }
     .persona-gallery-card {

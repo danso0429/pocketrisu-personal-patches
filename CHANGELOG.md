@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.2.4-experimental.58 (persona gallery card size)
+
+- Keep persona gallery cards at a fixed 5rem size. With the full-width gallery, flexible columns made the cards grow and shrink as the UI width changed.
+- Translate the add-persona dialog title and its close button into Korean.
+- Persona organizer 0.11.3. Stable remains v0.2.3.
+
 ## 0.2.4-experimental.57 (persona editor layout)
 
 - Stack the persona editor at every width: the image gallery sits at the top of the persona box and the name, note and description fields follow it at the full box width. The previous two-column layout only collapsed on a narrow viewport, so a narrowed PocketRisu UI on a wide screen squeezed the description field into a thin column; the fields now follow the container width.
