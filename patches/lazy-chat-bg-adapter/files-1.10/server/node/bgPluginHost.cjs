@@ -303,10 +303,10 @@ async function createBgPluginHost({ database, bindings, getDatabase, getSelectio
         const session = entry.session;
         const remaining = Math.floor(deadline - performance.now());
         if (!session || entry.failed || session.failure || signal.aborted || remaining <= 0) return;
-        let timer;
-        try {
-            const result = await Promise.race([session.pullAbsentApis(),
-                new Promise(resolve => { timer = setTimeout(resolve, remaining, null); })]);
+        // The worker drains its record when it answers, so the result is merged
+        // whenever it arrives; only the wait is bounded. A diagnostic read must
+        // not change the plugin outcome, so failures are ignored.
+        const merge = result => {
             if (!result || typeof result !== 'object' || !Array.isArray(result.names)
                 || typeof result.overflow !== 'boolean') return;
             const absent = entry.absentApis ??= new Map();
@@ -314,7 +314,10 @@ async function createBgPluginHost({ database, bindings, getDatabase, getSelectio
                 if (absent.size >= ABSENT_API_LIMIT) break;
                 if (absentApiName(name) && !absent.has(name)) absent.set(name, phase);
             }
-        } catch { /* A diagnostic read must not change the plugin outcome. */ }
+        };
+        const pull = Promise.resolve().then(() => session.pullAbsentApis()).then(merge, () => {});
+        let timer;
+        try { await Promise.race([pull, new Promise(resolve => { timer = setTimeout(resolve, remaining); })]); }
         finally { clearTimeout(timer); }
     };
     const disable = (entry, code, api, phaseOverride) => {

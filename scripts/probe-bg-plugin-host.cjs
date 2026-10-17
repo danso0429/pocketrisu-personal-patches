@@ -1318,6 +1318,27 @@ test('parallel pending-byte refusals await one stored notice and release their o
     assert.equal(notices[0].effectsMayHaveOccurred,true);assert.equal(notices[0].phase,'before_request');
 });
 
+test('an absent-API pull answered after the host wait still records its names', async t => {
+    // The worker drains its record when it answers; a response that arrives after
+    // the host stopped waiting must still be merged while the run is alive.
+    const diagnostics = [];
+    let held = 0;
+    const h = await fixture(t, [plugin('late-absent', `await Risuai.addRisuReplacer('beforeRequest',async xs=>{
+        void Risuai.lateAbsentApi;return xs;});`)], true, { publishDiagnostic: value => diagnostics.push(value),
+        wireMutation: (frame, deliver) => {
+            if (held || frame.kind !== 'return' || !JSON.stringify(frame).includes('lateAbsentApi')) return frame;
+            held++; setTimeout(() => deliver(frame), 1500); return undefined;
+        } });
+    const input = [{ role: 'user', content: 'kept' }];
+    assert.deepEqual(await [...h.registry.replacerbeforeRequest][0](input), input);
+    await new Promise(resolve => setTimeout(resolve, 800));
+    await h.host.close();
+    assert.equal(held, 1, 'the pull response was not delayed past the host wait');
+    assert.deepEqual(diagnostics[0]?.absentApis, [{ api: 'lateAbsentApi', phase: 'before_request' }]);
+    assert.equal(h.root.plugins[0].enabled, true);
+    assert.deepEqual(h.notices(), []);
+});
+
 test('a .catch()-only call of an absent API throws before .catch attaches and follows the hook failure path', async t => {
     // Before G2.2a the absent name was an RPC function, so .catch() received the
     // rejection. It now reads as undefined; calling it throws a synchronous
