@@ -415,6 +415,24 @@ skipped (652 before plus 11 new); patcher `npm test` 341/0/3. Delivered
 444 old assets retained). Backup: `backups/20261017-pre-exp61`. The cause is to
 be read from that log line the next time the warning appears.
 
+### 6.5 Follow-up on the open items
+
+The user asked to close the remaining items. Results:
+
+| Item | Result |
+|---|---|
+| Slash `getvar` initializes `scriptstate` on read | Fixed in `4ba4c68` (lazy-chat-bg-adapter 0.7.62, `.62`) after a written plan (`docs/POCKETRISU-SLASH-GETVAR-READ-ONLY-PLAN.md`) and an adversarial review. Runs only for `/` input and trigger `command`/`v2Command` effects. Tests fail on the old code for the mutation (2 of 4) and pass after; frontend suite 2,538 pass (baseline 2,534 plus 4 new), `svelte-check` 0 errors, patcher 341/0/3. Whether it caused the observed warning is still unknown |
+| Normalizers adding empty `note`/`localLore` | Not a defect for this warning: a new chat already has both fields, and the assembly snapshot is cloned before normalization (ordering partly inferred). No change |
+| Real conflict/rebase of C in a browser | Verified. The tab guard is a server-side session lock; a second browser context wrote without a session header (request header removed by the harness only). The first page's next patch got 409 (`expected=1645706d, server=7f02515`), logged "rebasing", re-read and patched 200; a fresh load showed both changes; no statistics error |
+| K5: server use of the bundled patcher | Not used during a BG generation. A synthetic-provider BG run completed with temporary entry logs in the isolated bundle's `RisuSavePatcher.init`/`set` and `saveDb`: 0 lines. Statically, the orchestrator uses only the bundle's database get/set; nothing calls `saveDb`. Limit: no positive control for `console.warn` from the bundle |
+| K7: first-run hash difference | Both builds write an empty database (14 bytes) at first run. Pristine drops its cache after the write and re-reads `{}` (hash `11`), so its first patch gets 409 and a full write. The patched server canonicalizes the written database, adding `characters: []`, and caches it (hash `7a5af0c2`, equal to the client baseline), so its first patch succeeds |
+
+New observation, not investigated: on a fresh isolated install of the patched
+build, a chat created with "Create from Scratch" failed to save its content
+(`GET /api/chat-content/…` 404, client `ChatConflictError: Chat was removed on
+the server`, retried about every 1.5 s); pristine saved it. Whether this
+affects existing saves is unknown.
+
 ## 7. Incidents
 
 - A diagnostic copy was made without excluding the application's `backups/`
@@ -442,7 +460,9 @@ be read from that log line the next time the warning appears.
   at its next occurrence (section 6.4).
 - A post-delivery BG plugin run on the diagnostics screen (absent-API record
   of `.56`).
-- The real conflict/rebase path of C in a browser; K5 runtime use of the
-  bundled patcher on the server; K7 hash difference; 1.14.0 first-save flow.
+- Delivery of `4ba4c68` to the live installation.
+- New-chat content save failure seen on a fresh isolated install (section
+  6.5).
+- 1.14.0 first-save flow (at upgrade time).
 - The rebase merge's strict statistics check (`count()`) was left unchanged as
   an intended invariant.
