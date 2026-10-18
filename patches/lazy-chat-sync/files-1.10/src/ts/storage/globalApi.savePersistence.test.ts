@@ -48,8 +48,11 @@ const { notifyPublicationSaveBlocked, clearPublicationSaveBlockedNotice } = awai
 
 type ChatIdentity = { chaId: string, chatId: string }
 type HarnessOptions = {
+    baseline?: any
     baselineChats?: any[]
     baselinePayloads?: any[]
+    currentCharacters?: any[]
+    generatedChatIds?: string[]
     currentChats?: any[]
     failPayloadIds?: string[]
     publicationBlockedIds?: string[]
@@ -173,7 +176,7 @@ function fullChat(id: string, data = '') {
 }
 
 async function createHarness(options: HarnessOptions = {}) {
-    const baseline: any = {
+    const defaultBaseline: any = {
         characters: [{ chaId: 'character', chats: structuredClone(options.baselineChats ?? []) }],
         botPresets: [],
         modules: [],
@@ -181,10 +184,16 @@ async function createHarness(options: HarnessOptions = {}) {
         pluginCustomStorage: {},
         language: 'en',
     }
+    const baseline: any = structuredClone(options.baseline ?? defaultBaseline)
     const current = structuredClone(baseline)
-    current.characters[0].chats = structuredClone(
-        options.currentChats ?? [fullChat('chat-a')],
-    )
+    if (options.currentCharacters) {
+        current.characters = structuredClone(options.currentCharacters)
+    }
+    else {
+        current.characters[0].chats = structuredClone(
+            options.currentChats ?? [fullChat('chat-a')],
+        )
+    }
     let serverDb: any = structuredClone(baseline)
     let forcedPatchIndex = 0
     const payloads = new Map<string, any>()
@@ -197,6 +206,7 @@ async function createHarness(options: HarnessOptions = {}) {
     const sleeps: number[] = []
     const failPayloadIds = new Set(options.failPayloadIds ?? [])
     let payloadGateUsed = false
+    const generatedChatIds = [...(options.generatedChatIds ?? [])]
 
     for (const existing of [...(options.baselineChats ?? []), ...(options.baselinePayloads ?? [])]) {
         if (existing && Array.isArray(existing.message)) {
@@ -279,9 +289,14 @@ async function createHarness(options: HarnessOptions = {}) {
         channel: null,
         sessionID: 'test-session',
         getDatabase: () => current,
-        knownChatIdsByCharacter: new Map([
-            ['character', new Set((options.baselineChats ?? []).map(chat => chat?.id).filter(Boolean))],
-        ]),
+        knownChatIdsByCharacter: new Map(
+            (Array.isArray(baseline.characters) ? baseline.characters : []).map((character: any) => [
+                character.chaId,
+                new Set(Array.isArray(character.chats)
+                    ? character.chats.map((chat: any) => chat?.id).filter(Boolean)
+                    : []),
+            ]),
+        ),
         missingPayloadRecoveryKey: null,
         lastConfirmedServerDb: baseline,
         changeTracker,
@@ -289,7 +304,11 @@ async function createHarness(options: HarnessOptions = {}) {
         patcher,
         supportsPatchSync: true,
         assignMissingChatIdsToNewCharacters,
-        v4: () => { throw new Error('Unexpected chat ID repair') },
+        v4: () => {
+            const generated = generatedChatIds.shift()
+            if (!generated) throw new Error('Unexpected chat ID repair')
+            return generated
+        },
         collectUnconfirmedChatPayloads,
         classifyChatSaveIntent,
         findRecoverableChatPayload,
@@ -441,6 +460,72 @@ describe('composed chat save persistence', () => {
         await expect(harness.runtime.durableSave({ chat: ['character', 'chat-a'], root: true })).rejects.toBeInstanceOf(PublicationSaveBlockedError)
         expect(harness.flushes).toHaveLength(1)
     })
+
+    test('fresh baseline saves a new character lifecycle without publishing metadata early', async () => {
+        const freshBaseline = {
+            characters: [],
+            botPresets: [],
+            modules: [],
+            plugins: [],
+            pluginCustomStorage: {},
+            language: 'en',
+        }
+        const harness = await createHarness({
+            baseline: freshBaseline,
+            currentCharacters: [{
+                chaId: 'character-new',
+                name: 'New character',
+                chats: [{ name: 'Chat 1', message: [{ role: 'user', data: 'first' }] }],
+            }],
+            generatedChatIds: ['chat-1'],
+            forcedPatchRejections: [{ chaId: 'character-new', chatId: 'chat-1' }],
+        })
+
+        // The live database must not alias or mutate the confirmed fresh baseline.
+        expect(harness.current.characters).toHaveLength(1)
+        expect(harness.runtime.state().confirmed).toEqual(freshBaseline)
+
+        await expect(harness.runtime.persistTrackedChanges(emptyChanges()))
+            .resolves.toBe('retry')
+        expect(harness.current.characters[0].chats[0].id).toBe('chat-1')
+        expect(harness.events).toEqual([
+            'payload:chat-1:create',
+            'metadata:patch',
+        ])
+        expect(harness.runtime.state().confirmed).toEqual(freshBaseline)
+
+        await expect(harness.runtime.persistTrackedChanges(harness.runtime.takeTrackedChanges()))
+            .resolves.toBe('saved')
+        expect(harness.events.slice(2)).toEqual([
+            'payload:chat-1:create',
+            'metadata:patch',
+        ])
+        expect(harness.runtime.state().confirmed.characters[0].chats[0]).toMatchObject({
+            id: 'chat-1',
+            _stub: true,
+        })
+        expect(harness.runtime.state().confirmed.characters[0].chats[0])
+            .not.toHaveProperty('message')
+
+        harness.current.characters[0].chats.push(fullChat('chat-2', 'second'))
+        await expect(harness.runtime.persistTrackedChanges(emptyChanges()))
+            .resolves.toBe('saved')
+        expect(harness.events.slice(4)).toEqual([
+            'payload:chat-2:create',
+            'metadata:patch',
+        ])
+
+        harness.current.characters[0].chats[0].message[0].data = 'edited first'
+        harness.runtime.queueChat('character-new', 'chat-1')
+        await expect(harness.runtime.persistTrackedChanges(harness.runtime.takeTrackedChanges()))
+            .resolves.toBe('saved')
+        expect(harness.events.slice(6)).toEqual([
+            'payload:chat-1:update',
+            'metadata:patch',
+        ])
+        expect(harness.payloads.get('chat-1').message[0].data).toBe('edited first')
+    })
+
     test('S01 saves an untracked empty payload before publishing metadata', async () => {
         const harness = await createHarness()
 
@@ -493,6 +578,11 @@ describe('composed chat save persistence', () => {
         await expect(harness.runtime.persistTrackedChanges(harness.runtime.takeTrackedChanges()))
             .resolves.toBe('saved')
         expect(harness.runtime.state().recoveryKey).toBeNull()
+        expect(harness.events.filter(event => event.startsWith('payload:'))).toEqual([
+            'payload:chat-a:create',
+            'payload:chat-b:create',
+            'payload:chat-a:create',
+        ])
         expect(harness.serverDb().characters[0].chats.map((chat: any) => chat.id))
             .toEqual(['chat-a', 'chat-b'])
     })

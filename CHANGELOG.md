@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.2.4-experimental.63 (fresh save first chat)
+
+- On a brand-new install, the first chat of a new character now saves. Startup wrote an empty database without `characters`, so the confirmed baseline could not show that the character was new; each save of its chat was classified as an update, the server's 404 was reported as `Chat was removed on the server`, and the autosave repeated the failure. A fresh startup now writes `{ characters: [] }`, the shape the server already stores for a new database.
+- A missing or malformed confirmed baseline still fails closed to an update, so a chat deleted on the server is still reported instead of recreated. Existing databases are adopted unchanged.
+- Lazy chat sync 0.5.10. Stable remains v0.2.3.
+
 ## 0.2.4-experimental.62 (slash getvar read-only)
 
 - Reading a chat variable with the `/getvar` slash command no longer creates or replaces the chat's `scriptstate`. The read previously added an empty `scriptstate` to a chat that had none (or replaced a `null` one), which a background generation could report as a changed conversation. Returned values and the error for a missing variable are unchanged; `/setvar` and `/addvar` still create `scriptstate`.

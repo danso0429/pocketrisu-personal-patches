@@ -54,7 +54,10 @@ export async function loadData() {
                 let databaseLoaded = false
                 if (checkNullish(gotStorage) && checkNullish(decodedFromCache)) {
                     createdFreshDatabase = true
-                    gotStorage = encodeRisuSaveLegacy({})
+                    // The server canonicalizes a new database to { characters: [] }
+                    // (chatDelta.cjs canonicalizeStrippedDatabase); write that shape so the
+                    // confirmed baseline matches the stored database exactly.
+                    gotStorage = encodeRisuSaveLegacy({ characters: [] })
                     await forageStorage.setItem('database/database.bin', gotStorage)
                 }
                 try {

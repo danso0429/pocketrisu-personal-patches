@@ -54,6 +54,7 @@ const ownedFiles = [
 const owned1100Files = [
     'server/node/serverChatCommit.cjs',
     'server/node/serverChatCommit.test.ts',
+    'src/ts/bootstrap.freshDatabase.test.ts',
     'src/ts/storage/globalApi.savePersistence.test.ts',
 ]
 
@@ -64,7 +65,7 @@ function unitId(relative) {
 module.exports = {
     id: 'lazy-chat-sync',
     title: 'Lazy chat synchronization and startup cache',
-    version: '0.5.9',
+    version: '0.5.10',
     targets: {
         pocketrisu: {
             verified: ['1.10.0'],
