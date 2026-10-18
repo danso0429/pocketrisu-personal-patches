@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.2.4-experimental.65 (restart-interrupted server-owned operations)
+
+- A server-owned background generation interrupted by a server restart (`start-retry-required`, `interrupted-before-result`, `interrupted-after-main` or `delivery-failed`) now ends with the same handling as before server-owned commits: one notice, or the existing client fallback when the start never ran. It was parked as an unconfirmed chat save, showed a misleading warning and was re-polled on every wake for up to 49 hours.
+- The retention log's default reason is now `no-commit-evidence` instead of `commit-receipt-invalid`; no receipt is checked on that path. Committed results, `input-*` states and commit-conflict notices are unchanged.
+- BG adapter 0.7.64. Stable remains v0.2.3.
+
 ## 0.2.4-experimental.64 (cancel a stranded server input)
 
 - A server input left without a live owner, because the server restarted or its preparation failed before it reached the chat, now shows a cancel action in the pending-input card. Previously the card had no action and every new generation in that chat (new server inputs, legacy background starts and server model jobs) stayed blocked until the input was removed by hand. The cancel uses the existing `DELETE /api/bg-orchestrate/:id` route; inputs that can still run keep their current controls.

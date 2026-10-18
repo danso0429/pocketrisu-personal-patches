@@ -554,6 +554,52 @@ describe('G1.12a terminal decisions', () => {
         const source = readFileSync('src/lib/ChatScreens/DefaultChatScreen.svelte', 'utf8')
         expect(source.includes('onCancelPending={cancelPendingServerInputRow}')).toBe(true)
     })
+    it.each([
+        ['boot', 'start-retry-required', false], ['boot', 'start-retry-required', true],
+        ['boot', 'interrupted-before-result', false], ['boot', 'interrupted-before-result', true],
+        ['boot', 'interrupted-after-main', false], ['boot', 'interrupted-after-main', true],
+        ['boot', 'delivery-failed', false], ['boot', 'delivery-failed', true],
+        ['watch', 'start-retry-required', false], ['watch', 'start-retry-required', true],
+        ['watch', 'interrupted-before-result', false], ['watch', 'interrupted-before-result', true],
+        ['watch', 'interrupted-after-main', false], ['watch', 'interrupted-after-main', true],
+        ['watch', 'delivery-failed', false], ['watch', 'delivery-failed', true],
+    ] as const)(
+        'treats %s %s server-owned=%s exactly like the legacy terminal shape',
+        async (mode, operationState, serverOwned) => {
+            serve((operationId, method, url) => {
+                if (isResultPeek(method, url)) return { status: 200, body: {
+                    found: false, operationId, stage: 0, operationState,
+                    ...(serverOwned ? { serverChatCommitVersion: 1 } : {}),
+                } }
+                if (url.startsWith('/api/bg-orchestrate-status/')) return { status: 200, body: {
+                    accepted: true, operationId, state: operationState, resultKeyVersion: 1,
+                } }
+            }, { serverChatCommit: serverOwned })
+            const resultKeyVersion = mode === 'boot' && operationState === 'delivery-failed' ? 0 : 1
+            if (mode === 'boot') await bootWithMarker(resultKeyVersion)
+            else { await startForeground(); await vi.advanceTimersByTimeAsync(2_500) }
+            if (resultKeyVersion === 0) await vi.advanceTimersByTimeAsync(1)
+
+            expect(markers()).toEqual([])
+            expect(markers().some(marker => marker.recoveryOutcome === 'unverified-parked')).toBe(false)
+            expect(h.infos).toEqual([])
+            expect(h.warnings).toEqual([])
+            if (mode === 'watch' && operationState === 'start-retry-required') {
+                expect(h.sendChat).toHaveBeenCalledTimes(1)
+                expect(h.alerts).toEqual([])
+            } else {
+                expect(h.sendChat).not.toHaveBeenCalled()
+                expect(h.alerts).toHaveLength(1)
+            }
+            const peeks = count(isResultPeek)
+            document.dispatchEvent(new Event('visibilitychange'))
+            window.dispatchEvent(new Event('online'))
+            window.dispatchEvent(new Event('bg-recovery-evidence'))
+            await vi.advanceTimersByTimeAsync(5_000)
+            expect(count(isResultPeek)).toBe(peeks)
+            expect(h.alerts).toHaveLength(mode === 'watch' && operationState === 'start-retry-required' ? 0 : 1)
+        },
+    )
 
     it.each([
         [{ status: 200, body: { operationId: 'pending-cancel', cancelled: true } }, 'cancelled'],

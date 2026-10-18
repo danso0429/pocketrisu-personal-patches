@@ -25,7 +25,7 @@ const queueUnits = require('./queue-units.cjs')
 module.exports = {
     id: 'lazy-chat-bg-adapter',
     title: 'BG preserve integration for lazy chat storage',
-    version: '0.7.63',
+    version: '0.7.64',
     targets: {
         pocketrisu: {
             verified: ['1.10.0'],
@@ -1489,6 +1489,15 @@ function serverOwnedChatStillActive(data: any): boolean {
     ].includes(data?.operationState)
 }
 
+// Restart-interrupted operations that never produced a commit. They are terminal
+// for the operation, so the legacy terminal handling applies instead of parking.
+const ORPHANED_OPERATION_STATES = [
+    'start-retry-required',
+    'interrupted-before-result',
+    'interrupted-after-main',
+    'delivery-failed',
+]
+
 function retainUncommittedServerChat(
     operationId: string | null,
     data: any,
@@ -1506,7 +1515,7 @@ function retainUncommittedServerChat(
     console.error('[bg-orch] server-owned chat commit is unresolved; retaining result', {
         operationId,
         state: data?.serverChatCommit?.status || data?.operationState || 'uncommitted',
-        reason: data?.serverChatCommit?.reason || 'commit-receipt-invalid',
+        reason: data?.serverChatCommit?.reason || 'no-commit-evidence',
     })
     if (mode === 'boot') deferBootRecovery(operationId)
     else stopWatch({ preservePendingMarker: true })
@@ -1573,7 +1582,8 @@ function notifyFinishedServerFailure(operationId: string, data: any): void {
             }
             const serverChatDisposition = serverChatDeliveryDisposition(data)
             if (serverChatDisposition === 'server-owned-uncommitted'
-                && !serverOwnedChatStillActive(data)) {
+                && !serverOwnedChatStillActive(data)
+                && !ORPHANED_OPERATION_STATES.includes(data?.operationState)) {
                 retainUncommittedServerChat(operationId, data, 'watch')
                 return
             }
@@ -1687,7 +1697,8 @@ function notifyFinishedServerFailure(operationId: string, data: any): void {
                 }
                 const serverChatDisposition = serverChatDeliveryDisposition(data)
                 if (serverChatDisposition === 'server-owned-uncommitted'
-                    && !serverOwnedChatStillActive(data)) {
+                    && !serverOwnedChatStillActive(data)
+                    && !ORPHANED_OPERATION_STATES.includes(data?.operationState)) {
                     retainUncommittedServerChat(operationId, data, 'boot')
                     return
                 }
