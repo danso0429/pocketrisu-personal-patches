@@ -10,7 +10,7 @@ const pocketRisu1100 = { pocketrisu: ['1.10.0'] }
 module.exports = {
     id: 'server-backup-snapshot-core',
     title: 'Point-in-time server backup source core',
-    version: '0.1.1',
+    version: '0.1.2',
     userSelectable: false,
     targets: {
         pocketrisu: {
@@ -29,6 +29,7 @@ module.exports = {
             'server/node/backupSource.cjs',
             'server/node/backupSource.test.ts',
             'test/compat/backup-point-in-time.test.ts',
+            'test/compat/storage-reset-b1a.test.ts',
         ].map((relative) => ({
             id: `server-backup-snapshot-core:owned:${relative.replaceAll('/', ':').replaceAll('.', '-')}:1.9`,
             file: relative,

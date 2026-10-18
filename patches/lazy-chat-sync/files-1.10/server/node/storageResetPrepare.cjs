@@ -335,8 +335,14 @@ async function decodeOrReject(decodeRisuSave, bytes, options) {
  * `readEntry(kvKey)` is the only data access; it serves staged rows such as
  * `remotes/<id>.local.bin` and `coldstorage/<id>`.
  */
+// input.unresolvedRemote: 'error' (default) rejects a REMOTE block readEntry
+// cannot supply; 'drop' keeps the decoder's behaviour of dropping it with a
+// warning, for restores whose live path never had those rows to resolve.
 async function prepareRestoredDatabase(input, dependencies) {
-    const { rawDatabase, readEntry } = input
+    const { rawDatabase, readEntry, unresolvedRemote = 'error' } = input
+    if (unresolvedRemote !== 'error' && unresolvedRemote !== 'drop') {
+        throw new TypeError(`Unsupported unresolvedRemote option: ${unresolvedRemote}`)
+    }
     const { decodeRisuSave, normalizeJSON, encodeRisuSaveLegacy, randomUUID, computeBufferEtag } = dependencies
 
     // Restores clear the REMOTE migration marker, so REMOTE blocks are always
@@ -348,7 +354,7 @@ async function prepareRestoredDatabase(input, dependencies) {
         if (error instanceof StoragePrepareError) throw error
         throw new StoragePrepareError('DATABASE_UNDECODABLE', 'Database bytes could not be decoded', { cause: error })
     }
-    if (remote.unresolved.length > 0) {
+    if (remote.unresolved.length > 0 && unresolvedRemote === 'error') {
         throw new StoragePrepareError(
             'REMOTE_UNRESOLVED',
             `REMOTE block(s) could not be resolved: ${remote.unresolved.join(', ')}`,
@@ -392,6 +398,8 @@ async function prepareRestoredDatabase(input, dependencies) {
     return {
         databaseBytes,
         changed,
+        // REMOTE blocks were present and the database was re-encoded inline.
+        remoteBlocksInlined: remote.requested.length > 0,
         database,
         chatMap,
         strippedDatabase,

@@ -48,6 +48,8 @@ const {
     createChatWriteJournal,
 } = require('./chatWriteJournal.cjs');
 const storageResetPrepare = require('./storageResetPrepare.cjs');
+const storageResetTestHooks = require('./storageResetTestHooks.cjs');
+const { AsyncLocalStorage } = require('async_hooks');
 const { spawn, execSync } = require('child_process');
 const os = require('os');
 const { Readable, Transform } = require('stream');
@@ -134,9 +136,89 @@ function setRevisionHeaders(res, revision, legacyHeader) {
     if (legacyHeader) res.setHeader(legacyHeader, revision);
 }
 
+// ─── Storage reset barrier state ────────────────────────────────────────────
+// A storage reset (backup import, server restore) sets storageResetActive for
+// its whole duration and bumps storageResetGeneration when it starts. Writer
+// requests take the generation at admission; queued work whose admission
+// predates a reset is refused instead of running against the restored data.
+// storageRecoveryRequired is set only when a failed reset could not restore
+// the previous inlay directory; it clears on process restart.
+let storageResetActive = false;
+let storageResetGeneration = 0;
+let storageResetAttempt = 0;
+let storageRecoveryRequired = null;
+const storageAdmissionContext = new AsyncLocalStorage();
+
+class StorageResetRefusal extends Error {
+    constructor(payload) {
+        super(payload.error);
+        this.name = 'StorageResetRefusal';
+        this.code = payload.code;
+        this.statusCode = 503;
+        this.payload = payload;
+    }
+}
+
+function storageResetInProgressPayload() {
+    return {
+        error: 'Storage reset in progress',
+        code: 'STORAGE_RESET_IN_PROGRESS',
+        retryable: true,
+    };
+}
+
+function storageRecoveryRequiredPayload() {
+    return {
+        error: 'Storage recovery required: a failed restore could not put the previous inlay directory back. '
+            + `Restore it manually from ${storageRecoveryRequired?.recoveryPath} and restart the server.`,
+        code: 'STORAGE_RECOVERY_REQUIRED',
+        retryable: false,
+        recoveryPath: storageRecoveryRequired?.recoveryPath,
+    };
+}
+
+function storageResetErrorPayload(error) {
+    return error instanceof StorageResetRefusal ? error.payload : null;
+}
+
+// Admission recorded by the reset refusal middleware for writer routes.
+// Strict admissions (streaming responses) stay checked after headers are sent.
+function staleStorageAdmissionPayload(admission) {
+    if (storageRecoveryRequired) return storageRecoveryRequiredPayload();
+    if (storageResetActive || admission.generation !== storageResetGeneration) {
+        return storageResetInProgressPayload();
+    }
+    return null;
+}
+
+// Throws (and records on the admission) when the request was admitted before
+// a reset started; the recorded refusal then replaces the route's answer.
+function assertStorageAdmission(admission) {
+    if (!admission.strict && admission.res.headersSent) return;
+    const payload = staleStorageAdmissionPayload(admission);
+    if (!payload) return;
+    admission.refusal = payload;
+    throw new StorageResetRefusal(payload);
+}
+
 let storageOperationQueue = Promise.resolve();
 function queueStorageOperation(operation) {
-    const operationRun = storageOperationQueue.then(operation, operation);
+    const admission = storageAdmissionContext.getStore();
+    if (admission) {
+        // Refuse a stale admission before it waits behind a reset in the queue.
+        try {
+            assertStorageAdmission(admission);
+        } catch (error) {
+            return Promise.reject(error);
+        }
+    }
+    const run = admission
+        ? () => {
+            assertStorageAdmission(admission);
+            return operation();
+        }
+        : operation;
+    const operationRun = storageOperationQueue.then(run, run);
     storageOperationQueue = operationRun.catch(() => {});
     return operationRun;
 }
@@ -951,6 +1033,110 @@ app.use('/assets', express.static(path.join(process.cwd(), 'dist/assets'), {
     immutable: true,
 }));
 app.use(express.static(path.join(process.cwd(), 'dist'), {index: false, maxAge: 0}));
+// ─── Storage reset refusal (before body parsers) ────────────────────────────
+// Writers get a fast retryable 503 while a storage reset runs, without waiting
+// for their bodies; other resets get the existing 409. Every route admitted
+// here records the reset generation so its queued work can be refused if a
+// reset started in between. Express route matching: case-insensitive, optional
+// trailing slash, HEAD for GET routes.
+const STORAGE_RESET_WRITER_ROUTES = [
+    ['post', '/api/chat-content/:chaId/:chatIndex/patch', 'chat-content-delta'],
+    ['post', '/api/chat-content/:chaId/:chatIndex', 'chat-content'],
+    ['post', '/api/patch', 'patch'],
+    ['post', '/api/write', 'write'],
+    ['get', '/api/remove', 'remove'],
+    ['post', '/api/assets/bulk-write', 'assets-bulk-write'],
+    ['post', '/api/bg-stream-draft', 'bg-stream-draft'],
+    ['post', '/api/bg-stream-draft/delete', 'bg-stream-draft-delete'],
+    ['post', '/api/bg-orchestrate', 'bg-orchestrate'],
+    ['post', '/api/bg-orchestrate-input/:action(claim|attach|abandon)', 'bg-orchestrate-input'],
+    ['delete', '/api/bg-orchestrate/:operationId', 'bg-orchestrate-delete'],
+    ['delete', '/api/bg-orchestrate-result/:operationId/:resultId', 'bg-orchestrate-result-delete'],
+    ['delete', '/api/bg-orchestrate-result/:charId/:chatId/:resultId', 'bg-orchestrate-result-delete'],
+    ['post', '/api/bg-sub-result/:jobId/ack', 'bg-sub-result-ack'],
+    ['post', '/api/bg-notifications/claim', 'bg-notifications-claim'],
+    ['post', '/api/bg-notifications/ack', 'bg-notifications-ack'],
+    ['post', '/api/db/flush', 'db-flush'],
+    ['post', '/api/db/assets/purge-orphans', 'db-purge-orphans'],
+    ['post', '/api/db/optimize', 'db-optimize'],
+    ['post', '/api/db/wal-checkpoint', 'db-wal-checkpoint'],
+    ['delete', '/api/db/snapshots', 'db-snapshot-delete'],
+    ['delete', '/api/backup/server/:filename', 'backup-delete'],
+    ['post', '/api/inlays/compress', 'inlays-compress', { strict: true }],
+];
+const STORAGE_RESET_COMPETING_ROUTES = [
+    ['post', '/api/backup/import/prepare'],
+    ['post', '/api/backup/import'],
+    ['post', '/api/backup/server/restore'],
+    ['post', '/api/migrate/save-folder/execute'],
+    ['post', '/api/migrate/save-folder/upload'],
+    ['post', '/api/db/snapshots/restore'],
+];
+
+function sendStorageResetRefusal(res, payload = storageResetInProgressPayload()) {
+    res.status(503).json(payload);
+}
+
+function sendCompetingStorageReset(res) {
+    if (storageRecoveryRequired) return sendStorageResetRefusal(res, storageRecoveryRequiredPayload());
+    res.status(409).json({ error: 'Another import is already in progress' });
+}
+
+function isDatabaseRemoveRequest(req) {
+    const filePath = req.headers['file-path'];
+    return typeof filePath === 'string'
+        && /^[0-9a-f]+$/i.test(filePath)
+        && Buffer.from(filePath, 'hex').toString('utf-8') === 'database/database.bin';
+}
+
+// Once a queued storage operation of this request was refused, whatever the
+// route answers afterwards (its own error mapping included) is replaced by
+// the refusal's 503 payload. Responses already started are left alone.
+function answerStorageRefusalsFor(admission) {
+    const { res } = admission;
+    const json = res.json.bind(res);
+    const send = res.send.bind(res);
+    const end = res.end.bind(res);
+    let replacing = false;
+    const replace = () => {
+        replacing = true;
+        res.status(503);
+        return json(admission.refusal);
+    };
+    const shouldReplace = () => admission.refusal && !replacing && !res.headersSent;
+    res.json = (body) => (shouldReplace() ? replace() : json(body));
+    res.send = (body) => (shouldReplace() ? replace() : send(body));
+    res.end = (...args) => (shouldReplace() ? replace() : end(...args));
+}
+
+const storageResetRefusalRouter = express.Router();
+for (const [method, route, kind, options = {}] of STORAGE_RESET_WRITER_ROUTES) {
+    storageResetRefusalRouter[method](route, async (req, res, next) => {
+        try {
+            if (kind === 'remove' && isDatabaseRemoveRequest(req)) {
+                if (storageRecoveryRequired || storageResetActive) return sendCompetingStorageReset(res);
+            }
+            if (storageRecoveryRequired) return sendStorageResetRefusal(res, storageRecoveryRequiredPayload());
+            if (storageResetActive) return sendStorageResetRefusal(res);
+            const generation = storageResetGeneration;
+            await storageResetTestHooks.waitAtAdmissionGate(kind);
+            if (storageRecoveryRequired) return sendStorageResetRefusal(res, storageRecoveryRequiredPayload());
+            if (storageResetActive || generation !== storageResetGeneration) return sendStorageResetRefusal(res);
+            req.storageResetAdmission = { generation, res, strict: options.strict === true, refusal: null };
+            answerStorageRefusalsFor(req.storageResetAdmission);
+            next();
+        } catch (error) {
+            next(error);
+        }
+    });
+}
+for (const [method, route] of STORAGE_RESET_COMPETING_ROUTES) {
+    storageResetRefusalRouter[method](route, (req, res, next) => {
+        if (storageRecoveryRequired || storageResetActive) return sendCompetingStorageReset(res);
+        next();
+    });
+}
+app.use(storageResetRefusalRouter);
 const defaultJsonParser = express.json({ limit: '100mb' });
 const chatDeltaJsonParser = express.json({ limit: CHAT_DELTA_MAX_BYTES });
 app.use((req, res, next) => {
@@ -964,6 +1150,17 @@ app.use((req, res, next) => {
     return express.raw({ type: 'application/octet-stream', limit: '2gb' })(req, res, next);
 });
 app.use(express.text({ limit: '100mb' }));
+// Body parsers do not keep async context; re-enter the writer admission so
+// queueStorageOperation can check it when the queued work starts.
+app.use((req, res, next) => {
+    const admission = req.storageResetAdmission;
+    if (!admission) return next();
+    // A reset may have started while the body was read; synchronous writer
+    // handlers run right after this point, queued ones are checked again.
+    const stale = staleStorageAdmissionPayload(admission);
+    if (stale) return sendStorageResetRefusal(res, stale);
+    storageAdmissionContext.run(admission, next);
+});
 const {pipeline} = require('stream/promises')
 const sslPath = path.join(process.cwd(), 'server/node/ssl/certificate');
 const hubURL = 'https://sv.risuai.xyz';
@@ -1380,7 +1577,26 @@ function writeInlaySidecarSync(id, info) {
     writeFileSync(getInlaySidecarPath(id), JSON.stringify(sidecar));
 }
 
-async function writeInlayFile(id, ext, buffer, info = null) {
+// In-flight inlay filesystem mutations. A storage reset waits for them before
+// its first destructive step (its refusal middleware stops new ones).
+const inflightInlayMutations = new Set();
+function trackInlayMutation(mutation) {
+    inflightInlayMutations.add(mutation);
+    mutation.then(
+        () => inflightInlayMutations.delete(mutation),
+        () => inflightInlayMutations.delete(mutation),
+    );
+    return mutation;
+}
+async function waitForInlayMutations() {
+    while (inflightInlayMutations.size > 0) {
+        await Promise.allSettled([...inflightInlayMutations]);
+    }
+}
+function writeInlayFile(id, ext, buffer, info = null) {
+    return trackInlayMutation(writeInlayFileUntracked(id, ext, buffer, info));
+}
+async function writeInlayFileUntracked(id, ext, buffer, info) {
     await ensureInlayDir();
     await deleteInlayRawFile(id);
     const normalizedExt = normalizeInlayExt(ext);
@@ -1418,7 +1634,10 @@ function deleteInlayRawFileSync(id) {
     }
 }
 
-async function deleteInlayFile(id) {
+function deleteInlayFile(id) {
+    return trackInlayMutation(deleteInlayFileUntracked(id));
+}
+async function deleteInlayFileUntracked(id) {
     await deleteInlayRawFile(id);
     await fs.unlink(getInlaySidecarPath(id)).catch(() => {});
 }
@@ -2318,31 +2537,226 @@ function parseBackupChunk(buffer, onEntry) {
     return buffer.subarray(offset);
 }
 
-// ─── Shared backup import logic ─────────────────────────────────────────────
-// Accepts any async iterable of Buffer chunks (HTTP request body, file stream, etc.)
-async function importBackupFromSource(dataSource, { maxBytes = 0, totalBytes = 0, onProgress = null } = {}) {
-    const BATCH_SIZE = 5000;
-    // Defer Buffer.concat until enough bytes for the next entry are buffered.
-    // Concatenating on every chunk arrival is O(n²) when a single entry (e.g.
-    // database.risudat) far exceeds chunk size.
+// ─── Storage reset runner ───────────────────────────────────────────────────
+// Linearizes a storage reset: the reset flag and a new generation are taken
+// synchronously; preparation (spooling, validation, decoding) runs outside the
+// storage queue; then, inside one storage-queue slot, in-flight inlay
+// mutations finish, pending debounced saves are persisted and disarmed, and
+// apply() runs. apply() owns the transaction and publishes the restored caches
+// before the slot is released. If apply() fails before its COMMIT, the pending
+// saves are re-armed so the still-current caches keep being persisted.
+const { openSync, readSync, closeSync, renameSync } = require('fs');
+
+async function runStorageReset(kind, { prepare, apply }) {
+    if (storageRecoveryRequired) throw new StorageResetRefusal(storageRecoveryRequiredPayload());
+    if (storageResetActive) throw new Error('Another import is already in progress');
+    storageResetActive = true;
+    storageResetGeneration += 1;
+    const reset = {
+        kind,
+        attempt: ++storageResetAttempt,
+        committed: false,
+        entryCount: 0,
+        transactionCount: 0,
+        cleanup: [],
+        temporaryPaths: [],
+        metrics: storageResetTestHooks.startMetrics({
+            walPath: `${sqliteDb.name}-wal`,
+            port: process.env.PORT || 6001,
+        }),
+    };
+    try {
+        const prepared = await prepare(reset);
+        return await queueStorageOperation(async () => {
+            await waitForInlayMutations();
+            const pendingSaves = recordPendingSaves();
+            try {
+                await persistPendingSaves(pendingSaves);
+                disarmPendingSaves(pendingSaves);
+                return await apply(prepared, reset);
+            } catch (error) {
+                if (!reset.committed) rearmPendingSaves(pendingSaves);
+                throw error;
+            }
+        });
+    } finally {
+        for (const cleanup of reset.cleanup.reverse()) {
+            try {
+                await cleanup();
+            } catch (cleanupError) {
+                logger.warn(`[Storage reset] ${kind} cleanup failed:`, cleanupError?.message || cleanupError);
+            }
+        }
+        if (reset.metrics) {
+            await reset.metrics.stop({
+                kind,
+                entryCount: reset.entryCount,
+                transactionCount: reset.transactionCount,
+            }, { walBytes: reset.walBytesAtCommit ?? 0 }).catch(() => {});
+        }
+        storageResetActive = false;
+    }
+}
+
+// Incremental parser over backup bytes: [nameLen u32][name][dataLen u32][data]*.
+// Defers Buffer.concat until enough bytes for the next entry are buffered;
+// concatenating on every chunk is O(n²) when one entry (e.g.
+// database.risudat) far exceeds the chunk size.
+function createBackupEntryReader(onEntry) {
     let pendingChunks = [];
     let pendingTotal = 0;
     let nextEntryThreshold = 8;
+    return {
+        push(chunk) {
+            pendingChunks.push(chunk);
+            pendingTotal += chunk.length;
+            if (pendingTotal < nextEntryThreshold) return;
+
+            const buffer = pendingChunks.length === 1
+                ? pendingChunks[0]
+                : Buffer.concat(pendingChunks, pendingTotal);
+            pendingChunks = [];
+            pendingTotal = 0;
+
+            const remaining = parseBackupChunk(buffer, onEntry);
+            if (remaining.length === 0) {
+                nextEntryThreshold = 8;
+                return;
+            }
+            pendingChunks.push(remaining);
+            pendingTotal = remaining.length;
+            if (remaining.length < 4) {
+                nextEntryThreshold = 8;
+                return;
+            }
+            const nameLen = remaining.readUInt32LE(0);
+            const headerEnd = 4 + nameLen + 4;
+            if (remaining.length < headerEnd) {
+                nextEntryThreshold = headerEnd;
+            } else {
+                nextEntryThreshold = headerEnd + remaining.readUInt32LE(4 + nameLen);
+            }
+        },
+        finish() {
+            if (pendingTotal > 0) {
+                throw new Error('Backup stream ended with incomplete entry');
+            }
+        },
+    };
+}
+
+// Synchronous second pass over the spooled (or local) backup file.
+function readBackupFileSync(filePath, onEntry) {
+    const reader = createBackupEntryReader(onEntry);
+    const fd = openSync(filePath, 'r');
+    try {
+        const chunk = Buffer.allocUnsafe(1024 * 1024);
+        let bytesRead;
+        while ((bytesRead = readSync(fd, chunk, 0, chunk.length, null)) > 0) {
+            reader.push(Buffer.from(chunk.subarray(0, bytesRead)));
+        }
+    } finally {
+        closeSync(fd);
+    }
+    reader.finish();
+}
+
+function discardRequestBody(req) {
+    if (req.readableEnded || req.destroyed) return Promise.resolve();
+    return new Promise((resolve) => {
+        req.once('end', resolve);
+        req.once('close', resolve);
+        req.once('error', resolve);
+        req.resume();
+    });
+}
+
+function walFileSize() {
+    try {
+        return require('fs').statSync(`${sqliteDb.name}-wal`).size;
+    } catch {
+        return 0;
+    }
+}
+
+function isBackupInlayEntryName(name) {
+    return Boolean(parseInlayBackupName(name))
+        || Boolean(parseInlaySidecarBackupName(name))
+        || name.startsWith('inlay_info/')
+        || name.startsWith('inlay_thumb/');
+}
+
+// ─── Shared backup import logic ─────────────────────────────────────────────
+// Accepts any async iterable of Buffer chunks (HTTP request body, file stream,
+// etc.). A request body is spooled to a temporary file; a local backup file
+// (localFilePath) is validated in place. Preparation validates every entry,
+// stages inlay files and prepares the database outside the storage queue;
+// the restore itself is one synchronous transaction inside a reset slot.
+async function importBackupFromSource(dataSource, { maxBytes = 0, totalBytes = 0, onProgress = null } = {}) {
+    // localFilePath: restore a backup file in place instead of spooling.
+    const importOptions = arguments[1] ?? {};
+    const localFilePath = importOptions.localFilePath ?? null;
+    return runStorageReset(localFilePath ? 'server-restore' : 'backup-import', {
+        prepare: (reset) => prepareBackupImport(dataSource, {
+            maxBytes,
+            totalBytes,
+            onProgress,
+            localFilePath,
+            reset,
+        }),
+        apply: (importState, reset) => applyBackupImportInResetSlot(importState, reset, importOptions),
+    });
+}
+
+// Runs inside the reset slot: the pre-restore persist/snapshot step, then the
+// synchronous transaction. importOptions carries caller options for that step.
+async function applyBackupImportInResetSlot(importState, reset, importOptions) {
+    await storageResetTestHooks.waitAtResetGate(reset.kind);
+    await flushPendingDb();
+    createBackupAndRotate();
+
+    sqliteDb.pragma('synchronous = OFF');
+    return applyBackupImport(importState, reset);
+}
+
+async function prepareBackupImport(dataSource, { maxBytes, totalBytes, onProgress, localFilePath, reset }) {
     let hasDatabase = false;
+    let databaseBytes = null;
     let assetsRestored = 0;
     let bytesReceived = 0;
-    let batchCount = 0;
+    let entryCount = 0;
     const seenEntryNames = new Set();
     const importedInlayIds = new Set();
     const importedSidecarIds = new Set();
     const explicitSidecarMap = new Map();
     const legacyInlayInfoMap = new Map();
+    const stagedColdStorage = new Map();
 
     const stagingDir = path.join(savePath, 'inlays_import_staging');
-    const backupInlayDir = path.join(savePath, 'inlays_import_backup');
+    // An earlier interrupted import may have left the only copy of the
+    // previous inlays here; it is kept until the next successful import.
+    const legacyBackupInlayDir = path.join(savePath, 'inlays_import_backup');
     await fs.rm(stagingDir, { recursive: true, force: true });
-    await fs.rm(backupInlayDir, { recursive: true, force: true });
+    if (existsSync(legacyBackupInlayDir)) {
+        logger.warn(`[Backup Import] Keeping the inlay copy left by an interrupted import until this import succeeds: ${legacyBackupInlayDir}`);
+    }
+    reset.cleanup.push(() => fs.rm(stagingDir, { recursive: true, force: true }));
+    reset.temporaryPaths.push(stagingDir);
     await fs.mkdir(stagingDir, { recursive: true });
+
+    let spoolPath = null;
+    let spoolHandle = null;
+    if (!localFilePath) {
+        const spoolDir = storageResetTestHooks.spoolDirectory() ?? savePath;
+        spoolPath = path.join(
+            spoolDir,
+            `.storage-reset-spool-${process.pid}-${Date.now()}-${nodeCrypto.randomBytes(6).toString('hex')}.bin`,
+        );
+        reset.cleanup.push(() => fs.rm(spoolPath, { force: true }));
+        reset.temporaryPaths.push(spoolPath);
+        spoolHandle = await fs.open(spoolPath, 'wx');
+    }
+    reset.metrics?.setTemporaryPaths(reset.temporaryPaths);
 
     function stagingInlayFilePath(id, ext) {
         return path.join(stagingDir, `${id}.${normalizeInlayExt(ext)}`);
@@ -2373,227 +2787,305 @@ async function importBackupFromSource(dataSource, { maxBytes = 0, totalBytes = 0
         writeFileSync(stagingSidecarPath(id), JSON.stringify(sidecar));
     }
 
-    await flushPendingDb();
-    createBackupAndRotate();
+    const reader = createBackupEntryReader((name, data) => {
+        if (seenEntryNames.has(name)) {
+            throw new Error(`Duplicate backup entry: ${name}`);
+        }
+        seenEntryNames.add(name);
+        entryCount += 1;
 
-    sqliteDb.pragma('synchronous = OFF');
+        const inlayRaw = parseInlayBackupName(name);
+        const inlaySidecar = parseInlaySidecarBackupName(name);
 
-    sqliteDb.exec('BEGIN');
-    kvDelPrefix('assets/');
-    kvDelPrefix('inlay/');
-    kvDelPrefix('inlay_thumb/');
-    kvDelPrefix('inlay_meta/');
-    kvDelPrefix('inlay_info/');
-    kvDelPrefix('coldstorage/');
-    // Composer drafts are session/device-local and not carried in the backup;
-    // wipe stale ones so an old snapshot's chats don't resurrect later drafts.
-    kvDelPrefix('drafts/');
-    // Same reasoning as clearExistingData (save-folder import path): wipe stale
-    // remote payloads from the prior user before this backup's contents land.
-    // .bin backups never carry REMOTE blocks today, so the migration won't
-    // resolveRemote on them — but keeping the two import paths consistent
-    // avoids a contamination regression if that ever changes (upstream sync,
-    // plugin-generated buffers, etc.).
-    kvDelPrefix('remotes/');
-    kvDelPrefix(CHAT_WRITE_JOURNAL_PREFIX);
-    chatWriteJournal.resetMemory();
-    // Allow remote-block migration to re-evaluate against the new database.bin.
-    // (.bin backups themselves never carry REMOTE blocks — legacy msgpack
-    // format only — but a fresh import is a clear "data changed" signal.)
-    kvDel(REMOTE_MIGRATION_MARKER_KEY);
-    clearEntities();
+        if (inlayRaw) {
+            importedInlayIds.add(inlayRaw.id);
+            if (inlayRaw.ext) {
+                writeStagingInlayFileSync(inlayRaw.id, inlayRaw.ext, data, legacyInlayInfoMap.get(inlayRaw.id) || { ext: inlayRaw.ext, name: inlayRaw.id, type: 'image' });
+            } else if (data.length > 0 && data[0] === 0x7b) {
+                const parsed = JSON.parse(data.toString('utf-8'));
+                const type = typeof parsed?.type === 'string' ? parsed.type : 'image';
+                const ext = normalizeInlayExt(parsed?.ext);
+                const buffer = type === 'signature'
+                    ? Buffer.from(typeof parsed?.data === 'string' ? parsed.data : '', 'utf-8')
+                    : decodeDataUri(parsed?.data).buffer;
+                writeStagingInlayFileSync(inlayRaw.id, ext, buffer, legacyInlayInfoMap.get(inlayRaw.id) || {
+                    ext,
+                    name: typeof parsed?.name === 'string' ? parsed.name : inlayRaw.id,
+                    type,
+                    height: typeof parsed?.height === 'number' ? parsed.height : undefined,
+                    width: typeof parsed?.width === 'number' ? parsed.width : undefined,
+                });
+            } else {
+                writeStagingInlayFileSync(inlayRaw.id, 'bin', data, legacyInlayInfoMap.get(inlayRaw.id) || {
+                    ext: 'bin',
+                    name: inlayRaw.id,
+                    type: 'image',
+                });
+            }
+            if (explicitSidecarMap.has(inlayRaw.id)) {
+                writeStagingSidecarSync(inlayRaw.id, explicitSidecarMap.get(inlayRaw.id));
+            } else if (!importedSidecarIds.has(inlayRaw.id)) {
+                const legacyInfo = legacyInlayInfoMap.get(inlayRaw.id);
+                if (legacyInfo) {
+                    writeStagingSidecarSync(inlayRaw.id, legacyInfo);
+                }
+            }
+            assetsRestored += 1;
+        } else if (inlaySidecar) {
+            const parsed = JSON.parse(data.toString('utf-8'));
+            explicitSidecarMap.set(inlaySidecar.id, parsed);
+            writeStagingSidecarSync(inlaySidecar.id, parsed);
+            importedSidecarIds.add(inlaySidecar.id);
+        } else if (name.startsWith('inlay_info/')) {
+            const id = name.slice('inlay_info/'.length);
+            if (!isSafeInlayId(id)) {
+                throw new Error(`Invalid legacy inlay info entry name: ${name}`);
+            }
+            const parsed = JSON.parse(data.toString('utf-8'));
+            legacyInlayInfoMap.set(id, {
+                ext: normalizeInlayExt(parsed?.ext),
+                name: typeof parsed?.name === 'string' ? parsed.name : id,
+                type: typeof parsed?.type === 'string' ? parsed.type : 'image',
+                height: typeof parsed?.height === 'number' ? parsed.height : undefined,
+                width: typeof parsed?.width === 'number' ? parsed.width : undefined,
+            });
+            if (importedInlayIds.has(id) && !importedSidecarIds.has(id)) {
+                writeStagingSidecarSync(id, legacyInlayInfoMap.get(id));
+            }
+        } else if (name.startsWith('inlay_thumb/')) {
+            // Skip deprecated thumbnail entries from legacy backups
+        } else {
+            const storageKey = resolveBackupStorageKey(name);
+            if (storageKey.startsWith('coldstorage/')) {
+                stagedColdStorage.set(storageKey, encodeColdStorageCanonicalBuffer(
+                    parseColdStorageJsonBuffer(data, name, { allowPlainJson: true }).coldData
+                ));
+            }
+            if (storageKey === 'database/database.bin') {
+                hasDatabase = true;
+                databaseBytes = Buffer.from(data);
+            } else {
+                assetsRestored += 1;
+            }
+        }
+    });
 
+    // A failed request upload keeps its connection usable for the error
+    // response: the rest of the body is discarded instead of destroying it.
+    const isRequestBody = dataSource instanceof http.IncomingMessage;
+    const chunks = isRequestBody
+        ? dataSource.iterator({ destroyOnReturn: false })
+        : dataSource;
     try {
-        for await (const chunk of dataSource) {
+        for await (const chunk of chunks) {
             bytesReceived += chunk.length;
             if (maxBytes > 0 && bytesReceived > maxBytes) {
                 throw new Error(`Backup exceeds max allowed size (${maxBytes} bytes)`);
             }
             if (onProgress) onProgress(bytesReceived, totalBytes);
 
-            pendingChunks.push(Buffer.from(chunk));
-            pendingTotal += chunk.length;
-            if (pendingTotal < nextEntryThreshold) continue;
-
-            const buffer = pendingChunks.length === 1
-                ? pendingChunks[0]
-                : Buffer.concat(pendingChunks, pendingTotal);
-            pendingChunks = [];
-            pendingTotal = 0;
-
-            const remaining = parseBackupChunk(buffer, (name, data) => {
-                if (seenEntryNames.has(name)) {
-                    throw new Error(`Duplicate backup entry: ${name}`);
+            const buffer = Buffer.from(chunk);
+            if (spoolHandle) {
+                storageResetTestHooks.checkSpoolWrite(bytesReceived, reset.attempt);
+                let offset = 0;
+                while (offset < buffer.length) {
+                    const { bytesWritten } = await spoolHandle.write(buffer, offset, buffer.length - offset);
+                    offset += bytesWritten;
                 }
-                seenEntryNames.add(name);
+            }
+            reader.push(buffer);
+        }
+        reader.finish();
+    } catch (error) {
+        if (isRequestBody) await discardRequestBody(dataSource);
+        throw error;
+    } finally {
+        if (spoolHandle) await spoolHandle.close();
+    }
 
-                const inlayRaw = parseInlayBackupName(name);
-                const inlaySidecar = parseInlaySidecarBackupName(name);
+    if (!hasDatabase) {
+        throw new Error('Backup does not contain database.risudat');
+    }
+    for (const [id, info] of legacyInlayInfoMap.entries()) {
+        if (importedInlayIds.has(id) && !importedSidecarIds.has(id)) {
+            writeStagingSidecarSync(id, info);
+        }
+    }
 
-                if (inlayRaw) {
-                    importedInlayIds.add(inlayRaw.id);
-                    if (inlayRaw.ext) {
-                        writeStagingInlayFileSync(inlayRaw.id, inlayRaw.ext, data, legacyInlayInfoMap.get(inlayRaw.id) || { ext: inlayRaw.ext, name: inlayRaw.id, type: 'image' });
-                    } else if (data.length > 0 && data[0] === 0x7b) {
-                        const parsed = JSON.parse(data.toString('utf-8'));
-                        const type = typeof parsed?.type === 'string' ? parsed.type : 'image';
-                        const ext = normalizeInlayExt(parsed?.ext);
-                        const buffer = type === 'signature'
-                            ? Buffer.from(typeof parsed?.data === 'string' ? parsed.data : '', 'utf-8')
-                            : decodeDataUri(parsed?.data).buffer;
-                        writeStagingInlayFileSync(inlayRaw.id, ext, buffer, legacyInlayInfoMap.get(inlayRaw.id) || {
-                            ext,
-                            name: typeof parsed?.name === 'string' ? parsed.name : inlayRaw.id,
-                            type,
-                            height: typeof parsed?.height === 'number' ? parsed.height : undefined,
-                            width: typeof parsed?.width === 'number' ? parsed.width : undefined,
-                        });
-                    } else {
-                        writeStagingInlayFileSync(inlayRaw.id, 'bin', data, legacyInlayInfoMap.get(inlayRaw.id) || {
-                            ext: 'bin',
-                            name: inlayRaw.id,
-                            type: 'image',
-                        });
-                    }
-                    if (explicitSidecarMap.has(inlayRaw.id)) {
-                        writeStagingSidecarSync(inlayRaw.id, explicitSidecarMap.get(inlayRaw.id));
-                    } else if (!importedSidecarIds.has(inlayRaw.id)) {
-                        const legacyInfo = legacyInlayInfoMap.get(inlayRaw.id);
-                        if (legacyInfo) {
-                            writeStagingSidecarSync(inlayRaw.id, legacyInfo);
-                        }
-                    }
-                    assetsRestored += 1;
-                } else if (inlaySidecar) {
-                    const parsed = JSON.parse(data.toString('utf-8'));
-                    explicitSidecarMap.set(inlaySidecar.id, parsed);
-                    writeStagingSidecarSync(inlaySidecar.id, parsed);
-                    importedSidecarIds.add(inlaySidecar.id);
-                } else if (name.startsWith('inlay_info/')) {
-                    const id = name.slice('inlay_info/'.length);
-                    if (!isSafeInlayId(id)) {
-                        throw new Error(`Invalid legacy inlay info entry name: ${name}`);
-                    }
-                    const parsed = JSON.parse(data.toString('utf-8'));
-                    legacyInlayInfoMap.set(id, {
-                        ext: normalizeInlayExt(parsed?.ext),
-                        name: typeof parsed?.name === 'string' ? parsed.name : id,
-                        type: typeof parsed?.type === 'string' ? parsed.type : 'image',
-                        height: typeof parsed?.height === 'number' ? parsed.height : undefined,
-                        width: typeof parsed?.width === 'number' ? parsed.width : undefined,
-                    });
-                    if (importedInlayIds.has(id) && !importedSidecarIds.has(id)) {
-                        writeStagingSidecarSync(id, legacyInlayInfoMap.get(id));
-                    }
-                } else if (name.startsWith('inlay_thumb/')) {
-                    // Skip deprecated thumbnail entries from legacy backups
+    // Decode, inline/normalize and build the caches to publish now, before
+    // any destructive write. The import wipes remotes/ and a backup carries
+    // none, so as before an unresolvable REMOTE block is dropped with the
+    // decoder's warning (and the database is re-encoded, as the migration did).
+    const database = await storageResetPrepare.prepareRestoredDatabase({
+        rawDatabase: databaseBytes,
+        readEntry: (key) => stagedColdStorage.get(key) ?? null,
+        unresolvedRemote: 'drop',
+    }, {
+        decodeRisuSave,
+        normalizeJSON,
+        encodeRisuSaveLegacy,
+        randomUUID: () => nodeCrypto.randomUUID(),
+        computeBufferEtag,
+    });
+
+    return {
+        sourcePath: localFilePath || spoolPath,
+        rawDatabaseBytes: databaseBytes,
+        stagingDir,
+        legacyBackupInlayDir,
+        stagedColdStorage,
+        database,
+        assetsRestored,
+        bytesReceived,
+        entryCount,
+    };
+}
+
+// Restores the inlay directory after a caught failure. If that is impossible,
+// storage writes stay disabled until manual recovery and a restart.
+function reverseBackupInlaySwap(swap, stagingDir, oldInlayCopy, reset) {
+    if (!swap.oldMoved && !swap.newMoved) return;
+    try {
+        storageResetTestHooks.failpoint('reverse-inlay-rename', reset.attempt);
+        if (swap.newMoved) renameSync(inlayDir, stagingDir);
+        if (swap.oldMoved) renameSync(oldInlayCopy, inlayDir);
+    } catch (reverseError) {
+        const recoveryPath = swap.oldMoved && existsSync(oldInlayCopy) ? oldInlayCopy : inlayDir;
+        storageRecoveryRequired = { recoveryPath, at: Date.now() };
+        logger.error(
+            `[Storage reset] Could not restore the previous inlay directory after a failed ${reset.kind}; `
+            + `storage writes are disabled until it is restored manually and the server restarts. `
+            + `Previous inlays: ${recoveryPath}`,
+            reverseError,
+        );
+        throw new StorageResetRefusal(storageRecoveryRequiredPayload());
+    }
+}
+
+// Runs inside the reset slot with no await between BEGIN and COMMIT/ROLLBACK.
+function applyBackupImport(importState, reset) {
+    const prepared = importState.database;
+    const oldInlayCopy = path.join(savePath, `inlays_import_backup-${Date.now()}-${storageResetGeneration}`);
+    const swap = { oldMoved: false, newMoved: false };
+    // synchronous = OFF was set by applyBackupImportInResetSlot.
+    try {
+        try {
+            sqliteDb.exec('BEGIN');
+            reset.transactionCount += 1;
+            storageResetTestHooks.trace('begin', { kind: reset.kind });
+            storageResetTestHooks.traceNextYield({ kind: reset.kind });
+            kvDelPrefix('assets/');
+            kvDelPrefix('inlay/');
+            kvDelPrefix('inlay_thumb/');
+            kvDelPrefix('inlay_meta/');
+            kvDelPrefix('inlay_info/');
+            kvDelPrefix('coldstorage/');
+            // Composer drafts are session/device-local and not carried in the backup;
+            // wipe stale ones so an old snapshot's chats don't resurrect later drafts.
+            kvDelPrefix('drafts/');
+            // Same reasoning as clearExistingData (save-folder import path): wipe stale
+            // remote payloads from the prior user before this backup's contents land.
+            // .bin backups never carry REMOTE blocks today, so the migration won't
+            // resolveRemote on them — but keeping the two import paths consistent
+            // avoids a contamination regression if that ever changes (upstream sync,
+            // plugin-generated buffers, etc.).
+            kvDelPrefix('remotes/');
+            kvDelPrefix(CHAT_WRITE_JOURNAL_PREFIX);
+            // Durable reset only; in-memory owners are reset after COMMIT.
+            kvDel(REMOTE_MIGRATION_MARKER_KEY);
+            clearEntities();
+            storageResetTestHooks.failpoint('after-destructive-deletes', reset.attempt);
+
+            let entryNumber = 0;
+            readBackupFileSync(importState.sourcePath, (name, data) => {
+                entryNumber += 1;
+                storageResetTestHooks.entryFailpoint(entryNumber, reset.attempt);
+                if (isBackupInlayEntryName(name)) return;
+                const storageKey = resolveBackupStorageKey(name);
+                if (storageKey === 'database/database.bin') {
+                    kvSet(storageKey, prepared.databaseBytes);
+                } else if (storageKey.startsWith('coldstorage/')) {
+                    kvSet(storageKey, importState.stagedColdStorage.get(storageKey));
                 } else {
-                    const storageKey = resolveBackupStorageKey(name);
-                    const storageValue = storageKey.startsWith('coldstorage/')
-                        ? encodeColdStorageCanonicalBuffer(
-                            parseColdStorageJsonBuffer(data, name, { allowPlainJson: true }).coldData
-                        )
-                        : data;
-                    kvSet(storageKey, storageValue);
-                    if (storageKey === 'database/database.bin') {
-                        hasDatabase = true;
-                    } else {
-                        assetsRestored += 1;
-                    }
-                }
-
-                batchCount++;
-                if (batchCount >= BATCH_SIZE) {
-                    sqliteDb.exec('COMMIT');
-                    sqliteDb.exec('BEGIN');
-                    batchCount = 0;
+                    kvSet(storageKey, data);
                 }
             });
-
-            if (remaining.length === 0) {
-                nextEntryThreshold = 8;
-            } else {
-                pendingChunks.push(remaining);
-                pendingTotal = remaining.length;
-                if (remaining.length < 4) {
-                    nextEntryThreshold = 8;
-                } else {
-                    const nameLen = remaining.readUInt32LE(0);
-                    const headerEnd = 4 + nameLen + 4;
-                    if (remaining.length < headerEnd) {
-                        nextEntryThreshold = headerEnd;
-                    } else {
-                        const dataLen = remaining.readUInt32LE(4 + nameLen);
-                        nextEntryThreshold = headerEnd + dataLen;
-                    }
-                }
+            reset.entryCount = entryNumber;
+            // The prepared database already went through REMOTE-block inlining,
+            // which is what the post-import migration used to record (including
+            // its pre-migration copy of the imported bytes).
+            if (prepared.remoteBlocksInlined) {
+                const migrationBackupKey = `migration-backup/pre-remote-fix-${Date.now()}.bin`;
+                kvSet(migrationBackupKey, importState.rawDatabaseBytes);
+                logger.info(`[Migration] REMOTE blocks detected in the imported database.bin; inlined. Pre-migration copy at ${migrationBackupKey}`);
             }
-        }
+            markRemoteMigrationDone();
 
-        if (pendingTotal > 0) {
-            throw new Error('Backup stream ended with incomplete entry');
-        }
-        if (!hasDatabase) {
-            throw new Error('Backup does not contain database.risudat');
-        }
-        for (const [id, info] of legacyInlayInfoMap.entries()) {
-            if (importedInlayIds.has(id) && !importedSidecarIds.has(id)) {
-                writeStagingSidecarSync(id, info);
+            if (existsSync(inlayDir)) {
+                renameSync(inlayDir, oldInlayCopy);
+                swap.oldMoved = true;
             }
+            storageResetTestHooks.failpoint('second-inlay-rename', reset.attempt);
+            renameSync(importState.stagingDir, inlayDir);
+            swap.newMoved = true;
+
+            storageResetTestHooks.failpoint('commit-after-inlay-swap', reset.attempt);
+            sqliteDb.exec('COMMIT');
+            reset.committed = true;
+            storageResetTestHooks.trace('commit', { kind: reset.kind });
+            if (reset.metrics) reset.walBytesAtCommit = walFileSize();
+        } catch (error) {
+            if (!reset.committed) {
+                try { sqliteDb.exec('ROLLBACK'); } catch (_) {}
+                storageResetTestHooks.trace('rollback', { kind: reset.kind });
+            }
+            reverseBackupInlaySwap(swap, importState.stagingDir, oldInlayCopy, reset);
+            throw error;
         }
-        sqliteDb.exec('COMMIT');
-    } catch (error) {
-        try { sqliteDb.exec('ROLLBACK'); } catch (_) {}
-        await fs.rm(stagingDir, { recursive: true, force: true }).catch(() => {});
-        await fs.rm(backupInlayDir, { recursive: true, force: true }).catch(() => {});
-        throw error;
     } finally {
         sqliteDb.pragma('synchronous = NORMAL');
     }
 
-    await ensureInlayDir();
+    // Publish the prepared caches before the slot is released; no journal
+    // replay (the journal was discarded with the old data).
+    installPreparedDatabaseCaches(prepared);
+    for (const cacheKey of Object.keys(dbCache)) {
+        if (cacheKey !== DB_HEX_KEY) delete dbCache[cacheKey];
+    }
+    // Memory resets run only after COMMIT.
+    chatWriteJournal.resetMemory();
+
+    // Best-effort post-commit cleanup; failures are logged, not rolled back.
     try {
-        if (existsSync(inlayDir)) {
-            await fs.rename(inlayDir, backupInlayDir);
-        }
-        await fs.rename(stagingDir, inlayDir);
-        await fs.writeFile(inlayMigrationMarker, new Date().toISOString(), 'utf-8');
-        await fs.rm(backupInlayDir, { recursive: true, force: true }).catch(() => {});
-    } catch (swapError) {
-        if (existsSync(backupInlayDir)) {
-            await fs.rm(inlayDir, { recursive: true, force: true }).catch(() => {});
-            await fs.rename(backupInlayDir, inlayDir).catch(() => {});
-        }
-        await fs.rm(stagingDir, { recursive: true, force: true }).catch(() => {});
-        throw swapError;
+        writeFileSync(inlayMigrationMarker, new Date().toISOString(), 'utf-8');
+    } catch (markerError) {
+        logger.warn('[Backup Import] Could not write the inlay migration marker:', markerError?.message || markerError);
     }
-
-    invalidateDbCache();
-
-    // Trigger cold storage migration now so import result includes failure count.
-    const dbRaw = kvGet('database/database.bin');
-    let coldStorageFailed = 0;
-    if (dbRaw) {
-        const migration = {};
-        const dbObj = await decodeDatabaseWithPersistentChatIds(dbRaw, {
-            createBackup: false,
-            migrationResult: migration,
-        });
-        coldStorageFailed = migration.coldStorageFailed || 0;
-        await initChatStore(dbObj);
-    }
-
     try {
         checkpointWal('TRUNCATE');
     } catch (checkpointError) {
         logger.warn('[Backup Import] WAL checkpoint after import failed:', checkpointError);
     }
-
-    console.log(`[Backup Import] Complete: ${assetsRestored} assets restored, ${(bytesReceived / 1024 / 1024).toFixed(1)}MB processed`);
-    if (coldStorageFailed > 0) {
-        logger.error(`[Backup Import] ${coldStorageFailed} cold storage character(s) could not be restored`);
+    for (const leftover of [oldInlayCopy, importState.legacyBackupInlayDir]) {
+        if (!existsSync(leftover)) continue;
+        fs.rm(leftover, { recursive: true, force: true }).catch((removeError) => {
+            logger.warn(`[Backup Import] Could not remove the previous inlay copy ${leftover}:`, removeError?.message || removeError);
+        });
     }
-    return { assetsRestored, bytesReceived, coldStorageFailed };
+
+    const coldStorage = prepared.coldStorage;
+    if (coldStorage.failed > 0) {
+        logger.error(`[ColdStorage] ${coldStorage.failed} character(s) could not be restored and were converted to safe blank characters. Cold storage KV data is preserved.`);
+        for (const name of coldStorage.failedNames) {
+            logger.error(`[ColdStorage]   - "${name}"`);
+        }
+    }
+    const { assetsRestored, bytesReceived } = importState;
+    console.log(`[Backup Import] Complete: ${assetsRestored} assets restored, ${(bytesReceived / 1024 / 1024).toFixed(1)}MB processed`);
+    if (coldStorage.failed > 0) {
+        logger.error(`[Backup Import] ${coldStorage.failed} cold storage character(s) could not be restored`);
+    }
+    return { assetsRestored, bytesReceived, coldStorageFailed: coldStorage.failed };
 }
 
 app.get('/', async (req, res, next) => {
@@ -4032,6 +4524,11 @@ app.post('/api/patch', async (req, res, next) => {
             res.send(responsePayload);
         });
     } catch (error) {
+        const storagePayload = storageResetErrorPayload(error);
+        if (storagePayload) {
+            if (!res.headersSent) sendStorageResetRefusal(res, storagePayload);
+            return;
+        }
         const decodedKeyForLog = isHex(filePath) ? Buffer.from(filePath, 'hex').toString('utf-8') : filePath;
         logger.error(
             `[Patch] Error applying patch to ${decodedKeyForLog} (stage=${patchStage}, ops=${Array.isArray(patch) ? patch.length : '?'}): `
@@ -4709,21 +5206,16 @@ app.post('/api/backup/server/restore', async (req, res, next) => {
             return;
         }
 
-        res.setHeader('content-type', 'application/x-ndjson');
-        res.flushHeaders();
-
-        let lastProgressWrite = 0;
         const { createReadStream } = require('fs');
         const stream = createReadStream(filePath, { highWaterMark: 256 * 1024 });
         const result = await importBackupFromSource(stream, {
             totalBytes: fileStat.size,
-            onProgress: (received, total) => {
-                const now = Date.now();
-                if (now - lastProgressWrite < 200) return;
-                lastProgressWrite = now;
-                res.write(JSON.stringify({ type: 'progress', bytes: received, totalBytes: total }) + '\n');
-            },
+            localFilePath: filePath,
         });
+        // The NDJSON response starts only after the restore has committed, so
+        // a validation, preparation or apply failure keeps an error status.
+        res.setHeader('content-type', 'application/x-ndjson');
+        res.write(JSON.stringify({ type: 'progress', bytes: fileStat.size, totalBytes: fileStat.size }) + '\n');
         res.write(JSON.stringify({
             type: 'done',
             ok: true,
@@ -6179,6 +6671,8 @@ const COMPRESS_IMAGE_EXTS = new Set(['png', 'jpg', 'jpeg', 'gif', 'bmp']);
 app.post('/api/inlays/compress', sessionAuthMiddleware, async (req, res) => {
     if (!checkActiveSession(req, res)) return;
     const quality = typeof req.body?.quality === 'number' ? req.body.quality : 85;
+    // Images read before a storage reset must never be written after it.
+    const compressionGeneration = storageResetGeneration;
 
     res.writeHead(200, {
         'Content-Type': 'text/event-stream',
@@ -6224,6 +6718,9 @@ app.post('/api/inlays/compress', sessionAuthMiddleware, async (req, res) => {
                 if (webpBuf.length < original.length) {
                     const sidecar = await readInlaySidecar(entry.id);
                     const info = sidecar || {};
+                    if (compressionGeneration !== storageResetGeneration || storageResetActive) {
+                        throw new Error('Storage reset since compression started');
+                    }
                     await writeInlayFile(entry.id, 'webp', webpBuf, { ...info, ext: 'webp' });
                     // invalidate thumbnail cache
                     kvDel(`inlay_thumb/${entry.id}`);
@@ -6750,6 +7247,8 @@ app.post('/api/tunnel/stop', async (req, res) => {
 app.use(expressErrorMiddleware);
 app.use((err, req, res, next) => {
     if (res.headersSent) return next(err);
+    const storagePayload = storageResetErrorPayload(err);
+    if (storagePayload) return res.status(503).json(storagePayload);
     res.status(500).json({ error: err?.message || 'internal server error' });
 });
 

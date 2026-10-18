@@ -55,6 +55,8 @@ type HarnessOptions = {
     generatedChatIds?: string[]
     currentChats?: any[]
     failPayloadIds?: string[]
+    resetBlockedIds?: string[]
+    resetBlockRoot?: boolean
     publicationBlockedIds?: string[]
     mutateDuringPayload?: (state: { current: any, chatId: string }) => void
     forcedPatchRejections?: Array<ChatIdentity | null>
@@ -205,6 +207,7 @@ async function createHarness(options: HarnessOptions = {}) {
     const idleWaiters: Array<{ resolve: () => void, reject: (error: Error) => void }> = []
     const sleeps: number[] = []
     const failPayloadIds = new Set(options.failPayloadIds ?? [])
+    const resetBlockedIds = new Set(options.resetBlockedIds ?? [])
     let payloadGateUsed = false
     const generatedChatIds = [...(options.generatedChatIds ?? [])]
 
@@ -237,6 +240,13 @@ async function createHarness(options: HarnessOptions = {}) {
         async flushDatabase() { flushes.push(true) },
         async patchItem(_key: string, patch: any) {
             events.push('metadata:patch')
+            if (options.resetBlockRoot) {
+                throw Object.assign(new Error('Storage reset in progress'), {
+                    status: 503,
+                    code: 'STORAGE_RESET_IN_PROGRESS',
+                    retryable: true,
+                })
+            }
             const forced = options.forcedPatchRejections?.[forcedPatchIndex++]
             if (forced) {
                 return {
@@ -273,6 +283,13 @@ async function createHarness(options: HarnessOptions = {}) {
         },
         async setItem(_key: string, bytes: Uint8Array) {
             events.push('metadata:full')
+            if (options.resetBlockRoot) {
+                throw Object.assign(new Error('Storage reset in progress'), {
+                    status: 503,
+                    code: 'STORAGE_RESET_IN_PROGRESS',
+                    retryable: true,
+                })
+            }
             const nextDb = await decodeRisuSave(bytes)
             chatDelta.validateStrippedDatabaseTransition(
                 serverDb,
@@ -361,6 +378,13 @@ async function createHarness(options: HarnessOptions = {}) {
             if (options.publicationBlockedIds?.includes(chatId)) {
                 if (!PublicationSaveBlockedError) throw new Error('Composed publication error is unavailable')
                 throw new PublicationSaveBlockedError()
+            }
+            if (resetBlockedIds.has(chatId)) {
+                throw Object.assign(new Error('Storage reset in progress'), {
+                    status: 503,
+                    code: 'STORAGE_RESET_IN_PROGRESS',
+                    retryable: true,
+                })
             }
             if (failPayloadIds.has(chatId)) {
                 throw new Error(`Injected payload failure for ${chatId}`)
@@ -779,5 +803,25 @@ describe('composed chat save persistence', () => {
             .rejects.toThrow('durable save deferred')
         expect(harness.flushes).toHaveLength(0)
         expect(harness.runtime.state().tracker.chat).toContainEqual(['character', 'chat-a'])
+    })
+})
+
+describe('[B1a-3] Storage reset barrier foundation', () => {
+    test('C-1 requeues delta and full-save changes after reset 503 without a publication-blocked notice', async () => {
+        const delta = await createHarness({ resetBlockedIds: ['chat-a'] })
+        delta.runtime.queueChat('character', 'chat-a')
+        vi.mocked(notifyError).mockClear()
+        await delta.runtime.triggerSave()
+        expect(delta.runtime.state().tracker.chat).toContainEqual(['character', 'chat-a'])
+        expect(delta.runtime.state().changed).toBe(true)
+        expect(vi.mocked(notifyError)).not.toHaveBeenCalled()
+
+        const full = await createHarness({ resetBlockRoot: true })
+        full.runtime.queueRoot()
+        vi.mocked(notifyError).mockClear()
+        await full.runtime.triggerSave({ forceFullWrite: true })
+        expect(full.runtime.state().tracker.root).toBe(true)
+        expect(full.runtime.state().changed).toBe(true)
+        expect(vi.mocked(notifyError)).not.toHaveBeenCalled()
     })
 })

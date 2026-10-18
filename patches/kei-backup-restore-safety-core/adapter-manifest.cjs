@@ -257,27 +257,6 @@ async function importBackupFromSource(dataSource, {
     restoreConfirmationHeaders = null,
     restoreTarget,
 } = {}) {
-    /* ${marker('import-preflight-fresh-snapshot')}:START */
-    // A pristine server has nothing to overwrite and therefore no rollback
-    // point to create. Every import over an existing database still requires
-    // the fresh, verified snapshot (or an explicit one-use acknowledgement).
-    if (kvSize(DB_BLOB_KEY) !== null) {
-        await prepareFreshRestoreSnapshot({
-            confirmationOwner: restoreConfirmationOwner,
-            confirmationHeaders: restoreConfirmationHeaders,
-            restoreTarget,
-            flushPendingDb: () => flushPendingDb({
-                createBackup: false,
-                reconcileForFreshSnapshot: true,
-            }),
-            createFreshSnapshot: (snapshotState) => {
-                requireLazyChatSnapshotCompleteness(snapshotState);
-                return createBackupAndRotate({ force: true });
-            },
-            logger,
-        });
-    }
-    /* ${marker('import-preflight-fresh-snapshot')}:END */
 `,
             markerNeedle: marker('import-option'),
             requires: [`${prefix}flush-snapshot-gate:1.9`],
@@ -291,7 +270,28 @@ async function importBackupFromSource(dataSource, {
 
     sqliteDb.pragma('synchronous = OFF');
 `,
-            managed: `    /* ${marker('import-fresh-snapshot')}: fresh snapshot completed before staging */
+            managed: `    /* ${marker('import-fresh-snapshot')}: fresh snapshot inside the reset slot, before the transaction */
+    /* ${marker('import-preflight-fresh-snapshot')}:START */
+    // A pristine server has nothing to overwrite and therefore no rollback
+    // point to create. Every import over an existing database still requires
+    // the fresh, verified snapshot (or an explicit one-use acknowledgement).
+    if (kvSize(DB_BLOB_KEY) !== null) {
+        await prepareFreshRestoreSnapshot({
+            confirmationOwner: restoreConfirmationOwner,
+            confirmationHeaders: importOptions.restoreConfirmationHeaders ?? null,
+            restoreTarget: importOptions.restoreTarget,
+            flushPendingDb: () => flushPendingDb({
+                createBackup: false,
+                reconcileForFreshSnapshot: true,
+            }),
+            createFreshSnapshot: (snapshotState) => {
+                requireLazyChatSnapshotCompleteness(snapshotState);
+                return createBackupAndRotate({ force: true });
+            },
+            logger,
+        });
+    }
+    /* ${marker('import-preflight-fresh-snapshot')}:END */
     sqliteDb.pragma('synchronous = OFF');
 `,
             markerNeedle: marker('import-fresh-snapshot'),
@@ -799,7 +799,7 @@ import type { RestoreSafetyOptions } from "./restoreSafety"
     return {
         id,
         title,
-        version: '0.2.0',
+        version: '0.2.1',
         userSelectable: false,
         targets: {
             pocketrisu: {

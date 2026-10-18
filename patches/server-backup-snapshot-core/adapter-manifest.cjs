@@ -142,6 +142,10 @@ ${helperFragment}/* ${marker('server-source-lifecycle')}:END */
 `,
             managed: `                    /* ${marker('compression-storage-queue')}:START */
                     await queueStorageOperation(async () => {
+                        // Checked inside the queue, where no reset can interleave.
+                        if (compressionGeneration !== storageResetGeneration || storageResetActive) {
+                            throw new Error('Storage reset since compression started');
+                        }
                         await writeInlayFile(entry.id, 'webp', webpBuf, { ...info, ext: 'webp' });
                         // invalidate thumbnail cache in the same mutation turn
                         kvDel(\`inlay_thumb/\${entry.id}\`);
@@ -185,7 +189,7 @@ ${helperFragment}/* ${marker('server-source-lifecycle')}:END */
     return {
         id,
         title,
-        version: '0.2.0',
+        version: '0.2.1',
         userSelectable: false,
         targets: {
             pocketrisu: {

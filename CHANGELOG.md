@@ -1,5 +1,14 @@
 # Changelog
 
+## 0.2.4-experimental.68 (atomic backup import and storage-reset barrier)
+
+- Backup import and server backup restore are now all-or-nothing. The upload is spooled to a temporary file first; the backup is validated and its database prepared before anything is changed; the whole apply runs in one database transaction with the image directory swapped right before the commit; the restored caches are installed at once. A failure at any caught point (invalid backup, a failing entry, a failed commit) leaves the previous data and images in place and is reported as an error. Previously the import committed in batches of 5,000 entries, and a write or a debounced save during the import could replay old content over the restored chat or overwrite the restored database while the import still reported success.
+- While a restore runs, other storage writers (chat saves, root patches, generic and asset writes, drafts, background generation start, input claim/attach/abandon and cancel, result and notification updates, maintenance and deletion) answer `503` with `code: STORAGE_RESET_IN_PROGRESS` and `retryable: true`; the app keeps unsaved edits and retries. Requests admitted before the restore are refused instead of applying afterwards. Pending debounced saves are written before the restore starts and re-armed if it fails. A backup capture and a restore still exclude each other.
+- If a failed restore cannot move the image directory back, the server stops accepting storage writes (`503 STORAGE_RECOVERY_REQUIRED`, reads still work) and reports where the previous images are kept; a restart after manual repair clears it. A process kill between the image swap and the commit is not covered.
+- A REMOTE block that cannot be resolved in an imported database is still dropped with a warning, as before. Server backup restore now reports its result only after the commit, and a required fresh snapshot is reported after the upload completes.
+- Save-folder import, snapshot restore and database removal are unchanged in this version.
+- BG adapter 0.7.66, lazy chat sync 0.5.13, server backup snapshot core 0.1.2 and adapter 0.2.1, backup restore safety adapter 0.2.1. Stable remains v0.2.3.
+
 ## 0.2.4-experimental.67 (reset ownership refactor)
 
 - Internal preparation for atomic storage restores; no change in behaviour. The server input and commit owners separate the durable part of a reset (storage rows) from the in-memory part (settings snapshots), and the reset hooks call both in the same order as before.

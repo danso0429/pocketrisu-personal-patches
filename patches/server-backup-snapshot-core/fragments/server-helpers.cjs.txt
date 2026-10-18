@@ -113,7 +113,8 @@ async function capturePointInTimeBackupSource({ includeInlays, signal }) {
         // Imports already refuse while it is set, and a capture refuses an
         // import that began first. Release it after fixing the WAL epoch and
         // completing private filesystem pins, not after archive transfer.
-        if (importInProgress) {
+        // A storage reset also refuses a capture that acquires during it.
+        if (importInProgress || storageResetActive) {
             throw new BackupSourceError(
                 'BACKUP_SOURCE_IMPORT_BUSY',
                 'Another import is already in progress',

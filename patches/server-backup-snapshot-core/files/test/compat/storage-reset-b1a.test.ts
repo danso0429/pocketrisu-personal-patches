@@ -1,0 +1,675 @@
+import { afterAll, describe, expect, test } from 'vitest'
+import { request as httpRequest, type ClientRequest } from 'node:http'
+import { cp, mkdtemp, mkdir, readFile, readdir, stat, writeFile } from 'node:fs/promises'
+import { tmpdir } from 'node:os'
+import path from 'node:path'
+import { Packr } from 'msgpackr'
+import { Zip, ZipPassThrough, zipSync } from 'fflate'
+import utilsPackage from '../../server/node/utils.cjs'
+import { spawnServer, type ServerHandle } from './helpers/spawnServer.js'
+import { createClient, type RisuClient } from './helpers/client.js'
+import { createSeedBackup } from './helpers/seed.js'
+import { decodeBackup } from './helpers/decode.js'
+import { encodeBackup } from './helpers/encode.js'
+import { normalizeBackup } from './helpers/normalize.js'
+
+const servers: ServerHandle[] = []
+const MAGIC_RAW = Buffer.from([0, 82, 73, 83, 85, 83, 65, 86, 69, 0, 7])
+const packr = new Packr({ useRecords: false })
+const { decodeRisuSave } = utilsPackage as {
+  decodeRisuSave: (raw: Uint8Array) => Promise<any>
+}
+const DB_KEY = 'database/database.bin'
+const DB_HEX = Buffer.from(DB_KEY).toString('hex')
+
+afterAll(async () => {
+  await Promise.allSettled(servers.map(server => server.cleanup()))
+})
+
+function labelledBackup(label: string, extraEntries: Array<{ name: string, data: Buffer }> = []) {
+  const entries = decodeBackup(createSeedBackup({ includeAssets: true }))
+  const database = normalizeBackup(encodeBackup(entries)).raw as any
+  database.mainPrompt = `${label}-prompt`
+  database.characters[0].chats[0].message[0].data = `${label}-chat`
+  const databaseBytes = Buffer.concat([MAGIC_RAW, packr.encode(database)])
+  return encodeBackup([
+    ...entries.map(entry => entry.name === 'database.risudat'
+      ? { ...entry, data: databaseBytes }
+      : entry),
+    ...extraEntries,
+  ])
+}
+
+function labelOf(backup: Buffer) {
+  const database = normalizeBackup(backup).raw as any
+  return {
+    prompt: database.mainPrompt,
+    chat: database.characters[0].chats[0].message[0].data,
+  }
+}
+
+async function boot(env: Record<string, string> = {}) {
+  const server = await spawnServer({ env })
+  servers.push(server)
+  return { server, client: await withSession(await createClient(server.port, server.password)) }
+}
+
+async function withSession(client: RisuClient): Promise<RisuClient> {
+  const session = await client.fetch('/api/session', {
+    method: 'POST',
+    headers: { 'x-session-id': 'storage-reset-b1a' },
+  })
+  expect(session.status).toBe(200)
+  const cookie = (session.headers.get('set-cookie') ?? '').split(';', 1)[0]
+  expect(cookie).toMatch(/^risu-session=/)
+  return {
+    ...client,
+    fetch: (route, init = {}) => {
+      const headers = new Headers(init.headers)
+      headers.set('cookie', cookie)
+      return client.fetch(route, { ...init, headers })
+    },
+  }
+}
+
+async function importWithSafety(client: RisuClient, backup: Buffer) {
+  let response = await client.fetch('/api/backup/import/prepare', {
+    method: 'POST',
+    headers: { 'content-type': 'application/json' },
+    body: JSON.stringify({ size: backup.byteLength }),
+  })
+  expect(response.status).toBe(200)
+  response = await client.fetch('/api/backup/import', {
+    method: 'POST',
+    headers: { 'content-type': 'application/x-risu-backup' },
+    body: new Uint8Array(backup),
+  })
+  let body = await response.json() as any
+  if (response.status === 409 && body.code === 'fresh_snapshot_required') {
+    response = await client.fetch('/api/backup/import', {
+      method: 'POST',
+      headers: {
+        'content-type': 'application/x-risu-backup',
+        'x-risu-restore-without-fresh-snapshot': '1',
+        'x-risu-restore-confirmation': body.confirmationToken,
+      },
+      body: new Uint8Array(backup),
+    })
+    body = await response.json()
+  }
+  expect(response.status, JSON.stringify(body)).toBe(200)
+  expect(body.ok, JSON.stringify(body)).toBe(true)
+}
+
+async function expectLabel(client: RisuClient, label: string) {
+  expect(labelOf(await client.exportBackup())).toEqual({
+    prompt: `${label}-prompt`,
+    chat: `${label}-chat`,
+  })
+}
+
+async function readChat(client: RisuClient) {
+  const response = await client.fetch('/api/chat-content/test-char-0/0', {
+    headers: { 'x-chat-id': 'chat-0-0' },
+  })
+  expect(response.status).toBe(200)
+  return {
+    chat: await decodeRisuSave(new Uint8Array(await response.arrayBuffer())),
+    revision: response.headers.get('x-chat-revision') ?? '',
+  }
+}
+
+async function writeChat(client: RisuClient, mutate: (chat: any) => void = chat => {
+  chat.message.push({ role: 'user', data: 'dirty-before-reset' })
+}) {
+  const { chat, revision } = await readChat(client)
+  mutate(chat)
+  return client.fetch('/api/chat-content/test-char-0/0', {
+    method: 'POST',
+    headers: {
+      'content-type': 'application/json',
+      'x-chat-id': 'chat-0-0',
+      'x-chat-base-revision': revision,
+    },
+    body: JSON.stringify(chat),
+  })
+}
+
+type HeldUpload = {
+  request: ClientRequest
+  response: Promise<{ status: number, headers: Headers, body: any }>
+  finish: () => void
+  abort: () => void
+}
+
+function holdUpload(
+  server: ServerHandle,
+  client: RisuClient,
+  route: string,
+  bytes: Buffer,
+  splitAt: number,
+  contentType: string,
+  headers: Record<string, string> = {},
+): HeldUpload {
+  let finish!: () => void
+  let abort!: () => void
+  let request!: ClientRequest
+  const response = new Promise<{ status: number, headers: Headers, body: any }>((resolve, reject) => {
+    request = httpRequest({
+      host: '127.0.0.1',
+      port: server.port,
+      path: route,
+      method: 'POST',
+      headers: {
+        'risu-auth': client.token,
+        'content-type': contentType,
+        'content-length': String(bytes.length),
+        ...headers,
+      },
+    }, res => {
+      const chunks: Buffer[] = []
+      res.on('data', chunk => chunks.push(Buffer.from(chunk)))
+      res.on('end', () => {
+        const raw = Buffer.concat(chunks).toString('utf8')
+        let body: any = raw
+        try { body = JSON.parse(raw) } catch {}
+        resolve({
+          status: res.statusCode ?? 0,
+          headers: new Headers(Object.entries(res.headers).flatMap(([key, value]) =>
+            value == null ? [] : [[key, Array.isArray(value) ? value.join(', ') : value]])),
+          body,
+        })
+      })
+    })
+    request.once('error', reject)
+    request.write(bytes.subarray(0, splitAt))
+    request.flushHeaders()
+    finish = () => request.end(bytes.subarray(splitAt))
+    abort = () => request.destroy(new Error('test-aborted-upload'))
+  })
+  return { request, response, finish, abort }
+}
+
+async function waitForReset(client: RisuClient, timeoutMs = 4_000) {
+  const deadline = Date.now() + timeoutMs
+  while (Date.now() < deadline) {
+    const response = await client.fetch('/api/db/flush', { method: 'POST' })
+    if (response.status === 503) {
+      await expect(response.json()).resolves.toMatchObject({
+        code: 'STORAGE_RESET_IN_PROGRESS',
+        retryable: true,
+      })
+      return
+    }
+    await new Promise(resolve => setTimeout(resolve, 20))
+  }
+  throw new Error('storage reset flag was not observable while upload was held')
+}
+
+async function expectResetRefusal(response: Response) {
+  expect(response.status).toBe(503)
+  expect(response.headers.has('x-bg-save-blocked')).toBe(false)
+  await expect(response.json()).resolves.toMatchObject({
+    code: 'STORAGE_RESET_IN_PROGRESS',
+    retryable: true,
+  })
+}
+
+async function prepareHeldImport(
+  server: ServerHandle,
+  client: RisuClient,
+  backup: Buffer,
+  splitAt = 8,
+  requestHeaders: Record<string, string> = {},
+) {
+  const prepared = await client.fetch('/api/backup/import/prepare', {
+    method: 'POST',
+    headers: { 'content-type': 'application/json' },
+    body: JSON.stringify({ size: backup.length }),
+  })
+  expect(prepared.status).toBe(200)
+  const held = holdUpload(
+    server,
+    client,
+    '/api/backup/import',
+    backup,
+    splitAt,
+    'application/x-risu-backup',
+    requestHeaders,
+  )
+  try {
+    await waitForReset(client)
+  } catch (error) {
+    held.abort()
+    await held.response.catch(() => undefined)
+    throw error
+  }
+  return held
+}
+
+function saveFolderZip(databaseBytes: Buffer, additional: Record<string, Uint8Array> = {}) {
+  return Buffer.from(zipSync({
+    [DB_HEX]: new Uint8Array(databaseBytes),
+    ...additional,
+  }))
+}
+
+function databaseEntry(backup: Buffer) {
+  return decodeBackup(backup).find(entry => entry.name === 'database.risudat')!.data
+}
+
+function duplicateSaveFolderZip(first: Buffer, last: Buffer) {
+  return new Promise<Buffer>((resolve, reject) => {
+    const chunks: Buffer[] = []
+    const zip = new Zip((error, data, final) => {
+      if (error) return reject(error)
+      chunks.push(Buffer.from(data))
+      if (final) resolve(Buffer.concat(chunks))
+    })
+    for (const value of [first, last]) {
+      const entry = new ZipPassThrough(DB_HEX)
+      zip.add(entry)
+      entry.push(new Uint8Array(value), true)
+    }
+    zip.end()
+  })
+}
+
+async function serverSave(client: RisuClient) {
+  const response = await client.fetch('/api/backup/server/save', { method: 'POST' })
+  expect(response.status).toBe(200)
+  const events = (await response.text()).split('\n').filter(Boolean).map(line => JSON.parse(line))
+  const filename = events.find(event => event.type === 'done')?.filename
+  expect(filename).toMatch(/^risu-backup-\d+\.bin$/)
+  return filename as string
+}
+
+describe('[B1a-3] Storage reset barrier foundation', () => {
+  test('the existing stale-build fence keeps 426 precedence over reset refusal', async () => {
+    const stamp = 'b1a-current-build'
+    const server = await spawnServer({
+      seedSave: async saveDir => {
+        const dist = path.join(path.dirname(saveDir), 'dist')
+        await mkdir(dist, { recursive: true })
+        await writeFile(path.join(dist, 'build-stamp.json'), JSON.stringify({
+          version: 'test', stamp,
+        }))
+      },
+    })
+    servers.push(server)
+    const baseClient = await createClient(server.port, server.password)
+    const buildClient: RisuClient = {
+      ...baseClient,
+      fetch: (route, init = {}) => {
+        const headers = new Headers(init.headers)
+        headers.set('x-client-build', stamp)
+        return baseClient.fetch(route, { ...init, headers })
+      },
+    }
+    const client = await withSession(buildClient)
+    await importWithSafety(client, labelledBackup('before'))
+    const held = await prepareHeldImport(
+      server,
+      client,
+      labelledBackup('after'),
+      8,
+      { 'x-client-build': stamp },
+    )
+    const stale = await baseClient.fetch('/api/patch', {
+      method: 'POST',
+      headers: { 'content-type': 'application/json', 'x-client-build': 'stale-build' },
+      body: '{}',
+    })
+    expect(stale.status).toBe(426)
+    await expect(stale.json()).resolves.toMatchObject({ code: 'CLIENT_UPGRADE_REQUIRED' })
+    held.finish()
+    expect((await held.response).status).toBe(200)
+  }, 25_000)
+
+  test('all reset-sensitive writers fast-fail before route validation or body parsing', async () => {
+    const { server, client } = await boot()
+    await importWithSafety(client, labelledBackup('before'))
+    const held = await prepareHeldImport(server, client, labelledBackup('after'))
+
+    const requests: Array<[string, RequestInit]> = [
+      ['/api/chat-content/test-char-0/0/patch', { method: 'POST', headers: { 'content-type': 'application/json' }, body: '{}' }],
+      ['/api/chat-content/test-char-0/0', { method: 'POST', headers: { 'content-type': 'application/json' }, body: '{}' }],
+      ['/api/patch', { method: 'POST', headers: { 'content-type': 'application/json' }, body: '{}' }],
+      ['/api/write', { method: 'POST', body: new Uint8Array([1]) }],
+      ['/api/assets/bulk-write', { method: 'POST', headers: { 'content-type': 'application/json' }, body: '{}' }],
+      ['/api/bg-stream-draft', { method: 'POST', headers: { 'content-type': 'application/json' }, body: '{}' }],
+      ['/api/bg-stream-draft/delete', { method: 'POST', headers: { 'content-type': 'application/json' }, body: '{}' }],
+      ['/api/bg-orchestrate', { method: 'POST', headers: { 'content-type': 'application/json' }, body: '{}' }],
+      ['/api/bg-orchestrate-input/claim', { method: 'POST', headers: { 'content-type': 'application/json' }, body: '{}' }],
+      ['/api/bg-orchestrate-input/attach', { method: 'POST', headers: { 'content-type': 'application/json' }, body: '{}' }],
+      ['/api/bg-orchestrate-input/abandon', { method: 'POST', headers: { 'content-type': 'application/json' }, body: '{}' }],
+      ['/api/bg-orchestrate/not-an-operation', { method: 'DELETE' }],
+      ['/api/bg-orchestrate-result/op/result?consumerId=consumer', { method: 'DELETE' }],
+      ['/api/bg-notifications/claim', { method: 'POST', headers: { 'content-type': 'application/json' }, body: '{}' }],
+      ['/api/bg-notifications/ack', { method: 'POST', headers: { 'content-type': 'application/json' }, body: '{}' }],
+      ['/api/db/flush', { method: 'POST' }],
+      ['/api/db/assets/purge-orphans', { method: 'POST' }],
+      ['/api/db/optimize', { method: 'POST' }],
+      ['/api/db/wal-checkpoint', { method: 'POST' }],
+      ['/api/db/snapshots?key=database%2Fdbbackup-1.bin', { method: 'DELETE' }],
+      ['/api/backup/server/not-a-backup.bin', { method: 'DELETE' }],
+      ['/api/inlays/compress', { method: 'POST', headers: { 'content-type': 'application/json' }, body: '{}' }],
+      ['/api/remove', { method: 'GET', headers: { 'file-path': Buffer.from('other.bin').toString('hex') } }],
+    ]
+
+    for (const [route, init] of requests) {
+      await expectResetRefusal(await client.fetch(route, init))
+    }
+    await expectResetRefusal(await client.fetch('/API/PATCH/', {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: '{}',
+    }))
+
+    held.finish()
+    expect((await held.response).status).toBe(200)
+    await expectLabel(client, 'after')
+  }, 30_000)
+
+  test('reads remain available during spooling and reset/capture acquisition excludes both orderings', async () => {
+    const { server, client } = await boot()
+    await importWithSafety(client, labelledBackup('before'))
+    const held = await prepareHeldImport(server, client, labelledBackup('after'))
+
+    const read = await Promise.race([
+      client.fetch('/api/chat-content/test-char-0/0'),
+      new Promise<never>((_, reject) => setTimeout(() => reject(new Error('read blocked by spooling')), 750)),
+    ])
+    expect(read.status).toBe(200)
+    expect((await decodeRisuSave(new Uint8Array(await read.arrayBuffer()))).message[0].data)
+      .toBe('before-chat')
+    expect((await client.fetch('/api/backup/export')).status).toBe(409)
+    const competingResets: Array<[string, RequestInit]> = [
+      ['/api/backup/import/prepare', {
+        method: 'POST', headers: { 'content-type': 'application/json' }, body: '{"size":1}',
+      }],
+      ['/api/backup/server/restore', {
+        method: 'POST', headers: { 'content-type': 'application/json' }, body: '{"filename":"missing.bin"}',
+      }],
+      ['/api/migrate/save-folder/execute', {
+        method: 'POST', headers: { 'content-type': 'application/json' }, body: '{"path":"missing"}',
+      }],
+      ['/api/migrate/save-folder/upload', {
+        method: 'POST', headers: { 'content-type': 'application/zip' }, body: new Uint8Array([1]),
+      }],
+      ['/api/db/snapshots/restore', {
+        method: 'POST', headers: { 'content-type': 'application/json' }, body: '{"key":"database/dbbackup-missing.bin"}',
+      }],
+      ['/api/remove', { method: 'GET', headers: { 'file-path': DB_HEX } }],
+    ]
+    for (const [route, init] of competingResets) {
+      expect((await client.fetch(route, init)).status, route).toBe(409)
+    }
+    held.finish()
+    expect((await held.response).status).toBe(200)
+
+    const gateDir = await mkdtemp(path.join(tmpdir(), 'capture-reset-order-'))
+    await writeFile(path.join(gateDir, 'export.hold'), 'hold')
+    const gated = await boot({ POCKETRISU_TEST_BACKUP_SOURCE_GATE_DIR: gateDir })
+    await importWithSafety(gated.client, labelledBackup('before'))
+    const capture = gated.client.fetch('/api/backup/export')
+    const entered = path.join(gateDir, 'export.entered')
+    for (let i = 0; i < 200; i += 1) {
+      try { await stat(entered); break } catch { await new Promise(resolve => setTimeout(resolve, 10)) }
+    }
+    const resetTarget = labelledBackup('capture-first-reset')
+    expect((await gated.client.fetch('/api/backup/import/prepare', {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ size: resetTarget.byteLength }),
+    })).status).toBe(200)
+    let resetSettled = false
+    const reset = gated.client.fetch('/api/backup/import', {
+      method: 'POST',
+      headers: { 'content-type': 'application/x-risu-backup' },
+      body: new Uint8Array(resetTarget),
+    }).then(response => {
+      resetSettled = true
+      return response
+    })
+    await new Promise(resolve => setTimeout(resolve, 250))
+    expect(resetSettled).toBe(false)
+    await writeFile(path.join(gateDir, 'export.release'), 'release')
+    expect((await capture).status).toBe(200)
+    expect((await reset).status).toBe(200)
+    await expectLabel(gated.client, 'capture-first-reset')
+  }, 30_000)
+
+  test('queued admission tokens cannot cross a completed reset', async () => {
+    const gateDir = await mkdtemp(path.join(tmpdir(), 'reset-admission-gate-'))
+    const { server, client } = await boot({ POCKETRISU_TEST_STORAGE_ADMISSION_GATE_DIR: gateDir })
+    await importWithSafety(client, labelledBackup('before'))
+    await writeFile(path.join(gateDir, 'patch.hold'), 'hold')
+    const pausedWrite = client.fetch('/api/patch', {
+      method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ patch: [] }),
+    })
+    let held: HeldUpload
+    try {
+      held = await prepareHeldImport(server, client, labelledBackup('after'))
+    } catch (error) {
+      await writeFile(path.join(gateDir, 'patch.release'), 'release')
+      await pausedWrite.catch(() => undefined)
+      throw error
+    }
+    held.finish()
+    expect((await held.response).status).toBe(200)
+    await writeFile(path.join(gateDir, 'patch.release'), 'release')
+    await expectResetRefusal(await pausedWrite)
+    await expectLabel(client, 'after')
+  }, 20_000)
+
+  test('normal writers and existing CAS behavior are unchanged after the flag clears', async () => {
+    const { server, client } = await boot()
+    await importWithSafety(client, labelledBackup('before'))
+    const held = await prepareHeldImport(server, client, labelledBackup('after'))
+    held.finish()
+    expect((await held.response).status).toBe(200)
+    const { chat, revision } = await readChat(client)
+    const ok = await writeChat(client, value => { value.name = 'accepted edit' })
+    expect(ok.status).not.toBe(503)
+    const stale = await client.fetch('/api/chat-content/test-char-0/0', {
+      method: 'POST',
+      headers: {
+        'content-type': 'application/json',
+        'x-chat-id': 'chat-0-0',
+        'x-chat-base-revision': revision,
+      },
+      body: JSON.stringify(chat),
+    })
+    expect([409, 412]).toContain(stale.status)
+  }, 20_000)
+})
+
+describe('[B1a-4] Atomic backup import and server restore', () => {
+  test('a pending persist cannot overwrite an import immediately, after debounce, or after restart', async () => {
+    const { server, client } = await boot()
+    await importWithSafety(client, labelledBackup('before'))
+    expect((await writeChat(client)).status).toBe(200)
+
+    const target = labelledBackup('after')
+    const database = decodeBackup(target).find(entry => entry.name === 'database.risudat')!
+    const splitAfterDatabase = encodeBackup([database]).length
+    const held = await prepareHeldImport(server, client, target, splitAfterDatabase)
+    await new Promise(resolve => setTimeout(resolve, 6_000))
+    held.finish()
+    expect((await held.response).status).toBe(200)
+    await expectLabel(client, 'after')
+    await new Promise(resolve => setTimeout(resolve, 6_000))
+    await expectLabel(client, 'after')
+
+    const copied = await mkdtemp(path.join(tmpdir(), 'reset-restart-'))
+    await cp(path.join(server.cwd, 'save'), copied, { recursive: true })
+    const restarted = await spawnServer({ seedSave: saveDir => cp(copied, saveDir, { recursive: true }) })
+    servers.push(restarted)
+    await expectLabel(await createClient(restarted.port, restarted.password), 'after')
+  }, 35_000)
+
+  test('an admitted writer linearizes before reset apply and the backup wins', async () => {
+    const gateDir = await mkdtemp(path.join(tmpdir(), 'capture-queue-gate-'))
+    await writeFile(path.join(gateDir, 'export.hold'), 'hold')
+    const { server, client } = await boot({ POCKETRISU_TEST_BACKUP_SOURCE_GATE_DIR: gateDir })
+    await importWithSafety(client, labelledBackup('before'))
+    const capture = client.fetch('/api/backup/export')
+    for (let i = 0; i < 200; i += 1) {
+      try { await stat(path.join(gateDir, 'export.entered')); break } catch { await new Promise(resolve => setTimeout(resolve, 10)) }
+    }
+    const writer = writeChat(client, chat => { chat.name = 'queued-writer' })
+    let held: HeldUpload
+    try {
+      held = await prepareHeldImport(server, client, labelledBackup('after'))
+    } catch (error) {
+      await writeFile(path.join(gateDir, 'export.release'), 'release')
+      await Promise.allSettled([capture, writer])
+      throw error
+    }
+    await writeFile(path.join(gateDir, 'export.release'), 'release')
+    expect((await capture).status).toBe(200)
+    expect([200, 503]).toContain((await writer).status)
+    held.finish()
+    expect((await held.response).status).toBe(200)
+    await expectLabel(client, 'after')
+  }, 30_000)
+
+  test('server restore shares the barrier and wins over a concurrent chat write', async () => {
+    const gateDir = await mkdtemp(path.join(tmpdir(), 'server-restore-gate-'))
+    const { client } = await boot({ POCKETRISU_TEST_STORAGE_RESET_GATE_DIR: gateDir })
+    await importWithSafety(client, labelledBackup('restore-target'))
+    const filename = await serverSave(client)
+    await importWithSafety(client, labelledBackup('current'))
+    await writeFile(path.join(gateDir, 'server-restore.apply.hold'), 'hold')
+    const restoring = client.fetch('/api/backup/server/restore', {
+      method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ filename }),
+    })
+    for (let i = 0; i < 200; i += 1) {
+      try { await stat(path.join(gateDir, 'server-restore.apply.entered')); break } catch { await new Promise(resolve => setTimeout(resolve, 10)) }
+    }
+    await expectResetRefusal(await client.fetch('/api/chat-content/test-char-0/0', {
+      method: 'POST', headers: { 'content-type': 'application/json' }, body: '{}',
+    }))
+    await writeFile(path.join(gateDir, 'server-restore.apply.release'), 'release')
+    expect((await restoring).status).toBe(200)
+    await expectLabel(client, 'restore-target')
+  }, 30_000)
+
+  test('invalid database preparation and truncated uploads leave the old state and clear the flag', async () => {
+    const { server, client } = await boot()
+    await importWithSafety(client, labelledBackup('before'))
+    const corrupt = encodeBackup([{ name: 'database.risudat', data: Buffer.from('corrupt') }])
+    const prepared = await client.fetch('/api/backup/import/prepare', {
+      method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ size: corrupt.length }),
+    })
+    expect(prepared.status).toBe(200)
+    const invalid = await client.fetch('/api/backup/import', {
+      method: 'POST', headers: { 'content-type': 'application/x-risu-backup' }, body: new Uint8Array(corrupt),
+    })
+    expect(invalid.status).toBeGreaterThanOrEqual(400)
+    await expectLabel(client, 'before')
+
+    const corruptFilename = 'risu-backup-1700000000000.bin'
+    await writeFile(path.join(server.cwd, 'backups', corruptFilename), corrupt)
+    const invalidServerRestore = await client.fetch('/api/backup/server/restore', {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ filename: corruptFilename }),
+    })
+    expect(invalidServerRestore.status).toBeGreaterThanOrEqual(400)
+    await expectLabel(client, 'before')
+
+    const target = labelledBackup('after')
+    await client.fetch('/api/backup/import/prepare', {
+      method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ size: target.length }),
+    })
+    const aborted = holdUpload(server, client, '/api/backup/import', target, 8, 'application/x-risu-backup')
+    await waitForReset(client)
+    aborted.abort()
+    await aborted.response.catch(() => undefined)
+    await new Promise(resolve => setTimeout(resolve, 100))
+    expect((await client.fetch('/api/db/flush', { method: 'POST' })).status).not.toBe(503)
+    await expectLabel(client, 'before')
+  }, 25_000)
+
+  test.each([
+    ['after-destructive-deletes', false],
+    ['second-inlay-rename', false],
+    ['commit-after-inlay-swap', false],
+    ['reverse-inlay-rename', true],
+  ])('caught failpoint %s is atomic and reports recovery-required only when rollback cannot restore files', async (failpoint, recoveryRequired) => {
+    const { server, client } = await boot({
+      POCKETRISU_TEST_STORAGE_RESET_FAILPOINT: failpoint,
+      POCKETRISU_TEST_STORAGE_RESET_FAILPOINT_ON_ATTEMPT: '2',
+    })
+    await importWithSafety(client, labelledBackup('before', [
+      { name: 'inlay/before.png', data: Buffer.from('before-image') },
+    ]))
+    expect(await readFile(path.join(server.cwd, 'save', 'inlays', 'before.png')))
+      .toEqual(Buffer.from('before-image'))
+    const response = await client.fetch('/api/backup/import', {
+      method: 'POST',
+      headers: { 'content-type': 'application/x-risu-backup' },
+      body: new Uint8Array(labelledBackup('after', [
+        { name: 'inlay/after.png', data: Buffer.from('after-image') },
+      ])),
+    })
+    expect(response.status).toBeGreaterThanOrEqual(400)
+    const failureBody = await response.json() as any
+    await expectLabel(client, 'before')
+    const writer = await client.fetch('/api/db/flush', { method: 'POST' })
+    if (recoveryRequired) {
+      expect(failureBody).toMatchObject({
+        code: 'STORAGE_RECOVERY_REQUIRED',
+        retryable: false,
+        recoveryPath: expect.any(String),
+      })
+      expect((await stat(failureBody.recoveryPath)).isDirectory()).toBe(true)
+      expect(writer.status).toBe(503)
+      await expect(writer.json()).resolves.toMatchObject({
+        code: 'STORAGE_RECOVERY_REQUIRED', retryable: false,
+      })
+    } else {
+      expect(await readFile(path.join(server.cwd, 'save', 'inlays', 'before.png')))
+        .toEqual(Buffer.from('before-image'))
+      await expect(readFile(path.join(server.cwd, 'save', 'inlays', 'after.png'))).rejects.toThrow()
+      expect(writer.status).not.toBe(503)
+    }
+  }, 30_000)
+
+  test('more than 5,000 entries remain one transaction when a late entry throws', async () => {
+    const { client } = await boot({
+      POCKETRISU_TEST_STORAGE_RESET_FAILPOINT: 'entry:5200',
+      POCKETRISU_TEST_STORAGE_RESET_FAILPOINT_ON_ATTEMPT: '2',
+    })
+    await importWithSafety(client, labelledBackup('before'))
+    const entries = Array.from({ length: 5_500 }, (_, index) => ({
+      name: Buffer.from(`assets/entry-${index}`).toString('hex'),
+      data: Buffer.from(`asset-${index}`),
+    }))
+    const response = await client.fetch('/api/backup/import', {
+      method: 'POST',
+      headers: { 'content-type': 'application/x-risu-backup' },
+      body: new Uint8Array(labelledBackup('after', entries)),
+    })
+    expect(response.status).toBeGreaterThanOrEqual(400)
+    await expectLabel(client, 'before')
+    expect((await client.fetch('/api/db/flush', { method: 'POST' })).status).toBe(200)
+  }, 60_000)
+
+  test('apply trace contains no asynchronous yield between BEGIN and COMMIT', async () => {
+    const traceDir = await mkdtemp(path.join(tmpdir(), 'reset-trace-'))
+    const traceFile = path.join(traceDir, 'trace.jsonl')
+    const { client } = await boot({ POCKETRISU_TEST_STORAGE_RESET_TRACE_FILE: traceFile })
+    await importWithSafety(client, labelledBackup('before'))
+    await importWithSafety(client, labelledBackup('after'))
+    const events = (await readFile(traceFile, 'utf8')).trim().split('\n').map(line => JSON.parse(line))
+    const begin = events.findIndex(event => event.event === 'begin')
+    const commit = events.findIndex((event, index) => index > begin && event.event === 'commit')
+    expect(begin).toBeGreaterThanOrEqual(0)
+    expect(commit).toBeGreaterThan(begin)
+    expect(events.slice(begin + 1, commit).some(event => event.event === 'event-loop-yield')).toBe(false)
+  }, 20_000)
+})
+
