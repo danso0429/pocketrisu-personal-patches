@@ -82,15 +82,56 @@ So the visible problem appears separate from the reboot interruption: a
 degenerate long model output combined with a render path that does not
 tolerate it.
 
-## 5. Next steps (not started)
+## 5. Isolated browser reproduction
+
+A copy of the application with consistent snapshots of the live databases ran
+inside a network namespace with only loopback (outbound connections verified
+to fail; browser requests to non-loopback hosts aborted). Login used a copied
+session token; no password was changed. The copy, including its data and
+secrets, was deleted afterwards; regular-expression sources and message text
+were not recorded.
+
+- WebKit (iPhone engine) could not be launched on this host: Playwright's
+  WebKit build needs system libraries that are not installed. iPhone behavior
+  was therefore not measured.
+- Chromium, desktop speed: no hang. Longest main-thread gap 1.35 s; the chat
+  rendered.
+- Chromium, phone viewport with 4x CPU throttling: the page did not respond
+  for about 12–22 s after the tap, then recovered and rendered the chat; the
+  sidebar animation end arrived about 12 s late. A control character with 160
+  normal messages stalled about 5 s under the same conditions.
+- CPU profile (source-mapped):
+  - about 3.3 s in one enabled module's per-message regular-expression script
+    (type `editprocess`; module `353cfd93`, script 74), executed from
+    `ts/process/scripts.ts:211` (`executeScript`, via `processScriptFull`).
+    Its cost grows quadratically with line length: 12, 46, 190 and 760 ms for
+    6k, 12k, 24k and 47.8k characters in V8, with zero matches. Only the
+    anomalous message exceeds 5 ms;
+  - about 7.3 s loading the BPE tokenizer (`ts/tokenizer.ts:235`), paid
+    equally by every character;
+  - about 0.9 s in the chat parser and about 0.8 s each in database proxy
+    setters.
+- Disabling script 74 in the copy removed the regular-expression cost, but an
+  8 s stall remained from the tokenizer and parser costs.
+- The slow regular expressions of a disabled module noted in section 4 are not
+  applied to this chat.
+
+Inferred, not measured: the iPhone engine may evaluate the variable-length
+lookbehind in that script much more slowly than V8; combined with a slower CPU
+and the tokenizer load, the stall could last long enough to look permanent.
+
+## 6. Next steps (not started)
 
 1. Confirm on the device whether the whole app freezes after tapping the
    character, whether other characters open, and capture a console error if
    possible.
-2. Recovery: removing or editing the anomalous message would likely restore
-   the view; changing it server-side alters user data and needs the user's
-   explicit approval.
-3. Prevention candidates for a reviewed plan: render-time limits for very long
-   or degenerate messages (and regex execution on them); a terminal state for
-   interrupted operations whose commit receipt is invalid; operation-state
-   records left `running` after an interruption.
+2. Recovery: removing or shortening the anomalous message would likely
+   restore the view; opening the character on a desktop browser, where the
+   stall is short, lets the user do this without a server-side change.
+   Changing it server-side alters user data and needs the user's explicit
+   approval. Disabling or rewriting the module script is the user's decision.
+3. Prevention candidates for a reviewed plan: an input-length limit for
+   per-message regular-expression scripts; loading the tokenizer off the
+   render path; a terminal state for interrupted operations whose commit
+   receipt is invalid; operation-state records left `running` after an
+   interruption.
