@@ -87,6 +87,12 @@ Alternative rejected: clear all markers on the restoring tab's reload — other 
 4. H-4 epoch-stamped markers with the one-time notice text — approved.
 5. H-6 DELETE refused during reset; synchronous apply preferred over write guards — approved.
 
+Refinements decided during plan review (2026-10-18):
+
+6. H-1 crash scope: the all-or-nothing guarantee covers caught failures. A process kill between the inlay directory rename and `COMMIT` is out of scope; the old inlay copy is never deleted before the next successful import, so manual recovery stays possible.
+7. H-1 reverse-rename failure: if a caught failure rolls back SQLite but the inlay directory cannot be renamed back, the server enters a recovery-required state. Storage writers answer `503 {code: 'STORAGE_RECOVERY_REQUIRED', retryable: false}`, reads stay available, the old-directory path is logged and reported, and the state clears only on restart after manual repair. Old-copy directories get unique names.
+8. Preparation is side-effect free: the existing `decodeDatabaseWithPersistentChatIds` migrates live KV and is not used for prepared state; a staged decoder produces the stored bytes and the cache objects before any destructive step, and the restored caches are installed synchronously after `COMMIT`.
+
 ## Backlog added: C-21 — chats created without `fmIndex` diverge from their local copy
 
 Added to Phase D (runtime lane) by owner decision on 2026-10-18. Not part of Phase B.
