@@ -1,8 +1,11 @@
 # 2026-10-18 — Interrupted BG commit and a non-interactive character view
 
-Status: diagnosed; the view was recovered by removing the anomalous message;
-no code change. Prevention remains open (section 7). Times are UTC (KST = UTC+9). Identifiers are shortened; no chat
-content or names are recorded.
+Status: diagnosed; the view was recovered by removing the anomalous message.
+All regular-expression scripts were then measured; the slow script was
+rewritten by the user and three scripts that failed to compile were fixed at
+the user's request (section 7). No code change. Prevention remains open
+(section 8). Times are UTC (KST = UTC+9). Identifiers are shortened; no chat
+content, module or script names, or original patterns are recorded.
 
 ## 1. User report
 
@@ -141,7 +144,7 @@ reordered pattern (maximum 1.1 ms), with identical results for every message;
 the risk therefore remains until the script is changed. Results were identical on all 32 messages of the
 chat and on 200,012 synthetic strings. Synthetic ASCII-only long lines did not
 reproduce the slow case for either pattern. The iPhone engine was not
-measured. The script was not changed; that is the user's decision.
+measured. The user later applied the reordered pattern (section 7).
 
 Recovery, with the user's approval (2026-10-18): after an idle check and a
 consistent backup of the database (`backups/20261018-pre-msg31-delete`,
@@ -154,14 +157,62 @@ fingerprint, 34 characters before and after, `quick_check` ok. The user then
 confirmed the character opens normally. The backup holds the only remaining
 copy of the removed message.
 
-## 7. Open items (not started)
+## 7. Review of all regular-expression scripts
 
-1. The user's module script: adopting the reordered pattern of section 6 is
-   the user's decision.
-2. Prevention candidates for a reviewed plan: an input-length limit for
+At the user's request every regular-expression script in the database was
+measured on a read-only snapshot (deleted afterwards; message text kept in
+memory only). Scripts were compiled the way the app does (`<...>` parts of the
+flag removed first, unsupported flag characters stripped, `u` fallback).
+
+| Item | Count |
+|---|---|
+| Scripts | 717 (614 in 16 modules, of which 324 in the 6 enabled modules; 103 character scripts; 0 global) |
+| Compiled | 697, of which 36 of type `disabled` (not timed); empty pattern 17 (15 of them type `disabled`) |
+| Compile errors | 3, all in enabled module `353cfd93` |
+| Corpus | 286 messages (86 longer than 8,000 characters and the 200 next-longest) |
+| Corpus timeouts (10 s limit) | 5, all in modules that are not enabled |
+| Superlinear on synthetic 5k–40k inputs with a relevant cost | 8 (ratio 40k/20k above 3 and 40k time above 5 ms, or a corpus timeout) |
+
+Findings:
+
+- Enabled module `353cfd93`, script 74 (section 6): the worst real case, 5.8 s
+  on one message of another chat; with the correct `gm` flags over all 1,805
+  messages the original took 6,052 ms in total (maximum 5,751.5 ms) and the
+  reordered pattern 38 ms (maximum 1.1 ms), with identical results. The user
+  applied the reordered pattern.
+- Enabled module `353cfd93`, scripts 27, 41 and 78: compile errors ("Nothing to
+  repeat" twice, "Invalid group"), the source of the "Invalid regular
+  expression" console errors logged on every render. Each pattern used a
+  regex metacharacter where a literal was meant (a literal `?`, literal `*`
+  characters, and the literal text `(?)`).
+- Enabled module `696d4e58`, script 2: superlinear on synthetic input
+  (40k: about 200 ms) but at most 0.5 ms on real messages; left unchanged.
+- Character scripts: no errors; at most 1.4 ms per message.
+- Modules that are not enabled: three scripts of `3c3e9838` with a leading
+  `[\s\S]*` or `([\s\S]*)` grow quadratically (about 2.4 s at 40k) and timed out
+  on the corpus; two scripts of `fb0a3003` timed out on the corpus with only
+  moderate synthetic growth (cause on real text not determined). No effect
+  while the modules are disabled.
+
+Fix of the three compile errors (user-approved): the metacharacters were
+escaped (`?` → `\?`, `*` → `\*`, `(?)` → `\(\?\)`); each new pattern compiles and
+matches the intended literal text. After an idle check and a consistent
+database backup, the three IN fields were changed through the app's own module
+editor in a headless browser against the live server (outbound requests
+blocked), and saved with the editor's save action (`/api/patch` 200 ×3). A
+dry run first located exactly one IN field per script; for script 78, whose
+name equals its pattern, the field was selected by its `IN:` label. A
+comparison with the backup showed exactly three changed fields (the IN
+values of scripts 27, 41 and 78), characters, enabled modules and personas
+unchanged, and `quick_check` ok. These scripts did nothing before because they
+failed to compile; they now run. The backup was deleted at the user's request.
+
+## 8. Open items (not started)
+
+1. Prevention candidates for a reviewed plan: an input-length limit for
    per-message regular-expression scripts; loading the tokenizer off the
    render path; a terminal state for interrupted operations whose commit
    receipt is invalid; operation-state records left `running` after an
    interruption.
-3. The pre-deletion backup, which held the only copy of the removed message,
+2. The pre-deletion backup, which held the only copy of the removed message,
    was deleted at the user's request after the recovery was confirmed.
