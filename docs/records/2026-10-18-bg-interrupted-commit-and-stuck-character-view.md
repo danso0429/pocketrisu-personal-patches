@@ -127,14 +127,18 @@ after narration") inserts a line break between narration and the first quoted
 dialogue on a line. Its pattern lets a lazy prefix grow one character at a
 time and evaluates a variable-length lookbehind before checking whether a
 quote follows, so a long line without quotes costs roughly quadratic time.
-The app also passes it the flags `gdm`: the `d` comes from the word `order`
-in the script's `<order 300>` flag, because unsupported flag characters are
-stripped (`ts/process/scripts.ts:235`).
+The script's flag is `g<order 300>m`; the app removes the `<...>` part
+before compiling (`ts/process/scripts.ts` ~368–385), so it runs with `gm`. (An
+earlier note that a `d` from `order` remained was wrong.)
 
 A reordered pattern adds a quote lookahead before the lookbehind:
 `^([^"\r\n“”]*?\S)[ \t]*(?=["“])((?<!<[^>\r\n]*)(?:"[^"\r\n]*"|“[^”\r\n]*”))`.
 On a backup copy, applied to the anomalous message in Node (V8): original
-765.6 ms, reordered 0.5 ms. Results were identical on all 32 messages of the
+765.6 ms, reordered 0.5 ms. After the recovery, a run with the correct `gm`
+flags over all 1,805 remaining messages took 6,052 ms in total with the
+original (one message of another chat took 5,751.5 ms) and 38 ms with the
+reordered pattern (maximum 1.1 ms), with identical results for every message;
+the risk therefore remains until the script is changed. Results were identical on all 32 messages of the
 chat and on 200,012 synthetic strings. Synthetic ASCII-only long lines did not
 reproduce the slow case for either pattern. The iPhone engine was not
 measured. The script was not changed; that is the user's decision.
