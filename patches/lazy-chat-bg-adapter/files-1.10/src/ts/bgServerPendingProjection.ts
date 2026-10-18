@@ -8,6 +8,7 @@ export interface ServerPendingInput {
     rawText?: string
     inputCommandId?: string
     retryAllowed?: boolean
+    cancelAllowed?: boolean
     reason?: 'server_host_unsupported' | 'client_preparation_interrupted'
     unsupportedApi?: string
     blockedByOperationId?: string
@@ -41,6 +42,7 @@ export function parseServerPendingInputs(projection: unknown): ServerPendingInpu
             || !Number.isSafeInteger(row.admissionSeq) || Number(row.admissionSeq) <= 0
             || !states.has(row.state as ServerPendingInput['state'])
             || (row.retryAllowed !== undefined && typeof row.retryAllowed !== 'boolean')
+            || (row.cancelAllowed !== undefined && typeof row.cancelAllowed !== 'boolean')
             || (row.blockedByOperationId !== undefined && (typeof row.blockedByOperationId !== 'string'
                 || !/^[A-Za-z0-9_-]{8,128}$/.test(row.blockedByOperationId)))
             || (row.reason !== undefined && row.reason !== 'client_preparation_interrupted' && (row.reason !== 'server_host_unsupported'
@@ -79,6 +81,8 @@ export function parseServerPendingInputs(projection: unknown): ServerPendingInpu
                 inputCommandId: row.inputCommandId as string,
                 retryAllowed: row.retryAllowed === true,
             } : {}),
+            ...((row.state === 'blocked_edit' || row.state === 'execution_unknown')
+                && typeof row.cancelAllowed === 'boolean' ? { cancelAllowed: row.cancelAllowed } : {}),
         })
     }
     return result.sort((left, right) => left.admissionSeq - right.admissionSeq)

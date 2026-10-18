@@ -3,27 +3,37 @@
     import type { ServerPendingInput } from 'src/ts/bgServerPendingProjection'
     import { readServerChatActivity, type ChatActivity } from 'src/ts/bgChatActivity'
 
-    let { charId, chatId, chat, onRetryBlocked, onActivity }: {
+    let { charId, chatId, chat, onRetryBlocked, onActivity, onCancelPending }: {
         charId: string
         chatId: string
         chat: unknown
         onRetryBlocked?: (input: ServerPendingInput) => Promise<void>
         onActivity?: (activity: ChatActivity) => void
+        onCancelPending?: (input: ServerPendingInput) => Promise<'cancelled' | 'finished' | 'unconfirmed'>
     } = $props()
 
     let pending = $state<ServerPendingInput[]>([])
     let retryingId = $state('')
+    let cancellingId = $state('')
     const actionablePending = $derived(pending.filter(input => (
         input.state === 'blocked_edit' || input.state === 'execution_unknown'
         || !!input.clientPreparation || !!input.reason
     )))
 
     async function retry(input: ServerPendingInput) {
-        if (!onRetryBlocked || retryingId || input.retryAllowed !== true
+        if (!onRetryBlocked || retryingId || cancellingId || input.retryAllowed !== true
             || !input.rawText || !input.inputCommandId) return
         retryingId = input.operationId
         try { await onRetryBlocked(input) }
         finally { retryingId = '' }
+    }
+
+    async function cancel(input: ServerPendingInput) {
+        if (!onCancelPending || cancellingId || retryingId || input.cancelAllowed !== true) return
+        cancellingId = input.operationId
+        try { await onCancelPending(input) }
+        catch { /* the caller reports the outcome; the row stays until the projection drops it */ }
+        finally { cancellingId = '' }
     }
 
     function label(state: ServerPendingInput['state']): string {
@@ -127,11 +137,20 @@
                         <div>원문을 보존했어요. 앞서 실행한 모델 호출이나 외부 작업은 취소되지 않았을 수 있어요. 결과를 확인한 뒤 직접 다시 보내 주세요. 앱에서 입력 처리를 마치면 서버가 답변을 생성해요.</div>
                     {/if}
                     {#if input.retryAllowed}
-                        <button type="button" class="underline" disabled={!!retryingId || !onRetryBlocked}
+                        <button type="button" class="underline" disabled={!!retryingId || !!cancellingId || !onRetryBlocked}
                             onclick={() => void retry(input)}>
                             {input.reason ? '앱에서 입력 처리 후 서버 생성 (모델 재호출 가능)' : '이 입력을 새로 생성하기 (모델 호출 가능)'}
                         </button>
                     {/if}
+                {/if}
+                {#if input.cancelAllowed === true}
+                    {#if input.state === 'execution_unknown' || (input.state === 'blocked_edit' && !input.retryAllowed)}
+                        <div>이미 사용된 모델 호출이나 외부 작업은 되돌리지 않아요.</div>
+                    {/if}
+                    <button type="button" class="underline" disabled={!!cancellingId || !!retryingId || !onCancelPending}
+                        onclick={() => void cancel(input)}>
+                        {cancellingId === input.operationId ? '입력 취소 중…' : '이 입력 취소하기'}
+                    </button>
                 {/if}
             </div>
         {/each}

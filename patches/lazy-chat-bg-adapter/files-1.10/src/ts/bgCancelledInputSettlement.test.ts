@@ -69,6 +69,15 @@ it('settles a never-started cancelled input only when full current views agree',
     h.options.clear.mockClear(); expect(await settleCancelledInput(h.options)).toBe(false)
     expect(h.options.clear).not.toHaveBeenCalled()
 })
+it('clears an unknown-transform marker from authoritative none proof without adopting a chat', async () => {
+    const h = setup(); h.setLocal(structuredClone(prior))
+    h.options.readCanonical.mockResolvedValue({ chat: prior, revision: hash })
+    h.options.readProof.mockResolvedValue({ ...proof, attachment: 'none', inputReceiptId: null,
+        attachedRevision: null, allowEditedInput: false })
+    expect(await settleCancelledInput(h.options)).toBe(true)
+    expect(h.options.clear).toHaveBeenCalledTimes(1)
+    expect(h.options.adopt).not.toHaveBeenCalled()
+})
 for (const invalid of [{ operationId: 'other' }, { charId: 'other' }, { chatId: 'other' },
     { contractVersion: 'unknown' }, { inputReceiptId: 'bad' }, { attachment: 'unknown' }]) {
     it('retains metadata on mismatched proof ' + JSON.stringify(invalid), async () => {

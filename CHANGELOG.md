@@ -1,5 +1,13 @@
 # Changelog
 
+## 0.2.4-experimental.64 (cancel a stranded server input)
+
+- A server input left without a live owner, because the server restarted or its preparation failed before it reached the chat, now shows a cancel action in the pending-input card. Previously the card had no action and every new generation in that chat (new server inputs, legacy background starts and server model jobs) stayed blocked until the input was removed by hand. The cancel uses the existing `DELETE /api/bg-orchestrate/:id` route; inputs that can still run keep their current controls.
+- After a confirmed cancel, the submitting browser's pending marker is settled for every interrupted point, including an input whose preparation was in progress at the restart. The status route now reports `input-cancelled` for such a record, and its cancelled-input proof states that the input never reached the chat.
+- When the cancelled input never reached the chat, its text is put back into the composer if the server confirms that, the same chat is still open, nothing is being sent and the composer, translation and attachments are empty. Otherwise the composer is left untouched and a notice says so.
+- Restart recovery, the pending-generation check and live-run cancellation are unchanged.
+- BG adapter 0.7.63. Stable remains v0.2.3.
+
 ## 0.2.4-experimental.63 (fresh save first chat)
 
 - On a brand-new install, the first chat of a new character now saves. Startup wrote an empty database without `characters`, so the confirmed baseline could not show that the character was new; each save of its chat was classified as an update, the server's 404 was reported as `Chat was removed on the server`, and the autosave repeated the failure. A fresh startup now writes `{ characters: [] }`, the shape the server already stores for a new database.

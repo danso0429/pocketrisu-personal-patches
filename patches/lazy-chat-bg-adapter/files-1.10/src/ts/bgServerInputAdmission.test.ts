@@ -74,4 +74,14 @@ describe('server input base admission', () => {
             })).toEqual({ ready: false, reason: 'unresolved-server-input' })
         }
     })
+
+    it('becomes ready after the cancelled orphan disappears from the projection', () => {
+        const candidate = { charId: 'char-1', chatId: 'chat-1', localRevision: base,
+            serverRevision: base, serverViewRevision: base, knownInput: null }
+        expect(chooseServerInputBase({ ...candidate, pendingInputs: [{
+            operationId: 'orphan', admissionSeq: 1, state: 'blocked_edit', cancelAllowed: true,
+        }] as any })).toEqual({ ready: false, reason: 'unresolved-server-input' })
+        expect(chooseServerInputBase({ ...candidate, pendingInputs: [] }))
+            .toEqual({ ready: true, baseRevision: base })
+    })
 })

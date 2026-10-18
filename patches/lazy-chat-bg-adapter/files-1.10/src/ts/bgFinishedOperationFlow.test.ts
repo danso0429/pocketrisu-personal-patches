@@ -178,6 +178,16 @@ const count = (predicate: (method: string, url: string) => boolean) => (
 )
 const markers = () => readPendingMarkers(localStorage)
 
+function pendingCancelScreenUnit(): string {
+    const source = readFileSync('src/lib/ChatScreens/DefaultChatScreen.svelte', 'utf8')
+    const script = source.match(/<script[^>]*>([\s\S]*?)<\/script>/)?.[1] || ''
+    const parsed = ts.createSourceFile('DefaultChatScreen.ts', script, ts.ScriptTarget.ES2022, true)
+    const declaration = parsed.statements.find(node => ts.isFunctionDeclaration(node)
+        && node.name?.text === 'cancelPendingServerInputRow')
+    expect(declaration, 'cancelPendingServerInputRow must be an owned DefaultChatScreen unit').toBeDefined()
+    return declaration!.getText(parsed)
+}
+
 type Handler = (operationId: string, method: string, url: string) => { status: number, body: unknown } | undefined
 
 function serve(handler: Handler, options: { serverChatCommit?: boolean } = {}) {
@@ -246,10 +256,10 @@ afterEach(() => {
     vi.unstubAllGlobals()
 })
 
-async function bootWithMarker() {
+async function bootWithMarker(resultKeyVersion: 0 | 1 = 1) {
     writeStoredPendingMarker(localStorage, {
         charId: CHAR_ID, chatId: CHAT_ID, baselineMsgs: 2, operationId: BOOT_OPERATION_ID,
-        deliveryVersion: 3, resultKeyVersion: 1, staticsMessagesApplied: 0,
+        deliveryVersion: 3, resultKeyVersion, staticsMessagesApplied: 0,
         deliveryChatId: CHAT_ID,
         expectedChatRevision: orchestrationChatRevision(h.dbState.db.characters[0].chats[0]),
         completionNotified: false, ts: Date.now(),
@@ -516,6 +526,62 @@ describe('G1.12b recovery ownership', () => {
 })
 
 describe('G1.12a terminal decisions', () => {
+    it('restores raw text only after authoritative same-operation attachment-none proof', () => {
+        const unit = pendingCancelScreenUnit()
+        expect(unit).toMatch(/blocked_edit/)
+        expect(unit).toMatch(/rawText/)
+        expect(unit).toMatch(/inputReceiptId/)
+        expect(unit).toMatch(/input-cancelled/)
+        expect(unit).toMatch(/cancelledInputProof/)
+        expect(unit).toMatch(/operationId/)
+        expect(unit).toMatch(/attachment\s*===\s*['"]none['"]|['"]none['"]\s*===\s*[^\n]*attachment/)
+        expect(unit).toMatch(/messageInput\s*=\s*[^;\n]*rawText/)
+    })
+
+    it.each([
+        ['chat navigation during DELETE', /selectedCharID|pendingCharacter/],
+        ['send or admission in flight', /inputAdmissionBusy/],
+        ['non-empty composer', /messageInput\s*===\s*['"]{2}/],
+        ['draft loading', /draftLoading/],
+    ] as const)('guards composer restore against %s', (_scenario, guard) => {
+        const unit = pendingCancelScreenUnit()
+        expect(unit).toMatch(guard)
+        expect(unit.indexOf('await')).toBeGreaterThanOrEqual(0)
+        expect(unit).toMatch(/rawText/)
+    })
+
+    it('wires the pending component cancel callback to the guarded screen unit', () => {
+        const source = readFileSync('src/lib/ChatScreens/DefaultChatScreen.svelte', 'utf8')
+        expect(source.includes('onCancelPending={cancelPendingServerInputRow}')).toBe(true)
+    })
+
+    it.each([
+        [{ status: 200, body: { operationId: 'pending-cancel', cancelled: true } }, 'cancelled'],
+        [{ status: 200, body: { operationId: 'pending-cancel', cancelled: false, finished: true } }, 'finished'],
+        [{ status: 409, body: { operationId: 'pending-cancel', cancelled: false } }, 'unconfirmed'],
+    ] as const)('maps pending-input cancel response %# and dispatches an update', async (response, expected) => {
+        serve((_operationId, method, url) => method === 'DELETE' && url.startsWith('/api/bg-orchestrate/')
+            ? response : undefined)
+        const dispatch = vi.spyOn(window, 'dispatchEvent')
+        const module: any = await import('./bgOrchestrate')
+        await expect(module.cancelPendingServerInput({ operationId: 'pending-cancel',
+            charId: CHAR_ID, chatId: CHAT_ID })).resolves.toBe(expected)
+        expect(dispatch).toHaveBeenCalledWith(expect.objectContaining({ type: 'bg-server-input-updated' }))
+        expect(markers()).toEqual([])
+    })
+
+    it('maps pending-input cancel network failure to unconfirmed and dispatches in finally', async () => {
+        serve(() => undefined)
+        h.route = async (method, url) => {
+            if (method === 'DELETE' && url.startsWith('/api/bg-orchestrate/')) throw new TypeError('offline')
+            return { status: 404, body: null }
+        }
+        const dispatch = vi.spyOn(window, 'dispatchEvent')
+        const module: any = await import('./bgOrchestrate')
+        await expect(module.cancelPendingServerInput({ operationId: 'pending-cancel',
+            charId: CHAR_ID, chatId: CHAT_ID })).resolves.toBe('unconfirmed')
+        expect(dispatch).toHaveBeenCalledWith(expect.objectContaining({ type: 'bg-server-input-updated' }))
+    })
     it('closes a warm legacy ACK-body-loss from exact delivered state without repeating the save', async () => {
         h.dbState.db.statics.messages = 0
         h.dbState.db.playMessage = true
@@ -1557,4 +1623,95 @@ describe('foreground watch of finished server operations', () => {
         expect(h.sendChat).not.toHaveBeenCalled()
     })
 })
+})
+
+describe('pending-input cancel follow-up', () => {
+    const PARKED_ID = 'operation-parked-cancel'
+    const isStatus = (method: string, url: string) => method === 'GET'
+        && url.startsWith('/api/bg-orchestrate-status/' + PARKED_ID)
+    const isInputBase = (method: string, url: string) => method === 'GET'
+        && url.startsWith('/api/bg-orchestrate-input-base/')
+
+    it('unparks a parked server-input marker after a confirmed cancel so the proof flow runs', async () => {
+        const ledger = await import('./bgServerInputLedger')
+        ledger.writeServerInputMarker(localStorage, { operationId: PARKED_ID, charId: CHAR_ID, chatId: CHAT_ID,
+            localRevision: orchestrationChatRevision(chatWith(2)), baseRevision: 'a'.repeat(64),
+            state: 'accepted', createdAt: Date.now() })
+        let cancelled = false
+        serve((_operationId, method, url) => {
+            if (url.startsWith('/api/bg-orchestrate-chat-state/')) return { status: 200, body: {
+                ...projection(PARKED_ID), owners: [], pendingInputCommands: [] } }
+            if (isStatus(method, url)) return { status: 200, body: cancelled ? {
+                accepted: true, operationId: PARKED_ID, state: 'input-cancelled',
+                cancelledInputProof: { contractVersion: 'bg_cancelled_input_proof.v1', operationId: PARKED_ID,
+                    charId: CHAR_ID, chatId: CHAT_ID, attachment: 'none', inputReceiptId: null,
+                    userMessageId: 'user-parked', attachedRevision: null,
+                    currentRevision: 'b'.repeat(64), allowEditedInput: false },
+            } : { accepted: true, operationId: PARKED_ID, state: 'input-transform-unknown' } }
+            if (method === 'GET' && url.startsWith('/api/bg-orchestrate-result/')) return { status: 200, body: {
+                found: false, operationId: PARKED_ID, final: true, stage: 0,
+                operationState: 'interrupted-before-result' } }
+            if (method === 'DELETE' && url.startsWith('/api/bg-orchestrate/' + PARKED_ID)) {
+                cancelled = true
+                return { status: 200, body: { operationId: PARKED_ID, cancelled: true } }
+            }
+        })
+        const module: any = await import('./bgOrchestrate')
+        await module.reconcileServerPendingInputCommands(CHAR_ID, CHAT_ID, chatWith(2))
+        const statusBeforePark = count(isStatus)
+        await module.reconcileServerPendingInputCommands(CHAR_ID, CHAT_ID, chatWith(2))
+        // Parked: the reconciler skips the marker entirely.
+        expect(count(isStatus)).toBe(statusBeforePark)
+        expect(count(isInputBase)).toBe(0)
+
+        await expect(module.cancelPendingServerInput({ operationId: PARKED_ID, charId: CHAR_ID, chatId: CHAT_ID }))
+            .resolves.toBe('cancelled')
+        // The cancel itself never clears the marker; only the proof flow may.
+        expect(ledger.readServerInputMarkers(localStorage).map((row: any) => row.operationId)).toEqual([PARKED_ID])
+        await module.reconcileServerPendingInputCommands(CHAR_ID, CHAT_ID, chatWith(2))
+        expect(count(isStatus)).toBeGreaterThan(statusBeforePark)
+        // Settlement reached the canonical read after accepting the proof.
+        expect(count(isInputBase)).toBe(1)
+    })
+
+    it('keeps a parked marker parked when the cancel is not confirmed', async () => {
+        const ledger = await import('./bgServerInputLedger')
+        ledger.writeServerInputMarker(localStorage, { operationId: PARKED_ID, charId: CHAR_ID, chatId: CHAT_ID,
+            localRevision: orchestrationChatRevision(chatWith(2)), baseRevision: 'a'.repeat(64),
+            state: 'accepted', createdAt: Date.now() })
+        serve((_operationId, method, url) => {
+            if (url.startsWith('/api/bg-orchestrate-chat-state/')) return { status: 200, body: {
+                ...projection(PARKED_ID), owners: [], pendingInputCommands: [] } }
+            if (isStatus(method, url)) return { status: 200, body: {
+                accepted: true, operationId: PARKED_ID, state: 'input-transform-unknown' } }
+            if (method === 'GET' && url.startsWith('/api/bg-orchestrate-result/')) return { status: 200, body: {
+                found: false, operationId: PARKED_ID, final: true, stage: 0,
+                operationState: 'interrupted-before-result' } }
+            if (method === 'DELETE' && url.startsWith('/api/bg-orchestrate/' + PARKED_ID)) {
+                return { status: 409, body: { operationId: PARKED_ID, cancelled: false } }
+            }
+        })
+        const module: any = await import('./bgOrchestrate')
+        await module.reconcileServerPendingInputCommands(CHAR_ID, CHAT_ID, chatWith(2))
+        const statusAfterPark = count(isStatus)
+        await expect(module.cancelPendingServerInput({ operationId: PARKED_ID, charId: CHAR_ID, chatId: CHAT_ID }))
+            .resolves.toBe('unconfirmed')
+        await module.reconcileServerPendingInputCommands(CHAR_ID, CHAT_ID, chatWith(2))
+        expect(count(isStatus)).toBe(statusAfterPark)
+        expect(ledger.readServerInputMarkers(localStorage).map((row: any) => row.operationId)).toEqual([PARKED_ID])
+    })
+
+    it('restores only into a fully empty composer (text, translation and files)', () => {
+        const unit = pendingCancelScreenUnit()
+        expect(unit).toMatch(/messageInputTranslate\s*===\s*['"]{2}/)
+        expect(unit).toMatch(/fileInput\.length\s*===\s*0/)
+    })
+
+    it('does not restore while a send or orchestration is in flight', () => {
+        const unit = pendingCancelScreenUnit()
+        expect(unit).toMatch(/!\s*\$doingChat/)
+        expect(unit).toMatch(/!\s*\$orchestrating/)
+        expect(unit).toMatch(/!\s*inputAdmissionBusy/)
+        expect(unit).toMatch(/!\s*draftLoading/)
+    })
 })

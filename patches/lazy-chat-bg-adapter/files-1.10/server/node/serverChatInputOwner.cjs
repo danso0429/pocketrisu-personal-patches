@@ -499,7 +499,13 @@ function createServerChatInputOwner({
             && !!record.executionBaseRevision && matches.length === 1 && containsOwnedInput(record, chat);
         const untouched = record.transformState === 'not_run' && !record.inputReceipt && !record.inputReceiptId
             && record.admission.inputPreparation !== 'client' && matches.length === 0;
-        if (!attached && !untouched) return null;
+        // attachTransformed writes the receipt and the attached state in one
+        // transaction, so an interrupted transform without a receipt never
+        // reached the canonical chat. A running transform stays unproven.
+        const interruptedTransform = record.transformState === 'unknown'
+            && !record.inputReceipt && !record.inputReceiptId
+            && record.admission.inputPreparation !== 'client' && matches.length === 0;
+        if (!attached && !untouched && !interruptedTransform) return null;
         return {
             contractVersion: 'bg_cancelled_input_proof.v1', operationId,
             charId: record.admission.charId, chatId: record.admission.chatId,
@@ -1706,6 +1712,16 @@ function createServerChatInputOwner({
         ));
     }
 
+    // A server-prepared input left without a live owner: its transform outcome
+    // is unknown or its in-process settings snapshot is gone (restart). Only an
+    // explicit user cancel may settle it.
+    function isOrphanInput(record) {
+        return record.recordVersion === 4
+            && record.admission.inputPreparation !== 'client'
+            && (record.inputState === 'queued' || record.inputState === 'attached')
+            && (record.transformState === 'unknown' || readSettingsSnapshotRecord(record) === null);
+    }
+
     function pendingProjection(charId, chatId) {
         return allRecords().filter((record) => (
             record.admission.charId === charId
@@ -1739,7 +1755,8 @@ function createServerChatInputOwner({
                 admissionSeq: record.admissionSeq,
                 predecessorOperationId: record.executionPredecessorId,
                 rawText: record.admission.rawText,
-                cancelAllowed: record.inputState === 'queued',
+                cancelAllowed: record.inputState === 'queued'
+                    || (record.inputState === 'attached' && isOrphanInput(record)),
                 retryAllowed: record.inputState === 'blocked_edit'
                     && (['not_run', 'completed'].includes(record.transformState)
                         || (record.admission.inputPreparation === 'client'

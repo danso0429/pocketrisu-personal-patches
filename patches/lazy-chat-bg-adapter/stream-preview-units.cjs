@@ -149,5 +149,45 @@ export async function cancelObservedServerOperation(target: {
 }
 
 let cancelPromise: Promise<boolean> | null = null`)
+    add('pending-input-cancel', 'src/ts/bgOrchestrate.ts',
+        '// Explicit UI action only. Preview observation/teardown has no cancellation authority.\n',
+        `// Explicit pending-card action for a server input without a live owner. It
+// never touches the watched operation or boot recovery; the cancelled-input
+// proof flow settles the submitting browser's marker separately.
+export async function cancelPendingServerInput(target: {
+    operationId: string; charId: string; chatId: string;
+}): Promise<'cancelled' | 'finished' | 'unconfirmed'> {
+    try {
+        const response = await fetchOrchestrationControl('/api/bg-orchestrate/' + encodeURIComponent(target.operationId)
+            + '?' + new URLSearchParams({ charId: target.charId, chatId: target.chatId }),
+        { method: 'DELETE', credentials: 'same-origin' })
+        const data = await readRecoveryJson(response)
+        if (!response.ok || data?.operationId !== target.operationId) return 'unconfirmed'
+        if (data.cancelled === true) {
+            // A parked marker is skipped by the server-input reconciler. Unpark it
+            // so the cancelled-input proof flow decides whether to clear it.
+            parkedRecoveries.delete(target.operationId)
+            return 'cancelled'
+        }
+        return data.finished === true && data.cancelled === false ? 'finished' : 'unconfirmed'
+    } catch { return 'unconfirmed' } finally {
+        window.dispatchEvent(new Event('bg-server-input-updated'))
+    }
+}
+
+// Read-only status probe for one operation. Returns the parsed body or null.
+export async function readServerOperationStatus(target: {
+    operationId: string; charId: string; chatId: string;
+}): Promise<any | null> {
+    try {
+        const response = await fetchOrchestrationControl('/api/bg-orchestrate-status/' + encodeURIComponent(target.operationId)
+            + '?' + new URLSearchParams({ charId: target.charId, chatId: target.chatId }),
+        { method: 'GET', credentials: 'same-origin' })
+        if (!response.ok) return null
+        return await readRecoveryJson(response)
+    } catch { return null }
+}
+
+`, 'insert', 'before')
     return units
 }

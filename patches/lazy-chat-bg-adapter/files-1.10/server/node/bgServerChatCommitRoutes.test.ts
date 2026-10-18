@@ -288,6 +288,7 @@ function detachedCommitHarness({
     const kvDelPrefix = (prefix: string) => delPrefix.run(escaped(prefix))
     const values = {
         get: kvGet,
+        set: (key: string, value: string | Buffer | Uint8Array) => kvSet(key, value),
         delete: (key: string) => { kvDel(key); return true },
     }
     const chatRevision = (chat: unknown) => createHash('sha256')
@@ -346,6 +347,8 @@ function detachedCommitHarness({
         kvGetUpdatedAt: () => Date.now(),
         orchestrationRuns: {
             get: () => null,
+            hasChatRun: () => false,
+            cancel: () => ({ cancelled: false, run: null }),
             start: (_candidate: string, metadata: Record<string, unknown>) => ({
                 started: true,
                 run: {
@@ -1277,6 +1280,59 @@ describe('server chat commit route precedence', () => {
             serverBaseChatRevision: 'canonical-server-revision',
         })
     })
+
+    it.each(['R-A', 'R-B', 'R-C', 'R-D'] as const)(
+        'cancels restarted server input %s through the real route and releases every guard', async point => {
+            const harness = detachedCommitHarness()
+            const id = harness.operationId
+            const chat = harness.runtime.fullStore.get('char-1')!.get('chat-1')!
+            const chatRevision = createHash('sha256').update(Buffer.from(encodeRisuSaveLegacy(chat))).digest('hex')
+            await harness.inputOwner.admit({ operationId: id, inputCommandId: 'route-input-command',
+                userMessageId: 'route-user-message', charId: 'char-1', chatId: 'chat-1', rawText: 'restore me',
+                submittedBaseRevision: chatRevision, submittedAt: 1_700_000_000_000 })
+            if (point !== 'R-A') await harness.inputOwner.beginTransform(id)
+            if (point === 'R-C' || point === 'R-D') await harness.inputOwner.attachTransformed(id, {
+                chat: { ...chat, message: [...chat.message, { role: 'user', data: 'restore me',
+                    chatId: 'route-user-message', time: 1_700_000_000_000, name: null }] },
+                globalIntent: { changed: {}, deleted: [], expected: {} },
+            })
+            if (point === 'R-B') harness.inputOwner.markRunFailureSynchronously(id, false)
+            writeOperationState((key, value) => harness.values.set(key, value), id,
+                { operationId: id, charId: 'char-1', chatId: 'chat-1' },
+                point === 'R-D' ? 'running' : 'queued')
+            harness.values.set(operationResultKey(id), 'stale-result')
+
+            const invoke = async (method: string, route: string, query: Record<string, string>) => {
+                const handler = harness.routes.get(`${method} ${route}`)!
+                const result = { status: 200, body: null as any }
+                await handler({ params: { operationId: id, charId: 'char-1', chatId: 'chat-1' }, query }, {
+                    status(code: number) { result.status = code; return this },
+                    json(body: unknown) { result.body = body; return this },
+                })
+                return result
+            }
+            expect(await invoke('DELETE', '/api/bg-orchestrate/:operationId', {}))
+                .toMatchObject({ status: 409, body: { reason: 'not-active' } })
+            expect(harness.inputOwner.read(id).inputState).not.toBe('cancelled')
+            expect(harness.inputOwner.hasPendingGeneration('char-1', 'chat-1')).toBe(true)
+
+            expect(await invoke('DELETE', '/api/bg-orchestrate/:operationId', { charId: 'char-1', chatId: 'chat-1' }))
+                .toMatchObject({ status: 200, body: { cancelled: true,
+                    state: 'cancelled-before-or-after-restart' } })
+            expect(JSON.parse(String(harness.values.get(operationStateKey(id))))).toMatchObject({ state: 'cancelled' })
+            expect(harness.values.get(operationResultKey(id))).toBeNull()
+            expect(harness.inputOwner.hasPendingGeneration('char-1', 'chat-1')).toBe(false)
+            const projected = (await harness.project(chatRevision)).body
+            expect(projected.pendingInputCommands ?? []).toEqual([])
+            expect(await invoke('GET', '/api/bg-chat-activity/:charId/:chatId', {}))
+                .toMatchObject({ status: 200, body: { busy: false } })
+            const status = await invoke('GET', '/api/bg-orchestrate-status/:operationId',
+                { charId: 'char-1', chatId: 'chat-1' })
+            expect(status).toMatchObject({ status: 200, body: { state: 'input-cancelled',
+                cancelledInputProof: { operationId: id,
+                    attachment: point === 'R-C' || point === 'R-D' ? 'attached' : 'none' } } })
+        },
+    )
 
     it('reports, protects, and rediscovers a committed chat after result cleanup', () => {
         const harness = routeHarness()

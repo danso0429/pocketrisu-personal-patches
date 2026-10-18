@@ -34,6 +34,24 @@ describe('server pending input projection', () => {
         }])
     })
 
+    it.each(['blocked_edit', 'execution_unknown'] as const)(
+        'copies cancelAllowed for actionable %s rows', state => {
+            const row = { operationId: `cancel-${state}`, admissionSeq: 1, state, cancelAllowed: true,
+                ...(state === 'blocked_edit' ? { rawText: 'preserved', inputCommandId: 'draft-cancel-1' } : {}) }
+            expect(parseServerPendingInputs({ found: true, pendingInputCommands: [row] })[0])
+                .toMatchObject({ operationId: row.operationId, cancelAllowed: true })
+        },
+    )
+
+    it('does not copy cancelAllowed to active rows and rejects non-boolean values', () => {
+        expect(parseServerPendingInputs({ found: true, pendingInputCommands: [
+            { operationId: 'active-cancel', admissionSeq: 1, state: 'queued', cancelAllowed: true },
+        ] })[0]).not.toHaveProperty('cancelAllowed')
+        expect(() => parseServerPendingInputs({ found: true, pendingInputCommands: [
+            { operationId: 'bad-cancel', admissionSeq: 1, state: 'execution_unknown', cancelAllowed: 'yes' },
+        ] })).toThrow('server pending input row is invalid')
+    })
+
     it('represents an empty or absent projection without inventing work', () => {
         expect(parseServerPendingInputs(null)).toEqual([])
         expect(parseServerPendingInputs({ found: true, pendingInputCommands: [] })).toEqual([])

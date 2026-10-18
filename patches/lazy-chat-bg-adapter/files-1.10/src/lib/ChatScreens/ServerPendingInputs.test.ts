@@ -25,12 +25,14 @@ afterEach(async () => {
     vi.restoreAllMocks()
 })
 
-function render(onRetryBlocked: (input: any) => Promise<void>, onActivity?: (activity: any) => void) {
+function render(onRetryBlocked: (input: any) => Promise<void>, onActivity?: (activity: any) => void,
+    onCancelPending?: (input: any) => Promise<'cancelled' | 'finished' | 'unconfirmed'>) {
     const target = document.createElement('div')
     document.body.appendChild(target)
     const component = mount(ServerPendingInputs, {
         target,
-        props: { charId: 'char-1', chatId: 'chat-1', chat: { id: 'chat-1' }, onRetryBlocked, onActivity },
+        props: { charId: 'char-1', chatId: 'chat-1', chat: { id: 'chat-1' }, onRetryBlocked, onActivity,
+            onCancelPending },
     })
     mounted.push({ component, target })
     return target
@@ -156,13 +158,66 @@ describe('blocked server input recovery control', () => {
     })
 
     it('does not offer paid retry when execution identity is unknown', async () => {
+        let release!: () => void
+        const cancel = vi.fn(() => new Promise<'cancelled'>(resolve => { release = () => resolve('cancelled') }))
         vi.mocked(reconcileServerPendingInputCommands).mockResolvedValue([{
             operationId: 'operation-unknown-1', admissionSeq: 1,
-            state: 'blocked_edit', retryAllowed: false,
+            state: 'blocked_edit', retryAllowed: false, cancelAllowed: true,
             rawText: 'unverified draft', inputCommandId: 'draft-unknown-1',
         }])
-        const target = render(vi.fn(async () => {}))
+        const target = render(vi.fn(async () => {}), undefined, cancel)
         await vi.waitFor(() => expect(target.textContent).toContain('unverified draft'))
-        expect(target.querySelector('button')).toBeNull()
+        expect(target.textContent).toContain('이미 사용된 모델 호출이나 외부 작업은 되돌리지 않아요')
+        expect(target.querySelectorAll('button')).toHaveLength(1)
+        const button = target.querySelector('button')!
+        expect(button.textContent).not.toContain('새로 생성하기')
+        button.click(); button.click()
+        await vi.waitFor(() => expect(cancel).toHaveBeenCalledTimes(1))
+        expect(cancel).toHaveBeenCalledWith(expect.objectContaining({ operationId: 'operation-unknown-1' }))
+        expect(button.disabled).toBe(true)
+        release(); await tick()
+    })
+
+    it('polls an actionable-only execution_unknown row at the 5 s idle rate', async () => {
+        vi.useFakeTimers()
+        const row = { operationId: 'execution-orphan', admissionSeq: 1, state: 'execution_unknown' as const,
+            cancelAllowed: true }
+        vi.mocked(reconcileServerPendingInputCommands).mockResolvedValue([row])
+        render(vi.fn(async () => {}), undefined, vi.fn(async () => 'finished' as const))
+        await tick(); await vi.advanceTimersByTimeAsync(0); await tick()
+        expect(reconcileServerPendingInputCommands).toHaveBeenCalledTimes(1)
+        await vi.advanceTimersByTimeAsync(4_999)
+        expect(reconcileServerPendingInputCommands).toHaveBeenCalledTimes(1)
+        await vi.advanceTimersByTimeAsync(1)
+        expect(reconcileServerPendingInputCommands).toHaveBeenCalledTimes(2)
+    })
+
+    it('offers one single-flight cancel and no retry for execution_unknown', async () => {
+        let release!: () => void
+        const cancel = vi.fn(() => new Promise<'cancelled'>(resolve => { release = () => resolve('cancelled') }))
+        const row = { operationId: 'execution-cancel', admissionSeq: 1,
+            state: 'execution_unknown' as const, cancelAllowed: true }
+        vi.mocked(reconcileServerPendingInputCommands).mockResolvedValue([row])
+        const target = render(vi.fn(async () => {}), undefined, cancel)
+        await vi.waitFor(() => expect(target.textContent).toContain('생성 상태 미확인'))
+        expect(target.textContent).toContain('이미 사용된 모델 호출이나 외부 작업은 되돌리지 않아요')
+        expect(target.querySelectorAll('button')).toHaveLength(1)
+        const button = target.querySelector('button')!
+        button.click(); button.click()
+        await vi.waitFor(() => expect(cancel).toHaveBeenCalledTimes(1))
+        expect(button.disabled).toBe(true)
+        release(); await tick()
+    })
+
+    it('keeps retry-only blocked rows unchanged and never renders controls for active rows', async () => {
+        const retry = vi.fn(async () => {})
+        vi.mocked(reconcileServerPendingInputCommands).mockResolvedValue([{
+            operationId: 'retry-only', admissionSeq: 1, state: 'blocked_edit', retryAllowed: true,
+            rawText: 'retry me', inputCommandId: 'retry-only-draft',
+        }])
+        const target = render(retry, undefined, vi.fn(async () => 'cancelled' as const))
+        await vi.waitFor(() => expect(target.textContent).toContain('retry me'))
+        expect(target.querySelectorAll('button')).toHaveLength(1)
+        expect(target.querySelector('button')?.textContent).toContain('새로 생성하기')
     })
 })

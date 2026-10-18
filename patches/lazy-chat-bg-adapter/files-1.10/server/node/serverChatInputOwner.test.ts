@@ -866,7 +866,7 @@ describe('pre-canonical server chat input owner', () => {
             reason: 'settings_context_unavailable',
         })
         expect(restarted.pendingProjection('char-1', 'chat-1')).toMatchObject([{
-            operationId, state: 'blocked_edit',
+            operationId, state: 'blocked_edit', cancelAllowed: true,
         }])
         expect(restarted.loadSettingsSnapshot(operationId)).toMatchObject({
             status: 'blocked',
@@ -1527,7 +1527,7 @@ describe('pre-canonical server chat input owner', () => {
             reason: 'settings_context_unavailable',
         })
         expect(restarted.pendingProjection('char-1', 'chat-1')).toMatchObject([{
-            operationId, state: 'execution_unknown',
+            operationId, state: 'execution_unknown', cancelAllowed: true,
         }])
         expect(harness.runtime.fullStore.get('char-1')?.get('chat-1')?.message.at(-1))
             .toMatchObject({ chatId: `user-${operationId}`, data: 'hello' })
@@ -1841,5 +1841,87 @@ describe('pre-canonical server chat input owner', () => {
         await expect(owner.beginTransform(replacementId)).resolves.toMatchObject({
             status: 'started',
         })
+    })
+
+    it.each([
+        ['R-A', 'queued'], ['R-B', 'transform-unknown'],
+        ['R-C', 'attached'], ['R-D', 'provider-started'],
+    ] as const)('makes restart orphan %s explicitly cancellable and fully releasable (%s)', async (point, state) => {
+        const h = makeHarness(), original = h.makeOwner()
+        const operationId = `orphan-${point.toLowerCase()}`
+        await original.admit(admission(operationId, `draft ${point}`))
+        if (state !== 'queued') await original.beginTransform(operationId)
+        if (state === 'attached' || state === 'provider-started') {
+            await original.attachTransformed(operationId, h.transformed(operationId, `draft ${point}`))
+        }
+        const restarted = h.makeOwner(h.makeJournal())
+        await restarted.recoverAll(); await restarted.recoverAll()
+        const row = restarted.pendingProjection('char-1', 'chat-1')[0]
+        expect(row).toMatchObject({ operationId, cancelAllowed: true })
+        expect(row.state).toBe(state === 'attached' || state === 'provider-started'
+            ? 'execution_unknown' : 'blocked_edit')
+        expect(restarted.hasPendingGeneration('char-1', 'chat-1')).toBe(true)
+        expect(restarted.settleSynchronously(operationId, 'cancelled')).toBe(true)
+        expect(restarted.read(operationId)).toMatchObject({ inputState: 'cancelled' })
+        expect(restarted.hasPendingGeneration('char-1', 'chat-1')).toBe(false)
+        expect(restarted.hasPendingGeneration(null, 'chat-1')).toBe(false)
+        expect(restarted.pendingProjection('char-1', 'chat-1')).toEqual([])
+        if (state === 'attached' || state === 'provider-started') {
+            expect(h.runtime.fullStore.get('char-1')!.get('chat-1')!.message)
+                .toContainEqual(expect.objectContaining({ chatId: `user-${operationId}` }))
+        }
+        expect(restarted.readCancelledInputProof(operationId)).toMatchObject({
+            operationId, attachment: state === 'attached' || state === 'provider-started' ? 'attached' : 'none',
+        })
+        const nextId = `${operationId}-next`
+        const chat = h.runtime.fullStore.get('char-1')!.get('chat-1')!
+        await expect(restarted.admit({ ...admission(nextId, 'fresh'), submittedBaseRevision: revision(chat) }))
+            .resolves.toMatchObject({ status: 'admitted', record: { executionPredecessorId: null } })
+        await expect(restarted.loadExecution(nextId)).resolves.toMatchObject({ status: 'transform-required' })
+    })
+
+    it('keeps live rows unchanged while exposing a transform-failure orphan without restart', async () => {
+        const h = makeHarness(), owner = h.makeOwner()
+        const queued = 'live-queued-row', attached = 'live-attached-row', failed = 'failed-transform-row'
+        await owner.admit(admission(queued))
+        expect(owner.pendingProjection('char-1', 'chat-1').find((row: any) => row.operationId === queued))
+            .toMatchObject({ cancelAllowed: true })
+        expect(owner.settleSynchronously(queued, 'cancelled')).toBe(true)
+        await owner.admit(admission(attached)); await owner.beginTransform(attached)
+        await owner.attachTransformed(attached, h.transformed(attached))
+        expect(owner.pendingProjection('char-1', 'chat-1').find((row: any) => row.operationId === attached))
+            .toMatchObject({ cancelAllowed: false })
+        expect(owner.settleSynchronously(attached, 'cancelled')).toBe(true)
+        const chat = h.runtime.fullStore.get('char-1')!.get('chat-1')!
+        await owner.admit({ ...admission(failed), submittedBaseRevision: revision(chat) })
+        await owner.beginTransform(failed)
+        expect(owner.markRunFailureSynchronously(failed, false)).toBe(true)
+        expect(owner.pendingProjection('char-1', 'chat-1').find((row: any) => row.operationId === failed))
+            .toMatchObject({ state: 'blocked_edit', cancelAllowed: true, retryAllowed: false })
+        expect(owner.settleSynchronously(failed, 'cancelled')).toBe(true)
+        expect(owner.readCancelledInputProof(failed)).toMatchObject({ attachment: 'none' })
+    })
+
+    it('requires cancelling both restarted predecessor and successor before releasing the chat', async () => {
+        const h = makeHarness(), owner = h.makeOwner()
+        const first = 'orphan-predecessor', second = 'orphan-successor'
+        await owner.admit(admission(first, 'first')); await owner.admit(admission(second, 'second'))
+        const restarted = h.makeOwner(); await restarted.recoverAll(); await restarted.recoverAll()
+        expect(restarted.pendingProjection('char-1', 'chat-1')).toEqual(expect.arrayContaining([
+            expect.objectContaining({ operationId: first, cancelAllowed: true }),
+            expect.objectContaining({ operationId: second, cancelAllowed: true }),
+        ]))
+        expect(restarted.settleSynchronously(first, 'cancelled')).toBe(true)
+        expect(restarted.hasPendingGeneration('char-1', 'chat-1')).toBe(true)
+        expect(restarted.settleSynchronously(second, 'cancelled')).toBe(true)
+        expect(restarted.hasPendingGeneration('char-1', 'chat-1')).toBe(false)
+    })
+
+    it('does not pretend a terminal blocked_edit row can be cancelled', async () => {
+        const h = makeHarness(), owner = h.makeOwner(), id = 'terminal-blocked-edit'
+        await owner.admit(admission(id)); expect(owner.blockEditSynchronously(id, 'base_revision_changed')).toBe(true)
+        const before = owner.read(id)
+        expect(owner.settleSynchronously(id, 'cancelled')).toBe(false)
+        expect(owner.read(id)).toEqual(before)
     })
 })

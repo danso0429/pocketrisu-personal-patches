@@ -25,7 +25,7 @@ const queueUnits = require('./queue-units.cjs')
 module.exports = {
     id: 'lazy-chat-bg-adapter',
     title: 'BG preserve integration for lazy chat storage',
-    version: '0.7.62',
+    version: '0.7.63',
     targets: {
         pocketrisu: {
             verified: ['1.10.0'],
@@ -1869,7 +1869,8 @@ function notifyFinishedServerFailure(operationId: string, data: any): void {
             anchor: '    import { sleep } from "../../ts/util";\n',
             content: `    import ServerPendingInputs from './ServerPendingInputs.svelte';
     import type { ServerPendingInput } from '../../ts/bgServerPendingProjection';
-    import { hasServerOwnedInputMarker, tryRunServerOwnedInput } from '../../ts/bgOrchestrate';
+    import { cancelPendingServerInput, hasServerOwnedInputMarker, readServerOperationStatus, tryRunServerOwnedInput } from '../../ts/bgOrchestrate';
+    import { notifyInfo, notifyWarning } from '../../ts/alert';
     import { requiresClientGenerationEpilogue } from '../../ts/bgOrchestrationPolicy';
     import { requiresClientOwnedInputPreparation } from '../../ts/bgServerInputProviderPolicy';
 `,
@@ -1959,6 +1960,46 @@ function notifyFinishedServerFailure(operationId: string, data: any): void {
             inputAdmissionBusy = false
         }
     }
+    async function cancelPendingServerInputRow(input: ServerPendingInput): Promise<'cancelled' | 'finished' | 'unconfirmed'> {
+        const charId = pendingCharacter?.chaId
+        const chatId = pendingChat?.id
+        if (!charId || !chatId) return 'unconfirmed'
+        const operationId = input.operationId
+        const rawText = input.rawText
+        // Only an input that never entered the chat may return to the composer.
+        const restorable = input.state === 'blocked_edit' && typeof rawText === 'string' && rawText.length > 0
+            && !input.inputReceiptId
+        const outcome = await cancelPendingServerInput({ operationId, charId, chatId })
+        if (outcome === 'finished') {
+            notifyInfo('이 입력은 이미 처리가 끝났어요.', { source: 'bg-input' })
+            return outcome
+        }
+        if (outcome !== 'cancelled') {
+            notifyWarning('입력 취소를 확인하지 못했어요. 서버 입력 상태를 확인해 주세요.', { source: 'bg-input' })
+            return outcome
+        }
+        if (!restorable) {
+            notifySuccess('입력을 취소했어요.')
+            return outcome
+        }
+        const status = await readServerOperationStatus({ operationId, charId, chatId })
+        const proof = status?.accepted === true && status.operationId === operationId
+            && status.state === 'input-cancelled' ? status.cancelledInputProof : null
+        const neverAttached = proof?.operationId === operationId && proof.charId === charId
+            && proof.chatId === chatId && proof.attachment === 'none'
+        const sameChat = pendingCharacter?.chaId === charId && pendingChat?.id === chatId
+        const sendIdle = !draftLoading && !inputAdmissionBusy && !$doingChat && !$orchestrating
+        const composerEmpty = messageInput === '' && messageInputTranslate === '' && fileInput.length === 0
+        if (neverAttached && sameChat && sendIdle && composerEmpty) {
+            messageInput = rawText
+            notifySuccess('입력을 취소하고 원문을 입력창에 되돌렸어요.')
+        } else {
+            notifySuccess('입력을 취소했어요.', {
+                description: '원문은 입력창에 되돌리지 않았어요.',
+            })
+        }
+        return outcome
+    }
 `,
             requires: ['lazy-chat-bg-adapter:server-pending-ui-import:1.10'],
             targetVersions: pocketRisu1100,
@@ -1976,6 +2017,7 @@ function notifyFinishedServerFailure(operationId: string, data: any): void {
                         chatId={pendingChat.id}
                         chat={pendingChat}
                         onRetryBlocked={retryBlockedServerInput}
+                        onCancelPending={cancelPendingServerInputRow}
                     />
                 {/if}
                 <!-- POCKETRISU-PATCH:lazy-chat-bg-adapter:server-pending-ui:END -->
@@ -3529,6 +3571,7 @@ const serverChatCommitOwner = createServerChatCommitOwner({
       const state = inputCommand.userResolvedAt
         ? 'input-retried'
         : inputCommand.transformState === 'unknown'
+          && inputCommand.inputState !== 'cancelled'
         ? 'input-transform-unknown'
         : inputCommand.inputState === 'attached'
           ? pendingInput?.state === 'execution_unknown'
