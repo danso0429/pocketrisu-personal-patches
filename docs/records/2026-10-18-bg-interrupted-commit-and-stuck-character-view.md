@@ -159,5 +159,5 @@ copy of the removed message.
    render path; a terminal state for interrupted operations whose commit
    receipt is invalid; operation-state records left `running` after an
    interruption.
-3. The pre-deletion backup holds the only copy of the removed message; it is
-   kept until the user decides otherwise.
+3. The pre-deletion backup, which held the only copy of the removed message,
+   was deleted at the user's request after the recovery was confirmed.
