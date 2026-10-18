@@ -25,7 +25,7 @@ function payload1100(relative) {
 
 test('lazy chat pack includes CAS, WAL, reconciliation, and safe hydration boundaries', () => {
     assert.equal(lazyManifest.id, 'lazy-chat-sync')
-    assert.equal(lazyManifest.version, '0.5.10')
+    assert.equal(lazyManifest.version, '0.5.11')
     assert.deepEqual(lazyManifest.targets, {
         pocketrisu: {
             verified: ['1.10.0'],
@@ -69,12 +69,13 @@ test('lazy chat pack includes CAS, WAL, reconciliation, and safe hydration bound
     assert.match(payload1100('src/ts/plugins/apiV3/v3.svelte.ts'), /getDatabaseMetadata/)
     assert.match(payload1100('src/ts/plugins/apiV3/v3.svelte.ts'), /assignMissingChatIdsToNewCharacters/)
     assert.match(payload('src/ts/storage/chatIdentityRepair.ts'), /Refusing to replace the missing ID of existing character/)
-    const serverSource = payload1100('server/node/server.cjs')
-    const failedColdStoragePromotion = serverSource.slice(
-        serverSource.indexOf('function promoteFailedColdStorageStub'),
-        serverSource.indexOf('function restoreColdStorageCharactersInDb'),
+    const prepareSource = payload1100('server/node/storageResetPrepare.cjs')
+    const failedColdStoragePromotion = prepareSource.slice(
+        prepareSource.indexOf('function promoteFailedColdStorageStub'),
+        prepareSource.indexOf('function restoreColdStorageCharactersInDb'),
     )
-    assert.match(failedColdStoragePromotion, /id: nodeCrypto\.randomUUID\(\),[\s\S]*name: 'Chat 1'/)
+    assert.match(failedColdStoragePromotion, /id: randomUUID\(\),[\s\S]*name: 'Chat 1'/)
+    assert.match(payload1100('server/node/server.cjs'), /randomUUID: generateChatId,/)
     const metadataTypes = lazyManifest.units.find((unit) =>
         unit.id === 'lazy-chat-sync:plugin-api-chat-metadata-types'
     )

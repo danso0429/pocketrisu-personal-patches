@@ -54,6 +54,8 @@ const ownedFiles = [
 const owned1100Files = [
     'server/node/serverChatCommit.cjs',
     'server/node/serverChatCommit.test.ts',
+    'server/node/storageResetPrepare.cjs',
+    'server/node/storageResetPrepare.test.ts',
     'src/ts/bootstrap.freshDatabase.test.ts',
     'src/ts/storage/globalApi.savePersistence.test.ts',
 ]
@@ -65,7 +67,7 @@ function unitId(relative) {
 module.exports = {
     id: 'lazy-chat-sync',
     title: 'Lazy chat synchronization and startup cache',
-    version: '0.5.10',
+    version: '0.5.11',
     targets: {
         pocketrisu: {
             verified: ['1.10.0'],
@@ -104,6 +106,11 @@ module.exports = {
                 requires: [
                     'lazy-chat-sync:owned:server:node:chatWriteJournal-cjs',
                     'lazy-chat-sync:owned:server:node:serverChatCommit-cjs:1.10',
+                ],
+            } : {}),
+            ...(relative === 'server/node/storageResetPrepare.test.ts' ? {
+                requires: [
+                    'lazy-chat-sync:owned:server:node:storageResetPrepare-cjs:1.10',
                 ],
             } : {}),
             targetVersions: pocketRisu1100,

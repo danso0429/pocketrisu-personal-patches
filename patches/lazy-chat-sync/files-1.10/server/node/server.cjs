@@ -47,6 +47,7 @@ const {
     commitSnapshotRestore,
     createChatWriteJournal,
 } = require('./chatWriteJournal.cjs');
+const storageResetPrepare = require('./storageResetPrepare.cjs');
 const { spawn, execSync } = require('child_process');
 const os = require('os');
 const { Readable, Transform } = require('stream');
@@ -316,41 +317,12 @@ function invalidateDbCache() {
 
 // ─── Chat runtime lazy load helpers ─────────────────────────────────────────
 
-function assignMissingChatIds(dbObj) {
-    let changed = false;
-    if (!dbObj?.characters) return changed;
-    for (const char of dbObj.characters) {
-        if (!char?.chats) continue;
-        for (const chat of char.chats) {
-            if (!chat || chat._stub || chat.id) continue;
-            chat.id = nodeCrypto.randomUUID();
-            changed = true;
-        }
-    }
-    return changed;
-}
-
-// Recovers chats whose folderId points to a deleted folder. The previous merge
-// layer silently kept stale folderId on disk when a user moved a chat out of a
-// folder, then later deleting that folder produced orphans invisible in the
-// sidebar (rendered into neither the no-folder section nor any folder section).
-// Boot-time normalize so historical corruption self-heals; new corruption is
-// blocked by the merge fix in mergeChatStubWithFullChat.
-function normalizeOrphanFolderIds(dbObj) {
-    let changed = false;
-    if (!dbObj?.characters) return changed;
-    for (const char of dbObj.characters) {
-        if (!char?.chats) continue;
-        const validIds = new Set((char.chatFolders ?? []).map(f => f?.id).filter(Boolean));
-        for (const chat of char.chats) {
-            if (!chat) continue;
-            if (chat.folderId && !validIds.has(chat.folderId)) {
-                chat.folderId = null;
-                changed = true;
-            }
-        }
-    }
-    return changed;
+// Missing chat ids, orphan folder ids (storageResetPrepare.normalizeOrphanFolderIds),
+// cold storage restoration, stub conversion and the chat payload map are
+// shared with restore preparation in storageResetPrepare.cjs; the wrappers
+// here supply the live id generator, KV reader and logger.
+function generateChatId() {
+    return nodeCrypto.randomUUID();
 }
 
 async function decodeDatabaseWithPersistentChatIds(raw, options = {}) {
@@ -364,20 +336,16 @@ async function decodeDatabaseWithPersistentChatIds(raw, options = {}) {
         if (fresh) raw = fresh;
     }
     const dbObj = normalizeJSON(await decodeRisuSave(raw));
-    let needsPersist = false;
 
-    const hadMissingIds = assignMissingChatIds(dbObj);
-    if (hadMissingIds) needsPersist = true;
-
-    const hadOrphanFolderIds = normalizeOrphanFolderIds(dbObj);
-    if (hadOrphanFolderIds) needsPersist = true;
-
-    // One-time migration: restore upstream cold storage characters to full characters.
-    // This runs when upstream data first enters NodeOnly (backup import or save folder copy).
-    // After restore, the coldstorage field is removed and the clean DB is persisted.
-    // Failed characters are promoted to safe blank characters — their KV data is preserved for manual recovery.
-    const coldRestoreResult = restoreColdStorageCharactersInDb(dbObj);
-    if (coldRestoreResult.restored > 0 || coldRestoreResult.failed > 0) needsPersist = true;
+    // Missing chat ids and orphan folder ids are repaired first, then the
+    // one-time cold storage migration restores upstream cold storage characters
+    // to full characters. This runs when upstream data first enters NodeOnly
+    // (backup import or save folder copy). After restore, the coldstorage field
+    // is removed and the clean DB is persisted. Failed characters are promoted
+    // to safe blank characters — their KV data is preserved for manual recovery.
+    const repair = storageResetPrepare.repairDecodedDatabase(dbObj, liveColdStorageRepairOptions());
+    const needsPersist = repair.changed;
+    const coldRestoreResult = repair.coldStorage;
     if (coldRestoreResult.failed > 0) {
         logger.error(`[ColdStorage] ${coldRestoreResult.failed} character(s) could not be restored and were converted to safe blank characters. Cold storage KV data is preserved.`);
         for (const name of coldRestoreResult.failedNames) {
@@ -398,32 +366,6 @@ async function decodeDatabaseWithPersistentChatIds(raw, options = {}) {
 }
 
 /**
- * Convert a full chat to a stub (metadata only).
- *
- * Hybrid corruption guard: a chat carrying `_stub: true` AND a real `message`
- * array is the v1.4.x legacy hybrid pattern. The fast-path "if _stub return"
- * would propagate the corruption (server reassemble skips merge for _stub
- * chats with no fullChat lookup match). Treat hybrids as real chats and
- * collapse them to a real stub here.
- */
-function chatToStub(chat) {
-    if (!chat) return chat;
-    if (chat._stub && !Array.isArray(chat.message)) return chat;
-    const stub = {
-        id: chat.id || '',
-        name: chat.name ?? '',
-        _stub: true,
-    };
-    // Preserve key presence even when the value is null/undefined so the
-    // round-trip distinguishes "user cleared" from "field absent". See
-    // mergeChatStubWithFullChat — it relies on `in` semantics.
-    if ('lastDate' in chat) stub.lastDate = chat.lastDate;
-    if ('folderId' in chat) stub.folderId = chat.folderId;
-    if ('modules' in chat) stub.modules = chat.modules;
-    return stub;
-}
-
-/**
  * Initialize fullChatStore from a decoded full database object.
  * Extracts all chat payloads into the store keyed by chaId → chatId.
  *
@@ -434,34 +376,9 @@ function chatToStub(chat) {
  */
 async function initChatStore(dbObj) {
     const generation = chatStoreGeneration;
-    const nextChatStore = new Map();
-    if (!dbObj?.characters) {
-        await chatWriteJournal.restoreInto(nextChatStore);
-        if (generation === chatStoreGeneration) fullChatStore = nextChatStore;
-        return;
-    }
-    for (const char of dbObj.characters) {
-        if (!char?.chaId || !char.chats) continue;
-        const charChats = new Map();
-        for (const chat of char.chats) {
-            if (!chat) continue;
-            const isStub = chat._stub === true;
-            const hasMessage = Array.isArray(chat.message);
-            // Real stub (no payload) — fullChatStore tracks payloads only.
-            if (isStub && !hasMessage) continue;
-            // Hybrid: strip the corrupt _stub flag, keep the real chat.
-            if (isStub && hasMessage) {
-                delete chat._stub;
-            }
-            if (!chat.id) {
-                chat.id = nodeCrypto.randomUUID();
-            }
-            charChats.set(chat.id, chat);
-        }
-        if (charChats.size > 0) {
-            nextChatStore.set(char.chaId, charChats);
-        }
-    }
+    // Real stubs (no payload) are skipped — fullChatStore tracks payloads only.
+    // Hybrids have the corrupt _stub flag stripped and keep the real chat.
+    const nextChatStore = storageResetPrepare.buildChatMap(dbObj, generateChatId);
     // Replay durable, acknowledged chat writes after the database snapshot.
     // This includes a newly-created chat whose database stub has not arrived
     // yet and an existing chat whose debounced DB flush had not completed.
@@ -474,13 +391,7 @@ async function initChatStore(dbObj) {
  * Returns a new object — does not mutate input.
  */
 function stripChatsFromDb(dbObj) {
-    if (!dbObj?.characters) return dbObj;
-    const stripped = { ...dbObj };
-    stripped.characters = dbObj.characters.map(char => {
-        if (!char?.chats) return char;
-        return { ...char, chats: char.chats.map(chatToStub) };
-    });
-    return stripped;
+    return storageResetPrepare.stripChatsFromDb(dbObj);
 }
 
 function hasFullChatPayload(chaId, chatId) {
@@ -598,14 +509,12 @@ async function migrateRemoteBlocksIfNeeded() {
     const backupKey = `migration-backup/pre-remote-fix-${Date.now()}.bin`;
     kvCopyValue('database/database.bin', backupKey);
 
-    const dbObj = await decodeRisuSave(raw, {
-        resolveRemote: async (name) => {
-            const value = kvGet(`remotes/${name}.local.bin`);
-            return value || null;
-        },
+    // Unresolved REMOTE blocks are dropped by the decoder (it logs a warning).
+    const { database: dbObj, bytes: reEncoded } = await storageResetPrepare.inlineRemoteBlocks(raw, {
+        decodeRisuSave,
+        encodeRisuSaveLegacy,
+        readEntry: kvGet,
     });
-
-    const reEncoded = encodeRisuSaveLegacy(dbObj, 'compression');
 
     // Single transaction so swap + marker move together.
     // remotes/ files are intentionally NOT deleted here: pre-migration
@@ -2081,16 +1990,7 @@ function encodeBackupEntry(name, data) {
 }
 
 function isInvalidBackupPathSegment(name) {
-    return (
-        !name ||
-        name.includes('\0') ||
-        name.includes('\\') ||
-        name.startsWith('/') ||
-        name.includes('../') ||
-        name.includes('/..') ||
-        name === '.' ||
-        name === '..'
-    );
+    return storageResetPrepare.isInvalidBackupPathSegment(name);
 }
 
 function parseInlayBackupName(name) {
@@ -2114,29 +2014,12 @@ function parseInlaySidecarBackupName(name) {
     return { id };
 }
 
-// Upstream (#1484) writes cold storage backup entries as flat
-// coldstorage_<uuid>.json names; older backups and the runtime KV use
-// coldstorage/<uuid>. Match upstream's UUID pattern for the flat form so
-// ordinary assets that merely start with "coldstorage_" are not captured.
-const COLD_STORAGE_FLAT_NAME_RE = /^coldstorage_([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12})(?:\.json)?$/;
+// Flat upstream (#1484) coldstorage_<uuid>.json names and the runtime
+// coldstorage/<uuid> keys are normalized in storageResetPrepare.cjs.
+const COLD_STORAGE_FLAT_NAME_RE = storageResetPrepare.COLD_STORAGE_FLAT_NAME_RE;
 
 function normalizeColdStorageStorageKey(nameOrKey) {
-    let key = nameOrKey;
-    if (key.startsWith('coldstorage/')) {
-        key = key.slice('coldstorage/'.length);
-    } else {
-        const flat = COLD_STORAGE_FLAT_NAME_RE.exec(key);
-        if (flat) {
-            key = flat[1];
-        }
-    }
-    if (key.endsWith('.json')) {
-        key = key.slice(0, -'.json'.length);
-    }
-    if (!key || key.includes('/') || isInvalidBackupPathSegment(key)) {
-        throw new Error(`Invalid cold storage entry name: ${nameOrKey}`);
-    }
-    return `coldstorage/${key}`;
+    return storageResetPrepare.normalizeColdStorageStorageKey(nameOrKey);
 }
 
 function toColdStorageBackupName(storageKey) {
@@ -4826,95 +4709,17 @@ app.get('/api/backup/server/download/:filename', async (req, res, next) => {
 // Cold storage compatibility: restore data stored in coldstorage/ KV entries
 const COLD_STORAGE_HEADER = '\uEF01COLDSTORAGE\uEF01';
 
-function restoreColdStorageCharacter(character) {
-    if (!character?.coldstorage) return true;
-    const key = character.coldstorage;
-    const entry = readColdStorageJsonEntry(key, {
-        migrateLegacy: true,
-    });
-    if (!entry) {
-        logger.error(`[ColdStorage] character data not found for key: ${key}`);
-        return false;
-    }
-    try {
-        const coldData = entry.coldData;
-        if (coldData?.character) {
-            Object.assign(character, coldData.character);
-            delete character.coldstorage;
-            delete character.coldStoragedChats;
-        } else {
-            logger.error(`[ColdStorage] unexpected character cold data format for key: ${key}`);
-            return false;
-        }
-        return true;
-    } catch (err) {
-        logger.error(`[ColdStorage] character restore failed for key ${key}:`, err.message);
-        return false;
-    }
-}
-
-function promoteFailedColdStorageStub(char) {
-    const coldKey = char.coldstorage;
-    // Fill in missing fields with safe defaults matching createBlankChar() in src/ts/characters.ts.
-    // SYNC: if createBlankChar() defaults change, update this object to match.
-    const defaults = {
-        firstMessage: '', desc: '', notes: '', chatFolders: [],
-        emotionImages: [], bias: [], viewScreen: 'none', globalLore: [],
-        sdData: [
-            ['always', 'solo, 1girl'], ['negative', ''],
-            ["|character's appearance", ''], ['current situation', ''],
-            ["$character's pose", ''], ["$character's emotion", ''],
-            ['current location', ''],
-        ],
-        utilityBot: false, customscript: [], exampleMessage: '',
-        creatorNotes: '', systemPrompt: '', postHistoryInstructions: '',
-        alternateGreetings: [], tags: [], creator: '', characterVersion: '',
-        personality: '', scenario: '',
-        firstMsgIndex: -1,
-        replaceGlobalNote: '', additionalText: '',
-        triggerscript: [
-            { comment: '', type: 'manual', conditions: [], effect: [{ type: 'v2Header', code: '', indent: 0 }] },
-            { comment: 'New Event', type: 'manual', conditions: [], effect: [] },
-        ],
+// Live repair options for the shared cold storage restoration: entries are
+// read through readColdStorageJsonEntry (canonical key, legacy .json
+// fallback, legacy-to-canonical migration) and failures are logged.
+function liveColdStorageRepairOptions() {
+    return {
+        randomUUID: generateChatId,
+        readColdEntry: (key) => readColdStorageJsonEntry(key, {
+            migrateLegacy: true,
+        }),
+        onError: (...args) => logger.error(...args),
     };
-    for (const [key, value] of Object.entries(defaults)) {
-        if (char[key] === undefined || char[key] === null) {
-            char[key] = value;
-        }
-    }
-    // Force firstMsgIndex to -1 even if stub had 0 — prevents alternateGreetings[0] access on empty array
-    char.firstMsgIndex = -1;
-    // Ensure chats array is valid
-    if (!Array.isArray(char.chats) || char.chats.length === 0) {
-        char.chats = [{
-            id: nodeCrypto.randomUUID(),
-            message: [],
-            note: '',
-            name: 'Chat 1',
-            localLore: [],
-        }];
-    }
-    // Leave recovery breadcrumb and remove cold storage markers
-    char.desc = `[Cold storage restore failed. Original key: ${coldKey}]\n\n${char.desc || ''}`.trim();
-    delete char.coldstorage;
-    delete char.coldStoragedChats;
-}
-
-function restoreColdStorageCharactersInDb(dbObj) {
-    const result = { restored: 0, failed: 0, failedNames: [] };
-    if (!Array.isArray(dbObj?.characters)) return result;
-    for (let i = 0; i < dbObj.characters.length; i++) {
-        const char = dbObj.characters[i];
-        if (!char?.coldstorage) continue;
-        if (restoreColdStorageCharacter(char)) {
-            result.restored++;
-        } else {
-            result.failed++;
-            result.failedNames.push(char.name || `(index ${i})`);
-            promoteFailedColdStorageStub(char);
-        }
-    }
-    return result;
 }
 
 function isColdStorageChat(chat) {

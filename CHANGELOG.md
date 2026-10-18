@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.2.4-experimental.66 (restore preparation primitives)
+
+- Internal preparation for atomic storage restores; no change in behaviour. A new server module prepares a restored database from staged bytes without touching live storage: REMOTE-block inlining, decoding, missing chat ids, orphan folder ids, cold-storage character restoration, the chat map, and the stripped database with its encoding and ETag. It reports an undecodable database or an unresolvable REMOTE block as an error.
+- The live startup and restore decode path now uses the same helpers and keeps all of its current effects (stored re-encoding, migration marker and backup, cold-storage migration and logs, journal replay).
+- Lazy chat sync 0.5.11. Stable remains v0.2.3.
+
 ## 0.2.4-experimental.65 (restart-interrupted server-owned operations)
 
 - A server-owned background generation interrupted by a server restart (`start-retry-required`, `interrupted-before-result`, `interrupted-after-main` or `delivery-failed`) now ends with the same handling as before server-owned commits: one notice, or the existing client fallback when the start never ran. It was parked as an unconfirmed chat save, showed a misleading warning and was re-polled on every wake for up to 49 hours.
