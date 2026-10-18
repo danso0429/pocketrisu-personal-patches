@@ -25,7 +25,7 @@ const queueUnits = require('./queue-units.cjs')
 module.exports = {
     id: 'lazy-chat-bg-adapter',
     title: 'BG preserve integration for lazy chat storage',
-    version: '0.7.64',
+    version: '0.7.65',
     targets: {
         pocketrisu: {
             verified: ['1.10.0'],
@@ -2577,8 +2577,9 @@ const serverChatCommitOwner = createServerChatCommitOwner({
     // Allow remote-block migration to re-evaluate against the new database.bin.
 `,
             content: `    kvDelPrefix(CHAT_WRITE_JOURNAL_PREFIX);
-    serverChatInputOwner.discardRecovery();
-    serverChatCommitOwner.discardRecovery();
+    serverChatInputOwner.discardDurableRecovery();
+    serverChatInputOwner.discardRecoveryMemory();
+    serverChatCommitOwner.discardDurableRecovery();
     chatWriteJournal.resetMemory();
     // Allow remote-block migration to re-evaluate against the new database.bin.
 `,
@@ -2595,8 +2596,9 @@ const serverChatCommitOwner = createServerChatCommitOwner({
 `,
             content: `            if (key === 'database/database.bin') {
                 kvDelPrefix(CHAT_WRITE_JOURNAL_PREFIX);
-                serverChatInputOwner.discardRecovery();
-                serverChatCommitOwner.discardRecovery();
+                serverChatInputOwner.discardDurableRecovery();
+                serverChatInputOwner.discardRecoveryMemory();
+                serverChatCommitOwner.discardDurableRecovery();
                 chatWriteJournal.resetMemory();
 `,
             requires: ['lazy-chat-bg-adapter:server-chat-commit-backup-reset:1.10'],
@@ -2610,8 +2612,9 @@ const serverChatCommitOwner = createServerChatCommitOwner({
     kvDelPrefix('assets/');
 `,
             content: `function clearExistingData() {
-    serverChatInputOwner.discardRecovery();
-    serverChatCommitOwner.discardRecovery();
+    serverChatInputOwner.discardDurableRecovery();
+    serverChatInputOwner.discardRecoveryMemory();
+    serverChatCommitOwner.discardDurableRecovery();
     kvDelPrefix('assets/');
 `,
             requires: ['lazy-chat-bg-adapter:server-chat-commit-database-remove-reset:1.10'],
@@ -2626,8 +2629,9 @@ const serverChatCommitOwner = createServerChatCommitOwner({
 `,
             content: `                discardJournal: () => kvDelPrefix(CHAT_WRITE_JOURNAL_PREFIX),
                 discardCommitRecovery: () => {
-                    serverChatInputOwner.discardRecovery();
-                    serverChatCommitOwner.discardRecovery();
+                    serverChatInputOwner.discardDurableRecovery();
+                    serverChatInputOwner.discardRecoveryMemory();
+                    serverChatCommitOwner.discardDurableRecovery();
                 },
                 resetJournalMemory: () => chatWriteJournal.resetMemory(),
 `,

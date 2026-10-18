@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.2.4-experimental.67 (reset ownership refactor)
+
+- Internal preparation for atomic storage restores; no change in behaviour. The server input and commit owners separate the durable part of a reset (storage rows) from the in-memory part (settings snapshots), and the reset hooks call both in the same order as before.
+- The server gains helpers that record pending debounced saves, force them to storage, disarm their timers and re-arm them after a failed reset, plus a synchronous installer for a prepared database. The root patch debounce moved into its own function unchanged. No route uses the new helpers yet.
+- BG adapter 0.7.65, lazy chat sync 0.5.12. Stable remains v0.2.3.
+
 ## 0.2.4-experimental.66 (restore preparation primitives)
 
 - Internal preparation for atomic storage restores; no change in behaviour. A new server module prepares a restored database from staged bytes without touching live storage: REMOTE-block inlining, decoding, missing chat ids, orphan folder ids, cold-storage character restoration, the chat map, and the stripped database with its encoding and ETag. It reports an undecodable database or an unresolvable REMOTE block as an error.

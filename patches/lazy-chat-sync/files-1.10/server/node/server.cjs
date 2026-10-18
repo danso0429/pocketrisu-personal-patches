@@ -315,6 +315,19 @@ function invalidateDbCache() {
     }
 }
 
+// Installs a storageResetPrepare.prepareRestoredDatabase() result into the
+// live caches synchronously, without replaying the chat write journal. The
+// generation bump keeps an in-flight chat store initialization from replacing
+// the installed map. Save timers are not touched (see the pending save
+// helpers). No route uses this yet.
+function installPreparedDatabaseCaches(prepared) {
+    chatStoreGeneration += 1;
+    dbCache[DB_HEX_KEY] = prepared.strippedDatabase;
+    dbEncodedCache = Buffer.from(prepared.strippedBytes);
+    dbEtag = prepared.etag;
+    fullChatStore = prepared.chatMap;
+}
+
 // ─── Chat runtime lazy load helpers ─────────────────────────────────────────
 
 // Missing chat ids, orphan folder ids (storageResetPrepare.normalizeOrphanFolderIds),
@@ -746,7 +759,13 @@ async function persistCurrentChatStore() {
     await persistDbCacheWithChats(DB_HEX_KEY, 'database/database.bin');
 }
 
+// What each armed saveTimers entry persists, so a pending save can be re-armed
+// with the same callback. Only entries whose key is currently in saveTimers
+// are meaningful; scheduling overwrites the target for that key.
+const saveTimerTargets = new Map();
+
 function scheduleChatStorePersist() {
+    saveTimerTargets.set(DB_HEX_KEY, { kind: 'chat-content' });
     if (saveTimers[DB_HEX_KEY]) clearTimeout(saveTimers[DB_HEX_KEY]);
     const timer = setTimeout(() => {
         void queueStorageOperation(async () => {
@@ -773,6 +792,120 @@ function scheduleChatStorePersist() {
         });
     }, SAVE_INTERVAL);
     saveTimers[DB_HEX_KEY] = timer;
+}
+
+// Debounced save of a patched cache entry. Database.bin entries merge full
+// chats back in; other keys store the cached document as-is.
+function schedulePatchSave(cacheKey, decodedKey) {
+    saveTimerTargets.set(cacheKey, { kind: 'patch', decodedKey });
+    if (saveTimers[cacheKey]) {
+        clearTimeout(saveTimers[cacheKey]);
+    }
+    const patchSaveTimer = setTimeout(() => {
+        void queueStorageOperation(async () => {
+            if (saveTimers[cacheKey] !== patchSaveTimer) return;
+            try {
+                if (decodedKey === 'database/database.bin') {
+                    await persistDbCacheWithChats(cacheKey, decodedKey);
+                } else {
+                    const data = Buffer.from(encodeRisuSaveLegacy(dbCache[cacheKey]));
+                    try {
+                        kvSet(decodedKey, data);
+                    } catch (err) {
+                        if (err && typeof err === 'object') {
+                            try { err.attemptedSize = data.length; } catch {}
+                        }
+                        throw err;
+                    }
+                }
+                // Persist succeeded — clear before backup so a backup-only
+                // failure isn't attributed to data loss.
+                clearPersistFailure();
+                if (decodedKey === 'database/database.bin') {
+                    try {
+                        createBackupAndRotate();
+                    } catch (backupErr) {
+                        logger.warn(`[Patch] Backup rotation failed for ${decodedKey}:`, backupErr);
+                    }
+                }
+            } catch (error) {
+                logger.error(`[Patch] Error saving ${decodedKey}:`, error);
+                recordPersistFailure(error, `patch:${decodedKey}`);
+            } finally {
+                if (saveTimers[cacheKey] === patchSaveTimer) delete saveTimers[cacheKey];
+            }
+        }).catch((error) => {
+            logger.error(`[Patch] Storage queue failed for ${decodedKey}:`, error);
+            recordPersistFailure(error, `patch:${decodedKey}`);
+        });
+    }, SAVE_INTERVAL);
+    saveTimers[cacheKey] = patchSaveTimer;
+}
+
+// ─── Pending save handover for storage resets (no route uses these yet) ─────
+//
+// recordPendingSaves() captures every armed save timer (database.bin and other
+// /api/patch keys) with what is needed to re-arm it. persistPendingSaves()
+// force-persists the current cached state of those keys — unlike plain
+// flushPendingDb() it does not depend on a database timer being armed.
+// disarmPendingSaves() clears and deletes the recorded timers (queued
+// callbacks check timer identity and then skip). rearmPendingSaves()
+// re-schedules exactly the recorded keys. Callers run inside the storage queue.
+
+function recordPendingSaves() {
+    const records = [];
+    for (const cacheKey of Object.keys(saveTimers)) {
+        const timer = saveTimers[cacheKey];
+        if (!timer) continue;
+        const target = saveTimerTargets.get(cacheKey)
+            ?? (cacheKey === DB_HEX_KEY
+                ? { kind: 'chat-content' }
+                : { kind: 'patch', decodedKey: Buffer.from(cacheKey, 'hex').toString('utf-8') });
+        records.push({ cacheKey, timer, ...target });
+    }
+    return records;
+}
+
+async function persistPendingSaves(records) {
+    for (const record of records) {
+        if (record.cacheKey === DB_HEX_KEY) {
+            await persistCurrentChatStore();
+            continue;
+        }
+        const document = dbCache[record.cacheKey];
+        // An invalidated entry has nothing newer than KV to persist.
+        if (document === undefined) continue;
+        const data = Buffer.from(encodeRisuSaveLegacy(document));
+        try {
+            kvSet(record.decodedKey, data);
+        } catch (err) {
+            if (err && typeof err === 'object') {
+                try { err.attemptedSize = data.length; } catch {}
+            }
+            throw err;
+        }
+    }
+}
+
+function disarmPendingSaves(records) {
+    for (const record of records) {
+        // A timer re-armed after recording belongs to a newer write; keep it.
+        if (saveTimers[record.cacheKey] !== record.timer) continue;
+        clearTimeout(record.timer);
+        delete saveTimers[record.cacheKey];
+    }
+}
+
+function rearmPendingSaves(records) {
+    for (const record of records) {
+        if (saveTimers[record.cacheKey]) continue;
+        if (record.kind === 'chat-content') {
+            scheduleChatStorePersist();
+        } else if (record.cacheKey === DB_HEX_KEY || dbCache[record.cacheKey] !== undefined) {
+            // Invalidated non-database entries reload from KV on next access.
+            schedulePatchSave(record.cacheKey, record.decodedKey);
+        }
+    }
 }
 
 function shouldCompress(req, res) {
@@ -3878,48 +4011,7 @@ app.post('/api/patch', async (req, res, next) => {
             dbCache[cacheKey] = nextDocument;
 
             // Schedule save to KV (debounced) — merge full chats back for database.bin
-            if (saveTimers[cacheKey]) {
-                clearTimeout(saveTimers[cacheKey]);
-            }
-            const patchSaveTimer = setTimeout(() => {
-                void queueStorageOperation(async () => {
-                    if (saveTimers[cacheKey] !== patchSaveTimer) return;
-                try {
-                    if (decodedKey === 'database/database.bin') {
-                        await persistDbCacheWithChats(cacheKey, decodedKey);
-                    } else {
-                        const data = Buffer.from(encodeRisuSaveLegacy(dbCache[cacheKey]));
-                        try {
-                            kvSet(decodedKey, data);
-                        } catch (err) {
-                            if (err && typeof err === 'object') {
-                                try { err.attemptedSize = data.length; } catch {}
-                            }
-                            throw err;
-                        }
-                    }
-                    // Persist succeeded — clear before backup so a backup-only
-                    // failure isn't attributed to data loss.
-                    clearPersistFailure();
-                    if (decodedKey === 'database/database.bin') {
-                        try {
-                            createBackupAndRotate();
-                        } catch (backupErr) {
-                            logger.warn(`[Patch] Backup rotation failed for ${decodedKey}:`, backupErr);
-                        }
-                    }
-                } catch (error) {
-                    logger.error(`[Patch] Error saving ${decodedKey}:`, error);
-                    recordPersistFailure(error, `patch:${decodedKey}`);
-                } finally {
-                    if (saveTimers[cacheKey] === patchSaveTimer) delete saveTimers[cacheKey];
-                }
-                }).catch((error) => {
-                    logger.error(`[Patch] Storage queue failed for ${decodedKey}:`, error);
-                    recordPersistFailure(error, `patch:${decodedKey}`);
-                });
-            }, SAVE_INTERVAL);
-            saveTimers[cacheKey] = patchSaveTimer;
+            schedulePatchSave(cacheKey, decodedKey);
 
             // Update ETag after successful patch (based on stripped version)
             patchStage = 'etag';

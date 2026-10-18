@@ -1925,3 +1925,24 @@ describe('pre-canonical server chat input owner', () => {
         expect(owner.read(id)).toEqual(before)
     })
 })
+
+describe('[B1a-2] Reset ownership refactor', () => {
+    it('splits recovery discard into a durable part and a memory part', async () => {
+        const harness = makeHarness()
+        const owner = harness.makeOwner()
+        const operationId = 'operation-input-split-discard-1'
+        await owner.admit(admission(operationId))
+        harness.kvSet(operationResultKey(operationId), JSON.stringify({ operationId }))
+        expect(owner.settingsSnapshotStats()).toMatchObject({ contexts: 1 })
+
+        owner.discardDurableRecovery()
+        expect(harness.kvGet(commandKey(operationId))).toBeNull()
+        expect(harness.kvGet(operationStateKey(operationId))).toBeNull()
+        expect(harness.kvGet(operationResultKey(operationId))).toBeNull()
+        expect(harness.kvList(SERVER_CHAT_INPUT_COMMAND_PREFIX)).toEqual([])
+        expect(owner.settingsSnapshotStats()).toMatchObject({ contexts: 1 })
+
+        owner.discardRecoveryMemory()
+        expect(owner.settingsSnapshotStats()).toMatchObject({ contexts: 0, bytes: 0 })
+    })
+})

@@ -1211,7 +1211,10 @@ function createServerChatCommitOwner({
         return copyServerOwnedRootState(currentDatabase, incomingDatabase);
     }
 
-    function discardRecovery() {
+    // Durable part of a storage reset: KV deletions only, safe inside a
+    // transaction. The commit owner keeps no reset-relevant memory (the
+    // admission summary cache revalidates against the current KV bytes).
+    function discardDurableRecovery() {
         for (const key of kvList(SERVER_CHAT_COMMIT_PREFIX)) {
             const operationId = operationIdFromCommitKey(key);
             if (!operationId) continue;
@@ -1223,11 +1226,16 @@ function createServerChatCommitOwner({
         kvDel(SERVER_CHAT_COMMIT_SEQUENCE_KEY);
     }
 
+    function discardRecovery() {
+        discardDurableRecovery();
+    }
+
     return {
         commitGenerationResult,
         captureBase,
         readAssemblyContext,
         currentRevision,
+        discardDurableRecovery,
         discardRecovery,
         preserveDatabaseState,
         recoverBeforeWrite,

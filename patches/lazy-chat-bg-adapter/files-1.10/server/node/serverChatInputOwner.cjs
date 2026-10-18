@@ -1960,21 +1960,34 @@ function createServerChatInputOwner({
         return retired;
     }
 
-    function discardRecovery() {
+    // Durable part of a storage reset: KV deletions only, safe inside a
+    // transaction. The memory part runs separately so a reset can defer it
+    // until its transaction has committed.
+    function discardDurableRecovery() {
         for (const record of allRecords()) {
             kvDel(operationStateKey(record.operationId));
             kvDel(operationResultKey(record.operationId));
         }
-        settingsSnapshots.clear();
         kvDelPrefix(SERVER_CHAT_INPUT_COMMAND_PREFIX);
         kvDelPrefix(SERVER_CHAT_INPUT_SEQUENCE_PREFIX);
+    }
+
+    function discardRecoveryMemory() {
+        settingsSnapshots.clear();
+    }
+
+    function discardRecovery() {
+        discardDurableRecovery();
+        discardRecoveryMemory();
     }
 
     return {
         admit,
         attachTransformed,
         beginTransform,
+        discardDurableRecovery,
         discardRecovery,
+        discardRecoveryMemory,
         loadExecution,
         loadSettingsSnapshot,
         markResultPublishedSynchronously,
