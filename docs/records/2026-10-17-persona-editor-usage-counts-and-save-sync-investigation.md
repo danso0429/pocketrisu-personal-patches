@@ -1,8 +1,9 @@
 # 2026-10-17 — Persona editor, usage counts and save-sync investigation
 
-Scope: this record covers only the work done in one working session on
-2026-10-17 (KST). It lists what was changed, delivered, measured, rejected and
-left open, in order. Times are UTC unless stated.
+Scope: this record covers only the work done in one working session that
+started on 2026-10-17 (KST) and continued into 2026-10-18. It lists what was
+changed, delivered, measured, rejected and left open, in order. Times are UTC
+unless stated.
 
 ## 1. Summary
 
@@ -15,10 +16,14 @@ left open, in order. Times are UTC unless stated.
 | New-save persistence failure | Root cause found; a first fix based on a wrong premise was reverted; the restructuring ("C") was committed `2bda466`, pushed, delivered and device-checked (`0.2.4-experimental.60`, lazy-chat-sync 0.5.9) |
 | Post-assembly edit warning on a new chat | Cause not determined from data; field-name diagnostic committed `fb0251b`, pushed, delivered (`.61`, lazy-chat-bg-adapter 0.7.61) |
 | Patcher baseline restructuring design document | Committed with the C implementation |
-| Device check (L5) | Reported normal by the user for all delivered changes; see sections 3.5 and 6.2.7 |
+| Slash `getvar` mutating `scriptstate` on read | Committed `4ba4c68`, pushed, delivered (`.62`, lazy-chat-bg-adapter 0.7.62); section 6.5 |
+| First chat of a new character never saved on a brand-new install | Committed `a96becc`, pushed, delivered (`.63`, lazy-chat-sync 0.5.10); section 6.6 |
+| Character view stuck after a degenerate long answer | Recorded separately in `docs/records/2026-10-18-bg-interrupted-commit-and-stuck-character-view.md`; not fixed; section 6.7 |
+| Device check (L5) | Reported normal by the user for the changes delivered up to `fb0251b`; see sections 3.5 and 6.2.7. Not device-checked: `4ba4c68`, `a96becc` |
 
 Package versions: `0.2.4-experimental.57` (`5dbef89`), `.58` (`9de0274`),
-`.59` (`4f61ac5`). Stable remains `v0.2.3`.
+`.59` (`4f61ac5`), `.60` (`2bda466`), `.61` (`fb0251b`), `.62` (`4ba4c68`),
+`.63` (`a96becc`). Stable remains `v0.2.3`.
 
 ## 2. Request
 
@@ -427,11 +432,78 @@ The user asked to close the remaining items. Results:
 | K5: server use of the bundled patcher | Not used during a BG generation. A synthetic-provider BG run completed with temporary entry logs in the isolated bundle's `RisuSavePatcher.init`/`set` and `saveDb`: 0 lines. Statically, the orchestrator uses only the bundle's database get/set; nothing calls `saveDb`. Limit: no positive control for `console.warn` from the bundle |
 | K7: first-run hash difference | Both builds write an empty database (14 bytes) at first run. Pristine drops its cache after the write and re-reads `{}` (hash `11`), so its first patch gets 409 and a full write. The patched server canonicalizes the written database, adding `characters: []`, and caches it (hash `7a5af0c2`, equal to the client baseline), so its first patch succeeds |
 
-New observation, not investigated: on a fresh isolated install of the patched
-build, a chat created with "Create from Scratch" failed to save its content
-(`GET /api/chat-content/…` 404, client `ChatConflictError: Chat was removed on
-the server`, retried about every 1.5 s); pristine saved it. Whether this
-affects existing saves is unknown.
+`4ba4c68` was delivered on 2026-10-17 16:15:50–16:16:53 with the procedure
+of section 5 (root 200, PM2 online with 0 unstable restarts, served entry
+matched disk, 5 database `quick_check` ok, status current with
+lazy-chat-bg-adapter 0.7.62, 476 old assets retained, and the rebuilt BG
+bundle containing the read-only `getvar` case). Backup:
+`backups/20261018-pre-exp62`.
+
+### 6.6 First chat on a brand-new install
+
+Observation (isolated fresh install of the patched build): a chat created with
+"Create from Scratch" never saved — `GET /api/chat-content/…` 404, client
+`ChatConflictError: Chat was removed on the server`, retried about every
+1.5 s, and no database patch. Pristine 1.10.0 saved it; the patched build on a
+save that already had characters saved it as well.
+
+Cause (reproduced and confirmed in code): startup on a fresh install wrote
+`encodeRisuSaveLegacy({})`, so the client's confirmed server database had no
+`characters`. `classifyChatSaveIntent` deliberately fails closed to `'update'`
+for a missing `characters` array (2026-07-26 rationale: a 404 must never
+recreate a remotely deleted chat). The chat save therefore took the update
+path, the 404 became a removal error, the batch stopped before the database
+patch, and the confirmed copy never gained `characters`. Meanwhile the server
+canonicalized the same write to `{characters: []}`.
+
+Options: normalizing every confirmed copy and classifying a missing array as
+create were rejected because both would turn an unknown baseline into "known
+empty" and weaken the remote-deletion protection. Chosen: on the proven-fresh
+startup branch only (a 2xx empty read, after which the client writes the
+database itself), write and adopt `{characters: []}`.
+
+Process: written plan (`docs/POCKETRISU-FRESH-SAVE-FIRST-CHAT-PLAN.md`); an
+adversarial read-only review and a Codex plan review (Astra) — sound for the
+fresh path, no further blocker; it asked for composed-save and startup
+boundary tests and corrected a residual claim; Argon test scenarios; tests
+written first by Codex (37 tests; exactly one failed on the old code: the
+fresh bytes decoded to `{}`); implementation by an Opus subagent (one line in
+`lazy-chat-sync` `files-1.10/src/ts/bootstrap.ts`, the pristine anchor file
+unchanged); Codex code review with no findings; review of the diff and test
+hashes.
+
+Results: fixed tests 37/37; installed-tree frontend 2,546 pass / 4 skipped
+(the one baseline failure now passes) and server 663 pass / 12 skipped,
+unchanged; `svelte-check` 0 errors; patcher 341/0/3; installer apply then plan
+0 changes. Browser on the built candidate: fresh install → `GET` 404 → create
+`POST` with `If-None-Match: *` 200 → `/api/patch` 200, no retries, reload
+shows the character and its chat; a second chat on the same character
+(create) and a rename of the first (update) persist; a second character saves
+the same way. Remote deletion: after a chat was deleted from another context,
+an edit in the first context was not recreated (no create request); the error
+reported was "Chat revision mismatch" (the existing revision-conflict path for
+a known chat), retried five times and stopped.
+
+Commit `a96becc`, pushed (CI succeeded), delivered on 2026-10-18
+00:11:26–00:12:31 with the same procedure (root 200, PM2 online with 0
+unstable restarts, served entry matched disk, installed `bootstrap.ts`
+contains the change, 5 database `quick_check` ok, status current with
+lazy-chat-sync 0.5.10, 508 old assets retained). Backup:
+`backups/20261018-pre-exp63`. The live save already has characters, so its
+behavior does not change.
+
+### 6.7 Character view stuck after a long degenerate answer
+
+On 2026-10-18 the user reported that one character opens only its information
+slider, which cannot be closed. Logs, read-only database snapshots and code
+reading point to its newest answer (written 2026-10-17 17:22) — about 47.9k
+characters on one line, almost entirely punctuation and non-Hangul characters,
+ending at the output-token cap — rather than to the reboot interruption; the
+character's server-side state is consistent. Details, the timeline and
+prevention candidates are in
+`docs/records/2026-10-18-bg-interrupted-commit-and-stuck-character-view.md`.
+An isolated browser reproduction on a snapshot copy with outbound network
+blocked was running at the time of this update. No data was changed.
 
 ## 7. Incidents
 
@@ -460,9 +532,8 @@ affects existing saves is unknown.
   at its next occurrence (section 6.4).
 - A post-delivery BG plugin run on the diagnostics screen (absent-API record
   of `.56`).
-- Delivery of `4ba4c68` to the live installation.
-- New-chat content save failure seen on a fresh isolated install (section
-  6.5).
+- Stuck character view: cause confirmation, recovery (removing or editing the
+  degenerate answer needs the user's approval), and prevention (section 6.7).
 - 1.14.0 first-save flow (at upgrade time).
 - The rebase merge's strict statistics check (`count()`) was left unchanged as
   an intended invariant.
