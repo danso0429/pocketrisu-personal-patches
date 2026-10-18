@@ -1,7 +1,7 @@
 # 2026-10-18 — Interrupted BG commit and a non-interactive character view
 
-Status: observed, not fixed. Diagnosis in progress; this record keeps what is
-known so far. Times are UTC (KST = UTC+9). Identifiers are shortened; no chat
+Status: diagnosed; the view was recovered by removing the anomalous message;
+no code change. Prevention remains open (section 7). Times are UTC (KST = UTC+9). Identifiers are shortened; no chat
 content or names are recorded.
 
 ## 1. User report
@@ -120,18 +120,44 @@ Inferred, not measured: the iPhone engine may evaluate the variable-length
 lookbehind in that script much more slowly than V8; combined with a slower CPU
 and the tokenizer load, the stall could last long enough to look permanent.
 
-## 6. Next steps (not started)
+## 6. Script measurement and recovery
 
-1. Confirm on the device whether the whole app freezes after tapping the
-   character, whether other characters open, and capture a console error if
-   possible.
-2. Recovery: removing or shortening the anomalous message would likely
-   restore the view; opening the character on a desktop browser, where the
-   stall is short, lets the user do this without a server-side change.
-   Changing it server-side alters user data and needs the user's explicit
-   approval. Disabling or rewriting the module script is the user's decision.
-3. Prevention candidates for a reviewed plan: an input-length limit for
+The slow script (module `353cfd93`, script 74, "line break before dialogue
+after narration") inserts a line break between narration and the first quoted
+dialogue on a line. Its pattern lets a lazy prefix grow one character at a
+time and evaluates a variable-length lookbehind before checking whether a
+quote follows, so a long line without quotes costs roughly quadratic time.
+The app also passes it the flags `gdm`: the `d` comes from the word `order`
+in the script's `<order 300>` flag, because unsupported flag characters are
+stripped (`ts/process/scripts.ts:235`).
+
+A reordered pattern adds a quote lookahead before the lookbehind:
+`^([^"\r\n“”]*?\S)[ \t]*(?=["“])((?<!<[^>\r\n]*)(?:"[^"\r\n]*"|“[^”\r\n]*”))`.
+On a backup copy, applied to the anomalous message in Node (V8): original
+765.6 ms, reordered 0.5 ms. Results were identical on all 32 messages of the
+chat and on 200,012 synthetic strings. Synthetic ASCII-only long lines did not
+reproduce the slow case for either pattern. The iPhone engine was not
+measured. The script was not changed; that is the user's decision.
+
+Recovery, with the user's approval (2026-10-18): after an idle check and a
+consistent backup of the database (`backups/20261018-pre-msg31-delete`,
+`quick_check` ok), the anomalous message was removed through the app's own
+"remove this message only" action in a headless browser against the live
+server (outbound requests from that browser blocked). The app saved the chat
+(`POST /api/chat-content` 200) and the database (`/api/patch` 200).
+Comparison with the backup: 32 → 31 messages, the remaining 31 unchanged by
+fingerprint, 34 characters before and after, `quick_check` ok. The user then
+confirmed the character opens normally. The backup holds the only remaining
+copy of the removed message.
+
+## 7. Open items (not started)
+
+1. The user's module script: adopting the reordered pattern of section 6 is
+   the user's decision.
+2. Prevention candidates for a reviewed plan: an input-length limit for
    per-message regular-expression scripts; loading the tokenizer off the
    render path; a terminal state for interrupted operations whose commit
    receipt is invalid; operation-state records left `running` after an
    interruption.
+3. The pre-deletion backup holds the only copy of the removed message; it is
+   kept until the user decides otherwise.
