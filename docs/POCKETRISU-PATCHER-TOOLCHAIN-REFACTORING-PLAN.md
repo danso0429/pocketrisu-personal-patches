@@ -755,7 +755,7 @@ This is a prerequisite and involves no code.
   code) or C4b (implement the gate).
 - **Files if C4a is chosen.**
   - `README.md`: step 3 at `:1262-1266`, the PageFold note at `:562`, and
-    step 6 ("two compatibility-named installers") at about `:1279`.
+    step 6 ("two compatibility-named installers") at `:1277`.
   - `docs/PATCHER-V2-DESIGN.md:38-46`.
   - Optionally drop `allDefault: true` from the PageFold manifest. That
     changes nothing in the ETag, because `allDefault` is not hashed, but it
