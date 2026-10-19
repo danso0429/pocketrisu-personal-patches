@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.2.4-experimental.73 (session gate on background write routes)
+
+- The server now checks the writer session lock on background generation starts (`POST /api/bg-orchestrate`, both the server input and the prepared start) and on recovery claims and attaches, as it does for chat saves. A request from a tab that no longer holds the lock is answered with `423 {"error":"Session deactivated"}` before any input record, operation state, run or provider call is created; the tab shows the existing deactivation notice and reloads.
+- Requests without a session id still pass, the tab holding the lock passes, and a freshly opened tab with a recent tap or key press takes the lock over, with the same rules as chat saves.
+- Abandon, cancel (`DELETE`), status and result reads, result deletions and the server's own queued input starts are not gated. The client build check (426) and the storage reset refusal (503) still answer before the session gate.
+- BG adapter 0.7.71. Stable remains v0.2.3.
+
 ## 0.2.4-experimental.72 (writer session headers on background requests)
 
 - Background generation starts (server input and prepared start), recovery claims and recovery attaches now send the same writer session headers as chat saves (`x-session-id`, and `x-user-active` after a recent tap or key press). The headers come from one shared helper that chat saves also use, so both send identical values. Cancel, abandon and status reads are unchanged and send no session headers. This prepares the server-side session gate of a later version; the server does not check these requests yet.

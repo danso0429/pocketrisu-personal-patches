@@ -95,5 +95,29 @@ module.exports = prior => {
                 } else {
                     triggerClientFallback('delegate-not-started')
 `);
+    // Server side: the HTTP routes for both starts, claim and attach pass the
+    // session lock before any route work. The internal input drain calls the
+    // start handler directly and is not gated; abandon, DELETE and GETs stay open.
+    const addServer = (name, serverFile, anchor, content) => units.push({
+        id: 'lazy-chat-bg-adapter:session-gate:' + name + ':1.10',
+        file: serverFile, type: 'replace', anchor, content, targetVersions,
+        after: [...prior, ...units].filter(unit => unit.file === serverFile).map(unit => unit.id),
+    });
+    addServer('server-dependency', 'server/node/server.cjs',
+        "require('./bgOrchestrator.cjs')(app, Object.assign({ bgPluginDependencies, sessionAuthMiddleware,",
+        "require('./bgOrchestrator.cjs')(app, Object.assign({ bgPluginDependencies, sessionAuthMiddleware, checkActiveSession,");
+    addServer('start-route', 'server/node/bgOrchestrator.cjs',
+        "  app.post('/api/bg-orchestrate', sessionAuthMiddleware, handleOrchestrateStart)\n",
+        `  // Session lock for BG writes: answers 423 before any input, operation or run
+  // is created. Compositions without the dependency keep the routes as before.
+  const sessionWriteGate = (req, res, next) => {
+    if (typeof deps.checkActiveSession !== 'function' || deps.checkActiveSession(req, res)) return next()
+  }
+  app.post('/api/bg-orchestrate', sessionAuthMiddleware, sessionWriteGate, handleOrchestrateStart)
+`);
+    addServer('input-routes', 'server/node/bgOrchestrator.cjs',
+        "    app.post('/api/bg-orchestrate-input/' + action, sessionAuthMiddleware, async (req, res) => {\n",
+        "    app.post('/api/bg-orchestrate-input/' + action, sessionAuthMiddleware,\n"
+        + "      ...(action === 'abandon' ? [] : [sessionWriteGate]), async (req, res) => {\n");
     return units;
 };
