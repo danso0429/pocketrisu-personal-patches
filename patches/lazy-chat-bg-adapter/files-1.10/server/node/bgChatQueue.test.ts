@@ -4,7 +4,7 @@ import path from 'node:path'
 import { once } from 'node:events'
 import { createServer } from 'node:http'
 import { createRequire } from 'node:module'
-import { describe, expect, it } from 'vitest'
+import { describe, expect, it, vi } from 'vitest'
 
 const require = createRequire(import.meta.url)
 const { createModelJobs } = require('./model-jobs.cjs')
@@ -63,5 +63,51 @@ describe('BG queue and legacy main-job exclusion', () => {
         expect(registry.hasChatRun(null, 'chat-1', true)).toBe(true)
         registry.discard('legacy-queue-1', legacy.run)
         expect(registry.hasChatRun(null, 'chat-1', true)).toBe(false)
+    })
+})
+
+describe('[B1b-2] Reset operation cleanup and run cancellation', () => {
+    it('cancels and aborts every active run while retaining finished and cancelled tombstones', () => {
+        const registry = createOrchestrationRunRegistry({ retainMs: 60_000 })
+        const first = registry.start('operation-b1b-running-1', { charId: 'char-1', chatId: 'chat-1' })
+        const second = registry.start('operation-b1b-running-2', { charId: 'char-2', chatId: 'chat-2' })
+        const third = registry.start('operation-b1b-running-3', { charId: 'char-3', chatId: 'chat-3' })
+        const finished = registry.start('operation-b1b-finished', { charId: 'char-4', chatId: 'chat-4' })
+        registry.finish('operation-b1b-finished', finished.run)
+        const finishedSnapshot = { ...finished.run }
+        const firstAbort = vi.spyOn(first.run.controller, 'abort')
+        const secondAbort = vi.spyOn(second.run.controller, 'abort')
+        const thirdAbort = vi.spyOn(third.run.controller, 'abort')
+
+        registry.cancelAll('storage-reset')
+        expect(first.run.cancelled).toBe(true)
+        expect(second.run.cancelled).toBe(true)
+        expect(third.run.cancelled).toBe(true)
+        expect(firstAbort).toHaveBeenCalledTimes(1)
+        expect(secondAbort).toHaveBeenCalledTimes(1)
+        expect(thirdAbort).toHaveBeenCalledTimes(1)
+        expect(first.run.controller.signal.aborted).toBe(true)
+        expect(second.run.controller.signal.aborted).toBe(true)
+        expect(third.run.controller.signal.aborted).toBe(true)
+        expect(registry.hasChatRun('char-1', 'chat-1')).toBe(false)
+        expect(registry.hasChatRun('char-2', 'chat-2')).toBe(false)
+        expect(registry.hasChatRun('char-3', 'chat-3')).toBe(false)
+        expect(registry.get('operation-b1b-finished')).toMatchObject(finishedSnapshot)
+        expect(registry.size()).toBe(4)
+    })
+
+    it('continues best-effort cancellation after one abort implementation throws', () => {
+        const registry = createOrchestrationRunRegistry({ retainMs: 60_000 })
+        const throwing = registry.start('operation-b1b-throwing', { charId: 'char-1', chatId: 'chat-1' })
+        const healthy = registry.start('operation-b1b-healthy', { charId: 'char-2', chatId: 'chat-2' })
+        throwing.run.controller.abort = vi.fn(() => { throw new Error('synthetic abort failure') })
+        const healthyAbort = vi.spyOn(healthy.run.controller, 'abort')
+
+        expect(() => registry.cancelAll('storage-reset')).not.toThrow()
+        expect(throwing.run.cancelled).toBe(true)
+        expect(healthy.run.cancelled).toBe(true)
+        expect(healthyAbort).toHaveBeenCalledTimes(1)
+        expect(registry.hasChatRun('char-1', 'chat-1')).toBe(false)
+        expect(registry.hasChatRun('char-2', 'chat-2')).toBe(false)
     })
 })

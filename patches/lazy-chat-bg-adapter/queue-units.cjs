@@ -17,10 +17,27 @@ module.exports = [
     replace('registry', 'server/node/bgOrchestrationRunRegistry.cjs',
         '    size: () => runs.size,',
         `    size: () => runs.size,
+    // A run cancelled by cancelAll (storage reset) no longer makes its chat
+    // busy, even if its provider ignores the abort.
     hasChatRun: (charId, chatId, legacyOnly = false) => [...runs.values()].some(run => (
-      run.state === 'running' && (charId === null || run.charId === charId)
+      run.state === 'running' && !run.cancelledByReset && (charId === null || run.charId === charId)
       && run.chatId === chatId && (!legacyOnly || run.inputCommandVersion !== 1)
-    )),`, ['bg-preserve:owned:server/node/bgOrchestrationRunRegistry.cjs:1.9']),
+    )),
+    // Storage reset: cancel and abort every running run without waiting for it.
+    // Entries, identities and finished tombstones are kept.
+    cancelAll: (reason) => {
+      let cancelled = 0
+      for (const run of runs.values()) {
+        if (run.state !== 'running') continue
+        run.cancelledByReset = String(reason || 'storage-reset')
+        if (run.cancelled) continue
+        run.cancelled = true
+        cancelled += 1
+        try { run.controller.abort(new Error('orchestration cancelled: ' + run.cancelledByReset)) }
+        catch { try { run.controller.abort() } catch { /* best effort */ } }
+      }
+      return cancelled
+    },`, ['bg-preserve:owned:server/node/bgOrchestrationRunRegistry.cjs:1.9']),
     replace('shared-registry', 'server/node/server.cjs',
         'const serverChatInputOwner = createServerChatInputOwner({',
         `const { createOrchestrationRunRegistry } = require('./bgOrchestrationRunRegistry.cjs');

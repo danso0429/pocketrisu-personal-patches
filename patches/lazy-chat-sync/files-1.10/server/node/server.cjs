@@ -616,6 +616,19 @@ function advanceStorageEpoch(before, reset) {
     return next;
 }
 
+// Final recovery cleanup inside a reset transaction, after the restored rows
+// are applied: neither a previous nor an imported row keeps recovery authority.
+function discardStorageResetRecoveryRows() {
+    kvDelPrefix(CHAT_WRITE_JOURNAL_PREFIX);
+    // Owners of other recovery namespaces extend this cleanup.
+}
+
+// Ends a reset transaction's writes: final recovery cleanup, then the epoch.
+function finishStorageResetTransaction(epochBefore, reset) {
+    discardStorageResetRecoveryRows();
+    return advanceStorageEpoch(epochBefore, reset);
+}
+
 /**
  * Convert any leftover REMOTE blocks in database.bin into inline raw blocks.
  * Safe to call repeatedly: idempotent via KV marker.
@@ -2616,6 +2629,7 @@ async function runStorageReset(kind, { prepare, apply }) {
             try {
                 await persistPendingSaves(pendingSaves);
                 disarmPendingSaves(pendingSaves);
+                storageResetTestHooks.trace('cancel-persistence-timers', { kind });
                 return await apply(prepared, reset);
             } catch (error) {
                 if (!reset.committed) rearmPendingSaves(pendingSaves);
@@ -3110,7 +3124,7 @@ function applyBackupImport(importState, reset) {
             });
             reset.entryCount = entryNumber;
             recordPreparedRemoteMigration(prepared, importState.rawDatabaseBytes);
-            advanceStorageEpoch(epochBefore, reset);
+            finishStorageResetTransaction(epochBefore, reset);
 
             if (existsSync(inlayDir)) {
                 renameSync(inlayDir, oldInlayCopy);
@@ -4171,9 +4185,10 @@ function runDatabaseRemoveReset() {
             await storageResetTestHooks.waitAtResetGate(reset.kind);
             sqliteDb.transaction(() => {
                 reset.transactionCount += 1;
+                storageResetTestHooks.trace('begin', { kind: reset.kind });
                 const epochBefore = readStorageEpoch();
                 kvDel(DB_BLOB_KEY);
-                advanceStorageEpoch(epochBefore, reset);
+                finishStorageResetTransaction(epochBefore, reset);
                 kvDelPrefix(CHAT_WRITE_JOURNAL_PREFIX);
                 // Durable reset only; database-remove memory resets run after COMMIT.
             })();
@@ -5808,7 +5823,7 @@ function applySaveFolderImport(state, reset) {
         }
         reset.entryCount = entryNumber;
         recordPreparedRemoteMigration(prepared, state.rows.get(DB_BLOB_KEY));
-        advanceStorageEpoch(epochBefore, reset);
+        finishStorageResetTransaction(epochBefore, reset);
     });
     run();
     reset.committed = true;
@@ -6741,12 +6756,13 @@ app.post('/api/db/snapshots/restore', async (req, res, next) => {
             commitSnapshotRestore({
                 runTransaction: (operation) => sqliteDb.transaction(operation)(),
                 restoreDatabase: () => {
+                    storageResetTestHooks.trace('begin', { kind: reset.kind });
                     kvCopyValue(key, DB_BLOB_KEY);
                     if (prepared.changed) kvSet(DB_BLOB_KEY, prepared.databaseBytes);
                     recordPreparedRemoteMigration(prepared, blob);
                     // Only database.bin was rewritten, so the epoch row still
                     // holds the pre-restore value here.
-                    advanceStorageEpoch(readStorageEpoch(), reset);
+                    finishStorageResetTransaction(readStorageEpoch(), reset);
                 },
                 discardJournal: () => kvDelPrefix(CHAT_WRITE_JOURNAL_PREFIX),
                 resetJournalMemory: () => chatWriteJournal.resetMemory(),

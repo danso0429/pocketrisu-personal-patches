@@ -25,7 +25,7 @@ const queueUnits = require('./queue-units.cjs')
 module.exports = {
     id: 'lazy-chat-bg-adapter',
     title: 'BG preserve integration for lazy chat storage',
-    version: '0.7.68',
+    version: '0.7.69',
     targets: {
         pocketrisu: {
             verified: ['1.10.0'],
@@ -4138,6 +4138,10 @@ const serverChatCommitOwner = createServerChatCommitOwner({
         return { status, started: payload?.started === true }
       },
     })
+    // A storage reset discards waiting inputs through the input owner.
+    if (typeof serverChatInputOwner.attachWaitingDrain === 'function') {
+      serverChatInputOwner.attachWaitingDrain(inputDrain)
+    }
   }
 
   // M8: reconcile a lost detached-start response by exact operation identity. Active/finished
@@ -4263,6 +4267,7 @@ module.exports.units.push({
 })
 module.exports.units.push(...require('./request-progress-units.cjs')(module.exports.units))
 module.exports.units.push(...require('./job-recovery-identity-units.cjs')(module.exports.units))
+module.exports.units.push(...require('./storage-reset-units.cjs')(module.exports.units))
 module.exports.units.push({
     id: 'lazy-chat-bg-adapter:owned:job-recovery-identity-tests:1.10',
     file: 'src/ts/process/request/jobRecoveryIdentity.test.ts', type: 'owned',

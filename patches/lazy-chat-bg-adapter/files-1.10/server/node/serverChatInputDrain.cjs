@@ -12,6 +12,9 @@ function createServerChatInputDrain({ loadExecution, start, delayMs = 250 }) {
     const attempts = new Map();
     let timer = null;
     let active = false;
+    // A storage reset bumps the generation; a drain pass that started before
+    // the reset stops at its next resumption and never calls start.
+    let generation = 0;
 
     function schedule() {
         if (timer || waiting.size === 0) return;
@@ -36,11 +39,13 @@ function createServerChatInputDrain({ loadExecution, start, delayMs = 250 }) {
     async function drain() {
         if (active) return;
         active = true;
+        const passGeneration = generation;
         try {
             for (const [operationId, body] of waiting) {
                 let execution;
                 try { execution = await loadExecution(operationId); }
                 catch {
+                    if (passGeneration !== generation) return;
                     const failures = (attempts.get(operationId) || 0) + 1;
                     if (failures >= 3) {
                         waiting.delete(operationId);
@@ -50,6 +55,7 @@ function createServerChatInputDrain({ loadExecution, start, delayMs = 250 }) {
                     }
                     continue;
                 }
+                if (passGeneration !== generation) return;
                 if (execution?.status === 'waiting') continue;
                 if (execution?.status !== 'transform-required'
                     && execution?.status !== 'attached') {
@@ -63,6 +69,7 @@ function createServerChatInputDrain({ loadExecution, start, delayMs = 250 }) {
                 attempts.set(operationId, (attempts.get(operationId) || 0) + 1);
                 try { outcome = await start(body); }
                 catch { /* exact operation status remains the recovery authority */ }
+                if (passGeneration !== generation) return;
                 if (outcome?.started === true
                     || outcome?.status === 409 || outcome?.status === 429
                     || attempts.get(operationId) >= 3) {
@@ -71,12 +78,25 @@ function createServerChatInputDrain({ loadExecution, start, delayMs = 250 }) {
                 }
             }
         } finally {
-            active = false;
-            schedule();
+            if (passGeneration === generation) {
+                active = false;
+                schedule();
+            }
         }
     }
 
-    return { enqueue, drain, pending: () => waiting.size };
+    // Storage reset: discard waiting envelopes and attempt counters, clear the
+    // timer, and fence any pass that is still awaiting the owner.
+    function reset() {
+        generation += 1;
+        waiting.clear();
+        attempts.clear();
+        if (timer) clearTimeout(timer);
+        timer = null;
+        active = false;
+    }
+
+    return { enqueue, drain, reset, pending: () => waiting.size };
 }
 
 module.exports = { createServerChatInputDrain };

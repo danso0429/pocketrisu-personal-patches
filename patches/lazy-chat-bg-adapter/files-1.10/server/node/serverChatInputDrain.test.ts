@@ -84,3 +84,45 @@ describe('server-owned waiting input drain', () => {
         expect(drain.pending()).toBe(0)
     })
 })
+
+describe('[B1b-2] Reset operation cleanup and run cancellation', () => {
+    it('reset discards waiting envelopes and attempts and clears the scheduled timer', async () => {
+        vi.useFakeTimers()
+        try {
+            const start = vi.fn()
+            const drain = createServerChatInputDrain({
+                loadExecution: async () => { throw new Error('count one attempt') },
+                start,
+                delayMs: 100,
+            })
+            drain.enqueue('operation-b1b-drain-waiting', { operationId: 'operation-b1b-drain-waiting' })
+            await drain.drain()
+            expect(drain.pending()).toBe(1)
+            drain.reset()
+            expect(drain.pending()).toBe(0)
+            await vi.advanceTimersByTimeAsync(500)
+            expect(start).not.toHaveBeenCalled()
+        } finally {
+            vi.useRealTimers()
+        }
+    })
+
+    it('generation fencing prevents an already-running drain continuation from starting after reset', async () => {
+        let release!: (value: unknown) => void
+        const loaded = new Promise(resolve => { release = resolve })
+        const start = vi.fn(async () => ({ status: 200, started: true }))
+        const drain = createServerChatInputDrain({
+            loadExecution: () => loaded,
+            start,
+            delayMs: 60_000,
+        })
+        drain.enqueue('operation-b1b-drain-inflight', { operationId: 'operation-b1b-drain-inflight' })
+        const running = drain.drain()
+        await Promise.resolve()
+        drain.reset()
+        release({ status: 'transform-required' })
+        await running
+        expect(start).not.toHaveBeenCalled()
+        expect(drain.pending()).toBe(0)
+    })
+})

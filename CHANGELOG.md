@@ -1,5 +1,13 @@
 # Changelog
 
+## 0.2.4-experimental.71 (reset cleanup and background run cancellation)
+
+- Every restore or database removal that applies data now deletes, in the same transaction and after the restored rows are written, all background operation states and results, the server input and commit recovery rows and the pending chat-write journal, so nothing carried in by the restored data or left from before it can publish an old answer later.
+- A restore or database removal aborts every running background generation before it changes anything, without waiting for the provider, and clears waiting server inputs. A chat is no longer shown as busy because of a generation that the restore cancelled, even if its provider does not stop at once.
+- An empty folder import still advances the storage epoch and cancels running generations, but keeps existing recovery rows because it replaces nothing.
+- Known limit until a later version: a browser that sent an input before a restore can still show that input as unresolved, because its server record was removed by the restore.
+- BG adapter 0.7.69, lazy chat sync 0.5.16, server backup snapshot core 0.1.5. Stable remains v0.2.3.
+
 ## 0.2.4-experimental.70 (storage epoch for background commits)
 
 - A background generation that started before a backup import, server restore, folder import, snapshot restore or database removal can no longer commit its answer into the restored data. Every restore or removal advances a stored storage epoch (`internal/storage-epoch/v1`) inside its own transaction, to one more than both the previous value and any value the restored data carries, so an older backup cannot lower it. Each run and server input records the epoch when it starts and keeps it through every later state change; a commit whose recorded epoch differs from the current one is refused as `storage_epoch_changed` without changing the chat, journal, statistics or variables.

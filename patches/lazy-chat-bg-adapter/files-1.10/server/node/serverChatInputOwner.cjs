@@ -1975,9 +1975,17 @@ function createServerChatInputOwner({
     // transaction. The memory part runs separately so a reset can defer it
     // until its transaction has committed.
     function discardDurableRecovery() {
-        for (const record of allRecords()) {
-            kvDel(operationStateKey(record.operationId));
-            kvDel(operationResultKey(record.operationId));
+        // Tolerates invalid command rows: a reset must discard them rather
+        // than fail on them.
+        for (const key of kvList(SERVER_CHAT_INPUT_COMMAND_PREFIX)) {
+            let operationId = '';
+            try {
+                operationId = Buffer.from(key.slice(SERVER_CHAT_INPUT_COMMAND_PREFIX.length), 'base64url')
+                    .toString('utf8');
+            } catch { continue; }
+            if (!validOperationId(operationId) || commandKey(operationId) !== key) continue;
+            kvDel(operationStateKey(operationId));
+            kvDel(operationResultKey(operationId));
         }
         kvDelPrefix(SERVER_CHAT_INPUT_COMMAND_PREFIX);
         kvDelPrefix(SERVER_CHAT_INPUT_SEQUENCE_PREFIX);
@@ -1985,6 +1993,21 @@ function createServerChatInputOwner({
 
     function discardRecoveryMemory() {
         settingsSnapshots.clear();
+    }
+
+    // The BG start route owns the scheduler of waiting inputs; a storage reset
+    // discards it through this owner before the reset's first destructive write.
+    let waitingDrain = null;
+    function attachWaitingDrain(drain) {
+        if (!drain || typeof drain.reset !== 'function') {
+            throw new Error('server input waiting drain is invalid');
+        }
+        waitingDrain = drain;
+    }
+    function resetWaitingDrain() {
+        if (!waitingDrain) return false;
+        waitingDrain.reset();
+        return true;
     }
 
     function discardRecovery() {
@@ -1999,6 +2022,8 @@ function createServerChatInputOwner({
         discardDurableRecovery,
         discardRecovery,
         discardRecoveryMemory,
+        attachWaitingDrain,
+        resetWaitingDrain,
         loadExecution,
         loadSettingsSnapshot,
         markResultPublishedSynchronously,

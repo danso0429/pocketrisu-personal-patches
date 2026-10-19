@@ -1138,3 +1138,124 @@ describe('[B1b-1] Storage epoch and run binding', () => {
     await expectLabel(client, 'epoch-malformed-before')
   }, 25_000)
 })
+
+describe('[B1b-2] Reset operation cleanup and run cancellation', () => {
+  test('writers stay refused during reset and recovery-required behavior remains unchanged', async () => {
+    const heldServer = await boot()
+    await importWithSafety(heldServer.client, labelledBackup('b1b-writer-before'))
+    const activeClient = await withSession(heldServer.client)
+    const held = await prepareHeldImport(heldServer.server, activeClient, labelledBackup('b1b-writer-after'))
+    await expectResetRefusal(await writeChat(activeClient))
+    held.finish()
+    expect((await held.response).status).toBe(200)
+
+    const failed = await boot({
+      POCKETRISU_TEST_STORAGE_RESET_FAILPOINT: 'reverse-inlay-rename',
+      POCKETRISU_TEST_STORAGE_RESET_FAILPOINT_ON_ATTEMPT: '2',
+    })
+    await importWithSafety(failed.client, labelledBackup('b1b-recovery-before', [
+      { name: 'inlay/before.png', data: Buffer.from('before') },
+    ]))
+    const failureClient = await withSession(failed.client)
+    const response = await failureClient.fetch('/api/backup/import', {
+      method: 'POST', headers: { 'content-type': 'application/x-risu-backup' },
+      body: new Uint8Array(labelledBackup('b1b-recovery-after', [
+        { name: 'inlay/after.png', data: Buffer.from('after') },
+      ])),
+    })
+    expect(response.status).toBeGreaterThanOrEqual(400)
+    await expect(response.json()).resolves.toMatchObject({
+      code: 'STORAGE_RECOVERY_REQUIRED', retryable: false,
+    })
+    const writer = await failureClient.fetch('/api/db/flush', { method: 'POST' })
+    expect(writer.status).toBe(503)
+    await expect(writer.json()).resolves.toMatchObject({
+      code: 'STORAGE_RECOVERY_REQUIRED', retryable: false,
+    })
+  }, 40_000)
+
+  test.each([
+    'backup-import',
+    'server-restore',
+    'folder-execute',
+    'folder-upload',
+    'snapshot-restore',
+    'database-remove',
+  ])('%s increments exactly once, performs final recovery cleanup, and cancels runtime owners before mutation', async kind => {
+    const traceDir = await mkdtemp(path.join(tmpdir(), `b1b-${kind}-trace-`))
+    const traceFile = path.join(traceDir, 'trace.jsonl')
+    const booted = await boot({ POCKETRISU_TEST_STORAGE_RESET_TRACE_FILE: traceFile })
+    let client = booted.client
+    let before = 0
+
+    if (kind === 'backup-import') {
+      await seedRecoveryRows(client)
+      before = await readStorageEpoch(client)
+      await importWithSafety(client, labelledBackup('b1b-import'))
+    } else if (kind === 'server-restore') {
+      await importWithSafety(client, labelledBackup('b1b-server-restore'))
+      client = await withSession(client)
+      const filename = await serverSave(client)
+      await seedRecoveryRows(client)
+      before = await readStorageEpoch(client)
+      const response = await client.fetch('/api/backup/server/restore', {
+        method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ filename }),
+      })
+      expect(response.status).toBe(200)
+    } else if (kind === 'folder-execute') {
+      const folder = await mkdtemp(path.join(tmpdir(), 'b1b-folder-execute-'))
+      await writeFile(path.join(folder, DB_HEX), databaseEntry(labelledBackup('b1b-folder-execute')))
+      for (const key of RECOVERY_KEYS) {
+        await writeFile(path.join(folder, Buffer.from(key).toString('hex')), `imported:${key}`)
+      }
+      await seedRecoveryRows(client)
+      before = await readStorageEpoch(client)
+      const response = await client.fetch('/api/migrate/save-folder/execute', {
+        method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ path: folder }),
+      })
+      expect(response.status).toBe(200)
+    } else if (kind === 'folder-upload') {
+      const imported = Object.fromEntries(RECOVERY_KEYS.map(key => [
+        Buffer.from(key).toString('hex'), new Uint8Array(Buffer.from(`imported:${key}`)),
+      ]))
+      await seedRecoveryRows(client)
+      before = await readStorageEpoch(client)
+      const response = await client.fetch('/api/migrate/save-folder/upload', {
+        method: 'POST', headers: { 'content-type': 'application/zip' },
+        body: new Uint8Array(saveFolderZip(databaseEntry(labelledBackup('b1b-folder-upload')), imported)),
+      })
+      expect(response.status).toBe(200)
+    } else if (kind === 'snapshot-restore') {
+      await importWithSafety(client, labelledBackup('b1b-snapshot-old'))
+      client = await withSession(client)
+      await importWithSafety(client, labelledBackup('b1b-snapshot-current'))
+      client = await withSession(client)
+      const listed = await (await client.fetch('/api/db/snapshots')).json() as any
+      const target = listed.snapshots.find((entry: any) => entry.key.startsWith('database/dbbackup-'))
+      expect(target).toBeTruthy()
+      await seedRecoveryRows(client)
+      before = await readStorageEpoch(client)
+      const response = await client.fetch('/api/db/snapshots/restore', {
+        method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ key: target.key }),
+      })
+      expect(response.status).toBe(200)
+    } else {
+      await importWithSafety(client, labelledBackup('b1b-remove'))
+      client = await withSession(client)
+      await seedRecoveryRows(client)
+      before = await readStorageEpoch(client)
+      const response = await client.fetch('/api/remove', { headers: { 'file-path': DB_HEX } })
+      expect(response.status).toBe(200)
+    }
+
+    expect(await readStorageEpoch(client)).toBe(before + 1)
+    await expectRecoveryRowsAbsent(client)
+    const events = (await readFile(traceFile, 'utf8')).trim().split('\n').map(line => JSON.parse(line))
+    const begin = events.findLastIndex((event: any) => event.event === 'begin')
+    expect(begin).toBeGreaterThanOrEqual(0)
+    for (const event of ['cancel-runs', 'reset-input-drain', 'cancel-persistence-timers']) {
+      const index = events.findLastIndex((entry: any, candidate: number) => candidate < begin && entry.event === event)
+      expect(index, `${event} must precede the destructive transaction`).toBeGreaterThanOrEqual(0)
+    }
+  }, 45_000)
+})
