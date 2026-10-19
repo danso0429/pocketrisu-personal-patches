@@ -193,6 +193,7 @@ function makeHarness() {
             runtime.database = database
         },
         scheduleChatStorePersist: () => { runtime.schedules += 1 },
+        readCurrentStorageEpoch: () => 0,
         readPersistedDatabase: async () => {
             const raw = kvGet('synthetic/persisted-root')
             if (!raw) return null
@@ -1507,5 +1508,84 @@ describe('server-owned BG chat commit', () => {
         expect(restartedInputOwner.read(secondOperation)).toMatchObject({
             inputState: 'attached',
         })
+    })
+})
+
+describe('[B1b-1] Storage epoch and run binding', () => {
+    it('rejects an old-epoch owner commit before chat, variable, statistic, journal, or record mutation', async () => {
+        const harness = makeHarness(), operationId = 'operation-b1b-owner-old-epoch'
+        harness.primeOperation(operationId)
+        const state = JSON.parse(harness.kvGet(operationStateKey(operationId)).toString())
+        harness.kvSet(operationStateKey(operationId), JSON.stringify({ ...state, storageEpoch: 1 }))
+        const beforeDatabase = structuredClone(harness.runtime.database)
+        const beforeChat = structuredClone(harness.runtime.fullStore.get('char-1')!.get('chat-1'))
+        const outcome = await harness.makeOwner(undefined, null, {
+            readCurrentStorageEpoch: () => 2,
+        }).commitGenerationResult(harness.commitInput(
+            operationId,
+            result(withAnswer(baseChat(), 'late answer', 'assistant-b1b-late'), 'old', 'new'),
+            1,
+            revision(baseChat()),
+        ))
+        expect(outcome).toMatchObject({ status: 'conflict', reason: 'storage_epoch_changed' })
+        expect(harness.runtime.database).toEqual(beforeDatabase)
+        expect(harness.runtime.fullStore.get('char-1')!.get('chat-1')).toEqual(beforeChat)
+        expect(harness.kvGet(commitStorageKey(operationId))).toBeNull()
+        expect(harness.kvList('internal/chat-write/v1/')).toEqual([])
+    })
+
+    it('distinguishes a caller-supplied input receipt from the synthesized legacy receipt', async () => {
+        const supplied = makeHarness()
+        const journal = supplied.makeJournal()
+        const inputOwner = supplied.makeInputOwner(journal, { readCurrentStorageEpoch: () => 1 })
+        const commitOwner = supplied.makeOwner(journal, inputOwner, { readCurrentStorageEpoch: () => 1 })
+        const operationId = 'operation-b1b-missing-input'
+        const initial = baseChat()
+        await inputOwner.admit(inputAdmission(operationId, initial, 'guarded input'))
+        await inputOwner.beginTransform(operationId)
+        const attached = await inputOwner.attachTransformed(
+            operationId, inputTransform(operationId, initial, 'guarded input'),
+        )
+        const inputChat = supplied.runtime.fullStore.get('char-1')!.get('chat-1')
+        supplied.primeOperation(operationId, 'chat-1', 'running-result-consumed')
+        const state = JSON.parse(supplied.kvGet(operationStateKey(operationId)).toString())
+        supplied.kvSet(operationStateKey(operationId), JSON.stringify({ ...state, storageEpoch: 1 }))
+        supplied.kvDel(commandKey(operationId))
+        const beforeDatabase = structuredClone(supplied.runtime.database)
+        const beforeChat = structuredClone(inputChat)
+        const beforeJournal = supplied.kvList('internal/chat-write/v1/').map((key: string) => [
+            key,
+            Buffer.from(supplied.kvGet(key)),
+        ])
+        const guarded = await commitOwner.commitGenerationResult({
+            ...supplied.commitInput(
+                operationId,
+                result(withAnswer(inputChat, 'must not publish', 'assistant-missing-input'), 'old', 'new'),
+                inputChat.message.length,
+                attached.record.executionBaseRevision,
+            ),
+            settingsDigest: attached.record.admission.settingsContextDigest,
+            inputReceipt: attached.record.inputReceipt,
+        })
+        expect(guarded).toMatchObject({ status: 'conflict', reason: 'input_record_missing' })
+        expect(supplied.runtime.database).toEqual(beforeDatabase)
+        expect(supplied.runtime.fullStore.get('char-1')!.get('chat-1')).toEqual(beforeChat)
+        expect(supplied.kvGet(commitStorageKey(operationId))).toBeNull()
+        expect(supplied.kvList('internal/chat-write/v1/').map((key: string) => [
+            key,
+            Buffer.from(supplied.kvGet(key)),
+        ])).toEqual(beforeJournal)
+
+        const legacy = makeHarness(), legacyId = 'operation-b1b-legacy-receipt'
+        legacy.primeOperation(legacyId)
+        const legacyOutcome = await legacy.makeOwner(undefined, null, {
+            readCurrentStorageEpoch: () => 0,
+        }).commitGenerationResult(legacy.commitInput(
+            legacyId,
+            result(withAnswer(baseChat(), 'legacy answer', 'assistant-legacy-b1b'), 'old', 'new'),
+            1,
+            revision(baseChat()),
+        ))
+        expect(legacyOutcome).toMatchObject({ status: 'committed' })
     })
 })

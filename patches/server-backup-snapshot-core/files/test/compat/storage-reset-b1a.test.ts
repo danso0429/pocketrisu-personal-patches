@@ -21,6 +21,15 @@ const { decodeRisuSave } = utilsPackage as {
 }
 const DB_KEY = 'database/database.bin'
 const DB_HEX = Buffer.from(DB_KEY).toString('hex')
+const EPOCH_KEY = 'internal/storage-epoch/v1'
+const RECOVERY_KEYS = [
+  'bg-orch-state-op:operation-b1b-reset',
+  'bg-orch-result-op:operation-b1b-reset',
+  'internal/server-chat-input/v1/b1b-reset',
+  'internal/server-chat-commit/v1/b1b-reset',
+  'internal/chat-write/v1/b1b-reset',
+]
+const OPERATION_KEYS = RECOVERY_KEYS.slice(0, 2)
 
 afterAll(async () => {
   await Promise.allSettled(servers.map(server => server.cleanup()))
@@ -282,6 +291,49 @@ async function serverSave(client: RisuClient) {
   const filename = events.find(event => event.type === 'done')?.filename
   expect(filename).toMatch(/^risu-backup-\d+\.bin$/)
   return filename as string
+}
+
+async function writeRawKey(client: RisuClient, key: string, value: string | Buffer) {
+  const response = await client.fetch('/api/write', {
+    method: 'POST',
+    headers: {
+      'file-path': Buffer.from(key).toString('hex'),
+      'content-type': 'application/octet-stream',
+    },
+    body: new Uint8Array(Buffer.isBuffer(value) ? value : Buffer.from(value)),
+  })
+  expect(response.status, `${key}: ${await response.clone().text()}`).toBe(200)
+}
+
+async function readRawKey(client: RisuClient, key: string) {
+  const response = await client.fetch('/api/read', {
+    headers: { 'file-path': Buffer.from(key).toString('hex') },
+  })
+  expect(response.status).toBe(200)
+  return Buffer.from(await response.arrayBuffer())
+}
+
+async function readStorageEpoch(client: RisuClient) {
+  const raw = (await readRawKey(client, EPOCH_KEY)).toString('utf8').trim()
+  return raw === '' ? 0 : Number(raw)
+}
+
+async function seedRecoveryRows(client: RisuClient) {
+  await seedOperationRows(client)
+  for (const key of RECOVERY_KEYS.slice(2)) await writeRawKey(client, key, `seed:${key}`)
+}
+
+async function seedOperationRows(client: RisuClient) {
+  await writeRawKey(client, OPERATION_KEYS[0], JSON.stringify({
+    operationId: 'operation-b1b-reset', charId: 'char-1', chatId: 'chat-1', state: 'result-ready',
+  }))
+  await writeRawKey(client, OPERATION_KEYS[1], JSON.stringify({
+    operationId: 'operation-b1b-reset', resultId: 'result-b1b-reset', final: true,
+  }))
+}
+
+async function expectRecoveryRowsAbsent(client: RisuClient) {
+  for (const key of RECOVERY_KEYS) expect(await readRawKey(client, key), key).toHaveLength(0)
 }
 
 describe('[B1a-3] Storage reset barrier foundation', () => {
@@ -979,5 +1031,110 @@ describe('[B1a-5] Atomic save-folder, snapshot and database removal resets', () 
       await writeFile(path.join(gateDir, 'database-remove.apply.release'), 'release')
     }
     expect((await removing).status).toBe(200)
+  }, 25_000)
+})
+
+describe('[B1b-1] Storage epoch and run binding', () => {
+  test('fresh storage reads epoch zero and lower, higher, and empty save folders advance monotonically', async () => {
+    const { client: initialClient } = await boot()
+    let client = initialClient
+    expect(await readStorageEpoch(client)).toBe(0)
+
+    const high = saveFolderZip(databaseEntry(labelledBackup('epoch-high')), {
+      [Buffer.from(EPOCH_KEY).toString('hex')]: new Uint8Array(Buffer.from('10')),
+    })
+    let response = await client.fetch('/api/migrate/save-folder/upload', {
+      method: 'POST', headers: { 'content-type': 'application/zip' }, body: new Uint8Array(high),
+    })
+    expect(response.status).toBe(200)
+    expect(await readStorageEpoch(client)).toBe(11)
+
+    client = await withSession(client)
+    const lowerFolder = await mkdtemp(path.join(tmpdir(), 'b1b-lower-epoch-'))
+    await writeFile(path.join(lowerFolder, DB_HEX), databaseEntry(labelledBackup('epoch-lower')))
+    await writeFile(path.join(lowerFolder, Buffer.from(EPOCH_KEY).toString('hex')), '2')
+    response = await client.fetch('/api/migrate/save-folder/execute', {
+      method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ path: lowerFolder }),
+    })
+    expect(response.status).toBe(200)
+    expect(await readStorageEpoch(client)).toBe(12)
+
+    client = await withSession(client)
+    const emptyFolder = await mkdtemp(path.join(tmpdir(), 'b1b-empty-folder-'))
+    response = await client.fetch('/api/migrate/save-folder/execute', {
+      method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ path: emptyFolder }),
+    })
+    expect(response.status).toBe(200)
+    expect(await readStorageEpoch(client)).toBe(13)
+  }, 35_000)
+
+  test('epoch survives a process restart and the next reset increments it once', async () => {
+    const first = await boot()
+    await importWithSafety(first.client, labelledBackup('epoch-restart'))
+    expect(await readStorageEpoch(first.client)).toBe(1)
+    const persisted = await mkdtemp(path.join(tmpdir(), 'b1b-restart-save-'))
+    await cp(path.join(first.server.cwd, 'save'), persisted, { recursive: true })
+    await first.server.cleanup()
+
+    const restartedServer = await spawnServer({
+      seedSave: saveDir => cp(persisted, saveDir, { recursive: true }),
+    })
+    servers.push(restartedServer)
+    const restarted = await withSession(await createClient(restartedServer.port, restartedServer.password))
+    expect(await readStorageEpoch(restarted)).toBe(1)
+    expect((await restarted.fetch('/api/remove', { headers: { 'file-path': DB_HEX } })).status).toBe(200)
+    expect(await readStorageEpoch(restarted)).toBe(2)
+  }, 30_000)
+
+  test('malformed stored epochs fail closed without deleting recovery rows', async () => {
+    const { client } = await boot()
+    await writeRawKey(client, EPOCH_KEY, 'not-an-integer')
+    await seedOperationRows(client)
+    const target = labelledBackup('malformed-epoch-target')
+    const prepared = await client.fetch('/api/backup/import/prepare', {
+      method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ size: target.length }),
+    })
+    expect(prepared.status).toBe(200)
+    const response = await client.fetch('/api/backup/import', {
+      method: 'POST', headers: { 'content-type': 'application/x-risu-backup' }, body: new Uint8Array(target),
+    })
+    expect(response.status).toBeGreaterThanOrEqual(400)
+    expect((await readRawKey(client, EPOCH_KEY)).toString()).toBe('not-an-integer')
+    for (const key of OPERATION_KEYS) expect(await readRawKey(client, key), key).not.toHaveLength(0)
+  }, 20_000)
+
+  test('a failure after the epoch write but before COMMIT rolls back the epoch and cleanup', async () => {
+    const { client: initialClient } = await boot({
+      POCKETRISU_TEST_STORAGE_RESET_FAILPOINT: 'after-storage-epoch-write',
+      POCKETRISU_TEST_STORAGE_RESET_FAILPOINT_ON_ATTEMPT: '2',
+    })
+    await importWithSafety(initialClient, labelledBackup('epoch-before-failure'))
+    const client = await withSession(initialClient)
+    await seedOperationRows(client)
+    const before = await readStorageEpoch(client)
+    const response = await client.fetch('/api/backup/import', {
+      method: 'POST', headers: { 'content-type': 'application/x-risu-backup' },
+      body: new Uint8Array(labelledBackup('epoch-failing-target')),
+    })
+    expect(response.status).toBeGreaterThanOrEqual(400)
+    expect(await readStorageEpoch(client)).toBe(before)
+    for (const key of OPERATION_KEYS) expect(await readRawKey(client, key), key).not.toHaveLength(0)
+  }, 25_000)
+
+  test('a save folder carrying a malformed epoch row fails without changing data or epoch', async () => {
+    const { client: initialClient } = await boot()
+    await importWithSafety(initialClient, labelledBackup('epoch-malformed-before'))
+    const client = await withSession(initialClient)
+    const before = await readStorageEpoch(client)
+    expect(before).toBe(1)
+    const malformed = saveFolderZip(databaseEntry(labelledBackup('epoch-malformed-target')), {
+      [Buffer.from(EPOCH_KEY).toString('hex')]: new Uint8Array(Buffer.from('not-an-integer')),
+    })
+    const response = await client.fetch('/api/migrate/save-folder/upload', {
+      method: 'POST', headers: { 'content-type': 'application/zip' }, body: new Uint8Array(malformed),
+    })
+    expect(response.status).toBeGreaterThanOrEqual(400)
+    expect(await readStorageEpoch(client)).toBe(before)
+    await expectLabel(client, 'epoch-malformed-before')
   }, 25_000)
 })

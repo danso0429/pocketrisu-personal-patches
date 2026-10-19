@@ -208,3 +208,21 @@ describe('durable operation notice source', () => {
         expect(h.deps.kvList(PREFIX)).toEqual([badKey])
     })
 })
+
+describe('[B1b-1] Storage epoch and run binding', () => {
+    it('notice fallback rewrites retain the operation start epoch', () => {
+        const h = harness(), event = h.event('operation-b1b-notice-epoch')
+        const initial = writeOperationState(h.deps.kvSet, event.operationId, {
+            ...event,
+            storageEpoch: 4,
+            notificationSourceVersion: 1,
+            notificationCreatedAt: event.createdAt,
+        }, 'running', h.deps.kvGet)
+        expect(initial.record).toMatchObject({ storageEpoch: 4 })
+        h.failPrefix(PREFIX)
+        h.owner.captureState(initial.record, { outcome: { final: true, failed: true } })
+        expect(readOperationState(h.deps.kvGet, event.operationId)).toMatchObject({
+            state: 'running', storageEpoch: 4, operationNotice: event,
+        })
+    })
+})

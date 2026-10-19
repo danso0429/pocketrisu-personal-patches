@@ -927,6 +927,7 @@ function createServerChatCommitter({
     runTransaction,
     readCurrentRevision,
     readOperationState,
+    readCurrentStorageEpoch,
     calculateRevision,
     writeCanonicalState,
     writeCommittedOperationState,
@@ -940,6 +941,7 @@ function createServerChatCommitter({
         || typeof kvGet !== 'function' || typeof kvSet !== 'function' || typeof kvList !== 'function'
         || typeof queueStorageOperation !== 'function' || typeof runTransaction !== 'function'
         || typeof readCurrentRevision !== 'function' || typeof readOperationState !== 'function'
+        || typeof readCurrentStorageEpoch !== 'function'
         || typeof calculateRevision !== 'function' || typeof writeCanonicalState !== 'function'
         || typeof writeCommittedOperationState !== 'function'
         || typeof publishCanonicalState !== 'function') {
@@ -972,7 +974,20 @@ function createServerChatCommitter({
         return committedResult(stored.record, 'commit_replayed', true, 'durable');
     }
 
-    function operationGate(normalized) {
+    // The storage epoch advances with every storage reset. An operation state
+    // without storageEpoch was started at epoch 0 (before any reset).
+    function readStorageEpoch() {
+        const epoch = readCurrentStorageEpoch();
+        ensureSynchronous('readCurrentStorageEpoch', epoch);
+        if (!Number.isSafeInteger(epoch) || epoch < 0) {
+            throw invalidCommit('current storage epoch is invalid');
+        }
+        return epoch;
+    }
+
+    // Returns the conflict outcome, or null with the operation state stored in
+    // `accepted.operationState` when the operation may commit.
+    function operationGate(normalized, accepted = null) {
         const operationState = readOperationState(normalized.operationId);
         ensureSynchronous('readOperationState', operationState);
         if (!operationState || typeof operationState !== 'object') {
@@ -982,6 +997,10 @@ function createServerChatCommitter({
             || operationState.charId !== normalized.requestedCharId
             || operationState.chatId !== normalized.requestedChatId) {
             return { status: 'conflict', reason: 'operation_coordinate_conflict', receipt: null, reused: false };
+        }
+        const operationEpoch = operationState.storageEpoch === undefined ? 0 : operationState.storageEpoch;
+        if (operationEpoch !== readStorageEpoch()) {
+            return { status: 'conflict', reason: 'storage_epoch_changed', receipt: null, reused: false };
         }
         if (operationState.state === 'cancelled') {
             return { status: 'cancelled', reason: 'cancel_won', receipt: null, reused: false };
@@ -993,10 +1012,12 @@ function createServerChatCommitter({
             && operationState.claimEpoch !== normalized.claimEpoch) {
             return { status: 'conflict', reason: 'operation_claim_conflict', receipt: null, reused: false };
         }
+        if (accepted) accepted.operationState = operationState;
         return null;
     }
 
-    async function commitQueued(normalized, material, requestFingerprint, resolveAnchor = null) {
+    async function commitQueued(normalized, material, requestFingerprint, resolveAnchor = null,
+        transactionGate = null) {
         const sourceFingerprint = requestFingerprint;
         const outsideExisting = replayOrConflict(readStored(normalized.operationId), sourceFingerprint);
         if (outsideExisting) return outsideExisting;
@@ -1057,8 +1078,20 @@ function createServerChatCommitter({
             transactionResult = runTransaction(() => {
                 const existing = replayOrConflict(readStored(normalized.operationId), sourceFingerprint);
                 if (existing) return existing;
-                const gated = operationGate(normalized);
+                const accepted = { operationState: null };
+                const gated = operationGate(normalized, accepted);
                 if (gated) return gated;
+                if (transactionGate) {
+                    const refused = transactionGate(normalized);
+                    ensureSynchronous('transactionGate', refused);
+                    if (refused) {
+                        return {
+                            status: 'conflict', reason: requireIdentifier('reason', refused.reason, 64),
+                            receipt: null, reused: false,
+                        };
+                    }
+                }
+                const operationEpoch = accepted.operationState.storageEpoch;
                 const currentRevision = readCurrentRevision(
                     normalized.requestedCharId,
                     normalized.requestedChatId,
@@ -1140,6 +1173,8 @@ function createServerChatCommitter({
                     acOwner: normalized.acOwner,
                     acState: normalized.acState,
                     commitSequence: canonicalWrite.commitSequence,
+                    // The committed state keeps the epoch captured at start.
+                    ...(operationEpoch !== undefined ? { storageEpoch: operationEpoch } : {}),
                 });
                 ensureSynchronous('writeCommittedOperationState', stateWrite);
                 if (stateWrite === false || stateWrite?.written === false) {
@@ -1193,9 +1228,14 @@ function createServerChatCommitter({
         );
     }
 
-    async function commit(request, resolveAnchor = null) {
+    // transactionGate(normalized) runs inside the commit transaction after the
+    // operation gate; it returns null or { reason } to refuse with a conflict.
+    async function commit(request, resolveAnchor = null, { transactionGate = null } = {}) {
         if (resolveAnchor !== null && typeof resolveAnchor !== 'function') {
             throw invalidCommit('resolveAnchor must be a function');
+        }
+        if (transactionGate !== null && typeof transactionGate !== 'function') {
+            throw invalidCommit('transactionGate must be a function');
         }
         const normalized = normalizeCommitRequest(request);
         const calculatedRevision = calculateRevision(normalized.chat);
@@ -1214,6 +1254,7 @@ function createServerChatCommitter({
             material,
             requestFingerprint,
             resolveAnchor,
+            transactionGate,
         ));
     }
 

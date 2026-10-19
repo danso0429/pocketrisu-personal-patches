@@ -112,7 +112,7 @@ function makeHarness() {
         encode: encodeRisuSaveLegacy,
         decode: decodeRisuSave,
     })
-    const makeOwner = (journal = makeJournal()) => createServerChatInputOwner({
+    const makeOwner = (journal = makeJournal(), options: any = {}) => createServerChatInputOwner({
         chatWriteJournal: journal,
         kvGet,
         kvSet,
@@ -138,7 +138,9 @@ function makeHarness() {
         scheduleChatStorePersist: () => { runtime.schedules += 1 },
         encodeSettingsSnapshot: encodeRisuSaveLegacy,
         isExternalGenerationActive: () => runtime.externalGeneration,
+        readCurrentStorageEpoch: () => 0,
         ...(runtime.notificationPublisher ? { publishNotification: runtime.notificationPublisher } : {}),
+        ...options,
     })
     const transformed = (operationId: string, rawText = 'hello', sourceChat = baseChat()) => ({
         chat: {
@@ -1944,5 +1946,64 @@ describe('[B1a-2] Reset ownership refactor', () => {
 
         owner.discardRecoveryMemory()
         expect(owner.settingsSnapshotStats()).toMatchObject({ contexts: 0, bytes: 0 })
+    })
+})
+
+describe('[B1b-1] Storage epoch and run binding', () => {
+    it('preserves the captured epoch through provider, result, terminal, cancel, and acknowledgement rewrites', () => {
+        const harness = makeHarness(), operationId = 'operation-b1b-rewrite-epoch'
+        const readState = () => JSON.parse(harness.kvGet(operationStateKey(operationId)).toString())
+        expect(writeOperationState(harness.kvSet, operationId, {
+            charId: 'char-1', chatId: 'chat-1', storageEpoch: 7,
+        }, 'queued', harness.kvGet).record).toMatchObject({ storageEpoch: 7 })
+        for (const state of ['running', 'running-result-ready', 'result-ready', 'cancelled', 'delivered']) {
+            expect(writeOperationState(harness.kvSet, operationId, {
+                charId: 'char-1', chatId: 'chat-1',
+            }, state, harness.kvGet).written).toBe(true)
+            expect(readState()).toMatchObject({ state, storageEpoch: 7 })
+        }
+    })
+
+    it('does not invent a post-reset epoch when cancellation has neither metadata nor a previous row', () => {
+        const harness = makeHarness(), operationId = 'operation-b1b-cancel-no-row'
+        const written = writeOperationState(harness.kvSet, operationId, {
+            charId: 'char-1', chatId: 'chat-1',
+        }, 'cancelled', harness.kvGet)
+        expect(written.written).toBe(true)
+        expect(written.record).not.toHaveProperty('storageEpoch')
+    })
+
+    it('binds all input-owner queued writes to the start epoch, including predecessor advance and attach', async () => {
+        const harness = makeHarness(), owner = harness.makeOwner(undefined, {
+            readCurrentStorageEpoch: () => 7,
+        })
+        const first = 'operation-b1b-input-first'
+        const second = 'operation-b1b-input-second'
+        await owner.admit(admission(first))
+        expect(JSON.parse(harness.kvGet(operationStateKey(first)).toString()))
+            .toMatchObject({ state: 'queued', storageEpoch: 7 })
+        await owner.beginTransform(first)
+        const attached = await owner.attachTransformed(first, harness.transformed(first))
+        expect(JSON.parse(harness.kvGet(operationStateKey(first)).toString()))
+            .toMatchObject({ state: 'queued', storageEpoch: 7 })
+
+        await owner.admit({
+            ...admission(second),
+            submittedBaseRevision: attached.record.executionBaseRevision,
+        })
+        const attachedChat = harness.runtime.fullStore.get('char-1')!.get('chat-1')
+        const resultChat = {
+            ...structuredClone(attachedChat),
+            message: [
+                ...structuredClone(attachedChat.message),
+                { role: 'char', data: 'first answer', chatId: 'assistant-b1b-first' },
+            ],
+        }
+        expect(owner.settleSynchronously(first, 'completed', revision(resultChat))).toBe(true)
+        expect(owner.markResultPublishedSynchronously(first, revision(resultChat))).toBe(true)
+        harness.runtime.fullStore.get('char-1')!.set('chat-1', resultChat)
+        await expect(owner.loadExecution(second)).resolves.toMatchObject({ status: 'transform-required' })
+        expect(JSON.parse(harness.kvGet(operationStateKey(second)).toString()))
+            .toMatchObject({ state: 'queued', storageEpoch: 7 })
     })
 })

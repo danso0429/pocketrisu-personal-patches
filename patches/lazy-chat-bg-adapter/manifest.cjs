@@ -25,7 +25,7 @@ const queueUnits = require('./queue-units.cjs')
 module.exports = {
     id: 'lazy-chat-bg-adapter',
     title: 'BG preserve integration for lazy chat storage',
-    version: '0.7.67',
+    version: '0.7.68',
     targets: {
         pocketrisu: {
             verified: ['1.10.0'],
@@ -2449,6 +2449,7 @@ const serverChatInputOwner = createServerChatInputOwner({
     cacheStrippedDatabase,
     scheduleChatStorePersist,
     encodeSettingsSnapshot: encodeRisuSaveLegacy,
+    readCurrentStorageEpoch: readStorageEpoch,
 });
 
 const serverChatCommitOwner = createServerChatCommitOwner({
@@ -2469,6 +2470,7 @@ const serverChatCommitOwner = createServerChatCommitOwner({
     cacheStrippedDatabase,
     scheduleChatStorePersist,
     serverChatInputOwner,
+    readCurrentStorageEpoch: readStorageEpoch,
 });
 
 `,
@@ -2963,6 +2965,17 @@ const serverChatCommitOwner = createServerChatCommitOwner({
           admissionSeq: meta.admissionSeq,
         }
       : {}),
+    ...((() => {
+      // The storage epoch captured when the operation started: from meta, else
+      // from the stored row. A rewrite never takes the current epoch, and a
+      // write with neither carries no epoch.
+      const validEpoch = (value) => Number.isSafeInteger(value) && value >= 0
+      if (meta && validEpoch(meta.storageEpoch)) return { storageEpoch: meta.storageEpoch }
+      if (typeof kvGet !== 'function') return {}
+      let previous = null
+      try { previous = readOperationState(kvGet, operationId) } catch { return {} }
+      return previous && validEpoch(previous.storageEpoch) ? { storageEpoch: previous.storageEpoch } : {}
+    })()),
     state,
 `,
             requires: [
@@ -3327,6 +3340,19 @@ const serverChatCommitOwner = createServerChatCommitOwner({
             inputCommandId: serverInputExecution.record.admission.inputCommandId,
             admissionSeq: serverInputExecution.record.admissionSeq,
           } : {}),
+          // Bind the run to the storage epoch it started in. A durable row of
+          // the same operation (server-input admission, restart retry) keeps
+          // its earlier epoch; a run never takes a newer one.
+          // A durable row without an epoch belongs to epoch 0 and stays so.
+          ...((() => {
+            const durable = typeof kvGet === 'function' ? readOperationState(kvGet, operationId) : null
+            if (durable) {
+              return Number.isSafeInteger(durable.storageEpoch) && durable.storageEpoch >= 0
+                ? { storageEpoch: durable.storageEpoch } : {}
+            }
+            return typeof serverChatCommitOwner?.currentStorageEpoch === 'function'
+              ? { storageEpoch: serverChatCommitOwner.currentStorageEpoch() } : {}
+          })()),
 `,
             requires: ['lazy-chat-bg-adapter:server-chat-commit-start-gate:1.10'],
             targetVersions: pocketRisu1100,

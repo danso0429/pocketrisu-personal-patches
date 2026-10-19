@@ -420,7 +420,13 @@ function createServerChatCommitOwner({
     serverChatInputOwner = null,
     readPersistedDatabase = null,
     notifyCommit = null,
+    // Current persisted storage epoch; owners built without an epoch store
+    // (no storage reset possible) stay at epoch 0.
+    readCurrentStorageEpoch = () => 0,
 }) {
+    if (typeof readCurrentStorageEpoch !== 'function') {
+        throw new Error('server chat commit owner dependency is missing: readCurrentStorageEpoch');
+    }
     const dependencies = {
         chatWriteJournal,
         kvGet,
@@ -464,6 +470,7 @@ function createServerChatCommitOwner({
             return chat ? chatRevision(chat) : null;
         },
         readOperationState: (operationId) => readOperationState(kvGet, operationId),
+        readCurrentStorageEpoch,
         calculateRevision: chatRevision,
         writeCanonicalState: ({ request }) => {
             const database = getDbCache()?.[databaseKey];
@@ -911,7 +918,12 @@ function createServerChatCommitOwner({
                 unreflected: resolved.unreflected,
                 promptInputsChanged: changes.length > 0,
             };
-        } : null);
+        } : null, inputReceipt ? {
+            // A caller-supplied input receipt (server-input run) requires its
+            // durable input record. The synthesized legacy receipt does not.
+            transactionGate: () => (serverChatInputOwner?.read(operationId)
+                ? null : { reason: 'input_record_missing' }),
+        } : {});
         if (inputReceipt) {
             await queueStorageOperation(() => finalizeInputCommit(outcome));
         }
@@ -1232,6 +1244,7 @@ function createServerChatCommitOwner({
 
     return {
         commitGenerationResult,
+        currentStorageEpoch: () => readCurrentStorageEpoch(),
         captureBase,
         readAssemblyContext,
         currentRevision,

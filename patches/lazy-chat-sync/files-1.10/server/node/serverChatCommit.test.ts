@@ -217,6 +217,7 @@ function makeHarness() {
             return value ? value.toString('utf8') : null
         },
         readOperationState: (operationId: string) => readJson(operationKey(operationId)),
+        readCurrentStorageEpoch: () => 0,
         calculateRevision: revision,
         writeCanonicalState: writer,
         writeCommittedOperationState: (operationId: string, state: unknown) => {
@@ -684,5 +685,109 @@ describe('server chat commit primitive', () => {
         })
         expect(asynchronous.kvGet(commitStorageKey(commitRequest.operationId))).toBeNull()
         expect(asynchronous.kvList('internal/chat-write/v1/')).toEqual([])
+    })
+})
+
+describe('[B1b-1] Storage epoch and run binding', () => {
+    it('treats a missing operation epoch as zero and commits on a fresh database', async () => {
+        const harness = makeHarness(), source = request()
+        harness.prime(source)
+        const outcome = await harness.makeCommitter({ readCurrentStorageEpoch: () => 0 }).commit(source)
+        expect(outcome).toMatchObject({ status: 'committed' })
+    })
+
+    it('rejects both legacy and server-input operation states from an older storage epoch without side effects', async () => {
+        for (const serverInput of [false, true]) {
+            const harness = makeHarness(), source = request(serverInput ? 'server-input answer' : 'legacy answer')
+            harness.prime(source)
+            const state = harness.readJson(harness.operationKey(source.operationId))
+            harness.putRaw(harness.operationKey(source.operationId), stableJSON({
+                ...state,
+                storageEpoch: 1,
+                ...(serverInput ? { inputCommandVersion: 1, inputCommandId: 'input-command-1' } : {}),
+            }))
+            const beforeState = Buffer.from(harness.kvGet(harness.operationKey(source.operationId)))
+            const outcome = await harness.makeCommitter({ readCurrentStorageEpoch: () => 2 }).commit(source)
+            expect(outcome).toMatchObject({ status: 'conflict', reason: 'storage_epoch_changed' })
+            expect(Buffer.from(harness.kvGet(harness.operationKey(source.operationId)))).toEqual(beforeState)
+            expect(harness.kvGet(commitStorageKey(source.operationId))).toBeNull()
+            expect(harness.kvList('internal/chat-write/v1/')).toEqual([])
+            expect(harness.kvList('canonical/')).toEqual([])
+            expect(harness.published.size).toBe(0)
+        }
+    })
+
+    it('rechecks the epoch inside the commit transaction when a reset wins during preparation', async () => {
+        const harness = makeHarness(), source = request()
+        harness.prime(source)
+        const state = harness.readJson(harness.operationKey(source.operationId))
+        harness.putRaw(harness.operationKey(source.operationId), stableJSON({ ...state, storageEpoch: 1 }))
+        let currentEpoch = 1
+        const committer = harness.makeCommitter({
+            readCurrentStorageEpoch: () => currentEpoch,
+            journal: {
+                ...harness.journal,
+                prepareStage: async (...args: any[]) => {
+                    const prepared = await harness.journal.prepareStage(...args)
+                    currentEpoch = 2
+                    return prepared
+                },
+            },
+        })
+        expect(await committer.commit(source)).toMatchObject({
+            status: 'conflict', reason: 'storage_epoch_changed',
+        })
+        expect(harness.kvGet(commitStorageKey(source.operationId))).toBeNull()
+        expect(harness.kvList('internal/chat-write/v1/')).toEqual([])
+        expect(harness.kvList('canonical/')).toEqual([])
+    })
+
+    it('preserves the captured epoch in committed state and leaves existing CAS and claim conflicts authoritative', async () => {
+        const successful = makeHarness(), source = request('epoch-matched answer')
+        successful.prime(source)
+        const initial = successful.readJson(successful.operationKey(source.operationId))
+        successful.putRaw(successful.operationKey(source.operationId), stableJSON({ ...initial, storageEpoch: 2 }))
+        expect(await successful.makeCommitter({ readCurrentStorageEpoch: () => 2 }).commit(source))
+            .toMatchObject({ status: 'committed' })
+        expect(successful.readJson(successful.operationKey(source.operationId))).toMatchObject({
+            state: 'chat-committed', storageEpoch: 2,
+        })
+
+        const stale = makeHarness(), staleRequest = request('stale revision answer')
+        stale.prime(staleRequest)
+        const staleState = stale.readJson(stale.operationKey(staleRequest.operationId))
+        stale.putRaw(stale.operationKey(staleRequest.operationId), stableJSON({ ...staleState, storageEpoch: 2 }))
+        stale.putRaw(stale.revisionKey(staleRequest.requestedCharId, staleRequest.requestedChatId), 'changed')
+        expect(await stale.makeCommitter({ readCurrentStorageEpoch: () => 2 }).commit(staleRequest))
+            .toMatchObject({ status: 'conflict', reason: 'base_revision_changed' })
+
+        const claimed = makeHarness(), claimedRequest = request('claim conflict answer')
+        claimed.prime(claimedRequest)
+        const claimedState = claimed.readJson(claimed.operationKey(claimedRequest.operationId))
+        claimed.putRaw(claimed.operationKey(claimedRequest.operationId), stableJSON({
+            ...claimedState, storageEpoch: 2, claimEpoch: claimedRequest.claimEpoch + 1,
+        }))
+        expect(await claimed.makeCommitter({ readCurrentStorageEpoch: () => 2 }).commit(claimedRequest))
+            .toMatchObject({ status: 'conflict', reason: 'operation_claim_conflict' })
+    })
+
+    it('rejects a pre-upgrade operation after the first reset', async () => {
+        const harness = makeHarness(), source = request()
+        harness.prime(source)
+        expect(await harness.makeCommitter({ readCurrentStorageEpoch: () => 1 }).commit(source))
+            .toMatchObject({ status: 'conflict', reason: 'storage_epoch_changed' })
+        expect(harness.kvGet(commitStorageKey(source.operationId))).toBeNull()
+    })
+
+    it('does not publish a queued old commit after a full reset deleted its operation row', async () => {
+        const harness = makeHarness(), source = request('late post-reset answer')
+        harness.prime(source)
+        harness.db.prepare('DELETE FROM kv WHERE key = ?').run(harness.operationKey(source.operationId))
+        const outcome = await harness.makeCommitter({ readCurrentStorageEpoch: () => 2 }).commit(source)
+        expect(outcome).toMatchObject({ status: 'conflict', reason: 'operation_state_missing' })
+        expect(harness.kvGet(commitStorageKey(source.operationId))).toBeNull()
+        expect(harness.kvList('internal/chat-write/v1/')).toEqual([])
+        expect(harness.kvList('canonical/')).toEqual([])
+        expect(harness.published.size).toBe(0)
     })
 })

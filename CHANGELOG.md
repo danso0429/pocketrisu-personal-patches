@@ -1,5 +1,13 @@
 # Changelog
 
+## 0.2.4-experimental.70 (storage epoch for background commits)
+
+- A background generation that started before a backup import, server restore, folder import, snapshot restore or database removal can no longer commit its answer into the restored data. Every restore or removal advances a stored storage epoch (`internal/storage-epoch/v1`) inside its own transaction, to one more than both the previous value and any value the restored data carries, so an older backup cannot lower it. Each run and server input records the epoch when it starts and keeps it through every later state change; a commit whose recorded epoch differs from the current one is refused as `storage_epoch_changed` without changing the chat, journal, statistics or variables.
+- Operations stored before this version carry no epoch and commit as before until the first restore after upgrading.
+- A commit that names an input receipt whose input record no longer exists is refused as `input_record_missing`. Commits of background runs that never had an input record are unchanged.
+- A malformed stored epoch fails the restore or commit instead of being treated as zero.
+- BG adapter 0.7.68, lazy chat sync 0.5.15, server backup snapshot core 0.1.4. Stable remains v0.2.3.
+
 ## 0.2.4-experimental.69 (atomic save-folder, snapshot and database removal resets)
 
 - Save-folder import (from a folder or an uploaded ZIP), snapshot restore and removal of the main database now use the same all-or-nothing reset as backup import: the incoming data is read and validated first, applied in one transaction, and the restored caches are installed at once; a failure leaves the previous data in place and is reported as an error. A folder import applies exactly the bytes it validated, and duplicate ZIP entries resolve the same way in validation and in the import.

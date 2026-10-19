@@ -442,7 +442,13 @@ function createServerChatInputOwner({
     publishNotification = null,
     readPersistedDatabase = null,
     recoverCompletedInput = null,
+    // Current persisted storage epoch; owners built without an epoch store
+    // (no storage reset possible) stay at epoch 0.
+    readCurrentStorageEpoch = () => 0,
 }) {
+    if (typeof readCurrentStorageEpoch !== 'function') {
+        throw new Error('server chat input owner dependency is missing: readCurrentStorageEpoch');
+    }
     const dependencies = {
         chatWriteJournal,
         kvGet,
@@ -1029,6 +1035,10 @@ function createServerChatInputOwner({
                 && !cascadeOf(record, replacement?.operationId)
                 && requiresExecutionPredecessor(record, canonicalChat)
             )).at(-1) || null;
+            // Admission starts the operation: bind it to the current storage
+            // epoch (read before any write). Later queued rewrites keep this
+            // value from the stored operation row.
+            const storageEpoch = readCurrentStorageEpoch();
             const record = {
                 recordVersion: 4,
                 journalRetentionVersion: 1,
@@ -1072,6 +1082,7 @@ function createServerChatInputOwner({
             const operation = writeOperationState(kvSet, admission.operationId, {
                 notificationSourceVersion: 1,
                 notificationCreatedAt: Date.now(),
+                storageEpoch,
                 charId: admission.charId,
                 chatId: admission.chatId,
                 baseChatRevision: admission.submittedBaseRevision,
