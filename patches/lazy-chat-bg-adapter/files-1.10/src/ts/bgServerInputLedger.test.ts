@@ -37,7 +37,7 @@ describe('server input operation marker', () => {
         expect(state.getItem(prefix + 'legacy-operation')).toBeNull()
         expect(state.getItem(SERVER_INPUT_MARKER_PREFIX + 'legacy-operation')).not.toBeNull()
         writeServerInputMarker(state, { ...marker('semantic-operation'), localRevision: '3s-abc-def' })
-        expect(SERVER_INPUT_MARKER_PREFIX).toBe('bg-server-input-v3:')
+        expect(SERVER_INPUT_MARKER_PREFIX).toBe('bg-server-input-v4:')
         expect(readServerInputMarkers(state, 1000).find(row => row.operationId === 'semantic-operation')?.localRevision)
             .toBe('3s-abc-def')
         expect([...state.values.keys()].filter(key => key.startsWith('bg-server-input-v1:') || key.startsWith('bg-server-input-v2:'))).toEqual([])

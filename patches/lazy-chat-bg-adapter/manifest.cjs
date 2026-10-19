@@ -25,7 +25,7 @@ const queueUnits = require('./queue-units.cjs')
 module.exports = {
     id: 'lazy-chat-bg-adapter',
     title: 'BG preserve integration for lazy chat storage',
-    version: '0.7.72',
+    version: '0.7.73',
     targets: {
         pocketrisu: {
             verified: ['1.10.0'],
@@ -4244,7 +4244,7 @@ module.exports.units.push(...['bgReconciliation.ts', 'bgReconciliation.test.ts',
     file: `src/ts/${name}`, type: 'owned', targetVersions: pocketRisu1100,
     content: owned1100(`src/ts/${name}`),
 })))
-module.exports.units.push(...['bgRecoveryRead.ts', 'bgRecoveryRead.test.ts', 'bgLegacySaveFailure.test.ts', 'bgCapabilityAdmissionFlow.test.ts'].map(name => ({
+module.exports.units.push(...['bgRecoveryRead.ts', 'bgRecoveryRead.test.ts', 'bgLegacySaveFailure.test.ts', 'bgCapabilityAdmissionFlow.test.ts', 'bgStorageResetClearance.ts'].map(name => ({
     id: `lazy-chat-bg-adapter:owned:${name}:1.10`,
     file: `src/ts/${name}`, type: 'owned', targetVersions: pocketRisu1100,
     content: owned1100(`src/ts/${name}`),
@@ -4261,6 +4261,7 @@ module.exports.units.push(...require('./cancelled-input-units.cjs')(module.expor
 module.exports.units.push(...[
     'src/ts/bgClientSession.phaseB.test.ts',
     'server/node/bgSessionEpochRoutes.phaseB.test.ts',
+    'src/ts/bgEpochMarkers.phaseB.test.ts',
 ].map(name => ({
     id: `lazy-chat-bg-adapter:owned:${name.replaceAll('/', ':').replaceAll('.', '-')}:1.10`,
     file: name,
@@ -4280,6 +4281,7 @@ module.exports.units.push(...require('./job-recovery-identity-units.cjs')(module
 module.exports.units.push(...require('./storage-reset-units.cjs')(module.exports.units))
 module.exports.units.push(...require('./session-gate-units.cjs')(module.exports.units))
 module.exports.units.push(...require('./storage-epoch-units.cjs')(module.exports.units))
+module.exports.units.push(...require('./epoch-marker-units.cjs')(module.exports.units))
 module.exports.units.push({
     id: 'lazy-chat-bg-adapter:owned:job-recovery-identity-tests:1.10',
     file: 'src/ts/process/request/jobRecoveryIdentity.test.ts', type: 'owned',

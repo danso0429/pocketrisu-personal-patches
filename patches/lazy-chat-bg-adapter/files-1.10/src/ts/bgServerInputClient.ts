@@ -2,12 +2,14 @@ import { classifyOrchestrationStatusResponse } from './bgOrchestrationStart'
 import { chooseServerInputBase } from './bgServerInputAdmission'
 import {
     clearServerInputMarker,
+    readServerInputMarker,
     readServerInputMarkers,
     updateServerInputMarker,
     writeServerInputMarker,
     type ServerInputMarker,
 } from './bgServerInputLedger'
-import { reconcileServerInputStart, SERVER_INPUT_START_WINDOW_MS, SERVER_INPUT_START_ATTEMPT_TIMEOUT_MS } from './bgServerInputStart'
+import { reconcileServerInputStart, responseStorageEpoch, SERVER_INPUT_START_WINDOW_MS, SERVER_INPUT_START_ATTEMPT_TIMEOUT_MS } from './bgServerInputStart'
+import { clearMarkerForStorageReset, isStorageResetMissing } from './bgStorageResetClearance'
 import { serverChatCommitReceipt } from './bgServerCommitHydration'
 import type { MarkerStorage } from './bgOrchestrationPending'
 import type { ServerPendingInput } from './bgServerPendingProjection'
@@ -44,6 +46,37 @@ export interface ServerInputClientDependencies {
     isCurrent: () => boolean
     now?: () => number
     wait?: (ms: number) => Promise<void>
+    // Called once by the reader that removed a marker for a storage reset.
+    onStorageResetCleared?: (operationId: string) => void
+}
+
+// Records the storage epoch of an accepted status of this operation on a marker
+// that has none; an existing storageEpoch is never overwritten.
+export function stampServerInputStorageEpoch(storage: MarkerStorage, marker: ServerInputMarker, body: unknown): void {
+    const value = body as { accepted?: unknown; operationId?: unknown } | null
+    if (value?.accepted !== true || value.operationId !== marker.operationId) return
+    const storageEpoch = responseStorageEpoch(body)
+    if (storageEpoch === null || marker.storageEpoch !== undefined) return
+    try {
+        updateServerInputMarker(storage, marker.operationId, current => current.storageEpoch !== undefined
+            ? current : { ...current, epochVersion: 1, storageEpoch })
+    } catch { /* The marker keeps its previous evidence. */ }
+}
+
+// Storage-reset clearance for a `missing` status of a stored marker.
+function clearedForStorageReset(
+    deps: Pick<ServerInputClientDependencies, 'storage' | 'onStorageResetCleared'>,
+    marker: ServerInputMarker,
+    body: unknown,
+): boolean {
+    if (!isStorageResetMissing(marker, body)) return false
+    if (clearMarkerForStorageReset(deps.storage, 'server-input', marker.operationId, body)) {
+        try { deps.onStorageResetCleared?.(marker.operationId) } catch { /* notice is best effort */ }
+        return true
+    }
+    // Not removed here: absent means another reader cleared it; a marker that
+    // no longer qualifies (an epoch was recorded meanwhile) keeps today's handling.
+    return readServerInputMarker(deps.storage, marker.operationId) === null
 }
 
 export type ServerInputClientOutcome =
@@ -67,7 +100,7 @@ const acceptedButBlocked = new Set([
 // committed. Transfer only that proven terminal operation to the existing
 // accepted-marker hydration/ACK owner; promotion never acknowledges a result.
 export async function reconcileCommittedServerInputMarkers(
-    deps: Pick<ServerInputClientDependencies, 'storage' | 'status' | 'isCurrent' | 'now'> & { isIdle: () => boolean },
+    deps: Pick<ServerInputClientDependencies, 'storage' | 'status' | 'isCurrent' | 'now' | 'onStorageResetCleared'> & { isIdle: () => boolean },
     target: { charId: string; chatId: string },
 ): Promise<number> {
     const now = deps.now || Date.now
@@ -85,8 +118,11 @@ export async function reconcileCommittedServerInputMarkers(
             )
             if (!deps.isCurrent() || !deps.isIdle()) continue
             const body = response.body as Record<string, unknown> | null
+            const classified = classifyOrchestrationStatusResponse(response.status, body, marker.operationId)
+            if (classified === 'missing' && clearedForStorageReset(deps, marker, body)) continue
+            if (classified === 'accepted') stampServerInputStorageEpoch(deps.storage, marker, body)
             const receipt = serverChatCommitReceipt(body)
-            if (classifyOrchestrationStatusResponse(response.status, body, marker.operationId) !== 'accepted'
+            if (classified !== 'accepted'
                 || body?.state !== 'chat-committed' || !receipt
                 || receipt.operationId !== marker.operationId
                 || receipt.requestedCharId !== target.charId
@@ -99,7 +135,12 @@ export async function reconcileCommittedServerInputMarkers(
                     || current.baseRevision !== marker.baseRevision || current.adoptedRevision !== marker.adoptedRevision
                     || now() - current.createdAt < grace) return current
                 changed = true
-                return { ...current, state: 'accepted' }
+                const storageEpoch = responseStorageEpoch(body)
+                return {
+                    ...current, state: 'accepted',
+                    ...(storageEpoch !== null && current.storageEpoch === undefined
+                        ? { epochVersion: 1 as const, storageEpoch } : {}),
+                }
             })
             if (updated && changed) promoted++
         } catch { /* Keep ownership until exact status and marker storage are available. */ }
@@ -138,6 +179,8 @@ export async function submitServerInputCommand(
         const status = classifyOrchestrationStatusResponse(
             outcome.status, outcome.body, marker.operationId,
         )
+        // A storage reset removed the operation: clear with a notice and send.
+        if (status === 'missing' && clearedForStorageReset(deps, marker, outcome.body)) continue
         if (status === 'missing' && marker.state === 'uncertain') {
             clearServerInputMarker(deps.storage, marker.operationId)
             continue
@@ -145,6 +188,7 @@ export async function submitServerInputCommand(
         if (status !== 'accepted') {
             return { kind: 'blocked', reason: 'prior-operation-unknown' }
         }
+        stampServerInputStorageEpoch(deps.storage, marker, outcome.body)
         const body = outcome.body as { state?: unknown; blockedByOperationId?: unknown }
         if (body.state === 'input-cancelled' && deps.settleCancelledInput) {
             try { if (await deps.settleCancelledInput(marker.operationId)) continue }
@@ -285,7 +329,7 @@ export async function submitServerInputCommand(
         writeServerInputMarker(deps.storage, {
             operationId, charId: request.charId, chatId: request.chatId,
             localRevision, baseRevision: base.baseRevision,
-            state: 'uncertain', createdAt,
+            state: 'uncertain', createdAt, epochVersion: 1,
         })
     } catch {
         return { kind: 'blocked', reason: 'recovery-marker-unavailable' }
@@ -310,6 +354,7 @@ export async function submitServerInputCommand(
     try {
         if (!updateServerInputMarker(deps.storage, operationId, marker => ({
             ...marker, state: 'accepted',
+            ...(started.storageEpoch !== undefined ? { epochVersion: 1 as const, storageEpoch: started.storageEpoch } : {}),
         }))) return { kind: 'unknown', operationId }
     } catch { return { kind: 'unknown', operationId } }
     if (request.replaceBlockedOperationId) {

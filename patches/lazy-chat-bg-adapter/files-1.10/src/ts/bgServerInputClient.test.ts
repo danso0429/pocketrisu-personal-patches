@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from 'vitest'
 import { submitServerInputCommand, reconcileCommittedServerInputMarkers, type ServerInputClientDependencies } from './bgServerInputClient'
-import { readServerInputMarkers, writeServerInputMarker, updateServerInputMarker } from './bgServerInputLedger'
+import { readServerInputMarkers, writeServerInputMarker, updateServerInputMarker, SERVER_INPUT_MARKER_PREFIX } from './bgServerInputLedger'
 import { SERVER_INPUT_START_WINDOW_MS, SERVER_INPUT_START_ATTEMPT_TIMEOUT_MS } from './bgServerInputStart'
 import { orchestrationChatRevision } from './bgOrchestrationMerge'
 
@@ -120,7 +120,7 @@ describe('server-owned input client admission', () => {
                 if (change === 'selection') deps.isCurrent = () => false
                 if (change === 'admission') deps.isIdle = () => false
                 if (change === 'revision') updateServerInputMarker(deps.storage, 'lost-start-operation', row => ({ ...row, localRevision: next }))
-                if (change === 'removed') deps.storage.removeItem('bg-server-input-v3:lost-start-operation')
+                if (change === 'removed') deps.storage.removeItem(SERVER_INPUT_MARKER_PREFIX + 'lost-start-operation')
                 return { status: 200, body }
             })
             expect(await reconcileCommittedServerInputMarkers(deps, target)).toBe(0)

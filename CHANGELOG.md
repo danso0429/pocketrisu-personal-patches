@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.2.4-experimental.76 (background input markers cleared after a storage reset)
+
+- Server input recovery markers are now stored under `bg-server-input-v4:` and record `epochVersion: 1` and, once the start is accepted, the server's `storageEpoch` from the start answer or from the status answer that established acceptance; a marker that has no recorded epoch takes it from the next accepted status answer that carries one (an existing epoch is never overwritten). Markers from older versions (`v3`, `v2`, `v1`) are still read and migrated unchanged. Prepared-start recovery markers keep their key `bg-orch-pending:<operation>` and record the same two fields. The 49-hour expiry and the 128-entry limit are unchanged.
+- When a status read of a stored marker answers `missing` with a storage epoch newer than the one the marker recorded (or, for a marker written by an older version, with any epoch above 0), the operation was removed by a backup restore or another storage reset: the marker is removed, `백업 복원으로 이 입력은 처리되지 않았어요` is shown once, and recovery for that operation stops. A new send in the same chat is no longer blocked by such a marker. This covers the check before a send, the reconciliation of uncertain and accepted server inputs, the failed-input and cancelled-input settlement, and prepared-start boot recovery (the version probe, and one exact status read before the silent finish of an operation-keyed marker).
+- A `missing` answer with the same epoch behaves as before: an uncertain marker is cleared silently and an accepted marker still blocks the send. The cancel flow's status read is unchanged.
+- BG adapter 0.7.73. Stable remains v0.2.3.
+
 ## 0.2.4-experimental.75 (storage epoch in background start and status responses)
 
 - Every accepted answer of a background generation start (`POST /api/bg-orchestrate`, server input and prepared start: new run, reused run, reused durable operation and the queued `202` input) and every accepted or `missing` answer of the operation status read (`GET /api/bg-orchestrate-status/:operationId`, including both `404 missing` answers) now carries `storageEpoch`, the server's current storage epoch (0 before the first storage reset). This prepares the client-side reset clearance of a later version; the client does not read the field yet.

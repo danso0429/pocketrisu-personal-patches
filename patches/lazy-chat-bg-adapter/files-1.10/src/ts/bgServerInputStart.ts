@@ -15,6 +15,15 @@ export interface ServerInputStartOutcome {
     resolution: 'accepted' | 'rejected' | 'unknown'
     state: string | null
     rejectedReason: string | null
+    // Server storage epoch from the response that established acceptance;
+    // absent when that response carried none.
+    storageEpoch?: number
+}
+
+// A non-negative safe integer epoch from a server body, else null.
+export function responseStorageEpoch(body: unknown): number | null {
+    const value = (body as { storageEpoch?: unknown } | null)?.storageEpoch
+    return Number.isSafeInteger(value) && Number(value) >= 0 ? Number(value) : null
 }
 
 const preAdmissionReasons = new Set([
@@ -37,6 +46,7 @@ export async function reconcileServerInputStart(options: {
 }): Promise<ServerInputStartOutcome> {
     let state: string | null = null
     let rejectedReason: string | null = null
+    let storageEpoch: number | null = null
     const resolution = await reconcileOrchestrationStart({
         start: async signal => {
             const response = await options.start(signal)
@@ -45,6 +55,7 @@ export async function reconcileServerInputStart(options: {
                 && body?.operationId === options.operationId
                 && (body.started === true || body.accepted === true)) {
                 state = typeof body.state === 'string' ? body.state : null
+                storageEpoch = responseStorageEpoch(body)
                 return 'accepted'
             }
             // The start request itself was refused by the session lock before any
@@ -69,6 +80,7 @@ export async function reconcileServerInputStart(options: {
             if (status === 'accepted') {
                 const body = response.body as Record<string, unknown>
                 state = typeof body.state === 'string' ? body.state : null
+                storageEpoch = responseStorageEpoch(body)
                 return 'accepted'
             }
             if (status === 'missing') return 'missing'
@@ -84,5 +96,6 @@ export async function reconcileServerInputStart(options: {
         resolution: resolution === 'abandoned' ? 'unknown' : resolution,
         state,
         rejectedReason,
+        ...(resolution === 'accepted' && storageEpoch !== null ? { storageEpoch } : {}),
     }
 }

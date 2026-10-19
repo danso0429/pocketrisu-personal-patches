@@ -11,12 +11,18 @@ export interface ServerInputMarker {
     createdAt: number
     recoveryOutcome?: string
     recoveryNoticeKey?: string
+    // Present on markers written by the epoch-aware client (v4 namespace).
+    // storageEpoch is the server storage epoch observed when acceptance was
+    // established; absent until then.
+    epochVersion?: 1
+    storageEpoch?: number
 }
 
-// v2 readers reject unknown fields and remove the whole entry. Isolate the
-// optional recovery annotations from those readers, as v2 did for v1.
-export const SERVER_INPUT_MARKER_PREFIX = 'bg-server-input-v3:'
-const LEGACY_SERVER_INPUT_MARKER_PREFIXES = ['bg-server-input-v2:', 'bg-server-input-v1:']
+// Older readers reject unknown fields and remove the whole entry. v3 isolated
+// the recovery annotations from v2 readers; v4 isolates the epoch fields from
+// v3 readers in the same way. Older entries are migrated without epoch fields.
+export const SERVER_INPUT_MARKER_PREFIX = 'bg-server-input-v4:'
+const LEGACY_SERVER_INPUT_MARKER_PREFIXES = ['bg-server-input-v3:', 'bg-server-input-v2:', 'bg-server-input-v1:']
 export const SERVER_INPUT_MARKER_MAX_AGE_MS = 49 * 60 * 60 * 1000
 export const SERVER_INPUT_MARKER_MAX_ENTRIES = 128
 
@@ -35,9 +41,12 @@ function validMarker(value: unknown): value is ServerInputMarker {
     const fields = new Set([
         'operationId', 'charId', 'chatId', 'localRevision',
         'baseRevision', 'state', 'createdAt', 'adoptedRevision',
-        'recoveryOutcome', 'recoveryNoticeKey',
+        'recoveryOutcome', 'recoveryNoticeKey', 'epochVersion', 'storageEpoch',
     ])
     return Object.keys(marker).every(key => fields.has(key))
+        && (marker.epochVersion === undefined || marker.epochVersion === 1)
+        && (marker.storageEpoch === undefined || (marker.epochVersion === 1
+            && Number.isSafeInteger(marker.storageEpoch) && Number(marker.storageEpoch) >= 0))
         && (marker.recoveryOutcome === undefined || (typeof marker.recoveryOutcome === 'string' && marker.recoveryOutcome.length <= 64))
         && (marker.recoveryNoticeKey === undefined || (typeof marker.recoveryNoticeKey === 'string' && marker.recoveryNoticeKey.length <= 1024))
         && typeof marker.operationId === 'string' && marker.operationId.length > 0
@@ -160,6 +169,11 @@ export function readServerInputMarker(storage: MarkerStorage, operationId: strin
         return validMarker(value) && value.operationId === operationId ? value : null
     }
     return null
+}
+
+// Every key an operation's marker can occupy (current namespace first).
+export function serverInputMarkerKeys(operationId: string): string[] {
+    return [SERVER_INPUT_MARKER_PREFIX, ...LEGACY_SERVER_INPUT_MARKER_PREFIXES].map(prefix => prefix + operationId)
 }
 
 export function clearServerInputMarker(storage: MarkerStorage, operationId: string): void {
