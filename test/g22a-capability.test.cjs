@@ -36,7 +36,7 @@ const memoryDiagnostics = () => {
 }
 
 test('G2.2a versions and foreground install scope are pinned', () => {
-    assert.equal(adapter.version, '0.7.73','behavior missing: lazy-chat-bg-adapter version was not advanced')
+    assert.equal(adapter.version, '0.7.74','behavior missing: lazy-chat-bg-adapter version was not advanced')
     const packageExperimental = /^0\.2\.4-experimental\.(\d+)$/.exec(packageJson.version)
     assert.ok(packageExperimental && Number(packageExperimental[1]) >= 56, 'behavior missing: package version was not advanced')
     assert.deepEqual(adapter.requires, ['bg-preserve', 'lazy-chat-sync'])

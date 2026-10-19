@@ -1,5 +1,13 @@
 # Changelog
 
+## 0.2.4-experimental.77 (operations removed by a storage reset report missing)
+
+- The operation status read (`GET /api/bg-orchestrate-status/:operationId`) now answers `404 {"accepted":false,"state":"missing"}` with the current `storageEpoch` for an operation that a backup restore or another storage reset removed: a retained run entry, a durable operation row or a parked result (operation-keyed or under the char/chat key, by its own epoch or its operation row's) whose recorded storage epoch is older than the current one. Previously a run cancelled by the reset answered `200 cancelled`, so the client kept its accepted marker and blocked every new send in that chat. Each branch's coordinate conflict (`409`) still answers first; a committed generation and a server input command answer as before. The read changes no run entry, row or result.
+- A start with the same operation id as such a run is refused before any input admission or operation row: a server input start with `409 input_command_identity_conflict` (the client clears its marker and keeps the draft), a prepared start with `409 operation-reset`. A coordinate conflict is still reported first.
+- A cancel (`DELETE`) that arrives before any operation row exists now records the current storage epoch on its cancellation row; an existing row keeps its own epoch.
+- Records without a recorded epoch, and any read while the current epoch cannot be read, are answered as before. Operations of the current epoch are unchanged.
+- BG adapter 0.7.74. Stable remains v0.2.3.
+
 ## 0.2.4-experimental.76 (background input markers cleared after a storage reset)
 
 - Server input recovery markers are now stored under `bg-server-input-v4:` and record `epochVersion: 1` and, once the start is accepted, the server's `storageEpoch` from the start answer or from the status answer that established acceptance; a marker that has no recorded epoch takes it from the next accepted status answer that carries one (an existing epoch is never overwritten). Markers from older versions (`v3`, `v2`, `v1`) are still read and migrated unchanged. Prepared-start recovery markers keep their key `bg-orch-pending:<operation>` and record the same two fields. The 49-hour expiry and the 128-entry limit are unchanged.
