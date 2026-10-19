@@ -107,6 +107,14 @@ async function planBackupInlayFilesystemEntries() {
 
 async function capturePointInTimeBackupSource({ includeInlays, signal }) {
     const shouldAbort = () => signal?.aborted === true;
+    // A running storage reset answers at once instead of after its slot.
+    if (storageResetActive) {
+        throw new BackupSourceError(
+            'BACKUP_SOURCE_IMPORT_BUSY',
+            'Another import is already in progress',
+            409,
+        );
+    }
     return queueStorageOperation(async () => {
         if (shouldAbort()) abortBackupSourceCapture();
         // Reuse the existing import flag as a short capture/import mutex.
@@ -123,6 +131,7 @@ async function capturePointInTimeBackupSource({ includeInlays, signal }) {
         }
         importInProgress = true;
         try {
+            await waitAtBackupSourceTestGate('capture', signal);
             return await backupSourceManager.acquire({
                 shouldAbort,
                 capture: async () => {

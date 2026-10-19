@@ -150,13 +150,18 @@ let storageRecoveryRequired = null;
 const storageAdmissionContext = new AsyncLocalStorage();
 
 class StorageResetRefusal extends Error {
-    constructor(payload) {
+    constructor(payload, statusCode = 503) {
         super(payload.error);
         this.name = 'StorageResetRefusal';
         this.code = payload.code;
-        this.statusCode = 503;
+        this.statusCode = statusCode;
         this.payload = payload;
     }
+}
+
+// The existing answer for a reset that competes with another reset.
+function storageResetBusyError() {
+    return new StorageResetRefusal({ error: 'Another import is already in progress' }, 409);
 }
 
 function storageResetInProgressPayload() {
@@ -1114,7 +1119,9 @@ for (const [method, route, kind, options = {}] of STORAGE_RESET_WRITER_ROUTES) {
     storageResetRefusalRouter[method](route, async (req, res, next) => {
         try {
             if (kind === 'remove' && isDatabaseRemoveRequest(req)) {
+                // Removing database.bin is itself a reset, not an admitted writer.
                 if (storageRecoveryRequired || storageResetActive) return sendCompetingStorageReset(res);
+                return next();
             }
             if (storageRecoveryRequired) return sendStorageResetRefusal(res, storageRecoveryRequiredPayload());
             if (storageResetActive) return sendStorageResetRefusal(res);
@@ -2549,7 +2556,7 @@ const { openSync, readSync, closeSync, renameSync } = require('fs');
 
 async function runStorageReset(kind, { prepare, apply }) {
     if (storageRecoveryRequired) throw new StorageResetRefusal(storageRecoveryRequiredPayload());
-    if (storageResetActive) throw new Error('Another import is already in progress');
+    if (storageResetActive) throw storageResetBusyError();
     storageResetActive = true;
     storageResetGeneration += 1;
     const reset = {
@@ -2567,7 +2574,8 @@ async function runStorageReset(kind, { prepare, apply }) {
     };
     try {
         const prepared = await prepare(reset);
-        return await queueStorageOperation(async () => {
+        // The reset's own slot is never subject to a writer admission.
+        return await storageAdmissionContext.exit(() => queueStorageOperation(async () => {
             await waitForInlayMutations();
             const pendingSaves = recordPendingSaves();
             try {
@@ -2578,7 +2586,7 @@ async function runStorageReset(kind, { prepare, apply }) {
                 if (!reset.committed) rearmPendingSaves(pendingSaves);
                 throw error;
             }
-        });
+        }));
     } finally {
         for (const cleanup of reset.cleanup.reverse()) {
             try {
@@ -2676,6 +2684,67 @@ function walFileSize() {
         return require('fs').statSync(`${sqliteDb.name}-wal`).size;
     } catch {
         return 0;
+    }
+}
+
+// Inside a reset transaction: the prepared database already went through
+// REMOTE-block inlining, which is what the first decode after a reset used to
+// do (including its pre-migration copy of the restored bytes).
+function recordPreparedRemoteMigration(prepared, rawDatabaseBytes) {
+    if (prepared.remoteBlocksInlined) {
+        const migrationBackupKey = `migration-backup/pre-remote-fix-${Date.now()}.bin`;
+        kvSet(migrationBackupKey, rawDatabaseBytes);
+        logger.info(`[Migration] REMOTE blocks detected in the restored database.bin; inlined. Pre-migration copy at ${migrationBackupKey}`);
+    }
+    markRemoteMigrationDone();
+}
+
+// Staged reader over rows that a reset will insert (save folder) or that it
+// captured from live KV (snapshot restore). A cold-storage key falls back to
+// its legacy '<key>.json' row, like readColdStorageJsonEntry.
+function createStagedRowReader(readRow) {
+    const captured = new Map();
+    return (key) => {
+        if (!captured.has(key)) {
+            let value = readRow(key);
+            if (!value && key.startsWith('coldstorage/')) value = readRow(`${key}.json`);
+            captured.set(key, value ? Buffer.from(value) : null);
+        }
+        return captured.get(key);
+    };
+}
+
+function prepareResetDatabase(rawDatabase, readEntry) {
+    // As on the live path, a REMOTE block without its remotes/ row is dropped
+    // with the decoder's warning.
+    return storageResetPrepare.prepareRestoredDatabase({
+        rawDatabase,
+        readEntry,
+        unresolvedRemote: 'drop',
+    }, {
+        decodeRisuSave,
+        normalizeJSON,
+        encodeRisuSaveLegacy,
+        randomUUID: () => nodeCrypto.randomUUID(),
+        computeBufferEtag,
+    });
+}
+
+// Publishes a prepared database after COMMIT and drops other decoded caches.
+function publishPreparedReset(prepared) {
+    installPreparedDatabaseCaches(prepared);
+    for (const cacheKey of Object.keys(dbCache)) {
+        if (cacheKey !== DB_HEX_KEY) delete dbCache[cacheKey];
+    }
+}
+
+function logPreparedColdStorage(prepared) {
+    const coldStorage = prepared.coldStorage;
+    if (coldStorage.failed > 0) {
+        logger.error(`[ColdStorage] ${coldStorage.failed} character(s) could not be restored and were converted to safe blank characters. Cold storage KV data is preserved.`);
+        for (const name of coldStorage.failedNames) {
+            logger.error(`[ColdStorage]   - "${name}"`);
+        }
     }
 }
 
@@ -2916,17 +2985,10 @@ async function prepareBackupImport(dataSource, { maxBytes, totalBytes, onProgres
     // any destructive write. The import wipes remotes/ and a backup carries
     // none, so as before an unresolvable REMOTE block is dropped with the
     // decoder's warning (and the database is re-encoded, as the migration did).
-    const database = await storageResetPrepare.prepareRestoredDatabase({
-        rawDatabase: databaseBytes,
-        readEntry: (key) => stagedColdStorage.get(key) ?? null,
-        unresolvedRemote: 'drop',
-    }, {
-        decodeRisuSave,
-        normalizeJSON,
-        encodeRisuSaveLegacy,
-        randomUUID: () => nodeCrypto.randomUUID(),
-        computeBufferEtag,
-    });
+    const database = await prepareResetDatabase(
+        databaseBytes,
+        (key) => stagedColdStorage.get(key) ?? null,
+    );
 
     return {
         sourcePath: localFilePath || spoolPath,
@@ -3011,15 +3073,7 @@ function applyBackupImport(importState, reset) {
                 }
             });
             reset.entryCount = entryNumber;
-            // The prepared database already went through REMOTE-block inlining,
-            // which is what the post-import migration used to record (including
-            // its pre-migration copy of the imported bytes).
-            if (prepared.remoteBlocksInlined) {
-                const migrationBackupKey = `migration-backup/pre-remote-fix-${Date.now()}.bin`;
-                kvSet(migrationBackupKey, importState.rawDatabaseBytes);
-                logger.info(`[Migration] REMOTE blocks detected in the imported database.bin; inlined. Pre-migration copy at ${migrationBackupKey}`);
-            }
-            markRemoteMigrationDone();
+            recordPreparedRemoteMigration(prepared, importState.rawDatabaseBytes);
 
             if (existsSync(inlayDir)) {
                 renameSync(inlayDir, oldInlayCopy);
@@ -3048,10 +3102,7 @@ function applyBackupImport(importState, reset) {
 
     // Publish the prepared caches before the slot is released; no journal
     // replay (the journal was discarded with the old data).
-    installPreparedDatabaseCaches(prepared);
-    for (const cacheKey of Object.keys(dbCache)) {
-        if (cacheKey !== DB_HEX_KEY) delete dbCache[cacheKey];
-    }
+    publishPreparedReset(prepared);
     // Memory resets run only after COMMIT.
     chatWriteJournal.resetMemory();
 
@@ -3073,13 +3124,8 @@ function applyBackupImport(importState, reset) {
         });
     }
 
+    logPreparedColdStorage(prepared);
     const coldStorage = prepared.coldStorage;
-    if (coldStorage.failed > 0) {
-        logger.error(`[ColdStorage] ${coldStorage.failed} character(s) could not be restored and were converted to safe blank characters. Cold storage KV data is preserved.`);
-        for (const name of coldStorage.failedNames) {
-            logger.error(`[ColdStorage]   - "${name}"`);
-        }
-    }
     const { assetsRestored, bytesReceived } = importState;
     console.log(`[Backup Import] Complete: ${assetsRestored} assets restored, ${(bytesReceived / 1024 / 1024).toFixed(1)}MB processed`);
     if (coldStorage.failed > 0) {
@@ -4041,6 +4087,11 @@ app.get('/api/remove', async (req, res, next) => {
         return;
     }
     try {
+        if (Buffer.from(filePath, 'hex').toString('utf-8') === DB_BLOB_KEY) {
+            await removeDatabaseReset();
+            res.send({ success: true });
+            return;
+        }
         await queueStorageOperation(async () => {
             const key = Buffer.from(filePath, 'hex').toString('utf-8');
             if (key.startsWith('inlay/')) {
@@ -4054,22 +4105,46 @@ app.get('/api/remove', async (req, res, next) => {
             if (key.startsWith('inlay_info/')) {
                 await fs.unlink(getInlaySidecarPath(key.slice('inlay_info/'.length))).catch(() => {});
             }
-            if (key === 'database/database.bin' && saveTimers[DB_HEX_KEY]) {
-                clearTimeout(saveTimers[DB_HEX_KEY]);
-                delete saveTimers[DB_HEX_KEY];
-            }
             kvDel(key);
-            if (key === 'database/database.bin') {
-                kvDelPrefix(CHAT_WRITE_JOURNAL_PREFIX);
-                chatWriteJournal.resetMemory();
-                invalidateDbCache();
-            }
             res.send({ success: true });
         });
     } catch (error) {
         next(error);
     }
 });
+
+// Removing database.bin is a storage reset: the database row and the chat
+// write journal go in one transaction inside the reset slot, then the caches
+// and in-memory owners are reset.
+// Owns importInProgress like the other resets (capture exclusion).
+async function removeDatabaseReset() {
+    if (importInProgress) throw storageResetBusyError();
+    importInProgress = true;
+    try {
+        return await runDatabaseRemoveReset();
+    } finally {
+        importInProgress = false;
+    }
+}
+
+function runDatabaseRemoveReset() {
+    return runStorageReset('database-remove', {
+        prepare: async () => null,
+        apply: async (_prepared, reset) => {
+            await storageResetTestHooks.waitAtResetGate(reset.kind);
+            sqliteDb.transaction(() => {
+                reset.transactionCount += 1;
+                kvDel(DB_BLOB_KEY);
+                kvDelPrefix(CHAT_WRITE_JOURNAL_PREFIX);
+                // Durable reset only; database-remove memory resets run after COMMIT.
+            })();
+            reset.committed = true;
+            invalidateDbCache();
+            // Database-remove memory resets run only after COMMIT.
+            chatWriteJournal.resetMemory();
+        },
+    });
+}
 
 app.get('/api/list', async (req, res, next) => {
     if(!await checkAuth(req, res)){
@@ -5603,7 +5678,7 @@ function clearExistingData() {
     // that arrived in this import survive.
     kvDelPrefix('remotes/');
     kvDelPrefix(CHAT_WRITE_JOURNAL_PREFIX);
-    chatWriteJournal.resetMemory();
+    // Durable reset only; in-memory owners are reset after COMMIT.
     // Cold-storage rows belong to the previous user's chats. The .bin import path
     // (importBackupFromSource) already clears these; the save-folder path did not,
     // leaving orphans that no dashboard or Optimize pass ever reclaims.
@@ -5616,64 +5691,98 @@ function clearExistingData() {
     clearEntities();
 }
 
-async function importHexFilesFromDir(dirPath) {
+// Save-folder imports (directory execute and zip upload) are storage resets.
+// The rows to insert are read once, outside the storage queue; the database is
+// prepared from exactly those bytes; the reset slot then replaces the data in
+// one synchronous transaction and publishes the prepared caches.
+async function readSaveFolderDirectoryEntries(dirPath) {
     const { hexFiles, hasDatabase } = scanHexFilesInDir(dirPath);
-    if (hexFiles.length === 0) return { imported: 0 };
+    if (hexFiles.length === 0) return [];
     if (!hasDatabase) throw new Error('Save folder does not contain database/database.bin');
-
-    await flushPendingDb();
-    createBackupAndRotate();
-    invalidateDbCache();
-
-    const insert = sqliteDb.prepare(
-        `INSERT OR REPLACE INTO kv (key, value, updated_at) VALUES (?, ?, ?)`
-    );
-    const now = Date.now();
-
-    const run = sqliteDb.transaction(() => {
-        clearExistingData();
-        for (const hexFile of hexFiles) {
-            const key = Buffer.from(hexFile, 'hex').toString('utf-8');
-            const value = readFileSync(path.join(dirPath, hexFile));
-            // Chunk the DB blob so an oversized database.bin imports instead of
-            // failing the BLOB bind limit; other keys keep the bulk fast path.
-            if (key === DB_BLOB_KEY) { kvSet(key, value); continue; }
-            insert.run(key, value, now);
-        }
-    });
-    run();
-
-    writeFileSync(migrationMarkerPath, new Date().toISOString(), 'utf-8');
-    return { imported: hexFiles.length };
+    const entries = [];
+    for (const hexFile of hexFiles) {
+        entries.push({
+            key: Buffer.from(hexFile, 'hex').toString('utf-8'),
+            value: await fs.readFile(path.join(dirPath, hexFile)),
+        });
+    }
+    return entries;
 }
 
-async function importHexEntries(entries) {
-    if (entries.length === 0) return { imported: 0 };
-    const hasDb = entries.some(e => e.key === 'database/database.bin');
-    if (!hasDb) throw new Error('Data does not contain database/database.bin');
+async function importSaveFolder(kind, readEntries) {
+    return runStorageReset(kind, {
+        prepare: async (reset) => {
+            const entries = await readEntries(reset);
+            if (entries.length === 0) return { rows: new Map(), database: null };
+            // A later row with the same key replaces an earlier one, in both
+            // preparation and insertion.
+            const rows = new Map();
+            for (const { key, value } of entries) rows.set(key, value);
+            const rawDatabase = rows.get(DB_BLOB_KEY);
+            if (!rawDatabase) throw new Error('Data does not contain database/database.bin');
+            const database = await prepareResetDatabase(
+                rawDatabase,
+                createStagedRowReader((key) => rows.get(key) ?? null),
+            );
+            return { rows, database, imported: entries.length };
+        },
+        apply: async (state, reset) => {
+            if (!state.database) return { imported: 0 };
+            await storageResetTestHooks.waitAtResetGate(reset.kind);
+            await flushPendingDb();
+            createBackupAndRotate();
+            return applySaveFolderImport(state, reset);
+        },
+    });
+}
 
-    await flushPendingDb();
-    createBackupAndRotate();
-    invalidateDbCache();
-
+// Runs inside the reset slot with no await between BEGIN and COMMIT.
+function applySaveFolderImport(state, reset) {
+    const prepared = state.database;
     const insert = sqliteDb.prepare(
         `INSERT OR REPLACE INTO kv (key, value, updated_at) VALUES (?, ?, ?)`
     );
     const now = Date.now();
 
     const run = sqliteDb.transaction(() => {
+        reset.transactionCount += 1;
+        storageResetTestHooks.trace('begin', { kind: reset.kind });
+        storageResetTestHooks.traceNextYield({ kind: reset.kind });
         clearExistingData();
-        for (const { key, value } of entries) {
+        storageResetTestHooks.failpoint('after-destructive-deletes', reset.attempt);
+        let entryNumber = 0;
+        for (const [key, value] of state.rows) {
+            entryNumber += 1;
+            storageResetTestHooks.entryFailpoint(entryNumber, reset.attempt);
             // Chunk the DB blob so an oversized database.bin imports instead of
             // failing the BLOB bind limit; other keys keep the bulk fast path.
-            if (key === DB_BLOB_KEY) { kvSet(key, value); continue; }
+            if (key === DB_BLOB_KEY) { kvSet(key, prepared.databaseBytes); continue; }
             insert.run(key, value, now);
         }
+        reset.entryCount = entryNumber;
+        recordPreparedRemoteMigration(prepared, state.rows.get(DB_BLOB_KEY));
     });
     run();
+    reset.committed = true;
+    storageResetTestHooks.trace('commit', { kind: reset.kind });
 
-    writeFileSync(migrationMarkerPath, new Date().toISOString(), 'utf-8');
-    return { imported: entries.length };
+    publishPreparedReset(prepared);
+    // Save-folder memory resets run only after COMMIT.
+    chatWriteJournal.resetMemory();
+
+    try {
+        writeFileSync(migrationMarkerPath, new Date().toISOString(), 'utf-8');
+    } catch (markerError) {
+        logger.warn('[Save-folder import] Could not write the migration marker:', markerError?.message || markerError);
+    }
+    logPreparedColdStorage(prepared);
+    return { imported: state.imported };
+}
+
+function saveFolderErrorResponse(res, error) {
+    const storagePayload = storageResetErrorPayload(error);
+    if (storagePayload) return res.status(error.statusCode).json(storagePayload);
+    res.status(error?.statusCode || 400).json({ error: error.message || 'Import failed' });
 }
 
 app.post('/api/migrate/save-folder/scan', async (req, res, next) => {
@@ -5720,10 +5829,10 @@ app.post('/api/migrate/save-folder/execute', async (req, res, next) => {
             res.status(400).json({ error: 'Cannot access directory' });
             return;
         }
-        const result = await importHexFilesFromDir(resolved);
+        const result = await importSaveFolder('save-folder-execute', () => readSaveFolderDirectoryEntries(resolved));
         res.json({ ok: true, imported: result.imported });
     } catch (error) {
-        res.status(400).json({ error: error.message || 'Import failed' });
+        saveFolderErrorResponse(res, error);
     } finally {
         importInProgress = false;
     }
@@ -5744,47 +5853,10 @@ app.post('/api/migrate/save-folder/upload', async (req, res, next) => {
     if (req.socket.server) req.socket.server.requestTimeout = 0;
 
     try {
-        const chunks = [];
-        let totalSize = 0;
-        for await (const chunk of req) {
-            totalSize += chunk.length;
-            if (BACKUP_IMPORT_MAX_BYTES > 0 && totalSize > BACKUP_IMPORT_MAX_BYTES) {
-                res.status(413).json({ error: 'Zip file exceeds max allowed size' });
-                return;
-            }
-            chunks.push(chunk);
-        }
-        const zipBuffer = Buffer.concat(chunks);
-
-        const fflate = require('fflate');
-        let unzipped;
-        try {
-            unzipped = fflate.unzipSync(new Uint8Array(zipBuffer));
-        } catch {
-            res.status(400).json({ error: 'Invalid or corrupted zip file' });
-            return;
-        }
-
-        const entries = [];
-        for (const [entryPath, data] of Object.entries(unzipped)) {
-            if (data.length === 0) continue;
-            const basename = path.basename(entryPath);
-            if (!hexRegex.test(basename)) continue;
-            try {
-                const key = Buffer.from(basename, 'hex').toString('utf-8');
-                entries.push({ key, value: Buffer.from(data) });
-            } catch { /* invalid hex filename */ }
-        }
-
-        if (entries.length === 0) {
-            res.status(400).json({ error: 'No compatible hex files found in zip' });
-            return;
-        }
-
-        const result = await importHexEntries(entries);
+        const result = await importSaveFolder('save-folder-upload', () => readSaveFolderUploadEntries(req));
         res.json({ ok: true, imported: result.imported });
     } catch (error) {
-        res.status(400).json({ error: error.message || 'Import failed' });
+        saveFolderErrorResponse(res, error);
     } finally {
         importInProgress = false;
         if (req.socket.server && prevRequestTimeout !== undefined) {
@@ -5792,6 +5864,54 @@ app.post('/api/migrate/save-folder/upload', async (req, res, next) => {
         }
     }
 });
+
+function saveFolderHttpError(statusCode, message) {
+    return Object.assign(new Error(message), { statusCode });
+}
+
+// Reads and unzips an uploaded save folder outside the storage queue. A failed
+// upload keeps its connection usable for the error response.
+async function readSaveFolderUploadEntries(req) {
+    const chunks = [];
+    let totalSize = 0;
+    try {
+        for await (const chunk of req.iterator({ destroyOnReturn: false })) {
+            totalSize += chunk.length;
+            if (BACKUP_IMPORT_MAX_BYTES > 0 && totalSize > BACKUP_IMPORT_MAX_BYTES) {
+                throw saveFolderHttpError(413, 'Zip file exceeds max allowed size');
+            }
+            chunks.push(chunk);
+        }
+    } catch (error) {
+        await discardRequestBody(req);
+        throw error;
+    }
+    const zipBuffer = Buffer.concat(chunks);
+
+    const fflate = require('fflate');
+    let unzipped;
+    try {
+        unzipped = fflate.unzipSync(new Uint8Array(zipBuffer));
+    } catch {
+        throw saveFolderHttpError(400, 'Invalid or corrupted zip file');
+    }
+
+    const entries = [];
+    for (const [entryPath, data] of Object.entries(unzipped)) {
+        if (data.length === 0) continue;
+        const basename = path.basename(entryPath);
+        if (!hexRegex.test(basename)) continue;
+        try {
+            const key = Buffer.from(basename, 'hex').toString('utf-8');
+            entries.push({ key, value: Buffer.from(data) });
+        } catch { /* invalid hex filename */ }
+    }
+
+    if (entries.length === 0) {
+        throw saveFolderHttpError(400, 'No compatible hex files found in zip');
+    }
+    return entries;
+}
 
 app.post('/api/migrate/save-folder/cleanup/scan', async (req, res, next) => {
     if (!await checkAuth(req, res)) return;
@@ -6529,6 +6649,18 @@ app.delete('/api/db/snapshots', async (req, res, next) => {
 // invalidate caches, rebuild chat store. Client-side setDatabase + reload is
 // racy because the patch-sync save loop is debounced and the reload can fire
 // before the snapshot data lands on disk.
+// Like the import routes, a snapshot restore owns importInProgress so it and a
+// backup capture exclude each other with the existing 409.
+async function runSnapshotRestoreReset(apply) {
+    if (importInProgress) throw storageResetBusyError();
+    importInProgress = true;
+    try {
+        return await runStorageReset('snapshot-restore', { prepare: async () => null, apply });
+    } finally {
+        importInProgress = false;
+    }
+}
+
 app.post('/api/db/snapshots/restore', async (req, res, next) => {
     if (!await checkAuth(req, res)) return;
     if (!checkActiveSession(req, res)) return;
@@ -6541,44 +6673,40 @@ app.post('/api/db/snapshots/restore', async (req, res, next) => {
         if (!blob) {
             return res.status(404).json({ error: 'Snapshot not found' });
         }
-        await queueStorageOperation(async () => {
+        await runSnapshotRestoreReset(async (_unused, reset) => {
+            await storageResetTestHooks.waitAtResetGate(reset.kind);
+            // Capture the REMOTE and cold-storage rows the snapshot needs from
+            // live KV at this serialized point and prepare the database before
+            // anything is written (including the pre-restore snapshot below);
+            // a snapshot that cannot be prepared fails here.
+            const prepared = await prepareResetDatabase(
+                Buffer.from(blob),
+                createStagedRowReader((rowKey) => kvGet(rowKey)),
+            );
             // Drain any pending debounced persist first — same pattern as
             // /api/db/optimize. Without this, an in-flight save could land
             // after kvCopyValue and overwrite the restored snapshot.
             await flushPendingDb();
             // The restored DB and removal of newer journal rows are one durable
-            // transition. If either write fails, SQLite rolls both back; the
-            // invalidated cache then reloads the still-current database.
+            // transition. If either write fails, SQLite rolls both back and the
+            // caches keep the still-current database.
             commitSnapshotRestore({
                 runTransaction: (operation) => sqliteDb.transaction(operation)(),
                 restoreDatabase: () => {
                     kvCopyValue(key, DB_BLOB_KEY);
-                    invalidateDbCache();
+                    if (prepared.changed) kvSet(DB_BLOB_KEY, prepared.databaseBytes);
+                    recordPreparedRemoteMigration(prepared, blob);
                 },
                 discardJournal: () => kvDelPrefix(CHAT_WRITE_JOURNAL_PREFIX),
                 resetJournalMemory: () => chatWriteJournal.resetMemory(),
             });
+            reset.committed = true;
             // Snapshot may pre-date the remote-block migration. Clear the marker
-            // so migrateRemoteBlocksIfNeeded re-evaluates against the restored
-            // bytes instead of skipping based on the prior post-migration state.
-            kvDel(REMOTE_MIGRATION_MARKER_KEY);
-            // Pre-warm chat store from the just-restored blob so subsequent
-            // /api/read fetches and patch-sync baselines see the new data.
-            // Use decodeDatabaseWithPersistentChatIds so it runs the migration
-            // (now unmarked) and refreshes stale raw if the snapshot was a
-            // REMOTE-block format.
-            try {
-                const raw = kvGet(DB_BLOB_KEY);
-                if (raw) {
-                    const dbObj = await decodeDatabaseWithPersistentChatIds(raw, {
-                        createBackup: false,
-                    });
-                    await initChatStore(dbObj);
-                    cacheStrippedDatabase(normalizeJSON(stripChatsFromDb(dbObj)));
-                }
-            } catch (e) {
-                logger.warn('[Snapshot restore] post-restore decode failed:', e?.message || e);
-            }
+            // step of the earlier flow is covered by the preparation above: REMOTE
+            // blocks were resolved against the live remotes/ rows and the restore
+            // transaction recorded the migration as done. Publish the caches.
+            publishPreparedReset(prepared);
+            logPreparedColdStorage(prepared);
         });
         res.json({ ok: true });
     } catch (err) { next(err); }
@@ -7248,7 +7376,7 @@ app.use(expressErrorMiddleware);
 app.use((err, req, res, next) => {
     if (res.headersSent) return next(err);
     const storagePayload = storageResetErrorPayload(err);
-    if (storagePayload) return res.status(503).json(storagePayload);
+    if (storagePayload) return res.status(err.statusCode).json(storagePayload);
     res.status(500).json({ error: err?.message || 'internal server error' });
 });
 

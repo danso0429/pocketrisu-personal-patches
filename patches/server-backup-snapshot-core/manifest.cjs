@@ -10,7 +10,7 @@ const pocketRisu1100 = { pocketrisu: ['1.10.0'] }
 module.exports = {
     id: 'server-backup-snapshot-core',
     title: 'Point-in-time server backup source core',
-    version: '0.1.2',
+    version: '0.1.3',
     userSelectable: false,
     targets: {
         pocketrisu: {

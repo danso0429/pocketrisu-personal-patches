@@ -1,5 +1,14 @@
 # Changelog
 
+## 0.2.4-experimental.69 (atomic save-folder, snapshot and database removal resets)
+
+- Save-folder import (from a folder or an uploaded ZIP), snapshot restore and removal of the main database now use the same all-or-nothing reset as backup import: the incoming data is read and validated first, applied in one transaction, and the restored caches are installed at once; a failure leaves the previous data in place and is reported as an error. A folder import applies exactly the bytes it validated, and duplicate ZIP entries resolve the same way in validation and in the import.
+- Snapshot restore validates the target before creating the fresh pre-restore snapshot, so an invalid target can no longer rotate away an existing recovery point, and it no longer reports success when the restored database cannot be decoded.
+- Legacy cold-storage rows (`coldstorage/<key>.json`) are resolved during save-folder import and snapshot restore as the running server resolves them.
+- A backup capture and any restore or database removal exclude each other in both orders with the existing busy answer. Removing other keys is unchanged.
+- Folder imports now hold the whole folder in memory until they apply it, which raises peak memory for very large folders.
+- BG adapter 0.7.67, lazy chat sync 0.5.14, server backup snapshot core 0.1.3 and adapter 0.2.2. Stable remains v0.2.3.
+
 ## 0.2.4-experimental.68 (atomic backup import and storage-reset barrier)
 
 - Backup import and server backup restore are now all-or-nothing. The upload is spooled to a temporary file first; the backup is validated and its database prepared before anything is changed; the whole apply runs in one database transaction with the image directory swapped right before the commit; the restored caches are installed at once. A failure at any caught point (invalid backup, a failing entry, a failed commit) leaves the previous data and images in place and is reported as an error. Previously the import committed in batches of 5,000 entries, and a write or a debounced save during the import could replay old content over the restored chat or overwrite the restored database while the import still reported success.

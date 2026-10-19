@@ -25,7 +25,7 @@ const queueUnits = require('./queue-units.cjs')
 module.exports = {
     id: 'lazy-chat-bg-adapter',
     title: 'BG preserve integration for lazy chat storage',
-    version: '0.7.66',
+    version: '0.7.67',
     targets: {
         pocketrisu: {
             verified: ['1.10.0'],
@@ -2601,18 +2601,29 @@ const serverChatCommitOwner = createServerChatCommitOwner({
             id: 'lazy-chat-bg-adapter:server-chat-commit-database-remove-reset:1.10',
             file: 'server/node/server.cjs',
             type: 'replace',
-            anchor: `            if (key === 'database/database.bin') {
-                kvDelPrefix(CHAT_WRITE_JOURNAL_PREFIX);
-                chatWriteJournal.resetMemory();
+            anchor: `                kvDelPrefix(CHAT_WRITE_JOURNAL_PREFIX);
+                // Durable reset only; database-remove memory resets run after COMMIT.
 `,
-            content: `            if (key === 'database/database.bin') {
-                kvDelPrefix(CHAT_WRITE_JOURNAL_PREFIX);
+            content: `                kvDelPrefix(CHAT_WRITE_JOURNAL_PREFIX);
                 serverChatInputOwner.discardDurableRecovery();
-                serverChatInputOwner.discardRecoveryMemory();
                 serverChatCommitOwner.discardDurableRecovery();
-                chatWriteJournal.resetMemory();
+                // Durable reset only; database-remove memory resets run after COMMIT.
 `,
             requires: ['lazy-chat-bg-adapter:server-chat-commit-backup-reset-memory:1.10'],
+            targetVersions: pocketRisu1100,
+        },
+        {
+            id: 'lazy-chat-bg-adapter:server-chat-commit-database-remove-reset-memory:1.10',
+            file: 'server/node/server.cjs',
+            type: 'replace',
+            anchor: `            // Database-remove memory resets run only after COMMIT.
+            chatWriteJournal.resetMemory();
+`,
+            content: `            // Database-remove memory resets run only after COMMIT.
+            serverChatInputOwner.discardRecoveryMemory();
+            chatWriteJournal.resetMemory();
+`,
+            requires: ['lazy-chat-bg-adapter:server-chat-commit-database-remove-reset:1.10'],
             targetVersions: pocketRisu1100,
         },
         {
@@ -2624,11 +2635,24 @@ const serverChatCommitOwner = createServerChatCommitOwner({
 `,
             content: `function clearExistingData() {
     serverChatInputOwner.discardDurableRecovery();
-    serverChatInputOwner.discardRecoveryMemory();
     serverChatCommitOwner.discardDurableRecovery();
     kvDelPrefix('assets/');
 `,
-            requires: ['lazy-chat-bg-adapter:server-chat-commit-database-remove-reset:1.10'],
+            requires: ['lazy-chat-bg-adapter:server-chat-commit-database-remove-reset-memory:1.10'],
+            targetVersions: pocketRisu1100,
+        },
+        {
+            id: 'lazy-chat-bg-adapter:server-chat-commit-save-folder-reset-memory:1.10',
+            file: 'server/node/server.cjs',
+            type: 'replace',
+            anchor: `    // Save-folder memory resets run only after COMMIT.
+    chatWriteJournal.resetMemory();
+`,
+            content: `    // Save-folder memory resets run only after COMMIT.
+    serverChatInputOwner.discardRecoveryMemory();
+    chatWriteJournal.resetMemory();
+`,
+            requires: ['lazy-chat-bg-adapter:server-chat-commit-save-folder-reset:1.10'],
             targetVersions: pocketRisu1100,
         },
         {
@@ -2641,12 +2665,15 @@ const serverChatCommitOwner = createServerChatCommitOwner({
             content: `                discardJournal: () => kvDelPrefix(CHAT_WRITE_JOURNAL_PREFIX),
                 discardCommitRecovery: () => {
                     serverChatInputOwner.discardDurableRecovery();
-                    serverChatInputOwner.discardRecoveryMemory();
                     serverChatCommitOwner.discardDurableRecovery();
                 },
-                resetJournalMemory: () => chatWriteJournal.resetMemory(),
+                // Memory resets run after the transaction commits.
+                resetJournalMemory: () => {
+                    serverChatInputOwner.discardRecoveryMemory();
+                    chatWriteJournal.resetMemory();
+                },
 `,
-            requires: ['lazy-chat-bg-adapter:server-chat-commit-save-folder-reset:1.10'],
+            requires: ['lazy-chat-bg-adapter:server-chat-commit-save-folder-reset-memory:1.10'],
             targetVersions: pocketRisu1100,
         },
         {

@@ -673,3 +673,311 @@ describe('[B1a-4] Atomic backup import and server restore', () => {
   }, 20_000)
 })
 
+describe('[B1a-5] Atomic save-folder, snapshot and database removal resets', () => {
+  test('large reset records single-transaction WAL, RSS, temporary disk, and event-loop metrics', async () => {
+    const metricsDir = await mkdtemp(path.join(tmpdir(), 'reset-metrics-'))
+    const metricsFile = path.join(metricsDir, 'metrics.json')
+    const { client } = await boot({ POCKETRISU_TEST_STORAGE_RESET_METRICS_FILE: metricsFile })
+    await importWithSafety(client, labelledBackup('before'))
+    const entries = Array.from({ length: 50_000 }, (_, index) => ({
+      name: Buffer.from(`resource-${index}`).toString('hex'),
+      data: Buffer.from([index % 251]),
+    }))
+    const archive = labelledBackup('after', entries)
+    const expectedEntryCount = decodeBackup(archive).length
+    await importWithSafety(client, archive)
+    const metrics = JSON.parse(await readFile(metricsFile, 'utf8'))
+    expect(metrics).toMatchObject({ entryCount: expectedEntryCount, transactionCount: 1 })
+    for (const field of [
+      'durationMs',
+      'peakWalBytes',
+      'peakRssBytes',
+      'peakTemporaryDiskBytes',
+      'maxExternalPollStallMs',
+    ]) {
+      expect(metrics[field], field).toEqual(expect.any(Number))
+      expect(metrics[field], field).toBeGreaterThanOrEqual(0)
+    }
+    await expectLabel(client, 'after')
+  }, 120_000)
+
+  test('save-folder upload spools before its slot, refuses writers, and atomically publishes target bytes', async () => {
+    const { server, client } = await boot()
+    await importWithSafety(client, labelledBackup('before'))
+    const zip = saveFolderZip(databaseEntry(labelledBackup('after')))
+    const held = holdUpload(server, client, '/api/migrate/save-folder/upload', zip, 8, 'application/zip')
+    try {
+      await waitForReset(client)
+    } catch (error) {
+      held.abort()
+      await held.response.catch(() => undefined)
+      throw error
+    }
+    const read = await client.fetch('/api/chat-content/test-char-0/0')
+    expect(read.status).toBe(200)
+    expect((await decodeRisuSave(new Uint8Array(await read.arrayBuffer()))).message[0].data)
+      .toBe('before-chat')
+    await expectResetRefusal(await client.fetch('/api/patch', {
+      method: 'POST', headers: { 'content-type': 'application/json' }, body: '{}',
+    }))
+    held.finish()
+    expect((await held.response).status).toBe(200)
+    await expectLabel(client, 'after')
+  }, 30_000)
+
+  test('truncated save-folder upload cleans its spool and permits the next write and reset', async () => {
+    const { server, client } = await boot()
+    await importWithSafety(client, labelledBackup('before'))
+    const zip = saveFolderZip(databaseEntry(labelledBackup('after')))
+    const held = holdUpload(server, client, '/api/migrate/save-folder/upload', zip, 8, 'application/zip')
+    try {
+      await waitForReset(client)
+    } catch (error) {
+      held.abort()
+      await held.response.catch(() => undefined)
+      throw error
+    }
+    held.abort()
+    await held.response.catch(() => undefined)
+    await new Promise(resolve => setTimeout(resolve, 100))
+    expect((await client.fetch('/api/db/flush', { method: 'POST' })).status).toBe(200)
+    await expectLabel(client, 'before')
+    const retry = await client.fetch('/api/migrate/save-folder/upload', {
+      method: 'POST', headers: { 'content-type': 'application/zip' }, body: new Uint8Array(zip),
+    })
+    expect(retry.status).toBe(200)
+    await expectLabel(client, 'after')
+  }, 25_000)
+
+  test('snapshot restore validates before mutation and valid restore creates a recoverable fresh snapshot', async () => {
+    const { client } = await boot()
+    await importWithSafety(client, labelledBackup('snapshot-a'))
+    await importWithSafety(client, labelledBackup('snapshot-b'))
+    const listed = await (await client.fetch('/api/db/snapshots')).json() as any
+    const target = listed.snapshots.find((snapshot: any) => snapshot.key.startsWith('database/dbbackup-'))
+    expect(target).toBeTruthy()
+    const restored = await client.fetch('/api/db/snapshots/restore', {
+      method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ key: target.key }),
+    })
+    expect(restored.status).toBe(200)
+    expect((await restored.json()).ok).toBe(true)
+    const after = await (await client.fetch('/api/db/snapshots')).json() as any
+    expect(after.snapshots.length).toBeGreaterThan(listed.snapshots.length)
+  }, 25_000)
+
+  test('database.bin removal uses the full reset lifecycle while ordinary keys retain normal removal semantics', async () => {
+    const gateDir = await mkdtemp(path.join(tmpdir(), 'remove-reset-gate-'))
+    const { client } = await boot({ POCKETRISU_TEST_STORAGE_RESET_GATE_DIR: gateDir })
+    await importWithSafety(client, labelledBackup('before'))
+    await writeFile(path.join(gateDir, 'database-remove.apply.hold'), 'hold')
+    const removing = client.fetch('/api/remove', { headers: { 'file-path': DB_HEX } })
+    for (let i = 0; i < 200; i += 1) {
+      try { await stat(path.join(gateDir, 'database-remove.apply.entered')); break } catch { await new Promise(resolve => setTimeout(resolve, 10)) }
+    }
+    await expectResetRefusal(await client.fetch('/api/patch', {
+      method: 'POST', headers: { 'content-type': 'application/json' }, body: '{}',
+    }))
+    await writeFile(path.join(gateDir, 'database-remove.apply.release'), 'release')
+    expect((await removing).status).toBe(200)
+    expect((await client.fetch('/api/read', { headers: { 'file-path': DB_HEX } })).status).toBe(200)
+
+    const key = 'other.bin'
+    const keyHex = Buffer.from(key).toString('hex')
+    expect((await client.fetch('/api/write', {
+      method: 'POST', headers: { 'file-path': keyHex, 'content-type': 'application/octet-stream' }, body: new Uint8Array([1]),
+    })).status).toBe(200)
+    expect((await client.fetch('/api/remove', { headers: { 'file-path': keyHex } })).status).toBe(200)
+    expect((await client.fetch('/api/db/flush', { method: 'POST' })).status).toBe(200)
+  }, 25_000)
+
+  test('directory execute applies the exact validated bytes and duplicate ZIP keys resolve consistently', async () => {
+    const saveFolder = await mkdtemp(path.join(tmpdir(), 'save-folder-reset-'))
+    const first = databaseEntry(labelledBackup('first'))
+    const last = databaseEntry(labelledBackup('last'))
+    await mkdir(saveFolder, { recursive: true })
+    await writeFile(path.join(saveFolder, DB_HEX), first)
+    const { client } = await boot()
+    await importWithSafety(client, labelledBackup('before'))
+    const execute = await client.fetch('/api/migrate/save-folder/execute', {
+      method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ path: saveFolder }),
+    })
+    expect(execute.status).toBe(200)
+    await expectLabel(client, 'first')
+
+    const duplicateZip = await duplicateSaveFolderZip(first, last)
+    const upload = await client.fetch('/api/migrate/save-folder/upload', {
+      method: 'POST', headers: { 'content-type': 'application/zip' }, body: new Uint8Array(duplicateZip),
+    })
+    expect(upload.status).toBe(200)
+    await expectLabel(client, 'last')
+  }, 30_000)
+
+  test('spooling resource failures are clean and leave no temporary file or stuck flag', async () => {
+    const spoolDir = await mkdtemp(path.join(tmpdir(), 'reset-spool-'))
+    const { server, client } = await boot({
+      POCKETRISU_TEST_STORAGE_RESET_SPOOL_DIR: spoolDir,
+      POCKETRISU_TEST_STORAGE_RESET_SPOOL_FAIL_AFTER_BYTES: '64',
+      POCKETRISU_TEST_STORAGE_RESET_SPOOL_FAIL_ON_ATTEMPT: '2',
+    })
+    await importWithSafety(client, labelledBackup('before'))
+    const response = await client.fetch('/api/backup/import', {
+      method: 'POST', headers: { 'content-type': 'application/x-risu-backup' },
+      body: new Uint8Array(labelledBackup('after')),
+    })
+    expect(response.status).toBeGreaterThanOrEqual(400)
+    expect(await readdir(spoolDir)).toEqual([])
+    expect((await client.fetch('/api/db/flush', { method: 'POST' })).status).toBe(200)
+    await expectLabel(client, 'before')
+    expect(server.cwd).toBeTruthy()
+  }, 20_000)
+
+  function databaseWithLegacyColdStub(label: string) {
+    const database = normalizeBackup(labelledBackup(label)).raw as any
+    database.characters.push({
+      name: 'Legacy stub', chaId: 'legacy-cold', coldstorage: 'legacy-cold-key', chats: [],
+    })
+    return Buffer.concat([MAGIC_RAW, packr.encode(database)])
+  }
+  const legacyColdRow = {
+    [Buffer.from('coldstorage/legacy-cold-key.json').toString('hex')]: new Uint8Array(Buffer.from(JSON.stringify({
+      character: { name: 'Legacy restored', chaId: 'legacy-cold', chats: [] },
+    }))),
+  }
+  async function exportedLegacyCharacter(client: RisuClient) {
+    const database = normalizeBackup(await client.exportBackup()).raw as any
+    return database.characters.find((character: any) => character.chaId === 'legacy-cold')
+  }
+
+  test('save-folder preparation resolves a legacy-only cold-storage row like the live reader', async () => {
+    const { client } = await boot()
+    await importWithSafety(client, labelledBackup('before'))
+    const upload = await client.fetch('/api/migrate/save-folder/upload', {
+      method: 'POST',
+      headers: { 'content-type': 'application/zip' },
+      body: new Uint8Array(saveFolderZip(databaseWithLegacyColdStub('legacy'), legacyColdRow)),
+    })
+    expect(upload.status).toBe(200)
+    await expectLabel(client, 'legacy')
+    const restored = await exportedLegacyCharacter(client)
+    expect(restored).toMatchObject({ name: 'Legacy restored' })
+    expect(restored).not.toHaveProperty('coldstorage')
+  }, 25_000)
+
+  test('snapshot restore resolves a legacy-only live cold-storage row like the live reader', async () => {
+    const { client } = await boot()
+    await importWithSafety(client, labelledBackup('before'))
+    const snapshotKey = 'database/dbbackup-1700000000000.bin'
+    const upload = await client.fetch('/api/migrate/save-folder/upload', {
+      method: 'POST',
+      headers: { 'content-type': 'application/zip' },
+      body: new Uint8Array(saveFolderZip(databaseEntry(labelledBackup('current')), {
+        ...legacyColdRow,
+        [Buffer.from(snapshotKey).toString('hex')]: new Uint8Array(databaseWithLegacyColdStub('snapshot')),
+      })),
+    })
+    expect(upload.status).toBe(200)
+    await expectLabel(client, 'current')
+    const restoredSnapshot = await client.fetch('/api/db/snapshots/restore', {
+      method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ key: snapshotKey }),
+    })
+    expect(restoredSnapshot.status).toBe(200)
+    await expectLabel(client, 'snapshot')
+    const restored = await exportedLegacyCharacter(client)
+    expect(restored).toMatchObject({ name: 'Legacy restored' })
+    expect(restored).not.toHaveProperty('coldstorage')
+  }, 25_000)
+
+  async function snapshotKeys(client: RisuClient) {
+    const listed = await (await client.fetch('/api/db/snapshots')).json() as any
+    return listed.snapshots.map((snapshot: any) => snapshot.key).sort()
+  }
+
+  async function waitForFile(file: string) {
+    for (let i = 0; i < 300; i += 1) {
+      try { await stat(file); return } catch { await new Promise(resolve => setTimeout(resolve, 10)) }
+    }
+    throw new Error(`timed out waiting for ${file}`)
+  }
+
+  test('an invalid snapshot target at capacity fails before the pre-restore snapshot or rotation', async () => {
+    const { client } = await boot()
+    await importWithSafety(client, labelledBackup('before'))
+    const invalidKey = 'database/dbbackup-1700000000000.bin'
+    const upload = await client.fetch('/api/migrate/save-folder/upload', {
+      method: 'POST',
+      headers: { 'content-type': 'application/zip' },
+      body: new Uint8Array(saveFolderZip(databaseEntry(labelledBackup('current')), {
+        [Buffer.from(invalidKey).toString('hex')]: new Uint8Array(Buffer.from('corrupt')),
+      })),
+    })
+    expect(upload.status).toBe(200)
+    const before = await snapshotKeys(client)
+    expect(before).toContain(invalidKey)
+    const limits = await client.fetch('/api/db/snapshots/limits', {
+      method: 'PUT',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ maxCount: before.length, maxBytes: 10 * 1024 * 1024 }),
+    })
+    expect(limits.status).toBe(200)
+    const restore = await client.fetch('/api/db/snapshots/restore', {
+      method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ key: invalidKey }),
+    })
+    expect(restore.status).toBeGreaterThanOrEqual(400)
+    expect(await snapshotKeys(client)).toEqual(before)
+    await expectLabel(client, 'current')
+  }, 25_000)
+
+  test('a capture in progress makes snapshot restore and database removal answer 409', async () => {
+    const gateDir = await mkdtemp(path.join(tmpdir(), 'capture-first-reset-'))
+    const { client } = await boot({ POCKETRISU_TEST_BACKUP_SOURCE_GATE_DIR: gateDir })
+    await importWithSafety(client, labelledBackup('before'))
+    await importWithSafety(client, labelledBackup('current'))
+    const [snapshotKey] = await snapshotKeys(client)
+    expect(snapshotKey).toBeTruthy()
+    await writeFile(path.join(gateDir, 'capture.hold'), 'hold')
+    const capture = client.fetch('/api/backup/export')
+    try {
+      await waitForFile(path.join(gateDir, 'capture.entered'))
+      const restore = await client.fetch('/api/db/snapshots/restore', {
+        method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ key: snapshotKey }),
+      })
+      expect(restore.status).toBe(409)
+      const removal = await client.fetch('/api/remove', { headers: { 'file-path': DB_HEX } })
+      expect(removal.status).toBe(409)
+    } finally {
+      await writeFile(path.join(gateDir, 'capture.release'), 'release')
+    }
+    expect((await capture).status).toBe(200)
+    await expectLabel(client, 'current')
+  }, 25_000)
+
+  test('a capture arriving during snapshot restore or database removal answers 409 at once', async () => {
+    const gateDir = await mkdtemp(path.join(tmpdir(), 'reset-first-capture-'))
+    const { client } = await boot({ POCKETRISU_TEST_STORAGE_RESET_GATE_DIR: gateDir })
+    await importWithSafety(client, labelledBackup('before'))
+    await importWithSafety(client, labelledBackup('current'))
+    const [snapshotKey] = await snapshotKeys(client)
+
+    await writeFile(path.join(gateDir, 'snapshot-restore.apply.hold'), 'hold')
+    const restoring = client.fetch('/api/db/snapshots/restore', {
+      method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ key: snapshotKey }),
+    })
+    try {
+      await waitForFile(path.join(gateDir, 'snapshot-restore.apply.entered'))
+      expect((await client.fetch('/api/backup/export')).status).toBe(409)
+    } finally {
+      await writeFile(path.join(gateDir, 'snapshot-restore.apply.release'), 'release')
+    }
+    expect((await restoring).status).toBe(200)
+
+    await writeFile(path.join(gateDir, 'database-remove.apply.hold'), 'hold')
+    const removing = client.fetch('/api/remove', { headers: { 'file-path': DB_HEX } })
+    try {
+      await waitForFile(path.join(gateDir, 'database-remove.apply.entered'))
+      expect((await client.fetch('/api/backup/export')).status).toBe(409)
+    } finally {
+      await writeFile(path.join(gateDir, 'database-remove.apply.release'), 'release')
+    }
+    expect((await removing).status).toBe(200)
+  }, 25_000)
+})
