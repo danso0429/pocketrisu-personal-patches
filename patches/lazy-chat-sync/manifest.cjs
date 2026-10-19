@@ -52,6 +52,7 @@ const ownedFiles = [
 ]
 
 const owned1100Files = [
+    'server/node/sessionLockReset.phaseB.test.ts',
     'server/node/serverChatCommit.cjs',
     'server/node/serverChatCommit.test.ts',
     'server/node/storageResetPrepare.cjs',
@@ -67,10 +68,101 @@ function unitId(relative) {
     return relative.replaceAll('/', ':').replaceAll('.', '-')
 }
 
+// Post-reset session invalidation on the upstream server/node/session-lock.cjs.
+// After invalidateBefore(timestamp) a non-active session id that booted at or
+// before the watermark, or has no recorded boot, is stale even while the lock
+// is free. The active id keeps precedence. Without an invalidation the lock
+// behaves exactly as upstream.
+const sessionLockFile = 'server/node/session-lock.cjs'
+const sessionLockResetUnits = [
+    {
+        name: 'watermark',
+        type: 'insert',
+        where: 'after',
+        anchor: `    const boots = new Map(); // sessionId -> boot timestamp (insertion-ordered)
+`,
+        content: `    // Storage reset watermark set by invalidateBefore(); null = never set.
+    // A non-active id that booted at or before it, or whose boot is unknown,
+    // holds pre-reset state and must reload before it may write.
+    let invalidatedBefore = null;
+    function invalidated(id) {
+        if (invalidatedBefore === null) return false;
+        const boot = boots.get(id);
+        return boot === undefined || boot <= invalidatedBefore;
+    }
+`,
+    },
+    {
+        name: 'register',
+        type: 'replace',
+        anchor: `        if (!active) {
+            active = { id, lastWriteAt: now() };
+        }`,
+        content: `        if (!active && !invalidated(id)) {
+            active = { id, lastWriteAt: now() };
+        }
+`,
+    },
+    {
+        name: 'check-write',
+        type: 'replace',
+        anchor: `        if (!active) {
+            active = { id, lastWriteAt: now() };
+            return { ok: true };
+        }
+        if (active.id === id) {
+            active.lastWriteAt = now();
+            return { ok: true };
+        }`,
+        content: `        if (active && active.id === id) {
+            active.lastWriteAt = now();
+            return { ok: true };
+        }
+        if (invalidated(id)) return { ok: false };
+        if (!active) {
+            active = { id, lastWriteAt: now() };
+            return { ok: true };
+        }
+`,
+    },
+    {
+        name: 'peek',
+        type: 'replace',
+        anchor: `        if (!active) return 'free';
+        if (active.id === id) return 'active';`,
+        content: `        if (active && active.id === id) return 'active';
+        if (invalidated(id)) return 'stale';
+        if (!active) return 'free';
+`,
+    },
+    {
+        name: 'invalidate-before',
+        type: 'replace',
+        anchor: `    return { register, checkWrite, peek, activeId };`,
+        content: `    // Called once after a storage reset was applied: every session that
+    // booted before it holds pre-reset state. Clears the lock and raises the
+    // watermark (never lowers it). In memory, like the rest of the lock.
+    function invalidateBefore(timestamp) {
+        active = null;
+        if (invalidatedBefore === null || timestamp > invalidatedBefore) {
+            invalidatedBefore = timestamp;
+        }
+    }
+
+    return { register, checkWrite, peek, activeId, invalidateBefore };
+`,
+    },
+].map(({ name, ...unit }) => ({
+    id: `lazy-chat-sync:session-lock:${name}:1.10`,
+    file: sessionLockFile,
+    ...unit,
+    targetVersions: pocketRisu1100,
+}))
+
 module.exports = {
     id: 'lazy-chat-sync',
     title: 'Lazy chat synchronization and startup cache',
-    version: '0.5.17',
+    version: '0.5.18',
     targets: {
         pocketrisu: {
             verified: ['1.10.0'],
@@ -152,5 +244,6 @@ module.exports = {
     getDatabaseMetadata(includeOnly:string[]|'all' = 'all'): Promise<DatabaseSubset|null>;
 `,
         },
+        ...sessionLockResetUnits,
     ],
 }

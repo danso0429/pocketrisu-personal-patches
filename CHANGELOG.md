@@ -1,5 +1,13 @@
 # Changelog
 
+## 0.2.4-experimental.74 (session invalidation after a storage reset)
+
+- After a backup import, server restore, folder import (including an empty folder), snapshot restore or database removal has been applied, the server releases the writer session lock and marks every tab that was opened before the reset as outdated. The next checked write from such a tab (chat save, `/api/write`, `/api/patch`, background start, recovery claim or attach) is answered with `423 {"error":"Session deactivated"}`; the tab shows the existing deactivation notice and reloads, and after the reload it registers again and writes normally. This also applies while no tab holds the lock.
+- A tab opened after the reset takes the free lock with its first write, as before. A tab that already holds the lock after the reset keeps it. Requests without a session id still pass. Abandon and cancel (`DELETE`) remain reachable from every tab.
+- A reset that is refused or fails during preparation or apply does not affect any session. Without a reset, the session lock behaves as before.
+- The change to the upstream session lock (`server/node/session-lock.cjs`) is installed as marked blocks and removed again on revert.
+- Lazy chat sync 0.5.18, server backup snapshot core 0.1.6. Stable remains v0.2.3.
+
 ## 0.2.4-experimental.73 (session gate on background write routes)
 
 - The server now checks the writer session lock on background generation starts (`POST /api/bg-orchestrate`, both the server input and the prepared start) and on recovery claims and attaches, as it does for chat saves. A request from a tab that no longer holds the lock is answered with `423 {"error":"Session deactivated"}` before any input record, operation state, run or provider call is created; the tab shows the existing deactivation notice and reloads.

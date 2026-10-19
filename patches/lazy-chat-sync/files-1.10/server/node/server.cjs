@@ -2630,7 +2630,12 @@ async function runStorageReset(kind, { prepare, apply }) {
                 await persistPendingSaves(pendingSaves);
                 disarmPendingSaves(pendingSaves);
                 storageResetTestHooks.trace('cancel-persistence-timers', { kind });
-                return await apply(prepared, reset);
+                const result = await apply(prepared, reset);
+                // Every session that booted before the reset holds pre-reset
+                // state: its next checked write gets 423 and it reloads. Only
+                // after a successful apply, still inside the reset slot.
+                sessionLock.invalidateBefore(Date.now());
+                return result;
             } catch (error) {
                 if (!reset.committed) rearmPendingSaves(pendingSaves);
                 throw error;
