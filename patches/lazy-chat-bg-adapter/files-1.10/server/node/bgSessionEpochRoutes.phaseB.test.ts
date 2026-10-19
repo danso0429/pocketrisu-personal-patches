@@ -127,3 +127,49 @@ describe('[B2-3] BG write route session gate', () => {
         expect(result.status).not.toBe(423)
     })
 })
+
+describe('[B3-1] Storage epoch in start and status responses', () => {
+    it.each([
+        ['missing', () => null],
+        ['running', () => ({ operationId: 'operation-phase-b-0001', charId: 'char-1', chatId: 'chat-1', state: 'running', resultKeyVersion: 1 })],
+    ])('includes integer epoch 7 in %s status bodies', async (_name, run) => {
+        const h = harness({ epoch: () => 7, run })
+        const depsRoute = h.routes.get('GET /api/bg-orchestrate-status/:operationId')
+        expect(depsRoute).toBeTruthy()
+        // Registration closes over the supplied registry; missing is enough to pin the 404 body.
+        const result = await h.invoke('GET', '/api/bg-orchestrate-status/:operationId', {
+            params: { operationId: 'operation-phase-b-0001' }, query: { charId: 'char-1', chatId: 'chat-1' },
+        })
+        expect(result.body).toMatchObject({
+            accepted: _name === 'running', operationId: 'operation-phase-b-0001',
+            state: _name, storageEpoch: 7,
+        })
+    })
+
+    it('defaults absent storage epoch to zero on missing status', async () => {
+        const result = await harness({ epoch: () => 0 }).invoke('GET', '/api/bg-orchestrate-status/:operationId', {
+            params: { operationId: 'operation-phase-b-0000' }, query: { charId: 'char-1', chatId: 'chat-1' },
+        })
+        expect(result.body.storageEpoch).toBe(0)
+    })
+
+    it.each([NaN, -5, 3.14])('omits malformed epoch %s without changing the status response', async malformed => {
+        const result = await harness({ epoch: () => malformed }).invoke('GET', '/api/bg-orchestrate-status/:operationId', {
+            params: { operationId: 'operation-phase-b-bad0' }, query: { charId: 'char-1', chatId: 'chat-1' },
+        })
+        expect(result).toMatchObject({ status: 404, body: { accepted: false, operationId: 'operation-phase-b-bad0', state: 'missing' } })
+        expect(result.body).not.toHaveProperty('storageEpoch')
+    })
+
+    it('omits epoch when the read throws and enumerates every accepted start branch', async () => {
+        const result = await harness({ epoch: () => { throw new Error('malformed epoch') } })
+            .invoke('GET', '/api/bg-orchestrate-status/:operationId', {
+                params: { operationId: 'operation-phase-b-throw' }, query: { charId: 'char-1', chatId: 'chat-1' },
+            })
+        expect(result.status).toBe(404)
+        expect(result.body).not.toHaveProperty('storageEpoch')
+        const source = readFileSync('server/node/bgOrchestrator.cjs', 'utf8')
+        for (const signature of ['started: true', 'accepted: true', 'started: false']) expect(source).toContain(signature)
+        expect((source.match(/storageEpoch/g) ?? []).length).toBeGreaterThanOrEqual(8)
+    })
+})

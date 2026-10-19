@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.2.4-experimental.75 (storage epoch in background start and status responses)
+
+- Every accepted answer of a background generation start (`POST /api/bg-orchestrate`, server input and prepared start: new run, reused run, reused durable operation and the queued `202` input) and every accepted or `missing` answer of the operation status read (`GET /api/bg-orchestrate-status/:operationId`, including both `404 missing` answers) now carries `storageEpoch`, the server's current storage epoch (0 before the first storage reset). This prepares the client-side reset clearance of a later version; the client does not read the field yet.
+- When the epoch cannot be read or is not a non-negative integer, the field is left out; the status code and all other fields stay as before. Refusals and error answers are unchanged.
+- BG adapter 0.7.72. Stable remains v0.2.3.
+
 ## 0.2.4-experimental.74 (session invalidation after a storage reset)
 
 - After a backup import, server restore, folder import (including an empty folder), snapshot restore or database removal has been applied, the server releases the writer session lock and marks every tab that was opened before the reset as outdated. The next checked write from such a tab (chat save, `/api/write`, `/api/patch`, background start, recovery claim or attach) is answered with `423 {"error":"Session deactivated"}`; the tab shows the existing deactivation notice and reloads, and after the reload it registers again and writes normally. This also applies while no tab holds the lock.
