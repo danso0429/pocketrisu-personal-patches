@@ -59,6 +59,8 @@ const owned1100Files = [
     'server/node/storageResetTestHooks.cjs',
     'src/ts/bootstrap.freshDatabase.test.ts',
     'src/ts/storage/globalApi.savePersistence.test.ts',
+    'src/ts/storage/nodeStorage.sessionHeaders.phaseB.test.ts',
+    'src/ts/storage/writerSession.ts',
 ]
 
 function unitId(relative) {
@@ -68,7 +70,7 @@ function unitId(relative) {
 module.exports = {
     id: 'lazy-chat-sync',
     title: 'Lazy chat synchronization and startup cache',
-    version: '0.5.16',
+    version: '0.5.17',
     targets: {
         pocketrisu: {
             verified: ['1.10.0'],

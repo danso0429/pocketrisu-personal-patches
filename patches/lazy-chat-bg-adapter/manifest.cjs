@@ -25,7 +25,7 @@ const queueUnits = require('./queue-units.cjs')
 module.exports = {
     id: 'lazy-chat-bg-adapter',
     title: 'BG preserve integration for lazy chat storage',
-    version: '0.7.69',
+    version: '0.7.70',
     targets: {
         pocketrisu: {
             verified: ['1.10.0'],
@@ -4258,6 +4258,15 @@ module.exports.units.push(...require('./publication-write-units.cjs')(module.exp
 module.exports.units.push(...require('./native-stream-units.cjs')(module.exports.units))
 module.exports.units.push(...require('./settings-save-retry-units.cjs')(module.exports.units))
 module.exports.units.push(...require('./cancelled-input-units.cjs')(module.exports.units))
+module.exports.units.push(...[
+    'src/ts/bgClientSession.phaseB.test.ts',
+].map(name => ({
+    id: `lazy-chat-bg-adapter:owned:${name.replaceAll('/', ':').replaceAll('.', '-')}:1.10`,
+    file: name,
+    type: 'owned',
+    content: owned1100(name),
+    targetVersions: pocketRisu1100,
+})))
 module.exports.units.push(...require('./stream-preview-units.cjs')(module.exports.units))
 module.exports.units.push({
     id: 'lazy-chat-bg-adapter:owned:publication-write-client-tests:1.10',
@@ -4268,6 +4277,7 @@ module.exports.units.push({
 module.exports.units.push(...require('./request-progress-units.cjs')(module.exports.units))
 module.exports.units.push(...require('./job-recovery-identity-units.cjs')(module.exports.units))
 module.exports.units.push(...require('./storage-reset-units.cjs')(module.exports.units))
+module.exports.units.push(...require('./session-gate-units.cjs')(module.exports.units))
 module.exports.units.push({
     id: 'lazy-chat-bg-adapter:owned:job-recovery-identity-tests:1.10',
     file: 'src/ts/process/request/jobRecoveryIdentity.test.ts', type: 'owned',

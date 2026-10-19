@@ -26,22 +26,10 @@ function responseDatabaseEtag(response: Response): string | null {
     return standard.replace(/^W\//, '').replace(/^"|"$/g, '') || null
 }
 
-// ── User-gesture recency for the write lock ─────────────────────────────────
-// The server moves the single-writer lock only on writes that follow a real
-// user gesture (x-user-active header). The app also writes automatically —
-// boot housekeeping, the flush-on-hide keepalive — and those must never move
-// the lock: a phone tab going to background fires a flush, and without this
-// distinction it silently stole the lock from the device actually in use.
-const USER_GESTURE_WINDOW_MS = 15_000
-let lastUserGestureAt = 0
-if (typeof window !== 'undefined') {
-    const markGesture = () => { lastUserGestureAt = Date.now() }
-    window.addEventListener('pointerdown', markGesture, { capture: true, passive: true })
-    window.addEventListener('keydown', markGesture, { capture: true, passive: true })
-}
-function isUserActive(): boolean {
-    return Date.now() - lastUserGestureAt < USER_GESTURE_WINDOW_MS
-}
+// User-gesture recency, writer identity and session-lock headers of the write
+// lock (writerSession.ts).
+import { isUserActive, writerSessionId, writerSessionHeaders, notifySessionDeactivated } from './writerSession'
+export { writerSessionHeaders, notifySessionDeactivated }
 
 // Custom error class for database conflict detection
 export class ConflictError extends Error {
@@ -165,16 +153,7 @@ export class NodeStorage{
     // device (which used to silently steal the write lock from a PC
     // mid-session). Still per-tab: a genuinely new tab gets a new id, and
     // same-device multi-tab is handled by the BroadcastChannel lock.
-    private static sessionId: string = (() => {
-        const KEY = 'risu-writer-session-id'
-        const minted = crypto?.randomUUID?.() ?? (Date.now().toString(36) + Math.random().toString(36).slice(2))
-        try {
-            const stored = sessionStorage.getItem(KEY)
-            if (stored) return stored
-            sessionStorage.setItem(KEY, minted)
-        } catch { /* storage unavailable (rare privacy modes) — per-load id */ }
-        return minted
-    })()
+    private static sessionId: string = writerSessionId
 
     _lastDbEtag: string | null = null
     authChecked = false
@@ -309,17 +288,14 @@ export class NodeStorage{
         await this.checkAuth()
         const headers = new Headers(init.headers)
         headers.set('risu-auth', await this.createAuth())
-        headers.set('x-session-id', NodeStorage.sessionId)
-        if (isUserActive()) headers.set('x-user-active', '1')
+        for (const [name, value] of Object.entries(writerSessionHeaders())) headers.set(name, value)
 
         const response = await fetch(input, {
             ...init,
             headers
         })
 
-        if (response.status === 423) {
-            window.dispatchEvent(new CustomEvent('risu-session-deactivated'))
-        }
+        notifySessionDeactivated(response)
 
         if(retry && await this.shouldRetryAuth(response)){
             this.authChecked = false

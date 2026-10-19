@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.2.4-experimental.72 (writer session headers on background requests)
+
+- Background generation starts (server input and prepared start), recovery claims and recovery attaches now send the same writer session headers as chat saves (`x-session-id`, and `x-user-active` after a recent tap or key press). The headers come from one shared helper that chat saves also use, so both send identical values. Cancel, abandon and status reads are unchanged and send no session headers. This prepares the server-side session gate of a later version; the server does not check these requests yet.
+- When one of these requests is answered with 423 (another tab or device holds the write lock), the existing deactivation notice and reload follow, as for a chat save. A server input start answered with 423 is final for that attempt: no status polling, its recovery marker is cleared and the draft is kept. A prepared start answered with 423 stops without regenerating in the browser. Claim and attach keep their existing error messages and are not retried.
+- Other start answers are handled as before, including retries after `503 STORAGE_RESET_IN_PROGRESS`.
+- BG adapter 0.7.70, lazy chat sync 0.5.17. Stable remains v0.2.3.
+
 ## 0.2.4-experimental.71 (reset cleanup and background run cancellation)
 
 - Every restore or database removal that applies data now deletes, in the same transaction and after the restored rows are written, all background operation states and results, the server input and commit recovery rows and the pending chat-write journal, so nothing carried in by the restored data or left from before it can publish an old answer later.

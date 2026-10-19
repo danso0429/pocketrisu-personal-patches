@@ -47,6 +47,12 @@ export async function reconcileServerInputStart(options: {
                 state = typeof body.state === 'string' ? body.state : null
                 return 'accepted'
             }
+            // The start request itself was refused by the session lock before any
+            // admission: final for this attempt, no status reconciliation.
+            if (response.status === 423) {
+                rejectedReason = 'session-deactivated'
+                return 'rejected'
+            }
             if ((response.status === 401 || response.status === 403)
                 || (response.status === 409 && body?.operationId === options.operationId
                     && preAdmissionReasons.has(String(body.reason)))) {
