@@ -31,7 +31,7 @@ const globalApiOwnerUnits = [
 module.exports = {
     id: 'client-build-fence',
     title: 'Client build write fence',
-    version: '0.1.1',
+    version: '0.1.2',
     targets: {
         pocketrisu: {
             verified: ['1.10.0'],
@@ -64,6 +64,14 @@ module.exports = {
             targetVersions: pocketRisu1100,
         },
         {
+            id: 'client-build-fence:client-handshake-phase-c-tests:1.9',
+            file: 'src/ts/storage/clientBuildHandshake.phaseC.test.ts',
+            type: 'owned',
+            content: owned('src/ts/storage/clientBuildHandshake.phaseC.test.ts'),
+            requires: ['client-build-fence:client-handshake:1.9'],
+            targetVersions: pocketRisu1100,
+        },
+        {
             id: 'client-build-fence:draft-failure-tests:1.9',
             file: 'src/ts/storage/chatDraftClientBuild.test.ts',
             type: 'owned',
@@ -83,6 +91,14 @@ module.exports = {
             file: 'server/node/clientBuildFence.test.ts',
             type: 'owned',
             content: owned('server/node/clientBuildFence.test.ts'),
+            requires: ['client-build-fence:server-helper:1.9'],
+            targetVersions: pocketRisu1100,
+        },
+        {
+            id: 'client-build-fence:server-helper-phase-c-tests:1.9',
+            file: 'server/node/clientBuildFence.phaseC.test.ts',
+            type: 'owned',
+            content: owned('server/node/clientBuildFence.phaseC.test.ts'),
             requires: ['client-build-fence:server-helper:1.9'],
             targetVersions: pocketRisu1100,
         },

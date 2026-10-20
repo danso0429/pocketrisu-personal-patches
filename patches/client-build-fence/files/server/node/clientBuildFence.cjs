@@ -32,6 +32,9 @@ const EXACT_WRITER_ROUTES = new Set([
     'PUT /api/backup/server/path',
     'POST /api/inlays/compress',
     'POST /api/bg-stream-draft/delete',
+    'POST /api/bg-orchestrate-input/claim',
+    'POST /api/bg-orchestrate-input/attach',
+    'POST /api/bg-orchestrate-input/abandon',
     // Reserved for the detached server-backup job pack. Keeping the fence here
     // ensures that adding the route cannot accidentally create an unfenced writer.
     'POST /api/backup/server/jobs',

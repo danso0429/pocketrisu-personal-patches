@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.2.4-experimental.79 (client input recovery routes are fenced on the client build)
+
+- The three client input recovery writes (`POST /api/bg-orchestrate-input/claim`, `/attach` and `/abandon`) are now writer routes of the client build fence. A tab with a stale or missing build header receives `426 CLIENT_UPGRADE_REQUIRED` before the handler runs, so no input record is claimed, attached or abandoned by an outdated client; a claim answered with 426 leaves the raw input on the server and the handshake shows the reload or frozen banner. Matching builds reach the handlers unchanged, the status, base and result reads stay unfenced, and the order fence 426, storage-reset 503, session 423 is unchanged.
+- Client build fence 0.1.2. Stable remains v0.2.3.
+
 ## 0.2.4-experimental.78 (results of operations removed by a storage reset are not delivered)
 
 - A backup import, server restore, folder import, snapshot restore or database removal now also deletes every background result parked under the char/chat key (`bg-orch-result:`) in the same transaction as the operation rows. Previously such a result survived the reset and a freshly loaded tab merged the pre-reset answer into the restored chat. A refused or failed reset keeps every row.
