@@ -9,6 +9,7 @@
 // A same-id start is refused before admission. A DELETE tombstone written
 // before any operation row exists records the current epoch. Without a valid
 // recorded epoch or a readable current epoch nothing is inferred.
+// Results of such runs are neither published nor delivered (see below).
 module.exports = prior => {
     const units = [], targetVersions = { pocketrisu: ['1.10.0'] };
     const file = 'server/node/bgOrchestrator.cjs';
@@ -122,5 +123,163 @@ module.exports = prior => {
     add('delete-tombstone',
         "      const cancelled = writeOperationState(kvSet, operationId, durable || { charId, chatId }, 'cancelled')\n",
         "      const cancelled = writeOperationState(kvSet, operationId, durable || { charId, chatId, ...storageEpochField() }, 'cancelled')\n");
+
+    // Results. A result record carries the storage epoch of the run that wrote
+    // it (additive). Publication stops when the epoch advanced during the run;
+    // both result reads answer a reset-orphaned record as absent before any
+    // claim, lease write or consume, and leave it in place.
+    add('result-record-epoch',
+        '    time: Date.now(),\n',
+        `    time: Date.now(),
+    storageEpoch: opts && Number.isSafeInteger(opts.storageEpoch) && opts.storageEpoch >= 0 ? opts.storageEpoch : undefined,
+`);
+    // Intermediate publisher: the run's recorded epoch (control for detached
+    // runs, deps for the non-detached full preview) against the current one.
+    add('result-intermediate-guard',
+        `          && !(control && typeof control.isCancelled === 'function' && control.isCancelled())) {
+          midPublished = true
+`,
+        `          && !(control && typeof control.isCancelled === 'function' && control.isCancelled())
+          && !(Number.isSafeInteger((control || deps).storageEpoch)
+            && typeof (control || deps).currentStorageEpoch === 'function'
+            && (control || deps).currentStorageEpoch() > (control || deps).storageEpoch)) {
+          midPublished = true
+`);
+    add('result-intermediate-epoch',
+        "                kind: 'intermediate',\n",
+        `                kind: 'intermediate',
+                storageEpoch: (control || deps).storageEpoch,
+`);
+    // Detached run: its recorded epoch for the intermediate publisher.
+    add('result-detached-control',
+        '                isCancelled: () => activeRun.cancelled,\n',
+        `                isCancelled: () => activeRun.cancelled,
+                storageEpoch: activeRun.storageEpoch,
+                currentStorageEpoch: () => storageEpochField().storageEpoch,
+`);
+    // Detached run: a cancel or a storage reset during the awaited server
+    // commit publishes nothing (no result, no operation state). After a reset
+    // the owners' storage was replaced, so no owner settlement runs; after a
+    // cancel alone the input settlement of the publishing path still runs.
+    add('result-after-commit',
+        `                terminalState = 'cancelled'
+                activeRun.cancelled = true
+                return
+              }
+            }
+`,
+        `                terminalState = 'cancelled'
+                activeRun.cancelled = true
+                return
+              }
+              if (resetOrphanedEpoch(activeRun.storageEpoch)) {
+                console.log('[bg-orch] S4b storage reset during the server commit: op=' + operationId + ' (result discarded)')
+                terminalState = 'cancelled'
+                activeRun.cancelled = true
+                return
+              }
+              if (activeRun.cancelled) {
+                if (inputCommandVersion === 1
+                  && (!serverChatCommit || serverChatCommit.status !== 'committed')) {
+                  serverChatInputOwner.markRunFailureSynchronously(
+                    operationId,
+                    serverInputProviderStarted,
+                  )
+                }
+                console.log('[bg-orch] S4b cancelled during the server commit: op=' + operationId + ' (result discarded)')
+                terminalState = 'cancelled'
+                return
+              }
+            }
+`);
+    add('result-terminal-epoch',
+        `              serverChatCommit,
+            })
+`,
+        `              serverChatCommit,
+              storageEpoch: activeRun.storageEpoch,
+            })
+`);
+    // Detached run failure fallback: a storage reset since the run started is
+    // handled like a cancellation (no fallback result, no input settlement).
+    add('result-fallback-guard',
+        "            if (activeRun.cancelled) {\n              console.log(`[bg-orch] S4b cancelled: op=${operationId} TOTAL=${Date.now() - t0}ms (no fallback/result)`)\n",
+        "            if (!activeRun.cancelled && resetOrphanedEpoch(activeRun.storageEpoch)) {\n              terminalState = 'cancelled'\n              activeRun.cancelled = true\n            }\n            if (activeRun.cancelled) {\n              console.log(`[bg-orch] S4b cancelled: op=${operationId} TOTAL=${Date.now() - t0}ms (no fallback/result)`)\n");
+    add('result-fallback-epoch',
+        '                publishSeq: orchestrationRuns.nextPublishSequence(operationId, activeRun),\n',
+        `                publishSeq: orchestrationRuns.nextPublishSequence(operationId, activeRun),
+                storageEpoch: activeRun.storageEpoch,
+`);
+    // Non-detached full preview: the epoch read when the request starts.
+    add('result-request-epoch',
+        '  const handleOrchestrateStart = async (req, res) => {\n',
+        `  const handleOrchestrateStart = async (req, res) => {
+    const requestStorageEpoch = storageEpochField().storageEpoch
+`);
+    add('result-full-preview',
+        `            const result = await runServerPreview({ getDbCache, DB_HEX_KEY, kvSet, requestLogs: deps.requestLogs }, selectedCharId, selectedChatId, currentChat, 'full')
+            persistOrchResult(kvSet, selectedCharId, selectedChatId, result, {
+              kind: terminalOrchResultKind(result, currentChat),
+            })
+`,
+        `            // The request's storage epoch: a reset during the run publishes nothing.
+            const result = await runServerPreview({
+              getDbCache, DB_HEX_KEY, kvSet, requestLogs: deps.requestLogs,
+              storageEpoch: requestStorageEpoch,
+              currentStorageEpoch: () => storageEpochField().storageEpoch,
+            }, selectedCharId, selectedChatId, currentChat, 'full')
+            if (resetOrphanedEpoch(requestStorageEpoch)) {
+              console.log('[bg-orch] S4a full result discarded: storage reset during the run')
+            } else {
+              persistOrchResult(kvSet, selectedCharId, selectedChatId, result, {
+                kind: terminalOrchResultKind(result, currentChat),
+                storageEpoch: requestStorageEpoch,
+              })
+            }
+`);
+    add('result-helper',
+        "  app.get('/api/bg-orchestrate-result/:operationId', sessionAuthMiddleware, (req, res) => {\n",
+        `  // A result record whose own, run or operation row epoch is reset-orphaned.
+  const resetOrphanedResult = (record, run, durable) => resetOrphanedEpoch(record && record.storageEpoch)
+    || resetOrphanedEpoch(run && run.storageEpoch)
+    || resetOrphanedEpoch(durable && durable.storageEpoch)
+  app.get('/api/bg-orchestrate-result/:operationId', sessionAuthMiddleware, (req, res) => {
+`);
+    // Operation-keyed read: after the record's coordinate check would pass,
+    // answer as an absent operation.
+    add('result-operation-read',
+        `      if (delivery.state === 'missing') {
+        const committed = serverChatCommitOwner
+`,
+        `      if (delivery.state === 'found' && delivery.record.operationId === operationId
+        && delivery.record.charId === charId && delivery.record.chatId === chatId
+        && resetOrphanedResult(delivery.record, run, state)) {
+        return res.json({ found: false, operationId, operationState: 'missing', ...operationProgress(operationId, undefined) })
+      }
+      if (delivery.state === 'missing') {
+        const committed = serverChatCommitOwner
+`);
+    // Legacy char/chat read: peek before the lease write or one-shot consume.
+    add('result-legacy-read',
+        `      const delivery = explicitAck
+        ? peekResult(kvGet, key)
+        : consumeResult(kvGet, kvDel, key)
+`,
+        `      const parked = peekResult(kvGet, key)
+      if (parked.state === 'found') {
+        const parkedOperationId = validOperationId(parked.record.operationId) ? parked.record.operationId : null
+        let parkedDurable = null
+        try { parkedDurable = parkedOperationId ? readOperationState(kvGet, parkedOperationId) : null } catch { parkedDurable = null }
+        const parkedRun = parkedOperationId ? orchestrationRuns.get(parkedOperationId) : null
+        if (resetOrphanedResult(parked.record, parkedRun, parkedDurable)) return res.json({
+          found: false,
+          stage: _orchStage[stageKey(req.params.charId, req.params.chatId)] ?? 0,
+          status: _orchStatus[stageKey(req.params.charId, req.params.chatId)] || [],
+        })
+      }
+      const delivery = explicitAck
+        ? peekResult(kvGet, key)
+        : consumeResult(kvGet, kvDel, key)
+`);
     return units;
 };

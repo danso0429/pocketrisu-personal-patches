@@ -1,5 +1,14 @@
 # Changelog
 
+## 0.2.4-experimental.78 (results of operations removed by a storage reset are not delivered)
+
+- A backup import, server restore, folder import, snapshot restore or database removal now also deletes every background result parked under the char/chat key (`bg-orch-result:`) in the same transaction as the operation rows. Previously such a result survived the reset and a freshly loaded tab merged the pre-reset answer into the restored chat. A refused or failed reset keeps every row.
+- Background result records now carry the `storageEpoch` of the run that wrote them. Both result reads (`GET /api/bg-orchestrate-result/:operationId` and `GET /api/bg-orchestrate-result/:charId/:chatId`) answer a record whose own epoch, run epoch or operation row epoch is older than the current storage epoch with their existing "no result" answer (`found: false`), without taking a delivery lease, consuming or deleting it. A record of another operation or chat still answers its coordinate conflict first. Records without a recorded epoch are delivered as before.
+- A background run that was cancelled, or whose storage epoch advanced, while its server chat commit was being awaited now publishes no result and no operation state. A failure of such a run publishes no fallback error result.
+- The non-detached full preview records the storage epoch when the request starts and publishes neither its intermediate nor its final result when the epoch advanced during the run; its results carry that epoch.
+- Delivery, delivery leases, acknowledgements and retention of results of the current epoch are unchanged. Applying this version restarts the server, so runs started before the update do not outlive it.
+- BG adapter 0.7.75, server backup snapshot core 0.1.7. Stable remains v0.2.3.
+
 ## 0.2.4-experimental.77 (operations removed by a storage reset report missing)
 
 - The operation status read (`GET /api/bg-orchestrate-status/:operationId`) now answers `404 {"accepted":false,"state":"missing"}` with the current `storageEpoch` for an operation that a backup restore or another storage reset removed: a retained run entry, a durable operation row or a parked result (operation-keyed or under the char/chat key, by its own epoch or its operation row's) whose recorded storage epoch is older than the current one. Previously a run cancelled by the reset answered `200 cancelled`, so the client kept its accepted marker and blocked every new send in that chat. Each branch's coordinate conflict (`409`) still answers first; a committed generation and a server input command answer as before. The read changes no run entry, row or result.

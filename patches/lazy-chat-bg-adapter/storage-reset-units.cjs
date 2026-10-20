@@ -19,6 +19,8 @@ module.exports = prior => {
         const { OPERATION_STATE_PREFIX, OPERATION_RESULT_PREFIX } = require('./bgOrchestrationOperationStore.cjs');
         kvDelPrefix(OPERATION_STATE_PREFIX);
         kvDelPrefix(OPERATION_RESULT_PREFIX);
+        // Legacy results parked under the char/chat key (bg-orch-result:<char>::<chat>).
+        kvDelPrefix('bg-orch-result:');
     }
 `);
     add('cancel-runs', "                storageResetTestHooks.trace('cancel-persistence-timers', { kind });\n",

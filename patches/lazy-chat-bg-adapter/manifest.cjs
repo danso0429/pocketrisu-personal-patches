@@ -25,7 +25,7 @@ const queueUnits = require('./queue-units.cjs')
 module.exports = {
     id: 'lazy-chat-bg-adapter',
     title: 'BG preserve integration for lazy chat storage',
-    version: '0.7.74',
+    version: '0.7.75',
     targets: {
         pocketrisu: {
             verified: ['1.10.0'],
@@ -4262,6 +4262,7 @@ module.exports.units.push(...[
     'src/ts/bgClientSession.phaseB.test.ts',
     'server/node/bgSessionEpochRoutes.phaseB.test.ts',
     'server/node/bgResetOrphanStatus.phaseB.test.ts',
+    'server/node/bgResetOrphanResults.phaseB.test.ts',
     'src/ts/bgEpochMarkers.phaseB.test.ts',
 ].map(name => ({
     id: `lazy-chat-bg-adapter:owned:${name.replaceAll('/', ':').replaceAll('.', '-')}:1.10`,
