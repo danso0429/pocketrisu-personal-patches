@@ -75,7 +75,7 @@ async function queueEdit() {
     const state = await c.browserContext.storageState();
     const closure = await c.killBrowser();
     await c.open(state);
-    await c.wait(async () => !await c.page.evaluate(() => Object.keys(localStorage).some(key => key.startsWith('bg-server-input-v3:'))), 'returned input markers settled');
+    await c.wait(async () => !await c.page.evaluate(() => Object.keys(localStorage).some(key => key.startsWith('bg-server-input-v4:'))), 'returned input markers settled');
     await c.page.waitForTimeout(1500);
     const returned = await c.readChat();
     assert.deepEqual(returned.chat, beforeReturn.chat); assert.equal(returned.revision, beforeReturn.revision);
@@ -91,7 +91,7 @@ async function queueEdit() {
     const final = await c.readChat();
     assert.deepEqual(final.chat.message.slice(0, beforeReturn.chat.message.length), beforeReturn.chat.message);
     await c.wait(async () => (await c.readRoot()).statics.messages === c.initialStatistics + 3, 'three durable answer statistics');
-    await c.wait(async () => !await c.page.evaluate(() => Object.keys(localStorage).some(key => key.startsWith('bg-server-input-v3:'))), 'healthy successor delivery settled');
+    await c.wait(async () => !await c.page.evaluate(() => Object.keys(localStorage).some(key => key.startsWith('bg-server-input-v4:'))), 'healthy successor delivery settled');
     assert.equal((await c.readRoot()).statics.messages, c.initialStatistics + 3);
     const commits = c.rows('internal/server-chat-commit/v1/');
     assert.equal(commits.length, 3);
@@ -156,7 +156,7 @@ async function stopAndReturn() {
         await c.wait(async () => (await c.readChat()).chat.message.some(row => row.data === fullAnswer(main.call)), 'queued successor canonical');
     }
     await c.wait(async () => !(await c.preview()).active, 'cancelled preview inactive');
-    await c.wait(async () => !await c.page.evaluate(() => Object.keys(localStorage).some(key => key.startsWith('bg-server-input-v3:'))), 'cancelled input marker settles');
+    await c.wait(async () => !await c.page.evaluate(() => Object.keys(localStorage).some(key => key.startsWith('bg-server-input-v4:'))), 'cancelled input marker settles');
     const before = await c.readChat();
     assert.equal(before.chat.message.filter(row => row.role === 'char').length, queued ? 1 : 0, 'Only the queued successor may save an answer');
     assert.equal(before.chat.message.filter(row => row.role === 'user' && row.data === requests[0]).length, 1);
@@ -174,7 +174,7 @@ async function stopAndReturn() {
     const main = c.events.find(event => event.event === 'main' && event.requestKey === requests[2]); validateOperation(requests[2], main);
     c.server.send({ event: 'release', call: main.call });
     await c.wait(async () => (await c.readChat()).chat.message.some(row => row.data === fullAnswer(main.call)), 'healthy successor canonical');
-    await c.wait(async () => !await c.page.evaluate(() => Object.keys(localStorage).some(key => key.startsWith('bg-server-input-v3:'))), 'healthy successor marker settles');
+    await c.wait(async () => !await c.page.evaluate(() => Object.keys(localStorage).some(key => key.startsWith('bg-server-input-v4:'))), 'healthy successor marker settles');
     const final = await c.readChat(); assert.deepEqual(final.chat.message.slice(0, before.chat.message.length), before.chat.message);
     assert.equal(final.chat.message.filter(row => row.role === 'char').length, queued ? 2 : 1);
     if (analysisStop) assert.equal(c.events.filter(event => event.event === 'main' && event.requestKey === requests[0]).length, 0,
@@ -206,7 +206,7 @@ async function restartAndReturn() {
     await c.page.getByText(notice, { exact: true }).waitFor();
     await c.wait(() => interrupted().every(row => row.deliveredAt !== null), 'interruption notice ACK');
     await c.page.getByText('생성 상태 미확인: 재전송 전 채팅을 확인해야 함', { exact: true }).waitFor();
-    assert.ok(await c.page.evaluate(() => Object.keys(localStorage).some(key => key.startsWith('bg-server-input-v3:'))),
+    assert.ok(await c.page.evaluate(() => Object.keys(localStorage).some(key => key.startsWith('bg-server-input-v4:'))),
         'noncommitted unknown keeps proof/fence rather than being automatically settled');
     const returned = await c.readChat(); assert.deepEqual(returned.chat.message, before.chat.message);
     assert.equal((await c.preview()).active, false);
@@ -222,7 +222,7 @@ async function restartAndReturn() {
     await c.page.waitForTimeout(1000);
     assert.equal((await c.page.evaluate(() => window.__g110Toasts)).filter(text => text === notice).length, 0);
     await c.page.getByText('생성 상태 미확인: 재전송 전 채팅을 확인해야 함', { exact: true }).waitFor();
-    assert.ok(await c.page.evaluate(() => Object.keys(localStorage).some(key => key.startsWith('bg-server-input-v3:'))));
+    assert.ok(await c.page.evaluate(() => Object.keys(localStorage).some(key => key.startsWith('bg-server-input-v4:'))));
     const final = await c.readChat(); assert.deepEqual(final.chat.message, before.chat.message);
     assert.equal(final.chat.message.filter(row => row.role === 'char').length, 0);
     assert.equal(c.rows('internal/server-chat-commit/v1/').length, 0);
@@ -249,7 +249,7 @@ async function moduleAndReturn() {
     c.server.send({ event: 'release', call: main.call });
     await c.wait(async () => (await c.readChat()).chat.message.some(row => row.data === fullAnswer(main.call)), 'module/preset answer committed without browser');
     const beforeReturn = await c.readChat(); assert.equal(beforeReturn.chat.scriptstate.$moduleResult, 'G110_MODULE_RESULT'); await c.open(state);
-    await c.wait(async () => !await c.page.evaluate(() => Object.keys(localStorage).some(key => key.startsWith('bg-server-input-v3:'))), 'module input delivery settled');
+    await c.wait(async () => !await c.page.evaluate(() => Object.keys(localStorage).some(key => key.startsWith('bg-server-input-v4:'))), 'module input delivery settled');
     const returned = await c.readChat(); assert.deepEqual(returned.chat, beforeReturn.chat); assert.equal(returned.revision, beforeReturn.revision);
     assert.equal(c.events.filter(event => event.event === 'module').length, 1);
     assert.equal(c.events.filter(event => event.event === 'main').length, 1);
@@ -308,7 +308,7 @@ async function pagefoldWarningsAndReturn() {
         const current = notices().find(current => current.id === row.id);
         return current && Number.isSafeInteger(current.deliveredAt) && current.deliveredAt > 0;
     }), 'provider warnings ACK');
-    await c.wait(async () => !await c.page.evaluate(() => Object.keys(localStorage).some(key => key.startsWith('bg-server-input-v3:'))), 'PageFold input marker settled');
+    await c.wait(async () => !await c.page.evaluate(() => Object.keys(localStorage).some(key => key.startsWith('bg-server-input-v4:'))), 'PageFold input marker settled');
     const returned = await c.readChat(); assert.deepEqual(returned.chat, beforeReturn.chat); assert.equal(returned.revision, beforeReturn.revision);
     assert.equal(c.events.filter(event => event.event === 'pagefold-main').length, 1);
     const returnState = await c.browserContext.storageState(); await c.killBrowser(); await c.open(returnState); await c.page.waitForTimeout(1000);

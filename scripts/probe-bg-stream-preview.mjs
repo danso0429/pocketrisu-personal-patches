@@ -323,7 +323,7 @@ try {
             // The existing result owner may retain a partial answer. Preview is never the fallback.
             await until(async () => await page.locator('[data-bg-stream-preview]').count() === 0, 'terminal display clear');
             await until(async () => await page.evaluate(() => !Object.keys(localStorage)
-                .some(key => key.startsWith('bg-server-input-v3:'))), 'terminal result settles its native input marker');
+                .some(key => key.startsWith('bg-server-input-v4:'))), 'terminal result settles its native input marker');
             await page.locator('textarea').fill('Synthetic healthy after terminal');
             await page.getByRole('button', { name: 'Send', exact: true }).click();
             await until(() => events.some(row => row.event === 'main' && row.call === 2), 'next healthy main');
@@ -360,7 +360,7 @@ try {
     if (marpSource && beforeReopen) {
         await until(async () => await page.locator('[data-chat-id="' + beforeReopen.chat.message.find(row => row.role === 'char').chatId + '"]').count() === 1,
             'canonical row adopted after process loss');
-        await until(async () => await page.evaluate(() => !Object.keys(localStorage).some(key => key.startsWith('bg-server-input-v3:'))), 'returned marker settled');
+        await until(async () => await page.evaluate(() => !Object.keys(localStorage).some(key => key.startsWith('bg-server-input-v4:'))), 'returned marker settled');
         const afterReturn = await readChat();
         assert.deepEqual(afterReturn.message, beforeReopen.chat.message, 'reopening preserves exact canonical rows');
         assert.equal(req('./server/node/chatDelta.cjs').chatRevision(afterReturn), beforeReopen.revision);
@@ -369,7 +369,7 @@ try {
     }
     if (mode === 'healthy-next' || marpSource) {
         await until(async () => await page.evaluate(() => !Object.keys(localStorage)
-            .some(key => key.startsWith('bg-server-input-v3:'))), 'healthy result marker settles');
+            .some(key => key.startsWith('bg-server-input-v4:'))), 'healthy result marker settles');
         await page.locator('textarea').fill('Synthetic healthy second request');
         await page.getByRole('button', { name: 'Send', exact: true }).click();
         await until(() => events.some(row => row.event === 'main' && row.call === 2), 'healthy next Send');

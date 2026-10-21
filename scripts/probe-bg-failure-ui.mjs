@@ -291,7 +291,7 @@ if (device) {
       await page.getByRole('button', { name: 'Confirm', exact: true }).click();
     if(removeSettledInput){
       await until(()=>lostAcks===1,'actual failed result ACK must be lost after server acceptance');
-      assert.equal(await page.evaluate(()=>Object.keys(localStorage).filter(key=>key.startsWith('bg-server-input-v3:')).length),1,
+      assert.equal(await page.evaluate(()=>Object.keys(localStorage).filter(key=>key.startsWith('bg-server-input-v4:')).length),1,
         'retain the actual failed marker while status transport is unavailable');
       const id=failedChat.message.find(row=>row.role==='user').chatId;
       const row=page.locator('[data-chat-id="'+id+'"]');await row.scrollIntoViewIfNeeded();
@@ -351,7 +351,7 @@ if (device) {
     await page.waitForTimeout(5500);
     assert.equal(await page.getByText(failureText, { exact: true }).count(), 0);
     assert.equal(readRows('internal/bg-notifications/v3/').length, 1);
-    assert.equal(await page.evaluate(() => Object.keys(localStorage).filter(key => key.startsWith('bg-server-input-v3:')).length), 0,
+    assert.equal(await page.evaluate(() => Object.keys(localStorage).filter(key => key.startsWith('bg-server-input-v4:')).length), 0,
       'both failed and queued completed raw input markers must settle before a following Send');
     await page.locator('textarea').fill('G1.8 정상 확인 저장 후');
     const followingSend = page.getByRole('button', { name: 'Send', exact: true });
@@ -368,7 +368,7 @@ if (device) {
     assert.deepEqual(finalChat.message.filter(row => row.role === 'user').map(row => row.data), [...(removeSettledInput?[]:[rawText]), 'G1.8 정상 확인', 'G1.8 정상 확인 저장 후']);
     assert.deepEqual(finalChat.message.filter(row => row.role === 'char').map(row => row.data), ['G1.8 정상 응답 확인 완료', 'G1.8 정상 응답 확인 완료']);
     assert.equal(events.filter(row => row.event === 'main' && !row.failed).length, 2);
-    await until(async () => (await page.evaluate(() => Object.keys(localStorage).filter(key => key.startsWith('bg-server-input-v3:')).length)) === 0, 'following completed input marker must settle');
+    await until(async () => (await page.evaluate(() => Object.keys(localStorage).filter(key => key.startsWith('bg-server-input-v4:')).length)) === 0, 'following completed input marker must settle');
     await until(async () => (await readDatabase()).data.statics.messages === 2,
       'both completed message statistic effects must be durable');
     const finalRoot = await readDatabase(); assert.equal(finalRoot.data.statics.messages, 2);
