@@ -13,7 +13,10 @@ readable on small screens. Each attempt occupies one compact line; tap it for
 exact counts and cost evidence. Period/model/source filters apply consistently;
 cumulative cost keeps those filters while removing the date range.
 Model totals also use compact single-line rows, with exact counts and exclusion
-details available by tapping the row.
+details available by tapping the row. Since `0.2.4-experimental.59`, compact
+cache and request counts use K/M suffixes regardless of browser locale; tooltips
+retain full locale-grouped values. The user confirmed these counts on the device
+in the [persona and save-sync record](docs/records/2026-10-17-persona-editor-usage-counts-and-save-sync-investigation.md).
 Attempt timestamps use local `YYMMDD HH:MM` without inline status glyphs. Missing
 model/provider fields are explicitly labelled as unrecorded. Job creation now
 preserves the submitted model for later recovery logs; old missing fields remain
@@ -40,20 +43,47 @@ Stable remains `v0.2.3`.
 
 ## BG goals and current scope
 
-The candidate installer is `0.2.4-experimental.56` (BG adapter `0.7.60`, lazy
-sync `0.5.8`, Personal settings `0.5.14`). Stable remains `v0.2.3`. The G1
-crosswalk preserves its experimental.50 history snapshot; the usage candidate
-adds cost observation. The .54 follow-up makes native chat-variable reads
-read-only, preventing missing/null variable state from becoming an empty object
-and being mistaken for a post-assembly edit. Real setters and strict edit
-detection remain unchanged. See the [scoped record](docs/records/2026-10-16-bg-variable-read-and-asset-compatibility.md).
+The candidate installer on main is `0.2.4-experimental.82` (BG adapter
+`0.7.77`, lazy sync `0.5.19`, Personal settings `0.5.15`). Stable remains
+`v0.2.3`. The G1 crosswalk preserves its experimental.50 history snapshot;
+subsequent experimental corrections are recorded below and in the
+[CHANGELOG](CHANGELOG.md).
+
+Native chat-variable reads and the `/getvar` slash command no longer initialize
+missing/null variable state. Real setters and strict edit detection remain; the
+native-read change is in the
+[.54 record](docs/records/2026-10-16-bg-variable-read-and-asset-compatibility.md).
 The .55 follow-up prevents native terminal recovery from writing during a live
 chat generation, joins concurrent recovery of one job, and rechecks current
 message identity after journal reads. Existing histories with duplicate IDs
-require explicit maintenance; the approved two-row repair is documented
-separately from installation in the [recovery record](docs/records/2026-10-17-bg-job-recovery-identity-repair.md).
-Physical confirmation of the warning fix and restored ordinary Send/Stop remain
-pending; automatic checks do not close these device gates.
+require explicit maintenance; installation does not repair them automatically.
+After the approved repair, the user confirmed ordinary Send, the circular Stop
+control and a no-edit new chat without the two false warnings, closing those
+scoped .54/.55 physical gates. See the
+[recovery record](docs/records/2026-10-17-bg-job-recovery-identity-repair.md).
+Later new-chat post-assembly warnings remain unexplained; .61 logs changed
+field names without values, and .62 fixes the mutating slash read without
+establishing that it caused the observed warning. See the
+[save-sync investigation](docs/records/2026-10-17-persona-editor-usage-counts-and-save-sync-investigation.md).
+
+Restart-stranded server inputs now offer Cancel. Text returns to the composer
+only when the server proves it never reached the chat, the same chat is open,
+nothing is being sent and the composer, translation and attachments are empty;
+otherwise a notice leaves the composer untouched. Restart-interrupted server-owned operations
+without commit evidence use terminal notice or eligible start-fallback handling
+instead of being parked as an unconfirmed save on every wake. These .64/.65
+corrections leave committed results and strict commit-conflict handling intact.
+
+Background starts, recovery claims and attaches now carry and check the writer
+session. A 423 deactivates and reloads the tab; a rejected start stops without
+browser generation, and a server-input draft is kept. Cancel and abandon remain
+outside the session gate. Storage resets also fence old commits and results,
+report removed operations as missing and clear qualifying recovery markers; see
+[State, ETags, and recovery](#state-etags-and-recovery) and the
+[Phase B record](docs/records/2026-10-20-phase-b-b2-b3-session.md).
+The .79–.82 bundle adds build checks on starts and input recovery writes,
+settings session checks and chat-creation `fmIndex` initialization. The probe
+scripts now wait on the v4 server-input marker namespace.
 
 BG aims to run input preparation, required model requests, postprocessing and
 canonical chat storage on the server while the app is absent. The table follows
@@ -94,6 +124,31 @@ and app adoption. Composer recovery controls and full activity polling remain.
 The user confirmed both .49/.50 composer fixes (height restoration and duplicate
 progress-card removal) as normal on 2026-10-15, closing their scoped L5. This does
 not cover translated-input UI, VoiceOver or broader device qualification.
+
+Native recovery still has no new scheduler or deadline; cross-tab/device overlap
+and suspended journal sockets remain limits. Other malformed historical chats
+are not automatically rewritten. The .62 slash-read and .63 fresh-save fixes
+have no recorded device check. Phase B used synthetic tests and isolated
+Chromium; no iOS or phone validation is recorded, reroll session headers were
+not observed, server backup restore was not exercised in the browser, and the
+non-detached full-preview epoch guard has source-structure coverage only.
+The session record's not-yet-merged status describes that session, not current
+main; it provides no evidence of live delivery or phone qualification for this
+bundle. See the [Phase B limits](docs/records/2026-10-20-phase-b-b2-b3-session.md#10-remaining-limits).
+
+A long degenerate model answer combined with per-message regular expressions,
+tokenizer loading and parsing can stall the character view. An isolated throttled
+Chromium run recovered after a stall; the iPhone engine was not measured. The
+reported view recovered after removal of the anomalous message, and the user
+rewrote the slow script; this was data maintenance, with no patcher prevention
+change. Regex input limits and moving tokenizer loading off the render path
+remain open. See the [incident record](docs/records/2026-10-18-bg-interrupted-commit-and-stuck-character-view.md).
+
+An [iOS copy-button report](docs/records/2026-10-21-ios-copy-button-url-encoding.md)
+is recorded and uninvestigated: text beginning with an ASCII word followed by
+`:` may paste back into PocketRisu as URL-encoded text after using the text-box
+copy button. System selection and Copy was reported to work. The cause is
+unverified and no fix is recorded.
 
 G2 selects official RCM installation and BG integration; Archive Center remains
 a deferred future candidate. That separate work is not implemented or qualified
@@ -851,6 +906,23 @@ context. The storage protocol is adapted from
   iOS storage backend cannot delay a valid result from the other for the full
   1500 ms timeout.
 
+The experimental save-sync baseline and hash cache now change as one state and
+roll back together after a rejected patch. Character hashes follow array
+position, including missing or duplicate IDs; absent `botPresets` and `modules`
+are added rather than replaced. Already-correct patches and hashes are unchanged.
+A proven-fresh install writes `{ characters: [] }`, allowing its first chat to
+use create-only persistence; an unknown or malformed confirmed baseline still
+fails closed to update and cannot recreate a remotely deleted chat. See the
+[save-sync record](docs/records/2026-10-17-persona-editor-usage-counts-and-save-sync-investigation.md)
+and CHANGELOG .60/.63.
+
+Since .82, client chat creation and imports initialize `fmIndex`: new blank/card
+first chats use `-1`, a default chat uses the character's `firstMsgIndex` or
+`-1`, and imported chats retain an existing value or receive `-1`. The reset
+fallback for an unrestorable cold-storage character also initializes it. This
+prevents first-save revision differences and missing `{{firstmsgindex}}` values
+on those new chats; existing chats without the field are not migrated.
+
 An isolated production measurement with writes and writer-session changes
 blocked confirmed a database `200` on the first load and `304` on the warm
 reload. Two unprofiled runs reduced the loading screen from roughly
@@ -881,9 +953,11 @@ The thumbnail strip at the top of Settings → Persona gains:
 - folder content arrangement by opening a folder while `Arrange` is active;
 - custom folder images that can be selected, replaced, or reset from inside
   the folder;
-- a folder `+` action with a paginated 4×4 all-persona selector for adding or
-  removing folder members;
-- a closable create/import dialog for the root `+` action;
+- a folder member-selection action with a people icon and a paginated 4×4
+  all-persona selector for adding or removing members;
+- a closable create/import dialog for the `+` action at the root and inside
+  folders; create, import and duplicate inside a folder file the persona there,
+  while root duplication retains the source folder;
 - root and folder-scoped `Delete` selection modes with `Cancel`/`Done`,
   grouped image/name/alias previews, and a final Yes/No gate;
 - folder selection that deletes the selected folder and its contained
@@ -901,9 +975,13 @@ and `+` create/import controls on the settings page remain available.
 The existing `persona.icon` field remains the active image consumed by chat
 rendering and external integrations. `imageGallery` stores the reusable set,
 including that active image. Legacy single-image personas are adopted on load.
-The gallery occupies the image area in the editor, and its `Active` badge is the
-single active-image indicator. Standard persona PNG export opens a gallery
-picker and embeds the selected image without changing the active image; the
+The editor stacks the full-width gallery above the name, note and description
+fields at every width, including a narrowed UI on a wide screen. Gallery cards
+stay at 5rem; gallery, export-image and add-persona dialog labels are Korean.
+The active-image badge is the single active-image indicator. These .57/.58
+changes and scoped device confirmation are in the
+[persona record](docs/records/2026-10-17-persona-editor-usage-counts-and-save-sync-investigation.md).
+Standard persona PNG export opens a gallery picker and embeds the selected image without changing the active image; the
 full database and partial backup retain every gallery image. Removing an entry
 from a persona or resetting a folder image never deletes the shared asset.
 
@@ -970,6 +1048,15 @@ The setting is stored in the optional
 `Database.pocketRisuPersonalSettings` namespace. Reading a missing namespace
 does not initialize or rewrite the database, and updates preserve any future
 personal-setting fields in that namespace.
+
+With lazy chat sync installed, hidden session adapters send writer-session
+headers for the external request header page and System → Backups writes to
+snapshot limits and the server backup path. The external-header PUT now checks
+the writer session after authentication: stale sessions receive 423 without a
+write; active sessions and requests without a session ID retain existing rules.
+On these pages, a 423 shows the existing deactivation notice and reloads before
+reading the body or showing a generic error. Without lazy chat sync the pages
+send no session ID. See [CHANGELOG .81](CHANGELOG.md#024-experimental81-settings-writes-carry-the-writer-session).
 
 ### Non-blocking character import
 
@@ -1046,9 +1133,9 @@ and revert scope remain independent from feature and bg-preserve packs.
 
 ### Client build write fence
 
-The exact-PocketRisu-1.9 `client-build-fence` pack prevents an already-open
-client bundle from mutating a newly deployed server with stale serialization
-or recovery code:
+The `client-build-fence` pack, included in the exact-PocketRisu-1.10 graph,
+prevents an already-open client bundle from mutating a newly deployed server
+with stale serialization or recovery code:
 
 - every production build receives a fresh 256-bit random stamp, embedded in
   the client bundle and emitted as `dist/build-stamp.json` for the server;
@@ -1058,7 +1145,8 @@ or recovery code:
   parsing;
 - the bootstrap session advertises the server build, so an already-stale tab
   enters the same clean-reload or dirty-recovery path before its first write;
-- reads, generation starts, proxy requests, and `/api/db/flush` remain
+- background starts and input recovery claim, attach and abandon writes also
+  require the matching build. Reads, proxy requests and `/api/db/flush` remain
   available across a rolling deployment. Existing work can finish, while its
   destructive claim, acknowledgement, cancellation, or deletion is retained
   until a matching client takes ownership;
@@ -1071,6 +1159,15 @@ or recovery code:
 - hidden adapters place the same fence around standard/Kei backup XHR paths,
   lazy storage, bg-preserve result acknowledgements, draft deletion, and
   orchestration cleanup without creating a second storage or generation owner.
+
+Since .79/.80, a stale or missing build on a BG start or input recovery write
+receives `426 CLIENT_UPGRADE_REQUIRED` before admission or mutation. Both start
+paths treat a coded 426 as a definitive non-start after one attempt: no polling,
+retry or browser fallback, and the recovery marker is cleared. Server-input
+starts keep the draft. The build handshake reloads or shows the recovery banner;
+an uncoded 426 retains previous handling. Gate order remains build 426, reset
+503, then session 423; the server's internal queued-input drain is unchanged.
+See [CHANGELOG .79/.80](CHANGELOG.md#024-experimental80-background-starts-are-fenced-on-the-client-build).
 
 The build stamp is a compatibility token, not an authentication secret. If the
 server artifact is missing or invalid, the fence deliberately fails open so a
@@ -1316,6 +1413,51 @@ durable `awaitingMetadata` WAL quarantine. Only that orphan-prone subset has a
 128-record/256 MiB pressure limit: existing payloads are never evicted, the
 backlog is logged after restart, and a save that would exceed the limit is
 rejected before ACK. Existing-chat WAL records are outside this pressure limit.
+
+The experimental .68–.78 storage-reset changes cover backup import, server
+backup restore, save-folder import, snapshot restore and database removal.
+Incoming data is prepared and validated before one transactional apply and
+cache installation. Backup import/restore also swaps the image directory before
+commit; caught failures restore the previous data and images. Snapshot targets
+are validated before rotating a fresh recovery snapshot. Folder imports retain
+the validated bytes in memory, increasing peak memory for large folders.
+
+During reset, competing storage writes receive retryable
+`503 STORAGE_RESET_IN_PROGRESS`; pre-reset admitted writes cannot apply later,
+and pending debounced saves are flushed first and re-armed on failure. Backup
+capture and reset exclude each other. A failed image rollback blocks further
+writes with `STORAGE_RECOVERY_REQUIRED` while reads remain available; manual
+repair and restart are required. A process kill between image swap and commit
+is outside the recovery guarantee. See [CHANGELOG .68/.69](CHANGELOG.md#024-experimental68-atomic-backup-import-and-storage-reset-barrier).
+
+Each applied reset advances a durable storage epoch, refuses old-epoch BG
+commits, aborts running generations and clears waiting inputs. Resets replacing
+data delete BG operation/result, input/commit recovery and chat-journal rows in
+the same transaction, including chat-keyed parked results. An empty folder
+import still advances the epoch and cancels runs but retains recovery rows.
+Old-epoch results are not delivered, and an in-flight publisher cannot publish
+across an epoch change. Epochless legacy records retain documented compatibility
+handling; the update assumes a server restart so old publishers do not survive.
+
+Successful resets release the writer lock and invalidate pre-reset tabs; their
+next checked write receives 423 and reloads, including the restoring tab.
+Failed or refused resets do not invalidate sessions. Requests without a session
+ID still pass. Accepted BG starts and status reads carry the current epoch when
+readable. Reset-orphaned operations report `missing`, and reuse of an old run's
+operation ID is refused before admission.
+
+Server-input markers use `bg-server-input-v4:` with epoch metadata, migrating
+older markers on read; prepared-start markers retain their existing key. A
+`missing` status with a newer epoch clears the marker and reports that the reset
+left the input unprocessed. A same-epoch accepted marker still blocks Send.
+The 49-hour expiry and 128-entry limit remain. Pre-upgrade markers use the
+approved heuristic: `missing` with any epoch above zero clears them, even when
+the reset may predate the marker. Notice uniqueness is per tab; tabs may race.
+A reset between status and settlement proof can still block one Send and show
+an additional notice; the next Send proceeds. The result route can still label
+an orphaned operation `cancelled` while status says `missing`; whether legacy
+boot recovery then omits the reset notice was not traced. See the
+[Phase B record and limits](docs/records/2026-10-20-phase-b-b2-b3-session.md#10-remaining-limits).
 
 The complete artifact may adopt prior `features`, `hardening`, or known custom
 state. Every non-empty historical intent becomes enabled complete delivery;
