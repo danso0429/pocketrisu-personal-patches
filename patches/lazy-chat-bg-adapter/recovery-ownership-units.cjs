@@ -5,7 +5,11 @@ module.exports = prior => {
     const related = ['bg-preserve', 'lazy-chat-sync', 'client-build-fence-bg-adapter', 'personal-settings',
         'client-build-fence', 'haejeok-persistence-safety-adapter', 'haejeok-chat-width-adapter',
         'kei-chat-render-bg-adapter', 'kei-partial-edit-bg-adapter']
-        .flatMap(name => require(`../${name}/manifest.cjs`).units);
+        .flatMap(name => require(`../${name}/manifest.cjs`).units)
+        // A unit declared after a unit of this pack that is defined later (the
+        // legacy start fence units) is ordered by that edge, not before this chain.
+        .filter(unit => !(unit.after ?? []).some(id => id.startsWith('lazy-chat-bg-adapter:')
+            && !prior.some(defined => defined.id === id)));
     const add = (name, file, anchor, content, first = false) => units.push({
         id: `lazy-chat-bg-adapter:recovery-owner:${name}:1.10`, file, type: 'replace', anchor,
         ...(file.endsWith('.svelte') ? { managed: content } : { content }),

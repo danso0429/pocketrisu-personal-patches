@@ -32,6 +32,7 @@ const EXACT_WRITER_ROUTES = new Set([
     'PUT /api/backup/server/path',
     'POST /api/inlays/compress',
     'POST /api/bg-stream-draft/delete',
+    'POST /api/bg-orchestrate',
     'POST /api/bg-orchestrate-input/claim',
     'POST /api/bg-orchestrate-input/attach',
     'POST /api/bg-orchestrate-input/abandon',

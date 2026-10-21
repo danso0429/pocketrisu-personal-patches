@@ -133,15 +133,13 @@ async function main() {
     const currentHeaders=headers;
     if(mode==='old-client'){
         const oldStamp=JSON.parse(fs.readFileSync(path.resolve(process.argv[5]))).stamp;assert.notEqual(oldStamp,stamp);
-        // BG admission does not classify the stamp itself as execution
-        // authority. Exercise the declared-compatible wire contract once;
-        // this is distinct from the actual prior-browser Send comparator.
+        // The start route is a fenced writer: a prior build is refused before
+        // admission, and the same body from the current build starts below.
         headers={...headers,'x-client-build':oldStamp};
-    }
-    const started = await fetch(origin + '/api/bg-orchestrate', { method: 'POST', headers, body: JSON.stringify(body) });
-    const startBody = await started.json();
-    assert.equal(started.status, 200, JSON.stringify(startBody));
-    if(mode==='old-client'){
+        const staleStart=await fetch(origin+'/api/bg-orchestrate',{method:'POST',headers,body:JSON.stringify(body)});
+        assert.equal(staleStart.status,426,await staleStart.clone().text());
+        const staleStartBody=await staleStart.json();
+        assert.equal(staleStartBody.code,'CLIENT_UPGRADE_REQUIRED');assert.equal(staleStartBody.commitOutcome,'not-committed');
         const staleClaim=await fetch(origin+'/api/bg-notifications/claim',{method:'POST',headers,body:JSON.stringify({consumerId:'synthetic-prior-consumer',messageVersion:2})});
         assert.equal(staleClaim.status,426,await staleClaim.clone().text());
         assert.equal((await staleClaim.json()).code,'CLIENT_UPGRADE_REQUIRED');
@@ -149,6 +147,9 @@ async function main() {
         // is a fenced writer; upgrading that reader cannot replay the job.
         headers=currentHeaders;
     }
+    const started = await fetch(origin + '/api/bg-orchestrate', { method: 'POST', headers, body: JSON.stringify(body) });
+    const startBody = await started.json();
+    assert.equal(started.status, 200, JSON.stringify(startBody));
     if(mode==='restart-toggle'){
         for(let index=1;index<=3;index++){
             if(index>1){

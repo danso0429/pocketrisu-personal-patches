@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.2.4-experimental.80 (background starts are fenced on the client build)
+
+- `POST /api/bg-orchestrate` is now a writer route of the client build fence. A start from a tab with a stale or missing build header receives `426 CLIENT_UPGRADE_REQUIRED` before any input, operation or run is created; a matching build starts as before. The order fence 426, storage-reset 503, session 423 is unchanged, and the internal input drain (no HTTP) is not affected.
+- The legacy delegated start now sends its request through the build handshake, so it carries the `x-client-build` header and a coded 426 reloads the tab or shows the recovery banner. Such a 426 is a definitive non-start after one attempt: no status polling, no retry, no browser fallback generation and no extra notice; the watch stops and the recovery marker is cleared. With lazy chat storage the request progress ends as failed.
+- A server input start answered with a coded 426 is rejected with reason `client-upgrade-required` after one attempt, without status polling; the marker is cleared and the draft is kept. A 426 without that code keeps the previous handling on both start paths, `503 STORAGE_RESET_IN_PROGRESS` stays retryable and the 423 session handling is unchanged.
+- Client build fence 0.1.3, client build fence BG adapter 0.1.2, BG adapter 0.7.76. Stable remains v0.2.3.
+
 ## 0.2.4-experimental.79 (client input recovery routes are fenced on the client build)
 
 - The three client input recovery writes (`POST /api/bg-orchestrate-input/claim`, `/attach` and `/abandon`) are now writer routes of the client build fence. A tab with a stale or missing build header receives `426 CLIENT_UPGRADE_REQUIRED` before the handler runs, so no input record is claimed, attached or abandoned by an outdated client; a claim answered with 426 leaves the raw input on the server and the handshake shows the reload or frozen banner. Matching builds reach the handlers unchanged, the status, base and result reads stay unfenced, and the order fence 426, storage-reset 503, session 423 is unchanged.

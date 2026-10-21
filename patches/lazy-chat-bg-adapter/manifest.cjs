@@ -25,7 +25,7 @@ const queueUnits = require('./queue-units.cjs')
 module.exports = {
     id: 'lazy-chat-bg-adapter',
     title: 'BG preserve integration for lazy chat storage',
-    version: '0.7.75',
+    version: '0.7.76',
     targets: {
         pocketrisu: {
             verified: ['1.10.0'],
@@ -652,6 +652,14 @@ export async function adoptServerCommittedChat(
             file: 'src/ts/bgServerInputStart.test.ts',
             type: 'owned',
             content: owned1100('src/ts/bgServerInputStart.test.ts'),
+            requires: ['lazy-chat-bg-adapter:owned:bg-server-input-start:1.10'],
+            targetVersions: pocketRisu1100,
+        },
+        {
+            id: 'lazy-chat-bg-adapter:owned:bg-server-input-start-phase-c-test:1.10',
+            file: 'src/ts/bgServerInputStart.phaseC.test.ts',
+            type: 'owned',
+            content: owned1100('src/ts/bgServerInputStart.phaseC.test.ts'),
             requires: ['lazy-chat-bg-adapter:owned:bg-server-input-start:1.10'],
             targetVersions: pocketRisu1100,
         },
@@ -4282,6 +4290,24 @@ module.exports.units.push(...require('./request-progress-units.cjs')(module.expo
 module.exports.units.push(...require('./job-recovery-identity-units.cjs')(module.exports.units))
 module.exports.units.push(...require('./storage-reset-units.cjs')(module.exports.units))
 module.exports.units.push(...require('./session-gate-units.cjs')(module.exports.units))
+// A legacy start refused by the client build fence (coded 426) is stopped by the
+// fence adapter without fallback; the request progress still ends as failed.
+// Placed here so that the later units on this file are ordered after the fence
+// adapter's legacy start units.
+module.exports.units.push({
+    id: 'lazy-chat-bg-adapter:build-fence:legacy-start-progress:1.10',
+    file: 'src/ts/bgOrchestrate.ts',
+    type: 'insert',
+    where: 'after',
+    anchor: "            if (resolution === 'rejected' && startFenceRejection !== null) {\n",
+    content: "                setRequestProgress(operationId, 'failed')\n",
+    requires: [
+        'client-build-fence-bg-adapter:legacy-start-no-fallback:1.10',
+        'lazy-chat-bg-adapter:request-progress:prepared-rejected',
+    ],
+    after: module.exports.units.filter(unit => unit.file === 'src/ts/bgOrchestrate.ts').map(unit => unit.id),
+    targetVersions: pocketRisu1100,
+})
 module.exports.units.push(...require('./storage-epoch-units.cjs')(module.exports.units))
 module.exports.units.push(...require('./epoch-marker-units.cjs')(module.exports.units))
 module.exports.units.push(...require('./reset-orphan-units.cjs')(module.exports.units))

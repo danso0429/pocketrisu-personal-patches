@@ -64,6 +64,13 @@ export async function reconcileServerInputStart(options: {
                 rejectedReason = 'session-deactivated'
                 return 'rejected'
             }
+            // Refused by the client build fence before admission (the build
+            // handshake reloads or freezes the tab): final after this attempt.
+            // A 426 without this code stays ambiguous.
+            if (response.status === 426 && body?.code === 'CLIENT_UPGRADE_REQUIRED') {
+                rejectedReason = 'client-upgrade-required'
+                return 'rejected'
+            }
             if ((response.status === 401 || response.status === 403)
                 || (response.status === 409 && body?.operationId === options.operationId
                     && preAdmissionReasons.has(String(body.reason)))) {
