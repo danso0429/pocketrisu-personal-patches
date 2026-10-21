@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.2.4-experimental.81 (settings writes carry the writer session)
+
+- `PUT /api/external-request-headers` now passes the writer session check after authentication: a write with a stale session id receives `423` and changes nothing. A write with the active session id or without a session id is saved as before, and the revision rules and `GET /api/external-request-headers` are unchanged.
+- With lazy chat storage installed, the external request header page and the two System → Backups writes (`PUT /api/db/snapshots/limits` and `PUT /api/backup/server/path`) send the writer session headers. A `423` answer shows the existing session deactivation notice and reload, before the response body is read or a generic error is shown; every other answer is handled as before. This is done by two new internal adapters, Personal settings lazy-storage session adapter (Personal settings with lazy chat sync) and Client build fence lazy-storage session adapter (Client build fence with lazy chat sync), which are selected automatically only when both of their packs are installed. Without lazy chat sync both pages behave as before and send no session id.
+- Personal settings 0.5.15, Personal settings lazy-storage session adapter 0.1.0, Client build fence lazy-storage session adapter 0.1.0. Stable remains v0.2.3.
+
 ## 0.2.4-experimental.80 (background starts are fenced on the client build)
 
 - `POST /api/bg-orchestrate` is now a writer route of the client build fence. A start from a tab with a stale or missing build header receives `426 CLIENT_UPGRADE_REQUIRED` before any input, operation or run is created; a matching build starts as before. The order fence 426, storage-reset 503, session 423 is unchanged, and the internal input drain (no HTTP) is not affected.

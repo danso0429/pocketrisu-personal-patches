@@ -8,7 +8,7 @@ function unit(id, file, type, rest) {
     units.push(result)
     return result.id
 }
-for (const file of ['server/node/externalRequestHeaders.cjs', 'server/node/externalRequestHeaders.test.ts', 'server/node/externalRequestHeadersProcess.test.ts',
+for (const file of ['server/node/externalRequestHeaders.cjs', 'server/node/externalRequestHeaders.test.ts', 'server/node/externalRequestHeaders.phaseC.test.ts', 'server/node/externalRequestHeadersProcess.test.ts',
     'src/lib/Setting/Pages/PersonalSettings/ExternalHeadersSetting.svelte']) {
     unit(file, file, 'owned', { content: owned(__dirname, file) })
 }
@@ -40,7 +40,7 @@ const externalRequestHeaders = configureExternalRequestHeaders({
     kvGet, kvSet,
     log: ({ ruleId, applied }) => console.info('[external-request-header]', ruleId, applied),
 });
-registerExternalHeaderRoutes(app, checkAuth, externalRequestHeaders);
+registerExternalHeaderRoutes(app, checkAuth, externalRequestHeaders, checkActiveSession);
 `,
     requires: [prefix + 'server/node/externalRequestHeaders.cjs'],
     after: [

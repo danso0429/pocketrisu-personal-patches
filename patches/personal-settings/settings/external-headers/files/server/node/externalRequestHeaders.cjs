@@ -163,13 +163,16 @@ function fetchWithExternalHeaders(fetchImpl, url, init) {
 }
 function withExternalHeaderConversation(key, task) { return context.run(key, task); }
 
-function registerExternalHeaderRoutes(app, checkAuth, owner) {
+// Writes also pass the writer session check (423 for a stale session id; a
+// request without a session id passes). Reads are not session-checked.
+function registerExternalHeaderRoutes(app, checkAuth, owner, checkActiveSession) {
     app.get('/api/external-request-headers', async (req, res, next) => {
         if (!await checkAuth(req, res)) return;
         try { res.json(owner.settings()); } catch (error) { next(error); }
     });
     app.put('/api/external-request-headers', async (req, res, next) => {
         if (!await checkAuth(req, res)) return;
+        if (!await checkActiveSession(req, res)) return;
         try { res.json(owner.save(req.body)); }
         catch (error) {
             if (error.status === 400 || error.status === 409) res.status(error.status).json({ error: error.message });

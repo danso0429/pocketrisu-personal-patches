@@ -59,7 +59,7 @@ function replacementText(candidate) {
 
 test('personal settings is an independent rolling feature pack', () => {
     assert.equal(manifest.id, 'personal-settings')
-    assert.equal(manifest.version, '0.5.14')
+    assert.equal(manifest.version, '0.5.15')
     assert.deepEqual(manifest.targets, {
         pocketrisu: {
             verified: ['1.10.0'],

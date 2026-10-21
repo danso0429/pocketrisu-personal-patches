@@ -39,3 +39,44 @@ describe('[C-2] Fence the start route with the legacy start on the build handsha
         assert.ok(unit.requires.includes('client-build-fence-bg-adapter:orchestration-import:1.9'))
     })
 })
+
+describe('[C-3] Writer session on settings writes', () => {
+    const adapters = [
+        ['personal-settings-lazy-session-adapter', 'personal-settings'],
+        ['client-build-fence-lazy-session-adapter', 'client-build-fence'],
+    ]
+
+    it('registers both internal adapters with the exact two-prerequisite activation matrix', () => {
+        const catalog = loadCatalog()
+        for (const [id, host] of adapters) {
+            const pack = catalog.find((candidate) => candidate.id === id)
+            assert.ok(pack, `${id} must be registered`)
+            assert.equal(pack.userSelectable, false)
+            assert.deepEqual(pack.requires, [host, 'lazy-chat-sync'])
+            assert.deepEqual(pack.autoWhen, { all: [host, 'lazy-chat-sync'] })
+            for (const selected of [[], [host], ['lazy-chat-sync']]) {
+                assert.equal(resolveSelection(catalog, selected).resolvedIds.includes(id), false)
+            }
+            assert.equal(resolveSelection(catalog, [host, 'lazy-chat-sync']).resolvedIds.includes(id), true)
+            assert.throws(() => resolveSelection(catalog, [id]), (error) => error.code === 'INTERNAL_PACK_REQUESTED')
+        }
+    })
+
+    it('adds session headers and handles 423 before parsing on all three UI writes', () => {
+        const catalog = loadCatalog()
+        for (const [id] of adapters) {
+            const pack = catalog.find((candidate) => candidate.id === id)
+            assert.ok(pack, `${id} must be registered`)
+            const text = pack.units.map((unit) => unit.content || unit.managed || '').join('\n')
+            assert.match(text, /writerSessionHeaders\(\)/)
+            assert.match(text, /notifySessionDeactivated\(/)
+        }
+        const combined = adapters.map(([id]) => catalog.find((pack) => pack.id === id).units)
+            .flat().map((unit) => unit.content || unit.managed || '').join('\n')
+        for (const route of ['/api/external-request-headers', '/api/db/snapshots/limits', '/api/backup/server/path']) {
+            assert.match(combined, new RegExp(route.replaceAll('/', '\\/')))
+        }
+        assert.match(combined, /notifySessionDeactivated\([^)]*\)[\s\S]{0,200}return[\s\S]{0,200}\.json\(/)
+    })
+})
+
