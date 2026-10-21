@@ -275,6 +275,7 @@ function promoteFailedColdStorageStub(char, randomUUID) {
             note: '',
             name: 'Chat 1',
             localLore: [],
+            fmIndex: char.firstMsgIndex ?? -1,
         }]
     }
     // Leave recovery breadcrumb and remove cold storage markers

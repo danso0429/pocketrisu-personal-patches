@@ -80,3 +80,35 @@ describe('[C-3] Writer session on settings writes', () => {
     })
 })
 
+describe('[C-4] Chats created with fmIndex -1', () => {
+    it('owns all seven creation/import boundaries and leaves shared normalization untouched', () => {
+        const catalog = loadCatalog()
+        const adapter = catalog.find((pack) => pack.id === 'lazy-chat-bg-adapter')
+        const lazy = catalog.find((pack) => pack.id === 'lazy-chat-sync')
+        const units = [...adapter.units, ...lazy.units]
+        const fmUnits = units.filter((unit) => /fmIndex/.test(unit.content || unit.managed || ''))
+        const files = fmUnits.map((unit) => unit.file)
+        assert.ok(files.filter((file) => file === 'src/ts/characterCards.ts').length >= 2)
+        assert.ok(files.filter((file) => file === 'src/ts/characters.ts').length >= 3)
+        assert.ok(files.includes('src/ts/characterPackage.ts'))
+        assert.ok(files.includes('server/node/storageResetPrepare.cjs'))
+        assert.equal(files.includes('src/ts/storage/database.svelte.ts'), false)
+        const text = fmUnits.map((unit) => unit.content || unit.managed || '').join('\n')
+        assert.ok((text.match(/fmIndex\s*:\s*-1|fmIndex\s*\?\?=\s*-1/g) || []).length >= 7)
+    })
+
+    it('uses nullish assignment at import boundaries so explicit zero and positive indexes survive', () => {
+        const adapter = loadCatalog().find((pack) => pack.id === 'lazy-chat-bg-adapter')
+        const imports = adapter.units.filter((unit) =>
+            unit.file === 'src/ts/characters.ts' || unit.file === 'src/ts/characterPackage.ts')
+        const text = imports.map((unit) => unit.content || unit.managed || '').join('\n')
+        assert.ok((text.match(/fmIndex\s*\?\?=\s*-1/g) || []).length >= 2)
+        assert.doesNotMatch(text, /normalizeChat[\s\S]{0,120}fmIndex\s*\?\?=/)
+    })
+
+    it('keeps the legacy normalizer payload byte-for-byte free of fmIndex migration', () => {
+        const adapter = loadCatalog().find((pack) => pack.id === 'lazy-chat-bg-adapter')
+        const normalizerUnits = adapter.units.filter((unit) => unit.file === 'src/ts/storage/database.svelte.ts')
+        assert.equal(normalizerUnits.some((unit) => /fmIndex/.test(unit.content || unit.managed || '')), false)
+    })
+})

@@ -25,7 +25,7 @@ const queueUnits = require('./queue-units.cjs')
 module.exports = {
     id: 'lazy-chat-bg-adapter',
     title: 'BG preserve integration for lazy chat storage',
-    version: '0.7.76',
+    version: '0.7.77',
     targets: {
         pocketrisu: {
             verified: ['1.10.0'],
@@ -4311,6 +4311,7 @@ module.exports.units.push({
 module.exports.units.push(...require('./storage-epoch-units.cjs')(module.exports.units))
 module.exports.units.push(...require('./epoch-marker-units.cjs')(module.exports.units))
 module.exports.units.push(...require('./reset-orphan-units.cjs')(module.exports.units))
+module.exports.units.push(...require('./chat-fmindex-units.cjs')(module.exports.units))
 module.exports.units.push({
     id: 'lazy-chat-bg-adapter:owned:job-recovery-identity-tests:1.10',
     file: 'src/ts/process/request/jobRecoveryIdentity.test.ts', type: 'owned',

@@ -57,6 +57,7 @@ const owned1100Files = [
     'server/node/serverChatCommit.test.ts',
     'server/node/storageResetPrepare.cjs',
     'server/node/storageResetPrepare.test.ts',
+    'server/node/storageResetPrepare.phaseC.test.ts',
     'server/node/storageResetTestHooks.cjs',
     'src/ts/bootstrap.freshDatabase.test.ts',
     'src/ts/storage/globalApi.savePersistence.test.ts',
@@ -162,7 +163,7 @@ const sessionLockResetUnits = [
 module.exports = {
     id: 'lazy-chat-sync',
     title: 'Lazy chat synchronization and startup cache',
-    version: '0.5.18',
+    version: '0.5.19',
     targets: {
         pocketrisu: {
             verified: ['1.10.0'],
@@ -204,6 +205,11 @@ module.exports = {
                 ],
             } : {}),
             ...(relative === 'server/node/storageResetPrepare.test.ts' ? {
+                requires: [
+                    'lazy-chat-sync:owned:server:node:storageResetPrepare-cjs:1.10',
+                ],
+            } : {}),
+            ...(relative === 'server/node/storageResetPrepare.phaseC.test.ts' ? {
                 requires: [
                     'lazy-chat-sync:owned:server:node:storageResetPrepare-cjs:1.10',
                 ],
