@@ -7,6 +7,7 @@ import { LLMProvider, LLMFormat, LLMFlags, LLMTokenizer, type LLMModel } from '.
 import { fetchNative, globalFetch } from './globalApi.svelte'
 import { requestChatDataMain } from './process/request/request'
 import { projectChatMetadata } from './plugins/apiV3/pluginChatAccess'
+import { getModuleLorebooks } from './process/modules'
 
 // Only the detached server bundle exposes this adapter. Admission is unchanged.
 export const bgPluginBindings = {
@@ -14,6 +15,7 @@ export const bgPluginBindings = {
     nativeFetch: fetchNative, risuFetch: globalFetch, requestChatDataMain,
     characterMetadata: (character: any) => ({ ...character,
         chats: Array.isArray(character.chats) ? character.chats.map(projectChatMetadata) : [] }),
+    moduleLorebooks: () => getModuleLorebooks(),
     installProvider(name: string, callback: any, options: any = {}) {
         if (pluginV2.providers.has(name) || customV3ProviderMetaStore.some(model => model.id === `pluginmodel:::${name}`)) {
             throw Object.assign(new Error('plugin_provider_name_conflict'), { code: 'plugin_provider_name_conflict' })

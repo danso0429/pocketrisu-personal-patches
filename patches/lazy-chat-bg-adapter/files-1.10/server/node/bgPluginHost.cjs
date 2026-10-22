@@ -53,6 +53,20 @@ const currentCharacter = ctx => {
     const character = ctx.getDatabase().characters[ctx.getSelection().characterIndex];
     return character ? hydrated(ctx, character, value => value[0]) : returned(undefined);
 };
+const COLD_STORAGE_HEADER = 'COLDSTORAGE';
+// Same entries and order as the foreground API, read from the operation's
+// assembly chat without hydration. A stub, placeholder or cold selected chat is
+// not the assembled snapshot, so it fails instead of returning partial lore.
+const currentLorebookEntries = ctx => {
+    const { characterIndex, chatIndex } = ctx.getSelection();
+    const character = ctx.getDatabase().characters?.[characterIndex];
+    if (!character) return returned([]);
+    const chat = character.chats?.[chatIndex];
+    const coldData = chat?.message?.[0]?.data;
+    if (chat && (chat._stub || chat._placeholder
+        || (typeof coldData === 'string' && coldData.startsWith(COLD_STORAGE_HEADER)))) throw fail('plugin_chat_snapshot_unavailable');
+    return returned(clone([...character.globalLore ?? [], ...chat?.localLore ?? [], ...ctx.bindings.moduleLorebooks()]));
+};
 const noUi = () => returned(undefined);
 const message = (ctx, args, method) => {
     const { entry } = ctx;
@@ -129,6 +143,7 @@ const ROOT_HANDLERS = Object.freeze({ __proto__: null,
         const character = ctx.getDatabase().characters[args[0]];
         return character ? hydrated(ctx, character, value => value[0]?.chats?.[args[1]] ?? null) : returned(null);
     },
+    getCurrentLorebookEntries: currentLorebookEntries,
     getRuntimeInfo: () => returned({ apiVersion: '3.0', platform: 'node', saveMethod: 'local' }),
     showContainer: noUi, hideContainer: noUi, registerSetting: noUi, registerButton: noUi,
     unregisterUIPart: noUi, setChatPanel: noUi,

@@ -119,7 +119,7 @@ describe('server input shares the operation execution context', () => {
         ;(h.bg.inputPolicy as any).evaluateServerInputModels = (_db: unknown, _chat: unknown, allow?: boolean) =>
             allow ? { kind: 'server-input' } : { kind: 'client-prepared', reason: 'plugin-host-unqualified' }
         if (complete) (h.bg as any).bgPluginBindings = {
-            nativeFetch: vi.fn(), risuFetch: vi.fn(), requestChatDataMain: vi.fn(), installProvider: vi.fn(), characterMetadata: vi.fn(),
+            nativeFetch: vi.fn(), risuFetch: vi.fn(), requestChatDataMain: vi.fn(), installProvider: vi.fn(), characterMetadata: vi.fn(), moduleLorebooks: vi.fn(() => []),
             allowedDbKeys: [], bodyInterceptors: [], registry: { providers: new Map(),
                 replacerbeforeRequest: new Set(), replacerafterRequest: new Set(), editinput: new Set(),
                 editoutput: new Set(), editprocess: new Set(), editdisplay: new Set() },

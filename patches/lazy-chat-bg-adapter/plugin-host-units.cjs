@@ -10,7 +10,7 @@ module.exports = prior => {
         after: [...prior, ...related, ...units].filter(unit => unit.file === file).map(unit => unit.id) });
     for (const file of ['server/node/bgPluginSandbox.cjs', 'server/node/bgPluginWorker.cjs',
         'server/node/bgPluginSession.cjs', 'server/node/bgPluginStorage.cjs', 'server/node/bgPluginHost.cjs', 'server/node/bgPluginValue.cjs',
-        'server/node/bgPluginDiagnostics.cjs', 'src/lib/Others/BgPluginDiagnostics.svelte',
+        'server/node/bgPluginDiagnostics.cjs', 'server/node/bgCurrentLorebookEntries.test.ts', 'src/lib/Others/BgPluginDiagnostics.svelte',
         'src/ts/bgPluginBindings.ts']) {
         units.push({ id: `lazy-chat-bg-adapter:plugin-host:owned:${file}:1.10`, file,
             type: 'owned', targetVersions, content: fs.readFileSync(path.join(__dirname, 'files-1.10', file), 'utf8') });

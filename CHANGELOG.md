@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.2.4-experimental.83 (BG plugin host returns the current lorebook entries)
+
+- With background preservation and the internal BG plugin host candidate, plugins in a background request can call `getCurrentLorebookEntries`. It returns the same entries in the same order as the foreground API for the same character and chat: the character's `globalLore`, the selected chat's `localLore`, then the active module lorebooks resolved by the bundle's own `getModuleLorebooks()`. Before, the API was missing in the background, so plugins such as RCM continued with an empty list and the lorebook was left out silently.
+- The call returns `[]` when no character is selected, reads the operation's assembled chat without hydrating it, and returns character and module lore when the selected chat is absent. A selected chat that is a stub, a placeholder or in cold storage fails with `plugin_chat_snapshot_unavailable`. The result is a copy under the existing value limits, and a result over the limits fails with the existing error codes instead of being cut or replaced by an empty list. It needs no permission, uses no network budget and ignores its arguments.
+- The host now requires the module lorebook binding of the server bundle. A bundle without it skips plugins with the existing `server_plugin_host_bindings` notice. The other plugin APIs, `getDatabase`, permissions, budgets, the worker and the foreground code are unchanged; the absent API diagnostics no longer list `getCurrentLorebookEntries`.
+- BG adapter 0.7.78. Stable remains v0.2.3.
+
 ## 0.2.4-experimental.82 (new chats start with fmIndex -1)
 
 - With lazy chat storage and background preservation installed, chats carry `fmIndex` from creation at every client creation and import boundary: `-1` for the first chat of a character imported from a PNG or card file and of a new blank character; the character's `firstMsgIndex` (or `-1`) for the default chat added when a character has no chats, the same value it received later before; and `-1` for chats imported from JSON (v2 export), HTML and character package files, unless the file already carries an `fmIndex` (`??= -1`). Before, these chats had no `fmIndex` until the character was next formatted, so the local and server revisions of a new character's first chat differed before its first save and `{{firstmsgindex}}` failed on them.

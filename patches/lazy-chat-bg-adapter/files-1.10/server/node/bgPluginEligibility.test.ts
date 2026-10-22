@@ -4,7 +4,7 @@ import eligibility from './bgPluginEligibility.cjs'
 const { hasPluginBindings, hasPluginHostIdentity, canStartPluginHost } = eligibility
 const dependencies = () => ({ enabled: true, storageOwner: { peekRoot: () => ({ plugins: [] }) } })
 const bindings = () => ({ bgPluginBindings: {
-    nativeFetch() {}, risuFetch() {}, requestChatDataMain() {}, installProvider() {}, characterMetadata() {},
+    nativeFetch() {}, risuFetch() {}, requestChatDataMain() {}, installProvider() {}, characterMetadata() {}, moduleLorebooks() { return [] },
     allowedDbKeys: [], bodyInterceptors: [], registry: { providers: new Map(),
         replacerbeforeRequest: new Set(), replacerafterRequest: new Set(), editinput: new Set(),
         editoutput: new Set(), editprocess: new Set(), editdisplay: new Set() },
