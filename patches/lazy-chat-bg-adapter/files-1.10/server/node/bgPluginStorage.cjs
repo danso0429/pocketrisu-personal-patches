@@ -44,7 +44,7 @@ function savedPluginPermission(kvGet, plugin, permission, periodic = false, now 
 // canonical storage queue; it persists the changed root before publishing ETag.
 function createPluginStorage({ plugin, getRoot, writeRoot, kvGet, kvSet, kvDel, kvList,
     transaction, beforeEffect, prepareActive = async () => {}, assertActive = () => {}, onWrite = () => {}, now = Date.now,
-    reserveLocal = () => () => {}, wrapLocalRead = task => task() }) {
+    reserveLocal = () => () => {}, wrapLocalRead = task => task(), markIdentityFailure = failure => failure }) {
     const expected = new Map();
     const rootValue = (root, key) => ({ present: own(root.pluginCustomStorage, key),
         value: own(root.pluginCustomStorage, key) ? clone(root.pluginCustomStorage[key]) : undefined });
@@ -156,7 +156,8 @@ function createPluginStorage({ plugin, getRoot, writeRoot, kvGet, kvSet, kvDel, 
         const current = await getRoot();
         const find = root => {
             const matches = (root.plugins ?? []).filter(value => value?.name === plugin.name);
-            if (matches.length !== 1 || matches[0].script !== plugin.script) throw error('plugin_identity_changed');
+            // The owner may record this refusal as its own identity decision.
+            if (matches.length !== 1 || matches[0].script !== plugin.script) throw markIdentityFailure(error('plugin_identity_changed'));
             return matches[0];
         };
         const value = root => ({ present: own(find(root).realArg, key),

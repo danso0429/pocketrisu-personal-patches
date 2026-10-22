@@ -1,5 +1,13 @@
 # Changelog
 
+## 0.2.4-experimental.84 (a failing BG beforeRequest plugin fails the request)
+
+- With background preservation and the internal BG plugin host candidate, a plugin `beforeRequest` replacer that fails now fails the background request, as it does in the foreground: the hook call rejects with `plugin_before_request_failed`, later `beforeRequest` hooks and the model call do not run, and the operation ends as a failed generation. Before, the host recorded the plugin failure and returned the unchanged messages, so the request continued without that plugin's effect (for example without the memory a plugin such as RCM prepares in this hook).
+- A failure is a throw or rejection of the callback, a result that is not an array, or a disable of the plugin during the call for an execution reason (missing permission, unsupported API, host limit, worker failure or worker timeout, an uncaught storage conflict), also when the plugin caught the rejected API call. A plugin already disabled for an execution reason earlier in the same operation (input script, an earlier `beforeRequest` call, provider) also fails the request at its `beforeRequest` call, without a new notice.
+- A plugin disabled because the plugin set changed during the operation (edit, disable, reorder, addition, duplicate name, unstable identity cache) is still skipped and the request continues without it. Cancellation, operation close and timeout end the call as `plugin_operation_closed`; notice and identity storage failures keep their priority.
+- Plugin notices, plugins excluded at load, body interceptors, `afterRequest`, input and output scripts, providers, permissions, budgets, the worker and the foreground code are unchanged. Plugins that catch a refused API call and return an array while they stay enabled continue as before.
+- BG adapter 0.7.79. Stable remains v0.2.3.
+
 ## 0.2.4-experimental.83 (BG plugin host returns the current lorebook entries)
 
 - With background preservation and the internal BG plugin host candidate, plugins in a background request can call `getCurrentLorebookEntries`. It returns the same entries in the same order as the foreground API for the same character and chat: the character's `globalLore`, the selected chat's `localLore`, then the active module lorebooks resolved by the bundle's own `getModuleLorebooks()`. Before, the API was missing in the background, so plugins such as RCM continued with an empty list and the lorebook was left out silently.

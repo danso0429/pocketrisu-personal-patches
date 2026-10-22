@@ -187,6 +187,11 @@ async function createBgPluginHost({ database, bindings, getDatabase, getSelectio
     storageOwner, beforeEffect, publishNotification, publishDiagnostic, operation, signal, onCriticalFailure = () => {} }) {
     const entries = [], cleanups = [], notices = [], names = new Set(), omittedNames = new Set(), conflictedProviders = new Set();
     let closed = false, tearingDown = false, noticeFailure = null, identityFailure = null;
+    // Identity refusals created by this host's own checks (cache reload, the
+    // storage owner's plugin match). Only these error objects may record an
+    // identity disable cause; a guest cannot add to this set.
+    const hostIdentityFailures = new WeakSet();
+    const markIdentityFailure = failure => { hostIdentityFailures.add(failure); return failure; };
     let messageCapacityReported = false;
     let diagnosticFailureReported = false;
     const publishSummaries = async () => {
@@ -335,7 +340,12 @@ async function createBgPluginHost({ database, bindings, getDatabase, getSelectio
         try { await Promise.race([pull, new Promise(resolve => { timer = setTimeout(resolve, remaining); })]); }
         finally { clearTimeout(timer); }
     };
-    const disable = (entry, code, api, phaseOverride) => {
+    // `cause` is 'identity' only when the host itself decided that the plugin
+    // set changed during the operation (edit, disable, reorder, addition,
+    // duplicate name, unstable identity cache); a request may continue without
+    // such a plugin. It is never inferred from error codes or API names, which
+    // a guest can choose. Every other disable is an execution failure.
+    const disable = (entry, code, api, phaseOverride, cause = 'execution') => {
         // A load failure after registration must not reveal a different owner
         // of the same selected name. Unknown, never-registered names are not inferred.
         if (!entry.ready) for (const row of entry.registrations ?? []) {
@@ -343,6 +353,8 @@ async function createBgPluginHost({ database, bindings, getDatabase, getSelectio
         }
         if (entry.failed || entry.closing || signal.aborted || noticeFailure) return;
         entry.failed = true;
+        // Recorded once, at the transition; later disables are no-ops above.
+        entry.disableCause = cause === 'identity' ? 'identity' : 'execution';
         const phase = phaseOverride ?? entry.lastPhase ?? phaseScope.getStore() ?? 'load';
         const event = { ...common(entry, phase), eventKey: `plugin:${entry.index}:${entry.identity}:${phase}:failure`,
             code: resourceFailures.has(code) ? 'plugin_host_limit'
@@ -380,15 +392,15 @@ async function createBgPluginHost({ database, bindings, getDatabase, getSelectio
         for (const entry of entries) {
             if (entry.failed) continue;
             const position = view.positions.get(entry.plugin.name), current = view.enabled[position];
-            if (view.counts.get(entry.plugin.name) > 1) disable(entry, 'plugin_api_unsupported', 'plugin_identity_ambiguous', phase);
+            if (view.counts.get(entry.plugin.name) > 1) disable(entry, 'plugin_api_unsupported', 'plugin_identity_ambiguous', phase, 'identity');
             else if (!current || position >= 16 || current.script !== entry.plugin.script
-                || current.version !== entry.plugin.version || view.reordered.has(entry)) disable(entry, 'plugin_identity_changed', undefined, phase);
+                || current.version !== entry.plugin.version || view.reordered.has(entry)) disable(entry, 'plugin_identity_changed', undefined, phase, 'identity');
         }
         for (const [index, plugin] of view.enabled.entries()) {
             if (!names.has(plugin.name) && !omittedNames.has(plugin.name)) {
                 omittedNames.add(plugin.name);
                 const entry = { plugin, index, effects: false, abort: new AbortController(), failed: false, identity: identityOf(plugin) };
-                disable(entry, 'plugin_api_unsupported', 'plugin_set_changed', phase);
+                disable(entry, 'plugin_api_unsupported', 'plugin_set_changed', phase, 'identity');
             }
         }
     };
@@ -451,9 +463,25 @@ async function createBgPluginHost({ database, bindings, getDatabase, getSelectio
     };
     const invoke = (entry, kind, callback, contract = 'replacer', providerName) => async (...args) => {
         const provider = kind === 'provider';
+        // A beforeRequest replacer that cannot run fails the request, as in the
+        // foreground. Only an identity-caused disable lets the request continue
+        // without the plugin. Body interceptors share the kind but not this contract.
+        const failClosed = contract === 'replacer' && kind === 'before_request';
+        const stopped = () => closed || tearingDown || entry.closing || signal.aborted;
+        // Called only for a disabled entry or a closed host. Cancellation is
+        // decided after every await; no new plugin notice is created here.
+        const settleBeforeRequest = async () => {
+            await noticesSettled();
+            if (noticeFailure) throw noticeFailure;
+            if (identityFailure) throw identityFailure;
+            if (stopped()) throw fail('plugin_operation_closed');
+            if (entry.disableCause === 'identity') return args[0];
+            throw fail('plugin_before_request_failed');
+        };
         if (noticeFailure) throw noticeFailure;
         if (identityFailure) throw identityFailure;
         if (closed || entry.failed) {
+            if (failClosed) return settleBeforeRequest();
             await noticesSettled();
             if (provider) throw fail('plugin_provider_failed');
             return args[0];
@@ -469,13 +497,14 @@ async function createBgPluginHost({ database, bindings, getDatabase, getSelectio
                 if (provider && conflictedProviders.has(providerName)) throw fail('plugin_provider_name_conflict');
                 if (entry.failed) {
                     if (provider) throw fail('plugin_provider_failed');
+                    if (failClosed) return await settleBeforeRequest();
                     return args[0];
                 }
                 if (provider) { permission(entry, 'provider', true); await effect(entry); }
                 const value = await callback(...args);
                 await pullAbsent();
                 await currentIdentity(kind);
-                if (closed || tearingDown || entry.closing) throw fail('plugin_operation_closed');
+                if (closed || tearingDown || entry.closing || (failClosed && signal.aborted)) throw fail('plugin_operation_closed');
                 if (entry.failed) throw fail('plugin_hook_failed');
                 if (contract === 'replacer' && kind === 'before_request' && !Array.isArray(value)) throw fail('plugin_hook_result_invalid');
                 if (contract === 'replacer' && kind === 'after_request' && typeof value !== 'string') throw fail('plugin_hook_result_invalid');
@@ -485,13 +514,20 @@ async function createBgPluginHost({ database, bindings, getDatabase, getSelectio
                 if (provider && value.success === false) providerFailure(entry);
                 if (!provider && value != null && !isDeepStrictEqual(value, args[0])) entry.effects = true;
                 await noticesSettled();
-                if (closed || tearingDown || entry.closing) throw fail('plugin_operation_closed');
+                if (closed || tearingDown || entry.closing || (failClosed && signal.aborted)) throw fail('plugin_operation_closed');
+                // A disable during the final settlement still decides the outcome.
+                if (failClosed && entry.failed) return await settleBeforeRequest();
                 return value;
             } catch (error) {
                 // Read before a possible disable closes the worker; never throws.
                 await pullAbsent();
                 if (noticeFailure) throw noticeFailure;
                 if (identityFailure) throw identityFailure;
+                if (failClosed) {
+                    if (stopped()) throw fail('plugin_operation_closed');
+                    disable(entry, error?.code ?? 'plugin_hook_failed');
+                    return await settleBeforeRequest();
+                }
                 if (closed || tearingDown || entry.closing) throw error;
                 if (provider && error?.code === 'plugin_execution_failed' && !entry.session.failure && !signal.aborted) {
                     providerFailure(entry); await noticesSettled(); throw error;
@@ -571,13 +607,15 @@ async function createBgPluginHost({ database, bindings, getDatabase, getSelectio
             const { index, plugin } = entry;
             const abortSignal = AbortSignal.any([signal, entry.abort.signal]);
             const storage = createPluginStorage({ ...storageOwner, plugin: entry.plugin, beforeEffect: () => effect(entry),
-                reserveLocal: reservePluginStorage, wrapLocalRead: reservedPluginValue,
+                reserveLocal: reservePluginStorage, wrapLocalRead: reservedPluginValue, markIdentityFailure,
                 prepareActive: () => currentIdentity(phaseScope.getStore() ?? entry.lastPhase ?? 'load'),
                 assertActive: function(latest) {
                     if (!closed && !tearingDown) {
                         const provided = arguments.length > 0;
                         const root = provided ? latest : storageOwner.peekRoot();
-                        if (!provided && root == null) throw fail('plugin_identity_reload_required');
+                        if (!provided && root == null) {
+                            throw markIdentityFailure(fail('plugin_identity_reload_required'));
+                        }
                         checkedIdentity(root, phaseScope.getStore() ?? entry.lastPhase ?? 'load');
                     }
                     if (closed || tearingDown || entry.failed || signal.aborted) throw fail('plugin_operation_closed');
@@ -657,11 +695,13 @@ async function createBgPluginHost({ database, bindings, getDatabase, getSelectio
                         }
                         if (error?.code === 'plugin_identity_unavailable') throw latchIdentityFailure();
                         if (error?.code === 'plugin_identity_reload_required') {
-                            disable(entry, 'plugin_api_unsupported', 'plugin_identity_cache_unstable', phaseScope.getStore() ?? entry.lastPhase ?? 'load');
+                            disable(entry, 'plugin_api_unsupported', 'plugin_identity_cache_unstable', phaseScope.getStore() ?? entry.lastPhase ?? 'load',
+                                hostIdentityFailures.has(error) ? 'identity' : 'execution');
                             throw error;
                         }
                         if (!identityFailure && !['plugin_invocation_expired', 'plugin_budget_exceeded'].includes(error?.code)) {
-                            disable(entry, error?.code ?? 'plugin_hook_failed', method);
+                            disable(entry, error?.code ?? 'plugin_hook_failed', method, undefined,
+                                hostIdentityFailures.has(error) ? 'identity' : 'execution');
                         }
                         throw error;
                     }

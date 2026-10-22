@@ -1,5 +1,5 @@
 'use strict';
-const test = require('node:test');
+const { test, describe } = require('node:test');
 const assert = require('node:assert/strict');
 const { createHash } = require('node:crypto');
 const { createRequire } = require('node:module');
@@ -7,13 +7,14 @@ const Module = require('node:module');
 const path = require('node:path');
 const targetRequire = createRequire(path.resolve(process.argv[2], 'package.json'));
 let wireMutation = null;
+let wireRuntimeMs = null;
 const originalLoad = Module._load;
 Module._load = function(request, ...args) {
     const value = originalLoad.call(this, request, ...args);
     if (request === './bgPluginSandbox.cjs') return { ...value, createPluginSandbox: options => {
         const mutation = wireMutation;
         // A mutation may return undefined to hold a frame and deliver it later.
-        return value.createPluginSandbox({ ...options, onFrame: frame => {
+        return value.createPluginSandbox({ ...options, ...(wireRuntimeMs == null ? {} : { runtimeMs: wireRuntimeMs }), onFrame: frame => {
             const next = mutation ? mutation(frame, options.onFrame) : frame;
             if (next !== undefined) options.onFrame(next);
         } });
@@ -62,6 +63,7 @@ async function fixture(t, plugins, permissions = true, options = {}) {
         writeRoot: async mutate => { await options.beforeRootWrite?.(); root = mutate(root); writes++; } };
     t.after(async () => { await host?.close(); db.close(); });
     wireMutation = options.wireMutation ?? null;
+    wireRuntimeMs = options.runtimeMs ?? null;
     host = await createBgPluginHost({ database: options.separateRoot ? operationDb : root,
         getDatabase: () => options.separateRoot ? operationDb : root, getSelection: () => ({ characterIndex: 0, chatIndex: 0 }),
         hydrate: options.hydrate ?? (async value => structuredClone(value)), storageOwner: owner, beforeEffect: () => { effects++; return options.beforeEffect?.(); },
@@ -72,6 +74,7 @@ async function fixture(t, plugins, permissions = true, options = {}) {
         operation: { operationId: options.operationId ?? 'synthetic-operation', charId: 'synthetic-character', chatId: 'synthetic-chat', inputPreparedOnClient: options.prepared === true },
         signal: controller.signal, bindings });
     wireMutation = null;
+    wireRuntimeMs = null;
     return { host, registry, bindings, notifications, owner, network, get root() { return root; },
         set root(value) { root = value; }, get effects() { return effects; }, get writes() { return writes; },
         get operationDb() { return options.separateRoot ? operationDb : root; },
@@ -454,7 +457,7 @@ test('a second local cache eviction omits only that context without replay or a 
 test('moving an already-failed context does not invalidate a remaining healthy hook',async t=>{
     const h=await fixture(t,[plugin('failed-order',`await Risuai.addRisuReplacer('beforeRequest',()=>{throw Error('fixture failure');});`),
         plugin('healthy-order',`await Risuai.addRisuReplacer('beforeRequest',x=>[...x,{role:'system',content:'kept'}]);`)],true,{separateRoot:true});
-    const hooks=[...h.registry.replacerbeforeRequest];assert.deepEqual(await hooks[0]([]),[]);
+    const hooks=[...h.registry.replacerbeforeRequest];await assert.rejects(hooks[0]([]),{code:'plugin_before_request_failed'});
     h.root={...h.root,plugins:[h.root.plugins[1],h.root.plugins[0]]};assert.deepEqual(await hooks[1]([]),[{role:'system',content:'kept'}]);
     assert.equal(h.notices().length,1);
 });
@@ -607,7 +610,7 @@ test('canonical argument conflict preserves the external value and rejects a sta
             else await Risuai.setArgument('sample','guest-write');return x;});`)],true,{separateRoot:true});
     const hook=[...h.registry.replacerbeforeRequest][0];await hook([{role:'user',content:'read'}]);
     h.root={...h.root,plugins:h.root.plugins.map(p=>({...p,realArg:{sample:'external-edit'}}))};
-    const input=[{role:'user',content:'write'}];assert.deepEqual(await hook(input),input);
+    const input=[{role:'user',content:'write'}];await assert.rejects(hook(input),{code:'plugin_before_request_failed'});
     assert.equal(h.root.plugins[0].realArg.sample,'external-edit');assert.equal(h.writes,0);
     assert.equal(h.operationDb.plugins[0].realArg.sample,'original');
     // effect() is a conservative intent latch; a rejected transaction can still
@@ -743,7 +746,7 @@ test('uncaught local frame refusal retains separate API and terminal resource no
         await Risuai.addRisuReplacer('beforeRequest',async()=>Risuai.nativeFetch('https://synthetic.invalid',
             {method:'POST',body:'x'.repeat(9*1024*1024)}));
     `)]);
-    await [...h.registry.replacerbeforeRequest][0]([]);
+    await assert.rejects([...h.registry.replacerbeforeRequest][0]([]), { code: 'plugin_before_request_failed' });
     const notices = h.notices(); assert.equal(notices.length, 2);
     assert.ok(notices.every(n => n.code === 'plugin_host_limit' && n.effectsMayHaveOccurred === false));
     assert.deepEqual(notices.map(n => n.eventKey.split(':').at(-1)).sort(), ['failure', 'limit']);
@@ -784,9 +787,14 @@ test('failed hook keeps previous chain value and disables only its plugin', asyn
     const h = await fixture(t, [plugin('first', `await Risuai.addRisuReplacer('beforeRequest',x=>[...x,{role:'system',content:'first'}]);`),
         plugin('second', `await Risuai.addRisuReplacer('beforeRequest',x=>{x.length=0;throw Error('private text');});`),
         plugin('third', `await Risuai.addRisuReplacer('beforeRequest',x=>[...x,{role:'system',content:'third'}]);`)]);
-    let messages = [];
-    for (const hook of h.registry.replacerbeforeRequest) messages = await hook(messages);
-    assert.deepEqual(messages.map(message => message.content), ['first', 'third']);
+    let messages = [], ran = 0, failure;
+    for (const hook of h.registry.replacerbeforeRequest) {
+        ran++;
+        try { messages = await hook(messages); } catch (error) { failure = error; break; }
+    }
+    assert.equal(failure?.code, 'plugin_before_request_failed');
+    assert.equal(ran, 2, 'the third hook never runs');
+    assert.deepEqual(messages.map(message => message.content), ['first']);
     assert.equal(h.notices().length, 1);
     assert.equal(h.notices()[0].code, 'plugin_hook_failed');
     assert.equal(JSON.stringify(h.notices()).includes('private text'), false);
@@ -829,7 +837,7 @@ test('forged unknown root RPC bypassing the proxy keeps plugin_api_unsupported b
         return frame;
     } });
     const input = [{ role: 'user', content: 'kept' }];
-    assert.deepEqual(await [...h.registry.replacerbeforeRequest][0](input), input);
+    await assert.rejects([...h.registry.replacerbeforeRequest][0](input), { code: 'plugin_before_request_failed' });
     assert.equal(h.root.plugins.length, 1);
     assert.equal(h.notices()[0].code, 'plugin_api_unsupported');
     assert.equal(h.notices()[0].api, 'forged_unknown_root');
@@ -839,7 +847,7 @@ test('exposed method rejected by parent policy keeps plugin_api_unsupported beha
     const h = await fixture(t, [plugin('policy-rejected', `await Risuai.addRisuReplacer('beforeRequest',async xs=>{
         await Risuai.getArg('another-plugin::sample');return [];});`)]);
     const input = [{ role: 'user', content: 'kept' }];
-    assert.deepEqual(await [...h.registry.replacerbeforeRequest][0](input), input);
+    await assert.rejects([...h.registry.replacerbeforeRequest][0](input), { code: 'plugin_before_request_failed' });
     assert.equal(h.root.plugins.length, 1);
     assert.equal(h.notices()[0].code, 'plugin_api_unsupported');
     assert.equal(h.notices()[0].api, 'get_arg');
@@ -982,7 +990,7 @@ test('permission denial after an input effect is not labelled as never applied',
     const h = await fixture(t, [plugin('partial', `await Risuai.addRisuScriptHandler('input',x=>x+' changed');
         await Risuai.addRisuReplacer('beforeRequest',async x=>{await Risuai.requestPluginPermission('sendChat');return x;});`)]);
     assert.equal(await [...h.registry.editinput][0]('input'), 'input changed');
-    assert.deepEqual(await [...h.registry.replacerbeforeRequest][0]([]), []);
+    await assert.rejects([...h.registry.replacerbeforeRequest][0]([]), { code: 'plugin_before_request_failed' });
     assert.equal(h.notices()[0].code, 'plugin_hook_failed');
     assert.equal(h.notices()[0].effectsMayHaveOccurred, true);
 });
@@ -1115,7 +1123,7 @@ test('observing a synchronous binding failure preserves the existing disabled-en
     });`)]);
     h.bindings.nativeFetch = () => { throw Error('synthetic validation'); };
     const hook = [...h.registry.replacerbeforeRequest][0];
-    assert.deepEqual(await hook([]), []); assert.deepEqual(await hook([]), []);
+    await assert.rejects(hook([]), { code: 'plugin_before_request_failed' }); await assert.rejects(hook([]), { code: 'plugin_before_request_failed' });
     assert.deepEqual(h.notices().map(value => value.code), ['plugin_hook_failed']);
 });
 
@@ -1236,7 +1244,7 @@ test('limit warning does not conflict with a later terminal failure in the same 
         try{await Risuai.nativeFetch('https://synthetic.invalid/limit',{method:'POST',body:'x'.repeat(4*1024*1024)});}catch{}
         throw Error('private terminal failure');
     });`)]);
-    assert.deepEqual(await [...h.registry.replacerbeforeRequest][0]([]), []);
+    await assert.rejects([...h.registry.replacerbeforeRequest][0]([]), { code: 'plugin_before_request_failed' });
     assert.equal(h.controller.signal.aborted, false); assert.equal(h.network.length, 0);
     assert.deepEqual(h.notices().map(row=>row.code), ['plugin_host_limit','plugin_hook_failed']);
 });
@@ -1247,7 +1255,7 @@ test('recoverable limit and terminal resource failure keep separate stored notic
         await Risuai.getDatabase(['pluginCustomStorage']);return messages;
     });`)]);
     h.root.pluginCustomStorage.oversized='x'.repeat(4*1024*1024);
-    assert.deepEqual(await [...h.registry.replacerbeforeRequest][0]([]),[]);
+    await assert.rejects([...h.registry.replacerbeforeRequest][0]([]),{code:'plugin_before_request_failed'});
     assert.equal(h.controller.signal.aborted,false);assert.equal(h.network.length,0);assert.equal(h.effects,0);
     const notices=h.notices();assert.equal(notices.length,2);
     assert.ok(notices.every(row=>row.code==='plugin_host_limit'&&row.reason==='operation_budget'&&!row.effectsMayHaveOccurred));
@@ -1347,7 +1355,7 @@ test('a .catch()-only call of an absent API throws before .catch attaches and fo
     const h = await fixture(t, [plugin('catch-only-absent', `await Risuai.addRisuReplacer('beforeRequest',async xs=>{
         Risuai.absentName().catch(()=>{});return [];});`)], true, { publishDiagnostic: value => diagnostics.push(value) });
     const input = [{ role: 'user', content: 'kept' }];
-    assert.deepEqual(await [...h.registry.replacerbeforeRequest][0](input), input);
+    await assert.rejects([...h.registry.replacerbeforeRequest][0](input), { code: 'plugin_before_request_failed' });
     assert.equal(h.root.plugins.length, 1);
     const notices = h.notices();
     assert.deepEqual(notices.map(row => [row.code, row.phase]), [['plugin_hook_failed', 'before_request']]);
@@ -1365,7 +1373,7 @@ test('forged inherited object names are not dispatcher handlers', async t => {
             return frame;
         } });
         const input = [{ role: 'user', content: 'kept' }];
-        assert.deepEqual(await [...h.registry.replacerbeforeRequest][0](input), input, forged);
+        await assert.rejects([...h.registry.replacerbeforeRequest][0](input), { code: 'plugin_before_request_failed' }, forged);
         assert.equal(h.notices()[0].code, 'plugin_api_unsupported', forged);
     }
 });
@@ -1381,6 +1389,364 @@ const sameTick = (first, second) => {
         return undefined;
     };
 };
+
+describe('[D1a-1] BG beforeRequest failure fails the request', () => {
+    const beforeRequest = h => {
+        assert.equal(h.registry.replacerbeforeRequest.size, 1, 'expected one beforeRequest hook');
+        return [...h.registry.replacerbeforeRequest][0];
+    };
+    const expectBeforeRequestFailure = promise => assert.rejects(promise, { code: 'plugin_before_request_failed' });
+
+    test('rejects synchronous throws, rejected promises, and every non-array result', async t => {
+        const cases = [
+            ['synchronous throw', `throw Error('synthetic sync failure')`],
+            ['async rejection', `await Promise.reject(Error('synthetic async failure'))`],
+            ['null', `return null`], ['undefined', `return undefined`], ['string', `return 'invalid'`],
+            ['number', `return 123`], ['object', `return {invalid:true}`],
+        ];
+        for (const [name, outcome] of cases) await t.test(name, async t => {
+            const h = await fixture(t, [plugin('direct-' + name.replaceAll(' ', '-'),
+                `await Risuai.addRisuReplacer('beforeRequest',async()=>{${outcome};});`)]);
+            await expectBeforeRequestFailure(beforeRequest(h)([]));
+            const notices = h.notices();
+            assert.equal(notices.length, 1);
+            assert.equal(notices[0].code, 'plugin_hook_failed');
+            assert.equal(notices[0].phase, 'before_request');
+            assert.equal(notices[0].effectsMayHaveOccurred, false);
+        });
+    });
+
+    test('rejects fatal API failures even when guest code catches the API rejection', async t => {
+        const cases = [
+            ['synchronous binding failure', `try{await Risuai.nativeFetch('https://synthetic.invalid/fatal',{});}catch{}return messages;`,
+                { nativeFetch: () => { throw Error('synthetic binding failure'); } }, true],
+            ['uncaught local CAS conflict', `const local=await Risuai.getLocalPluginStorage();await local.setItem('key','value');return messages;`,
+                { beforeLocalTransaction: () => { throw Error('synthetic CAS conflict'); } }, true],
+            ['fatal host value limit', `await Risuai.nativeFetch('https://synthetic.invalid/limit',{method:'POST',body:'x'.repeat(9*1024*1024)});return messages;`, {}, true],
+            ['worker sandbox timeout', `await new Promise(()=>{});return messages;`, { runtimeMs: 500 }, true],
+            ['runtime permission denial', `await Risuai.getDatabase(['characters']);return messages;`, { permissionState: {
+                given: [JSON.stringify(['fatal-runtime-permission-denial','replacer'])], denied: [],
+                cache: [[JSON.stringify(['fatal-runtime-permission-denial','replacer']) + '_lastGrantTime', Date.now()]],
+            } }, false],
+        ];
+        for (const [name, body, options, permissions] of cases) await t.test(name, async t => {
+            const h = await fixture(t, [plugin('fatal-' + name.replaceAll(' ', '-'),
+                `await Risuai.addRisuReplacer('beforeRequest',async messages=>{${body}});`)], permissions, options);
+            if (options.nativeFetch) h.bindings.nativeFetch = options.nativeFetch;
+            await expectBeforeRequestFailure(beforeRequest(h)([{ role: 'user', content: 'kept' }]));
+            const notices = h.notices();
+            if (name === 'fatal host value limit') {
+                assert.equal(notices.length, 2);
+                assert.ok(notices.every(row => row.code === 'plugin_host_limit' && row.phase === 'before_request'));
+                assert.deepEqual(notices.map(row => row.eventKey.split(':').at(-1)).sort(), ['failure', 'limit']);
+            } else {
+                assert.equal(notices.length, 1);
+                assert.equal(notices[0].phase, 'before_request');
+            }
+        });
+    });
+
+    test('preserves a recoverable warning before the terminal beforeRequest notice', async t => {
+        const h = await fixture(t, [plugin('warning-then-failure', `await Risuai.addRisuReplacer('beforeRequest',async messages=>{
+            try{await Risuai.nativeFetch('https://synthetic.invalid/limit',{method:'POST',body:'x'.repeat(4*1024*1024)});}catch{}
+            throw Error('synthetic terminal failure');
+        });`)]);
+        await expectBeforeRequestFailure(beforeRequest(h)([]));
+        assert.deepEqual(h.notices().map(row => row.code), ['plugin_host_limit', 'plugin_hook_failed']);
+    });
+
+    test('rejects an installed beforeRequest after input, prior beforeRequest, or provider execution disablement without a duplicate notice', async t => {
+        const cases = [
+            ['input', `await Risuai.addRisuScriptHandler('input',()=>{throw Error('input failed')});`,
+                async h => assert.equal(await [...h.registry.editinput][0]('kept'), 'kept')],
+            ['prior beforeRequest', '', async h => expectBeforeRequestFailure(beforeRequest(h)([]))],
+            ['provider', `await Risuai.addProvider('failing-provider',()=>({success:true,content:123}));`,
+                async h => assert.rejects(h.registry.providers.get('failing-provider')({}), { code: 'plugin_provider_failed' })],
+        ];
+        for (const [name, registration, disable] of cases) await t.test(name, async t => {
+            const h = await fixture(t, [plugin('prior-' + name, `${registration}
+                await Risuai.addRisuReplacer('beforeRequest',()=>{throw Error('must not run after disable')});`)]);
+            await disable(h);
+            const noticeCount = h.notices().length;
+            await expectBeforeRequestFailure(beforeRequest(h)([{ role: 'user', content: 'kept' }]));
+            assert.equal(h.notices().length, noticeCount);
+        });
+        await t.test('provider plugin_execution_failed leaves beforeRequest enabled', async t => {
+            const h = await fixture(t, [plugin('provider-execution-stays-enabled', `
+                await Risuai.addProvider('execution-provider',()=>{throw Error('provider execution failed')});
+                await Risuai.addRisuReplacer('beforeRequest',messages=>[...messages,{role:'system',content:'continued'}]);
+            `)]);
+            await assert.rejects(h.registry.providers.get('execution-provider')({}), { code: 'plugin_execution_failed' });
+            const noticeCount = h.notices().length;
+            assert.deepEqual(await beforeRequest(h)([]), [{ role: 'system', content: 'continued' }]);
+            assert.equal(h.notices().length, noticeCount);
+        });
+    });
+
+    test('stops a multi-plugin pipeline at the failing plugin', async t => {
+        const calls = [];
+        const h = await fixture(t, [
+            plugin('pipeline-a', `await Risuai.addRisuReplacer('beforeRequest',x=>[...x,{role:'system',content:'A'}]);`),
+            plugin('pipeline-b', `await Risuai.addRisuReplacer('beforeRequest',()=>{throw Error('stop')});`),
+            plugin('pipeline-c', `await Risuai.addRisuReplacer('beforeRequest',x=>[...x,{role:'system',content:'C'}]);`),
+        ]);
+        let messages = [];
+        for (const [index, hook] of [...h.registry.replacerbeforeRequest].entries()) {
+            calls.push(index);
+            try { messages = await hook(messages); } catch (error) {
+                assert.equal(error.code, 'plugin_before_request_failed');
+                break;
+            }
+        }
+        assert.deepEqual(calls, [0, 1]);
+        assert.deepEqual(messages.map(row => row.content), ['A']);
+        assert.deepEqual(h.notices().map(row => row.pluginName), ['pipeline-b']);
+    });
+
+    test('does not install hooks excluded during load while a valid hook still runs', async t => {
+        const invalidRegistration = plugin('invalid-registration', `await Risuai.addRisuReplacer('not-a-phase',x=>x);`);
+        const loadFailure = plugin('load-failure', `throw Error('synthetic load failure');`);
+        const valid = plugin('valid-load', `await Risuai.addRisuReplacer('beforeRequest',x=>[...x,{role:'system',content:'valid'}]);`);
+        const h = await fixture(t, [invalidRegistration, loadFailure, valid]);
+        assert.equal(h.registry.replacerbeforeRequest.size, 1);
+        assert.deepEqual(await beforeRequest(h)([]), [{ role: 'system', content: 'valid' }]);
+        const noPermission = await fixture(t, [plugin('no-permission', `await Risuai.addRisuReplacer('beforeRequest',x=>x);`)], false);
+        assert.equal(noPermission.registry.replacerbeforeRequest.size, 0);
+    });
+
+    test('identity edits, disablement, reorder, append, duplicate name, and cache instability remain fail-open', async t => {
+        const mutations = {
+            edit: plugins => plugins.map((p, i) => i ? p : { ...p, script: p.script + '\n// edited' }),
+            disable: plugins => plugins.map((p, i) => i ? p : { ...p, enabled: false }),
+            reorder: plugins => [plugins[1], plugins[0]],
+            append: plugins => [...plugins, plugin('appended', '')],
+            duplicate: plugins => [...plugins, { ...plugins[0] }],
+        };
+        for (const [name, mutate] of Object.entries(mutations)) await t.test(name, async t => {
+            const h = await fixture(t, [
+                plugin('identity-target', `await Risuai.addRisuReplacer('beforeRequest',x=>[...x,{role:'system',content:'stale'}]);`),
+                plugin('identity-peer', `await Risuai.addRisuReplacer('beforeRequest',x=>x);`),
+            ], true, { separateRoot: true });
+            const input = [{ role: 'user', content: 'kept' }];
+            h.root = { ...h.root, plugins: mutate(structuredClone(h.root.plugins)) };
+            h.swapOperationDb(); await h.host.refreshIdentity();
+            assert.deepEqual(await [...h.registry.replacerbeforeRequest][0](input), name === 'append'
+                ? [...input, { role: 'system', content: 'stale' }] : input);
+        });
+        await t.test('identity cache instability', async t => {
+            let unstable = false;
+            const h = await fixture(t, [plugin('identity-cache', `await Risuai.addRisuReplacer('beforeRequest',x=>x);`)], true,
+                { separateRoot: true, getRoot: root => unstable ? { ...root, plugins: [] } : root });
+            unstable = true;
+            const input = [{ role: 'user', content: 'kept' }];
+            assert.deepEqual(await beforeRequest(h)(input), input);
+        });
+    });
+
+    test('the first recorded disable cause controls identity versus execution handling', async t => {
+        await t.test('identity recorded before a later worker failure returns the original input', async t => {
+            let entered, release;
+            const started = new Promise(resolve => { entered = resolve; });
+            const held = new Promise((_, reject) => { release = () => reject(Error('late worker failure')); });
+            const h = await fixture(t, [plugin('identity-first', `await Risuai.addRisuReplacer('beforeRequest',async messages=>{
+                await Risuai.nativeFetch('https://synthetic.invalid/held',{});return messages;
+            });`)], true, { separateRoot: true, nativeFetch: async () => { entered(); return held; } });
+            const input = [{ role: 'user', content: 'kept' }];
+            const pending = beforeRequest(h)(input);
+            await started;
+            h.root = { ...h.root, plugins: h.root.plugins.map(p => ({ ...p, enabled: false })) };
+            h.swapOperationDb();
+            await h.host.refreshIdentity();
+            release();
+            assert.deepEqual(await pending, input);
+            assert.deepEqual(h.notices().map(row => row.code), ['plugin_hook_failed']);
+        });
+
+        await t.test('API failure recorded before a pending plugin-set change rejects', async t => {
+            let entered, release;
+            const started = new Promise(resolve => { entered = resolve; });
+            const held = new Promise((_, reject) => { release = () => reject(Error('API failure recorded first')); });
+            const h = await fixture(t, [plugin('execution-first', `await Risuai.addRisuReplacer('beforeRequest',async messages=>{
+                await Risuai.nativeFetch('https://synthetic.invalid/held',{});return messages;
+            });`)], true, { separateRoot: true, nativeFetch: async () => { entered(); return held; } });
+            const pending = beforeRequest(h)([{ role: 'user', content: 'kept' }]);
+            await started;
+            h.root = { ...h.root, plugins: h.root.plugins.map(p => ({ ...p, enabled: false })) };
+            h.swapOperationDb();
+            release();
+            await expectBeforeRequestFailure(pending);
+        });
+
+        await t.test('a guest-thrown plugin_identity_changed code is still an execution failure', async t => {
+            const h = await fixture(t, [plugin('guest-identity-code', `await Risuai.addRisuReplacer('beforeRequest',()=>{
+                throw Object.assign(Error('guest forged identity code'),{code:'plugin_identity_changed'});
+            });`)]);
+            await expectBeforeRequestFailure(beforeRequest(h)([]));
+        });
+
+        await t.test('storage-detected script mismatch during getArgument remains an identity skip', async t => {
+            let h;
+            h = await fixture(t, [plugin('storage-identity-change', `await Risuai.addRisuReplacer('beforeRequest',async messages=>{
+                await Risuai.getArgument('sample');return [...messages,{role:'system',content:'must-not-publish'}];
+            });`)], true, { separateRoot: true, wireMutation: frame => {
+                if (frame.kind === 'call' && frame.method === 'api'
+                    && frame.args?.[1]?.[0]?.[1] === 'getArgument') {
+                    h.root = { ...h.root, plugins: h.root.plugins.map(p => ({ ...p, script: p.script + '\n// changed' })) };
+                }
+                return frame;
+            } });
+            const input = [{ role: 'user', content: 'kept' }];
+            assert.deepEqual(await beforeRequest(h)(input), input);
+            const notices = h.notices();
+            assert.equal(notices.length, 1);
+            assert.equal(notices[0].code, 'plugin_hook_failed');
+            assert.deepEqual(await beforeRequest(h)(input), input);
+            assert.equal(h.notices().length, 1);
+        });
+    });
+
+    test('gives storage failure priority over cancellation and execution failure', async t => {
+        const controller = new AbortController();
+        const h = await fixture(t, [plugin('storage-priority', `await Risuai.addRisuReplacer('beforeRequest',()=>{throw Error('hook failure')});`)], true,
+            { controller, publishNotification: async () => { controller.abort(); throw Object.assign(Error('notice store failed'), { code: 'plugin_notification_unavailable' }); } });
+        await assert.rejects(beforeRequest(h)([]), { code: 'plugin_notification_unavailable' });
+    });
+
+    test('gives operation closure priority while execution or identity notice settlement is pending', async t => {
+        for (const cause of ['execution', 'identity']) await t.test(cause, async t => {
+            let noticeStarted, release;
+            const started = new Promise(resolve => { noticeStarted = resolve; });
+            const held = new Promise(resolve => { release = resolve; });
+            const controller = new AbortController();
+            const h = await fixture(t, [plugin('close-priority-' + cause,
+                `await Risuai.addRisuReplacer('beforeRequest',${cause === 'execution' ? "()=>{throw Error('failure')}" : 'x=>x'});`)], true,
+                { controller, separateRoot: cause === 'identity', publishNotification: async () => { noticeStarted(); await held; return { status: 'stored' }; } });
+            if (cause === 'identity') {
+                h.root = { ...h.root, plugins: h.root.plugins.map(p => ({ ...p, enabled: false })) };
+                h.swapOperationDb();
+            }
+            const pending = beforeRequest(h)([]);
+            await started; controller.abort(); release();
+            await assert.rejects(pending, { code: 'plugin_operation_closed' });
+        });
+    });
+
+    test('gives operation closure priority to an in-flight worker rejection', async t => {
+        let entered, rejectWork;
+        const started = new Promise(resolve => { entered = resolve; });
+        const controller = new AbortController();
+        const h = await fixture(t, [plugin('in-flight-close', `await Risuai.addRisuReplacer('beforeRequest',async messages=>{
+            await Risuai.nativeFetch('https://synthetic.invalid/held',{});return messages;
+        });`)], true, { controller, nativeFetch: async () => { entered(); return new Promise((_, reject) => { rejectWork = reject; }); } });
+        const pending = beforeRequest(h)([]);
+        await started; controller.abort(); rejectWork(Error('worker ended'));
+        await assert.rejects(pending, { code: 'plugin_operation_closed' });
+    });
+
+    test('rechecks disable cause and cancellation after final notice settlement', async t => {
+        for (const cause of ['execution', 'identity', 'cancellation']) await t.test(cause, async t => {
+            let noticeStarted, releaseNotice, callbackReturned, failureInjected;
+            const noticePending = new Promise(resolve => { noticeStarted = resolve; });
+            const noticeGate = new Promise(resolve => { releaseNotice = resolve; });
+            const callbackDone = new Promise(resolve => { callbackReturned = resolve; });
+            const failureFrame = new Promise(resolve => { failureInjected = resolve; });
+            const controller = new AbortController();
+            let h;
+            h = await fixture(t, [plugin('final-settlement-' + cause, `
+                await Risuai.addRisuReplacer('beforeRequest',messages=>{
+                    ${cause === 'execution' ? "setTimeout(()=>Risuai.getRuntimeInfo().catch(()=>{}),100);" : ''}
+                    return [...messages,{role:'system',content:'final-settlement-result'}];
+                });
+            `)], true, {
+                controller, separateRoot: cause === 'identity',
+                publishNotification: async (event, identity) => {
+                    noticeStarted(); await noticeGate;
+                    return identity ? h.notifications.publishPluginFailure(event, identity) : h.notifications.publish(event);
+                },
+                wireMutation: frame => {
+                    const encoded = JSON.stringify(frame);
+                    if (frame.kind === 'return' && encoded.includes('final-settlement-result')) {
+                        h.root = { ...h.root, plugins: [...h.root.plugins, plugin('final-settlement-appended-' + cause, '')] };
+                        h.swapOperationDb(); callbackReturned();
+                    }
+                    if (cause === 'execution' && frame.kind === 'call' && frame.method === 'api'
+                        && frame.args?.[1]?.[0]?.[1] === 'getRuntimeInfo') {
+                        failureInjected(); return { ...frame, v: 0 };
+                    }
+                    return frame;
+                },
+            });
+            t.after(() => releaseNotice());
+            const input = [{ role: 'user', content: 'kept' }];
+            const pending = beforeRequest(h)(input);
+            pending.catch(() => {});
+            await Promise.all([noticePending, callbackDone]);
+
+            let refresh;
+            if (cause === 'execution') {
+                await failureFrame;
+                await new Promise(resolve => setImmediate(resolve));
+            }
+            if (cause === 'identity') {
+                h.root = { ...h.root, plugins: h.root.plugins.map(p => ({ ...p, enabled: false })) };
+                h.swapOperationDb();
+                refresh = h.host.refreshIdentity();
+                refresh.catch(() => {});
+                await new Promise(resolve => setImmediate(resolve));
+            }
+            if (cause === 'cancellation') controller.abort();
+            releaseNotice();
+            await refresh;
+
+            if (cause === 'execution') await expectBeforeRequestFailure(pending);
+            else if (cause === 'identity') assert.deepEqual(await pending, input);
+            else await assert.rejects(pending, { code: 'plugin_operation_closed' });
+        });
+    });
+
+    test('continues after caught non-fatal absent, limit, and local CAS rejections while the entry stays enabled', async t => {
+        const cases = [
+            ['absent', `try{await Risuai.setDatabase({plugins:[]});}catch{}`],
+            ['limit', `try{await Risuai.nativeFetch('https://synthetic.invalid/limit',{method:'POST',body:'x'.repeat(4*1024*1024)});}catch{}`],
+        ];
+        for (const [name, action] of cases) await t.test(name, async t => {
+            const h = await fixture(t, [plugin('caught-' + name, `await Risuai.addRisuReplacer('beforeRequest',async messages=>{
+                ${action}return [...messages,{role:'system',content:'continued'}];
+            });`)]);
+            assert.deepEqual(await beforeRequest(h)([]), [{ role: 'system', content: 'continued' }]);
+        });
+        await t.test('local CAS', async t => {
+            const key = 'cache/plugin-storage/' + Buffer.from('d1a-cas').toString('base64url') + '.json';
+            let h;
+            h = await fixture(t, [plugin('caught-local-cas', `await Risuai.addRisuReplacer('beforeRequest',async messages=>{
+                const local=await Risuai.getLocalPluginStorage();await local.getItem('d1a-cas');
+                await Risuai.nativeFetch('https://synthetic.invalid/cas-barrier',{});
+                try{await local.setItem('d1a-cas','guest');}catch(error){if(error.code!=='plugin_storage_conflict')throw error;}
+                return [...messages,{role:'system',content:'continued'}];
+            });`)], true, { nativeFetch: async () => { h.owner.kvSet(key, JSON.stringify('external')); return new Response('ok'); } });
+            assert.deepEqual(await beforeRequest(h)([]), [{ role: 'system', content: 'continued' }]);
+            assert.equal(JSON.parse(h.owner.kvGet(key)), 'external');
+        });
+    });
+
+    test('leaves body, afterRequest, input/output script, and provider failure handling unchanged', async t => {
+        const h = await fixture(t, [plugin('unchanged-contracts', `
+            await Risuai.registerBodyIntercepter(()=>{throw Error('body failure')});
+            await Risuai.addRisuReplacer('afterRequest',()=>{throw Error('after failure')});
+            await Risuai.addRisuScriptHandler('input',()=>{throw Error('input failure')});
+            await Risuai.addRisuScriptHandler('output',()=>{throw Error('output failure')});
+            await Risuai.addProvider('unchanged-provider',()=>{throw Error('provider failure')});
+        `)]);
+        assert.equal(await [...h.registry.replacerafterRequest][0]('answer'), 'answer');
+        assert.equal(await [...h.registry.editinput][0]('input'), 'input');
+        assert.equal(await [...h.registry.editoutput][0]('output'), 'output');
+        await assert.rejects(h.registry.providers.get('unchanged-provider')({}), { code: 'plugin_provider_failed' });
+        assert.equal(h.bindings.bodyInterceptors.length, 1);
+        const body = { kept: true };
+        assert.deepEqual(await h.bindings.bodyInterceptors[0].callback(body), body);
+        assert.equal(h.notices().some(row => row.code === 'plugin_before_request_failed'), false);
+    });
+});
 
 test('a synchronous registration refusal disables before a same-tick log is published', async t => {
     const h = await fixture(t, [plugin('same-tick-log', `

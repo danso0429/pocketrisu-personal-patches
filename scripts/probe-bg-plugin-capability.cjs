@@ -4,7 +4,7 @@ const assert = require('node:assert/strict');
 const fs = require('node:fs');
 const Module = require('node:module');
 const path = require('node:path');
-const test = require('node:test');
+const { test, describe } = require('node:test');
 const vm = require('node:vm');
 const { createRequire } = require('node:module');
 const { webcrypto } = require('node:crypto');
@@ -319,7 +319,7 @@ test('S1 worker exposure and parent dispatcher have behavioral parity, including
     const callback = [...h.registry.replacerbeforeRequest][0];
     selected = 'forgedOutsideSupportedList';
     const input = [{ role: 'user', content: 'kept' }];
-    assert.deepEqual(await callback(input), input);
+    await assert.rejects(callback(input), { code: 'plugin_before_request_failed' });
     const notices = h.notices();
     assert.equal(notices.some(row => row.code === 'plugin_api_unsupported' && row.api === 'forged_outside_supported_list'), true);
     assert.equal(h.root.plugins.length, 1);
@@ -392,7 +392,7 @@ test('S7 caught and uncaught absent calls use normal hook outcomes and never plu
     const uncaught = await fixture(t, [plugin('uncaught-absent', `await Risuai.addRisuReplacer('beforeRequest',async()=>{
         await Risuai.uncaughtMissingApi();return [];});`)]);
     const input = [{ role: 'user', content: 'kept' }];
-    assert.deepEqual(await [...uncaught.registry.replacerbeforeRequest][0](input), input);
+    await assert.rejects([...uncaught.registry.replacerbeforeRequest][0](input), { code: 'plugin_before_request_failed' });
     const notices = uncaught.notices();
     assert.equal(notices.some(row => row.code === 'plugin_hook_failed'), true);
     assert.equal(notices.some(row => row.code === 'plugin_api_unsupported'), false);
@@ -457,6 +457,28 @@ test('S11 a delayed pull response racing close is harmless and close remains bou
     assert.ok(delayed.size > 0, 'close-race injection did not observe an absent-record pull');
     assert.ok(Date.now() - started < 1500, 'absent pull race delayed close beyond the existing limit');
     assert.equal(h.controller.signal.aborted, false);
+});
+
+describe('[D1a-1] BG beforeRequest failure fails the request', () => {
+    test('uncaught absent capability calls fail beforeRequest while caught calls remain enabled', async t => {
+        const caught = await fixture(t, [plugin('d1a-caught-absent', `await Risuai.addRisuReplacer('beforeRequest',async messages=>{
+            try{await Risuai.d1aCaughtMissingApi();}catch(error){if(!(error instanceof TypeError))throw error;}
+            return [...messages,{role:'system',content:'continued'}];
+        });`)]);
+        assert.deepEqual(await [...caught.registry.replacerbeforeRequest][0]([]),
+            [{ role: 'system', content: 'continued' }]);
+        assert.equal(caught.root.plugins[0].enabled, true);
+        assert.equal(caught.notices().some(row => row.code === 'plugin_hook_failed'), false);
+
+        const uncaught = await fixture(t, [plugin('d1a-uncaught-absent', `await Risuai.addRisuReplacer('beforeRequest',async messages=>{
+            await Risuai.d1aUncaughtMissingApi();return messages;
+        });`)]);
+        await assert.rejects([...uncaught.registry.replacerbeforeRequest][0]([]),
+            { code: 'plugin_before_request_failed' });
+        const notices = uncaught.notices();
+        assert.deepEqual(notices.map(row => [row.code, row.phase]), [['plugin_hook_failed', 'before_request']]);
+        assert.equal(notices.some(row => row.code === 'plugin_api_unsupported'), false);
+    });
 });
 
 test('S10 malformed worker capability bootstrap is rejected before plugin code executes', async t => {
