@@ -19,7 +19,9 @@ module.exports = prior => {
     add('execution-predicate', 'server/node/bgOrchestrator.cjs',
         '    const bg = await loadBundle(deps.requestLogs)',
         `    const bg = await loadBundle(deps.requestLogs)
-    const pluginHostEligible = canStartPluginHost(mode, control, deps.bgPluginDependencies, bg)`);
+    const pluginHostEligible = canStartPluginHost(mode, control, deps.bgPluginDependencies, bg)
+    // Plugin MCP tools need the binding that installs and cleans up MCP clients.
+    const pluginMcpEligible = pluginHostEligible && typeof bg.bgPluginBindings.installMCP === 'function'`);
     add('preclaim-policy', 'server/node/bgOrchestrator.cjs',
         `          return bg.policy.requiresClientGenerationEpilogue(context.database, character)
             || bg.inputPolicy.requiresClientOwnedInputPreparation(context.database, context.chat)
@@ -59,7 +61,7 @@ module.exports = prior => {
         `    if (control?.inputCommandVersion === 1 && inputTransformClaim?.status === 'started'
       && !control.inputPreparedOnClient && db.plugins?.some(plugin => plugin.enabled)
           && bg.inputPolicy.evaluateServerInputModels(db, currentChat).kind === 'client-prepared'
-          && bg.inputPolicy.evaluateServerInputModels(db, currentChat, true).kind === 'server-input'
+          && bg.inputPolicy.evaluateServerInputModels(db, currentChat, true, true).kind === 'server-input'
           && !canStartPluginHost(mode, control, deps.bgPluginDependencies, bg)) throw Object.assign(new Error('server plugin host unavailable'), {
             code: 'BG_INPUT_HOST_UNSUPPORTED', api: 'server_plugin_host',
           })
@@ -68,23 +70,32 @@ module.exports = prior => {
         `  app.get('/api/bg-orchestrate-capabilities', sessionAuthMiddleware, (_req, res) => {
     res.json({`,
         `  app.get('/api/bg-orchestrate-capabilities', sessionAuthMiddleware, async (_req, res) => {
-    let serverPluginHostVersion = 0
+    let serverPluginHostVersion = 0, serverPluginMcpVersion = 0
     if (hasPluginHostIdentity(deps.bgPluginDependencies)) {
-      try { serverPluginHostVersion = hasPluginBindings(await loadBundle(deps.requestLogs)) ? 1 : 0 }
-      catch { /* Preserve existing capabilities when only the host bundle is unavailable. */ }
+      try {
+        const bundle = await loadBundle(deps.requestLogs)
+        serverPluginHostVersion = hasPluginBindings(bundle) ? 1 : 0
+        // Plugin MCP tools need the binding that installs and cleans up MCP clients.
+        serverPluginMcpVersion = serverPluginHostVersion === 1 && typeof bundle.bgPluginBindings.installMCP === 'function' ? 1 : 0
+      } catch { /* Preserve existing capabilities when only the host bundle is unavailable. */ }
     }
     res.json({
-      serverPluginHostVersion,`);
+      serverPluginHostVersion,
+      // Reported only when supported; older clients see the former shape.
+      ...(serverPluginMcpVersion === 1 ? { serverPluginMcpVersion } : {}),`);
     add('client-import', 'src/ts/bgOrchestrate.ts',
         "import { get } from 'svelte/store'",
-        "import { get } from 'svelte/store'\nimport { canUseServerPluginHost, observeServerPluginCapability, isServerPluginHostKnownOff } from './bgServerPluginCapability'\nimport { evaluateServerInputModels } from './bgServerInputProviderPolicy'");
+        "import { get } from 'svelte/store'\nimport { canUseServerPluginHost, observeServerPluginCapability, isServerPluginHostKnownOff, isServerPluginMcpSupported } from './bgServerPluginCapability'\nimport { evaluateServerInputModels } from './bgServerInputProviderPolicy'");
     add('client-precheck', 'src/ts/bgOrchestrate.ts',
         `    if (inputPreparation !== 'client' && requiresClientOwnedInputPreparation((DBState as any)?.db, selectedChat)) {`,
         `    const decision = inputPreparation === 'client' ? null
         : evaluateServerInputModels((DBState as any)?.db, selectedChat)
     const pluginCandidate = decision?.kind === 'client-prepared'
         && decision.reason === 'plugin-host-unqualified'
-        && evaluateServerInputModels((DBState as any)?.db, selectedChat, true).kind === 'server-input'
+        && evaluateServerInputModels((DBState as any)?.db, selectedChat, true, true).kind === 'server-input'
+    // Plugin MCP URLs also need the server's plugin MCP support.
+    const pluginMcpRequired = pluginCandidate
+        && evaluateServerInputModels((DBState as any)?.db, selectedChat, true).kind !== 'server-input'
     if (decision?.kind === 'client-prepared' && (!pluginCandidate || isServerPluginHostKnownOff())) {
         return { kind: 'unsupported' }
     }`);
@@ -102,7 +113,7 @@ module.exports = prior => {
             return response.ok ? await readRecoveryJson(response) : null
             })
             if (!isCurrent()) return { kind: 'blocked', reason: 'selection-changed' }
-            if (!supported) return { kind: 'unsupported' }
+            if (!supported || (pluginMcpRequired && !isServerPluginMcpSupported())) return { kind: 'unsupported' }
         }
         return await submitServerInputCommand({`);
     add('client-config-recheck', 'src/ts/bgOrchestrate.ts',
@@ -111,7 +122,8 @@ module.exports = prior => {
                 observeServerPluginCapability(capability)
                 return inputPreparation === 'client'
                     || !requiresClientOwnedInputPreparation((DBState as any)?.db, currentChat(),
-                        capability.serverPluginHostVersion === 1)
+                        capability.serverPluginHostVersion === 1,
+                        capability.serverPluginHostVersion === 1 && capability.serverPluginMcpVersion === 1)
             },
             flushSettings: async () => {`);
     add('client-legacy-hint', 'src/ts/bgOrchestrate.ts',
@@ -119,10 +131,10 @@ module.exports = prior => {
         '                const capability = await readRecoveryJson(capabilityResponse)\n                observeServerPluginCapability(capability)');
     add('screen-hint-import', 'src/lib/ChatScreens/DefaultChatScreen.svelte',
         "    import { requiresClientOwnedInputPreparation } from '../../ts/bgServerInputProviderPolicy';",
-        "    import { requiresClientOwnedInputPreparation } from '../../ts/bgServerInputProviderPolicy';\n    import { serverPluginHostSupport } from '../../ts/bgServerPluginCapability';");
+        "    import { requiresClientOwnedInputPreparation } from '../../ts/bgServerInputProviderPolicy';\n    import { serverPluginHostSupport, serverPluginMcpSupport } from '../../ts/bgServerPluginCapability';");
     add('screen-retry-hint', 'src/lib/ChatScreens/DefaultChatScreen.svelte',
         'requiresClientOwnedInputPreparation(DBState.db, pendingChat)',
-        'requiresClientOwnedInputPreparation(DBState.db, pendingChat, $serverPluginHostSupport !== false)');
+        'requiresClientOwnedInputPreparation(DBState.db, pendingChat, $serverPluginHostSupport !== false,\n    $serverPluginHostSupport !== false && $serverPluginMcpSupport !== false)');
     add('screen-send-policy', 'src/lib/ChatScreens/DefaultChatScreen.svelte',
         `            && !requiresClientOwnedInputPreparation(DBState.db,
                 DBState.db.characters[selectedChar]?.chats?.[DBState.db.characters[selectedChar]?.chatPage])) {`,

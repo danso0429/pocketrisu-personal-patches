@@ -34,3 +34,28 @@ describe('server plugin runtime hints', () => {
         expect(read).toHaveBeenCalledTimes(1)
     })
 })
+
+describe('[D2-3] Plugin MCP server-input admission', () => {
+    it('[new] records MCP support only for the exact capability contract and matching host and MCP versions', async () => {
+        const capability = await import('./bgServerPluginCapability') as Record<string, any>
+        const supported = capability.isServerPluginMcpSupported
+        expect(supported, 'isServerPluginMcpSupported must be exported').toBeTypeOf('function')
+        expect(observeServerPluginCapability({ contract: on.contract,
+            serverPluginHostVersion: 1, serverPluginMcpVersion: 1 })).toBe(true)
+        expect(supported()).toBe(true)
+        for (const value of [
+            { contract: on.contract, serverPluginHostVersion: 1 },
+            { contract: on.contract, serverPluginHostVersion: 0, serverPluginMcpVersion: 1 },
+            { contract: on.contract, serverPluginHostVersion: 1, serverPluginMcpVersion: 0 },
+            { contract: 'other', serverPluginHostVersion: 1, serverPluginMcpVersion: 1 },
+        ]) {
+            observeServerPluginCapability(value)
+            expect(supported(), JSON.stringify(value)).toBe(false)
+        }
+    })
+
+    it('[unchanged] preserves the legacy host-only negotiation result when the MCP field is absent', () => {
+        expect(observeServerPluginCapability(on)).toBe(true)
+        expect(get(serverPluginHostSupport)).toBe(true)
+    })
+})

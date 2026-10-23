@@ -22,18 +22,18 @@ module.exports = prior => {
     add('preclaim', '          if (candidate && !pluginHostEligible) return {',
         '          if (candidate && !pluginHostEligible && !pluginFallbackEligible) return {');
     add('preclaim-omitted-versions', 'bg.inputPolicy.evaluateServerInputModels(context.database, context.chat, true)',
-        "bg.inputPolicy.evaluateServerInputModels(context.database, context.chat, pluginFallbackEligible && !pluginHostEligible ? 'omit' : true)");
+        "bg.inputPolicy.evaluateServerInputModels(context.database, context.chat, pluginFallbackEligible && !pluginHostEligible ? 'omit' : true, true)");
     add('preclaim-policy', 'bg.inputPolicy.requiresClientOwnedInputPreparation(context.database, context.chat, pluginHostEligible)',
-        "bg.inputPolicy.requiresClientOwnedInputPreparation(context.database, context.chat, pluginHostEligible ? true : pluginFallbackEligible ? 'omit' : false)");
+        "bg.inputPolicy.requiresClientOwnedInputPreparation(context.database, context.chat, pluginHostEligible ? true : pluginFallbackEligible ? 'omit' : false, pluginMcpEligible)");
     add('initial-policy', 'bg.inputPolicy.requiresClientOwnedInputPreparation(stripped, currentChat, pluginHostEligible)',
-        "bg.inputPolicy.requiresClientOwnedInputPreparation(stripped, currentChat, pluginHostEligible ? true : pluginFallbackEligible ? 'omit' : false)");
+        "bg.inputPolicy.requiresClientOwnedInputPreparation(stripped, currentChat, pluginHostEligible ? true : pluginFallbackEligible ? 'omit' : false, pluginMcpEligible)");
     add('notify-before-host-assert', "    if (control?.inputCommandVersion === 1 && inputTransformClaim?.status === 'started'",
         `    if (mode === 'full' && control && !pluginHostEligible) await notifyPluginOmission()
     if (control?.inputCommandVersion === 1 && inputTransformClaim?.status === 'started'`);
     add('assert-confirmed-omission', "          && !canStartPluginHost(mode, control, deps.bgPluginDependencies, bg)) throw Object.assign(new Error('server plugin host unavailable'), {",
         "          && !pluginOmissionNotified && !canStartPluginHost(mode, control, deps.bgPluginDependencies, bg)) throw Object.assign(new Error('server plugin host unavailable'), {");
     add('attached-policy', 'bg.inputPolicy.requiresClientOwnedInputPreparation(db, assemblyContext.chat, pluginHost !== null)',
-        "bg.inputPolicy.requiresClientOwnedInputPreparation(db, assemblyContext.chat, pluginHost !== null ? true : pluginOmissionNotified ? 'omit' : false)");
+        "bg.inputPolicy.requiresClientOwnedInputPreparation(db, assemblyContext.chat, pluginHost !== null ? true : pluginOmissionNotified ? 'omit' : false,\n          pluginHost !== null && pluginMcpEligible)");
     add('notify-latest', '      if (pluginHost) { refreshPluginChats(); await pluginHost.refreshIdentity() }',
         `      if (pluginHost) { refreshPluginChats(); await pluginHost.refreshIdentity() }
       else await notifyPluginOmission()`);

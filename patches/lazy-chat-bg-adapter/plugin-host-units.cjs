@@ -10,8 +10,10 @@ module.exports = prior => {
         after: [...prior, ...related, ...units].filter(unit => unit.file === file).map(unit => unit.id) });
     for (const file of ['server/node/bgPluginSandbox.cjs', 'server/node/bgPluginWorker.cjs',
         'server/node/bgPluginSession.cjs', 'server/node/bgPluginStorage.cjs', 'server/node/bgPluginHost.cjs', 'server/node/bgPluginValue.cjs',
-        'server/node/bgPluginDiagnostics.cjs', 'server/node/bgCurrentLorebookEntries.test.ts', 'src/lib/Others/BgPluginDiagnostics.svelte',
-        'src/ts/bgPluginBindings.ts']) {
+        'server/node/bgPluginDiagnostics.cjs', 'server/node/bgCurrentLorebookEntries.test.ts', 'server/node/bgPluginMcp.test.ts',
+        'server/node/bgPluginMcpExposure.test.ts',
+        'src/lib/Others/BgPluginDiagnostics.svelte', 'src/ts/bgPluginBindings.ts', 'src/ts/process/request/bgPluginMcpRequest.test.ts',
+        'src/ts/process/request/bgPluginMcpProviders.test.ts']) {
         units.push({ id: `lazy-chat-bg-adapter:plugin-host:owned:${file}:1.10`, file,
             type: 'owned', targetVersions, content: fs.readFileSync(path.join(__dirname, 'files-1.10', file), 'utf8') });
     }
@@ -282,5 +284,474 @@ require('./bgOrchestrator.cjs')(app, Object.assign({ bgPluginDependencies, sessi
         add(name, 'server/node/bgOrchestrator.cjs', anchor,
             anchor + `\n${indent}  if (['plugin_notification_unavailable', 'plugin_identity_unavailable'].includes(llmAbort.signal.reason?.code)) throw llmAbort.signal.reason`);
     }
+    // Plugin MCP tools in BG requests. Every change below applies only while a BG
+    // job runs (its abort signal is on globalThis); foreground requests and
+    // tool-free requests keep their existing behavior. The effect latch, the
+    // step cap, the single follow-up and the expiry stop apply only when the
+    // request's tools include a plugin MCP tool, so BG requests with external
+    // MCP tools only, or explicit arg.tools without plugin tools, are unchanged.
+    const bgJob = '(globalThis as { __bgOrchAbortSignal?: AbortSignal }).__bgOrchAbortSignal';
+    const bgPluginTools = tools => `(!!${bgJob} && (${tools} ?? []).some(tool => `
+        + `String((tool as { mcpURL?: unknown }).mcpURL ?? '').startsWith('plugin:')))`;
+    // A plugin MCP call that rejects because the session expired or the job
+    // closed ends the request; no further model send follows.
+    const terminalCall = error => `['plugin_invocation_expired', 'plugin_operation_closed']`
+        + `.includes(String((${error} as { code?: unknown } | null | undefined)?.code))`;
+    const cap = 'BG: maximum tool steps (8) reached';
+    const mcp = 'src/ts/process/mcp/mcp.ts';
+    add('mcp-bg-tool-owners', mcp,
+        `export async function getMCPTools(additionalMCPs?:string[]) {
+    await initializeMCPs(additionalMCPs);
+    const tools:MCPToolWithURL[] = [];
+    for(const key of Object.keys(MCPs)) {
+        const t = (await MCPs[key].getToolList()).map(tool => {
+            return {
+                ...tool,
+                mcpURL: key
+            }
+        })
+
+        tools.push(...t);
+    }
+    return tools;
+}
+`,
+        `// BG: the clients that offered each tool name in the latest tool list of the
+// running BG job. A BG call of a name that a plugin client offered there runs
+// only on that client and is refused when the list offered it more than once.
+let bgToolOwners: { signal: AbortSignal, owners: Map<string, { key: string, client: MCPClient|MCPClientLike }[]> } | null = null
+
+export async function getMCPTools(additionalMCPs?:string[]) {
+    await initializeMCPs(additionalMCPs);
+    const tools:MCPToolWithURL[] = [];
+    const bgSignal = ${bgJob}
+    const owners = new Map<string, { key: string, client: MCPClient|MCPClientLike }[]>()
+    for(const key of Object.keys(MCPs)) {
+        const client = MCPs[key]
+        const t = (await client.getToolList()).map(tool => {
+            return {
+                ...tool,
+                mcpURL: key
+            }
+        })
+        if(bgSignal){
+            for(const tool of t){
+                const offered = owners.get(tool.name) ?? []
+                offered.push({ key, client })
+                owners.set(tool.name, offered)
+            }
+        }
+
+        tools.push(...t);
+    }
+    if(bgSignal) bgToolOwners = { signal: bgSignal, owners }
+    return tools;
+}
+`);
+    add('mcp-bg-tool-binding', mcp,
+        'export async function callMCPTool(methodName:string, args:any):Promise<RPCToolCallContent[]> {\n    await initializeMCPs();\n',
+        `export async function callMCPTool(methodName:string, args:any):Promise<RPCToolCallContent[]> {
+    await initializeMCPs();
+    const bgSignal = ${bgJob}
+    const offered = bgSignal && bgToolOwners?.signal === bgSignal ? bgToolOwners.owners.get(methodName) : undefined
+    if(offered && offered.some(owner => owner.key.startsWith('plugin:'))){
+        if(offered.length !== 1){
+            throw new Error(\`Tool \${methodName} was offered by more than one MCP in this request\`)
+        }
+        const [{ key, client }] = offered
+        // The offering client was cleaned up (session expiry, closed job, entry
+        // disabled or unregistered): a terminal plugin failure, not a tool error.
+        if(MCPs[key] !== client){
+            throw Object.assign(new Error(\`Tool \${methodName} is no longer available\`), { code: 'plugin_operation_closed' })
+        }
+        return await client.callTool(methodName, args);
+    }
+`);
+    const request = 'src/ts/process/request/request.ts';
+    add('mcp-request-import', request,
+        'import { getTools, callTool, encodeToolCall, decodeToolCall } from "../mcp/mcp";',
+        'import { getTools, callTool, encodeToolCall, decodeToolCall, MCPs } from "../mcp/mcp";');
+    add('mcp-deferred-flag', request,
+        '    const tools = arg.tools ?? (await getTools())\n',
+        `    // A BG job reads plugin MCP tools after beforeRequest preparation, once for
+    // each prepared attempt. Explicit arg.tools, including [], are used as given.
+    const deferBgTools = arg.tools == null && !!${bgJob}
+    let tools = arg.tools ?? (deferBgTools ? [] : await getTools())
+`);
+    add('mcp-deferred-read', request,
+        '            da = await requestChatDataMain({\n',
+        `            // A PageFold retry that skips the source transforms reuses its list.
+            if(deferBgTools && !pageFoldRouteState){
+                tools = await getTools()
+                if(abortSignal?.aborted){
+                    return {
+                        type: 'fail',
+                        result: 'Aborted'
+                    }
+                }
+            }
+            da = await requestChatDataMain({
+`);
+    units[units.length - 1].requires = ['pagefold-model-preset:request-outer-route-state:1.10'];
+    add('mcp-effect-latch', request,
+        "            if(da.type === 'success' && arg.escape){\n",
+        `            // BG with plugin MCP tools: a provider marks a result after a tool ran,
+            // including a failure. A prompt retry or fallback would run it again.
+            if(da.type === 'fail' && da.toolExecuted && ${bgPluginTools('tools')}){
+                return {
+                    ...da,
+                    noRetry: true,
+                    model: fallBackModels[fallbackIndex] || da.model
+                }
+            }
+            if(da.type === 'success' && arg.escape){
+`);
+    add('mcp-unsupported-variants', request,
+        '    targ.formated = reformater(targ.formated, targ.modelInfo)\n',
+        `    targ.formated = reformater(targ.formated, targ.modelInfo)
+    // BG: OpenAIResponseAPI and Anthropic streaming have no tool loop. Plugin MCP
+    // tools are not sent there, generation continues, and each affected plugin
+    // records one plugin_mcp_unsupported notice per operation (host-enforced).
+    if (${bgJob} && targ.tools?.length
+        && (format === LLMFormat.OpenAIResponseAPI || format === LLMFormat.NanoGPTResponses
+            || (targ.useStreaming && (format === LLMFormat.Anthropic || format === LLMFormat.AnthropicLegacy
+                || format === LLMFormat.AWSBedrockClaude || format === LLMFormat.NanoGPTMessages)))) {
+        const reporters = new Set<(event: { code: string, phase: string }) => void>()
+        targ.tools = targ.tools.filter(tool => {
+            const url = (tool as { mcpURL?: unknown }).mcpURL
+            if (typeof url !== 'string' || !url.startsWith('plugin:')) return true
+            const report = (MCPs[url] as { bgReportUnsupported?: unknown } | undefined)?.bgReportUnsupported
+            if (typeof report === 'function') reporters.add(report as (event: { code: string, phase: string }) => void)
+            return false
+        })
+        for (const report of reporters) report({ code: 'plugin_mcp_unsupported', phase: 'mcp_list' })
+    }
+`);
+    // ModelPreset: an expired or closed plugin MCP call ends the tool loop
+    // (runToolLoop sends nothing after a tool throws) and the request fails
+    // without a retry or fallback instead of returning the partial result.
+    add('mcp-preset-expired-result', request,
+        `            const { result, toolsExecuted } = await runModelPresetToolLoop(arg, preset, kind, credential, fetchImpl, messages, tools, abortSignal)
+            // The tool loop issues one request per turn; each is its own log
+            // entry and all of them flush together here.
+            void logScope.close()
+`,
+        `            const { result, toolsExecuted, terminalCall } = await runModelPresetToolLoop(arg, preset, kind, credential, fetchImpl, messages, tools, abortSignal)
+            // The tool loop issues one request per turn; each is its own log
+            // entry and all of them flush together here.
+            void logScope.close()
+            if (terminalCall) {
+                const error = terminalCall.error
+                return { type: 'fail', result: 'Tool call failed: ' + (error instanceof Error ? error.message : String(error)),
+                    model: wireModel, noRetry: true, toolExecuted: true }
+            }
+`);
+    add('mcp-preset-expired-state', request,
+        `): Promise<{ result: string; toolsExecuted: boolean }> {
+    // Tracks whether any tool actually ran, so the caller can block outer
+    // success-path retries that would otherwise re-execute side-effecting tools.
+    let toolsExecuted = false
+`,
+        `): Promise<{ result: string; toolsExecuted: boolean; terminalCall?: { error: unknown } }> {
+    // Tracks whether any tool actually ran, so the caller can block outer
+    // success-path retries that would otherwise re-execute side-effecting tools.
+    let toolsExecuted = false
+    let terminalCall: { error: unknown } | undefined
+`);
+    add('mcp-preset-expired-loop', request,
+        '            toolsExecuted = true\n            const executed = await executeModelPresetTool(arg, call)\n',
+        `            toolsExecuted = true
+            let executed: Awaited<ReturnType<typeof executeModelPresetTool>>
+            try {
+                executed = await executeModelPresetTool(arg, call)
+            } catch (e) {
+                terminalCall = { error: e }
+                throw e
+            }
+`);
+    add('mcp-preset-expired-return', request,
+        '    return { result, toolsExecuted }\n}\n',
+        '    return terminalCall ? { result, toolsExecuted, terminalCall } : { result, toolsExecuted }\n}\n');
+    add('mcp-preset-expired-call', request,
+        `    } catch (e) {
+        return { text: 'Tool call failed: ' + (e instanceof Error ? e.message : String(e)), response: [] }
+`,
+        `    } catch (e) {
+        if (${bgPluginTools('arg.tools')} && ${terminalCall('e')}) throw e
+        return { text: 'Tool call failed: ' + (e instanceof Error ? e.message : String(e)), response: [] }
+`);
+    const openai = 'src/ts/process/request/openAI/requests.ts';
+    add('mcp-openai-cap', openai,
+        `            if(dat.choices?.[0]?.message?.tool_calls && dat.choices[0].message.tool_calls.length > 0){
+                const toolCalls = dat.choices[0].message.tool_calls as ToolCall[]
+`,
+        String.raw`            if(dat.choices?.[0]?.message?.tool_calls && dat.choices[0].message.tool_calls.length > 0){
+                // BG: at most eight tool steps (nine model sends) per request. The
+                // capped result is a success with the text produced so far.
+                const bgTools = ${bgPluginTools('arg.tools')}
+                const bgArg = arg as typeof arg & { bgToolSteps?: number, bgTerminalCall?: boolean }
+                if(bgTools && (bgArg.bgToolSteps ?? 0) >= 8){
+                    return {
+                        type: 'success',
+                        result: (db.simplifiedToolUse ? '' : (processTextResponse(dat) ?? '') + '\n\n') + '[${cap}]',
+                        toolExecuted: true
+                    }
+                }
+                if(bgTools) bgArg.bgToolSteps = (bgArg.bgToolSteps ?? 0) + 1
+                const toolCalls = dat.choices[0].message.tool_calls as ToolCall[]
+`);
+    add('mcp-openai-tool-abort', openai,
+        `                for(const toolCall of toolCalls){
+                    if(!toolCall.function || !toolCall.function.name || toolCall.function.arguments === undefined || toolCall.function.arguments === null){
+`,
+        `                for(const toolCall of toolCalls){
+                    if(bgTools && arg.abortSignal?.aborted){
+                        return { type: 'fail', result: 'Aborted', noRetry: true, toolExecuted: true }
+                    }
+                    if(!toolCall.function || !toolCall.function.name || toolCall.function.arguments === undefined || toolCall.function.arguments === null){
+`);
+    add('mcp-openai-tool-expired', openai,
+        `                    } catch (error) {
+                        messages.push({
+                            role: 'tool',
+                            content: 'Tool call failed with error: ' + error,
+`,
+        `                    } catch (error) {
+                        if(bgTools && ${terminalCall('error')}){
+                            bgArg.bgTerminalCall = true
+                            return { type: 'fail', result: 'Tool call failed with error: ' + error, noRetry: true, toolExecuted: true }
+                        }
+                        messages.push({
+                            role: 'tool',
+                            content: 'Tool call failed with error: ' + error,
+`);
+    add('mcp-openai-followup-abort', openai,
+        '                // Send the next request recursively\n                let resRec\n                let attempt = 0\n',
+        `                // Send the next request recursively
+                let resRec
+                let attempt = 0
+                if(bgTools && arg.abortSignal?.aborted){
+                    return { type: 'fail', result: 'Aborted', noRetry: true, toolExecuted: true }
+                }
+`);
+    add('mcp-openai-followup-once', openai,
+        "                } while (attempt <= db.requestRetrys) // Retry up to db.requestRetrys times\n\n                const callCode = callCodes.join(",
+        "                } while (!bgTools && attempt <= db.requestRetrys) // Retry up to db.requestRetrys times; BG: never after a tool effect\n\n                const callCode = callCodes.join(");
+    // An expired or closed plugin MCP call in a later round ends the whole
+    // request; it is not turned into this round's partial result.
+    add('mcp-openai-terminal-propagate', openai,
+        "                if(resRec.type === 'fail') {\n                    notifyError(`Failed to fetch model response after tool execution`)\n",
+        `                if(resRec.type === 'fail' && bgTools && bgArg.bgTerminalCall) {
+                    return resRec
+                }
+                if(resRec.type === 'fail') {
+                    notifyError(\`Failed to fetch model response after tool execution\`)
+`);
+    add('mcp-openai-effect-result', openai,
+        String.raw`                        result: result
+                    }
+                } else if(resRec.type === 'success') {
+                    return {
+                        type: 'success',
+                        result: result + '\n\n' + resRec.result
+                    }
+`,
+        String.raw`                        result: result,
+                        ...(bgTools ? { toolExecuted: true } : {})
+                    }
+                } else if(resRec.type === 'success') {
+                    return {
+                        type: 'success',
+                        result: result + '\n\n' + resRec.result,
+                        ...(bgTools ? { toolExecuted: true } : {})
+                    }
+`);
+    add('mcp-openai-stream-state', openai,
+        "            let prefix = ''\n            let lastValue\n",
+        `            let prefix = ''
+            let lastValue
+            // BG: tool steps are capped and cancellation is checked as in the
+            // non-stream loop; a follow-up request is not retried after a tool.
+            const bgTools = ${bgPluginTools('arg.tools')}
+            let bgToolSteps = 0
+`);
+    add('mcp-openai-stream-cap', openai,
+        `                    if(toolCalls && toolCalls.length > 0){
+                        const messages = body.messages as OpenAIChatExtra[]
+`,
+        String.raw`                    if(bgTools && bgToolSteps >= 8 && toolCalls && toolCalls.length > 0){
+                        controller.enqueue({"0": (prefix ? prefix + '\n\n' : '') + content + '\n\n[${cap}]'})
+                    }
+                    else if(toolCalls && toolCalls.length > 0){
+                        if(bgTools) bgToolSteps++
+                        const messages = body.messages as OpenAIChatExtra[]
+`);
+    add('mcp-openai-stream-tool-abort', openai,
+        `                        for(const toolCall of toolCalls){
+                            if(!toolCall.function || !toolCall.function.name || !toolCall.function.arguments){
+`,
+        `                        for(const toolCall of toolCalls){
+                            if(bgTools && arg.abortSignal?.aborted) return controller.error(new Error('Aborted'))
+                            if(!toolCall.function || !toolCall.function.name || !toolCall.function.arguments){
+`);
+    add('mcp-openai-stream-tool-expired', openai,
+        `                            } catch (error) {
+                                messages.push({
+                                    role: 'tool',
+                                    content: 'Tool call failed with error: ' + error,
+`,
+        `                            } catch (error) {
+                                if(bgTools && ${terminalCall('error')}) return controller.error(error)
+                                messages.push({
+                                    role: 'tool',
+                                    content: 'Tool call failed with error: ' + error,
+`);
+    add('mcp-openai-stream-followup-abort', openai,
+        '                        let resRec\n                        let attempt = 0\n                        let errorFlag = true\n',
+        `                        let resRec
+                        let attempt = 0
+                        let errorFlag = true
+                        if(bgTools && arg.abortSignal?.aborted) return controller.error(new Error('Aborted'))
+`);
+    add('mcp-openai-stream-followup-once', openai,
+        '                        } while (attempt <= db.requestRetrys) // Retry up to db.requestRetrys times\n',
+        '                        } while (!bgTools && attempt <= db.requestRetrys) // Retry up to db.requestRetrys times; BG: never after a tool effect\n');
+    const google = 'src/ts/process/request/google.ts';
+    add('mcp-google-cap', google,
+        '    if(calls.length > 0){\n        const chat = body.contents as GeminiChat[]\n',
+        String.raw`    if(calls.length > 0){
+        // BG: at most eight tool steps (nine model sends) per request. The
+        // capped result is a success with the text produced so far.
+        const bgTools = ${bgPluginTools('arg.tools')}
+        const bgArg = arg as typeof arg & { bgToolSteps?: number }
+        if(bgTools && (bgArg.bgToolSteps ?? 0) >= 8){
+            return {
+                type: 'success',
+                result: (db.simplifiedToolUse ? '' : processTextResponse(rDatas) + '\n\n') + '[${cap}]',
+                toolExecuted: true
+            }
+        }
+        if(bgTools) bgArg.bgToolSteps = (bgArg.bgToolSteps ?? 0) + 1
+        const chat = body.contents as GeminiChat[]
+`);
+    add('mcp-google-tool-abort', google,
+        '        for(const call of calls){\n            const functionName = call.name\n',
+        `        for(const call of calls){
+            if(bgTools && arg.abortSignal?.aborted){
+                return { type: 'fail', result: 'Aborted', noRetry: true, toolExecuted: true }
+            }
+            const functionName = call.name
+`);
+    add('mcp-google-followup-abort', google,
+        '        // Send the next request recursively\n        let resRec\n        let attempt = 0\n',
+        `        // Send the next request recursively
+        let resRec
+        let attempt = 0
+        if(bgTools && arg.abortSignal?.aborted){
+            return { type: 'fail', result: 'Aborted', noRetry: true, toolExecuted: true }
+        }
+`);
+    add('mcp-google-followup-once', google,
+        '                break\n            }\n        } while (attempt <= db.requestRetrys) // Retry up to db.requestRetrys times\n',
+        '                break\n            }\n        } while (!bgTools && attempt <= db.requestRetrys) // Retry up to db.requestRetrys times; BG: never after a tool effect\n');
+    add('mcp-google-effect-result', google,
+        String.raw`                result: result
+            }
+        } else if(resRec.type === 'success'){
+            return {
+                type: 'success',
+                result: result + '\n\n' + resRec.result
+            }
+`,
+        String.raw`                result: result,
+                ...(bgTools ? { toolExecuted: true } : {})
+            }
+        } else if(resRec.type === 'success'){
+            return {
+                type: 'success',
+                result: result + '\n\n' + resRec.result,
+                ...(bgTools ? { toolExecuted: true } : {})
+            }
+`);
+    add('mcp-google-stream-state', google,
+        "            let prefix = ''\n            let lastValue = initStreamState()\n",
+        `            let prefix = ''
+            let lastValue = initStreamState()
+            // BG: tool steps are capped and cancellation is checked as in the
+            // non-stream loop; a follow-up request is not retried after a tool.
+            const bgTools = ${bgPluginTools('arg.tools')}
+            let bgToolSteps = 0
+`);
+    add('mcp-google-stream-cap', google,
+        '                    if(calls && calls.length > 0){\n                        const chat = body.contents as GeminiChat[]\n',
+        String.raw`                    if(bgTools && bgToolSteps >= 8 && calls && calls.length > 0){
+                        controller.enqueue({"0": (prefix ? prefix + '\n\n' : '')
+                            + (thoughts + lastThought ? '<Thoughts>\n\n' + thoughts + lastThought + '\n\n</Thoughts>\n\n' : '')
+                            + content + '\n\n[${cap}]'})
+                    }
+                    else if(calls && calls.length > 0){
+                        if(bgTools) bgToolSteps++
+                        const chat = body.contents as GeminiChat[]
+`);
+    add('mcp-google-stream-tool-abort', google,
+        '                        for(const call of calls){\n                            const functionName = call.name\n',
+        `                        for(const call of calls){
+                            if(bgTools && arg.abortSignal?.aborted) return controller.error(new Error('Aborted'))
+                            const functionName = call.name
+`);
+    add('mcp-google-stream-followup-abort', google,
+        '                        let resRec\n                        let attempt = 0\n                        let errorFlag = true\n',
+        `                        let resRec
+                        let attempt = 0
+                        let errorFlag = true
+                        if(bgTools && arg.abortSignal?.aborted) return controller.error(new Error('Aborted'))
+`);
+    add('mcp-google-stream-followup-once', google,
+        '                        } while (attempt <= db.requestRetrys) // Retry up to db.requestRetrys times\n',
+        '                        } while (!bgTools && attempt <= db.requestRetrys) // Retry up to db.requestRetrys times; BG: never after a tool effect\n');
+    const anthropic = 'src/ts/process/request/anthropic.ts';
+    add('mcp-anthropic-cap', anthropic,
+        '    if(hasToolUse){\n\n        const messages:Claude3ExtendedChat[] = body.messages\n',
+        String.raw`    if(hasToolUse){
+        // BG: at most eight tool steps (nine model sends) per request. The
+        // capped result is a success with this response's text.
+        const bgTools = ${bgPluginTools('arg.tools')}
+        const bgArg = arg as typeof arg & { bgToolSteps?: number }
+        if(bgTools && (bgArg.bgToolSteps ?? 0) >= 8){
+            return {
+                type: 'success',
+                result: (contents as { type?: string, text?: string }[]).filter(v => v.type === 'text')
+                    .map(v => v.text ?? '').join('') + '\n\n[${cap}]',
+                toolExecuted: true
+            }
+        }
+        if(bgTools) bgArg.bgToolSteps = (bgArg.bgToolSteps ?? 0) + 1
+
+        const messages:Claude3ExtendedChat[] = body.messages
+`);
+    add('mcp-anthropic-tool-abort', anthropic,
+        "            if(content.type === 'tool_use'){\n                const used = await callTool(content.name, content.input)\n",
+        `            if(content.type === 'tool_use'){
+                if(bgTools && arg.abortSignal?.aborted){
+                    return { type: 'fail', result: 'Aborted', noRetry: true, toolExecuted: true }
+                }
+                const used = await callTool(content.name, content.input)
+`);
+    add('mcp-anthropic-followup', anthropic,
+        '        body.messages = messages\n        body.stream = false\n\n        return requestClaudeHTTP(replacerURL, headers, body, arg)\n',
+        `        body.messages = messages
+        body.stream = false
+
+        if(!bgTools){
+            return requestClaudeHTTP(replacerURL, headers, body, arg)
+        }
+        // BG: the follow-up result carries the tool effect, so the outer
+        // request loop neither retries the prompt nor falls back after it.
+        if(arg.abortSignal?.aborted){
+            return { type: 'fail', result: 'Aborted', noRetry: true, toolExecuted: true }
+        }
+        const next = await requestClaudeHTTP(replacerURL, headers, body, arg)
+        return next.type === 'success' || next.type === 'fail' ? { ...next, toolExecuted: true } : next
+`);
     return units;
 };

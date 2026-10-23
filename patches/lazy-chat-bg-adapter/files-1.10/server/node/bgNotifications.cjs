@@ -13,14 +13,18 @@ const MAX_PENDING_MESSAGES = 256;
 const BATCH_SIZE = 8;
 const CODES = new Set(['input_host_unsupported', 'plugin_permission_missing',
     'plugin_api_unsupported', 'plugin_hook_failed', 'plugin_provider_failed', 'plugin_message', 'plugin_host_limit', 'plugin_late_call',
-    'operation_failed', 'operation_interrupted', 'chat_edit_unreflected', 'commit_effect_conflict']);
+    'plugin_mcp_unsupported', 'operation_failed', 'operation_interrupted', 'chat_edit_unreflected', 'commit_effect_conflict']);
 const OPERATION_REASONS = {
     operation_failed: new Set(['generation_failed', 'commit_failed', 'execution_context_lost']),
     operation_interrupted: new Set(['before_result', 'after_main']),
     chat_edit_unreflected: new Set(['concurrent_edit']),
     commit_effect_conflict: new Set(['globals', 'stats']),
 };
-const eventVersion = event => Object.hasOwn(OPERATION_REASONS, event.code) ? 3
+// v4: plugin_mcp_unsupported and every plugin notice from the mcp_list or
+// mcp_call phase. Older claim versions never receive them.
+const eventVersion = event => event.code === 'plugin_mcp_unsupported'
+    || (String(event.code).startsWith('plugin_') && (event.phase === 'mcp_list' || event.phase === 'mcp_call')) ? 4
+    : Object.hasOwn(OPERATION_REASONS, event.code) ? 3
     : ['plugin_message', 'plugin_host_limit', 'plugin_late_call'].includes(event.code) ? 2 : 1;
 const eventPrefix = event => eventVersion(event) === 3 ? OPERATION_PREFIX : PREFIX;
 const identifier = value => typeof value === 'string' && /^[A-Za-z0-9_-]{8,128}$/.test(value);
@@ -51,7 +55,7 @@ function normalizeEvent(value) {
     }
     if (value.code.startsWith('plugin_')) {
         if (!text(value.pluginName, 120) || !text(value.pluginVersion, 80)
-            || !['load', 'input', 'before_request', 'after_request', 'provider'].includes(value.phase)
+            || !['load', 'input', 'before_request', 'after_request', 'provider', 'mcp_list', 'mcp_call'].includes(value.phase)
             || (value.code === 'plugin_permission_missing' && value.effectsMayHaveOccurred)) {
             throw new Error('notification_plugin_invalid');
         }
@@ -229,7 +233,7 @@ function createBgNotifications({ db, kvGet, kvSet, kvDel, kvList, now = Date.now
     });
     const claim = db.transaction((consumerId, messageVersion = 1) => {
         if (!identifier(consumerId)) throw new Error('notification_consumer_invalid');
-        if (![1, 2, 3].includes(messageVersion)) throw new Error('notification_version_invalid');
+        if (![1, 2, 3, 4].includes(messageVersion)) throw new Error('notification_version_invalid');
         const time = now(), result = [];
         for (const row of unexpired(time).filter(row => !row.invalid && row.version <= messageVersion)
             .sort((a, b) => a.event.createdAt - b.event.createdAt || a.id.localeCompare(b.id))) {

@@ -385,3 +385,24 @@ describe('durable BG notification owner', () => {
         expect(() => h.owner.acknowledge('consumer-one', [{ id: 'invalid', token: 'token-valid' }])).toThrow()
     })
 })
+
+describe('[D2-1] BG plugin MCP registration and calls', () => {
+    it.each(['mcp_list', 'mcp_call'])('[new] accepts the %s plugin failure phase in the durable validator', phase => {
+        const event = { operationId: 'operation-d2-notice', eventKey: `plugin:0:identity:${phase}:failure`,
+            code: 'plugin_hook_failed', charId: 'character-1', chatId: 'chat-1', createdAt: 1,
+            effectsMayHaveOccurred: phase === 'mcp_call', pluginName: 'synthetic', pluginVersion: '1.0', phase }
+        expect(() => require('./bgNotifications.cjs').normalizeEvent(event)).not.toThrow()
+    })
+
+    it('[new] stores an mcp_call failure as v4 and withholds it from older notification claims', () => {
+        const h = harness()
+        const event = { operationId: 'operation-d2-version', eventKey: 'plugin:0:identity:mcp_call:failure',
+            code: 'plugin_hook_failed', charId: 'character-1', chatId: 'chat-1', createdAt: 1,
+            effectsMayHaveOccurred: true, pluginName: 'synthetic', pluginVersion: '1.0', phase: 'mcp_call' }
+        let published: any
+        expect(() => { published = h.owner.publish(event) }).not.toThrow()
+        expect(h.owner.claim('reader-version-three', 3)).toEqual([])
+        const delivered = h.owner.claim('reader-version-four', 4)
+        expect(delivered.map((row: any) => row.id)).toEqual([published?.id])
+    })
+})

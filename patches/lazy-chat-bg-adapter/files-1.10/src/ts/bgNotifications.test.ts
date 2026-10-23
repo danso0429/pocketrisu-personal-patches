@@ -114,3 +114,13 @@ describe('visible notification enqueue and independent ACK', () => {
         expect(h.deps.render).toHaveBeenCalledTimes(1)
     })
 })
+
+describe('[D2-1] BG plugin MCP registration and calls', () => {
+    it.each(['mcp_list', 'mcp_call'])('[new] accepts the %s plugin failure phase in the client validator', phase => {
+        const row = { id: 'd'.repeat(64), token: 'claim-token-d2', leaseMs: 30_000,
+            event: { operationId: 'operation-d2-notice', eventKey: `plugin:0:identity:${phase}:failure`,
+                code: 'plugin_hook_failed', charId: 'character-1', chatId: 'chat-1', createdAt: 1,
+                effectsMayHaveOccurred: phase === 'mcp_call', pluginName: 'synthetic', pluginVersion: '1.0', phase } }
+        expect(parseBgNotifications({ notifications: [row] })).toEqual([row])
+    })
+})

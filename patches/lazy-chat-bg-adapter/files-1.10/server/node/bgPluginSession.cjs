@@ -17,6 +17,8 @@ async function createPluginSession({ script, api, rootMethods, signal, onFailure
     if (!Array.isArray(rootMethods) || !rootMethods.length
         || !rootMethods.every(name => typeof name === 'string')) throw failure('plugin_bootstrap_invalid');
     const exposed = [...rootMethods];
+    // The sandbox stops the worker at this point; see createPluginSandbox.
+    const runtimeDeadline = performance.now() + runtimeMs;
     const scopes = new Map(), current = new AsyncLocalStorage();
     let peer, sandbox, stopped = false, failureCode = null, absentScope = null, absentPull = null;
     const fail = code => {
@@ -105,7 +107,14 @@ async function createPluginSession({ script, api, rootMethods, signal, onFailure
             void next.catch(() => {}).finally(() => { if (absentPull === next) absentPull = null; });
             return next;
         },
-        assertCurrent: () => find(current.getStore()),
+        // Without options: the caller must be inside a live invocation. With
+        // { session: true } (opt-in, for parent-initiated calls such as MCP
+        // callbacks): only the session itself must be open and before its
+        // runtime deadline; no invocation scope is required.
+        assertCurrent: options => {
+            if (options?.session !== true) return find(current.getStore());
+            if (stopped || signal?.aborted || performance.now() >= runtimeDeadline) throw failure('plugin_invocation_expired');
+        },
         currentSignal: () => find(current.getStore()).abort.signal,
         async close() {
             if (!stopped) {

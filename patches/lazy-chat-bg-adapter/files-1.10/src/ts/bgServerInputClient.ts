@@ -22,6 +22,7 @@ interface HttpOutcome {
 
 interface Capability {
     serverPluginHostVersion?: unknown
+    serverPluginMcpVersion?: unknown
     serverInputBaseVersion?: unknown
     clientInputPreparationVersion?: unknown
     contract?: unknown

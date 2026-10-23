@@ -62,6 +62,9 @@ export function evaluateServerInputModels(
     // 'omit' is server-only disposition after a durable omission notice. It
     // does not authorize a provider, endpoint, MCP or browser-only epilogue.
     allowServerPlugins: boolean | 'omit' = false,
+    // Server plugin MCP support (capability serverPluginMcpVersion 1 or a host
+    // with the MCP binding). It never authorizes external MCP URLs.
+    allowServerPluginMcp = false,
 ): ServerInputModelDecision {
     const db = (database ?? {}) as Database
     let expandedNativeRoute = false
@@ -129,8 +132,13 @@ export function evaluateServerInputModels(
     // Module selection can include a character/persona not supplied to this
     // preflight. Until tool-host qualification, use the snapshot superset rather
     // than dropping configured tools or blocking previously admitted classic work.
-    if (formerlyPrepared && (db.modules?.some(module => module.mcp?.url)
-        || db.personas?.some(persona => persona.embeddedModule?.mcp?.url))) {
+    // Plugin MCP URLs (the foreground `plugin:` registration rule) are served by
+    // the server plugin host when it supports MCP and plugins are fully allowed.
+    const mcpUrls = [...(db.modules ?? []).map(module => module.mcp?.url),
+        ...(db.personas ?? []).map(persona => persona.embeddedModule?.mcp?.url)].filter(url => url)
+    if (formerlyPrepared && mcpUrls.length > 0
+        && !(allowServerPlugins === true && allowServerPluginMcp === true
+            && mcpUrls.every(url => typeof url === 'string' && url.startsWith('plugin:')))) {
         return { kind: 'client-prepared', reason: 'mcp-unqualified' }
     }
     return { kind: 'server-input' }
@@ -140,6 +148,7 @@ export function requiresClientOwnedInputPreparation(
     database: ProviderDatabase | null | undefined,
     chat: Partial<Chat> | null | undefined,
     allowServerPlugins: boolean | 'omit' = false,
+    allowServerPluginMcp = false,
 ): boolean {
-    return evaluateServerInputModels(database, chat, allowServerPlugins).kind === 'client-prepared'
+    return evaluateServerInputModels(database, chat, allowServerPlugins, allowServerPluginMcp).kind === 'client-prepared'
 }

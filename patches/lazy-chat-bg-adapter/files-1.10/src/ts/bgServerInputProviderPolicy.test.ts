@@ -212,3 +212,45 @@ describe('server-owned input provider boundary', () => {
             .toEqual({ kind: 'client-prepared', reason: 'endpoint-unqualified' })
     })
 })
+
+describe('[D2-3] Plugin MCP server-input admission', () => {
+    const evaluate = evaluateServerInputModels as unknown as (
+        database: any, chat: any, allowServerPlugins?: boolean | 'omit', allowServerPluginMcp?: boolean,
+    ) => { kind: string, reason?: string }
+    const requiresClient = requiresClientOwnedInputPreparation as unknown as (
+        database: any, chat: any, allowServerPlugins?: boolean | 'omit', allowServerPluginMcp?: boolean,
+    ) => boolean
+    const formerlyPrepared = { aiModel: 'reverse_proxy', subModel: 'gpt-4o', customAPIFormat: 0,
+        forceReplaceUrl: 'https://provider.example/v1', plugins: [{ enabled: true, version: '3.0' }] }
+
+    it('[new] admits formerly prepared snapshots only when every configured MCP URL is a valid plugin URL and MCP support is enabled', () => {
+        const database = { ...formerlyPrepared,
+            modules: [{ mcp: { url: 'plugin:alpha' } }],
+            personas: [{ embeddedModule: { mcp: { url: 'plugin:beta' } } }],
+        }
+        expect(evaluate(database, null, true, true)).toEqual({ kind: 'server-input' })
+        expect(requiresClient(database, null, true, true)).toBe(false)
+    })
+
+    it('[unchanged] keeps mixed, external, and legacy-capability snapshots client prepared', () => {
+        const cases = [
+            ['mixed', ['plugin:alpha', 'https://mcp.example/sse'], true],
+            ['external', ['https://mcp.example/sse'], true],
+            ['legacy capability', ['plugin:alpha'], false],
+        ] as const
+        for (const [name, urls, supported] of cases) {
+            const database = { ...formerlyPrepared, modules: urls.map(url => ({ mcp: { url } })) }
+            expect(evaluate(database, null, true, supported), name)
+                .toEqual({ kind: 'client-prepared', reason: 'mcp-unqualified' })
+            expect(requiresClient(database, null, true, supported), name).toBe(true)
+        }
+    })
+
+    it('[unchanged] leaves ordinary classic chats with external MCP URLs on the existing server-input route', () => {
+        const database = { aiModel: 'gpt-4o', subModel: 'gpt-4o',
+            modules: [{ mcp: { url: 'https://mcp.example/sse' } }],
+        }
+        expect(evaluate(database, null, false, false)).toEqual({ kind: 'server-input' })
+        expect(requiresClient(database, null, false, false)).toBe(false)
+    })
+})

@@ -8,6 +8,9 @@ import { fetchNative, globalFetch } from './globalApi.svelte'
 import { requestChatDataMain } from './process/request/request'
 import { projectChatMetadata } from './plugins/apiV3/pluginChatAccess'
 import { getModuleLorebooks } from './process/modules'
+import { registerMCPModule, registeredCustomPluginMCPs } from './process/mcp/pluginmcp'
+import { MCPs } from './process/mcp/mcp'
+import type { MCPTool, RPCToolCallContent } from './process/mcp/mcplib'
 
 // Only the detached server bundle exposes this adapter. Admission is unchanged.
 export const bgPluginBindings = {
@@ -46,6 +49,32 @@ export const bgPluginBindings = {
             }
             const index = customV3ProviderMetaStore.indexOf(model)
             if (index >= 0) customV3ProviderMetaStore.splice(index, 1)
+        }
+    },
+    // One host MCP registration in the shared plugin registry. The cleanup
+    // removes the registry entry and the MCP client cache only while they still
+    // point at this installation's client, so a later installation under the
+    // same identifier is never evicted by an earlier one.
+    installMCP(meta: any, getToolList: () => Promise<MCPTool[]>,
+        callTool: (toolName: string, args: any) => Promise<RPCToolCallContent[]>) {
+        const identifier = meta?.identifier
+        if (typeof identifier !== 'string' || !identifier.startsWith('plugin:')) {
+            throw Object.assign(new Error('plugin_registration_invalid'), { code: 'plugin_registration_invalid' })
+        }
+        void registerMCPModule({ identifier, name: String(meta.name ?? ''), version: String(meta.version ?? ''),
+            description: String(meta.description ?? '') }, getToolList, callTool)
+        const client = registeredCustomPluginMCPs.get(identifier)
+        if (!client) throw Object.assign(new Error('plugin_registration_invalid'), { code: 'plugin_registration_invalid' })
+        // Request variants without a tool loop report through the client.
+        if (typeof meta.reportUnsupported === 'function') {
+            (client as typeof client & { bgReportUnsupported?: (event: unknown) => void }).bgReportUnsupported = meta.reportUnsupported
+        }
+        let active = true
+        return () => {
+            if (!active) return
+            active = false
+            if (registeredCustomPluginMCPs.get(identifier) === client) registeredCustomPluginMCPs.delete(identifier)
+            if (MCPs[identifier] === client) delete MCPs[identifier]
         }
     },
 }

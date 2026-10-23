@@ -108,6 +108,12 @@ const ROOT_HANDLERS = Object.freeze({ __proto__: null,
         if (typeof args[0] !== 'string' || !args[0] || args[0].length > 120) throw fail('plugin_registration_invalid');
         ctx.permission(ctx.entry, 'provider', true); ctx.register(ctx.entry, 'provider', args[0], args[1], args[2]); return returned(undefined);
     },
+    // Plugin MCP tools, the foreground registerMCP/unregisterMCP shape. A
+    // bundle without the MCP binding keeps the former absent-API refusal.
+    registerMCP: (ctx, args, method) => typeof ctx.bindings.installMCP === 'function'
+        ? returned(ctx.registerMCP(ctx.entry, args)) : ctx.unsupported(method),
+    unregisterMCP: (ctx, args, method) => typeof ctx.bindings.installMCP === 'function'
+        ? returned(ctx.unregisterMCP(ctx.entry, args)) : ctx.unsupported(method),
     onUnload: (ctx, args) => {
         if (ctx.entry.ready || typeof args[0] !== 'function' || ctx.entry.unload.length >= 64) throw fail('plugin_registration_invalid');
         ctx.entry.unload.push(args[0]); return returned(undefined);
@@ -152,6 +158,17 @@ const ROOT_HANDLERS = Object.freeze({ __proto__: null,
 });
 // Derived from the dispatcher table; sent to the worker at load.
 const SUPPORTED_ROOT_METHODS = Object.freeze(Object.keys(ROOT_HANDLERS));
+// MCP callback results: the foreground MCPTool and RPCToolCallContent shapes.
+const plainObject = value => value !== null && typeof value === 'object' && !Array.isArray(value);
+const optionalString = value => value === undefined || typeof value === 'string';
+const validMcpTools = value => Array.isArray(value) && value.length <= 256 && value.every(tool => plainObject(tool)
+    && typeof tool.name === 'string' && tool.name.length > 0 && tool.name.length <= 256 && optionalString(tool.description)
+    && plainObject(tool.inputSchema) && (tool.annotations === undefined || plainObject(tool.annotations)));
+const validMcpContent = value => Array.isArray(value) && value.length <= 256 && value.every(item => plainObject(item)
+    && (item.type === 'text' ? typeof item.text === 'string'
+        : item.type === 'image' || item.type === 'audio' ? typeof item.data === 'string' && typeof item.mimeType === 'string'
+            : item.type === 'resource' && plainObject(item.resource) && typeof item.resource.uri === 'string'
+                && optionalString(item.resource.mimeType) && optionalString(item.resource.text)));
 const resourceFailures = new Set(['plugin_budget_exceeded', 'plugin_value_limit', 'plugin_rpc_value_limit',
     'plugin_rpc_frame_limit',
     'plugin_rpc_pending_limit', 'plugin_rpc_handle_limit', 'plugin_sandbox_frame_limit',
@@ -367,6 +384,8 @@ async function createBgPluginHost({ database, bindings, getDatabase, getSelectio
         if (event.code === 'plugin_host_limit') event.reason = 'operation_budget';
         record(event);
         entry.abort.abort(fail(code));
+        // A disabled plugin's MCP client leaves the shared registry.
+        for (const row of entry.registrations ?? []) if (row.type === 'mcp') row.remove?.();
         if (entry.session) void entry.session.close();
     };
     const identityView = root => {
@@ -551,6 +570,102 @@ async function createBgPluginHost({ database, bindings, getDatabase, getSelectio
             && (item.callback === callback || item.id === callback));
         if (row) { row.remove?.(); entry.registrations.splice(entry.registrations.indexOf(row), 1); }
     };
+    // Plugin MCP registrations are staged during load and installed with the
+    // other registrations. An identifier belongs to the first plugin that
+    // registers it in this operation, including one whose load then failed.
+    const mcpOwners = new Map();
+    const mcpRow = (entry, identifier) => entry.registrations.find(row => row.type === 'mcp' && row.name === identifier);
+    const registerMCP = (entry, args) => {
+        const [meta, list, call] = args;
+        if (entry.ready || !plainObject(meta) || typeof meta.identifier !== 'string' || !meta.identifier.startsWith('plugin:')
+            || meta.identifier.length > 256 || typeof list !== 'function' || typeof call !== 'function') throw fail('plugin_registration_invalid');
+        const identifier = meta.identifier, owner = mcpOwners.get(identifier), existing = mcpRow(entry, identifier);
+        if ((owner && owner !== entry) || (!existing && entry.registrations.length >= 256)) throw fail('plugin_registration_invalid');
+        mcpOwners.set(identifier, entry);
+        const options = { identifier };
+        for (const key of ['name', 'version', 'description']) options[key] = typeof meta[key] === 'string' ? meta[key].slice(0, 4096) : '';
+        const row = { type: 'mcp', name: identifier, callback: list, call, options, id: randomUUID() };
+        // A same-owner registration during load replaces the staged one.
+        if (existing) entry.registrations.splice(entry.registrations.indexOf(existing), 1, row);
+        else entry.registrations.push(row);
+    };
+    const unregisterMCP = (entry, args) => {
+        if (typeof args[0] !== 'string') throw fail('plugin_registration_invalid');
+        const owner = mcpOwners.get(args[0]);
+        if (owner && owner !== entry) throw fail('plugin_registration_invalid');
+        const row = mcpRow(entry, args[0]);
+        if (row) { row.remove?.(); entry.registrations.splice(entry.registrations.indexOf(row), 1); }
+    };
+    // One informational notice per plugin and operation when a request variant
+    // without a tool loop is sent without this plugin's MCP tools.
+    const reportMcpUnsupported = entry => {
+        if (entry.mcpUnsupportedReported || closed || tearingDown || entry.closing || entry.failed || signal.aborted || noticeFailure) return;
+        entry.mcpUnsupportedReported = true;
+        // Operation-scoped: no cross-operation failure receipt identity.
+        const event = common(entry, 'mcp_list');
+        delete event.failureIdentity;
+        record({ ...event, code: 'plugin_mcp_unsupported', eventKey: `plugin:${entry.index}:${entry.identity}:mcp_list:unsupported` }, false);
+    };
+    const untilClosed = (entry, task) => {
+        const closing = AbortSignal.any([signal, entry.abort.signal]);
+        return new Promise((resolve, reject) => {
+            const onAbort = () => reject(fail('plugin_operation_closed'));
+            if (closing.aborted) onAbort();
+            else closing.addEventListener('abort', onAbort, { once: true });
+            Promise.resolve(task).then(resolve, reject).finally(() => closing.removeEventListener('abort', onAbort));
+        });
+    };
+    // MCP list/call callbacks have their own contract. A failure, an invalid
+    // result, an expired session, a closed host or a disabled entry rejects;
+    // nothing substitutes the input or an empty list. A call is an effect and
+    // one operation-budget unit; a list is neither.
+    const invokeMCP = (entry, phase, callback) => async (...args) => {
+        if (noticeFailure) throw noticeFailure;
+        if (identityFailure) throw identityFailure;
+        const stopped = () => closed || tearingDown || entry.closing || signal.aborted;
+        if (stopped() || entry.failed) { await noticesSettled(); throw fail('plugin_operation_closed'); }
+        return phaseScope.run(phase, async () => {
+            entry.lastPhase = phase;
+            let absentPulled = false;
+            const pullAbsent = async () => { if (!absentPulled) { absentPulled = true; await collectAbsent(entry, phase); } };
+            try {
+                entry.session.assertCurrent({ session: true });
+                await currentIdentity(phase);
+                await noticesSettled();
+                if (stopped()) throw fail('plugin_operation_closed');
+                if (entry.failed) throw fail('plugin_hook_failed');
+                if (phase === 'mcp_call') {
+                    if (++networkCalls > 128) throw fail('plugin_budget_exceeded');
+                    await effect(entry);
+                    entry.session.assertCurrent({ session: true });
+                }
+                const value = await untilClosed(entry, callback(...args));
+                // A result that arrives after the session deadline is refused.
+                entry.session.assertCurrent({ session: true });
+                await pullAbsent();
+                await currentIdentity(phase);
+                if (stopped()) throw fail('plugin_operation_closed');
+                if (entry.failed) throw fail('plugin_hook_failed');
+                let result;
+                try { result = clone(value); } catch { throw fail('plugin_hook_result_invalid'); }
+                if (!(phase === 'mcp_list' ? validMcpTools(result) : validMcpContent(result))) throw fail('plugin_hook_result_invalid');
+                await noticesSettled();
+                if (stopped()) throw fail('plugin_operation_closed');
+                if (entry.failed) throw fail('plugin_hook_failed');
+                return result;
+            } catch (error) {
+                // Read before a possible disable closes the worker; never throws.
+                await pullAbsent();
+                if (noticeFailure) throw noticeFailure;
+                if (identityFailure) throw identityFailure;
+                if (stopped()) throw fail('plugin_operation_closed');
+                disable(entry, error?.code ?? 'plugin_hook_failed');
+                await noticesSettled();
+                if (noticeFailure) throw noticeFailure;
+                throw error;
+            }
+        });
+    };
     const install = entry => {
         const providerNames = new Set();
         for (const row of entry.registrations.filter(row => row.type === 'provider')) {
@@ -572,6 +687,13 @@ async function createBgPluginHost({ database, bindings, getDatabase, getSelectio
                 const value = { id: row.id, callback: invoke(entry, 'before_request', row.callback, 'body') };
                 bindings.bodyInterceptors.push(value);
                 undo = () => { const index = bindings.bodyInterceptors.indexOf(value); if (index >= 0) bindings.bodyInterceptors.splice(index, 1); };
+            } else if (row.type === 'mcp') {
+                // The request path names the only notice it may report.
+                const reportUnsupported = event => {
+                    if (event?.code === 'plugin_mcp_unsupported' && event.phase === 'mcp_list') reportMcpUnsupported(entry);
+                };
+                undo = bindings.installMCP({ ...row.options, reportUnsupported },
+                    invokeMCP(entry, 'mcp_list', row.callback), invokeMCP(entry, 'mcp_call', row.call));
             } else {
                 if (bindings.registry.providers.has(row.name)) throw fail('plugin_provider_name_conflict');
                 const callback = invoke(entry, 'provider', (...args) => row.callback({ ...args[0], mode: 'v3' }, args[1]), 'provider', row.name);
@@ -646,7 +768,7 @@ async function createBgPluginHost({ database, bindings, getDatabase, getSelectio
                 return clone(result);
             };
             const rootContext = { entry, plugin, index, storage, abortSignal, signal, bindings, unsupported, readDatabase,
-                write, permission, register, remove, effect, record, common, getDatabase, getSelection, hydrate,
+                write, permission, register, remove, registerMCP, unregisterMCP, effect, record, common, getDatabase, getSelection, hydrate,
                 countNetworkCall: () => ++networkCalls };
             try {
             entry.session = await phaseScope.run('load', () => createPluginSession({ script: plugin.script, signal: abortSignal,
@@ -657,7 +779,7 @@ async function createBgPluginHost({ database, bindings, getDatabase, getSelectio
                 api: (method, args) => withApiBudget(entry, method, args, async () => {
                     if (closed || entry.failed || signal.aborted) throw fail('plugin_operation_closed');
                     if (tearingDown && !['removeRisuReplacer', 'removeRisuScriptHandler', 'unregisterBodyIntercepter',
-                        'unregisterUIPart', 'hideContainer'].includes(method)) throw fail('plugin_operation_closed');
+                        'unregisterUIPart', 'hideContainer', 'unregisterMCP'].includes(method)) throw fail('plugin_operation_closed');
                     try {
                         if (method.startsWith('pluginStorage.') || method.startsWith('localPluginStorage.')) {
                             const [group, action] = method.split('.');

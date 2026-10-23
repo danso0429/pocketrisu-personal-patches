@@ -43,3 +43,37 @@ describe('operation-bound plugin host eligibility', () => {
         expect(canStartPluginHost('full', control, dependencies(), bg)).toBe(false)
     })
 })
+
+describe('[D2-3] Plugin MCP server-input admission', () => {
+    const route = async (bundle: any) => {
+        const source = readFileSync(new URL('./bgOrchestrator.cjs', import.meta.url), 'utf8')
+        const start = source.indexOf("  app.get('/api/bg-orchestrate-capabilities'")
+        const end = source.indexOf('\n  })', start) + '\n  })'.length
+        expect(start).toBeGreaterThan(0)
+        expect(end).toBeGreaterThan(start)
+        let handler: (request: unknown, response: unknown) => Promise<void>
+        let result: any
+        new Function('app', 'sessionAuthMiddleware', 'deps', 'hasPluginBindings', 'hasPluginHostIdentity', 'loadBundle',
+            'serverChatInputOwner', 'serverChatCommitOwner', source.slice(start, end))(
+            { get: (_path: string, _auth: unknown, callback: typeof handler) => { handler = callback } },
+            () => {}, { bgPluginDependencies: dependencies() }, hasPluginBindings, hasPluginHostIdentity,
+            async () => bundle, {}, {},
+        )
+        await handler!(null, { json: (value: unknown) => { result = value } })
+        return result
+    }
+
+    it('[new] reports MCP capability only when the loaded bundle exposes the complete plugin MCP binding', async () => {
+        const complete = bindings()
+        ;(complete.bgPluginBindings as any).installMCP = () => () => {}
+        const result = await route(complete)
+        expect(result.serverPluginHostVersion).toBe(1)
+        expect(result.serverPluginMcpVersion).toBe(1)
+    })
+
+    it('[unchanged] withholds MCP capability when installMCP is absent without changing host capability', async () => {
+        const result = await route(bindings())
+        expect(result.serverPluginHostVersion).toBe(1)
+        expect(result.serverPluginMcpVersion).not.toBe(1)
+    })
+})
