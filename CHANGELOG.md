@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.2.4-experimental.85 (BG plugin RPC carries non-finite numbers)
+
+- With background preservation and the internal BG plugin host candidate, values passed between the plugin host and the plugin worker keep `NaN`, `Infinity`, `-Infinity` and `-0` in both directions, as the foreground does: call arguments, return values, callback results and stream chunks, at the top level and inside arrays and objects. Before, such a value failed the call with `plugin_rpc_type_unsupported` (and `-0` arrived as `0`), so for example `getCharacter()` failed after a reply had set the character's missing `reloadKeys` to `NaN`, and with 0.2.4-experimental.84 a `beforeRequest` plugin making that call failed the request.
+- These numbers travel as a new `number` tag that names one of the four values; any other `number` tag and a non-finite plain value are rejected with `plugin_rpc_value_invalid`. Finite numbers, `null`, strings such as `"NaN"` and the other tags are sent as before, and each tagged number counts as one node under the existing node, depth and byte limits.
+- Host API input validation is unchanged: non-integer indexes, numeric storage arguments and permission arguments are rejected as before. Plugin storage still normalises values as JSON (`NaN` and `±Infinity` read back as `null`, `-0` as `0`), and persistence, limits, notice logs and the foreground code are unchanged.
+- BG adapter 0.7.80. Stable remains v0.2.3.
+
 ## 0.2.4-experimental.84 (a failing BG beforeRequest plugin fails the request)
 
 - With background preservation and the internal BG plugin host candidate, a plugin `beforeRequest` replacer that fails now fails the background request, as it does in the foreground: the hook call rejects with `plugin_before_request_failed`, later `beforeRequest` hooks and the model call do not run, and the operation ends as a failed generation. Before, the host recorded the plugin failure and returned the unchanged messages, so the request continued without that plugin's effect (for example without the memory a plugin such as RCM prepares in this hook).

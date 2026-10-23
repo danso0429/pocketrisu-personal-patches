@@ -235,7 +235,12 @@ function createPluginPeer({ send, dispatch, onFatal = () => {}, timeoutMs = 600_
         }
         if (value === undefined) return ['undefined'];
         if (value === null || typeof value === 'boolean' || typeof value === 'string'
-            || (typeof value === 'number' && Number.isFinite(value))) return ['value', value];
+            || (typeof value === 'number' && Number.isFinite(value) && !Object.is(value, -0))) return ['value', value];
+        // JSON frames cannot carry these numbers (NaN and ±Infinity become
+        // null, -0 becomes 0); the foreground structured clone keeps them.
+        if (typeof value === 'number') {
+            return ['number', value !== value ? 'NaN' : value === Infinity ? 'Infinity' : value === -Infinity ? '-Infinity' : '-0'];
+        }
         if (typeof value === 'function') {
             if (reverseFunctions.has(value)) return ['returnFunction', reverseFunctions.get(value)];
             return exportSlot(value, 'function', budget);
@@ -375,6 +380,12 @@ function createPluginPeer({ send, dispatch, onFatal = () => {}, timeoutMs = 600_
         if (tag === 'undefined' && value.length === 1) return undefined;
         if (tag === 'value' && value.length === 2 && (data === null || ['string', 'boolean'].includes(typeof data)
             || (typeof data === 'number' && Number.isFinite(data)))) return data;
+        if (tag === 'number' && value.length === 2) {
+            if (data === 'NaN') return NaN;
+            if (data === 'Infinity') return Infinity;
+            if (data === '-Infinity') return -Infinity;
+            if (data === '-0') return -0;
+        }
         if (tag === 'array' && value.length === 2 && Array.isArray(data)) return data.map(child);
         if (tag === 'object' && value.length === 2 && Array.isArray(data)) {
             const result = {};

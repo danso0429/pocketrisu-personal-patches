@@ -190,3 +190,176 @@ test('post-encoding pending cap recheck rolls back unpublished resources',async 
     await assert.rejects(worker.call('outer',[stream,value]),{code:'plugin_rpc_pending_limit'});assert.equal(stream.locked,false);assert.equal(worker.stats().exports.streams,0);assert.equal(worker.stats().pending,64);
     release('held');assert.deepEqual(await Promise.all(nested),Array(64).fill('held'));assert.equal(worker.stats().pending,0);
 });
+
+test.describe('[NF-1] BG plugin RPC carries non-finite numbers', () => {
+    const special = [NaN, Infinity, -Infinity, -0];
+    const sameNumbers = (actual, expected = special) => {
+        assert.equal(actual.length, expected.length);
+        for (let index = 0; index < expected.length; index++) assert.ok(Object.is(actual[index], expected[index]), `number ${index}`);
+    };
+    const jsonPair = (t, { parentDispatch = (_method, args) => args[0], workerDispatch = (_method, args) => args[0], capBytes = cap } = {}) => {
+        const frames = { parentToWorker: [], workerToParent: [] };
+        let parent, worker;
+        const relay = (direction, target) => frame => {
+            const json = JSON.stringify(frame) + '\n';
+            frames[direction].push(json);
+            if (Buffer.byteLength(json) > capBytes) throw Object.assign(failure('plugin_rpc_frame_limit'), { oversize: true });
+            queueMicrotask(() => target().receive(JSON.parse(json)));
+        };
+        parent = createPluginPeer({ send: relay('parentToWorker', () => worker), dispatch: parentDispatch,
+            getContext: () => 'active-scope', runContext: (_context, task) => task() });
+        worker = createPluginPeer({ send: relay('workerToParent', () => parent), dispatch: workerDispatch,
+            getContext: () => 'active-scope', runContext: (_context, task) => task(), workerSide: true });
+        t.after(() => { worker.close(); parent.close(); });
+        return { parent, worker, frames };
+    };
+    const decodeReturn = async (encoded, roundTrip = true) => {
+        let emitted, fatal;
+        const peer = createPluginPeer({ send: frame => { emitted = frame; }, dispatch: () => {}, onFatal: code => { fatal = code; } });
+        const pending = peer.call('synthetic', []);
+        const frame = { v: 1, kind: 'return', id: emitted.id, ok: true, value: encoded };
+        peer.receive(roundTrip ? JSON.parse(JSON.stringify(frame)) : frame);
+        await assert.rejects(pending, { code: 'plugin_rpc_value_invalid' });
+        assert.equal(fatal, 'plugin_rpc_value_invalid');
+    };
+
+    test('[new] special numbers use explicit number tags and round-trip over JSON', async t => {
+        const p = jsonPair(t);
+        for (const value of special) assert.ok(Object.is(await p.worker.call('echo', [value]), value));
+        const encoded = p.frames.workerToParent.filter(json => JSON.parse(json).kind === 'call')
+            .map(json => JSON.parse(json).args[1][0]);
+        assert.deepEqual(encoded, [['number', 'NaN'], ['number', 'Infinity'], ['number', '-Infinity'], ['number', '-0']]);
+    });
+
+    test('[unchanged] finite numbers and positive zero keep value tags', async t => {
+        const values = [0, 1, -42.5, Number.MAX_VALUE, Number.MIN_VALUE, Number.MAX_SAFE_INTEGER, Number.MIN_SAFE_INTEGER];
+        const p = jsonPair(t);
+        for (const value of values) assert.ok(Object.is(await p.worker.call('echo', [value]), value));
+        const encoded = p.frames.workerToParent.filter(json => JSON.parse(json).kind === 'call')
+            .map(json => JSON.parse(json).args[1][0]);
+        assert.deepEqual(encoded, values.map(value => ['value', value]));
+        assert.ok(Object.is(encoded[0][1], +0));
+    });
+
+    test('[new] nested composites preserve special numbers beside dates and bytes', async t => {
+        const p = jsonPair(t);
+        const value = { top: NaN, nested: [Infinity, { negative: -Infinity, zero: -0 }],
+            date: new Date('2026-10-22T00:00:00.000Z'), bytes: new Uint8Array([1, 2, 3]) };
+        const received = await p.parent.call('echo', [value], 'active-scope');
+        assert.ok(Object.is(received.top, NaN));
+        assert.ok(Object.is(received.nested[0], Infinity));
+        assert.ok(Object.is(received.nested[1].negative, -Infinity));
+        assert.ok(Object.is(received.nested[1].zero, -0));
+        assert.equal(received.date.toISOString(), value.date.toISOString());
+        assert.deepEqual([...received.bytes], [1, 2, 3]);
+    });
+
+    test('[new] null and number-like strings remain distinct from special numbers', async t => {
+        const p = jsonPair(t);
+        const received = await p.worker.call('echo', [{ a: null, b: 'NaN', c: 'Infinity', d: '-0', e: NaN, f: -0 }]);
+        assert.equal(received.a, null); assert.equal(received.b, 'NaN'); assert.equal(received.c, 'Infinity'); assert.equal(received.d, '-0');
+        assert.ok(Object.is(received.e, NaN)); assert.ok(Object.is(received.f, -0));
+    });
+
+    test('[unchanged] forged number tags are rejected as invalid values', async () => {
+        const forged = [
+            ['number', '0'], ['number', '+0'], ['number', '+Infinity'], ['number', 'nan'], ['number', 'inf'],
+            ['number', '1'], ['number', ''], ['number', 'NaN '], ['number', null], ['number', 0], ['number', {}],
+            ['number', ['NaN']], ['number'], ['number', 'NaN', 'extra'], ['number', 'NaN', undefined],
+        ];
+        for (const value of forged) await decodeReturn(value);
+    });
+
+    test('[unchanged] value tags still reject JSON overflow and direct non-finite payloads', async () => {
+        for (const json of ['["value",1e400]', '["value",-1e400]']) await decodeReturn(JSON.parse(json), false);
+        for (const value of [NaN, Infinity, -Infinity]) await decodeReturn(['value', value], false);
+        let emitted;
+        const peer = createPluginPeer({ send: frame => { emitted = frame; }, dispatch: () => {} });
+        const pending = peer.call('synthetic', []);
+        peer.receive({ v: 1, kind: 'return', id: emitted.id, ok: true, value: ['value', null] });
+        assert.equal(await pending, null);
+        peer.close();
+    });
+
+    test('[unchanged] protocol numeric fields do not accept overflow or value tags', async () => {
+        for (const id of [JSON.parse('1e400'), ['number', 'NaN'], ['number', '-0'], ['number', 'Infinity']]) {
+            let fatal;
+            const peer = createPluginPeer({ send: () => {}, dispatch: () => {}, onFatal: code => { fatal = code; } });
+            peer.receive({ v: 1, kind: 'call', id, method: 'synthetic', args: ['array', []], context: null });
+            assert.equal(fatal, 'plugin_rpc_protocol_invalid'); peer.close();
+        }
+        await decodeReturn(['response', JSON.parse('1e400'), '', [], '', false, 'default', ['value', null]], false);
+        await decodeReturn(['largeString', 1, JSON.parse('1e400')], false);
+        await decodeReturn(['stream', JSON.parse('1e400')], false);
+        for (const encoded of [['number', 'NaN'], ['number', '-0'], ['number', 'Infinity']]) {
+            await decodeReturn(['response', encoded, '', [], '', false, 'default', ['value', null]]);
+            await decodeReturn(['largeString', 1, encoded]);
+            await decodeReturn(['stream', encoded]);
+        }
+    });
+
+    test('[new] number tags retain the existing node depth and wire byte limits', async t => {
+        const exact = jsonPair(t);
+        const values = Array(99_998).fill(NaN);
+        const received = await exact.worker.call('echo', [values]);
+        assert.equal(received.length, values.length); assert.ok(received.every(Number.isNaN));
+
+        const tooMany = jsonPair(t);
+        await assert.rejects(tooMany.worker.call('echo', [Array(99_999).fill(NaN)]), { code: 'plugin_rpc_value_limit' });
+
+        let atDepth = -Infinity;
+        for (let index = 0; index < 63; index++) atDepth = [atDepth];
+        assert.ok(Object.is((await exact.worker.call('echo', [atDepth])).flat(63)[0], -Infinity));
+        let tooDeep = -Infinity;
+        for (let index = 0; index < 64; index++) tooDeep = [tooDeep];
+        await assert.rejects(exact.worker.call('echo', [tooDeep]), { code: 'plugin_rpc_value_limit' });
+
+        const oversized = jsonPair(t, { capBytes: 1024 });
+        await assert.rejects(oversized.worker.call('echo', [NaN, 'x'.repeat(2048)]), { code: 'plugin_rpc_frame_limit' });
+    });
+
+    test('[new] calls preserve special arguments and return values in both directions', async t => {
+        const p = jsonPair(t, { parentDispatch: (_method, args) => args, workerDispatch: (_method, args) => args });
+        sameNumbers(await p.worker.call('guest-to-host', special));
+        sameNumbers(await p.parent.call('host-to-guest', special, 'active-scope'));
+    });
+
+    test('[new] callback arguments and callback results preserve special numbers', async t => {
+        const p = jsonPair(t, { parentDispatch: async (_method, [callback]) => callback(...special) });
+        const seen = [];
+        const result = await p.worker.call('callback', [(...values) => { seen.push(...values); return special; }]);
+        sameNumbers(seen); sameNumbers(result);
+    });
+
+    test('[new] stream chunks preserve special numbers in order in both directions', async t => {
+        const chunks = () => new ReadableStream({ start(controller) {
+            for (const value of [NaN, -0, { score: Infinity, delta: -Infinity }, 'normal']) controller.enqueue(value);
+            controller.close();
+        } });
+        const consume = async stream => { const result = [], reader = stream.getReader(); for (;;) {
+            const item = await reader.read(); if (item.done) return result; result.push(item.value);
+        } };
+        const p = jsonPair(t, { parentDispatch: async (_method, [stream]) => consume(stream), workerDispatch: () => chunks() });
+        const fromGuest = await p.worker.call('stream-to-host', [chunks()]);
+        assert.ok(Object.is(fromGuest[0], NaN)); assert.ok(Object.is(fromGuest[1], -0));
+        assert.ok(Object.is(fromGuest[2].score, Infinity)); assert.ok(Object.is(fromGuest[2].delta, -Infinity)); assert.equal(fromGuest[3], 'normal');
+        const fromHost = await consume(await p.parent.call('stream-to-guest', [], 'active-scope'));
+        assert.ok(Object.is(fromHost[0], NaN)); assert.ok(Object.is(fromHost[1], -0));
+        assert.ok(Object.is(fromHost[2].score, Infinity)); assert.ok(Object.is(fromHost[2].delta, -Infinity)); assert.equal(fromHost[3], 'normal');
+    });
+
+    test('[new] concurrent calls and streams do not interleave special-number frames', async t => {
+        const p = jsonPair(t, { parentDispatch: async (_method, args) => {
+            if (args[0] instanceof ReadableStream) {
+                const reader = args[0].getReader(), result = [];
+                for (;;) { const item = await reader.read(); if (item.done) return result; result.push(item.value); }
+            }
+            await new Promise(resolve => setImmediate(resolve)); return args[0];
+        } });
+        const stream = new ReadableStream({ start(controller) { controller.enqueue(NaN); controller.enqueue(-0); controller.close(); } });
+        const [nan, infinity, chunks] = await Promise.all([
+            p.worker.call('one', [NaN]), p.worker.call('two', [Infinity]), p.worker.call('stream', [stream]),
+        ]);
+        assert.ok(Object.is(nan, NaN)); assert.ok(Object.is(infinity, Infinity)); sameNumbers(chunks, [NaN, -0]);
+    });
+});

@@ -302,6 +302,134 @@ test('unACKed guest message quota cannot consume mandatory protected-write warni
     assert.equal(h.owner.kvList('internal/bg-notifications/v1/').length,257);assert.equal(h.owner.kvList('internal/bg-plugin-failure-receipts/v1/').length,0);
 });
 
+describe('[NF-1] BG plugin RPC carries non-finite numbers', () => {
+    const input = [{ role: 'user', content: 'synthetic' }];
+    const specialExpressions = [['nan', 'NaN'], ['infinity', 'Infinity'], ['negative-infinity', '-Infinity']];
+
+    test('[unchanged] negative-zero indexes select character and chat zero', async t => {
+        const h = await fixture(t, [plugin('nf-negative-zero-index', `await Risuai.addRisuReplacer('beforeRequest',async messages=>{
+            const character=await Risuai.getCharacterFromIndex(-0);const chat=await Risuai.getChatFromIndex(-0,-0);
+            return [...messages,{role:'system',content:character.name+':'+chat.name}];
+        });`)]);
+        h.operationDb.characters.push({ name: 'character-zero', chats: [{ name: 'chat-zero' }] });
+        assert.deepEqual(await [...h.registry.replacerbeforeRequest][0](input),
+            [...input, { role: 'system', content: 'character-zero:chat-zero' }]);
+        assert.deepEqual(h.notices(), []);
+    });
+
+    test('[new] non-finite indexes reach host validation and disable each fresh plugin session', async t => {
+        for (const method of ['getCharacterFromIndex', 'getChatFromIndex']) for (const [label, expression] of specialExpressions) {
+            const name = `nf-${method === 'getCharacterFromIndex' ? 'character' : 'chat'}-index-${label}`;
+            const invocation = method === 'getCharacterFromIndex'
+                ? `Risuai.getCharacterFromIndex(${expression})` : `Risuai.getChatFromIndex(0,${expression})`;
+            let apiFrame;
+            const h = await fixture(t, [plugin(name, `await Risuai.addRisuReplacer('beforeRequest',async messages=>{
+                if(messages[0].content==='again')await Risuai.nativeFetch('https://synthetic.invalid/must-not-run',{});
+                else await ${invocation};
+                return messages;
+            });`)], true, { wireMutation: frame => {
+                if (frame.kind === 'call' && frame.args?.[1]?.[0]?.[1] === method) apiFrame = frame;
+                return frame;
+            } });
+            const hook = [...h.registry.replacerbeforeRequest][0];
+            await assert.rejects(hook(input), { code: 'plugin_before_request_failed' });
+            await assert.rejects(hook([{ role: 'user', content: 'again' }]), { code: 'plugin_before_request_failed' });
+            assert.equal(h.network.length, 0);
+            const argumentIndex = method === 'getCharacterFromIndex' ? 0 : 1;
+            assert.deepEqual(apiFrame.args[1][1][1][argumentIndex],
+                ['number', label === 'nan' ? 'NaN' : label === 'infinity' ? 'Infinity' : '-Infinity']);
+            const notices = h.notices(); assert.equal(notices.length, 1); assert.equal(notices[0].code, 'plugin_hook_failed');
+            assert.equal(notices[0].phase, 'before_request');
+        }
+    });
+
+    test('[new] setArgument rejects every special number at the host and disables the session', async t => {
+        for (const [label, expression] of [...specialExpressions, ['negative-zero', '-0']]) {
+            let apiFrame;
+            const h = await fixture(t, [plugin(`nf-argument-${label}`, `await Risuai.addRisuReplacer('beforeRequest',async messages=>{
+                if(messages[0].content==='again')await Risuai.nativeFetch('https://synthetic.invalid/must-not-run',{});
+                else await Risuai.setArgument('sample',${expression});return messages;
+            });`)], true, { wireMutation: frame => {
+                if (frame.kind === 'call' && frame.args?.[1]?.[0]?.[1] === 'setArgument') apiFrame = frame;
+                return frame;
+            } });
+            const hook = [...h.registry.replacerbeforeRequest][0];
+            await assert.rejects(hook(input), { code: 'plugin_before_request_failed' });
+            await assert.rejects(hook([{ role: 'user', content: 'again' }]), { code: 'plugin_before_request_failed' });
+            assert.equal(h.network.length, 0); assert.equal(h.writes, 0);
+            assert.equal(apiFrame.args[1][1][1][1][0], 'number');
+            const notices = h.notices(); assert.equal(notices.length, 1); assert.equal(notices[0].code, 'plugin_hook_failed');
+            assert.equal(notices[0].phase, 'before_request');
+        }
+    });
+
+    test('[new] numeric permission names are rejected and disable each fresh plugin session', async t => {
+        for (const [label, expression] of [...specialExpressions, ['negative-zero', '-0']]) {
+            let apiFrame;
+            const h = await fixture(t, [plugin(`nf-permission-${label}`, `await Risuai.addRisuReplacer('beforeRequest',async messages=>{
+                if(messages[0].content==='again')await Risuai.nativeFetch('https://synthetic.invalid/must-not-run',{});
+                else await Risuai.requestPluginPermission(${expression});return messages;
+            });`)], true, { wireMutation: frame => {
+                if (frame.kind === 'call' && frame.args?.[1]?.[0]?.[1] === 'requestPluginPermission') apiFrame = frame;
+                return frame;
+            } });
+            const hook = [...h.registry.replacerbeforeRequest][0];
+            await assert.rejects(hook(input), { code: 'plugin_before_request_failed' });
+            await assert.rejects(hook([{ role: 'user', content: 'again' }]), { code: 'plugin_before_request_failed' });
+            assert.equal(h.network.length, 0);
+            assert.equal(apiFrame.args[1][1][1][0][0], 'number');
+            const notices = h.notices(); assert.equal(notices.length, 1); assert.equal(notices[0].code, 'plugin_permission_missing');
+            assert.equal(notices[0].phase, 'before_request');
+        }
+    });
+
+    test('[new] getCharacter returns nested special numbers without disabling the plugin', async t => {
+        const h = await fixture(t, [plugin('nf-character-return', `await Risuai.addRisuReplacer('beforeRequest',async messages=>{
+            const value=await Risuai.getCharacter();return [...messages,{role:'system',content:JSON.stringify([
+                Object.is(value.metadata.nan,NaN),Object.is(value.metadata.infinity,Infinity),
+                Object.is(value.metadata.negativeInfinity,-Infinity),Object.is(value.metadata.negativeZero,-0)])}];
+        });`)]);
+        h.operationDb.characters.push({ name: 'special', chats: [], metadata: {
+            nan: NaN, infinity: Infinity, negativeInfinity: -Infinity, negativeZero: -0,
+        } });
+        assert.deepEqual(await [...h.registry.replacerbeforeRequest][0](input),
+            [...input, { role: 'system', content: '[true,true,true,true]' }]);
+        assert.deepEqual(h.notices(), []);
+    });
+
+    test('[new] nativeFetch and risuFetch preserve every requestTimeoutMs value to their shared helper boundary', async t => {
+        const h = await fixture(t, [plugin('nf-timeout-forwarding', `await Risuai.addRisuReplacer('beforeRequest',async messages=>{
+            for(const requestTimeoutMs of [Infinity,NaN,-Infinity,-0]){
+                await Risuai.nativeFetch('https://synthetic.invalid/native',{requestTimeoutMs});
+                await Risuai.risuFetch('https://synthetic.invalid/risu',{requestTimeoutMs});
+            }return messages;
+        });`)]);
+        const risu = [];
+        h.bindings.risuFetch = async (_url, options) => { risu.push(options.requestTimeoutMs); return { ok: true, data: 'synthetic' }; };
+        assert.deepEqual(await [...h.registry.replacerbeforeRequest][0](input), input);
+        assert.equal(h.network.length, 4);
+        const native = h.network.map(row => row.options.requestTimeoutMs);
+        assert.ok(Object.is(native[0], Infinity)); assert.ok(Object.is(native[1], NaN));
+        assert.ok(Object.is(native[2], -Infinity)); assert.ok(Object.is(native[3], -0));
+        assert.equal(risu.length, 4); assert.ok(Object.is(risu[0], Infinity)); assert.ok(Object.is(risu[1], NaN));
+        assert.ok(Object.is(risu[2], -Infinity)); assert.ok(Object.is(risu[3], -0));
+        assert.deepEqual(h.notices(), []);
+    });
+
+    test('[new] plugin storage keeps its existing JSON normalization after transport succeeds', async t => {
+        const h = await fixture(t, [plugin('nf-storage-normalization', `await Risuai.addRisuReplacer('beforeRequest',async messages=>{
+            await Risuai.pluginStorage.setItem('nf',{nan:NaN,infinity:Infinity,negativeInfinity:-Infinity,negativeZero:-0,finite:42});
+            const value=await Risuai.pluginStorage.getItem('nf');return [...messages,{role:'system',content:JSON.stringify(value)}];
+        });`)]);
+        assert.deepEqual(await [...h.registry.replacerbeforeRequest][0](input), [...input,
+            { role: 'system', content: '{"nan":null,"infinity":null,"negativeInfinity":null,"negativeZero":0,"finite":42}' }]);
+        assert.deepEqual(h.root.pluginCustomStorage.nf,
+            { nan: null, infinity: null, negativeInfinity: null, negativeZero: 0, finite: 42 });
+        assert.ok(Object.is(h.root.pluginCustomStorage.nf.negativeZero, +0));
+        assert.deepEqual(h.notices(), []);
+    });
+});
+
 for (const prepared of [false,true])for(const loadFailure of [false,true])test(`conflicting provider names cannot dispatch the first owner, prepared=${prepared}, loadFailure=${loadFailure}`,async t=>{
     const h=await fixture(t,[
         plugin('first-owner',`await Risuai.addProvider('shared',async()=>{await Risuai.nativeFetch('https://synthetic.invalid/must-not-run',{});return {success:true,content:'first'};});`),
