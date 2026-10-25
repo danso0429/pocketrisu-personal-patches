@@ -2,7 +2,7 @@
 
 ## 0. Scope and sources
 
-This record covers one Claude Code orchestration session from the moment the previous record was committed (patcher commit `d476d60`, 2026-10-22 12:37 UTC) to 2026-10-23 04:10 UTC (13:10 KST). Sections 1–11 were written at 22:33 UTC on 2026-10-22. §12 adds the work after the Codex reset, including the NF-1 implementation and commit. The state table in §1 and the open items in §11 are updated to the end of the session. The earlier part of the same session (G2.2b implementation, G2.2c measurements, D1-a implementation) is recorded in `docs/records/2026-10-22-g22b-g22c-d1a-session.md` and is not repeated here.
+This record covers one Claude Code orchestration session from the moment the previous record was committed (patcher commit `d476d60`, 2026-10-22 12:37 UTC) to 2026-10-23 04:04:50 UTC (13:04 KST), the time of the commit that adds this record. The push, CI check and hand-off that followed are recorded in `docs/records/2026-10-23-g22-nf1-closeout-session.md`. Sections 1–11 were written at 22:33 UTC on 2026-10-22. §12 adds the work after the Codex reset, including the NF-1 implementation and commit. The state table in §1 and the open items in §11 are updated to the end of the session. The earlier part of the same session (G2.2b implementation, G2.2c measurements, D1-a implementation) is recorded in `docs/records/2026-10-22-g22b-g22c-d1a-session.md` and is not repeated here.
 
 Sources used: the session transcript, the files written or edited in the session, and the outputs of commands run in the session (git, gate runs, probe runs, quota scripts, Codex session logs of the calls made in this session). No other documents were read to write this record.
 
@@ -424,9 +424,9 @@ Items 1–3 of the earlier list (NF-1 correction, the NF-1 plan premise fix, NF-
 3. **G2.2 completion record.**
 4. **Pushes.**
    - Push anything committed after this session's pushes (§12.5).
-   - The patcher `docs/records` commit that contains this record was pushed together with NF-1.
+   - The patcher `docs/records` commit that contains this record (`533ca2e`) was pushed after this record was committed, as `d476d60..533ca2e`; see the close-out record §3.1.
 
-## 12. After the Codex reset (2026-10-23 02:43–04:10 UTC)
+## 12. After the Codex reset (2026-10-23 02:43–04:04:50 UTC)
 
 ### 12.1 Resumption and the second plan correction
 
@@ -544,9 +544,9 @@ The orchestrator copied the two files into the implementation worktree and ran t
 | Planning | `5703479` | D2 registration-timing decision, contract names, scenario review |
 | Planning | `16a6abe` | NF-1 notice-log premise includes the worker inspect step |
 | Planning | `0d2e56d` | NF-1 contract rows 9 and 10: D1-a lifecycle and fetch result shapes |
-| Planning | (end of session) | NF-1 implementation record and ordered-goals current state |
+| Planning | `321e500` | NF-1 implementation record and ordered-goals current state |
 | Patcher | `605c49c` | NF-1 implementation, fixed tests, release 0.2.4-experimental.85 / adapter 0.7.80 |
-| Patcher | (end of session) | this record |
+| Patcher | `533ca2e` | this record |
 
 ## Appendix B. Working-tree state at the end of the session
 
