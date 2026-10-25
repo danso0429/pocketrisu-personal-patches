@@ -70,6 +70,12 @@ const localStringRead = (method, args) => method === 'api' && Array.isArray(args
 // and is not charged against the ordinary 64-call RPC capacity on either side.
 const ABSENT_API_PULL = 'absent_api_pull';
 const ABSENT_API_LIMIT = 32, ROOT_METHOD_LIMIT = 256;
+// Post-response continuation: a parent-initiated read of the sealed timer count,
+// and the per-entry bound on one-shot timers sealed when an eligible callback returns.
+const POST_RESPONSE_COUNT = '_postResponseCount';
+const POST_RESPONSE_TIMER_LIMIT = 16;
+const TIMEOUT_MAX = 2 ** 31 - 1;
+const hostSetTimeout = setTimeout, hostClearTimeout = clearTimeout, hostClearInterval = clearInterval;
 const absentApiName = value => typeof value === 'string' && value.length > 0 && value.length <= 80
     && !/[\u0000-\u001f\u007f]/.test(value);
 const rootMethodName = value => typeof value === 'string' && /^[A-Za-z_$][A-Za-z0-9_$]{0,79}$/.test(value);
@@ -77,7 +83,8 @@ const rootMethodName = value => typeof value === 'string' && /^[A-Za-z_$][A-Za-z
 function createPluginPeer({ send, dispatch, onFatal = () => {}, timeoutMs = 600_000, onExpiredContext = () => {},
     getContext = () => null, runContext = (_context, task) => task(),
     invoke = task => task(), retainContext = () => () => {}, localCallLimits = false, settleCallbacks = false, workerSide = false,
-    beforeLargePull = async () => {}, onLargeLimit = async () => {}, onSettlementTimeout }) {
+    beforeLargePull = async () => {}, onLargeLimit = async () => {}, onSettlementTimeout,
+    isPostResponseCall = () => false, onPostResponseDrained = () => {} }) {
     const pending = new Map(), functions = new Map(), remoteFunctions = new Map();
     const readers = new Map(), signals = new Map(), controllers = new Map();
     const remoteStreams = new Map();
@@ -88,12 +95,23 @@ function createPluginPeer({ send, dispatch, onFatal = () => {}, timeoutMs = 600_
     const incomingContexts = new Map(), contextActivity = new Map();
     const contextWaiters = new Map(), activityWaiters = new Set();
     const largeMarkers = new WeakMap(), largeReleases = new Set();
+    // Worker side of the post-response continuation. A one-shot timer that an
+    // eligible callback started and left pending when its value settled is
+    // sealed: it never runs outside the window the parent opens after commit.
+    const trackedTimers = new Map(), sealedTimers = new Set(), timerRecords = new Map();
+    let timerSequence = 0, postResponse = null;
+    const wakePostResponse = () => {
+        if (!postResponse) return;
+        postResponse.version++;
+        for (const wake of postResponse.waiters) wake();
+        postResponse.waiters.clear();
+    };
     const reserve = units => {
         const release = reserveLarge(units);
         const ownedRelease = () => { release(); largeReleases.delete(ownedRelease); };
         largeReleases.add(ownedRelease); return ownedRelease;
     };
-    const touchActivity = () => { activity++; for (const wake of activityWaiters) wake(); };
+    const touchActivity = () => { activity++; for (const wake of activityWaiters) wake(); wakePostResponse(); };
     const touchContext = context => {
         touchActivity();
         if (settleCallbacks) {
@@ -161,6 +179,137 @@ function createPluginPeer({ send, dispatch, onFatal = () => {}, timeoutMs = 600_
             await waitForActivity(undefined, before);
         }
     }
+    const timerRecord = handle => {
+        if (handle !== null && typeof handle === 'object') return timerRecords.get(handle);
+        if (typeof handle !== 'number' && typeof handle !== 'string') return undefined;
+        const id = Number(handle);
+        for (const [key, record] of timerRecords) if (Number(key) === id) return record;
+        return undefined;
+    };
+    const forgetTimer = record => {
+        timerRecords.delete(record.handle); sealedTimers.delete(record);
+        trackedTimers.get(record.context)?.delete(record); postResponse?.timers.delete(record);
+    };
+    // Runs a sealed or window timer inside the window context. Its returned
+    // promise is part of the window; a throw or rejection reports an error.
+    function runPostResponseTimer(record, sealed) {
+        const window = postResponse;
+        forgetTimer(record);
+        if (sealed) window.ran++;
+        window.running++;
+        let settled = false;
+        const done = failed => {
+            if (settled) return;
+            settled = true; if (failed) window.failed = true; window.running--; wakePostResponse();
+        };
+        let result, then = null;
+        try {
+            result = runContext(window.context, () => apply(record.callback, record.handle, record.args));
+            if (result !== null && (typeof result === 'object' || typeof result === 'function')) then = result.then;
+        } catch { done(true); return; }
+        if (typeof then !== 'function') { done(false); return; }
+        try { apply(then, result, [() => done(false), () => done(true)]); } catch { done(true); }
+    }
+    function fireTimer(record) {
+        if (record.state === 'cleared') return;
+        if (record.state === 'sealed' || record.state === 'held') {
+            // Held until the window opens; a closed window never runs it.
+            if (!postResponse) { record.state = 'held'; return; }
+            if (postResponse.closed) { forgetTimer(record); return; }
+            runPostResponseTimer(record, true);
+            return;
+        }
+        if (record.state === 'window') {
+            if (postResponse.closed) forgetTimer(record);
+            else runPostResponseTimer(record, false);
+            return;
+        }
+        // Still inside its hook, or not sealed: the ordinary host timer.
+        forgetTimer(record);
+        return apply(record.callback, record.handle, record.args);
+    }
+    // The plugin's setTimeout. Untracked calls are the host function itself.
+    function setPluginTimeout(callback, delay, ...args) {
+        const context = getContext();
+        const tracking = context === null ? undefined : trackedTimers.get(context);
+        const window = postResponse && !postResponse.closed && context === postResponse.context ? postResponse : null;
+        if ((!tracking && !window) || typeof callback !== 'function') return hostSetTimeout(callback, delay, ...args);
+        let after = Number(delay);
+        if (!(after >= 1 && after <= TIMEOUT_MAX)) after = 1;
+        const record = { callback, args, context, due: performance.now() + after, sequence: ++timerSequence,
+            state: window ? 'window' : 'pending', handle: null };
+        record.handle = hostSetTimeout(() => fireTimer(record), after);
+        timerRecords.set(record.handle, record);
+        (window ? window.timers : tracking).add(record);
+        return record.handle;
+    }
+    const clearPluginTimer = hostClear => function clearTimer(handle) {
+        const record = timerRecord(handle);
+        if (record) { record.state = 'cleared'; forgetTimer(record); wakePostResponse(); }
+        return hostClear(handle);
+    };
+    // Called when an eligible callback's value settled, before its settlement.
+    function sealTimers(context, tracking, seal) {
+        if (trackedTimers.get(context) === tracking) trackedTimers.delete(context);
+        for (const record of tracking) {
+            if (record.state !== 'pending') continue;
+            if (seal && !postResponse && sealedTimers.size < POST_RESPONSE_TIMER_LIMIT) {
+                record.state = 'sealed'; sealedTimers.add(record);
+            } else record.state = 'released';
+        }
+    }
+    async function watchPostResponse(window) {
+        const quiet = () => sealedTimers.size === 0 && window.timers.size === 0 && window.running === 0
+            && !incomingContexts.has(window.context) && ![...pending.values()].some(entry => entry.context === window.context)
+            // A response body of the window context counts until EOF, error or cancellation.
+            && ![...remoteStreams.values()].some(entry => entry.context === window.context);
+        for (;;) {
+            if (closed || window.closed) return;
+            await immediate();
+            const before = window.version;
+            if (quiet()) {
+                await immediate();
+                if (closed || window.closed) return;
+                if (quiet() && window.version === before) {
+                    window.closed = true;
+                    emit({ kind: 'post_response_drained', context: window.context, ran: window.ran,
+                        ...(window.failed ? { failed: true } : {}) });
+                    return;
+                }
+            }
+            if (closed || window.closed) return;
+            if (window.version === before) await new Promise(resolve => { window.waiters.add(resolve); });
+        }
+    }
+    function openPostResponseWindow(context) {
+        if (postResponse) throw fail('plugin_rpc_protocol_invalid');
+        const window = postResponse = { context, ran: 0, running: 0, timers: new Set(), failed: false, closed: false,
+            version: 0, waiters: new Set() };
+        // Already due: run now in their original order. The others run at
+        // their original time (max(original schedule, now)).
+        const held = [...sealedTimers].filter(record => record.state === 'held')
+            .sort((left, right) => left.due - right.due || left.sequence - right.sequence);
+        void Promise.resolve().then(() => {
+            for (const record of held) if (!window.closed && record.state === 'held') runPostResponseTimer(record, true);
+            return watchPostResponse(window);
+        }).catch(() => {});
+    }
+    function closePostResponseWindow(context) {
+        if (!postResponse || postResponse.context !== context) throw fail('plugin_rpc_protocol_invalid');
+        postResponse.closed = true;
+        for (const record of [...sealedTimers, ...postResponse.timers]) {
+            hostClearTimeout(record.handle); record.state = 'cleared'; forgetTimer(record);
+        }
+        wakePostResponse();
+    }
+    // Parent side: end the host streams a closed window context still owns.
+    function cancelContextStreams(context) {
+        for (const [id, entry] of readers) {
+            if (entry.context !== context) continue;
+            readers.delete(id);
+            void apply(cancelReader, entry.reader, [fail('plugin_invocation_expired')]).catch(() => {});
+        }
+    }
     const exportSlot = (value, kind, budget) => {
         const slot = kind === 'signal' ? [kind, null, apply(signalAborted, value, [])] : [kind, null];
         let entry = budget.exports.get(value);
@@ -197,6 +346,7 @@ function createPluginPeer({ send, dispatch, onFatal = () => {}, timeoutMs = 600_
         remoteStreams.clear();
         for (const release of largeReleases) release();
         incomingContexts.clear(); contextActivity.clear();
+        wakePostResponse();
     }
     const fatal = code => { close(code); onFatal(code); };
 
@@ -421,8 +571,9 @@ function createPluginPeer({ send, dispatch, onFatal = () => {}, timeoutMs = 600_
             if (remoteStreams.has(data)) return remoteStreams.get(data).stream;
             if (remoteStreams.size >= 64) throw fail('plugin_rpc_handle_limit');
             const context = getContext(), release = retainContext(context);
-            const entry = { release, controller: null, stream: null };
-            const finish = () => { if (remoteStreams.delete(data)) release(); };
+            const entry = { release, controller: null, stream: null, context };
+            // EOF, error or cancellation ends the body; an open window re-checks.
+            const finish = () => { if (remoteStreams.delete(data)) { release(); wakePostResponse(); } };
             entry.stream = new ReadableStream({
                 start(controller) { entry.controller = controller; },
                 async pull(controller) {
@@ -519,7 +670,9 @@ function createPluginPeer({ send, dispatch, onFatal = () => {}, timeoutMs = 600_
                 finishExports: serialization?.finishExports, returning: false, absentPull });
             if (absentPull) absentPullPending = true;
             touchContext(context);
-            try { emit({ kind: 'call', id, method, args: encoded, context }); }
+            // Parent-owned eligibility; a worker cannot mark its own call.
+            const postResponseCall = !workerSide && method === '_callback' && isPostResponseCall(context) === true;
+            try { emit({ kind: 'call', id, method, args: encoded, context, ...(postResponseCall ? { postResponse: true } : {}) }); }
             catch (error) {
                 if (localCallLimits && error?.code === 'plugin_rpc_frame_limit' && error.oversize === true) {
                     serialization?.rollback();
@@ -532,15 +685,20 @@ function createPluginPeer({ send, dispatch, onFatal = () => {}, timeoutMs = 600_
             }
         });
     }
-    async function execute(method, args, markSettlement = () => {}) {
+    async function execute(method, args, markSettlement = () => {}, postResponseCall = false) {
         if (!Array.isArray(args)) throw fail('plugin_rpc_arguments_invalid');
         if (method === '_callback') {
             if (args.length !== 2 || !functions.has(args[0]) || !Array.isArray(args[1])) throw fail('plugin_rpc_callback_invalid');
             if (!settleCallbacks) return functions.get(args[0])(...args[1]);
             const context = getContext(), started = performance.now();
+            const tracking = postResponseCall && workerSide && context !== null && !trackedTimers.has(context) ? new Set() : null;
+            if (tracking) trackedTimers.set(context, tracking);
             let result, error, rejected = false;
             try { result = await functions.get(args[0])(...args[1]); }
             catch (failure) { error = failure; rejected = true; }
+            // Eligibility is sealed when the callback's value settled; a
+            // rejected callback seals nothing.
+            if (tracking) sealTimers(context, tracking, !rejected);
             if (await settleContext(context, started)) markSettlement();
             if (rejected) throw error;
             return result;
@@ -563,6 +721,10 @@ function createPluginPeer({ send, dispatch, onFatal = () => {}, timeoutMs = 600_
                 return result;
             } catch (error) { readers.delete(args[0]); throw error; }
             finally { entry.pulling = false; }
+        }
+        if (workerSide && method === POST_RESPONSE_COUNT) {
+            if (args.length !== 0) throw fail('plugin_rpc_arguments_invalid');
+            return sealedTimers.size;
         }
         return dispatch(method, args);
     }
@@ -616,10 +778,21 @@ function createPluginPeer({ send, dispatch, onFatal = () => {}, timeoutMs = 600_
                     }).catch(failure => fatal(errorCode(failure))); }
                     catch (failure) { fatal(errorCode(failure)); }
                 });
+            } else if (frame.kind === 'post_response_open' || frame.kind === 'post_response_close') {
+                if (!workerSide || typeof frame.context !== 'string' || frame.context.length > 128) throw fail('plugin_rpc_protocol_invalid');
+                if (frame.kind === 'post_response_open') openPostResponseWindow(frame.context);
+                else closePostResponseWindow(frame.context);
+            } else if (frame.kind === 'post_response_drained') {
+                if (workerSide || typeof frame.context !== 'string' || frame.context.length > 128
+                    || !Number.isSafeInteger(frame.ran) || frame.ran < 0
+                    || (Object.hasOwn(frame, 'failed') && frame.failed !== true)) throw fail('plugin_rpc_protocol_invalid');
+                onPostResponseDrained(frame.context, frame.ran, frame.failed === true);
             } else if (frame.kind === 'call') {
                 const absentPull = workerSide && frame.method === ABSENT_API_PULL;
+                const postResponseCall = Object.hasOwn(frame, 'postResponse');
                 if (!validId(frame.id) || frame.id <= lastIncoming || typeof frame.method !== 'string'
                     || frame.method.length > 80 || (absentPull ? absentPullIncoming >= 1 : incoming - absentPullIncoming >= 64)
+                    || (postResponseCall && (!workerSide || frame.postResponse !== true || frame.method !== '_callback'))
                     || !(frame.context === null || (typeof frame.context === 'string' && frame.context.length <= 128))) throw fail('plugin_rpc_protocol_invalid');
                 lastIncoming = frame.id;
                 // Materialize signal handles before reading a subsequent abort
@@ -647,7 +820,7 @@ function createPluginPeer({ send, dispatch, onFatal = () => {}, timeoutMs = 600_
                     materialize(args, budget).then(async result => {
                         decoded = result;
                         if (closed) throw fail('plugin_rpc_closed');
-                        return execute(frame.method, result.value, () => { settlementExpired = true; });
+                        return execute(frame.method, result.value, () => { settlementExpired = true; }, postResponseCall);
                     }).then(value => {
                         decoded?.release(); decoded = null;
                         if (!closed) {
@@ -681,7 +854,13 @@ function createPluginPeer({ send, dispatch, onFatal = () => {}, timeoutMs = 600_
             } else throw fail('plugin_rpc_protocol_invalid');
         } catch (error) { fatal(errorCode(error)); }
     }
-    return { call, receive, close, waitForLoadIdle, stats: () => ({ pending: pending.size, incoming, activity, closed,
+    return { call, receive, close, waitForLoadIdle,
+        timers: { setTimeout: setPluginTimeout, clearTimeout: clearPluginTimer(hostClearTimeout),
+            clearInterval: clearPluginTimer(hostClearInterval) },
+        openPostResponse: context => emit({ kind: 'post_response_open', context }),
+        closePostResponse: context => { if (!closed) emit({ kind: 'post_response_close', context }); },
+        cancelContextStreams,
+        stats: () => ({ pending: pending.size, incoming, activity, closed,
         waitingContexts: contextWaiters.size, waitingLoad: activityWaiters.size,
         largeReservations: largeReleases.size, reservedLargeUnits,
         storageCredits,
@@ -730,13 +909,7 @@ async function runWorker() {
     const sandboxConsole = Object.fromEntries(Object.getOwnPropertyNames(console)
         .filter(name => !name.startsWith('_') && name !== 'Console' && typeof console[name] === 'function')
         .map(name => [name, () => {}])); // Debug console is not a user-facing Risuai.log notification.
-    const context = vm.createContext({ Risuai: api, risuai: api, console: sandboxConsole,
-        TextEncoder, TextDecoder, URL, URLSearchParams, Headers, Request, Response,
-        ReadableStream, WritableStream, TransformStream, AbortController, AbortSignal,
-        Uint8Array, ArrayBuffer, crypto: globalThis.crypto, performance,
-        structuredClone, atob, btoa, setTimeout, clearTimeout, setInterval, clearInterval,
-        queueMicrotask });
-    vm.runInContext('globalThis.window = globalThis; globalThis.self = globalThis;', context);
+    let context;
     const runtimeMs = Number(process.argv[2]);
     peer = createPluginPeer({ timeoutMs: Number.isSafeInteger(runtimeMs) && runtimeMs > 0 ? runtimeMs : 600_000,
         localCallLimits: true, settleCallbacks: true, workerSide: true,
@@ -767,6 +940,14 @@ async function runWorker() {
         }
         throw fail('plugin_rpc_method_unsupported');
     } });
+    // Bare and window timers are the same peer-owned wrappers; setInterval is the host's.
+    context = vm.createContext({ Risuai: api, risuai: api, console: sandboxConsole,
+        TextEncoder, TextDecoder, URL, URLSearchParams, Headers, Request, Response,
+        ReadableStream, WritableStream, TransformStream, AbortController, AbortSignal,
+        Uint8Array, ArrayBuffer, crypto: globalThis.crypto, performance,
+        structuredClone, atob, btoa, setTimeout: peer.timers.setTimeout, clearTimeout: peer.timers.clearTimeout,
+        setInterval, clearInterval: peer.timers.clearInterval, queueMicrotask });
+    vm.runInContext('globalThis.window = globalThis; globalThis.self = globalThis;', context);
     let buffer = '';
     const decoder = new StringDecoder('utf8');
     channel.on('data', bytes => {
@@ -786,5 +967,5 @@ async function runWorker() {
 }
 
 module.exports = { createPluginPeer, reservePluginStorage, reservedPluginValue, stringJSONBytes,
-    ABSENT_API_PULL, ABSENT_API_LIMIT, absentApiName };
+    ABSENT_API_PULL, ABSENT_API_LIMIT, absentApiName, POST_RESPONSE_COUNT, POST_RESPONSE_TIMER_LIMIT };
 if (require.main === module) void runWorker().catch(() => process.exit(1));

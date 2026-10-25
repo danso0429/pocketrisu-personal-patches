@@ -1511,6 +1511,69 @@ describe('server-owned BG chat commit', () => {
     })
 })
 
+describe('[D3-1] Post-commit continuation for afterRequest timers', () => {
+    it('[new] writes the pending post-response obligation inside the canonical commit transaction', async () => {
+        const h = makeHarness(), writes: any[] = []
+        const owner = h.makeOwner(undefined, null, { writePostResponseSync: (record: any) => {
+            writes.push(structuredClone(record))
+            expect(h.db.inTransaction).toBe(true)
+        } })
+        const id = 'operation-d3-atomic-sync', chat = baseChat(); h.primeOperation(id)
+        const entries = [{ index: 0, pluginName: 'memory-plugin', pluginVersion: '3.0' }]
+        const outcome = await owner.commitGenerationResult({
+            ...h.commitInput(id, result(withAnswer(chat, 'retained answer', 'd3-answer'), 'old', 'new'), 1, revision(chat)),
+            postResponseSync: { entries },
+        })
+        expect(writes, 'commit owner must invoke writePostResponseSync in the transaction').toHaveLength(1)
+        expect(writes[0]).toMatchObject({ version: 1, operationId: id, charId: 'char-1', chatId: 'chat-1',
+            receiptId: outcome.receipt.commitReceiptId, storedRevision: outcome.receipt.storedRevision,
+            storageEpoch: 0, entries, state: 'pending' })
+        expect(writes[0].createdAt).toBeTypeOf('number')
+    })
+
+    it('[new] rolls back the chat commit when the transactional sync-obligation write fails', async () => {
+        const h = makeHarness(), owner = h.makeOwner(undefined, null, {
+            writePostResponseSync: () => { throw new Error('injected-post-response-sync-write-failure') },
+        })
+        const id = 'operation-d3-sync-rollback', chat = baseChat(); h.primeOperation(id)
+        await expect(owner.commitGenerationResult({
+            ...h.commitInput(id, result(withAnswer(chat, 'must not commit', 'd3-rollback-answer'), 'old', 'new'), 1, revision(chat)),
+            postResponseSync: { entries: [{ index: 0, pluginName: 'memory-plugin', pluginVersion: '3.0' }] },
+        })).rejects.toThrow('injected-post-response-sync-write-failure')
+        expect(h.runtime.fullStore.get('char-1')!.get('chat-1')).toEqual(chat)
+        expect(h.kvGet(commitStorageKey(id))).toBeNull()
+    })
+
+    it('[new] leaves an existing terminal sync record untouched when a canonical commit is replayed', async () => {
+        const h = makeHarness(), writes: any[] = []
+        const owner = h.makeOwner(undefined, null, { writePostResponseSync: (record: any) => writes.push(structuredClone(record)) })
+        const id = 'operation-d3-sync-replay', chat = baseChat(); h.primeOperation(id)
+        const input = { ...h.commitInput(id, result(withAnswer(chat, 'retained answer', 'd3-replay-answer'), 'old', 'new'), 1, revision(chat)),
+            postResponseSync: { entries: [{ index: 0, pluginName: 'memory-plugin', pluginVersion: '3.0' }] } }
+        const first = await owner.commitGenerationResult(input)
+        expect(writes).toHaveLength(1)
+        const terminal = { ...writes[0], state: 'uncertain', reason: 'restart', notices: { 0: 'published' } }
+        writes[0] = terminal
+        const replay = await owner.commitGenerationResult(input)
+        expect(replay).toMatchObject({ status: 'committed', reused: true })
+        expect(writes).toEqual([terminal])
+        expect(replay.receipt.commitReceiptId).toBe(first.receipt.commitReceiptId)
+    })
+
+    it('[new] reads only the receipt-matching canonical chat and returns a detached clone', async () => {
+        const h = makeHarness(), owner = h.makeOwner(), id = 'operation-d3-read-committed', chat = baseChat(); h.primeOperation(id)
+        const committed = withAnswer(chat, 'retained answer', 'd3-read-answer')
+        const outcome = await owner.commitGenerationResult(h.commitInput(id, result(committed, 'old', 'new'), 1, revision(chat)))
+        expect(owner.readCommittedChat, 'commit owner must expose readCommittedChat').toBeTypeOf('function')
+        const read = owner.readCommittedChat(outcome.receipt)
+        expect(read).toEqual(committed)
+        expect(read).not.toBe(h.runtime.fullStore.get('char-1')!.get('chat-1'))
+        read.message[0].data = 'mutated clone'
+        expect(owner.readCommittedChat(outcome.receipt)).toEqual(committed)
+        expect(owner.readCommittedChat({ ...outcome.receipt, storedRevision: 'wrong-revision' })).toBeNull()
+    })
+})
+
 describe('[B1b-1] Storage epoch and run binding', () => {
     it('rejects an old-epoch owner commit before chat, variable, statistic, journal, or record mutation', async () => {
         const harness = makeHarness(), operationId = 'operation-b1b-owner-old-epoch'

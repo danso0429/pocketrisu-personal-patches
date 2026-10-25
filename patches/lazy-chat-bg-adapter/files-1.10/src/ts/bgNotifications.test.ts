@@ -124,3 +124,35 @@ describe('[D2-1] BG plugin MCP registration and calls', () => {
         expect(parseBgNotifications({ notifications: [row] })).toEqual([row])
     })
 })
+
+describe('[D3-1] Post-commit continuation for afterRequest timers', () => {
+    const row = (reason: 'deadline' | 'aborted' | 'error' | 'restart') => ({
+        id: reason.charCodeAt(0).toString(16).repeat(64).slice(0, 64), token: `claim-token-d3-${reason}`, leaseMs: 30_000,
+        event: { operationId: 'operation-d3-client', eventKey: 'plugin:0:post-response-uncertain',
+            code: 'plugin_post_response_uncertain' as any, charId: 'character-1', chatId: 'chat-1', createdAt: 1,
+            effectsMayHaveOccurred: true, pluginName: 'memory-plugin', pluginVersion: '3.0',
+            phase: 'post_response', reason },
+    })
+
+    it.each(['deadline', 'aborted', 'error', 'restart'] as const)(
+        '[new] validates post-response reason %s and renders the fixed Korean message', reason => {
+            const notice = row(reason)
+            expect(parseBgNotifications({ notifications: [notice] })).toEqual([notice])
+            expect(notificationMessage(notice as any)).toBe(
+                'memory-plugin (3.0): 답변 뒤 플러그인 동기화가 확인되지 않았어요. 저장된 답변은 그대로예요.',
+            )
+        },
+    )
+
+    it('[new] rejects an unknown reason, old phase, or false effects claim for the new code', () => {
+        const notice = row('error')
+        expect(parseBgNotifications({ notifications: [notice] }), 'the valid new notice must pass before rejection cases are meaningful')
+            .toEqual([notice])
+        expect(() => parseBgNotifications({ notifications: [{ ...notice,
+            event: { ...notice.event, reason: 'private-error-text' } }] })).toThrow()
+        expect(() => parseBgNotifications({ notifications: [{ ...notice,
+            event: { ...notice.event, phase: 'after_request' } }] })).toThrow()
+        expect(() => parseBgNotifications({ notifications: [{ ...notice,
+            event: { ...notice.event, effectsMayHaveOccurred: false } }] })).toThrow()
+    })
+})

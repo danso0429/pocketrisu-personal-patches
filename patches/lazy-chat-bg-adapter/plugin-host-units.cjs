@@ -10,7 +10,8 @@ module.exports = prior => {
         after: [...prior, ...related, ...units].filter(unit => unit.file === file).map(unit => unit.id) });
     for (const file of ['server/node/bgPluginSandbox.cjs', 'server/node/bgPluginWorker.cjs',
         'server/node/bgPluginSession.cjs', 'server/node/bgPluginStorage.cjs', 'server/node/bgPluginHost.cjs', 'server/node/bgPluginValue.cjs',
-        'server/node/bgPluginDiagnostics.cjs', 'server/node/bgCurrentLorebookEntries.test.ts', 'server/node/bgPluginMcp.test.ts',
+        'server/node/bgPluginDiagnostics.cjs', 'server/node/bgCurrentLorebookEntries.test.ts', 'server/node/bgPostResponseHost.test.ts',
+        'server/node/bgPostResponseOrchestrator.test.ts', 'server/node/bgPluginMcp.test.ts',
         'server/node/bgPluginMcpExposure.test.ts',
         'src/lib/Others/BgPluginDiagnostics.svelte', 'src/ts/bgPluginBindings.ts', 'src/ts/process/request/bgPluginMcpRequest.test.ts',
         'src/ts/process/request/bgPluginMcpProviders.test.ts']) {

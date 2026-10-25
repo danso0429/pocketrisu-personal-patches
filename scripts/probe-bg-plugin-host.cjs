@@ -1891,3 +1891,282 @@ test('a synchronous registration refusal wins over a same-tick policy-rejected g
         Risuai.getArg('other::key').catch(()=>{});`)], true, { wireMutation: sameTick('addRisuScriptHandler', 'getArg') });
     assert.deepEqual(h.notices().map(row => [row.code, row.phase]), [['plugin_hook_failed', 'load']]);
 });
+
+describe('[D3-1] Post-commit continuation for afterRequest timers', () => {
+    const d3Host = h => {
+        assert.equal(typeof h.host.handOver, 'function', 'host.handOver must exist');
+        assert.equal(typeof h.host.openPostResponse, 'function', 'host.openPostResponse must exist');
+        return h.host;
+    };
+
+    test('[new] seals bare and window one-shot timers with arguments, normalization, and FIFO order', async t => {
+        const h = await fixture(t, [plugin('d3-timer-parity', `
+            await Risuai.addRisuReplacer('afterRequest',async value=>{
+                const send=async(name,...args)=>{const response=await Risuai.nativeFetch('https://synthetic.invalid/'+name,{method:'POST',body:JSON.stringify(args)});await response.text();};
+                setTimeout(send,-100,'negative');window.setTimeout(send,NaN,'nan');setTimeout(send,0,'zero');
+                setTimeout(send,80,'same-a','arg1',42);window.setTimeout(send,80,'same-b',{a:1});return value;
+            });
+        `)]);
+        assert.equal(await [...h.registry.replacerafterRequest][0]('answer'), 'answer');
+        assert.equal(h.network.length, 0, 'sealed timers must not run before the post-response window');
+        const host = d3Host(h);
+        assert.deepEqual(await host.handOver(), { participants: [{ index: 0, pluginName: 'd3-timer-parity', pluginVersion: '3.0' }] });
+        assert.deepEqual(await host.openPostResponse({ deadline: performance.now() + 1000, signal: new AbortController().signal }),
+            { status: 'drained' });
+        assert.deepEqual(h.network.map(row => [new URL(row.url).pathname, JSON.parse(row.options.body)]), [
+            ['/negative', []], ['/nan', []], ['/zero', []], ['/same-a', ['arg1', 42]], ['/same-b', [{ a: 1 }]],
+        ]);
+    });
+
+    test('[new] seals only timers still pending when an async afterRequest callback returns', async t => {
+        const h = await fixture(t, [plugin('d3-hook-boundary', `
+            await Risuai.addRisuReplacer('afterRequest',async value=>{
+                setTimeout(()=>Risuai.nativeFetch('https://synthetic.invalid/short'),20);
+                setTimeout(async()=>{const response=await Risuai.nativeFetch('https://synthetic.invalid/long');await response.text();},250);
+                await new Promise(resolve=>setTimeout(resolve,100));return value;
+            });
+        `)]);
+        assert.equal(await [...h.registry.replacerafterRequest][0]('answer'), 'answer');
+        assert.deepEqual(h.network.map(row => new URL(row.url).pathname), ['/short']);
+        const host = d3Host(h);
+        assert.equal((await host.handOver()).participants.length, 1);
+        assert.deepEqual(await host.openPostResponse({ deadline: performance.now() + 1000, signal: new AbortController().signal }),
+            { status: 'drained' });
+        assert.deepEqual(h.network.map(row => new URL(row.url).pathname), ['/short', '/long']);
+    });
+
+    for (const [name, beforeOpen, minimum, maximum] of [
+        ['fast snapshot', 30, 70, 240],
+        ['slow snapshot', 180, 0, 80],
+    ]) test(`[new] runs at max(original schedule, snapshot ready) without restarting delay: ${name}`, async t => {
+        let firedAt = 0;
+        const h = await fixture(t, [plugin('d3-original-deadline-' + name, `
+            await Risuai.addRisuReplacer('afterRequest',value=>{setTimeout(async()=>{const response=await Risuai.nativeFetch('https://synthetic.invalid/timing');await response.text();},120);return value;});
+        `)], true, { nativeFetch: async () => { firedAt = performance.now(); return new Response('ok'); } });
+        const armedAt = performance.now();
+        assert.equal(await [...h.registry.replacerafterRequest][0]('answer'), 'answer');
+        const host = d3Host(h); await host.handOver();
+        await new Promise(resolve => setTimeout(resolve, beforeOpen));
+        const openedAt = performance.now();
+        assert.deepEqual(await host.openPostResponse({ deadline: performance.now() + 1000, signal: new AbortController().signal }), { status: 'drained' });
+        assert.ok(firedAt >= armedAt + 100, `timer fired too early: ${firedAt - armedAt}`);
+        assert.ok(firedAt - openedAt >= minimum && firedAt - openedAt <= maximum,
+            `timer delay was restarted or not released at snapshot: ${firedAt - openedAt}`);
+    });
+
+    test('[new] treats clear-before-seal as none and clear-from-first-callback as drained', async t => {
+        const cleared = await fixture(t, [plugin('d3-cleared-in-hook', `
+            await Risuai.addRisuReplacer('afterRequest',value=>{const id=setTimeout(()=>Risuai.nativeFetch('https://synthetic.invalid/no'),50);clearTimeout(id);return value;});
+        `)]);
+        assert.equal(await [...cleared.registry.replacerafterRequest][0]('answer'), 'answer');
+        const clearedHost = d3Host(cleared);
+        assert.deepEqual(await clearedHost.handOver(), { participants: [] });
+        assert.deepEqual(await clearedHost.openPostResponse({ deadline: performance.now() + 100, signal: new AbortController().signal }), { status: 'none' });
+
+        const during = await fixture(t, [plugin('d3-cleared-in-window', `
+            await Risuai.addRisuReplacer('afterRequest',value=>{let second;
+                setTimeout(async()=>{clearTimeout(second);const response=await Risuai.nativeFetch('https://synthetic.invalid/first');await response.text();},20);
+                second=setTimeout(()=>Risuai.nativeFetch('https://synthetic.invalid/second'),500);return value;});
+        `)]);
+        assert.equal(await [...during.registry.replacerafterRequest][0]('answer'), 'answer');
+        const duringHost = d3Host(during); await duringHost.handOver();
+        assert.deepEqual(await duringHost.openPostResponse({ deadline: performance.now() + 1000, signal: new AbortController().signal }), { status: 'drained' });
+        assert.deepEqual(during.network.map(row => new URL(row.url).pathname), ['/first']);
+    });
+
+    test('[new] reports none when a sealed candidate is cleared after hand-over but before opening', async t => {
+        const h = await fixture(t, [plugin('d3-clear-sealed', `let held;
+            await Risuai.addRisuReplacer('afterRequest',value=>{held=setTimeout(()=>Risuai.nativeFetch('https://synthetic.invalid/cleared-sealed'),200);return value;});
+            await Risuai.addRisuScriptHandler('output',value=>{clearTimeout(held);return value;});
+        `)]);
+        assert.equal(await [...h.registry.replacerafterRequest][0]('answer'), 'answer');
+        const host = d3Host(h);
+        assert.equal((await host.handOver()).participants.length, 1);
+        assert.equal(await [...h.registry.editoutput][0]('answer'), 'answer');
+        assert.deepEqual(await host.openPostResponse({ deadline: performance.now() + 1000, signal: new AbortController().signal }), { status: 'none' });
+        assert.deepEqual(h.network, []);
+    });
+
+    test('[new] seals at most sixteen timers, seals no timer from a rejected hook, and includes a plugin-owned race timer', async t => {
+        const limited = await fixture(t, [plugin('d3-seal-limit', `
+            await Risuai.addRisuReplacer('afterRequest',value=>{for(let i=0;i<18;i++)setTimeout(async()=>{const response=await Risuai.nativeFetch('https://synthetic.invalid/t'+i);await response.text();},100);return value;});
+        `)]);
+        assert.equal(await [...limited.registry.replacerafterRequest][0]('answer'), 'answer');
+        const limitedHost = d3Host(limited);
+        assert.equal(typeof targetRequire('./server/node/bgPluginWorker.cjs').POST_RESPONSE_TIMER_LIMIT, 'number', 'POST_RESPONSE_TIMER_LIMIT must be exported');
+        assert.equal(targetRequire('./server/node/bgPluginWorker.cjs').POST_RESPONSE_TIMER_LIMIT, 16);
+        await limitedHost.handOver();
+        assert.deepEqual(await limitedHost.openPostResponse({ deadline: performance.now() + 1000, signal: new AbortController().signal }), { status: 'drained' });
+        assert.equal(limited.network.length, 16);
+
+        const rejected = await fixture(t, [plugin('d3-rejected-hook', `
+            await Risuai.addRisuReplacer('afterRequest',()=>{setTimeout(()=>Risuai.nativeFetch('https://synthetic.invalid/rejected'),50);throw Error('rejected');});
+        `)]);
+        assert.equal(await [...rejected.registry.replacerafterRequest][0]('answer'), 'answer');
+        assert.deepEqual(await d3Host(rejected).handOver(), { participants: [] });
+
+        const race = await fixture(t, [plugin('d3-plugin-race-timer', `
+            await Risuai.addRisuReplacer('afterRequest',async value=>{const request=Risuai.nativeFetch('https://synthetic.invalid/rpc');
+                setTimeout(async()=>{const response=await Risuai.nativeFetch('https://synthetic.invalid/plugin-timeout');await response.text();},200);await request;return value;});
+        `)]);
+        assert.equal(await [...race.registry.replacerafterRequest][0]('answer'), 'answer');
+        const raceHost = d3Host(race); assert.equal((await raceHost.handOver()).participants.length, 1);
+        assert.deepEqual(await raceHost.openPostResponse({ deadline: performance.now() + 1000, signal: new AbortController().signal }), { status: 'drained' });
+        assert.deepEqual(race.network.map(row => new URL(row.url).pathname), ['/rpc', '/plugin-timeout']);
+    });
+
+    test('[new] waits for response-body EOF and nested timers while treating a read HTTP 500 as drained', async t => {
+        let finishBody;
+        const bodyGate = new Promise(resolve => { finishBody = resolve; });
+        const h = await fixture(t, [plugin('d3-body-eof', `
+            await Risuai.addRisuReplacer('afterRequest',value=>{setTimeout(async()=>{
+                const response=await Risuai.nativeFetch('https://synthetic.invalid/stream');await response.text();
+                setTimeout(async()=>{const failed=await Risuai.nativeFetch('https://synthetic.invalid/status-500');await failed.text();},20);
+            },10);return value;});
+        `)], true, { nativeFetch: async url => url.endsWith('/stream') ? new Response(new ReadableStream({
+            async pull(controller) { await bodyGate; controller.enqueue(new TextEncoder().encode('body')); controller.close(); },
+        })) : new Response('read-to-eof', { status: 500 }) });
+        assert.equal(await [...h.registry.replacerafterRequest][0]('answer'), 'answer');
+        const host = d3Host(h); await host.handOver();
+        let settled = false;
+        const opened = host.openPostResponse({ deadline: performance.now() + 1000, signal: new AbortController().signal }).then(value => { settled = true; return value; });
+        await new Promise(resolve => setTimeout(resolve, 40));
+        assert.equal(settled, false, 'headers and callback return must not drain before EOF');
+        finishBody();
+        assert.deepEqual(await opened, { status: 'drained' });
+        assert.deepEqual(h.network.map(row => new URL(row.url).pathname), ['/stream', '/status-500']);
+    });
+
+    test('[new] keeps a detached response-body read in the window through EOF or deadline', async t => {
+        const detachedReadScript = name => `
+            await Risuai.addRisuReplacer('afterRequest',value=>{setTimeout(async()=>{
+                const response=await Risuai.nativeFetch('https://synthetic.invalid/${name}');
+                void response.text().then(body=>Risuai.setArgument('detachedBody',body)).catch(()=>{});
+            },5);return value;});
+        `;
+
+        const finiteOrder = [];
+        let finishFiniteBody, finitePullStarted;
+        const finiteBodyGate = new Promise(resolve => { finishFiniteBody = resolve; });
+        const finitePull = new Promise(resolve => { finitePullStarted = resolve; });
+        let finiteCancelled = false;
+        const finite = await fixture(t, [plugin('d3-detached-body-eof', detachedReadScript('detached-eof'))], true, {
+            beforeRootWrite: () => finiteOrder.push('body-read-complete'),
+            nativeFetch: async () => {
+                finiteOrder.push('headers');
+                return new Response(new ReadableStream({
+                    async pull(controller) {
+                        finiteOrder.push('body-read-started'); finitePullStarted();
+                        await finiteBodyGate;
+                        controller.enqueue(new TextEncoder().encode('first-'));
+                        finiteOrder.push('chunk-1');
+                        controller.enqueue(new TextEncoder().encode('second'));
+                        finiteOrder.push('chunk-2'); controller.close(); finiteOrder.push('body-eof');
+                    },
+                    cancel() { finiteCancelled = true; finiteOrder.push('body-cancelled'); },
+                }));
+            },
+        });
+        assert.equal(await [...finite.registry.replacerafterRequest][0]('answer'), 'answer');
+        const finiteHost = d3Host(finite); await finiteHost.handOver();
+        const finiteOpened = finiteHost.openPostResponse({ deadline: performance.now() + 1000,
+            signal: new AbortController().signal }).then(value => { finiteOrder.push('window-outcome'); return value; });
+        await finitePull;
+        assert.equal(await Promise.race([
+            finiteOpened.then(() => 'settled'), new Promise(resolve => setImmediate(() => resolve('pending'))),
+        ]), 'pending', 'callback return and response headers must not drain an open body');
+        finishFiniteBody();
+        assert.deepEqual(await finiteOpened, { status: 'drained' });
+        assert.equal(finite.root.plugins[0].realArg.detachedBody, 'first-second');
+        assert.equal(finiteCancelled, false);
+        assert.ok(finiteOrder.indexOf('body-eof') < finiteOrder.indexOf('window-outcome'), finiteOrder.join(','));
+
+        const hangingOrder = [];
+        let hangingPullStarted;
+        const hangingPull = new Promise(resolve => { hangingPullStarted = resolve; });
+        let hangingCancelled = false;
+        const hanging = await fixture(t, [plugin('d3-detached-body-deadline', detachedReadScript('detached-hang'))], true, {
+            nativeFetch: async () => {
+                hangingOrder.push('headers');
+                return new Response(new ReadableStream({
+                    pull() { hangingOrder.push('body-read-started'); hangingPullStarted(); },
+                    cancel() { hangingCancelled = true; hangingOrder.push('body-aborted'); },
+                }));
+            },
+        });
+        assert.equal(await [...hanging.registry.replacerafterRequest][0]('answer'), 'answer');
+        const hangingHost = d3Host(hanging); await hangingHost.handOver();
+        const hangingOpened = hangingHost.openPostResponse({ deadline: performance.now() + 100,
+            signal: new AbortController().signal }).then(value => { hangingOrder.push('window-outcome'); return value; });
+        await hangingPull;
+        assert.deepEqual(await hangingOpened, { status: 'uncertain', reason: 'deadline' });
+        assert.equal(hangingCancelled, true);
+        assert.ok(hangingOrder.indexOf('body-aborted') < hangingOrder.indexOf('window-outcome'), hangingOrder.join(','));
+    });
+
+    for (const mode of ['callback-throw', 'network-error']) test(`[new] returns uncertain error for an abnormal post-response ${mode}`, async t => {
+        const script = mode === 'callback-throw'
+            ? `await Risuai.addRisuReplacer('afterRequest',value=>{setTimeout(()=>{throw Error('timer failed');},5);return value;});`
+            : `await Risuai.addRisuReplacer('afterRequest',value=>{setTimeout(async()=>{await Risuai.nativeFetch('https://synthetic.invalid/fail');},5);return value;});`;
+        const h = await fixture(t, [plugin('d3-abnormal-' + mode, script)], true, {
+            nativeFetch: async () => { throw new Error('synthetic network failure'); },
+        });
+        assert.equal(await [...h.registry.replacerafterRequest][0]('answer'), 'answer');
+        const host = d3Host(h); await host.handOver();
+        assert.deepEqual(await host.openPostResponse({ deadline: performance.now() + 1000, signal: new AbortController().signal }),
+            { status: 'uncertain', reason: 'error' });
+    });
+
+    test('[new] shares the 128 HTTP counter and refuses runLLMModel without letting an interval extend the window', async t => {
+        const h = await fixture(t, [plugin('d3-window-budget', `
+            await Risuai.addRisuReplacer('afterRequest',async value=>{
+                for(let i=0;i<126;i++){
+                    const response=await Risuai.nativeFetch('https://synthetic.invalid/pre-'+i);await response.text();
+                }
+                setTimeout(async()=>{let modelError,thirdError;try{await Risuai.runLLMModel({});}catch(e){modelError=e.code;}
+                    setInterval(()=>{},10);
+                    const first=await Risuai.nativeFetch('https://synthetic.invalid/127');await first.text();
+                    const second=await Risuai.nativeFetch('https://synthetic.invalid/128');await second.text();
+                    try{await Risuai.nativeFetch('https://synthetic.invalid/129');}catch(e){thirdError=e.code;}
+                    await Risuai.setArgument('d3Budget',modelError+':'+thirdError);
+                },10);return value;});
+        `)]);
+        assert.equal(await [...h.registry.replacerafterRequest][0]('answer'), 'answer');
+        const host = d3Host(h); await host.handOver();
+        assert.deepEqual(await host.openPostResponse({ deadline: performance.now() + 1000, signal: new AbortController().signal }), { status: 'drained' });
+        assert.equal(h.network.length, 128);
+        assert.match(h.root.plugins[0].realArg.d3Budget, /.+:plugin_budget_exceeded$/);
+    });
+
+    test('[new] aborts an in-flight response body at the caller absolute deadline without retrying it', async t => {
+        let cancelled = false;
+        const h = await fixture(t, [plugin('d3-deadline-body', `
+            await Risuai.addRisuReplacer('afterRequest',value=>{setTimeout(async()=>{const response=await Risuai.nativeFetch('https://synthetic.invalid/hanging');await response.text();},5);return value;});
+        `)], true, { nativeFetch: async () => new Response(new ReadableStream({ pull() {}, cancel() { cancelled = true; } })) });
+        assert.equal(await [...h.registry.replacerafterRequest][0]('answer'), 'answer');
+        const host = d3Host(h); await host.handOver();
+        assert.deepEqual(await host.openPostResponse({ deadline: performance.now() + 40, signal: new AbortController().signal }),
+            { status: 'uncertain', reason: 'deadline' });
+        assert.equal(cancelled, true);
+        assert.equal(h.network.length, 1);
+    });
+
+    test('[new] keeps MARP and PageFold-style load, interval, and beforeRequest timers out of a mixed continuation', async t => {
+        const h = await fixture(t, [
+            plugin('synthetic-marp', `setTimeout(()=>Risuai.nativeFetch('https://synthetic.invalid/marp-load'),5000);setInterval(()=>{},100);
+                await Risuai.addRisuReplacer('afterRequest',value=>value);`),
+            plugin('synthetic-pagefold', `await Risuai.addRisuReplacer('beforeRequest',value=>{setTimeout(()=>Risuai.nativeFetch('https://synthetic.invalid/pagefold-before'),5000);return value;});`),
+            plugin('synthetic-output-sync', `await Risuai.addRisuReplacer('afterRequest',value=>{setTimeout(async()=>{const response=await Risuai.nativeFetch('https://synthetic.invalid/output-sync');await response.text();},20);return value;});`),
+        ]);
+        assert.deepEqual(await [...h.registry.replacerbeforeRequest][0]([]), []);
+        for (const callback of h.registry.replacerafterRequest) assert.equal(await callback('answer'), 'answer');
+        const host = d3Host(h);
+        assert.deepEqual(await host.handOver(), { participants: [
+            { index: 2, pluginName: 'synthetic-output-sync', pluginVersion: '3.0' },
+        ] });
+        assert.deepEqual(await host.openPostResponse({ deadline: performance.now() + 1000, signal: new AbortController().signal }),
+            { status: 'drained' });
+        assert.deepEqual(h.network.map(row => new URL(row.url).pathname), ['/output-sync']);
+    });
+
+});

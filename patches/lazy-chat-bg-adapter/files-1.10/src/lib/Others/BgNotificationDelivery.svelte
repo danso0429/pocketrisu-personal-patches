@@ -19,7 +19,7 @@
             return response.json()
         }
         const delivery = createBgNotificationDelivery({
-            claim: signal => request('claim', { consumerId, messageVersion: 4 }, signal),
+            claim: signal => request('claim', { consumerId, messageVersion: 5 }, signal),
             acknowledge: async (claims, signal) => { await request('ack', { consumerId, claims }, signal) },
             visible: () => document.visibilityState === 'visible',
             storage: {

@@ -13,7 +13,10 @@ const MAX_PENDING_MESSAGES = 256;
 const BATCH_SIZE = 8;
 const CODES = new Set(['input_host_unsupported', 'plugin_permission_missing',
     'plugin_api_unsupported', 'plugin_hook_failed', 'plugin_provider_failed', 'plugin_message', 'plugin_host_limit', 'plugin_late_call',
-    'plugin_mcp_unsupported', 'operation_failed', 'operation_interrupted', 'chat_edit_unreflected', 'commit_effect_conflict']);
+    'plugin_mcp_unsupported', 'operation_failed', 'operation_interrupted', 'chat_edit_unreflected', 'commit_effect_conflict',
+    'plugin_post_response_uncertain']);
+const POST_RESPONSE_REASONS = new Set(['deadline', 'aborted', 'error', 'restart']);
+const PLUGIN_PHASES = ['load', 'input', 'before_request', 'after_request', 'provider', 'mcp_list', 'mcp_call'];
 const OPERATION_REASONS = {
     operation_failed: new Set(['generation_failed', 'commit_failed', 'execution_context_lost']),
     operation_interrupted: new Set(['before_result', 'after_main']),
@@ -21,8 +24,10 @@ const OPERATION_REASONS = {
     commit_effect_conflict: new Set(['globals', 'stats']),
 };
 // v4: plugin_mcp_unsupported and every plugin notice from the mcp_list or
-// mcp_call phase. Older claim versions never receive them.
-const eventVersion = event => event.code === 'plugin_mcp_unsupported'
+// mcp_call phase. v5: plugin_post_response_uncertain. Older claim versions
+// never receive them.
+const eventVersion = event => event.code === 'plugin_post_response_uncertain' ? 5
+    : event.code === 'plugin_mcp_unsupported'
     || (String(event.code).startsWith('plugin_') && (event.phase === 'mcp_list' || event.phase === 'mcp_call')) ? 4
     : Object.hasOwn(OPERATION_REASONS, event.code) ? 3
     : ['plugin_message', 'plugin_host_limit', 'plugin_late_call'].includes(event.code) ? 2 : 1;
@@ -54,12 +59,18 @@ function normalizeEvent(value) {
         event.api = value.api;
     }
     if (value.code.startsWith('plugin_')) {
+        const postResponse = value.code === 'plugin_post_response_uncertain';
         if (!text(value.pluginName, 120) || !text(value.pluginVersion, 80)
-            || !['load', 'input', 'before_request', 'after_request', 'provider', 'mcp_list', 'mcp_call'].includes(value.phase)
-            || (value.code === 'plugin_permission_missing' && value.effectsMayHaveOccurred)) {
+            || !(postResponse ? value.phase === 'post_response' : PLUGIN_PHASES.includes(value.phase))
+            || (value.code === 'plugin_permission_missing' && value.effectsMayHaveOccurred)
+            || (postResponse && value.effectsMayHaveOccurred !== true)) {
             throw new Error('notification_plugin_invalid');
         }
         Object.assign(event, { pluginName: value.pluginName, pluginVersion: value.pluginVersion, phase: value.phase });
+    }
+    if (value.code === 'plugin_post_response_uncertain') {
+        if (!POST_RESPONSE_REASONS.has(value.reason)) throw new Error('notification_reason_invalid');
+        event.reason = value.reason;
     }
     if (value.code === 'plugin_message') {
         if (typeof value.message !== 'string' || value.message.length < 1 || value.message.length > 4096
@@ -233,7 +244,7 @@ function createBgNotifications({ db, kvGet, kvSet, kvDel, kvList, now = Date.now
     });
     const claim = db.transaction((consumerId, messageVersion = 1) => {
         if (!identifier(consumerId)) throw new Error('notification_consumer_invalid');
-        if (![1, 2, 3, 4].includes(messageVersion)) throw new Error('notification_version_invalid');
+        if (![1, 2, 3, 4, 5].includes(messageVersion)) throw new Error('notification_version_invalid');
         const time = now(), result = [];
         for (const row of unexpired(time).filter(row => !row.invalid && row.version <= messageVersion)
             .sort((a, b) => a.event.createdAt - b.event.createdAt || a.id.localeCompare(b.id))) {

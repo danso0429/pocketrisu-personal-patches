@@ -1,7 +1,7 @@
 export type NotificationCode = 'input_host_unsupported' | 'plugin_permission_missing'
     | 'plugin_api_unsupported' | 'plugin_hook_failed' | 'plugin_provider_failed' | 'plugin_message'
     | 'plugin_host_limit' | 'plugin_late_call' | 'operation_failed' | 'operation_interrupted'
-    | 'chat_edit_unreflected' | 'commit_effect_conflict' | 'plugin_mcp_unsupported'
+    | 'chat_edit_unreflected' | 'commit_effect_conflict' | 'plugin_mcp_unsupported' | 'plugin_post_response_uncertain'
 export interface BgNotification {
     id: string
     token: string
@@ -22,11 +22,15 @@ export interface BgNotification {
         level?: 'info' | 'warning' | 'error'
         reason?: 'notification_capacity' | 'operation_budget' | 'generation_failed' | 'commit_failed'
             | 'execution_context_lost' | 'before_result' | 'after_main' | 'concurrent_edit' | 'globals' | 'stats'
+            | 'deadline' | 'aborted' | 'error' | 'restart'
     }
 }
 const CODES = new Set<NotificationCode>(['input_host_unsupported', 'plugin_permission_missing',
     'plugin_api_unsupported', 'plugin_hook_failed', 'plugin_provider_failed', 'plugin_message', 'plugin_host_limit', 'plugin_late_call',
-    'operation_failed', 'operation_interrupted', 'chat_edit_unreflected', 'commit_effect_conflict', 'plugin_mcp_unsupported'])
+    'operation_failed', 'operation_interrupted', 'chat_edit_unreflected', 'commit_effect_conflict', 'plugin_mcp_unsupported',
+    'plugin_post_response_uncertain'])
+const PLUGIN_PHASES = ['load', 'input', 'before_request', 'after_request', 'provider', 'mcp_list', 'mcp_call']
+const POST_RESPONSE_REASONS = ['deadline', 'aborted', 'error', 'restart']
 const OPERATION_REASONS: Partial<Record<NotificationCode, ReadonlySet<string>>> = {
     operation_failed: new Set(['generation_failed', 'commit_failed', 'execution_context_lost']),
     operation_interrupted: new Set(['before_result', 'after_main']),
@@ -56,7 +60,10 @@ export function parseBgNotifications(value: unknown): BgNotification[] {
             || ((event.code === 'input_host_unsupported' || event.code === 'plugin_api_unsupported')
                 && (typeof event.api !== 'string' || !/^[a-z][a-z0-9_]{2,63}$/.test(event.api)))
             || (event.code.startsWith('plugin_') && (!text(event.pluginName, 120) || !text(event.pluginVersion, 80)
-                || !['load', 'input', 'before_request', 'after_request', 'provider', 'mcp_list', 'mcp_call'].includes(event.phase || '')))
+                || !(event.code === 'plugin_post_response_uncertain' ? event.phase === 'post_response'
+                    : PLUGIN_PHASES.includes(event.phase || ''))))
+            || (event.code === 'plugin_post_response_uncertain' && (event.effectsMayHaveOccurred !== true
+                || !POST_RESPONSE_REASONS.includes(event.reason ?? '')))
             || (event.code === 'plugin_permission_missing' && event.effectsMayHaveOccurred)
             || (event.code === 'plugin_host_limit' && !['notification_capacity', 'operation_budget'].includes(event.reason ?? ''))
             || (event.code === 'plugin_message' && (typeof event.message !== 'string' || event.message.length < 1
@@ -106,6 +113,7 @@ export function notificationMessage(notification: BgNotification): string {
                 : `${plugin}: 서버 플러그인 실행 한도에 도달해 이 플러그인의 요청을 중단했어요.`
         case 'plugin_mcp_unsupported': return `${plugin}: 이 모델 요청 방식은 플러그인 MCP 도구를 지원하지 않아 도구 없이 생성했어요.`
         case 'plugin_late_call': return `${plugin}: 완료된 콜백에서 뒤늦게 도착한 API 요청을 거부했어요. 다른 콜백은 유지해요.`
+        case 'plugin_post_response_uncertain': return `${plugin}: 답변 뒤 플러그인 동기화가 확인되지 않았어요. 저장된 답변은 그대로예요.`
     }
 }
 

@@ -28,6 +28,7 @@ const {
     appliedTargetAbsent: checkAppliedTargetAbsent,
     requireServerStatistics,
 } = require('./serverChatExecutionProjection.cjs');
+const { createPostResponseSyncRecord, postResponseSyncKey } = require('./bgPostResponseSync.cjs');
 
 const SERVER_CHAT_COMMIT_SEQUENCE_KEY = 'internal/server-chat-commit-sequence/v1';
 const SERVER_CHAT_COMMIT_RECEIPT_PREFIX = 'internal/server-chat-commit-receipt/v1/';
@@ -423,6 +424,8 @@ function createServerChatCommitOwner({
     // Current persisted storage epoch; owners built without an epoch store
     // (no storage reset possible) stay at epoch 0.
     readCurrentStorageEpoch = () => 0,
+    // Writes a post-response obligation record inside the commit transaction.
+    writePostResponseSync = record => kvSet(postResponseSyncKey(record.operationId), JSON.stringify(record)),
 }) {
     if (typeof readCurrentStorageEpoch !== 'function') {
         throw new Error('server chat commit owner dependency is missing: readCurrentStorageEpoch');
@@ -456,6 +459,22 @@ function createServerChatCommitOwner({
         || typeof serverChatInputOwner.markResultPublishedSynchronously !== 'function'
     )) {
         throw new Error('server chat input owner lifecycle dependency is incomplete');
+    }
+
+    // Post-response obligations of the commits in progress, by operation. The
+    // record is written only by a new commit (a replay writes nothing), in the
+    // same transaction, right after the committed operation state.
+    const postResponseSyncs = new Map();
+    async function withPostResponseSync(operationId, postResponseSync, task) {
+        if (!postResponseSync) return task();
+        const pending = { entries: postResponseSync.entries, failure: null };
+        postResponseSyncs.set(operationId, pending);
+        try { return await task(); }
+        catch (error) {
+            // The transaction rolled back; report the obligation's own failure.
+            if (pending.failure && error?.cause === pending.failure) throw pending.failure;
+            throw error;
+        } finally { if (postResponseSyncs.get(operationId) === pending) postResponseSyncs.delete(operationId); }
     }
 
     const committer = createServerChatCommitter({
@@ -524,6 +543,14 @@ function createServerChatCommitOwner({
         },
         writeCommittedOperationState: (operationId, state) => {
             kvSet(operationStateKey(operationId), JSON.stringify(state));
+            const sync = postResponseSyncs.get(operationId);
+            if (sync) {
+                try {
+                    writePostResponseSync(createPostResponseSyncRecord({ operationId, charId: state.charId,
+                        chatId: state.chatId, receiptId: state.commitReceiptId, storedRevision: state.storedRevision,
+                        storageEpoch: readCurrentStorageEpoch(), entries: sync.entries }));
+                } catch (error) { sync.failure = error; throw error; }
+            }
             return { written: true };
         },
         publishCanonicalState: async (record, context) => {
@@ -781,6 +808,7 @@ function createServerChatCommitOwner({
         committedAt,
         inputReceipt = null,
         anchor = null,
+        postResponseSync = null,
     }) {
         const retired = readRetiredReceipt(operationId);
         if (retired.status !== 'missing') {
@@ -868,7 +896,7 @@ function createServerChatCommitOwner({
             payloadRef: commitStorageKey(operationId),
             delivery: 'settled',
         };
-        const outcome = await committer.commit({
+        const outcome = await withPostResponseSync(operationId, postResponseSync, () => committer.commit({
             contractVersion: SERVER_CHAT_COMMIT_CONTRACT,
             operationId,
             resultId,
@@ -923,7 +951,7 @@ function createServerChatCommitOwner({
             // durable input record. The synthesized legacy receipt does not.
             transactionGate: () => (serverChatInputOwner?.read(operationId)
                 ? null : { reason: 'input_record_missing' }),
-        } : {});
+        } : {}));
         if (inputReceipt) {
             await queueStorageOperation(() => finalizeInputCommit(outcome));
         }
@@ -1219,6 +1247,14 @@ function createServerChatCommitOwner({
         }
     }
 
+    // The stored canonical chat of a commit receipt, as a detached copy, only
+    // while its revision is the receipt's stored revision.
+    function readCommittedChat(receipt) {
+        const chat = receipt && typeof receipt.storedRevision === 'string'
+            ? getFullChatStore()?.get(receipt.requestedCharId)?.get(receipt.storedChatId) || null : null;
+        return chat && chatRevision(chat) === receipt.storedRevision ? structuredClone(chat) : null;
+    }
+
     function preserveDatabaseState(currentDatabase, incomingDatabase) {
         return copyServerOwnedRootState(currentDatabase, incomingDatabase);
     }
@@ -1253,6 +1289,7 @@ function createServerChatCommitOwner({
         preserveDatabaseState,
         recoverBeforeWrite,
         readChatProjection,
+        readCommittedChat,
         readGenerationCommit,
         readEffectLineage,
         readGenerationRecovery: committer.readRecovery,

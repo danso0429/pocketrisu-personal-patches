@@ -386,6 +386,46 @@ describe('durable BG notification owner', () => {
     })
 })
 
+describe('[D3-1] Post-commit continuation for afterRequest timers', () => {
+    const postResponseEvent = (h: ReturnType<typeof harness>, reason: 'deadline' | 'aborted' | 'error' | 'restart' = 'deadline') => ({
+        operationId: 'operation-d3-notice', eventKey: 'plugin:0:post-response-uncertain',
+        code: 'plugin_post_response_uncertain', charId: 'character-1', chatId: 'chat-1',
+        createdAt: 1_000_000, effectsMayHaveOccurred: true, pluginName: 'memory-plugin',
+        pluginVersion: '3.0', phase: 'post_response', reason,
+    })
+
+    it.each(['deadline', 'aborted', 'error', 'restart'] as const)(
+        '[new] stores reason %s as a version-5 plugin post-response notice hidden from v4 claims', reason => {
+            const h = harness(), event = postResponseEvent(h, reason)
+            let published: any
+            expect(() => { published = h.owner.publish(event) }).not.toThrow()
+            expect(published.status).toBe('stored')
+            const stored = h.deps.kvGet(PREFIX + published.id)
+            expect(JSON.parse(stored)).toMatchObject({ version: 5, event })
+            expect(h.owner.claim('d3-v4-consumer', 4)).toEqual([])
+            expect(h.owner.claim('d3-v5-consumer', 5).map((row: any) => row.event)).toEqual([event])
+        },
+    )
+
+    it('[new] republishes the recorded reason and createdAt as duplicate without renewing the notice', () => {
+        const h = harness(), event = postResponseEvent(h, 'restart')
+        let first: any
+        expect(() => { first = h.owner.publish(event) }).not.toThrow()
+        expect(first.status).toBe('stored')
+        h.advance(10_000)
+        expect(h.owner.publish({ ...event })).toEqual({ status: 'duplicate', id: first.id })
+        expect(JSON.parse(h.deps.kvGet(PREFIX + first.id)!)).toMatchObject({ event: { reason: 'restart', createdAt: 1_000_000 } })
+    })
+
+    it('[new] rejects unknown post-response reasons while preserving the fixed phase and effects flag', () => {
+        const h = harness(), event = postResponseEvent(h)
+        expect(() => h.owner.publish(event), 'the valid new event must be accepted before rejection cases are meaningful').not.toThrow()
+        expect(() => h.owner.publish({ ...event, reason: 'private-error-text' })).toThrow()
+        expect(() => h.owner.publish({ ...event, phase: 'after_request' })).toThrow()
+        expect(() => h.owner.publish({ ...event, effectsMayHaveOccurred: false })).toThrow()
+    })
+})
+
 describe('[D2-1] BG plugin MCP registration and calls', () => {
     it.each(['mcp_list', 'mcp_call'])('[new] accepts the %s plugin failure phase in the durable validator', phase => {
         const event = { operationId: 'operation-d2-notice', eventKey: `plugin:0:identity:${phase}:failure`,

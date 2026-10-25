@@ -13,6 +13,8 @@ const ABSENT_PULL_MS = 1000;
 const { clean, identityOf, pluginMetadata } = require('./bgPluginMetadata.cjs');
 const clone = clonePluginValue;
 const phaseScope = new AsyncLocalStorage();
+// Set for API calls made inside a post-response window.
+const postResponseScope = new AsyncLocalStorage();
 
 // Handlers are plain functions so every check the former switch ran before its
 // first await still runs and throws synchronously inside the dispatcher's try.
@@ -122,6 +124,8 @@ const ROOT_HANDLERS = Object.freeze({ __proto__: null,
     risuFetch: networkFetch,
     runLLMModel: (ctx, args) => {
         const { entry, signal, abortSignal, bindings } = ctx;
+        // No new paid model work after the answer was committed.
+        if (postResponseScope.getStore() === true) throw fail('plugin_post_response_model_refused');
         if (ctx.countNetworkCall() > 128) throw fail('plugin_budget_exceeded');
         const options = args[0];
         if (!options || !Array.isArray(options.messages)) throw fail('plugin_api_arguments_invalid');
@@ -520,7 +524,10 @@ async function createBgPluginHost({ database, bindings, getDatabase, getSelectio
                     return args[0];
                 }
                 if (provider) { permission(entry, 'provider', true); await effect(entry); }
-                const value = await callback(...args);
+                // Only the afterRequest replacer may leave timers for the
+                // post-response window; script handlers share its kind only.
+                const value = await (contract === 'replacer' && kind === 'after_request'
+                    ? entry.session.runPostResponseEligible(() => callback(...args)) : callback(...args));
                 await pullAbsent();
                 await currentIdentity(kind);
                 if (closed || tearingDown || entry.closing || (failClosed && signal.aborted)) throw fail('plugin_operation_closed');
@@ -778,7 +785,7 @@ async function createBgPluginHost({ database, bindings, getDatabase, getSelectio
                 onLocalLimit: () => { entry.session.assertCurrent(); return reportApiLimit(entry); },
                 api: (method, args) => withApiBudget(entry, method, args, async () => {
                     if (closed || entry.failed || signal.aborted) throw fail('plugin_operation_closed');
-                    if (tearingDown && !['removeRisuReplacer', 'removeRisuScriptHandler', 'unregisterBodyIntercepter',
+                    if ((tearingDown || entry.closing) && !['removeRisuReplacer', 'removeRisuScriptHandler', 'unregisterBodyIntercepter',
                         'unregisterUIPart', 'hideContainer', 'unregisterMCP'].includes(method)) throw fail('plugin_operation_closed');
                     try {
                         if (method.startsWith('pluginStorage.') || method.startsWith('localPluginStorage.')) {
@@ -821,7 +828,8 @@ async function createBgPluginHost({ database, bindings, getDatabase, getSelectio
                                 hostIdentityFailures.has(error) ? 'identity' : 'execution');
                             throw error;
                         }
-                        if (!identityFailure && !['plugin_invocation_expired', 'plugin_budget_exceeded'].includes(error?.code)) {
+                        if (!identityFailure && !['plugin_invocation_expired', 'plugin_budget_exceeded',
+                            'plugin_post_response_model_refused'].includes(error?.code)) {
                             disable(entry, error?.code ?? 'plugin_hook_failed', method, undefined,
                                 hostIdentityFailures.has(error) ? 'identity' : 'execution');
                         }
@@ -848,7 +856,65 @@ async function createBgPluginHost({ database, bindings, getDatabase, getSelectio
         await publishSummaries();
         throw error;
     }
+    // Post-response hand-over. Participants keep their sessions for the window;
+    // every other entry is closed here, as host close would close it.
+    let handOverResult = null, handOverPromise = null, postResponsePromise = null, closePromise = null;
+    let closeWindow = null;
+    const windowClosed = new Promise(resolve => { closeWindow = resolve; });
+    const closeEntry = async entry => {
+        entry.closing = true; entry.handedOff = true;
+        let timer;
+        const deadline = performance.now() + 1000;
+        await Promise.race([
+            Promise.allSettled(entry.failed ? [] : entry.unload.map(callback => callback())),
+            new Promise(resolve => { timer = setTimeout(resolve, 1000); }),
+        ]);
+        clearTimeout(timer);
+        await collectAbsent(entry, entry.lastPhase ?? 'load', deadline);
+        entry.abort.abort(fail('plugin_operation_closed'));
+        entry.apiSlots.close();
+        for (const row of entry.registrations) row.remove?.();
+        await entry.session?.close();
+    };
+    const uncertain = reason => ({ status: 'uncertain', reason });
+    const windowResult = value => ['none', 'drained'].includes(value?.status) ? { status: value.status }
+        : value?.status === 'uncertain' && ['deadline', 'aborted', 'error'].includes(value.reason) ? uncertain(value.reason)
+            : uncertain('error');
     return {
+        handOver() {
+            handOverPromise ??= (async () => {
+                const candidates = closed || tearingDown ? [] : entries.filter(entry => !entry.failed && entry.session);
+                const counts = await Promise.all(candidates.map(entry => Promise.resolve()
+                    .then(() => entry.session.postResponseCandidates()).catch(() => 0)));
+                const participants = candidates.filter((entry, index) => !entry.failed && Number.isSafeInteger(counts[index]) && counts[index] >= 1);
+                await Promise.all(candidates.filter(entry => !participants.includes(entry)).map(closeEntry));
+                handOverResult = participants;
+                return { participants: participants.map(entry => ({ index: entry.index,
+                    pluginName: entry.plugin.name, pluginVersion: entry.plugin.version })) };
+            })();
+            return handOverPromise;
+        },
+        // Never rejects. The first call after hand-over decides the result.
+        openPostResponse({ deadline, signal: windowSignal } = {}) {
+            if (postResponsePromise) return postResponsePromise;
+            if (!handOverResult) return Promise.resolve(uncertain('error'));
+            const participants = handOverResult;
+            postResponsePromise = (async () => {
+                if (!participants.length) return { status: 'none' };
+                if (closed || tearingDown) return uncertain('aborted');
+                let firstReason = null, drained = false;
+                const runs = participants.map(entry => phaseScope.run('after_request', () => postResponseScope.run(true,
+                    () => Promise.resolve().then(() => entry.session.openPostResponse({ deadline, signal: windowSignal }))))
+                    .then(windowResult, () => uncertain('error')).then(result => {
+                        if (result.status === 'uncertain') firstReason ??= result.reason;
+                        else if (result.status === 'drained') drained = true;
+                    }));
+                const aggregate = Promise.all(runs).then(() => firstReason ? uncertain(firstReason)
+                    : drained ? { status: 'drained' } : { status: 'none' });
+                return Promise.race([aggregate, windowClosed.then(() => uncertain('aborted'))]);
+            })();
+            return postResponsePromise;
+        },
         hasProvider(name) {
             return !closed && !tearingDown && !conflictedProviders.has(name) && typeof bindings.registry.providers.get(name) === 'function'
                 && entries.some(entry => !entry.failed && entry.registrations.some(row => row.type === 'provider'
@@ -859,9 +925,14 @@ async function createBgPluginHost({ database, bindings, getDatabase, getSelectio
             await noticesSettled();
         },
         assertNotifications: async () => { if (identityFailure) throw identityFailure; await noticesSettled(); },
-        async close() {
+        // Memoized: concurrent calls wait for the same teardown. An open
+        // post-response window ends as aborted first.
+        close() {
+            closePromise ??= (async () => {
             if (closed) return;
             tearingDown = true;
+            closeWindow();
+            if (postResponsePromise) await postResponsePromise;
             for (const entry of entries) entry.closing = true;
             // Original callbacks may release local state and unregister hooks,
             // but cannot start effects. OS teardown remains authoritative.
@@ -869,7 +940,7 @@ async function createBgPluginHost({ database, bindings, getDatabase, getSelectio
             // The final absent-API read shares the existing one-second unload bound.
             const deadline = performance.now() + 1000;
             await Promise.race([
-                Promise.allSettled(entries.filter(entry => !entry.failed).flatMap(entry => entry.unload.map(callback => callback()))),
+                Promise.allSettled(entries.filter(entry => !entry.failed && !entry.handedOff).flatMap(entry => entry.unload.map(callback => callback()))),
                 new Promise(resolve => { timer = setTimeout(resolve, 1000); }),
             ]);
             clearTimeout(timer);
@@ -881,6 +952,8 @@ async function createBgPluginHost({ database, bindings, getDatabase, getSelectio
             for (const cleanup of cleanups.reverse()) cleanup();
             await Promise.all(entries.map(entry => entry.session?.close()));
             await publishSummaries();
+            })();
+            return closePromise;
         },
     };
 }
