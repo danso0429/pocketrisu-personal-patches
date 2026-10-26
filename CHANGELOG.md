@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.2.4-experimental.90 (PocketRisu 1.16.1 reviewing declarations)
+
+- Six independent packs now declare PocketRisu `1.16.1` as `reviewing` (`verified` stays `1.10.0`): `charx-archive-integrity`, `parser-hardening`, `log-load-performance`, `kei-prompt-role-compat-core`, `kei-text-theme-normalization-core` and `kei-fullscreen-image-viewer-core`. Their 1.10.0-scoped units now also select 1.16.1 (`parser-hardening` units are not version-scoped), and each pack version moves up one patch level.
+- `patches/target-coverage.cjs` records the 1.16.1 unit coverage of the six packs against the frozen 1.10.0 baseline: every 1.10.0 unit is retained, with no replaced, added or retired unit.
+- Ordinary apply still refuses a target that is only `reviewing`, so the distributed installer does not apply anything to PocketRisu 1.16.1. The units selected for PocketRisu 1.10.0 and their applied bytes and modes are unchanged.
+- On an existing 1.10.0 install the six packs show as update-available because their versions changed; the first reapply changes patch metadata only, not patched files. Stable remains v0.2.3.
+
 ## 0.2.4-experimental.89 (maintainer subset verification harness)
 
 - Maintainers can apply a subset of packs to a disposable PocketRisu git checkout, run the target checks and revert, without the complete `all` graph: `node scripts/qualify-subset.cjs --root COPY --packs ID[,ID...] --out DIR [--json]`. The harness adds every pack the subset needs (pack `requires`, `autoWhen`, and the owner pack of each required unit for that target; a missing or ambiguous owner stops with `SUBSET_UNIT_OWNER`), checks that each of them declares the target and that its unit coverage against the frozen 1.10.0 baseline is complete, and then, under one patch lock: applies, requires `current` status and a zero-change re-plan, runs `pnpm install --frozen-lockfile`, `pnpm test`, `pnpm test:compat`, `pnpm check`, `pnpm build` (and the BG orchestration bundle build when `bg-preserve` is in the closure), requires unchanged managed and tracked files, reverts, and compares every managed path, the patch metadata and the untracked and ignored files with the state before the run (`node_modules`, `dist`, the BG bundle outputs and the `save/logs.db`, `save/logs.db-wal` and `save/logs.db-shm` files that the upstream tests leave are the only exclusions).

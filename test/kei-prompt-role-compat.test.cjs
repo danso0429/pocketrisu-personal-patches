@@ -20,16 +20,16 @@ const target181 = { packageName: 'pocketrisu', packageVersion: '1.8.1' }
 const target1100 = { packageName: 'pocketrisu', packageVersion: '1.10.0' }
 const unitText = (unit) => unit.managed ?? unit.content ?? ''
 
-test('K04 compatibility is a hidden exact-1.9 umbrella child', () => {
+test('K04 compatibility is a hidden umbrella child for its declared targets', () => {
     const catalog = loadCatalog()
 
     assert.equal(manifest.id, 'kei-prompt-role-compat-core')
-    assert.equal(manifest.version, '0.1.1')
+    assert.equal(manifest.version, '0.1.2')
     assert.equal(manifest.userSelectable, false)
     assert.deepEqual(manifest.targets, {
         pocketrisu: {
             verified: ['1.10.0'],
-            reviewing: [],
+            reviewing: ['1.16.1'],
         },
     })
     assert.equal(meta.version, '0.13.0')

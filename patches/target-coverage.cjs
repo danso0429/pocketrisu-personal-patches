@@ -17,4 +17,19 @@
 //         },
 //     },
 // }
-module.exports = {}
+const unchangedFrom1100 = () => ({
+    from: '1.10.0',
+    retained: 'all',
+    replaced: {},
+    added: {},
+    retired: {},
+})
+
+module.exports = {
+    'charx-archive-integrity': { '1.16.1': unchangedFrom1100() },
+    'parser-hardening': { '1.16.1': unchangedFrom1100() },
+    'log-load-performance': { '1.16.1': unchangedFrom1100() },
+    'kei-prompt-role-compat-core': { '1.16.1': unchangedFrom1100() },
+    'kei-text-theme-normalization-core': { '1.16.1': unchangedFrom1100() },
+    'kei-fullscreen-image-viewer-core': { '1.16.1': unchangedFrom1100() },
+}

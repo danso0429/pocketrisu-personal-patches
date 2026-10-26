@@ -19,11 +19,11 @@ function managedText(candidate) {
 test('fullscreen viewer remains a hidden child of the complete set', () => {
     const catalog = loadCatalog()
     assert.equal(manifest.id, 'kei-fullscreen-image-viewer-core')
-    assert.equal(manifest.version, '0.2.1')
+    assert.equal(manifest.version, '0.2.2')
     assert.deepEqual(manifest.targets, {
         pocketrisu: {
             verified: ['1.10.0'],
-            reviewing: [],
+            reviewing: ['1.16.1'],
         },
     })
     assert.equal(manifest.userSelectable, false)
@@ -48,7 +48,7 @@ test('the native asset viewer is the only host and no viewer file is owned', () 
     )
     assert.equal(
         manifest.units.every((candidate) =>
-            candidate.targetVersions?.pocketrisu?.join(',') === '1.10.0'
+            candidate.targetVersions?.pocketrisu?.join(',') === '1.10.0,1.16.1'
         ),
         true,
     )

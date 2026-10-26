@@ -52,11 +52,14 @@ snapshots:
     ])
 }
 
-test('CharX integrity is a visible 1.10 review-only hardening owner', () => {
+test('CharX integrity is a visible hardening owner for its declared targets', () => {
     assert.ok(pack)
     assert.equal(pack.userSelectable, true)
     assert.equal(Object.hasOwn(pack, 'presetDefaults'), false)
-    assert.deepEqual(pack.targets.pocketrisu, { verified: ['1.10.0'], reviewing: [] })
+    assert.deepEqual(pack.targets.pocketrisu, {
+        verified: ['1.10.0'],
+        reviewing: ['1.16.1'],
+    })
     assert.ok(exact110Units().length > 0)
     assert.equal(exact110Units().length, pack.units.length)
 })

@@ -7,10 +7,13 @@ const { loadCatalog } = require('../src/catalog.cjs')
 
 const pack = loadCatalog().find((entry) => entry.id === 'log-load-performance')
 
-test('log loading performance is an exact 1.10 complete-delivery owner', () => {
+test('log loading performance is a complete-delivery owner for its declared targets', () => {
     assert.ok(pack)
     assert.equal(pack.userSelectable, true)
-    assert.deepEqual(pack.targets.pocketrisu, { verified: ['1.10.0'], reviewing: [] })
+    assert.deepEqual(pack.targets.pocketrisu, {
+        verified: ['1.10.0'],
+        reviewing: ['1.16.1'],
+    })
     assert.equal(pack.units.length, 2)
 })
 

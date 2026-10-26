@@ -9,15 +9,15 @@ const { packEtag } = require('../src/manager.cjs')
 test('parser hardening is independently versioned and included in the complete set', () => {
     const catalog = loadCatalog()
     assert.equal(manifest.id, 'parser-hardening')
-    assert.equal(manifest.version, '0.1.1')
+    assert.equal(manifest.version, '0.1.2')
     assert.equal(resolveProfile('all', catalog).defaults.includes(manifest.id), true)
 })
 
-test('parser hardening is qualified only for reviewed exact PocketRisu targets', () => {
+test('parser hardening is qualified only for declared exact PocketRisu targets', () => {
     assert.deepEqual(manifest.targets, {
         pocketrisu: {
             verified: ['1.10.0'],
-            reviewing: [],
+            reviewing: ['1.16.1'],
         },
     })
     assert.equal(manifest.targets.pocketrisu.verified.includes('1.9.1'), false)

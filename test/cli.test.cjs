@@ -168,7 +168,7 @@ test.describe('[E2-1a] Subset verification harness', () => {
     })
 })
 
-test.describe('[E2-1b] Declare PocketRisu 1.16.1 for seven independent packs', () => {
+test.describe('[E2-1b] Declare PocketRisu 1.16.1 for six independent packs', () => {
     test('[unchanged] ordinary apply rejects a reviewing-only target before source or state writes', () =>
         withRoot(async (root) => {
             fs.writeFileSync(

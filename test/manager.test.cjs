@@ -859,7 +859,7 @@ test.describe('[E2-1a] Subset verification harness', () => {
         }))
 })
 
-test.describe('[E2-1b] Declare PocketRisu 1.16.1 for seven independent packs', () => {
+test.describe('[E2-1b] Declare PocketRisu 1.16.1 for six independent packs', () => {
     test('[unchanged] changed pack metadata reapplies on 1.10.0 without changing source bytes or modes', () =>
         withRoot((root) => {
             write(root, 'package.json', JSON.stringify({ name: 'pocketrisu', version: '1.10.0' }))
