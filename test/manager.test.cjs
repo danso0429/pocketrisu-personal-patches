@@ -811,3 +811,126 @@ test('a symlinked managed file is refused before any write', () => withRoot((roo
     )
     assert.equal(read(root, 'outside.ts'), 'outside\n')
 }))
+
+test.describe('[E2-1a] Subset verification harness', () => {
+    test('[new] planTransition admits an internal pack only with allowInternal and writes no intent', () =>
+        withRoot((root) => {
+            const internal = {
+                id: 'internal-pack',
+                version: '1',
+                userSelectable: false,
+                targets: {
+                    pocketrisu: { verified: ['1.10.0'], reviewing: [] },
+                },
+                units: [{
+                    id: 'internal-pack:owned',
+                    file: 'src/internal.ts',
+                    type: 'owned',
+                    content: 'internal\n',
+                }],
+            }
+
+            const transition = planTransition({
+                root,
+                catalog: [internal],
+                packIds: ['internal-pack'],
+                profile: 'custom',
+                allowInternal: true,
+                persistIntent: false,
+            })
+            assert.deepEqual(transition.resolution.resolvedIds, ['internal-pack'])
+            assert.deepEqual(transition.order, ['internal-pack:owned'])
+            assert.equal(loadIntent(root), null)
+            assert.equal(fs.existsSync(path.join(root, DEFAULT_INTENT_PATH)), false)
+
+            assert.throws(
+                () => planTransition({
+                    root,
+                    catalog: [internal],
+                    packIds: ['internal-pack'],
+                    profile: 'custom',
+                    persistIntent: true,
+                    intentPolicy: customIntent(['internal-pack']),
+                }),
+                (error) => error?.code === 'INTERNAL_PACK_REQUESTED',
+            )
+            assert.equal(loadIntent(root), null)
+            assert.equal(loadState(root), null)
+        }))
+})
+
+test.describe('[E2-1b] Declare PocketRisu 1.16.1 for seven independent packs', () => {
+    test('[unchanged] changed pack metadata reapplies on 1.10.0 without changing source bytes or modes', () =>
+        withRoot((root) => {
+            write(root, 'package.json', JSON.stringify({ name: 'pocketrisu', version: '1.10.0' }))
+            const ids = ['visible-a', 'visible-b', 'visible-c', 'visible-d', 'core-a', 'core-b', 'core-c']
+            const oldCatalog = ids.map((id, index) => ({
+                id,
+                version: '1.0.0',
+                userSelectable: index < 4,
+                requires: index === 0 ? ids.slice(4) : [],
+                targets: {
+                    pocketrisu: { verified: ['1.10.0'], reviewing: [] },
+                },
+                units: [{
+                    id: `${id}:owned`,
+                    file: `src/${id}.ts`,
+                    type: 'owned',
+                    content: `${id}\n`,
+                    targetVersions: { pocketrisu: ['1.10.0'] },
+                }],
+            }))
+            const requested = ids.slice(0, 4)
+            const first = planTransition({
+                root,
+                catalog: oldCatalog,
+                packIds: requested,
+                profile: 'custom',
+            })
+            applyTransition({ root, transition: first })
+
+            const before = new Map(ids.map((id) => [id, {
+                bytes: fs.readFileSync(path.join(root, `src/${id}.ts`)),
+                mode: mode(root, `src/${id}.ts`),
+            }]))
+            const oldEtags = new Map(loadState(root).packs.map((pack) => [pack.id, pack.etag]))
+            const newCatalog = oldCatalog.map((pack) => ({
+                ...pack,
+                version: '1.0.1',
+                targets: {
+                    pocketrisu: { verified: ['1.10.0'], reviewing: ['1.16.1'] },
+                },
+                units: pack.units.map((entry) => ({
+                    ...entry,
+                    targetVersions: { pocketrisu: ['1.10.0', '1.16.1'] },
+                })),
+            }))
+
+            const reapply = planTransition({
+                root,
+                catalog: newCatalog,
+                packIds: requested,
+                profile: 'custom',
+            })
+            assert.deepEqual(reapply.changes.map(({ path: changed }) => changed), [
+                'save/pocketrisu-patches/state.json',
+            ])
+            assert.equal(
+                reapply.packs.every((pack) => oldEtags.get(pack.id) !== pack.etag),
+                true,
+            )
+            applyTransition({ root, transition: reapply })
+
+            for (const id of ids) {
+                assert.deepEqual(fs.readFileSync(path.join(root, `src/${id}.ts`)), before.get(id).bytes)
+                assert.equal(mode(root, `src/${id}.ts`), before.get(id).mode)
+            }
+            const repeated = planTransition({
+                root,
+                catalog: newCatalog,
+                packIds: requested,
+                profile: 'custom',
+            })
+            assert.deepEqual(repeated.changes, [])
+        }))
+})

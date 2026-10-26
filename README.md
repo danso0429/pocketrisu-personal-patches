@@ -1509,6 +1509,31 @@ Move the version from `reviewing` to `verified` only after the maintainer also
 confirms the intended behaviors and round trip, then rebuild and retest the
 downloader artifact.
 
+### Subset verification (maintainers)
+
+While a new target is being rebased pack by pack, the complete graph may not
+plan yet. To gather evidence for part of it, run the source-only harness on a
+fresh disposable git checkout of the pristine target:
+
+```bash
+NODE_OPTIONS=--no-experimental-webstorage node scripts/qualify-subset.cjs \
+  --root /path/to/fresh/PocketRisu/copy \
+  --packs pack-a,pack-b \
+  --out /path/to/receipt/dir
+```
+
+It adds the packs the subset depends on (pack `requires` and `autoWhen`, and
+the owner pack of each required unit), requires every one of them to declare
+the target and to have complete unit coverage in `patches/target-coverage.cjs`
+against the frozen 1.10.0 baseline, applies them under one patch lock, runs the
+target's frozen install, `test`, `test:compat`, `check` and `build` (plus the BG
+bundle build when `bg-preserve` is included), reverts, and checks that the
+tree matches its state before the run. `<out>/receipt.json` records the
+selection, file hashes, commands and results. Its receipt is not a
+qualification (`qualification: false`): it does not move a target to
+`verified`, and the complete-graph `qualify` procedure above is still required.
+The harness is not embedded in distributed installers.
+
 Feature work exercises every relevant owner composition and the maximum
 complete graph.
 

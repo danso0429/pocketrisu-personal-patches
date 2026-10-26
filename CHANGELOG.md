@@ -1,5 +1,13 @@
 # Changelog
 
+## 0.2.4-experimental.89 (maintainer subset verification harness)
+
+- Maintainers can apply a subset of packs to a disposable PocketRisu git checkout, run the target checks and revert, without the complete `all` graph: `node scripts/qualify-subset.cjs --root COPY --packs ID[,ID...] --out DIR [--json]`. The harness adds every pack the subset needs (pack `requires`, `autoWhen`, and the owner pack of each required unit for that target; a missing or ambiguous owner stops with `SUBSET_UNIT_OWNER`), checks that each of them declares the target and that its unit coverage against the frozen 1.10.0 baseline is complete, and then, under one patch lock: applies, requires `current` status and a zero-change re-plan, runs `pnpm install --frozen-lockfile`, `pnpm test`, `pnpm test:compat`, `pnpm check`, `pnpm build` (and the BG orchestration bundle build when `bg-preserve` is in the closure), requires unchanged managed and tracked files, reverts, and compares every managed path, the patch metadata and the untracked and ignored files with the state before the run (`node_modules`, `dist`, the BG bundle outputs and the `save/logs.db`, `save/logs.db-wal` and `save/logs.db-shm` files that the upstream tests leave are the only exclusions).
+- Preflight refuses a root that is not a clean git checkout, already holds patch state, intent, journal or lock, already contains an owned path of the closure, runs a pnpm other than the `packageManager` version, or runs without `NODE_OPTIONS=--no-experimental-webstorage`. A failure after apply tries one normal revert; when the managed files drifted the tree is kept as it is (`cleanup: "preserved-drift"`).
+- The result is `<out>/receipt.json` with `qualification: false`: it is subset evidence, not a qualification, and does not change any target declaration. Unit coverage for targets other than 1.10.0 lives in `patches/target-coverage.cjs` (no entries yet).
+- `planTransition` accepts `allowInternal` so the harness can select internal packs directly. The installer's `apply`, `stage`, `plan`, `revert` and `status` never pass it, and `qualify` still stages the complete `all` set only.
+- No user-visible change: installer behavior, the pack catalog and the PocketRisu 1.10.0 result are unchanged. Stable remains v0.2.3.
+
 ## 0.2.4-experimental.88 (BG plugin sandbox on Node 24)
 
 - With background preservation and the internal BG plugin host candidate, the plugin worker sandbox now starts on Node 24 as well. Before, the sandbox refused every Node version below 25 with `plugin_sandbox_environment_unsupported`, so on a Node 24 server background plugins never ran. Linux, the main thread and the 100 ms to 900 s runtime bound are still required, and Node 23 and older are still refused with the same code.

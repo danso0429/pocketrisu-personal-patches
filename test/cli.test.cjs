@@ -13,8 +13,11 @@ const {
 } = require('../src/cli.cjs')
 const { assertTargetReviewable } = require('../src/compatibility.cjs')
 const {
+    applyTransition,
     customIntent,
     loadIntent,
+    loadState,
+    planTransition,
     presetIntent,
     saveIntent,
 } = require('../src/manager.cjs')
@@ -152,6 +155,116 @@ test('configure command is retired without writing intent', () =>
         )
         assert.equal(loadIntent(root), null)
     }))
+
+test.describe('[E2-1a] Subset verification harness', () => {
+    test('[unchanged] the full-profile stage path rejects subset selection flags', () => {
+        assert.throws(
+            () => parseArgs([
+                'node', 'patcher', 'stage', '--root', '/tmp/live',
+                '--candidate', '/tmp/candidate', '--packs', 'one-pack',
+            ]),
+            /complete admitted set/,
+        )
+    })
+})
+
+test.describe('[E2-1b] Declare PocketRisu 1.16.1 for seven independent packs', () => {
+    test('[unchanged] ordinary apply rejects a reviewing-only target before source or state writes', () =>
+        withRoot(async (root) => {
+            fs.writeFileSync(
+                path.join(root, 'package.json'),
+                JSON.stringify({ name: 'pocketrisu', version: '1.16.1' }),
+            )
+            fs.mkdirSync(path.join(root, 'src'), { recursive: true })
+            fs.writeFileSync(path.join(root, 'src/example.ts'), 'const upstream = 1\n')
+            const catalog = [{
+                id: 'reviewing-pack',
+                version: '1.0.0',
+                targets: {
+                    pocketrisu: { verified: ['1.10.0'], reviewing: ['1.16.1'] },
+                },
+                units: [{
+                    id: 'reviewing-pack:value',
+                    file: 'src/example.ts',
+                    type: 'replace',
+                    anchor: 'const upstream = 1\n',
+                    content: 'const patched = 1\n',
+                    targetVersions: { pocketrisu: ['1.16.1'] },
+                }],
+            }]
+
+            let failure
+            try {
+                await runCli({
+                    argv: ['node', 'patcher', 'apply', '--root', root, '--json'],
+                    catalog,
+                    patcherVersion: '0.2.0-test',
+                    fetchImpl: async () => { throw new Error('offline test') },
+                })
+            } catch (error) {
+                failure = error
+            }
+
+            assert.equal(failure?.code, 'TARGET_REVIEW_REQUIRED')
+            assert.equal(
+                fs.readFileSync(path.join(root, 'src/example.ts'), 'utf8'),
+                'const upstream = 1\n',
+            )
+            assert.equal(loadState(root), null)
+            assert.equal(loadIntent(root), null)
+        }))
+
+    test('[unchanged] status marks all seven changed catalog etags update-available', () =>
+        withRoot(async (root) => {
+            fs.writeFileSync(
+                path.join(root, 'package.json'),
+                JSON.stringify({ name: 'pocketrisu', version: '1.10.0' }),
+            )
+            const ids = ['pack-a', 'pack-b', 'pack-c', 'pack-d', 'core-a', 'core-b', 'core-c']
+            const makeCatalog = (updated) => ids.map((id, index) => ({
+                id,
+                version: updated ? '1.0.1' : '1.0.0',
+                userSelectable: index < 4,
+                requires: index === 0 ? ids.slice(4) : [],
+                targets: {
+                    pocketrisu: {
+                        verified: ['1.10.0'],
+                        reviewing: updated ? ['1.16.1'] : [],
+                    },
+                },
+                units: [{
+                    id: `${id}:owned`,
+                    file: `src/${id}.ts`,
+                    type: 'owned',
+                    content: `${id}\n`,
+                    targetVersions: {
+                        pocketrisu: updated ? ['1.10.0', '1.16.1'] : ['1.10.0'],
+                    },
+                }],
+            }))
+            applyTransition({
+                root,
+                transition: planTransition({
+                    root,
+                    catalog: makeCatalog(false),
+                    packIds: ids.slice(0, 4),
+                    profile: 'custom',
+                }),
+            })
+
+            const output = await capture(() => runCli({
+                argv: ['node', 'patcher', 'status', '--root', root, '--json'],
+                catalog: makeCatalog(true),
+                patcherVersion: '0.2.0-test',
+                fetchImpl: async () => { throw new Error('offline test') },
+            }))
+            assert.equal(output.packs.length, 7)
+            assert.deepEqual(
+                output.packs.map(({ id, catalogStatus }) => ({ id, catalogStatus })),
+                [...ids].sort().map((id) => ({ id, catalogStatus: 'update-available' })),
+            )
+        }))
+})
 
 test('every non-empty historical intent migrates to enabled complete delivery', () => {
     const catalog = loadCatalog()

@@ -649,9 +649,10 @@ function planTransition({
     intentPath = DEFAULT_INTENT_PATH,
     persistIntent = false,
     intentPolicy = null,
+    allowInternal = false,
 }) {
     const previous = loadState(root, statePath)
-    const resolution = resolveSelection(catalog, packIds)
+    const resolution = resolveSelection(catalog, packIds, { allowInternal })
     const packs = resolution.packs
     for (const pack of packs) validatePack(pack)
     const target = readTargetIdentity(root)
