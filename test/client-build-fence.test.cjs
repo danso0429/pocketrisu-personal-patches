@@ -1,6 +1,7 @@
 'use strict'
 
 const fs = require('node:fs')
+const os = require('node:os')
 const path = require('node:path')
 const test = require('node:test')
 const assert = require('node:assert/strict')
@@ -13,6 +14,7 @@ const serverFence = require('../patches/client-build-fence/files/server/node/cli
 const { loadCatalog } = require('../src/catalog.cjs')
 const { packEtag, unitMatchesTarget } = require('../src/manager.cjs')
 const { resolveSelection } = require('../src/resolver.cjs')
+const { evaluateTargetCompatibility } = require('../src/compatibility.cjs')
 
 const target181 = { packageName: 'pocketrisu', packageVersion: '1.8.1' }
 const target1100 = { packageName: 'pocketrisu', packageVersion: '1.10.0' }
@@ -49,17 +51,40 @@ test('client build fence resolves its BG, Kei, and Kei lazy-storage adapters wit
     }
 })
 
-test('client build fence is exact-1.9 and its adapters declare their owners', () => {
-    for (const manifest of [core, bg, kei, keiLazy]) {
-        assert.deepEqual(
-            manifest.units.filter((unit) => unitMatchesTarget(unit, target181)),
-            [],
+test.describe('[E2-2a] Rebase the client build fence onto PocketRisu 1.16.1', () => {
+    test('[unchanged] the core rejects 1.8.1 at pack level while unre-based adapters keep exact unit scopes', () => {
+        const root = fs.mkdtempSync(path.join(os.tmpdir(), 'client-fence-target-'))
+        try {
+            fs.writeFileSync(path.join(root, 'package.json'), JSON.stringify({
+                name: 'pocketrisu',
+                version: '1.8.1',
+            }))
+            const result = evaluateTargetCompatibility(root, [core])
+            assert.equal(result.status, 'review-required')
+            assert.deepEqual(result.reviewRequiredPacks.map(({ id }) => id), [core.id])
+        } finally {
+            fs.rmSync(root, { recursive: true, force: true })
+        }
+        for (const manifest of [bg, kei, keiLazy]) {
+            assert.deepEqual(
+                manifest.units.filter((unit) => unitMatchesTarget(unit, target181)),
+                [],
+            )
+            assert.ok(manifest.units.some((unit) => unitMatchesTarget(unit, target1100)))
+        }
+        assert.deepEqual(bg.requires, [core.id, 'bg-preserve'])
+        assert.deepEqual(kei.requires, [core.id, 'kei-backup-restore-safety-core'])
+        assert.deepEqual(keiLazy.requires, [core.id, 'kei-backup-restore-safety-lazy-adapter'])
+    })
+
+    test('[new] the dashboard purge fence unit is unscoped', () => {
+        const purge = core.units.find((unit) =>
+            unit.id === 'client-build-fence:system-dashboard-purge:1.10'
         )
-        assert.ok(manifest.units.some((unit) => unitMatchesTarget(unit, target1100)))
-    }
-    assert.deepEqual(bg.requires, [core.id, 'bg-preserve'])
-    assert.deepEqual(kei.requires, [core.id, 'kei-backup-restore-safety-core'])
-    assert.deepEqual(keiLazy.requires, [core.id, 'kei-backup-restore-safety-lazy-adapter'])
+        assert.ok(purge)
+        assert.match(purge.content, /clientBuildFetch\('\/api\/db\/assets\/purge-orphans'/)
+        assert.equal(Object.hasOwn(purge, 'targetVersions'), false)
+    })
 })
 
 test('server fence covers storage and destructive recovery transitions but not reads or job creation', () => {
@@ -124,15 +149,6 @@ test('destructive native and BG recovery calls carry the same build stamp as sto
     assert.match(bgText, /clientBuildFetch\(`\/proxy-stream-jobs\/\$\{encodeURIComponent\(jobId\)\}`/)
     assert.match(bgText, /clientBuildFetch\(SERVER_PATH \+ '\/delete'/)
     assert.match(bgText, /return await clientBuildFetch\(url/)
-})
-
-test('exact 1.10 orphan purge is fenced at both server and dashboard caller', () => {
-    const purge = core.units.find((unit) =>
-        unit.id === 'client-build-fence:system-dashboard-purge:1.10'
-    )
-    assert.ok(purge)
-    assert.match(purge.content, /clientBuildFetch\('\/api\/db\/assets\/purge-orphans'/)
-    assert.deepEqual(purge.targetVersions, { pocketrisu: ['1.10.0'] })
 })
 
 test('build artifact, middleware order, and every manifest payload affect the pack ETags', () => {

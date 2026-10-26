@@ -36,6 +36,15 @@ const EXACT_WRITER_ROUTES = new Set([
     'POST /api/bg-orchestrate-input/claim',
     'POST /api/bg-orchestrate-input/attach',
     'POST /api/bg-orchestrate-input/abandon',
+    // PocketRisu 1.16.1 data writers: RisuAI account import, character archive,
+    // archive and asset orphan cleanup.
+    'POST /api/risu-account/prepare',
+    'POST /api/risu-account/download',
+    'POST /api/risu-account/cancel',
+    'POST /api/risu-account/apply',
+    'POST /api/characters/archive-batch',
+    'POST /api/db/archive/purge-orphans',
+    'POST /api/db/assets/auto-sweep',
     // Reserved for the detached server-backup job pack. Keeping the fence here
     // ensures that adding the route cannot accidentally create an unfenced writer.
     'POST /api/backup/server/jobs',
@@ -78,6 +87,11 @@ function isWriterRoute(req) {
     if (method === 'DELETE' && /^\/api\/bg-orchestrate\/[^/]+$/.test(requestPath)) return true;
     if (method === 'DELETE'
         && /^\/api\/bg-orchestrate-result(?:\/[^/]+){2,3}$/.test(requestPath)) return true;
+    if ((method === 'POST' || method === 'DELETE')
+        && /^\/api\/characters\/[^/]+\/archive$/.test(requestPath)) return true;
+    if (method === 'POST' && /^\/api\/characters\/[^/]+\/activate$/.test(requestPath)) return true;
+    if (method === 'PATCH'
+        && /^\/api\/asset-manifests\/owner\/[^/]+\/[^/]+$/.test(requestPath)) return true;
     return false;
 }
 
