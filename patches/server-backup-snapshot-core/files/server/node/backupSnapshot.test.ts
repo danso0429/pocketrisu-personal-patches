@@ -9,6 +9,9 @@ import snapshotPkg from './backupSnapshot.cjs'
 const { createChunkStore } = chunkStorePkg as {
     createChunkStore: (db: any, options?: { threshold?: number }) => {
         putValue: (key: string, value: Buffer) => void
+        snapshotValue: (source: string, destination: string) => void
+        dropValue: (key: string) => void
+        gc: () => number
     }
 }
 const { openKvSnapshot } = snapshotPkg as {
@@ -42,8 +45,22 @@ async function createWalDatabase() {
     return { db, dbPath, store: createChunkStore(db, { threshold: 32 }) }
 }
 
-describe('point-in-time KV snapshot', () => {
-    it('keeps raw, chunked, list, and logical-size reads on one WAL epoch', async () => {
+function nativePrefixKeys(db: any, prefix: string) {
+    const last = prefix.charCodeAt(prefix.length - 1)
+    if (last >= 0x20 && last <= 0x7e) {
+        const upper = prefix.slice(0, -1) + String.fromCharCode(last + 1)
+        return db.prepare('SELECT key FROM kv WHERE key >= ? AND key < ? ORDER BY key')
+            .all(prefix, upper)
+            .map((row: { key: string }) => row.key)
+    }
+    const pattern = `${prefix.replace(/[\\%_]/g, '\\$&')}%`
+    return db.prepare("SELECT key FROM kv WHERE key LIKE ? ESCAPE '\\' ORDER BY key")
+        .all(pattern)
+        .map((row: { key: string }) => row.key)
+}
+
+describe('[E2-2b] Rebase the server backup snapshot core onto PocketRisu 1.16.1', () => {
+    it('[unchanged] keeps raw, chunked, wildcard-literal, list, and logical-size reads on one WAL epoch', async () => {
         const { db, dbPath, store } = await createWalDatabase()
         const oldDb = Buffer.alloc(4096, 0x31)
         const newDb = Buffer.alloc(8192, 0x32)
@@ -79,6 +96,49 @@ describe('point-in-time KV snapshot', () => {
         db.close()
     })
 
+    it('[new] returns the native 1.16.1 key set for case-distinct and wildcard prefixes', async () => {
+        const { db, dbPath, store } = await createWalDatabase()
+        store.putValue('archive/one', Buffer.from('lower'))
+        store.putValue('Archive/two', Buffer.from('upper'))
+        store.putValue('assets/literal%_one', Buffer.from('literal'))
+        store.putValue('assets/literalXXtwo', Buffer.from('wildcard-lookalike'))
+
+        const snapshot = openKvSnapshot(dbPath)
+        for (const prefix of ['archive/', 'Archive/', 'assets/literal%_']) {
+            const nativeKeys = nativePrefixKeys(db, prefix)
+            expect(snapshot.kvList(prefix)).toEqual(nativeKeys)
+            expect(snapshot.kvListWithSizes(prefix).map(({ key }) => key)).toEqual(nativeKeys)
+        }
+        snapshot.close()
+        db.close()
+    })
+
+    it('[unchanged] preserves a pinned view through snapshot rotation and plugin-blob cleanup', async () => {
+        const { db, dbPath, store } = await createWalDatabase()
+        const oldDatabase = Buffer.alloc(4096, 0x51)
+        const newDatabase = Buffer.alloc(4096, 0x52)
+        const pluginBlob = Buffer.alloc(2048, 0x61)
+        store.putValue('database/database.bin', oldDatabase)
+        store.snapshotValue('database/database.bin', 'dbbackup-old')
+        store.putValue('plugin-storage/blob', pluginBlob)
+
+        const snapshot = openKvSnapshot(dbPath)
+        store.putValue('database/database.bin', newDatabase)
+        store.snapshotValue('database/database.bin', 'dbbackup-new')
+        store.dropValue('dbbackup-old')
+        store.dropValue('plugin-storage/blob')
+        store.gc()
+
+        expect(snapshot.kvGet('database/database.bin')?.equals(oldDatabase)).toBe(true)
+        expect(snapshot.kvGet('dbbackup-old')?.equals(oldDatabase)).toBe(true)
+        expect(snapshot.kvGet('dbbackup-new')).toBeNull()
+        expect(snapshot.kvGet('plugin-storage/blob')?.equals(pluginBlob)).toBe(true)
+        snapshot.close()
+        db.close()
+    })
+})
+
+describe('point-in-time KV snapshot corruption handling', () => {
     it('fails closed when a pinned chunk manifest references missing data', async () => {
         const { db, dbPath, store } = await createWalDatabase()
         store.putValue('database/database.bin', Buffer.alloc(4096, 0x41))

@@ -1,6 +1,7 @@
 'use strict'
 
 const fs = require('node:fs')
+const os = require('node:os')
 const path = require('node:path')
 const test = require('node:test')
 const assert = require('node:assert/strict')
@@ -10,6 +11,7 @@ const lazy = require('../patches/server-backup-snapshot-lazy-adapter/manifest.cj
 const { loadCatalog } = require('../src/catalog.cjs')
 const { packEtag, unitMatchesTarget } = require('../src/manager.cjs')
 const { resolveSelection } = require('../src/resolver.cjs')
+const { evaluateTargetCompatibility } = require('../src/compatibility.cjs')
 
 const target181 = { packageName: 'pocketrisu', packageVersion: '1.8.1' }
 const target1100 = { packageName: 'pocketrisu', packageVersion: '1.10.0' }
@@ -51,16 +53,29 @@ test('every visible selection resolves the P2 adapter only with P1 and lazy stor
     }
 })
 
-test('P2 owns no 1.8 payload and its lazy adapter requires lazy storage', () => {
-    for (const manifest of [core, lazy]) {
+test.describe('[E2-2b] Rebase the server backup snapshot core onto PocketRisu 1.16.1', () => {
+    test('[unchanged] the core rejects 1.8.1 at pack level while the lazy adapter keeps exact unit scopes', () => {
+        const root = fs.mkdtempSync(path.join(os.tmpdir(), 'snapshot-core-target-'))
+        try {
+            fs.writeFileSync(path.join(root, 'package.json'), JSON.stringify({
+                name: 'pocketrisu',
+                version: '1.8.1',
+            }))
+            const result = evaluateTargetCompatibility(root, [core])
+            assert.equal(result.status, 'review-required')
+            assert.deepEqual(result.reviewRequiredPacks.map(({ id }) => id), [core.id])
+        } finally {
+            fs.rmSync(root, { recursive: true, force: true })
+        }
         assert.deepEqual(
-            manifest.units.filter((unit) => unitMatchesTarget(unit, target181)),
+            lazy.units.filter((unit) => unitMatchesTarget(unit, target181)),
             [],
         )
-        assert.ok(manifest.units.some((unit) => unitMatchesTarget(unit, target1100)))
-    }
-    assert.deepEqual(core.requires, ['client-build-fence'])
-    assert.deepEqual(lazy.requires, [core.id, 'lazy-chat-sync'])
+        assert.ok(lazy.units.some((unit) => unitMatchesTarget(unit, target1100)))
+        assert.deepEqual(core.requires, ['client-build-fence'])
+        assert.deepEqual(core.autoWhen, { all: ['client-build-fence'] })
+        assert.deepEqual(lazy.requires, [core.id, 'lazy-chat-sync'])
+    })
 })
 
 test('P2 pins one WAL reader and filesystem source for both backup destinations', () => {

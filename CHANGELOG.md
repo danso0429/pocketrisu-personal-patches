@@ -1,5 +1,13 @@
 # Changelog
 
+## 0.2.4-experimental.93 (server backup snapshot core rebased onto PocketRisu 1.16.1)
+
+- `server-backup-snapshot-core` 0.1.8 declares only PocketRisu `1.16.1`, as `reviewing` (`verified` is empty), and its units carry no target range. On 1.10.0 it is refused with `TARGET_REVIEW_REQUIRED`, and ordinary apply still refuses the reviewing-only 1.16.1 target. It still requires and is added automatically with `client-build-fence`. `server-backup-snapshot-lazy-adapter` and every other pack keep their 1.10.0 declaration and units.
+- The pinned snapshot reader lists keys by prefix with the same rule as the PocketRisu 1.16.1 `db.cjs`: a case-sensitive key range when the prefix ends in printable ASCII, an escaped `LIKE` otherwise. Before, it always used `LIKE`, which ignores ASCII case, so a pinned backup could list keys (for example `Archive/two` for `archive/`) that the live reader does not. Chunked values still report their logical size.
+- The four compat test files (`backup-point-in-time`, `storage-reset-b1a`, `session-reset-b2`, `reset-orphans-b3`) are no longer units of the pack. They are integration tests that need packs outside the core closure (lazy storage, the lazy backup adapter, BG cleanup); the files stay in the repository and return with the rebase of their owner packs.
+- `patches/target-coverage.cjs` records the pack's 1.16.1 coverage: seven 1.10.0 units are retained, two of them (`backupSnapshot.cjs` and its server test) `rewritten` with reasons, the four compat test units are retired, and none are replaced or added.
+- Stable remains v0.2.3.
+
 ## 0.2.4-experimental.92 (client build fence rebased onto PocketRisu 1.16.1)
 
 - `client-build-fence` 0.1.4 declares only PocketRisu `1.16.1`, as `reviewing` (`verified` is empty), and its units carry no target range. On 1.10.0 it is refused with `TARGET_REVIEW_REQUIRED`, and ordinary apply still refuses the reviewing-only 1.16.1 target. Its adapters and every other pack keep their 1.10.0 declaration and units.

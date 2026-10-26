@@ -82,4 +82,36 @@ module.exports = {
             retired: {},
         },
     },
+    'server-backup-snapshot-core': {
+        '1.16.1': {
+            from: '1.10.0',
+            retained: [
+                'server-backup-snapshot-core:owned:server:node:backupSnapshot-cjs:1.9',
+                'server-backup-snapshot-core:owned:server:node:backupSnapshot-test-ts:1.9',
+                'server-backup-snapshot-core:owned:server:node:backupSource-cjs:1.9',
+                'server-backup-snapshot-core:owned:server:node:backupSource-test-ts:1.9',
+                'server-backup-snapshot-core:db-helper-import:1.9',
+                'server-backup-snapshot-core:db-open-snapshot:1.9',
+                'server-backup-snapshot-core:db-export-snapshot:1.9',
+            ],
+            rewritten: {
+                'server-backup-snapshot-core:owned:server:node:backupSnapshot-cjs:1.9':
+                    'Prefix listings follow the PocketRisu 1.16.1 db.cjs rule (case-sensitive key range for a printable-ASCII last character, escaped LIKE otherwise), so the pinned reader returns the same keys as the live kvList and kvListWithSizes.',
+                'server-backup-snapshot-core:owned:server:node:backupSnapshot-test-ts:1.9':
+                    'Server tests for the native prefix rule and for a pinned view kept through snapshot rotation and plugin-blob cleanup.',
+            },
+            replaced: {},
+            added: {},
+            retired: {
+                'server-backup-snapshot-core:owned:test:compat:backup-point-in-time-test-ts:1.9':
+                    'Integration test that needs packs outside the core closure (the lazy adapter pinned backup endpoints); returns with its owner pack rebase.',
+                'server-backup-snapshot-core:owned:test:compat:storage-reset-b1a-test-ts:1.9':
+                    'Integration test that needs packs outside the core closure (lazy-chat-sync storage reset, BG cleanup); returns with its owner pack rebase.',
+                'server-backup-snapshot-core:owned:test:compat:session-reset-b2-test-ts:1.9':
+                    'Integration test that needs packs outside the core closure (lazy-chat-sync storage reset, BG session cleanup); returns with its owner pack rebase.',
+                'server-backup-snapshot-core:owned:test:compat:reset-orphans-b3-test-ts:1.9':
+                    'Integration test that needs packs outside the core closure (lazy-chat-sync storage reset, BG result cleanup); returns with its owner pack rebase.',
+            },
+        },
+    },
 }

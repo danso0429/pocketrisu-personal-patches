@@ -3,17 +3,32 @@
 const Database = require('better-sqlite3');
 const { CHUNK_MARKER } = require('./chunkStore.cjs');
 
-function escapeLikePrefix(prefix) {
-    return prefix.replace(/[\\%_]/g, '\\$&');
+// Same prefix rule as PocketRisu's db.cjs: a key range [prefix, upper) when the
+// last character is printable ASCII (bumping it cannot cross a UTF-8 encoding
+// boundary), otherwise an escaped LIKE. The range is case-sensitive like the
+// live reader; LIKE alone would also match ASCII case variants.
+function prefixRange(prefix) {
+    const last = prefix.charCodeAt(prefix.length - 1);
+    if (!(last >= 0x20 && last <= 0x7e)) return null;
+    return [prefix, prefix.slice(0, -1) + String.fromCharCode(last + 1)];
+}
+
+function likePrefix(prefix) {
+    return `${prefix.replace(/[\\%_]/g, '\\$&')}%`;
 }
 
 function createSnapshotReader(db) {
     const selectValue = db.prepare('SELECT value FROM kv WHERE key = ?');
     const selectKeys = db.prepare('SELECT key FROM kv ORDER BY key');
     const selectPrefixKeys = db.prepare(`SELECT key FROM kv WHERE key LIKE ? ESCAPE '\\' ORDER BY key`);
+    const selectRangeKeys = db.prepare('SELECT key FROM kv WHERE key >= ? AND key < ? ORDER BY key');
     const selectPrefixSizes = db.prepare(
         `SELECT key, LENGTH(value) AS stored_size, value = @chunkMarker AS is_chunked
          FROM kv WHERE key LIKE @pattern ESCAPE '\\' ORDER BY key`,
+    );
+    const selectRangeSizes = db.prepare(
+        `SELECT key, LENGTH(value) AS stored_size, value = @chunkMarker AS is_chunked
+         FROM kv WHERE key >= @lower AND key < @upper ORDER BY key`,
     );
     const selectManifest = db.prepare(
         'SELECT hash FROM manifest_chunks WHERE manifest_key = ? ORDER BY seq',
@@ -54,9 +69,9 @@ function createSnapshotReader(db) {
 
     function kvList(prefix) {
         if (prefix) {
-            return selectPrefixKeys
-                .all(`${escapeLikePrefix(prefix)}%`)
-                .map((row) => row.key);
+            const range = prefixRange(prefix);
+            const rows = range ? selectRangeKeys.all(...range) : selectPrefixKeys.all(likePrefix(prefix));
+            return rows.map((row) => row.key);
         }
         return selectKeys.all().map((row) => row.key);
     }
@@ -68,10 +83,11 @@ function createSnapshotReader(db) {
     }
 
     function kvListWithSizes(prefix) {
-        return selectPrefixSizes.all({
-            chunkMarker: CHUNK_MARKER,
-            pattern: `${escapeLikePrefix(prefix)}%`,
-        }).map((row) => ({
+        const range = prefixRange(prefix);
+        const rows = range
+            ? selectRangeSizes.all({ chunkMarker: CHUNK_MARKER, lower: range[0], upper: range[1] })
+            : selectPrefixSizes.all({ chunkMarker: CHUNK_MARKER, pattern: likePrefix(prefix) });
+        return rows.map((row) => ({
             key: row.key,
             size: logicalSize(row.key, row.stored_size, row.is_chunked),
         }));
