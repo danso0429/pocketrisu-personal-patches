@@ -1,6 +1,6 @@
 # PocketRisu 1.16.1 rebase audit
 
-**Status (2026-10-26 KST):** audit and ordered plan only, after one plan review (see "Plan review"). No pack is
+**Status (2026-10-26 KST):** audit and ordered plan; E2-0 and E2-0b done (see "E2-0 result", "E2-0b evidence", Decisions), after two plan reviews (see "Plan review"). No pack is
 qualified on 1.16.1, no source has changed, and live is unchanged
 (official PocketRisu 1.10.0 with the 40-pack `all` graph, Node 24.22.1).
 
@@ -19,6 +19,8 @@ of it. Upstream changed that API after 1.10.0, so those stages need the
 | --- | --- |
 | 2026-10-26 | Live stays on 1.10.0 with the current patches until a complete 1.16.1 candidate has passed the automatic gates, L4 and L5. The cutover is then one step. This differs from the 1.10 move, which first cut live to pristine 1.10 and left it without patches. |
 | 2026-10-26 | E2 moves the existing packs, including the Kei children already admitted. The Kei re-comparison (Kei has moved 432 commits past the frozen comparison SHA `cc1d1b1` to Kei 2.2.1, 2026-10-25, and has diverged from PocketRisu 1.16.1) is a separate step after E2. |
+
+| 2026-10-26 | E2-0b, from the evidence in "E2-0b evidence": retire `character-organizer` and rebuild `haejeok-korean-search-adapter` on the native character manager search as a stand-alone pack; keep persona folder icons (add an icon to native persona folders, with cleanup protection) when `persona-organizer` merges into native folders; retire `toolchain-hardening`, and re-add a pin only if the final candidate gate shows a need. |
 
 ## Upstream size
 
@@ -269,13 +271,13 @@ removes or changes a delivered feature and is a user decision.
 
 | Pack | Verdict | Conflict or gap (evidence) | Proposed disposition |
 | --- | --- | --- | --- |
-| `character-organizer` | NATIVE-SUPERSET | Native 1.12 character manager covers ordering, folders, search, sort, filter, deactivation and trash on the same `characterOrder` schema. The pack's `normalizeCharacterOrder` keeps only ids of live characters and drops empty folders (**confirmed**, `characterOrganizer.ts:62-103`), while native keeps deactivated stubs and empty folders (**confirmed**, `database.svelte.ts:1936-1955`): the pack's first write would remove deactivated characters' slots and empty folders. | Retire. |
+| `character-organizer` | NATIVE-SUPERSET | Native 1.12 character manager covers ordering, folders, search, sort, filter, deactivation and trash on the same `characterOrder` schema. The pack's `normalizeCharacterOrder` keeps only ids of live characters and drops empty folders (**confirmed**, `characterOrganizer.ts:62-103`), while native keeps deactivated stubs and empty folders (**confirmed**, `database.svelte.ts:1936-1955`): the pack's first write would remove deactivated characters' slots and empty folders. | Retire (2026-10-26 decision). |
 | `persona-organizer` | PARTIAL | Native 1.11 persona folders use the same `personaFolders` key; the pack inserts `folderId` and `personaFolders` declarations that native already has (**confirmed**, `database.svelte.ts:1079,1284`) and replaces the persona page with a second folder UI. Pack-only: folder icons (`RisuPersonaFolder.icon`, `manifest.cjs:145`), per-persona image gallery, and cleanup protection for both (`manifest.cjs:331`); native `PromptPresetFolder` has only `id`/`name` (`database.svelte.ts:1089`) and the native uncleanable walker covers neither (`globalApi.svelte.ts:2081`). | Merge into native: drop the folder layer and page replacement; decide explicitly whether folder icons stay; keep gallery and icon references in the cleanup contract. |
 | `character-import-ux` | PACK-SUPERSET | Native import still blocks; the pack replaces the whole `characterCards.ts`, which would drop native onboarding and import redirects; depends on `lazy-chat-sync`. | Keep, replace the whole-file unit with targeted inserts. |
 | `fastimport-ios-picker` | NONE | No native overlap; target script hash unverified. | Keep and rebase. |
 | `personal-settings` | PARTIAL | The pack's route `Personal: 24` collides with native `LongTermMemory: 24` (**confirmed**, `routing.ts:44`). Native now has settings search, a route table and an accessibility tab; import navigation is native (`goCharacterOnImport`). Pack-only: Personal page, CSS/font editor, external request headers. Editor save units touch the save path native now owns with ETag and rebase. | Merge into native and shrink; renumber the route. |
 | `personal-settings-lazy-session-adapter` | NONE | Depends on `lazy-chat-sync`. | Follows that decision. |
-| `toolchain-hardening` | NONE | Native lock already contains lightningcss 1.33.0; 3 lock units drift; original reason for the pin not re-checked. | Re-derive on the 1.16.1 lock or retire. |
+| `toolchain-hardening` | NONE | Native lock already contains lightningcss 1.33.0; 3 lock units drift; original reason for the pin not re-checked. | Retire (2026-10-26 decision); the pin's reason is unrecorded and pristine 1.16.1 passes without it on Node 24. |
 | `haejeok-chat-width-adapter` | PACK-SUPERSET | Adds `small`. Native load normalization coerces anything but standard/wide/full to `standard` (**confirmed**, `database.svelte.ts:171-173`), so the pack must own that normalizer. | Keep and rebase. |
 | `haejeok-korean-search-adapter` | PACK-SUPERSET | Native search is space-stripped substring; two units edit files deleted in 1.12. | Rebuild on the native character manager search. |
 
@@ -283,9 +285,9 @@ removes or changes a delivered feature and is a user decision.
 
 | Pack | Verdict | Conflict or gap (evidence) | Proposed disposition |
 | --- | --- | --- | --- |
-| `kei-chat-render-core` + BG adapter | PARTIAL | Native 1.11/1.13 streaming render fixes; the adapter has 5 drifted units and does not use native `isStreaming`. | Rebuild on native; keep reload-pointer handling only if streaming remounts reappear. |
+| `kei-chat-render-core` + BG adapter | PARTIAL | Leaving the streaming message's data out of the render hash is not new (1.10.0 `Chats.svelte:119` already did it); new in 1.16.1 is the in-place reroll update. The adapter reads `currentChat?.isStreaming` (`kei-chat-render-core/adapter-manifest.cjs:131`) inside the compound `chats-live-streaming-identity` unit; 5 drifted units. | Keep native's in-place reroll update. Re-scope per sub-behavior (reload-pointer freeze, generation gate, streaming generation info, streaming translation gate), not per unit. |
 | `kei-partial-edit-core` + BG adapter | PARTIAL | Native `PartialEditController` resolves targets and carries translation context, but saves from the captured `sourceData` without checking that the message still matches (**confirmed**, `PartialEditController.svelte:355-361`); the pack checks chat/message identity, index, id, original text, translation issuance and expected cache data (`keiPartialEditIdentity.ts:29`). | Keep the stale-write guarantees (port them onto the native controller or keep the manager); the 3 drifted adapter units follow. |
-| `kei-mobile-navigation-core` + lazy adapter | PARTIAL | Native hotkeys cover adjacent characters, the quick menu and `isTypingTarget`; pack-only: Android back guard and hotkey toggle; 9 drifted adapter units. | Keep only the back guard and toggle, rebuilt on native hotkeys. |
+| `kei-mobile-navigation-core` + lazy adapter | PARTIAL | Native hotkeys cover adjacent characters, the quick menu and `isTypingTarget`; pack-only: Android back guard, hotkey toggle, interactive and dialog target exclusion, trashed and temporary characters skipped in adjacent-character navigation (native `hotkey.ts:100,119` sorts all characters), idempotent init; 9 drifted adapter units. | Keep every pack-only guarantee listed here, rebuilt on native hotkeys; drop only what native duplicates (typing-target guard, quick menu, model select). |
 | `kei-hypa-tools-core` + BG adapter | PARTIAL | The manual summary panel reads the legacy global preset mirror (`hypaV3PresetId`) that 1.11 per-chat memory presets no longer read. | Keep and rebase; read the preset through the per-chat resolver. |
 | `kei-translation-tools-core` + BG adapter | PARTIAL | Native has a persistent LLM translation cache with export, import and clear but no cache panel; 7 drifted adapter units. | Keep the panel; route clear/import/export through native functions. |
 | `kei-fullscreen-image-viewer-core` | PACK-SUPERSET | Native viewer has keyboard and swipe but no dialog/ARIA attributes. | Keep and rebase. |
@@ -302,13 +304,13 @@ removes or changes a delivered feature and is a user decision.
 - Native now covers part of BG (server-side stream journaling with browser
   slot-in on return). BG still alone finishes the whole pipeline and commits
   on the server, but the two now share request, stop and recovery lifecycles.
-- Candidate to retire: `character-organizer` (its retained search
-  dependent `haejeok-korean-search-adapter` requires and auto-selects it,
-  `manifest.cjs:35`, so the graph changes with it).
-- Candidates to shrink into native, each per guarantee rather than per
-  feature name: `lazy-chat-sync`, `persona-organizer`, `personal-settings`,
-  `preset-integrity`, `kei-chat-render-*`, `kei-mobile-navigation-*`,
-  `toolchain-hardening`. `kei-partial-edit-*` and
+- Retired by the 2026-10-26 E2-0b decision: `character-organizer` (its
+  search dependent `haejeok-korean-search-adapter` becomes a stand-alone
+  pack on the native search) and `toolchain-hardening`.
+- To shrink into native, each per guarantee rather than per feature name:
+  `lazy-chat-sync`, `persona-organizer` (folder icons kept),
+  `personal-settings`, `preset-integrity`, `kei-chat-render-*`,
+  `kei-mobile-navigation-*`. `kei-partial-edit-*` and
   `kei-backup-restore-safety-*` were first proposed for retirement or
   shrinking; the plan review showed native lacks some of their guarantees,
   so they stay.
@@ -321,22 +323,209 @@ install/revert).
 
 | ID | Unit | Content |
 | --- | --- | --- |
-| E2-0 | Target declaration | Add 1.16.1 as `reviewing`, keep ordinary apply fail-closed, fetch and hash the pristine tag for the candidate gate, and record the pristine 1.16.1 baseline (`pnpm test`, `test:compat`, `check`, `build`) on Node 24. |
+| E2-0 | Target baseline | Fetch and hash the pristine tag for the candidate gate and record the pristine 1.16.1 baseline (`pnpm install --frozen-lockfile`, `test`, `test:compat`, `check`, `build`) on Node 24. No pack declares 1.16.1 yet (see "Target declaration per pack" below). |
 | E2-0b | Owner decisions and graph | Confirm the reviewer-reading rows that a disposition depends on, present the retire and shrink candidates with evidence for user decisions, and produce the revised dependency graph (`requires`, `after`, `autoWhen`, meta-pack children) that those decisions imply. |
-| E2-1 | Independent packs | Only packs and helpers with no unrebased parent: `charx-archive-integrity`, `parser-hardening`, `fastimport-ios-picker`, `log-load-performance`, `kei-prompt-role-compat-core`, `kei-text-theme-normalization-core`, `kei-fullscreen-image-viewer-core`, and the owned helpers of the Kei cores. Adapters wait for their actual parents (fence adapters need the fence and BG/lazy/restore owners; stream and hypa BG adapters need BG). |
-| E2-2 | Destructive storage boundary | Fence and snapshot decisions for the 13 new write routes (R2); one orphan-reference walker that includes 1.16 asset manifests and archives. |
+| E2-1 | Independent packs and verification harness | First a maintainer harness for 1.16.1 subsets: internal-pack selection, the full dependency closure (pack `requires`, unit `requires`, `autoWhen`), apply/current/reapply/revert, the target's `pnpm` checks, and the per-pack coverage inventory (see "Target declaration per pack"). Its receipts are subset evidence, not qualification. Then only packs and helpers with no unrebased parent: `charx-archive-integrity`, `parser-hardening`, `fastimport-ios-picker`, `log-load-performance`, `kei-prompt-role-compat-core`, `kei-text-theme-normalization-core`, `kei-fullscreen-image-viewer-core`, and the owned helpers of the Kei cores. Adapters wait for their actual parents (fence adapters need the fence and BG/lazy/restore owners; stream and hypa BG adapters need BG). |
+| E2-2 | Fence core and destructive storage boundary | Rebase `client-build-fence` itself here, because `personal-settings` (E2-4) and `lazy-chat-bg-adapter` (E2-7) require its units. Fence and snapshot decisions for the 13 new write routes (R2); one orphan-reference walker that includes 1.16 asset manifests and archives. |
 | E2-3 | Lazy storage and startup | Regenerate the nine full replacements from 1.16.1 (R1) after the native delta-sync comparison and the user's decision on it. |
-| E2-4 | Persona, character, import and settings owners | Apply the E2-0b decisions to `persona-organizer`, `character-organizer`, `character-import-ux`, `haejeok-korean-search-adapter`; then `personal-settings` (route renumbering) before its width and session dependents. |
+| E2-4 | Persona, character, import and settings owners | Apply the E2-0b decisions to `persona-organizer`, `character-organizer`, `character-import-ux`, `haejeok-korean-search-adapter`. Retirement includes: the direct `require` of `character-organizer/manifest.cjs` in `lazy-chat-bg-adapter/notification-units.cjs:7`; making the Korean search pack `userSelectable` (otherwise `all` excludes it, `src/catalog.cjs:89`); adding both retired ids to `RETIRED_OWNER_IDS` (`src/catalog.cjs:12`) for custom states; tests, README and installers. `toolchain-hardening` retires in the same way; then `personal-settings` (route renumbering) before its width and session dependents. |
 | E2-5 | Model preset and request identity | `pagefold-model-preset` and `usage-cost-estimate` on the 1.14 binding model (R4). |
-| E2-6 | Fence, backup and restore | `client-build-fence`, `server-backup-snapshot-*`, `kei-backup-restore-safety-*` on the new storage hosts. |
+| E2-6 | Fence adapters, backup and restore | The fence adapters, `server-backup-snapshot-*`, `kei-backup-restore-safety-*` on the new storage hosts. |
 | E2-7 | BG | `bg-preserve`, `lazy-chat-bg-adapter` and BG adapters: plugin API parity with 1.16.1 (R3), request identity and recovery (R4), and the existing BG contracts (result/claim/ACK, cancellation, no-resurrection, D2/D3 behavior). |
 | E2-8 | Dependent adapters | Kei, Haejeok, fence and BG adapters child by child against their rebased parents. |
-| E2-9 | Aggregate and cutover rehearsal | Complete graph apply/current/reapply/exact revert, target gates, L4, deterministic installers, L5. BG verifications done on 1.10.0 (including D2/D3 with the real memory plugin) are repeated on 1.16.1. Then a migration rehearsal on a copy of the patched 1.10 live data: quiesce writers and jobs, reconcile the lazy chat journal, take a consistent pre-cutover backup, run native 1.16 migrations (plugin storage moves out of the database blob in 1.11, and the 1.11 notes warn that going back to 1.10 binaries leaves migrated plugin data unavailable), check data written by retired packs, and test a data-plus-code rollback with a stated rule for writes accepted after the cutover. The one-step live cutover follows under its own plan. |
+| E2-9 | Aggregate and cutover rehearsal | Complete graph apply/current/reapply/exact revert, target gates, L4, deterministic installers, L5. Promotion from `reviewing` to `verified` happens only here, after this review (ordinary installers refuse `reviewing`). BG verifications done on 1.10.0 (including D2/D3 with the real memory plugin) are repeated on 1.16.1. Then a migration rehearsal on a copy of the patched 1.10 live data: quiesce writers and jobs, reconcile the lazy chat journal, take a consistent pre-cutover backup, run native 1.16 migrations (plugin storage moves out of the database blob in 1.11, and the 1.11 notes warn that going back to 1.10 binaries leaves migrated plugin data unavailable), check data written by retired packs, and test a data-plus-code rollback with a stated rule for writes accepted after the cutover. The one-step live cutover follows under its own plan. |
+
+### E2-0 result
+
+Pristine `v1.16.1` was cloned into the candidate gate's pristine cache with
+the gate's own clone command: HEAD `5da95f713a610219ddcf6c13de8779c52018196d`,
+tree `4e8c04774a83d0286453324ef54fa0f374386dbb` (equal to the audit tree),
+no tracked, untracked or ignored changes. Baseline on Node 24.22.1 and pnpm
+10.34.1 with `NODE_OPTIONS=--no-experimental-webstorage` (as in the gate),
+2026-10-26:
+
+| Step | Result |
+| --- | --- |
+| `pnpm install --frozen-lockfile` | exit 0 |
+| `pnpm test` | exit 0; 118 files, 1,644 passed, 3 skipped; second suite 15 files, 201 passed |
+| `pnpm test:compat` | exit 0; 21 files passed, 2 skipped; 144 passed, 6 skipped |
+| `pnpm check` | exit 0; 0 errors, 4 warnings in 1 file |
+| `pnpm build` | exit 0 |
+
+### E2-0b evidence
+
+Four read-only explorers re-read the packs whose disposition removes or
+shrinks pack code. The orchestrator checked the lines marked *checked* in
+the 1.16.1 tree. Pristine paths are relative to the 1.16.1 source root.
+
+`character-organizer`:
+
+- Native search strips spaces and matches a lowercase substring of the name
+  only (*checked*, `src/ts/characterManager.ts:63-67`).
+- Native `removeCharacter` keeps folders that become empty (*checked*,
+  `src/ts/characterOrder.ts:56-60`).
+- Native has the same function for folders, membership, folder removal and
+  reordering, plus search, filters, sort and trash, which the pack lacks.
+- Only in the pack: the overlay entry from the hamburger menu, folder
+  drill-down, 16-item pages, draft folders kept until their first member,
+  re-inserting a character at the folder's position when it leaves the
+  folder, and deleting a folder when its last member leaves.
+- The pack's normalizer removes trashed characters' ids and empty folders
+  from `characterOrder` on its next write. Native keeps both.
+- `haejeok-korean-search-adapter` edits `src/lib/Others/GridCatalog.svelte`
+  and `src/lib/Mobile/MobileCharacters.svelte`, both absent in 1.16.1
+  (*checked*). Its matcher (Hangul choseong, jamo, romanization, keyboard
+  layout, creator and tags) has no native counterpart.
+
+`persona-organizer`:
+
+- Native has no per-persona image gallery (*checked*: no `imageGallery` in
+  `src`).
+- The native uncleanable walker adds only a persona's `icon` and legacy
+  `image` (*checked*, `src/ts/globalApi.svelte.ts:2162-2169`).
+- Native has persona folders (`folderId`, `personaFolders`) and persona
+  duplicate. Native folders have no icon.
+- Import into a folder exists only in the pack.
+
+`personal-settings`:
+
+- Native route 24 renders `MemorySettings` (*checked*,
+  `src/lib/Setting/Settings.svelte:325-326`), so the pack's Personal page at
+  24 would never render.
+- The full-save anchor `await encoder.set(db, safeStructuredClone(toSave))`
+  is gone in 1.16.1 (*checked*, 0 matches); the 1.16 save path is
+  patch-with-ETag.
+- Native has no external request header route (*checked*, 0 matches) and
+  keeps one global custom CSS text area and one custom font name.
+- No user-visible feature of the pack is native, so the pack stays. Its
+  route moves to a free id, and its save units are rebuilt on the 1.16 save
+  path.
+
+`kei-chat-render-*`:
+
+- Native leaves the streaming message's data out of the render hash
+  (*checked*, `src/lib/ChatScreens/Chats.svelte:140`).
+- Native updates the reroll target in place instead of remounting
+  (*checked*, `src/lib/ChatScreens/Chat.svelte:115-117`).
+- Only in the pack: the `reloadPointer` freeze while streaming, the
+  `generationActive` gate, generation info on streaming updates, and the
+  auto-translation gate while streaming.
+- The streaming-data hash exclusion already existed in 1.10.0 (`Chats.svelte:119`), so it is not new native coverage. The pack's compound unit also carries the pack-only behaviors, so it is re-scoped per sub-behavior, and the native in-place reroll update is kept.
+
+`kei-mobile-navigation-*`:
+
+- Native hotkeys skip typing targets (*checked*, `src/ts/hotkey.ts:16-24`).
+- Native has no `popstate` back handling and no `enableHotkeys` setting
+  (*checked*, 0 matches).
+- Only in the pack: the back guard, the hotkey toggle, ignoring interactive
+  and dialog targets, skipping trashed or temporary characters in
+  adjacent-character navigation, and idempotent init.
+
+`toolchain-hardening`:
+
+- The pack has two parts: a `lightningcss` 1.33.0 override, and a happy-dom
+  `Storage` fallback in `vitest.setup.ts`.
+- In the 1.16.1 lock, `vite` already resolves `lightningcss` 1.33.0, while
+  `@tailwindcss/node` still resolves 1.32.0 (*checked*, `pnpm-lock.yaml:3777`,
+  `:5472`). The audit row above that called 1.33.0 native was only half
+  right.
+- No commit, document or journal records why `lightningcss` was pinned.
+- Pristine 1.16.1 passes `pnpm test` on Node 24 without the Storage
+  fallback, with the gate's `--no-experimental-webstorage` (E2-0 result).
+
+Dependency graph today (pack-level `requires`; every adapter also
+`autoWhen` all of its `requires`, except where noted):
+
+- On `bg-preserve`: `client-build-fence-bg-adapter`, `lazy-chat-bg-adapter`,
+  `haejeok-persistence-safety-adapter`, `pagefold-bg-adapter` and the Kei BG
+  adapters (stream parser, chat render, hypa tools, partial edit,
+  translation tools).
+- On `lazy-chat-sync`: `client-build-fence-lazy-session-adapter`,
+  `server-backup-snapshot-lazy-adapter`, `lazy-chat-bg-adapter`,
+  `haejeok-persistence-safety-adapter`,
+  `personal-settings-lazy-session-adapter`,
+  `kei-mobile-navigation-lazy-adapter`,
+  `kei-backup-restore-safety-lazy-adapter`, and `character-import-ux`
+  (`requires` only, no `autoWhen`).
+- On `client-build-fence`: `server-backup-snapshot-core` and the four fence
+  adapters. The Kei fence adapters also require
+  `kei-backup-restore-safety-core` or its lazy adapter.
+- On `character-organizer`: `haejeok-korean-search-adapter`.
+- On `personal-settings`: `haejeok-chat-width-adapter` and
+  `personal-settings-lazy-session-adapter`.
+- `kei-partial-edit-bg-adapter` and `kei-translation-tools-bg-adapter` also
+  require `kei-chat-render-bg-adapter`. Their `autoWhen` does not include
+  it.
+- `pocketrisu-kei` (meta, 0 units) requires the Kei cores.
+
+Retiring `character-organizer` removes the only edge into
+`haejeok-korean-search-adapter`. The adapter would then target native
+`matchesSearch` and the native character manager, so it needs a new parent
+or none. With no parent, it becomes a stand-alone pack.
+
+### Target declaration per pack
+
+The first version of this plan declared 1.16.1 as `reviewing` on every pack
+in E2-0. That would hide unrebased packs. 1,654 of the catalog's units are
+scoped to `pocketrisu: ['1.10.0']`, and the manager drops non-matching units
+before composition (`src/manager.cjs:545-556`) without checking whether a
+pack keeps any. Measured at `677595c`, a 1.16.1 target would resolve:
+
+- 28 packs to zero units, among them `client-build-fence`,
+  `server-backup-snapshot-core`, `preset-integrity`, `charx-archive-integrity`,
+  `usage-cost-estimate` and `pagefold-model-preset`;
+- 6 packs to a subset: `bg-preserve` 159/187, `lazy-chat-sync` 22/47,
+  `lazy-chat-bg-adapter` 7/854, `persona-organizer` 22/27,
+  `character-import-ux` 16/44, `personal-settings` 18/130.
+
+A declared but unrebased pack would then pass target compatibility as
+`under-review` while installing nothing or part of itself, which the README
+rules out ("does not ... silently skip a pack").
+
+Instead, each rebase unit adds `reviewing: ['1.16.1']` only to the packs it
+rebases, in the same commit that scopes or re-anchors their units. An
+undeclared pack stays `review-required`, so `npm run qualify` (always the
+whole `all` graph) refuses 1.16.1 until every pack is declared; the complete
+qualification belongs to E2-9 in either design. Rebase units test their packs
+with the E2-1 harness, because the manager API refuses internal packs
+selected directly (`src/resolver.cjs:97`) and the manager itself enforces
+no target compatibility.
+
+A non-empty check is not enough: `personal-settings` with only
+`reviewing: ['1.16.1']` added already passes `assertTargetReviewable`
+while keeping 18 of 130 units (round-2 plan review). Each pack that declares
+1.16.1 therefore carries a coverage inventory in its tests: every 1.10.0 unit
+or guarantee is mapped to retained, replaced by a named 1.16.1 unit, or
+retired with the decision that retired it, and the test asserts the exact
+unit set selected on each declared target.
+
+Each commit keeps the 1.10.0 graph intact: the 1.10.0 candidate gate and CI
+(`.github/workflows/ci.yml`, which rebuilds the installers, requires a clean
+`dist` and applies the complete graph to 1.10.0) pass on every commit, and
+`dist` is rebuilt with every manifest change. The catalog test that pins
+every pack to `verified: ['1.10.0'], reviewing: []` (`test/catalog.test.cjs:13`)
+changes in the first commit that declares 1.16.1, to the declared set per
+pack. Retirements (E2-4) are the exception to "intact": they remove the pack
+for both targets, by user decision.
+
+Unit-level dependencies across packs, beyond the pack `requires` above
+(extracted from every unit's `requires` at `677595c`):
+
+- `personal-settings` → `client-build-fence`.
+- `lazy-chat-bg-adapter` → `pagefold-model-preset`, `personal-settings`,
+  `client-build-fence`, `client-build-fence-bg-adapter`.
+- `haejeok-persistence-safety-adapter` → `lazy-chat-bg-adapter`.
+- `kei-partial-edit-bg-adapter` → `kei-chat-render-bg-adapter` (also a
+  pack `requires`).
+
+Explicit selections also pull in adapters through `autoWhen`; for example,
+selecting the fence and `lazy-chat-sync` resolves both snapshot packs and the
+fence lazy-session adapter.
 
 ## Plan review
 
-One Codex plan review (gpt-6-astra, read-only, 2026-10-26) raised nine
-findings. The orchestrator checked each against the code and adopted all
+The first Codex plan review (gpt-6-astra, read-only, 2026-10-26) raised
+nine findings. The orchestrator checked each against the code and adopted all
 nine:
 
 | # | Finding | Change in this audit |
@@ -350,6 +539,20 @@ nine:
 | 7 | Preset clamping would replace native recovery with overwriting a valid preset | Row and disposition updated |
 | 8 | BG/native stop and close ownership was described too broadly | Row rewritten with the per-request owner matrix |
 | 9 | Native delta transport is not the pack's conflict merge | Row rewritten; decision per contract |
+
+A second round (gpt-6-astra, read-only, 2026-10-26) reviewed the
+per-pack declaration, E2-0 and E2-0b. The orchestrator checked each
+finding against the code and adopted all seven:
+
+| # | Finding | Change in this audit |
+| --- | --- | --- |
+| 1 | The manager refuses internal Kei cores selected directly | E2-1 starts with a subset harness that resolves the full closure |
+| 2 | A non-empty check passes partial packs (`personal-settings` 18/130) | Per-pack coverage inventory with exact unit sets |
+| 3 | Unit-level dependencies contradict the order (`personal-settings` needs fence units) | Unit-level graph listed; fence core moves to E2-2 |
+| 4 | Retirement breaks a direct manifest `require`, leaves Korean search unselectable, and orphans custom states | Retirement steps listed under E2-4 |
+| 5 | The catalog test and CI conflict with incremental commits | Commit contract: 1.10.0 graph intact, `dist` rebuilt, catalog test changed with the first declaration, promotion only in E2-9 |
+| 6 | The mobile-navigation disposition dropped guarantees the evidence calls pack-only | Disposition keeps every pack-only guarantee |
+| 7 | The chat-render evidence misread native coverage and the adapter's `isStreaming` use | Row and evidence corrected; re-scope per sub-behavior |
 
 ## Inputs not yet confirmed
 
