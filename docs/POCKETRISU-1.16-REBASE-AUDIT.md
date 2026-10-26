@@ -385,6 +385,34 @@ before the target check), wrote only its conflict report under
 `save/pocketrisu-patches/reports/`, and changed no source file or patch state.
 The 1.10.0 candidate gate passed 19 of 19 steps at both commits.
 
+### E2-1c and E2-2 result
+
+Three commits on 2026-10-27 (KST), each with a passing repository suite
+(0 failures), two identical installer builds (mode 755, `node --check`) and
+Codex code review without findings. Blind tests were written before each
+implementation; two test-side corrections (pack version arithmetic, one
+vitest that asserted a reload before awaiting it) were made by a fresh test
+author on a tree without the implementation.
+
+| Unit | Release | Change |
+| --- | --- | --- |
+| E2-1c | `0.2.4-experimental.91` | The six E2-1b packs declare only 1.16.1 (`reviewing`), units unscoped, versions E2-1b +1. The coverage validator gains `missing-baseline` for every declared target, the `rewritten` map, and the per-unit baseline `test/fixtures/target-baseline-1.10.0-units.json` (`retained-unit-changed`). |
+| E2-2a | `0.2.4-experimental.92` | `client-build-fence` 0.1.4: the four drifted units rewritten in place (session start inside `authRequest`, `authFetchOnce` on the injected `fetchFn`, dirty probe with `hasPendingPluginStorageWrites`), eleven new 1.16.1 data-writing routes fenced, three new bare fetches through `clientBuildFetch`, seven 1.16.1 behavior tests owned. Coverage: 58 retained (7 rewritten), 12 added. |
+| E2-2b | `0.2.4-experimental.93` | `server-backup-snapshot-core` 0.1.8: the pinned reader uses the native `db.cjs` prefix rule (case-sensitive key range), and the four compat tests leave the core's 1.16.1 units (they return with their owners in E2-3, E2-6, E2-7). Coverage: 7 retained (2 rewritten), 4 retired. |
+
+Subset harness runs on fresh copies of pristine `v1.16.1` (`5da95f7`), Node
+24.22.1, pnpm 10.34.1, all steps passed and reverted with no residue:
+
+| Subset | Closure | Units |
+| --- | --- | --- |
+| six E2-1c packs together | the six packs | 54 |
+| `client-build-fence` | fence 0.1.4 + snapshot core 0.1.8 | 77 |
+
+In the fence run `pnpm test` covered 1,670 client and 230 server tests; a
+separate verbose run on the same composition showed the seven fence
+`*.e2-2a.test.ts` files (19 tests) and the core's `backupSnapshot.test.ts`
+and `backupSource.test.ts` (8 tests) passing.
+
 ### E2-0b evidence
 
 Four read-only explorers re-read the packs whose disposition removes or
