@@ -21,6 +21,7 @@ of it. Upstream changed that API after 1.10.0, so those stages need the
 | 2026-10-26 | E2 moves the existing packs, including the Kei children already admitted. The Kei re-comparison (Kei has moved 432 commits past the frozen comparison SHA `cc1d1b1` to Kei 2.2.1, 2026-10-25, and has diverged from PocketRisu 1.16.1) is a separate step after E2. |
 | 2026-10-26 | E2-0b, from the evidence in "E2-0b evidence": retire `character-organizer` and rebuild `haejeok-korean-search-adapter` on the native character manager search as a stand-alone pack; keep persona folder icons (add an icon to native persona folders, with cleanup protection) when `persona-organizer` merges into native folders; retire `toolchain-hardening`, and re-add a pin only if the final candidate gate shows a need. |
 | 2026-10-26 | Retire `fastimport-ios-picker` (no longer used). On 1.16.1 its owned runtime test fails because the 1.16.1 `loadPlugins` references `pluginStorageStore` and `v2PreloadAlertShown`, which the test's evaluation scope does not provide. E2-1b therefore declares six packs; the retirement follows the E2-4 retirement steps. |
+| 2026-10-26 | The E2 branch becomes 1.16.1-only (see "Target declaration per pack"). Keeping every commit byte-identical on 1.10.0 forced copied units and dependency-chain duplicates (E2-2: four drifted fence units pull five dependents), while live keeps its current installer until the cutover anyway. Rebased packs are edited in place for 1.16.1; the six E2-1b packs are converted first. |
 
 ## Upstream size
 
@@ -530,14 +531,30 @@ or guarantee is mapped to retained, replaced by a named 1.16.1 unit, or
 retired with the decision that retired it, and the test asserts the exact
 unit set selected on each declared target.
 
-Each commit keeps the 1.10.0 graph intact: the 1.10.0 candidate gate and CI
-(`.github/workflows/ci.yml`, which rebuilds the installers, requires a clean
-`dist` and applies the complete graph to 1.10.0) pass on every commit, and
-`dist` is rebuilt with every manifest change. The catalog test that pins
-every pack to `verified: ['1.10.0'], reviewing: []` (`test/catalog.test.cjs:13`)
-changes in the first commit that declares 1.16.1, to the declared set per
-pack. Retirements (E2-4) are the exception to "intact": they remove the pack
-for both targets, by user decision.
+The E2 branch is 1.16.1-only (decision of 2026-10-26, which replaces the
+earlier rule that every commit keeps the 1.10.0 graph intact). A pack that
+an E2 unit rebases is edited in place for 1.16.1: it declares
+`verified: [], reviewing: ['1.16.1']`, its units carry no 1.10.0 scope, and a
+unit whose anchor or behavior changed on 1.16.1 is rewritten under its
+existing id rather than copied. Packs that no unit has rebased yet keep their
+1.10.0 declaration and units unchanged until their unit. Consequences:
+
+- The coverage inventory stays, against the frozen 1.10.0 baseline
+  (`test/fixtures/target-baseline-1.10.0.json`): every 1.10.0 unit id is
+  retained (the id still exists on 1.16.1, its content may change), replaced
+  by named units, or retired with its decision. It is the "nothing silently
+  dropped" check, not a byte-identity check.
+- Per commit: the repository tests, two installer builds with identical
+  output, `node --check` on the installer, and the subset harness on a fresh
+  pristine 1.16.1 copy for the closure of every pack the commit touches. The
+  1.10.0 candidate gate and CI (`.github/workflows/ci.yml`, which applies the
+  complete graph to 1.10.0) are not required on this branch during E2; CI and
+  the gate move to 1.16.1 in E2-9.
+- Live stays on PocketRisu 1.10.0 with the installer that applied its current
+  state. A 1.10.0 fix, if needed before the cutover, is made from `main`, not
+  from this branch. The cutover reverts live with that installer, moves the
+  source to 1.16.1 and applies the new installer.
+- Retirements (E2-4) remove the pack, as decided.
 
 Unit-level dependencies across packs, beyond the pack `requires` above
 (extracted from every unit's `requires` at `677595c`):
