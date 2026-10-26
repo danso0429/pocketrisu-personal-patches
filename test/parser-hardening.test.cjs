@@ -6,21 +6,21 @@ const manifest = require('../patches/parser-hardening/manifest.cjs')
 const { loadCatalog, resolveProfile } = require('../src/catalog.cjs')
 const { packEtag } = require('../src/manager.cjs')
 
-test('parser hardening is independently versioned and included in the complete set', () => {
-    const catalog = loadCatalog()
-    assert.equal(manifest.id, 'parser-hardening')
-    assert.equal(manifest.version, '0.1.2')
-    assert.equal(resolveProfile('all', catalog).defaults.includes(manifest.id), true)
-})
-
-test('parser hardening is qualified only for declared exact PocketRisu targets', () => {
-    assert.deepEqual(manifest.targets, {
-        pocketrisu: {
-            verified: ['1.10.0'],
-            reviewing: ['1.16.1'],
-        },
+test.describe('[E2-1c] Make the six E2-1b packs 1.16.1-only', () => {
+    test('[new] parser hardening is version 0.1.3 with only unscoped 1.16.1 payload', () => {
+        const catalog = loadCatalog()
+        assert.equal(manifest.id, 'parser-hardening')
+        assert.equal(manifest.version, '0.1.3')
+        assert.equal(resolveProfile('all', catalog).defaults.includes(manifest.id), true)
+        assert.deepEqual(manifest.targets, {
+            pocketrisu: {
+                verified: [],
+                reviewing: ['1.16.1'],
+            },
+        })
+        assert.equal(manifest.units.every((unit) => !Object.hasOwn(unit, 'targetVersions')), true)
+        assert.equal(manifest.targets.pocketrisu.verified.includes('1.9.1'), false)
     })
-    assert.equal(manifest.targets.pocketrisu.verified.includes('1.9.1'), false)
 })
 
 test('parser hardening pack ETag covers its exact managed content', () => {

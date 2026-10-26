@@ -4,9 +4,13 @@
 // pack declares besides the 1.10.0 baseline accounts for each baseline unit
 // exactly once (retained, replaced or retired) and that the units the new
 // target selects are exactly the retained, replacement and added units.
+// With a unit baseline (test/fixtures/target-baseline-1.10.0-units.json) it
+// also checks that each retained unit not listed in `rewritten` still equals
+// its 1.10.0 definition without `targetVersions`.
 // The catalog, manager, staging and installer modules must not import it.
 
-const { unitMatchesTarget } = require('../../src/manager.cjs')
+const crypto = require('node:crypto')
+const { stableStringify, unitMatchesTarget } = require('../../src/manager.cjs')
 
 const BASELINE_TARGET = '1.10.0'
 const PACKAGE_NAME = 'pocketrisu'
@@ -27,7 +31,12 @@ function declaredTargets(pack) {
     ])]
 }
 
-function validateEntry({ pack, target, entry, baselineIds, report }) {
+function unscopedUnitHash(unit) {
+    const { targetVersions: _targetVersions, ...unscoped } = unit
+    return crypto.createHash('sha256').update(stableStringify(unscoped)).digest('hex')
+}
+
+function validateEntry({ pack, target, entry, baselineIds, unitHashes, report }) {
     if (!isPlainObject(entry)) {
         report('invalid-coverage-entry', null)
         return
@@ -130,9 +139,52 @@ function validateEntry({ pack, target, entry, baselineIds, report }) {
     for (const id of expected) {
         if (!selected.has(id)) report('mapped-unit-not-selected', id)
     }
+
+    // Retained units whose content was changed on purpose, with a reason.
+    // An id that is also replaced or retired does not keep its unit, so it
+    // cannot be rewritten (`retained: 'all'` lists every baseline id).
+    const retainedIds = new Set(retained.filter((id) =>
+        !Object.hasOwn(replaced ?? {}, id) && !Object.hasOwn(retired ?? {}, id)
+    ))
+    const rewrittenIds = new Set()
+    if (entry.rewritten !== undefined) {
+        if (!isPlainObject(entry.rewritten)) {
+            report('invalid-rewritten', null)
+        } else {
+            for (const [id, reason] of Object.entries(entry.rewritten)) {
+                if (!retainedIds.has(id)) {
+                    report('invalid-rewritten', id)
+                    continue
+                }
+                if (!nonEmptyReason(reason)) {
+                    report('empty-reason', id)
+                    continue
+                }
+                rewrittenIds.add(id)
+            }
+        }
+    }
+
+    if (unitHashes === null) return
+    const selectedById = new Map(
+        pack.units
+            .filter((unit) => unitMatchesTarget(unit, identity))
+            .map((unit) => [unit.id, unit]),
+    )
+    for (const id of retainedIds) {
+        if (rewrittenIds.has(id)) continue
+        const unit = selectedById.get(id)
+        // A retained unit that the target does not select is already
+        // reported as mapped-unit-not-selected.
+        if (!unit) continue
+        const expectedHash = unitHashes[id]
+        if (typeof expectedHash !== 'string' || unscopedUnitHash(unit) !== expectedHash) {
+            report('retained-unit-changed', id)
+        }
+    }
 }
 
-function validateTargetCoverage({ catalog, coverage, baseline, packIds }) {
+function validateTargetCoverage({ catalog, coverage, baseline, packIds, unitBaseline }) {
     const violations = []
     const byId = new Map((catalog ?? []).map((pack) => [pack.id, pack]))
     const baselinePacks = isPlainObject(baseline?.packs) ? baseline.packs : {}
@@ -148,13 +200,17 @@ function validateTargetCoverage({ catalog, coverage, baseline, packIds }) {
         let baselineIds = []
         if (Array.isArray(baselineEntry?.units110)) {
             baselineIds = baselineEntry.units110
-        } else if (targets.includes(BASELINE_TARGET)) {
-            violations.push({
-                pack: packId,
-                target: BASELINE_TARGET,
-                kind: 'missing-baseline',
-                unitId: null,
-            })
+        } else {
+            for (const target of targets) {
+                violations.push({ pack: packId, target, kind: 'missing-baseline', unitId: null })
+            }
+        }
+        let unitHashes = null
+        if (unitBaseline !== undefined && unitBaseline !== null) {
+            const packHashes = isPlainObject(unitBaseline?.packs)
+                ? unitBaseline.packs[packId]
+                : undefined
+            unitHashes = isPlainObject(packHashes) ? packHashes : {}
         }
 
         for (const target of targets) {
@@ -165,7 +221,7 @@ function validateTargetCoverage({ catalog, coverage, baseline, packIds }) {
                 report('missing-coverage', null)
                 continue
             }
-            validateEntry({ pack, target, entry, baselineIds, report })
+            validateEntry({ pack, target, entry, baselineIds, unitHashes, report })
         }
     }
 

@@ -4,6 +4,8 @@ const test = require('node:test')
 const assert = require('node:assert/strict')
 const crypto = require('node:crypto')
 const baseline = require('./fixtures/target-baseline-1.10.0.json')
+const unitBaseline = require('./fixtures/target-baseline-1.10.0-units.json')
+const coverage = require('../patches/target-coverage.cjs')
 const {
     loadCatalog,
     resolveProfile,
@@ -12,8 +14,9 @@ const {
     validateProfileTransition,
 } = require('../src/catalog.cjs')
 const { stableStringify, unitMatchesTarget } = require('../src/manager.cjs')
+const { validateTargetCoverage } = require('../scripts/lib/target-coverage.cjs')
 
-const reviewing1161 = [
+const e21cPackIds = [
     'charx-archive-integrity',
     'parser-hardening',
     'log-load-performance',
@@ -22,109 +25,54 @@ const reviewing1161 = [
     'kei-fullscreen-image-viewer-core',
 ]
 
+function rebasedPackIds() {
+    return Object.entries(coverage)
+        .filter(([, targets]) => Object.hasOwn(targets, '1.16.1'))
+        .map(([packId]) => packId)
+}
+
 function declarationHash(pack) {
     return crypto.createHash('sha256')
         .update(stableStringify({ targets: pack.targets, units: pack.units }))
         .digest('hex')
 }
 
-function preE21bDeclarationHash(pack) {
-    return declarationHash({
-        ...pack,
-        targets: {
-            ...pack.targets,
-            pocketrisu: { verified: ['1.10.0'], reviewing: [] },
-        },
-        units: pack.units.map((unit) => unit.targetVersions === undefined ? unit : ({
-            ...unit,
-            targetVersions: {
-                ...unit.targetVersions,
-                pocketrisu: ['1.10.0'],
-            },
-        })),
-    })
+function unitHash(unit) {
+    const { targetVersions: _targetVersions, ...unscoped } = unit
+    return crypto.createHash('sha256').update(stableStringify(unscoped)).digest('hex')
 }
 
-test.describe('[E2-1b] Declare PocketRisu 1.16.1 for six independent packs', () => {
-    test('[new] exactly six packs review 1.16.1 and their scoped units select that target', () => {
+test.describe('[E2-1c] Make the six E2-1b packs 1.16.1-only', () => {
+    test('[new] coverage-listed packs are 1.16.1-only and the six E2-1c packs retain their baseline unit order', () => {
         const catalog = loadCatalog()
-        assert.deepEqual(
-            catalog
-                .filter((pack) => pack.targets.pocketrisu.reviewing.includes('1.16.1'))
-                .map((pack) => pack.id)
-                .sort(),
-            [...reviewing1161].sort(),
-        )
-        for (const pack of catalog) {
-            assert.deepEqual(pack.targets.pocketrisu.verified, ['1.10.0'], pack.id)
-            if (!reviewing1161.includes(pack.id)) {
-                assert.deepEqual(pack.targets.pocketrisu.reviewing, [], pack.id)
-                continue
-            }
-            assert.deepEqual(pack.targets.pocketrisu.reviewing, ['1.16.1'], pack.id)
-            for (const unit of pack.units) {
-                if (unit.targetVersions === undefined) continue
-                assert.deepEqual(
-                    unit.targetVersions.pocketrisu,
-                    ['1.10.0', '1.16.1'],
-                    unit.id,
-                )
-            }
+        const byId = new Map(catalog.map((pack) => [pack.id, pack]))
+        const rebased = rebasedPackIds()
+        for (const packId of e21cPackIds) assert.equal(rebased.includes(packId), true, packId)
+
+        for (const packId of rebased) {
+            const pack = byId.get(packId)
+            assert.ok(pack, packId)
+            assert.deepEqual(pack.targets.pocketrisu, {
+                verified: [],
+                reviewing: ['1.16.1'],
+            }, pack.id)
+            assert.equal(pack.units.every((unit) => !Object.hasOwn(unit, 'targetVersions')), true, pack.id)
             const oldVersion = baseline.packs[pack.id].version.match(/^(.*\.)(\d+)$/)
             const newVersion = pack.version.match(/^(.*\.)(\d+)$/)
             assert.ok(oldVersion && newVersion, pack.id)
             assert.equal(newVersion[1], oldVersion[1], pack.id)
-            assert.equal(Number(newVersion[2]), Number(oldVersion[2]) + 1, pack.id)
-            assert.equal(
-                preE21bDeclarationHash(pack),
-                baseline.packs[pack.id].declarationHash,
-                pack.id,
-            )
+            assert.ok(Number(newVersion[2]) > Number(oldVersion[2]), pack.id)
         }
-        const parser = catalog.find((pack) => pack.id === 'parser-hardening')
-        assert.equal(parser.units.every((unit) => unit.targetVersions === undefined), true)
-        const fastimport = catalog.find((pack) => pack.id === 'fastimport-ios-picker')
-        assert.deepEqual(fastimport.targets.pocketrisu.reviewing, [])
-    })
 
-    test('[unchanged] 1.10.0 unit selection and all 39 untouched declarations match the baseline', () => {
-        const catalog = loadCatalog()
-        assert.equal(catalog.length, 45)
-        assert.deepEqual(Object.keys(baseline.packs).sort(), catalog.map(({ id }) => id).sort())
-        const target = { packageName: 'pocketrisu', packageVersion: '1.10.0' }
-        for (const pack of catalog) {
+        const target = { packageName: 'pocketrisu', packageVersion: '1.16.1' }
+        for (const packId of e21cPackIds) {
+            const pack = byId.get(packId)
             assert.deepEqual(
                 pack.units.filter((unit) => unitMatchesTarget(unit, target)).map(({ id }) => id),
-                baseline.packs[pack.id].units110,
-                pack.id,
+                baseline.packs[packId].units110,
+                packId,
             )
-            if (reviewing1161.includes(pack.id)) continue
-            assert.equal(pack.version, baseline.packs[pack.id].version, pack.id)
-            assert.equal(declarationHash(pack), baseline.packs[pack.id].declarationHash, pack.id)
-        }
-    })
-
-    test('[new] all six coverage entries validate and fastimport has no 1.16.1 entry', () => {
-        let validatorModule
-        let coverage
-        try {
-            validatorModule = require('../scripts/lib/target-coverage.cjs')
-            coverage = require('../patches/target-coverage.cjs')
-        } catch {
-            validatorModule = null
-            coverage = null
-        }
-        assert.equal(typeof validatorModule?.validateTargetCoverage, 'function')
-        assert.ok(coverage)
-        const result = validatorModule.validateTargetCoverage({
-            catalog: loadCatalog(),
-            coverage,
-            baseline,
-            packIds: reviewing1161,
-        })
-        assert.deepEqual(result, { ok: true, violations: [] })
-        for (const packId of reviewing1161) {
-            assert.deepEqual(coverage[packId]?.['1.16.1'], {
+            assert.deepEqual(coverage[packId]['1.16.1'], {
                 from: '1.10.0',
                 retained: 'all',
                 replaced: {},
@@ -133,6 +81,38 @@ test.describe('[E2-1b] Declare PocketRisu 1.16.1 for six independent packs', () 
             }, packId)
         }
         assert.equal(Object.hasOwn(coverage['fastimport-ios-picker'] ?? {}, '1.16.1'), false)
+    })
+
+    test('[unchanged] packs without coverage entries match every frozen 1.10.0 declaration and unit hash', () => {
+        const catalog = loadCatalog()
+        assert.equal(catalog.length, 45)
+        assert.deepEqual(Object.keys(baseline.packs).sort(), catalog.map(({ id }) => id).sort())
+        const target = { packageName: 'pocketrisu', packageVersion: '1.10.0' }
+        for (const pack of catalog) {
+            if (rebasedPackIds().includes(pack.id)) continue
+            const selected = pack.units.filter((unit) => unitMatchesTarget(unit, target))
+            assert.deepEqual(
+                selected.map(({ id }) => id),
+                baseline.packs[pack.id].units110,
+                pack.id,
+            )
+            assert.equal(pack.version, baseline.packs[pack.id].version, pack.id)
+            assert.equal(declarationHash(pack), baseline.packs[pack.id].declarationHash, pack.id)
+            for (const unit of selected) {
+                assert.equal(unitHash(unit), unitBaseline.packs[pack.id]?.[unit.id], unit.id)
+            }
+        }
+    })
+
+    test('[unchanged] all coverage-listed packs validate against the frozen unit baseline', () => {
+        const result = validateTargetCoverage({
+            catalog: loadCatalog(),
+            coverage,
+            baseline,
+            packIds: rebasedPackIds(),
+            unitBaseline,
+        })
+        assert.deepEqual(result, { ok: true, violations: [] })
     })
 })
 

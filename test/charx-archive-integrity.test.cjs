@@ -6,16 +6,18 @@ const test = require('node:test')
 const assert = require('node:assert/strict')
 const { compose, revertUnit } = require('../src/compose.cjs')
 const { loadCatalog } = require('../src/catalog.cjs')
+const { unitMatchesTarget } = require('../src/manager.cjs')
 const { resolveSelection } = require('../src/resolver.cjs')
 
 const root = path.join(__dirname, '..')
 const pack = loadCatalog().find((entry) => entry.id === 'charx-archive-integrity')
 const read = (relative) => fs.readFileSync(path.join(root, relative), 'utf8')
 
-function exact110Units() {
-    return pack.units.filter((unit) =>
-        unit.targetVersions?.pocketrisu?.includes('1.10.0')
-    )
+function selected1161Units() {
+    return pack.units.filter((unit) => unitMatchesTarget(unit, {
+        packageName: 'pocketrisu',
+        packageVersion: '1.16.1',
+    }))
 }
 
 function exact110Baselines() {
@@ -52,16 +54,37 @@ snapshots:
     ])
 }
 
-test('CharX integrity is a visible hardening owner for its declared targets', () => {
-    assert.ok(pack)
-    assert.equal(pack.userSelectable, true)
-    assert.equal(Object.hasOwn(pack, 'presetDefaults'), false)
-    assert.deepEqual(pack.targets.pocketrisu, {
-        verified: ['1.10.0'],
-        reviewing: ['1.16.1'],
+test.describe('[E2-1c] Make the six E2-1b packs 1.16.1-only', () => {
+    test('[new] CharX integrity is an unscoped 1.16.1-only visible hardening owner', () => {
+        assert.ok(pack)
+        assert.equal(pack.version, '0.1.3')
+        assert.equal(pack.userSelectable, true)
+        assert.equal(Object.hasOwn(pack, 'presetDefaults'), false)
+        assert.deepEqual(pack.targets.pocketrisu, {
+            verified: [],
+            reviewing: ['1.16.1'],
+        })
+        assert.equal(pack.units.every((unit) => !Object.hasOwn(unit, 'targetVersions')), true)
     })
-    assert.ok(exact110Units().length > 0)
-    assert.equal(exact110Units().length, pack.units.length)
+
+    test('[unchanged] the 1.16.1 CharX graph composes and reverts byte exactly', () => {
+        const baselines = exact110Baselines()
+        const units = selected1161Units()
+        const plan = compose(units, baselines)
+        assert.deepEqual(plan.collisions, [])
+        assert.equal(JSON.parse(plan.outputs.get('package.json')).dependencies['@zip.js/zip.js'], '2.8.55')
+        assert.match(plan.outputs.get('pnpm-lock.yaml'), /'@zip\.js\/zip\.js@2\.8\.55'/)
+        assert.match(plan.outputs.get('src/ts/process/processzip.ts'), /await this\.import\(data, container\)/)
+        assert.match(plan.outputs.get('src/ts/characterCards.ts'), /const receipt = await importer\.import/)
+
+        const byId = new Map(units.map((unit) => [unit.id, unit]))
+        const reverted = new Map(plan.outputs)
+        for (const id of [...plan.order].reverse()) {
+            const unit = byId.get(id)
+            reverted.set(unit.file, revertUnit(reverted.get(unit.file), unit))
+        }
+        for (const [file, baseline] of baselines) assert.equal(reverted.get(file), baseline, file)
+    })
 })
 
 test('the indexed CharX session replaces the BG legacy CharX error hook', () => {
@@ -91,21 +114,3 @@ test('CharX production sources pin indexed no-worker integrity and terminal sett
     assert.match(session, /options\.hashSignal && !options\.skipSaving/)
 })
 
-test('exact 1.10 CharX graph composes and reverts byte exactly', () => {
-    const baselines = exact110Baselines()
-    const units = exact110Units()
-    const plan = compose(units, baselines)
-    assert.deepEqual(plan.collisions, [])
-    assert.equal(JSON.parse(plan.outputs.get('package.json')).dependencies['@zip.js/zip.js'], '2.8.55')
-    assert.match(plan.outputs.get('pnpm-lock.yaml'), /'@zip\.js\/zip\.js@2\.8\.55'/)
-    assert.match(plan.outputs.get('src/ts/process/processzip.ts'), /await this\.import\(data, container\)/)
-    assert.match(plan.outputs.get('src/ts/characterCards.ts'), /const receipt = await importer\.import/)
-
-    const byId = new Map(units.map((unit) => [unit.id, unit]))
-    const reverted = new Map(plan.outputs)
-    for (const id of [...plan.order].reverse()) {
-        const unit = byId.get(id)
-        reverted.set(unit.file, revertUnit(reverted.get(unit.file), unit))
-    }
-    for (const [file, baseline] of baselines) assert.equal(reverted.get(file), baseline, file)
-})

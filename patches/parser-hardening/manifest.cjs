@@ -9,10 +9,10 @@ const owned = (relative) => fs.readFileSync(path.join(filesRoot, relative), 'utf
 module.exports = {
     id: 'parser-hardening',
     title: 'Parser hardening',
-    version: '0.1.2',
+    version: '0.1.3',
     targets: {
         pocketrisu: {
-            verified: ['1.10.0'],
+            verified: [],
             reviewing: ['1.16.1'],
         },
     },

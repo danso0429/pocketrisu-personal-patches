@@ -5,15 +5,14 @@ const path = require('node:path')
 
 const filesRoot = path.join(__dirname, 'files')
 const owned = (relative) => fs.readFileSync(path.join(filesRoot, relative), 'utf8')
-const pocketRisu1100And1161 = { pocketrisu: ['1.10.0', '1.16.1'] }
 
 module.exports = {
     id: 'kei-text-theme-normalization-core',
     title: 'PocketRisu Kei text-theme normalization',
-    version: '0.1.2',
+    version: '0.1.3',
     targets: {
         pocketrisu: {
-            verified: ['1.10.0'],
+            verified: [],
             reviewing: ['1.16.1'],
         },
     },
@@ -24,7 +23,6 @@ module.exports = {
             file: 'src/ts/gui/textTheme.ts',
             type: 'owned',
             content: owned('src/ts/gui/textTheme.ts'),
-            targetVersions: pocketRisu1100And1161,
         },
         {
             id: 'kei-text-theme-normalization-core:normalizer-tests:1.9',
@@ -32,7 +30,6 @@ module.exports = {
             type: 'owned',
             content: owned('src/ts/gui/textTheme.test.ts'),
             requires: ['kei-text-theme-normalization-core:normalizer:1.9'],
-            targetVersions: pocketRisu1100And1161,
         },
         {
             id: 'kei-text-theme-normalization-core:database-import:1.9',
@@ -43,7 +40,6 @@ module.exports = {
 import { normalizeTextTheme } from '../gui/textTheme';
 `,
             requires: ['kei-text-theme-normalization-core:normalizer:1.9'],
-            targetVersions: pocketRisu1100And1161,
         },
         {
             id: 'kei-text-theme-normalization-core:database-load:1.9',
@@ -58,7 +54,6 @@ import { normalizeTextTheme } from '../gui/textTheme';
 `,
             markerNeedle: 'POCKETRISU-PATCH:kei-text-theme-normalization:database-load',
             requires: ['kei-text-theme-normalization-core:database-import:1.9'],
-            targetVersions: pocketRisu1100And1161,
         },
         {
             id: 'kei-text-theme-normalization-core:preset-activation:1.9',
@@ -71,7 +66,6 @@ import { normalizeTextTheme } from '../gui/textTheme';
             markerNeedle: 'POCKETRISU-PATCH:kei-text-theme-normalization:preset-activation',
             requires: ['kei-text-theme-normalization-core:database-import:1.9'],
             after: ['kei-text-theme-normalization-core:database-load:1.9'],
-            targetVersions: pocketRisu1100And1161,
         },
         {
             id: 'kei-text-theme-normalization-core:database-tests:1.9',
@@ -82,7 +76,6 @@ import { normalizeTextTheme } from '../gui/textTheme';
                 'kei-text-theme-normalization-core:database-load:1.9',
                 'kei-text-theme-normalization-core:preset-activation:1.9',
             ],
-            targetVersions: pocketRisu1100And1161,
         },
         {
             id: 'kei-text-theme-normalization-core:runtime-import:1.9',
@@ -93,7 +86,6 @@ import { normalizeTextTheme } from '../gui/textTheme';
 import { normalizeTextTheme } from "./textTheme";
 `,
             requires: ['kei-text-theme-normalization-core:normalizer:1.9'],
-            targetVersions: pocketRisu1100And1161,
         },
         {
             id: 'kei-text-theme-normalization-core:runtime-css:1.9',
@@ -105,7 +97,6 @@ import { normalizeTextTheme } from "./textTheme";
 `,
             markerNeedle: 'POCKETRISU-PATCH:kei-text-theme-normalization:runtime-css',
             requires: ['kei-text-theme-normalization-core:runtime-import:1.9'],
-            targetVersions: pocketRisu1100And1161,
         },
         {
             id: 'kei-text-theme-normalization-core:runtime-tests:1.9',
@@ -113,7 +104,6 @@ import { normalizeTextTheme } from "./textTheme";
             type: 'owned',
             content: owned('src/ts/gui/textThemeRuntime.test.ts'),
             requires: ['kei-text-theme-normalization-core:runtime-css:1.9'],
-            targetVersions: pocketRisu1100And1161,
         },
     ],
 }

@@ -382,6 +382,7 @@ async function runSubsetQualification({
     catalog = null,
     coverage = null,
     baseline = null,
+    unitBaseline = null,
     outDir,
     checkRunner = null,
     env = process.env,
@@ -406,6 +407,12 @@ async function runSubsetQualification({
     const loadedCoverage = coverage ?? require('../patches/target-coverage.cjs')
     const loadedBaseline = baseline
         ?? require('../test/fixtures/target-baseline-1.10.0.json')
+    // The unit baseline belongs to the frozen baseline fixture, so it is
+    // loaded only when the caller did not pass its own baseline.
+    const loadedUnitBaseline = unitBaseline
+        ?? (baseline === null
+            ? require('../test/fixtures/target-baseline-1.10.0-units.json')
+            : null)
     const runner = checkRunner ?? makeDefaultCheckRunner(env)
 
     const receipt = {
@@ -605,6 +612,7 @@ async function runSubsetQualification({
                 coverage: loadedCoverage,
                 baseline: loadedBaseline,
                 packIds: closure.packs.map((pack) => pack.id),
+                unitBaseline: loadedUnitBaseline,
             })
             if (!receipt.coverage.ok) {
                 fail('COVERAGE_VIOLATION', 'Target coverage has violations', {

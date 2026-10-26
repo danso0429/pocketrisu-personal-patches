@@ -1,6 +1,7 @@
 'use strict'
 
 const fs = require('node:fs')
+const os = require('node:os')
 const path = require('node:path')
 const test = require('node:test')
 const assert = require('node:assert/strict')
@@ -10,57 +11,70 @@ const meta = require('../patches/pocketrisu-kei/manifest.cjs')
 const { loadCatalog, resolveProfile } = require('../src/catalog.cjs')
 const { packEtag, unitMatchesTarget } = require('../src/manager.cjs')
 const { resolveSelection } = require('../src/resolver.cjs')
+const { evaluateTargetCompatibility } = require('../src/compatibility.cjs')
 
 const patchRoot = path.join(__dirname, '../patches/kei-prompt-role-compat-core')
 const targetTest = fs.readFileSync(
     path.join(patchRoot, 'files/src/ts/storage/promptRoleCompatibility.test.ts'),
     'utf8',
 )
-const target181 = { packageName: 'pocketrisu', packageVersion: '1.8.1' }
-const target1100 = { packageName: 'pocketrisu', packageVersion: '1.10.0' }
+const target1161 = { packageName: 'pocketrisu', packageVersion: '1.16.1' }
 const unitText = (unit) => unit.managed ?? unit.content ?? ''
 
-test('K04 compatibility is a hidden umbrella child for its declared targets', () => {
-    const catalog = loadCatalog()
+function withTarget(version, fn) {
+    const root = fs.mkdtempSync(path.join(os.tmpdir(), 'prompt-role-target-'))
+    fs.writeFileSync(path.join(root, 'package.json'), JSON.stringify({ name: 'pocketrisu', version }))
+    try {
+        return fn(root)
+    } finally {
+        fs.rmSync(root, { recursive: true, force: true })
+    }
+}
 
-    assert.equal(manifest.id, 'kei-prompt-role-compat-core')
-    assert.equal(manifest.version, '0.1.2')
-    assert.equal(manifest.userSelectable, false)
-    assert.deepEqual(manifest.targets, {
-        pocketrisu: {
-            verified: ['1.10.0'],
-            reviewing: ['1.16.1'],
-        },
+test.describe('[E2-1c] Make the six E2-1b packs 1.16.1-only', () => {
+    test('[new] K04 is version 0.1.3 with only unscoped 1.16.1 payload', () => {
+        const catalog = loadCatalog()
+        assert.equal(manifest.id, 'kei-prompt-role-compat-core')
+        assert.equal(manifest.version, '0.1.3')
+        assert.equal(manifest.userSelectable, false)
+        assert.deepEqual(manifest.targets, {
+            pocketrisu: {
+                verified: [],
+                reviewing: ['1.16.1'],
+            },
+        })
+        assert.equal(manifest.units.every((unit) => !Object.hasOwn(unit, 'targetVersions')), true)
+        assert.equal(meta.version, '0.13.0')
+        assert.equal(meta.requires.includes(manifest.id), true)
+        assert.equal(resolveProfile('all', catalog).defaults.includes(meta.id), true)
+
+        const resolution = resolveSelection(catalog, [meta.id])
+        assert.equal(resolution.dependencyAdded.includes(manifest.id), true)
+        assert.equal(resolution.resolvedIds.includes(manifest.id), true)
+        assert.throws(
+            () => resolveSelection(catalog, [manifest.id]),
+            (error) => error.code === 'INTERNAL_PACK_REQUESTED',
+        )
     })
-    assert.equal(meta.version, '0.13.0')
-    assert.equal(meta.requires.includes(manifest.id), true)
-    assert.equal(resolveProfile('all', catalog).defaults.includes(meta.id), true)
 
-    const resolution = resolveSelection(catalog, [meta.id])
-    assert.equal(resolution.dependencyAdded.includes(manifest.id), true)
-    assert.equal(resolution.resolvedIds.includes(manifest.id), true)
-    assert.throws(
-        () => resolveSelection(catalog, [manifest.id]),
-        (error) => error.code === 'INTERNAL_PACK_REQUESTED',
-    )
-})
-
-test('K04 owns no 1.8 units and only the 1.9 normalizer branch plus its test', () => {
-    assert.deepEqual(
-        manifest.units.filter((unit) => unitMatchesTarget(unit, target181)),
-        [],
-    )
-    const active190 = manifest.units.filter((unit) => unitMatchesTarget(unit, target1100))
-    assert.equal(active190.length, 3)
-    assert.deepEqual(
-        [...new Set(active190.map((unit) => unit.file))],
-        [
-            'src/ts/storage/database.svelte.ts',
-            'src/ts/storage/promptRoleCompatibility.test.ts',
-        ],
-    )
-    assert.equal(active190.filter((unit) => unit.type === 'owned').length, 1)
-    assert.equal(active190.filter((unit) => unit.type === 'replace').length, 2)
+    test('[unchanged] K04 rejects 1.8.1 at pack level and selects its complete normalizer graph on 1.16.1', () => {
+        withTarget('1.8.1', (root) => {
+            const result = evaluateTargetCompatibility(root, [manifest])
+            assert.equal(result.status, 'review-required')
+            assert.deepEqual(result.reviewRequiredPacks.map(({ id }) => id), [manifest.id])
+        })
+        const active = manifest.units.filter((unit) => unitMatchesTarget(unit, target1161))
+        assert.equal(active.length, 3)
+        assert.deepEqual(
+            [...new Set(active.map((unit) => unit.file))],
+            [
+                'src/ts/storage/database.svelte.ts',
+                'src/ts/storage/promptRoleCompatibility.test.ts',
+            ],
+        )
+        assert.equal(active.filter((unit) => unit.type === 'owned').length, 1)
+        assert.equal(active.filter((unit) => unit.type === 'replace').length, 2)
+    })
 })
 
 test('the compatibility branch gives non-null role2 strict precedence', () => {

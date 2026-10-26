@@ -2,15 +2,14 @@
 
 // PocketRisu 1.10.0 ships its own fullscreen asset viewer; this pack only adds
 // accessible labels and dialog semantics to it.
-const pocketRisu1100And1161 = { pocketrisu: ['1.10.0', '1.16.1'] }
 
 module.exports = {
     id: 'kei-fullscreen-image-viewer-core',
     title: 'PocketRisu Kei fullscreen image viewer',
-    version: '0.2.2',
+    version: '0.2.3',
     targets: {
         pocketrisu: {
-            verified: ['1.10.0'],
+            verified: [],
             reviewing: ['1.16.1'],
         },
     },
@@ -28,7 +27,6 @@ module.exports = {
   aria-modal="true"
   aria-label={assetViewerStore.title}
 >\n`,
-            targetVersions: pocketRisu1100And1161,
         },
         {
             id: 'kei-fullscreen-image-viewer-core:asset-viewer-search-label:1.9',
@@ -41,7 +39,6 @@ module.exports = {
           aria-label={language.search}
           bind:value={search}
 `,
-            targetVersions: pocketRisu1100And1161,
             after: ['kei-fullscreen-image-viewer-core:asset-viewer-dialog:1.9'],
         },
         {
@@ -62,7 +59,6 @@ module.exports = {
         aria-label={language.goback}
       >
 `,
-            targetVersions: pocketRisu1100And1161,
             after: ['kei-fullscreen-image-viewer-core:asset-viewer-search-label:1.9'],
         },
         {
@@ -81,7 +77,6 @@ module.exports = {
             aria-label={item.name}
           >
 `,
-            targetVersions: pocketRisu1100And1161,
             after: ['kei-fullscreen-image-viewer-core:asset-viewer-grid-close:1.9'],
         },
         {
@@ -95,7 +90,6 @@ module.exports = {
     role="group"
     aria-label={current?.name ?? assetViewerStore.title}
   >\n`,
-            targetVersions: pocketRisu1100And1161,
             after: ['kei-fullscreen-image-viewer-core:asset-viewer-thumbnail-label:1.9'],
         },
         {
@@ -116,7 +110,6 @@ module.exports = {
         aria-label={language.goback}
       >
 `,
-            targetVersions: pocketRisu1100And1161,
             after: ['kei-fullscreen-image-viewer-core:asset-viewer-zoom-label:1.9'],
         },
         {
@@ -135,7 +128,6 @@ module.exports = {
         aria-label={\`← \${filtered[zoomIndex - 1]?.name ?? assetViewerStore.title}\`}
       >
 `,
-            targetVersions: pocketRisu1100And1161,
             after: ['kei-fullscreen-image-viewer-core:asset-viewer-zoom-close:1.9'],
         },
         {
@@ -154,7 +146,6 @@ module.exports = {
         aria-label={\`→ \${filtered[zoomIndex + 1]?.name ?? assetViewerStore.title}\`}
       >
 `,
-            targetVersions: pocketRisu1100And1161,
             after: ['kei-fullscreen-image-viewer-core:asset-viewer-previous-label:1.9'],
         },
     ],

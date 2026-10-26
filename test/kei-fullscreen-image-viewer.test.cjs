@@ -16,42 +16,39 @@ function managedText(candidate) {
     return candidate.managed ?? candidate.content ?? ''
 }
 
-test('fullscreen viewer remains a hidden child of the complete set', () => {
-    const catalog = loadCatalog()
-    assert.equal(manifest.id, 'kei-fullscreen-image-viewer-core')
-    assert.equal(manifest.version, '0.2.2')
-    assert.deepEqual(manifest.targets, {
-        pocketrisu: {
-            verified: ['1.10.0'],
-            reviewing: ['1.16.1'],
-        },
+test.describe('[E2-1c] Make the six E2-1b packs 1.16.1-only', () => {
+    test('[new] fullscreen viewer is version 0.2.3 and an unscoped 1.16.1-only hidden child', () => {
+        const catalog = loadCatalog()
+        assert.equal(manifest.id, 'kei-fullscreen-image-viewer-core')
+        assert.equal(manifest.version, '0.2.3')
+        assert.deepEqual(manifest.targets, {
+            pocketrisu: {
+                verified: [],
+                reviewing: ['1.16.1'],
+            },
+        })
+        assert.equal(manifest.units.every((unit) => !Object.hasOwn(unit, 'targetVersions')), true)
+        assert.equal(manifest.userSelectable, false)
+        assert.equal(manifest.presetDefaults, undefined)
+        assert.equal(metaManifest.requires.includes(manifest.id), true)
+        assert.equal(resolveProfile('all', catalog).defaults.includes(metaManifest.id), true)
+
+        const resolution = resolveSelection(catalog, [metaManifest.id])
+        assert.equal(resolution.dependencyAdded.includes(manifest.id), true)
+        assert.equal(resolution.resolvedIds.includes(manifest.id), true)
+        assert.throws(
+            () => resolveSelection(catalog, [manifest.id]),
+            (error) => error.code === 'INTERNAL_PACK_REQUESTED',
+        )
     })
-    assert.equal(manifest.userSelectable, false)
-    assert.equal(manifest.presetDefaults, undefined)
-    assert.equal(metaManifest.requires.includes(manifest.id), true)
-    assert.equal(resolveProfile('all', catalog).defaults.includes(metaManifest.id), true)
 
-    const resolution = resolveSelection(catalog, [metaManifest.id])
-    assert.equal(resolution.dependencyAdded.includes(manifest.id), true)
-    assert.equal(resolution.resolvedIds.includes(manifest.id), true)
-    assert.throws(
-        () => resolveSelection(catalog, [manifest.id]),
-        (error) => error.code === 'INTERNAL_PACK_REQUESTED',
-    )
-})
-
-test('the native asset viewer is the only host and no viewer file is owned', () => {
-    assert.equal(manifest.units.some((candidate) => candidate.type === 'owned'), false)
-    assert.deepEqual(
-        [...new Set(manifest.units.map((candidate) => candidate.file))],
-        ['src/lib/Others/AssetViewer.svelte'],
-    )
-    assert.equal(
-        manifest.units.every((candidate) =>
-            candidate.targetVersions?.pocketrisu?.join(',') === '1.10.0,1.16.1'
-        ),
-        true,
-    )
+    test('[unchanged] the native asset viewer remains the only host and no viewer file is owned', () => {
+        assert.equal(manifest.units.some((candidate) => candidate.type === 'owned'), false)
+        assert.deepEqual(
+            [...new Set(manifest.units.map((candidate) => candidate.file))],
+            ['src/lib/Others/AssetViewer.svelte'],
+        )
+    })
 })
 
 test('the pack adds only dialog, accessible-name, and touch-target deltas', () => {

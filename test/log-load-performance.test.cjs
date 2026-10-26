@@ -7,14 +7,18 @@ const { loadCatalog } = require('../src/catalog.cjs')
 
 const pack = loadCatalog().find((entry) => entry.id === 'log-load-performance')
 
-test('log loading performance is a complete-delivery owner for its declared targets', () => {
-    assert.ok(pack)
-    assert.equal(pack.userSelectable, true)
-    assert.deepEqual(pack.targets.pocketrisu, {
-        verified: ['1.10.0'],
-        reviewing: ['1.16.1'],
+test.describe('[E2-1c] Make the six E2-1b packs 1.16.1-only', () => {
+    test('[new] log loading performance is an unscoped 1.16.1-only owner', () => {
+        assert.ok(pack)
+        assert.equal(pack.version, '0.1.2')
+        assert.equal(pack.userSelectable, true)
+        assert.deepEqual(pack.targets.pocketrisu, {
+            verified: [],
+            reviewing: ['1.16.1'],
+        })
+        assert.equal(pack.units.every((unit) => !Object.hasOwn(unit, 'targetVersions')), true)
+        assert.equal(pack.units.length, 2)
     })
-    assert.equal(pack.units.length, 2)
 })
 
 test('request storage aggregate index composes and reverts exactly', () => {

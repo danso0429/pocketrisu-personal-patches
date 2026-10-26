@@ -12,6 +12,7 @@ const {
 } = require('../src/compatibility.cjs')
 const { loadCatalog, resolveProfile } = require('../src/catalog.cjs')
 const { resolveSelection } = require('../src/resolver.cjs')
+const coverage = require('../patches/target-coverage.cjs')
 
 function withRoot(version, fn) {
     const root = fs.mkdtempSync(path.join(os.tmpdir(), 'pocketrisu-target-'))
@@ -91,24 +92,48 @@ test('earlier PocketRisu releases are outside every pack target', () => {
     }
 })
 
-test('the PageFold release verifies the complete exact-1.10 graph', () =>
-    withRoot('1.10.0', (root) => {
+test.describe('[E2-1c] Make the six E2-1b packs 1.16.1-only', () => {
+    test('[new] untouched packs verify 1.10.0 while coverage-listed packs are refused on 1.10.0 and ordinary 1.16.1 apply', () => {
         const catalog = loadCatalog()
         const resolution = resolveSelection(
             catalog,
             resolveProfile('all', catalog).defaults,
         )
-        const result = evaluateTargetCompatibility(root, resolution.packs)
-
-        // Every catalog pack belongs to the one delivered graph.
         assert.deepEqual(resolution.resolvedIds, catalog.map((entry) => entry.id).sort())
-        assert.equal(result.status, 'verified')
-        assert.equal(result.verifiedPacks.length, catalog.length)
-        assert.deepEqual(result.underReviewPacks, [])
-        assert.deepEqual(result.reviewRequiredPacks, [])
-        assert.doesNotThrow(() => assertTargetVerified(result))
-        assert.doesNotThrow(() => assertTargetReviewable(result))
-    }))
+
+        const rebasedIds = Object.entries(coverage)
+            .filter(([, targets]) => Object.hasOwn(targets, '1.16.1'))
+            .map(([packId]) => packId)
+        const rebased = catalog.filter((entry) => rebasedIds.includes(entry.id))
+        const untouched = catalog.filter((entry) => !rebasedIds.includes(entry.id))
+
+        withRoot('1.10.0', (root) => {
+            const untouchedResult = evaluateTargetCompatibility(root, untouched)
+            assert.equal(untouchedResult.status, 'verified')
+            assert.doesNotThrow(() => assertTargetVerified(untouchedResult))
+
+            const rebasedResult = evaluateTargetCompatibility(root, rebased)
+            assert.equal(rebasedResult.status, 'review-required')
+            assert.deepEqual(
+                rebasedResult.reviewRequiredPacks.map(({ id }) => id).sort(),
+                [...rebasedIds].sort(),
+            )
+            assert.throws(() => assertTargetVerified(rebasedResult), { code: 'TARGET_REVIEW_REQUIRED' })
+            assert.throws(() => assertTargetReviewable(rebasedResult), { code: 'TARGET_REVIEW_REQUIRED' })
+        })
+
+        withRoot('1.16.1', (root) => {
+            const rebasedResult = evaluateTargetCompatibility(root, rebased)
+            assert.equal(rebasedResult.status, 'under-review')
+            assert.deepEqual(
+                rebasedResult.underReviewPacks.map(({ id }) => id).sort(),
+                [...rebasedIds].sort(),
+            )
+            assert.throws(() => assertTargetVerified(rebasedResult), { code: 'TARGET_REVIEW_REQUIRED' })
+            assert.doesNotThrow(() => assertTargetReviewable(rebasedResult))
+        })
+    })
+})
 
 test('an unlisted PocketRisu patch release remains outside the maintainer gate', () =>
     withRoot('1.9.1', (root) => {

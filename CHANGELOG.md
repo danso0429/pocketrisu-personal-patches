@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.2.4-experimental.91 (six packs become PocketRisu 1.16.1-only)
+
+- `charx-archive-integrity`, `parser-hardening`, `log-load-performance`, `kei-prompt-role-compat-core`, `kei-text-theme-normalization-core` and `kei-fullscreen-image-viewer-core` now declare only PocketRisu `1.16.1`, as `reviewing` (`verified` is empty), and their units carry no target range. Each pack version moves up one patch level (0.1.3, 0.1.3, 0.1.2, 0.1.3, 0.1.3 and 0.2.3), and the units selected for 1.16.1 are the same as in 0.2.4-experimental.90. Their coverage entries are unchanged: every 1.10.0 unit is retained.
+- These six packs no longer apply to PocketRisu 1.10.0: on 1.10.0 they are refused with `TARGET_REVIEW_REQUIRED`, and ordinary apply still refuses the reviewing-only 1.16.1 target. Every other pack keeps its 1.10.0 declaration and units.
+- The maintainer coverage validator reports `missing-baseline` for every declared target of a checked pack that has no 1.10.0 baseline entry, not only for 1.10.0. Coverage entries may list `rewritten: { unitId: 'reason' }` for retained units whose content was changed on purpose; a non-object value or a key outside `retained` is `invalid-rewritten` and an empty reason is `empty-reason`. With the per-unit baseline `test/fixtures/target-baseline-1.10.0-units.json`, each other retained unit must equal its 1.10.0 definition without `targetVersions`, otherwise `retained-unit-changed`. `scripts/qualify-subset.cjs` and the catalog test pass this baseline.
+- Stable remains v0.2.3.
+
 ## 0.2.4-experimental.90 (PocketRisu 1.16.1 reviewing declarations)
 
 - Six independent packs now declare PocketRisu `1.16.1` as `reviewing` (`verified` stays `1.10.0`): `charx-archive-integrity`, `parser-hardening`, `log-load-performance`, `kei-prompt-role-compat-core`, `kei-text-theme-normalization-core` and `kei-fullscreen-image-viewer-core`. Their 1.10.0-scoped units now also select 1.16.1 (`parser-hardening` units are not version-scoped), and each pack version moves up one patch level.
