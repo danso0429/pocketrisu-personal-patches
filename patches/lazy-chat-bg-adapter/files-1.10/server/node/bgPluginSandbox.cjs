@@ -29,7 +29,7 @@ function checked(code, action) {
 // Only trusted host configuration reaches this function. Plugin-provided values
 // must never select a mount, executable, unit name, environment or resource cap.
 async function sandboxCommand(workerPath, runtimeMs) {
-    if (process.platform !== 'linux' || Number(process.versions.node.split('.')[0]) < 25
+    if (process.platform !== 'linux' || Number(process.versions.node.split('.')[0]) < 24
         || !isMainThread || !Number.isSafeInteger(runtimeMs) || runtimeMs < 100 || runtimeMs > 900_000) {
         throw sandboxError('plugin_sandbox_environment_unsupported');
     }

@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.2.4-experimental.88 (BG plugin sandbox on Node 24)
+
+- With background preservation and the internal BG plugin host candidate, the plugin worker sandbox now starts on Node 24 as well. Before, the sandbox refused every Node version below 25 with `plugin_sandbox_environment_unsupported`, so on a Node 24 server background plugins never ran. Linux, the main thread and the 100 ms to 900 s runtime bound are still required, and Node 23 and older are still refused with the same code.
+- The sandbox command line (systemd user scope, prlimit, bubblewrap namespaces and the Node permission flags) is unchanged on every version, and there is still no unrestricted fallback. On Node 25 and later plugin network access stays denied by both the bubblewrap network namespace and the Node permission model (`ERR_ACCESS_DENIED`).
+- Limit: Node 24's permission model does not cover network (`--allow-net` exists only from Node 25.0.0), so on Node 24 plugin network denial is the kernel network namespace only, one layer (host loopback refused, external addresses unreachable, DNS failing). The patcher CI (Node 22) covers installer compatibility only; Node 24 and Node 25 sandbox behaviour is checked by the candidate gate and the sandbox, worker and host probes.
+- BG adapter 0.7.83. Stable remains v0.2.3.
+
 ## 0.2.4-experimental.87 (BG post-response continuation for afterRequest timers)
 
 - With background preservation and the internal BG plugin host candidate, a plugin's one-shot timer (`setTimeout`/`window.setTimeout`) armed in an `afterRequest` replacer and still pending when that callback returns now runs once after the answer is committed to the normal chat. Before, the plugin session closed at the end of the request, so such a timer (for example the 1500 ms output sync of RCM) never ran in the background. At most 16 timers per plugin are kept; a rejected callback keeps none; `clearTimeout` still removes a kept timer. Load-time, interval, `beforeRequest` and script-handler timers are not continued, so MARP and PageFold timer behavior is unchanged.

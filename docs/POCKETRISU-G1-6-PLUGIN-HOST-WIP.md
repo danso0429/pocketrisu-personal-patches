@@ -16,7 +16,9 @@ Original MARP Lite 0.9.2 inspection found that its before-request callback clear
 
 ## Implemented process boundary
 
-`bgPluginSandbox.cjs` starts a random, exact-name systemd user scope containing prlimit, bubblewrap and Node. It requires Linux and Node 25 or later, a reachable user manager, bubblewrap and the current Node executable's resolved dynamic libraries. Failure does not select an unrestricted fallback.
+`bgPluginSandbox.cjs` starts a random, exact-name systemd user scope containing prlimit, bubblewrap and Node. It requires Linux and Node 24 or later, a reachable user manager, bubblewrap and the current Node executable's resolved dynamic libraries. Failure does not select an unrestricted fallback.
+
+The command line is the same on Node 24 and Node 25+. Network denial differs: on Node 25 and later both the bubblewrap network namespace and the Node permission model deny plugin network access (attempts fail with `ERR_ACCESS_DENIED`). On Node 24 the permission model does not cover network (`--allow-net` was added in Node 25.0.0), so plugin network denial is the kernel network namespace only, one layer (host loopback is refused, external addresses are unreachable and DNS fails). The patcher CI (`.github/workflows/ci.yml`, Node 22) covers installer compatibility only; Node 24 and Node 25 sandbox behaviour is verified by the candidate gate and the explicit sandbox, worker and host probes.
 
 The namespace exposes only the Node binary, trusted self-contained bootstrap file, shared libraries, proc/dev and bounded temporary storage. The child has no inherited application environment. Namespace isolation, dropped capabilities and disabled nested user namespaces supplement the Node permission model; the Node model and JavaScript VM are not security boundaries against hostile code by themselves. No seccomp syscall filter is implemented.
 

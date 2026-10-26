@@ -2,8 +2,42 @@
 const fs = require('node:fs');
 const readline = require('node:readline');
 const { Socket } = require('node:net');
+const { lookup } = require('node:dns');
 const channel = new Socket({ fd: 3 });
 const send = value => channel.write(JSON.stringify(value) + '\n');
+
+function tcpErrorCode(host, port) {
+    return new Promise(resolve => {
+        const socket = new Socket();
+        let settled = false;
+        const finish = code => {
+            if (settled) return;
+            settled = true;
+            socket.destroy();
+            resolve(code);
+        };
+        socket.setTimeout(2000, () => finish('ETIMEDOUT'));
+        socket.once('error', error => finish(error.code ?? error.cause?.code ?? 'UNKNOWN'));
+        try { socket.connect(port, host, () => finish(null)); }
+        catch (error) { finish(error.code ?? error.cause?.code ?? 'UNKNOWN'); }
+    });
+}
+
+function dnsErrorCode(hostname) {
+    return new Promise(resolve => {
+        const timer = setTimeout(() => resolve('ETIMEDOUT'), 2000);
+        try {
+            lookup(hostname, error => {
+                clearTimeout(timer);
+                resolve(error ? (error.code ?? error.cause?.code ?? 'UNKNOWN') : null);
+            });
+        } catch (error) {
+            clearTimeout(timer);
+            resolve(error.code ?? error.cause?.code ?? 'UNKNOWN');
+        }
+    });
+}
+
 readline.createInterface({ input: channel }).on('line', async line => {
     const request = JSON.parse(line);
     if (request.kind === 'permissions') {
@@ -17,9 +51,12 @@ readline.createInterface({ input: channel }).on('line', async line => {
             try { action(); denied[name] = false; }
             catch (error) { denied[name] = error.code === 'ERR_ACCESS_DENIED'; }
         }
-        try { await fetch('http://127.0.0.1:6001'); denied.network = false; }
-        catch (error) { denied.network = error.cause?.code === 'ERR_ACCESS_DENIED'; }
-        send({ denied, environmentKeys: Object.keys(process.env) });
+        const network = {
+            loopback: await tcpErrorCode('127.0.0.1', request.network.loopbackPort),
+            externalIp: await tcpErrorCode(request.network.externalIp, request.network.externalPort),
+            dns: await dnsErrorCode(request.network.dnsName),
+        };
+        send({ denied, network, environmentKeys: Object.keys(process.env) });
     } else if (request.kind === 'exit') process.exit(0);
     else if (request.kind === 'loop') { for (;;) {} }
     else if (request.kind === 'memory') {
