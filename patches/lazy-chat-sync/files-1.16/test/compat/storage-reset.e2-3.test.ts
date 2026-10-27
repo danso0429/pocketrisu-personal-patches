@@ -9,17 +9,26 @@ import { createSeedBackup } from './helpers/seed.js'
 import { decodeBackup } from './helpers/decode.js'
 import { encodeBackup } from './helpers/encode.js'
 import { createFakeAccount, startFakeAccountServer } from './helpers/fakeRisuAccount.js'
+import { spawnRestartableServer, type RestartableServer } from './restartableServer.e2-3.helper.js'
+import { Packr } from 'msgpackr'
+import Database from 'better-sqlite3'
+
+const packr = new Packr({ useRecords: false })
+const encodeChat = (value: unknown) => Buffer.concat([Buffer.from([0, 82, 73, 83, 85, 83, 65, 86, 69, 0, 7]), packr.encode(value)])
 
 const utilsPkg = require('../../server/node/utils.cjs') as any
 const utils = utilsPkg.default ?? utilsPkg
 const DB_KEY_HEX = Buffer.from('database/database.bin').toString('hex')
 
 let server: ServerHandle | undefined
+let restartable: RestartableServer | undefined
 let gateDir: string | undefined
 let closeFake: (() => Promise<void>) | undefined
 
 afterEach(async () => {
     await server?.cleanup()
+    await restartable?.cleanup()
+    restartable = undefined
     if (gateDir) await rm(gateDir, { recursive: true, force: true })
     await closeFake?.()
     server = undefined
@@ -156,12 +165,45 @@ describe('[E2-3c] Rebuild the storage reset barrier over native 1.16.1', () => {
     test('[new] c4a rolls back a pre-COMMIT reset failure and releases the barrier', async () => {
         server = await spawnServer({ env: {
             POCKETRISU_TEST_STORAGE_RESET_FAILPOINT: 'after-storage-epoch-write',
+            POCKETRISU_TEST_STORAGE_RESET_FAILPOINT_ON_ATTEMPT: '2',
         } })
         const client = await createClient(server.port, server.password)
+        expect((await client.importBackup(createSeedBackup({ characterCount: 1, messagesPerChat: 2 }))).ok).toBe(true)
+        const hex = (value: string) => Buffer.from(value).toString('hex')
+        const dbKey = hex('database/database.bin')
+        const pluginKey = hex('plugin-storage/e2-c4a')
+        const assetKey = hex('assets/e2-c4a.png')
+        const pluginValue = Buffer.from(JSON.stringify({ kept: 'plugin value' }))
+        const assetValue = Buffer.from('c4a asset bytes')
+        for (const [key, body] of [[pluginKey, pluginValue], [assetKey, assetValue]] as const) {
+            expect((await client.fetch('/api/write', {
+                method: 'POST', headers: { 'content-type': 'application/octet-stream', 'file-path': key }, body,
+            })).status).toBe(200)
+        }
+        const readChat = async () => client.fetch('/api/chat-content/test-char-0/0', { headers: { 'x-chat-id': 'chat-0-0' } })
+        const seedRead = await readChat()
+        const seedRevision = seedRead.headers.get('x-chat-revision')!
+        const chat = await utils.decodeRisuSave(Buffer.from(await seedRead.arrayBuffer()))
+        const dirty = { ...chat, message: [...chat.message, { role: 'user', data: 'pending journal entry', chatId: 'e2-c4a' }] }
+        expect((await client.fetch('/api/chat-content/test-char-0/0', {
+            method: 'POST', headers: { 'content-type': 'application/octet-stream', 'x-chat-id': dirty.id, 'x-chat-base-revision': seedRevision }, body: encodeChat(dirty),
+        })).status).toBe(200)
+        const journalRows = () => {
+            const db = new Database(path.join(server!.cwd, 'save', 'risuai.db'), { readonly: true })
+            try { return (db.prepare("SELECT count(*) AS count FROM kv WHERE key LIKE 'internal/chat-write/v1/%'").get() as any).count as number } finally { db.close() }
+        }
+        expect(journalRows(), 'pending journal row seeded').toBe(1)
+        const snapshot = async () => ({
+            db: Buffer.from(await (await client.fetch('/api/read', { headers: { 'file-path': dbKey } })).arrayBuffer()),
+            plugin: Buffer.from(await (await client.fetch('/api/read', { headers: { 'file-path': pluginKey } })).arrayBuffer()),
+            asset: Buffer.from(await (await client.fetch('/api/read', { headers: { 'file-path': assetKey } })).arrayBuffer()),
+            chat: Buffer.from(await (await readChat()).arrayBuffer()),
+        })
+        const before = await snapshot()
+        expect(before.plugin).toEqual(pluginValue)
+        expect(before.asset).toEqual(assetValue)
+        expect(before.db.byteLength).toBeGreaterThan(0)
         const cookie = await sessionCookie(client)
-        const dbKey = Buffer.from('database/database.bin').toString('hex')
-        const before = await client.fetch('/api/read', { headers: { 'file-path': dbKey } })
-        const beforeBytes = Buffer.from(await before.arrayBuffer())
         const prepared = await postJson(client, '/api/backup/import/prepare', { size: createSeedBackup({ characterCount: 2 }).byteLength })
         expect(prepared.status).toBe(200)
         const failed = await client.fetch('/api/backup/import', {
@@ -169,8 +211,17 @@ describe('[E2-3c] Rebuild the storage reset barrier over native 1.16.1', () => {
         })
         expect(failed.ok).toBe(false)
         expect(failed.status).toBeGreaterThanOrEqual(400)
-        const after = await client.fetch('/api/read', { headers: { 'file-path': dbKey } })
-        expect(Buffer.from(await after.arrayBuffer())).toEqual(beforeBytes)
+        const after = await snapshot()
+        expect(after.db).toEqual(before.db)
+        expect(after.plugin).toEqual(before.plugin)
+        expect(after.asset).toEqual(before.asset)
+        expect(after.chat).toEqual(before.chat)
+        const next = Buffer.from('written after failed reset')
+        expect((await client.fetch('/api/write', {
+            method: 'POST', headers: { 'content-type': 'application/octet-stream', 'file-path': pluginKey }, body: next,
+        })).status).toBe(200)
+        const readBack = await client.fetch('/api/read', { headers: { 'file-path': pluginKey } })
+        expect(Buffer.from(await readBack.arrayBuffer())).toEqual(next)
         const flush = await client.fetch('/api/db/flush', { method: 'POST', headers: { cookie } })
         expect(flush.status).toBe(200)
     })
@@ -320,6 +371,79 @@ describe('[E2-3c] Rebuild the storage reset barrier over native 1.16.1', () => {
         expect(db.e2C7).toBeUndefined()
         const events = (await readFile(trace, 'utf8')).trim().split('\n').map(line => JSON.parse(line).event)
         expect(events).toContain('cancel-persistence-timers')
+    })
+
+    test('[new] r4 a database read during a held database removal cannot resurrect the pending save', { timeout: 30_000 }, async () => {
+        gateDir = await mkdtemp(path.join(tmpdir(), 'e2-3-remove-read-'))
+        restartable = await spawnRestartableServer({ env: {
+            POCKETRISU_TEST_STORAGE_RESET_GATE_DIR: gateDir,
+            POCKETRISU_TEST_STORAGE_PERSIST_GATE_DIR: gateDir,
+        } })
+        let client = await createClient(restartable.port, restartable.password)
+        expect((await client.importBackup(createSeedBackup({ characterCount: 1 }))).ok).toBe(true)
+        const current = await client.fetch('/api/read', { headers: { 'file-path': DB_KEY_HEX } })
+        const currentDb = utils.normalizeJSON(await utils.decodeRisuSave(Buffer.from(await current.arrayBuffer())))
+        expect((await client.fetch('/api/patch', {
+            method: 'POST',
+            headers: { 'content-type': 'application/json', 'file-path': DB_KEY_HEX },
+            body: JSON.stringify({
+                patch: [{ op: 'add', path: '/e2R4', value: 'must not come back' }],
+                expectedHash: utils.calculateHash(currentDb).toString(16),
+            }),
+        })).status).toBe(200)
+        await writeFile(path.join(gateDir, 'database-remove.apply.hold'), '')
+        const removal = client.fetch('/api/remove', { headers: { 'file-path': DB_KEY_HEX } })
+        removal.catch(() => {})
+        expect(await waitFor(path.join(gateDir, 'database-remove.apply.entered'), 7_000), 'database-remove reset gate entered').toBe(true)
+        // The native read flushes the pending save outside the storage queue;
+        // the persist gate keeps that flush in flight while the reset runs.
+        await writeFile(path.join(gateDir, 'db-persist.hold'), '')
+        const during = client.fetch('/api/read', { headers: { 'file-path': DB_KEY_HEX } }).then(response => response.arrayBuffer())
+        during.catch(() => {})
+        expect(await waitFor(path.join(gateDir, 'db-persist.entered'), 3_000), 'read-triggered flush entered the persist gate').toBe(true)
+        await unlink(path.join(gateDir, 'database-remove.apply.hold'))
+        const removed = await Promise.race([removal, new Promise<null>(resolve => setTimeout(() => resolve(null), 2_000))])
+        await unlink(path.join(gateDir, 'db-persist.hold')).catch(() => {})
+        await during.catch(() => {})
+        expect((removed ?? await removal).status).toBe(200)
+        const empty = async () => {
+            const response = await client.fetch('/api/read', { headers: { 'file-path': DB_KEY_HEX } })
+            return { status: response.status, bytes: (await response.arrayBuffer()).byteLength }
+        }
+        expect(await empty(), 'database stays removed right after the reset').toEqual({ status: 200, bytes: 0 })
+        await new Promise(resolve => setTimeout(resolve, 5_500))
+        expect(await empty(), 'database stays removed after the debounce window').toEqual({ status: 200, bytes: 0 })
+        await restartable.restart()
+        client = await createClient(restartable.port, restartable.password)
+        expect(await empty(), 'database stays removed after a restart').toEqual({ status: 200, bytes: 0 })
+    })
+
+    test('[new] r5 server restore with failed COMMIT and failed inlay reversal reports recovery-required on its stream', async () => {
+        server = await spawnServer({ env: {
+            POCKETRISU_TEST_STORAGE_RESET_FAILPOINT: 'reverse-inlay-rename',
+            POCKETRISU_TEST_STORAGE_RESET_FAILPOINT_ON_ATTEMPT: '2',
+        } })
+        const client = await createClient(server.port, server.password)
+        expect((await client.importBackup(createSeedBackup({ characterCount: 1 }))).ok).toBe(true)
+        const dbKey = Buffer.from('database/database.bin').toString('hex')
+        const cookie = await sessionCookie(client)
+        const beforeFailure = Buffer.from(await (await client.fetch('/api/read', { headers: { 'file-path': dbKey } })).arrayBuffer())
+        const fixture = encodeBackup([
+            ...decodeBackup(createSeedBackup({ characterCount: 2 })),
+            { name: 'inlay/recovery-fixture.png', data: Buffer.from('inlay replacement') },
+            { name: 'inlay_sidecar/recovery-fixture', data: Buffer.from(JSON.stringify({ ext: 'png', name: 'recovery-fixture.png', type: 'image' })) },
+        ])
+        await writeFile(path.join(server.cwd, 'backups', 'risu-backup-1.bin'), fixture)
+        const response = await postJson(client, '/api/backup/server/restore', { filename: 'risu-backup-1.bin' })
+        expect(response.status).toBe(200)
+        const lines = (await response.text()).trim().split('\n').filter(Boolean).map(line => JSON.parse(line))
+        const last = lines.at(-1)
+        expect(last).toMatchObject({ type: 'error', code: 'STORAGE_RECOVERY_REQUIRED', retryable: false, recoveryPath: expect.any(String) })
+        const stored = Buffer.from(await (await client.fetch('/api/read', { headers: { 'file-path': dbKey } })).arrayBuffer())
+        expect(stored).toEqual(beforeFailure)
+        const write = await client.fetch('/api/db/flush', { method: 'POST', headers: { cookie } })
+        expect(write.status).toBe(503)
+        expect(await write.json()).toMatchObject({ code: 'STORAGE_RECOVERY_REQUIRED', retryable: false })
     })
 
     test.each([

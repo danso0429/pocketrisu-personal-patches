@@ -174,7 +174,7 @@ module.exports = {
                 'lazy-chat-sync:owned:test:compat:restart-durability-e2-3-test-ts:1.16':
                     'Compat tests for a chat acknowledged before a kill, the native reset paths across a restart and the archive state across a restart.',
                 'lazy-chat-sync:server-barrier-state:1.16':
-                    'Storage reset barrier state, admission (generation recorded at entry, rechecked when queued work is queued and when it runs), debounced-write tracking around a reset, storage epoch, and the reset runner with the inlay swap helpers.',
+                    'Storage reset barrier state, admission (generation recorded at entry, rechecked when queued work is queued and when it runs), debounced-write tracking around a reset, storage epoch, the NDJSON error line of a reset refusal, and the reset runner (a second wait for running writes and flushes after its test gate, then the applying mark and apply context) with the inlay swap helpers.',
                 'lazy-chat-sync:server-check-active-session-options:1.16':
                     'checkActiveSession takes storageReset (routes that start a reset) and storageResetExempt (log routes).',
                 'lazy-chat-sync:server-check-active-session-gate:1.16':
@@ -233,6 +233,12 @@ module.exports = {
                     'Closes the tracked chat POST debounce timer.',
                 'lazy-chat-sync:server-error-refusal:1.16':
                     'The error handler answers a storage reset refusal with its status and payload.',
+                'lazy-chat-sync:server-flush-wait-reset-apply:1.16':
+                    'flushPendingDb outside a running reset apply() waits for it while a database save is pending, so a read or export cannot write the database from before the reset over its result. kei-backup-restore-safety-core replaces the flushPendingDb header on 1.10.0 and has no 1.16.1 target; a 1.16.1 port must compose with this unit.',
+                'lazy-chat-sync:server-backup-import-stream-refusal:1.16':
+                    'The NDJSON backup import error line of a storage reset refusal carries its code, retryable and recoveryPath.',
+                'lazy-chat-sync:server-server-restore-stream-refusal:1.16':
+                    'The server restore error line of a storage reset refusal (its stream has already started) carries its code, retryable and recoveryPath.',
                 'lazy-chat-sync:owned:server:node:storageBarrier-e2-3-test-ts:1.16':
                     'Server tests for post-reset session invalidation, the epoch-aware commit owner and the reset hook surface.',
                 'lazy-chat-sync:owned:test:compat:storage-reset-e2-3-test-ts:1.16':

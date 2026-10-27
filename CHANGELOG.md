@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.2.4-experimental.97 (lazy chat sync: storage reset fixes)
+
+- A storage reset now also waits for a database flush that started while it was waiting to begin, and while it replaces the storage a database read or export no longer writes the pending database save from before the reset, so a removed or restored database is not overwritten afterwards.
+- Server restore and the streamed backup import report a reset that ends in recovery-required mode with `code: 'STORAGE_RECOVERY_REQUIRED'`, `retryable: false` and `recoveryPath` on their error line.
+
 ## 0.2.4-experimental.96 (lazy chat sync: chat revision protocol over PocketRisu 1.16.1)
 
 - `GET /api/chat-content/:chaId/:chatIndex` returns `x-chat-revision` (the SHA-256 of the whole chat's legacy encoding, also when only a delta is sent) and answers 304 to a matching `If-None-Match`. A chat whose metadata exists without a body answers 404 `CHAT_PAYLOAD_MISSING` instead of an empty chat; the chat screen shows a notice and keeps the draft when the user sends into it.

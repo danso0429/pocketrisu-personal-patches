@@ -42,6 +42,9 @@ let storageResetCommittedGeneration = 0;
 let storageRecoveryRequired = null;
 let activeStorageReset = null;
 const storageAdmissionContext = new AsyncLocalStorage();
+// The async context of a running reset's apply(): flushes inside it are the
+// reset's own (flushPendingDb).
+const storageResetApplyContext = new AsyncLocalStorage();
 
 class StorageResetRefusal extends Error {
     constructor(payload, statusCode = 503) {
@@ -74,6 +77,15 @@ function storageRecoveryRequiredPayload() {
         retryable: false,
         recoveryPath: storageRecoveryRequired?.recoveryPath,
     };
+}
+
+// An NDJSON error line for a route whose stream already started: a storage
+// reset refusal adds its code, retryable and recoveryPath; any other error
+// keeps the route's line.
+function storageResetErrorLine(error, line) {
+    if (!(error instanceof StorageResetRefusal)) return line;
+    const { code, retryable, recoveryPath } = error.payload;
+    return { ...line, code, retryable, recoveryPath };
 }
 
 // Test gate name of an admitted writer route (storageResetTestHooks).
@@ -253,8 +265,12 @@ function trackInlayMutation(mutation) {
     return mutation;
 }
 
+function storagePersistsPending() {
+    return storagePersistsInFlight.size > 0 || inflightInlayMutations.size > 0 || Boolean(dbFlushInFlight);
+}
+
 async function waitForStoragePersists() {
-    while (storagePersistsInFlight.size > 0 || inflightInlayMutations.size > 0 || dbFlushInFlight) {
+    while (storagePersistsPending()) {
         await Promise.allSettled([
             ...storagePersistsInFlight,
             ...inflightInlayMutations,
@@ -361,34 +377,56 @@ function endStorageReset(reset) {
     storageResetActive = false;
 }
 
+// True while a reset's apply() runs and the caller is not part of it. An
+// out-of-queue flush (/api/read, export) then waits instead of writing the
+// pending database save from before the reset over its result.
+function storageResetApplyBlocksFlush() {
+    const reset = activeStorageReset;
+    return Boolean(reset?.applying) && storageResetApplyContext.getStore() !== reset;
+}
+
 // Linearizes a storage reset. Inside one storage queue slot: debounced writes
-// already running finish, the other pending debounced writes are persisted
-// and disarmed, the epoch is read, and apply() replaces the storage. apply()
-// owns its transaction and sets reset.committed after COMMIT. After a commit,
-// every session that booted before the reset is invalidated before the slot
-// is released and the flag clears, also when apply() throws after its COMMIT
-// (the error still reaches the caller).
+// and database flushes already running finish (again after the test gate,
+// for those that started while the reset waited there), the other pending
+// debounced writes are persisted and disarmed, the epoch is read, and apply()
+// replaces the storage. From the last wait until apply() returns, the reset
+// is applying: flushPendingDb outside apply() does not take the pending
+// database save. apply() owns its transaction and sets reset.committed after
+// COMMIT. After a commit, every session that booted before the reset is
+// invalidated before the slot is released and the flag clears, also when
+// apply() throws after its COMMIT (the error still reaches the caller).
 async function runStorageReset(kind, apply, { reset: begun = null } = {}) {
     const reset = begun ?? beginStorageReset(kind);
     try {
         return await storageAdmissionContext.exit(() => enqueueStorageOperation(async () => {
             await waitForStoragePersists();
             await storageResetTestHooks.waitAtResetGate(reset.kind);
-            persistAndDisarmPendingSaves();
-            storageResetTestHooks.trace('cancel-persistence-timers', { kind: reset.kind });
-            reset.epochBefore = readStorageEpoch();
-            storageResetTestHooks.trace('begin', { kind: reset.kind });
+            // The loop condition is the last check before applying is set,
+            // with no await in between: no flush starts in that gap.
+            while (storagePersistsPending()) await waitForStoragePersists();
+            let endApply;
+            reset.applyDone = new Promise((resolve) => { endApply = resolve; });
+            reset.applying = true;
             try {
-                return await apply(reset);
-            } finally {
-                storageResetTestHooks.trace(reset.committed ? 'commit' : 'rollback', { kind: reset.kind });
-                if (reset.committed) {
-                    storageResetCommittedGeneration = reset.generation;
-                    publishStorageResetCommitted(reset);
-                    // A page loaded before the reset holds the replaced data:
-                    // its next checked write gets 423 and it reloads.
-                    sessionLock.invalidateBefore(Date.now());
+                persistAndDisarmPendingSaves();
+                storageResetTestHooks.trace('cancel-persistence-timers', { kind: reset.kind });
+                reset.epochBefore = readStorageEpoch();
+                storageResetTestHooks.trace('begin', { kind: reset.kind });
+                try {
+                    return await storageResetApplyContext.run(reset, () => apply(reset));
+                } finally {
+                    storageResetTestHooks.trace(reset.committed ? 'commit' : 'rollback', { kind: reset.kind });
+                    if (reset.committed) {
+                        storageResetCommittedGeneration = reset.generation;
+                        publishStorageResetCommitted(reset);
+                        // A page loaded before the reset holds the replaced data:
+                        // its next checked write gets 423 and it reloads.
+                        sessionLock.invalidateBefore(Date.now());
+                    }
                 }
+            } finally {
+                reset.applying = false;
+                endApply();
             }
         }));
     } finally {
@@ -872,6 +910,51 @@ async function importHexEntriesInReset(entries, reset) {
 `,
         content: `    // A storage reset refusal keeps its status and payload.
     if (err instanceof StorageResetRefusal) return res.status(err.statusCode).json(err.payload);
+`,
+    },
+    {
+        name: 'flush-wait-reset-apply',
+        type: 'replace',
+        anchor: `    while (dbFlushInFlight) await dbFlushInFlight.catch(() => {});
+    if (!saveTimers[DB_HEX_KEY]) return;
+`,
+        content: `    // While a storage reset applies, a flush from outside it (/api/read,
+    // export) leaves the pending save from before the reset alone until
+    // apply() returns; a committed reset has dropped it by then. The reset
+    // never waits for such a flush: it has not set dbFlushInFlight.
+    while (dbFlushInFlight || (saveTimers[DB_HEX_KEY] && storageResetApplyBlocksFlush())) {
+        if (dbFlushInFlight) await dbFlushInFlight.catch(() => {});
+        else await activeStorageReset.applyDone;
+    }
+    if (!saveTimers[DB_HEX_KEY]) return;
+`,
+    },
+    {
+        name: 'backup-import-stream-refusal',
+        type: 'replace',
+        anchor: `                res.write(JSON.stringify({ type: 'error', message: error?.message || 'backup import failed', code: error?.code }) + '\\n');
+`,
+        content: `                res.write(JSON.stringify(storageResetErrorLine(error, { type: 'error', message: error?.message || 'backup import failed', code: error?.code })) + '\\n');
+`,
+    },
+    {
+        name: 'server-restore-stream-refusal',
+        type: 'replace',
+        anchor: `            res.write(JSON.stringify({ type: 'error', message: error.message }) + '\\n');
+            res.end();
+        }
+    } finally {
+        importInProgress = false;
+    }
+});
+`,
+        content: `            res.write(JSON.stringify(storageResetErrorLine(error, { type: 'error', message: error.message })) + '\\n');
+            res.end();
+        }
+    } finally {
+        importInProgress = false;
+    }
+});
 `,
     },
 ]
