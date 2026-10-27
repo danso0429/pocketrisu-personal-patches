@@ -284,7 +284,7 @@ export interface ChatSaveContext {
     readonly chaId: string
     readonly chatId: string
     readonly intent?: ChatSaveIntent
-    /** A 422 invariant recovery: a server without the chat gets it created, whatever the intent. */
+    /** Saved by the retry of a 422 invariant recovery that named this chat: a server without the chat gets it created, whatever the intent. */
     readonly recreate?: boolean
     /** The encoded content this save sends. */
     readonly content: Uint8Array
@@ -396,8 +396,6 @@ function readMissingFullChat(body: any): { chaId: string, chatId: string } | und
     // write and the length and 64-bit hash of the encoded content it put into
     // the slot (never the bytes themselves).
     private readonly pluginWrittenEntries = new WeakMap<ChatSaveBase, { token: string, length: number, hash: string }>()
-    // Chats whose next save recreates a missing body (recreateChatOnNextSave).
-    private readonly chatsToRecreate = new Set<string>()
     // Counts replacements of the whole database (the native 409 rebase's
     // setDatabase): a save captured before one never publishes into the
     // chat or moves the slot base afterwards.
@@ -444,14 +442,12 @@ function readMissingFullChat(body: any): { chaId: string, chatId: string } | und
 
     /**
      * The server holds no body for a chat this client holds and the database
-     * still lists (a 422 invariant recovery): its base is dropped, and the
-     * next save of that chat creates it when the server has none, even when
-     * classified as an update. One save consumes this.
+     * still lists (a 422 invariant recovery): its slot base is dropped. The
+     * permission to create it again belongs to the recovery's retry, which
+     * passes it as a save option (beginChatSave \`options.recreate\`).
      */
-    recreateChatOnNextSave(chaId: string, chatId: string): void {
-        const key = this.chatSyncKey(chaId, chatId)
-        this.forgetChatSyncState(key)
-        this.chatsToRecreate.add(key)
+    forgetChatSaveBase(chaId: string, chatId: string): void {
+        this.forgetChatSyncState(this.chatSyncKey(chaId, chatId))
     }
 
     /** Sets a chat's slot base (a decoded copy is cloned); returns the stored entry. */
@@ -498,12 +494,14 @@ function readMissingFullChat(body: any): { chaId: string, chatId: string } | und
      * record) or none. Any other save takes the own base of \`options.baseOf\`
      * (default \`chat\`) when that is a handed-out view, else the chat's slot
      * base, else none. A save without a base reads the server copy first.
+     * \`options.recreate\` is set only by the retry of a 422 invariant recovery
+     * for the chat it named (a server without the chat gets it created).
      */
     beginChatSave(
         chaId: string,
         chatId: string,
         chat: any,
-        options: { intent?: ChatSaveIntent, baseOf?: any, detached?: boolean, base?: ChatSaveBase | null } = {},
+        options: { intent?: ChatSaveIntent, baseOf?: any, detached?: boolean, base?: ChatSaveBase | null, recreate?: boolean } = {},
     ): ChatSaveContext {
         const content = encodeRisuSaveLegacy(chat)
         const detached = options.detached === true
@@ -511,10 +509,9 @@ function readMissingFullChat(body: any): { chaId: string, chatId: string } | und
         const viewBase = detached || !source || typeof source !== 'object' ? undefined : this.chatViewBases.get(source)
         const entry = detached || viewBase ? undefined : this.chatSyncStates.get(this.chatSyncKey(chaId, chatId))
         const base = detached ? (options.base ?? undefined) : (viewBase ?? entry)
-        const recreate = this.chatsToRecreate.delete(this.chatSyncKey(chaId, chatId))
         const captured = base ? { ...base } : null
         return {
-            recreate,
+            recreate: options.recreate === true,
             chaId,
             chatId,
             intent: options.intent,
@@ -895,8 +892,8 @@ function readMissingFullChat(body: any): { chaId: string, chatId: string } | und
                 } else if (!server) {
                     // An update of a chat the server no longer has: it was
                     // deleted elsewhere, so it is not created again (d8),
-                    // unless a 422 invariant recovery asked to store its
-                    // body again.
+                    // unless this is the save of the chat a 422 invariant
+                    // recovery named, made by that recovery's retry.
                     if (context.intent === 'update' && !context.recreate) throw new ChatConflictError('Chat no longer exists on the server', null)
                     createOnly = true
                 }
@@ -1227,7 +1224,9 @@ import type { ChatSaveContext } from './nodeStorage'
     // is the save context (content and base) of this save.
     saveChatContentDelta(chaId: string, chatIndex: number, chatId: string, chat: any, base: { count: number, fp: string } | null, options?: { fullChat?: Chat, intent?: ChatSaveIntent, context?: ChatSaveContext }): Promise<'ok' | 'base-mismatch'>
     // Captures a save context: the content to send and its base, together.
-    beginChatSave?(chaId: string, chatId: string, chat: Chat, options: { intent?: ChatSaveIntent }): ChatSaveContext | undefined
+    // \`options.recreate\`: the retry of a 422 invariant recovery saves the
+    // chat it named.
+    beginChatSave?(chaId: string, chatId: string, chat: Chat, options: { intent?: ChatSaveIntent, recreate?: boolean }): ChatSaveContext | undefined
     // Records the revision of a chat a load assembled, as that object's own
     // base until it is installed.
     registerFetchedChat?(chaId: string, chatId: string, revision: string, chat: Chat): void
@@ -1268,22 +1267,25 @@ import type { ChatSaveContext } from './nodeStorage'
     // that object, at that index. When the chat is gone or its slot holds a
     // placeholder by then, nothing is sent and the save resolves 'skipped'.
     // A caller may hand in a context it captured itself (\`options.context\`).
+    // \`options.recreate\` (the retry of a 422 invariant recovery saving the
+    // chat it named) goes into the context captured for this save.
     function saveChat(
         chaId: string,
         chatIndex: number,
         chatId: string,
         chat: Chat,
         intent?: ChatSaveIntent,
-        options: { live?: boolean, context?: ChatSaveContext } = {},
+        options: { live?: boolean, context?: ChatSaveContext, recreate?: boolean } = {},
     ): Promise<void | 'skipped'> {
         const key = chatCopyKey(chaId, chatId)
         const previous = saveQueues.get(key)
         const live = !options.context && options.live === true && typeof transport.locateLiveChat === 'function'
-        const context = options.context ?? (live ? undefined : transport.beginChatSave?.(chaId, chatId, chat, { intent }))
+        const recreate = options.recreate === true
+        const context = options.context ?? (live ? undefined : transport.beginChatSave?.(chaId, chatId, chat, { intent, recreate }))
         const queued = live ? null : chat
         const run = previous
-            ? previous.then(() => saveChatNow(chaId, chatIndex, chatId, queued, intent, context))
-            : saveChatNow(chaId, chatIndex, chatId, queued, intent, context)
+            ? previous.then(() => saveChatNow(chaId, chatIndex, chatId, queued, intent, context, recreate))
+            : saveChatNow(chaId, chatIndex, chatId, queued, intent, context, recreate)
 `,
     },
     {
@@ -1291,7 +1293,7 @@ import type { ChatSaveContext } from './nodeStorage'
         type: 'replace',
         anchor: `    async function saveChatNow(chaId: string, chatIndex: number, chatId: string, chat: Chat): Promise<void> {
 `,
-        content: `    async function saveChatNow(chaId: string, chatIndex: number, chatId: string, queued: Chat | null, intent?: ChatSaveIntent, context?: ChatSaveContext): Promise<void | 'skipped'> {
+        content: `    async function saveChatNow(chaId: string, chatIndex: number, chatId: string, queued: Chat | null, intent?: ChatSaveIntent, context?: ChatSaveContext, recreate = false): Promise<void | 'skipped'> {
         // An open chat's autosave (no queued chat) saves the chat in its slot
         // now, at its index now; nothing when it is gone or a placeholder.
         let chat: Chat
@@ -1305,7 +1307,7 @@ import type { ChatSaveContext } from './nodeStorage'
         }
         // This run's save context: captured at the call, or now, together
         // with the fingerprints and the delta below from the same object.
-        const save = context ?? transport.beginChatSave?.(chaId, chatId, chat, { intent })
+        const save = context ?? transport.beginChatSave?.(chaId, chatId, chat, { intent, recreate })
 `,
     },
     {
@@ -1393,14 +1395,15 @@ function locateLiveChat(chaId: string, chatId: string): { chatIndex: number, cha
 // turn in the save queue comes, and resolves 'skipped' without sending when
 // the chat is gone or its slot holds a placeholder by then. \`options.context\`
 // hands in a context the caller captured (NodeStorage.beginChatSave) and
-// reads its result afterwards.
+// reads its result afterwards. \`options.recreate\` is passed only by the
+// retry of a 422 invariant recovery for the chat it named.
 export async function saveChatToServer(
     chaId: string,
     chatIndex: number,
     chatId: string,
     chat: Chat,
     intent?: ChatSaveIntent,
-    options?: { live?: boolean, context?: ChatSaveContext },
+    options?: { live?: boolean, context?: ChatSaveContext, recreate?: boolean },
 ): Promise<void | 'skipped'> {
     if (options?.live && !options.context && !liveDatabaseState) await loadLiveDatabaseState()
     return await chatDeltaSync.saveChat(chaId, chatIndex, chatId, chat, intent, options)
@@ -1519,6 +1522,24 @@ export function confirmCurrentSnapshotOnServer(chaId: string, chatIndex: number,
     // Recovery slot: the one chat a database refusal for a missing body may
     // enlist again before the refusal is shown.
     let missingPayloadRecoveryKey: string | null = null
+    // The chat a 422 invariant recovery named, waiting for that recovery's
+    // retry: the next persistTrackedChanges takes it when it starts and may
+    // create that chat on the server; it ends with that attempt, saved,
+    // skipped or failed. Separate from the recovery slot above, which only a
+    // successful save clears.
+    let recreateOnRetryKey: string | null = null
+`,
+    },
+    {
+        name: 'persist-recreate-permission',
+        type: 'insert',
+        where: 'after',
+        anchor: `    ): Promise<'saved' | 'retry' | 'noop'> {
+`,
+        content: `        // This attempt alone may create the chat a 422 invariant recovery
+        // named (the recovery's retry); later attempts may not.
+        const recreateKey = recreateOnRetryKey
+        recreateOnRetryKey = null
 `,
     },
     {
@@ -1568,10 +1589,12 @@ export function confirmCurrentSnapshotOnServer(chaId: string, chatIndex: number,
         }
         missingPayloadRecoveryKey = key
         // The server holds no body for a chat the database still lists and
-        // this client holds: the next save of that chat stores its body again
-        // (created when the server has none, even when classified as an
-        // update; any other update of a chat missing on the server conflicts).
-        forageStorage.realStorage?.recreateChatOnNextSave?.(recoverable.chaId, recoverable.chatId)
+        // this client holds: its slot base is dropped, and the retry this
+        // returns saves it with permission to create it when the server has
+        // none, even when classified as an update. Any other save of a chat
+        // missing on the server that is classified as an update conflicts.
+        forageStorage.realStorage?.forgetChatSaveBase?.(recoverable.chaId, recoverable.chatId)
+        recreateOnRetryKey = key
         requeueTrackedChanges(toSave)
         if (!changeTracker.chat.some(([c, id]) => c === recoverable.chaId && id === recoverable.chatId)) {
             changeTracker.chat.unshift([recoverable.chaId, recoverable.chatId])
@@ -1630,8 +1653,11 @@ export function confirmCurrentSnapshotOnServer(chaId: string, chatIndex: number,
                 // The live save holds no chat while it waits: when its turn in
                 // the save queue comes it saves the chat then in its slot, on
                 // the slot's base. A chat gone or turned into a placeholder by
-                // then is skipped and not counted as posted.
-                const outcome = await saveChatToServer(chaId, chatIndex, chatId, chat, classifyChatSaveIntent(confirmedBaseline, chaId, chatId), { live: true })
+                // then is skipped and not counted as posted. The chat a 422
+                // invariant recovery named is saved with permission to create
+                // it when this attempt is that recovery's retry.
+                const recreate = recreateKey === \`\${chaId}|\${chatId}\`
+                const outcome = await saveChatToServer(chaId, chatIndex, chatId, chat, classifyChatSaveIntent(confirmedBaseline, chaId, chatId), { live: true, recreate })
                 if (outcome !== 'skipped') postedChats.push([chaId, chatId])
             } catch (e) {
                 console.error(\`[Save] Failed to save chat \${chaId}/\${chatId}:\`, e)

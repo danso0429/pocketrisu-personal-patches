@@ -105,6 +105,8 @@ const ownedTests1116 = [
     'test/compat/chat-contract.e2-3.test.ts',
     'src/ts/storage/chatRevision.e2-3.test.ts',
     'src/ts/storage/saveRecovery.e2-3.test.ts',
+    // Chat save follow-ups (E2-3d2, E2-3d3, E2-3d4).
+    'src/ts/storage/chatSaveFollowup.e2-3.test.ts',
 ].map((relative) => ({
     id: `lazy-chat-sync:owned:${unitId(relative)}:1.16`,
     file: relative,

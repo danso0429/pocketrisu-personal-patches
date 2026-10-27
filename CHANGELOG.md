@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.2.4-experimental.100 (lazy chat sync: chat recreation scoped to the invariant recovery retry)
+
+- The chat storage no longer keeps a storage-wide set of chats whose next save recreates a missing body (`recreateChatOnNextSave` is removed). A 422 invariant recovery that names a chat this client holds drops that chat's slot base (`forgetChatSaveBase`) and gives the permission to create the chat to the single retry it causes: that database save attempt takes the permission when it starts and, when it saves the named chat, passes `recreate` as a save option. The option is part of the chat's save context, so it holds through the delta-to-full fallback. The permission ends with that attempt, also when it skipped or failed the chat, so a later direct `saveChatToServer` or database save of that chat that is classified as an update ends in `ChatConflictError` when the server has no copy (d8), and a save of another chat never gets it. The one-recovery guard for the named chat stays separate and unchanged.
+- `src/ts/storage/chatSaveFollowup.e2-3.test.ts` (client tests for 0.2.4-experimental.98 to 0.2.4-experimental.100) is now an owned unit of the pack.
+- `patches/target-coverage.cjs` adds `lazy-chat-sync:global-api-persist-recreate-permission:1.16` and `lazy-chat-sync:owned:src:ts:storage:chatSaveFollowup-e2-3-test-ts:1.16` and updates the descriptions of the changed units.
+- Stable remains v0.2.3.
+
 ## 0.2.4-experimental.99 (lazy chat sync: hash of plugin-written chat content)
 
 - An open-chat plugin write no longer keeps a copy of the content it wrote. The host keeps only the write's token and the byte length and a 64-bit hash of the encoded content (the mixing of the native `hash64` over the bytes, all 64 bits kept), so what it holds per installed slot base is a fixed size whatever the chat's size. When the slot's next save is accepted without a rebase, the token advances only when the sent content has the same length and hash, under the same token rules as before. This fixes the remaining known open issue of 0.2.4-experimental.96.

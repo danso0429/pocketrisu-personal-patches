@@ -268,7 +268,7 @@ module.exports = {
                 'lazy-chat-sync:node-storage-patch-result-fields:1.16':
                     'The patch result reports a 422 invariant refusal and the chat it names.',
                 'lazy-chat-sync:node-storage-chat-sync-state:1.16':
-                    'Chat save contexts (the content a save sends and the base it was derived from, captured together and never replaced by a base found later by chat, with the database replacement generation at capture: a save captured before a whole-database replacement never publishes a rebase into the chat or moves the slot base; once accepted it installs the base it started from as the slot base when the chat holds none), the bases they come from (a handed-out view\'s own base; the chat\'s slot base, set when fetched content is installed or a plugin write puts content into the slot and moved by a save of that content only while nothing replaced it meanwhile; for a plugin write only the base of the read its read token names, never the slot base; bounded server copies), bounded plugin read tokens (a forgotten token refuses the write instead of becoming a write without a read; a token\'s base advances only after a write saved without a rebase; an open-chat plugin write keeps only the length and a 64-bit hash of the content it wrote, never a copy, and its token advances when the slot\'s next save sends content of the same length and hash), readServerChatSnapshot, confirmCurrentSnapshotOnServer and the full chat POST under the revision protocol (the context\'s base revision; without a known one the server copy and its revision are read and taken as the base; create-only; an update the server has no copy of is a conflict, never a create; confirmation after a refusal or a lost answer).',
+                    'Chat save contexts (the content a save sends and the base it was derived from, captured together and never replaced by a base found later by chat, with the database replacement generation at capture: a save captured before a whole-database replacement never publishes a rebase into the chat or moves the slot base; once accepted it installs the base it started from as the slot base when the chat holds none), the bases they come from (a handed-out view\'s own base; the chat\'s slot base, set when fetched content is installed or a plugin write puts content into the slot and moved by a save of that content only while nothing replaced it meanwhile; for a plugin write only the base of the read its read token names, never the slot base; bounded server copies), bounded plugin read tokens (a forgotten token refuses the write instead of becoming a write without a read; a token\'s base advances only after a write saved without a rebase; an open-chat plugin write keeps only the length and a 64-bit hash of the content it wrote, never a copy, and its token advances when the slot\'s next save sends content of the same length and hash), readServerChatSnapshot, confirmCurrentSnapshotOnServer and the full chat POST under the revision protocol (the context\'s base revision; without a known one the server copy and its revision are read and taken as the base; create-only; an update the server has no copy of is a conflict, never a create, unless the context carries the recreate option of a 422 invariant recovery retry; a 422 recovery drops the named chat\'s slot base (forgetChatSaveBase) and keeps no storage-wide recreate state; confirmation after a refusal or a lost answer).',
                 'lazy-chat-sync:node-storage-fetch-chat-content:1.16':
                     'A full chat fetch hands out its view with that read\'s base, so the view is saved on the revision it was read at; the read becomes the chat\'s slot base only when none is held (a copy of the view saved as the slot\'s content then has that base; plugin writes do not use it) and never replaces a held one.',
                 'lazy-chat-sync:node-storage-fetch-chat-delta-revision:1.16':
@@ -284,13 +284,13 @@ module.exports = {
                 'lazy-chat-sync:chat-delta-sync-imports:1.16':
                     'chatDeltaSync imports the save intent and save context types.',
                 'lazy-chat-sync:chat-delta-sync-transport:1.16':
-                    'The delta transport takes the whole chat, the save intent and the save context, captures save contexts, records the revision of a delta load and locates the chat now in its slot for an open chat\'s autosave.',
+                    'The delta transport takes the whole chat, the save intent and the save context, captures save contexts (with the recreate option of a 422 invariant recovery retry), records the revision of a delta load and locates the chat now in its slot for an open chat\'s autosave.',
                 'lazy-chat-sync:chat-delta-sync-fetch-adopt:1.16':
                     'A chat assembled from a delta load records its revision as that object\'s own base; it becomes the chat\'s base only when installed.',
                 'lazy-chat-sync:chat-delta-sync-save-intent:1.16':
-                    'saveChat passes the save intent and captures the save context at the call (or takes the caller\'s); the open chat\'s autosave queues no chat object and resolves \'skipped\' when it sends nothing.',
+                    'saveChat passes the save intent and the recreate option and captures the save context at the call (or takes the caller\'s); the open chat\'s autosave queues no chat object and resolves \'skipped\' when it sends nothing.',
                 'lazy-chat-sync:chat-delta-sync-save-now-intent:1.16':
-                    'saveChatNow takes the save intent and the save context, capturing one when none was taken at the call; for an open chat\'s autosave it first looks the chat up in its slot (object and index) and captures the content, its base, the fingerprints and the delta from that object, or sends nothing and resolves \'skipped\' when the chat is gone or a placeholder.',
+                    'saveChatNow takes the save intent, the save context and the recreate option, capturing a context with that option when none was taken at the call; for an open chat\'s autosave it first looks the chat up in its slot (object and index) and captures the content, its base, the fingerprints and the delta from that object, or sends nothing and resolves \'skipped\' when the chat is gone or a placeholder.',
                 'lazy-chat-sync:chat-delta-sync-save-delta-full-chat:1.16':
                     'A delta save passes the whole chat it was cut from, the save intent and the save context.',
                 'lazy-chat-sync:chat-delta-sync-save-full-intent:1.16':
@@ -300,7 +300,7 @@ module.exports = {
                 'lazy-chat-sync:chat-storage-transport:1.16':
                     'The chat storage transport forwards the save options, save context capture and the revision of a delta load, and finds the chat in its slot in the current database (null when the character or chat is gone or the slot is a placeholder); the database state module is loaded when the first open-chat autosave is queued, not with chatStorage.',
                 'lazy-chat-sync:chat-storage-save-intent:1.16':
-                    'saveChatToServer takes the save intent and the save options (live autosave, or a context the caller captured) and resolves \'skipped\' when a live autosave sent nothing.',
+                    'saveChatToServer takes the save intent and the save options (live autosave, or a context the caller captured, and the recreate option of a 422 invariant recovery retry) and resolves \'skipped\' when a live autosave sent nothing.',
                 'lazy-chat-sync:chat-storage-install-base:1.16':
                     'When hydration installs fetched content into the chat\'s slot, its revision becomes the slot\'s base; a fetch that is not installed changes no base.',
                 'lazy-chat-sync:global-api-imports:1.16':
@@ -310,13 +310,15 @@ module.exports = {
                 'lazy-chat-sync:global-api-save-contract-exports:1.16':
                     'trackChatForSave goes through markChatDirtyImpl; requestImportedCharacterSave, requestImportedModuleSave, readServerChatSnapshot and confirmCurrentSnapshotOnServer are exported for dependent packs.',
                 'lazy-chat-sync:global-api-confirmed-chat-baseline:1.16':
-                    'The confirmed chat baseline of the save intent and the chat id repair, and the one-chat recovery slot.',
+                    'The confirmed chat baseline of the save intent and the chat id repair, the one-chat recovery slot, and the chat a 422 invariant recovery named waiting for that recovery\'s retry.',
+                'lazy-chat-sync:global-api-persist-recreate-permission:1.16':
+                    'Each database save attempt takes the chat a 422 invariant recovery named when it starts, so only the recovery\'s retry may create that chat; the permission ends with that attempt whether it saved, skipped or failed the chat.',
                 'lazy-chat-sync:global-api-collect-unconfirmed:1.16':
                     'Chat bodies the server has not confirmed are saved with the database metadata even without a tracker entry.',
                 'lazy-chat-sync:global-api-invariant-retry:1.16':
-                    'A 422 invariant refusal that names a chat this client holds enlists it once and retries body first, its next save creating the body when the server has none even when classified as an update; otherwise the save stops with a visible error and keeps the edits queued.',
+                    'A 422 invariant refusal that names a chat this client holds drops that chat\'s slot base, enlists it once and retries body first, the retry alone saving it with permission to create the body when the server has none even when classified as an update; otherwise the save stops with a visible error and keeps the edits queued.',
                 'lazy-chat-sync:global-api-chat-save-loop:1.16':
-                    'The chat save loop repairs chat ids of new characters, saves each chat with its save intent as the live chat of its slot (a chat skipped at its turn is not counted as posted) and stops before the metadata after a failed body (ManualSaveConflictError for a revision conflict).',
+                    'The chat save loop repairs chat ids of new characters, saves each chat with its save intent as the live chat of its slot (a chat skipped at its turn is not counted as posted; the chat a 422 invariant recovery named is saved with the recreate option in that recovery\'s retry) and stops before the metadata after a failed body (ManualSaveConflictError for a revision conflict).',
                 'lazy-chat-sync:global-api-patch-invariant:1.16':
                     'A patch invariant refusal goes to the invariant retry.',
                 'lazy-chat-sync:global-api-full-write-invariant:1.16':
@@ -371,6 +373,8 @@ module.exports = {
                     'Client tests for the stale view rebase, chat id repair, save intent, recovery slot, revision headers on both native transports, plugin writes and the save exports other packs use.',
                 'lazy-chat-sync:owned:src:ts:storage:saveRecovery-e2-3-test-ts:1.16':
                     'Client test for the 422 invariant recovery: a known chat whose body is missing on the server is stored again from the client copy and the database save succeeds.',
+                'lazy-chat-sync:owned:src:ts:storage:chatSaveFollowup-e2-3-test-ts:1.16':
+                    'Client tests for the chat save follow-ups: the open chat autosave captured from its slot at its turn and the database replacement generation (E2-3d2), the hash of plugin-written chat content (E2-3d3) and chat recreation scoped to the invariant recovery retry (E2-3d4).',
             },
             retired: {
                 'lazy-chat-sync:replace:server:node:server-cjs:1.10':
