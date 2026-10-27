@@ -101,8 +101,9 @@ describe('[E2-3c] Rebuild the storage reset barrier over native 1.16.1', () => {
         expect((await client.importBackup(createSeedBackup())).ok).toBe(true)
         const reset = await heldReset(client)
         expect(reset, 'backup-import reset gate entered').not.toBeNull()
+        const cookie = await sessionCookie(client)
         const requests: Array<[string, RequestInit]> = [
-            ['/api/db/flush', { method: 'POST' }],
+            ['/api/db/flush', { method: 'POST', headers: { cookie } }],
             ['/api/db/optimize', { method: 'POST' }],
             ['/api/db/wal-checkpoint', { method: 'POST' }],
             ['/api/db/assets/purge-orphans', { method: 'POST' }],
@@ -157,9 +158,20 @@ describe('[E2-3c] Rebuild the storage reset barrier over native 1.16.1', () => {
             POCKETRISU_TEST_STORAGE_RESET_FAILPOINT: 'after-storage-epoch-write',
         } })
         const client = await createClient(server.port, server.password)
-        const failed = await client.importBackup(createSeedBackup({ characterCount: 2 }))
+        const cookie = await sessionCookie(client)
+        const dbKey = Buffer.from('database/database.bin').toString('hex')
+        const before = await client.fetch('/api/read', { headers: { 'file-path': dbKey } })
+        const beforeBytes = Buffer.from(await before.arrayBuffer())
+        const prepared = await postJson(client, '/api/backup/import/prepare', { size: createSeedBackup({ characterCount: 2 }).byteLength })
+        expect(prepared.status).toBe(200)
+        const failed = await client.fetch('/api/backup/import', {
+            method: 'POST', headers: { 'content-type': 'application/x-risu-backup' }, body: new Uint8Array(createSeedBackup({ characterCount: 2 })),
+        })
         expect(failed.ok).toBe(false)
-        const flush = await client.fetch('/api/db/flush', { method: 'POST' })
+        expect(failed.status).toBeGreaterThanOrEqual(400)
+        const after = await client.fetch('/api/read', { headers: { 'file-path': dbKey } })
+        expect(Buffer.from(await after.arrayBuffer())).toEqual(beforeBytes)
+        const flush = await client.fetch('/api/db/flush', { method: 'POST', headers: { cookie } })
         expect(flush.status).toBe(200)
     })
 
@@ -211,6 +223,9 @@ describe('[E2-3c] Rebuild the storage reset barrier over native 1.16.1', () => {
         expect((await client.fetch('/api/write', {
             method: 'POST', headers: { 'content-type': 'application/octet-stream', 'file-path': dbKey }, body: originalDb,
         })).status).toBe(200)
+        const beforeFailure = await client.fetch('/api/read', { headers: { 'file-path': dbKey } })
+        const beforeFailureBytes = Buffer.from(await beforeFailure.arrayBuffer())
+        const cookie = await sessionCookie(client)
         const fixture = encodeBackup([
             ...decodeBackup(createSeedBackup({ characterCount: 2 })),
             { name: 'inlay/recovery-fixture.png', data: Buffer.from('inlay replacement') },
@@ -223,9 +238,9 @@ describe('[E2-3c] Rebuild the storage reset barrier over native 1.16.1', () => {
         expect(failed.status).toBe(503)
         expect(await failed.json()).toMatchObject({ code: 'STORAGE_RECOVERY_REQUIRED', retryable: false, recoveryPath: expect.any(String) })
         const stored = await client.fetch('/api/read', { headers: { 'file-path': dbKey } })
-        expect(Buffer.from(await stored.arrayBuffer())).toEqual(originalDb)
+        expect(Buffer.from(await stored.arrayBuffer())).toEqual(beforeFailureBytes)
         for (const response of [
-            await client.fetch('/api/db/flush', { method: 'POST' }),
+            await client.fetch('/api/db/flush', { method: 'POST', headers: { cookie } }),
             await client.fetch('/api/remove', { headers: { 'file-path': dbKey } }),
         ]) {
             expect(response.status).toBe(503)
@@ -281,12 +296,14 @@ describe('[E2-3c] Rebuild the storage reset barrier over native 1.16.1', () => {
         await writeFile(path.join(gateDir, 'db-persist.hold'), '')
         await writeFile(path.join(gateDir, 'backup-import.apply.hold'), '')
         const current = await client.fetch('/api/read', { headers: { 'file-path': DB_KEY_HEX } })
-        const changed = utils.normalizeJSON(await utils.decodeRisuSave(Buffer.from(await current.arrayBuffer())))
-        changed.e2C7 = 'must not overwrite reset'
-        expect((await client.fetch('/api/write', {
+        const currentDb = utils.normalizeJSON(await utils.decodeRisuSave(Buffer.from(await current.arrayBuffer())))
+        expect((await client.fetch('/api/patch', {
             method: 'POST',
-            headers: { 'content-type': 'application/octet-stream', 'file-path': DB_KEY_HEX, 'x-if-match': current.headers.get('x-db-etag')! },
-            body: Buffer.from(utils.encodeRisuSaveLegacy(changed)),
+            headers: { 'content-type': 'application/json', 'file-path': DB_KEY_HEX },
+            body: JSON.stringify({
+                patch: [{ op: 'add', path: '/e2C7', value: 'must not overwrite reset' }],
+                expectedHash: utils.calculateHash(currentDb).toString(16),
+            }),
         })).status).toBe(200)
         expect(await waitFor(path.join(gateDir, 'db-persist.entered'), 7_000), 'db persist entered').toBe(true)
         const reset = client.importBackup(createSeedBackup({ characterCount: 2 }))

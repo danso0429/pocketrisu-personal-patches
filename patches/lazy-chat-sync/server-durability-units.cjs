@@ -251,14 +251,27 @@ function initChatStoreFromDatabase(dbObj) {
     },
     {
         name: 'backup-import-journal',
-        type: 'insert',
-        where: 'before',
+        type: 'replace',
         anchor: `        clearEntities();
         sqliteDb.exec('COMMIT');
+    } catch (error) {
+        try { sqliteDb.exec('ROLLBACK'); } catch (_) {}
 `,
-        content: `        // Neither a previous nor an imported journal row may replay over
-        // the imported database: drop them in its transaction.
-        kvDelPrefix(CHAT_WRITE_JOURNAL_PREFIX);
+        content: `        storageResetTestHooks.failpoint('after-destructive-deletes', reset.attempt);
+        // Neither a previous nor an imported journal row may replay over
+        // the imported database, and the storage epoch advances: both in
+        // the import transaction.
+        finishStorageResetTransaction(reset);
+        clearEntities();
+        // The inlay directory swap runs before COMMIT, so a failed COMMIT
+        // can still put the previous directory back.
+        swapResetInlayDir(reset, stagingDir);
+        storageResetTestHooks.failpoint('commit-after-inlay-swap', reset.attempt);
+        sqliteDb.exec('COMMIT');
+        reset.committed = true;
+    } catch (error) {
+        try { sqliteDb.exec('ROLLBACK'); } catch (_) {}
+        reverseResetInlaySwap(reset, stagingDir, error);
 `,
     },
     {
@@ -283,8 +296,9 @@ function initChatStoreFromDatabase(dbObj) {
         }
 `,
         content: `        // Neither a previous nor an imported journal row may replay over
-        // the imported database: drop them in its transaction.
-        kvDelPrefix(CHAT_WRITE_JOURNAL_PREFIX);
+        // the imported database, and the storage epoch advances: both in
+        // its transaction.
+        finishStorageResetTransaction(reset);
 `,
     },
     {
@@ -294,7 +308,8 @@ function initChatStoreFromDatabase(dbObj) {
         anchor: `    writeFileSync(migrationMarkerPath, new Date().toISOString(), 'utf-8');
     return { imported: hexFiles.length };
 `,
-        content: `    chatWriteJournal.resetMemory();
+        content: `    reset.committed = true;
+    chatWriteJournal.resetMemory();
 `,
     },
     {
@@ -309,8 +324,9 @@ function initChatStoreFromDatabase(dbObj) {
         }
 `,
         content: `        // Neither a previous nor an imported journal row may replay over
-        // the imported database: drop them in its transaction.
-        kvDelPrefix(CHAT_WRITE_JOURNAL_PREFIX);
+        // the imported database, and the storage epoch advances: both in
+        // its transaction.
+        finishStorageResetTransaction(reset);
 `,
     },
     {
@@ -320,7 +336,8 @@ function initChatStoreFromDatabase(dbObj) {
         anchor: `    writeFileSync(migrationMarkerPath, new Date().toISOString(), 'utf-8');
     return { imported: entries.length };
 `,
-        content: `    chatWriteJournal.resetMemory();
+        content: `    reset.committed = true;
+    chatWriteJournal.resetMemory();
 `,
     },
     {
@@ -332,16 +349,18 @@ function initChatStoreFromDatabase(dbObj) {
             })();
 `,
         content: `            // The journal describes the replaced database: its rows go in the
-            // same transaction, its memory only after COMMIT.
+            // same transaction as the storage epoch, its memory only after
+            // COMMIT.
             commitSnapshotRestore({
                 runTransaction: (operation) => sqliteDb.transaction(operation)(),
                 restoreDatabase: () => {
                     kvCopyValue(key, DB_BLOB_KEY);
                     pluginStorage.restoreFrom(snapshotPluginId(key));
                 },
-                discardJournal: () => kvDelPrefix(CHAT_WRITE_JOURNAL_PREFIX),
+                discardJournal: () => finishStorageResetTransaction(reset),
                 resetJournalMemory: () => chatWriteJournal.resetMemory(),
             });
+            reset.committed = true;
 `,
     },
     {
@@ -351,16 +370,28 @@ function initChatStoreFromDatabase(dbObj) {
         res.send({ success: true });
 `,
         content: `        if (key === 'database/database.bin') {
-            // The journal describes the removed database: its rows go in the
-            // same transaction, its memory only after COMMIT. The cached
+            // Removing database.bin is a storage reset. The journal describes
+            // the removed database: its rows go in the same transaction as
+            // the storage epoch, its memory only after COMMIT. The cached
             // database, chat store and pending save timer go too, or the
             // scheduled save writes the removed database back.
-            sqliteDb.transaction(() => {
-                kvDel(key);
-                kvDelPrefix(CHAT_WRITE_JOURNAL_PREFIX);
-            })();
-            invalidateDbCache();
-            chatWriteJournal.resetMemory();
+            if (importInProgress) {
+                return res.status(409).json({ error: 'Another import is already in progress' });
+            }
+            importInProgress = true;
+            try {
+                await runStorageReset('database-remove', async (reset) => {
+                    sqliteDb.transaction(() => {
+                        kvDel(key);
+                        finishStorageResetTransaction(reset);
+                    })();
+                    reset.committed = true;
+                    invalidateDbCache();
+                    chatWriteJournal.resetMemory();
+                });
+            } finally {
+                importInProgress = false;
+            }
         } else {
             kvDel(key);
         }

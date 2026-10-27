@@ -58,11 +58,17 @@ const ownedUnits = [
     },
 ]
 
-// E2-3b tests over the native 1.16.1 server.
+// E2-3b and E2-3c tests over the native 1.16.1 server.
 const ownedTests1116 = [
     'server/node/chatDurability.e2-3.test.ts',
+    'server/node/storageBarrier.e2-3.test.ts',
     'test/compat/restartableServer.e2-3.helper.ts',
     'test/compat/restart-durability.e2-3.test.ts',
+    'test/compat/storage-reset.e2-3.test.ts',
+    // Storage reset cases of server-backup-snapshot-core that run with this
+    // pack alone (E2-3c).
+    'test/compat/storage-reset-b1a.lazy-chat-sync.test.ts',
+    'test/compat/session-reset-b2.lazy-chat-sync.test.ts',
 ].map((relative) => ({
     id: `lazy-chat-sync:owned:${unitId(relative)}:1.16`,
     file: relative,
@@ -84,6 +90,7 @@ module.exports = {
     units: [
         ...ownedUnits,
         ...require('./server-durability-units.cjs'),
+        ...require('./server-reset-units.cjs'),
         ...ownedTests1116,
     ],
 }

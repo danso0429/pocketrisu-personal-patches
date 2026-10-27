@@ -73,9 +73,13 @@ describe('[E2-3c] Rebuild the storage reset barrier over native 1.16.1', () => {
                 bindingEpoch: 'binding-1', seq: 2, previousSeq: 1, operationId: 'epoch-test-0001',
                 kind: 'response_commit', beforeRevision: 'base-revision', afterRevision: revision(payload),
                 messageIdentities: ['m1'], sourceGeneration: 'generation-1',
-                committedAt: '2026-10-26T00:00:00.000Z', payloadRef: 'payload-1', delivery: 'pending',
+                committedAt: '2026-10-26T00:00:00.000Z', payloadRef: subject?.commitStorageKey?.('epoch-test-0001') ?? 'payload-1', delivery: 'pending',
             },
-            owners: [], effectIntents: { globalVariables: { changed: {}, deleted: [], expected: {} }, staticsMessagesDelta: 0 },
+            owners: [{
+                messageId: 'm1', sourceRevision: revision(payload), sourceGeneration: 'generation-1',
+                operationId: 'epoch-test-0001', authority: 'server', acState: 'pending', automaticBackfill: 'excluded',
+            }],
+            effectIntents: { globalVariables: { changed: {}, deleted: [], expected: {} }, staticsMessagesDelta: 0 },
             acOwner: 'server', acState: 'pending', readyForNextTurn: false, awaitingMetadata: true,
             committedAt: '2026-10-26T00:00:00.000Z',
         }

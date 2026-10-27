@@ -93,12 +93,15 @@ module.exports = {
                 'lazy-chat-sync:owned:server:node:storageResetPrepare-test-ts:1.10',
                 'lazy-chat-sync:owned:server:node:storageResetPrepare-phaseC-test-ts:1.10',
                 'lazy-chat-sync:owned:server:node:storageResetTestHooks-cjs:1.10',
+                'lazy-chat-sync:session-lock:invalidate-before:1.10',
             ],
             rewritten: {
                 'lazy-chat-sync:owned:server:node:chatWriteJournal-cjs':
                     'PocketRisu 1.16.1 writes the database outside the storage queue, so a chat POST can land between the read and the write of a persist. clearAfterDatabasePersist takes the payloads the persist read and keeps a record whose chat changed since; replayInto replays the loaded records synchronously for the native store rebuilds; markListedRecords ends the wait for an entry once the live database lists the chat.',
                 'lazy-chat-sync:owned:server:node:storageResetTestHooks-cjs:1.10':
-                    'Holds only the db-persist gate (POCKETRISU_TEST_STORAGE_PERSIST_GATE_DIR) that the durable chat writes use; the reset gates, failpoints, trace, spool and metrics hooks return with the E2-3c storage reset barrier.',
+                    'Holds the db-persist gate of the durable chat writes and the E2-3c storage reset hooks (admission and reset gates, failpoints, trace). An inert gate returns synchronously so it adds no step to the storage queue. The spool and metrics hooks are gone with the 1.10.0 spool (E2-3c decision: the native import reads its body inside its transaction).',
+                'lazy-chat-sync:session-lock:invalidate-before:1.10':
+                    'invalidateBefore(t) is rewritten over the PocketRisu 1.16.1 revokeAll meaning: nobody holds the lock afterwards and a session that booted at or before t is stale, while a later one gets the native fresh, passive and tookOver states. The 1.10.0 watermark units are retired.',
             },
             replaced: {},
             added: {
@@ -131,21 +134,21 @@ module.exports = {
                 'lazy-chat-sync:server-write-retire:1.16':
                     'The full database write retires the records it wrote.',
                 'lazy-chat-sync:server-backup-import-journal:1.16':
-                    'Backup import, server restore and account apply drop the journal rows in the transaction that commits the new database.',
+                    'Backup import, server restore and account apply finish their single transaction: the journal rows go and the storage epoch advances, the inlay directory is swapped before COMMIT, and a failure puts the previous inlay directory back (or enters recovery-required mode).',
                 'lazy-chat-sync:server-backup-import-journal-memory:1.16':
                     'Backup import, server restore and account apply clear the journal memory after COMMIT.',
                 'lazy-chat-sync:server-save-folder-dir-journal:1.16':
-                    'Save-folder execute drops the journal rows in its import transaction.',
+                    'Save-folder execute drops the journal rows and advances the storage epoch in its import transaction.',
                 'lazy-chat-sync:server-save-folder-dir-journal-memory:1.16':
-                    'Save-folder execute clears the journal memory after COMMIT.',
+                    'Save-folder execute marks its reset committed and clears the journal memory after COMMIT.',
                 'lazy-chat-sync:server-save-folder-entries-journal:1.16':
-                    'Save-folder upload drops the journal rows in its import transaction.',
+                    'Save-folder upload drops the journal rows and advances the storage epoch in its import transaction.',
                 'lazy-chat-sync:server-save-folder-entries-journal-memory:1.16':
-                    'Save-folder upload clears the journal memory after COMMIT.',
+                    'Save-folder upload marks its reset committed and clears the journal memory after COMMIT.',
                 'lazy-chat-sync:server-snapshot-restore-journal:1.16':
-                    'Snapshot restore commits the database, plugin rows and journal deletion together (commitSnapshotRestore), then clears the journal memory.',
+                    'Snapshot restore commits the database, plugin rows, journal deletion and storage epoch together (commitSnapshotRestore), then clears the journal memory.',
                 'lazy-chat-sync:server-database-remove-journal:1.16':
-                    'Removing database.bin drops the journal rows in the same transaction, then clears the journal memory.',
+                    'Removing database.bin is a storage reset: it takes the import exclusion (409 while another reset runs), drops the journal rows and advances the storage epoch in the same transaction, then clears the caches and the journal memory.',
                 'lazy-chat-sync:server-cold-storage-fallback-fm-index:1.16':
                     'The chat the server creates for a cold-storage character it cannot restore carries fmIndex.',
                 'lazy-chat-sync:owned:server:node:chatDurability-e2-3-test-ts:1.16':
@@ -154,10 +157,78 @@ module.exports = {
                     'Compat helper that restarts a server process on the same save folder.',
                 'lazy-chat-sync:owned:test:compat:restart-durability-e2-3-test-ts:1.16':
                     'Compat tests for a chat acknowledged before a kill, the native reset paths across a restart and the archive state across a restart.',
+                'lazy-chat-sync:server-barrier-state:1.16':
+                    'Storage reset barrier state, admission (generation recorded at entry, rechecked when queued work is queued and when it runs), debounced-write tracking around a reset, storage epoch, and the reset runner with the inlay swap helpers.',
+                'lazy-chat-sync:server-check-active-session-options:1.16':
+                    'checkActiveSession takes storageReset (routes that start a reset) and storageResetExempt (log routes).',
+                'lazy-chat-sync:server-check-active-session-gate:1.16':
+                    'checkActiveSession applies the storage reset gate after the native account import gate; the account import routes skip it.',
+                'lazy-chat-sync:server-flush-gate:1.16':
+                    '/api/db/flush, which does not call checkActiveSession, applies the same storage reset gate.',
+                'lazy-chat-sync:server-logs-exempt:1.16':
+                    'Clearing the server logs stays outside the storage reset gate.',
+                'lazy-chat-sync:server-request-logs-exempt:1.16':
+                    'The request log routes stay outside the storage reset gate.',
+                'lazy-chat-sync:server-remove-gate:1.16':
+                    '/api/remove passes the gate as a reset start for database.bin and as a writer for other keys.',
+                'lazy-chat-sync:server-backup-import-prepare-gate:1.16':
+                    'Backup import preparation is a reset start: a competing reset gets the native 409.',
+                'lazy-chat-sync:server-backup-import-gate:1.16':
+                    'Backup import is a reset start: a competing reset gets the native 409.',
+                'lazy-chat-sync:server-server-restore-gate:1.16':
+                    'Server restore is a reset start: a competing reset gets the native 409.',
+                'lazy-chat-sync:server-server-restore-kind:1.16':
+                    'Server restore runs its import as the server-restore reset.',
+                'lazy-chat-sync:server-account-apply-kind:1.16':
+                    'Account apply runs its import as the account-apply reset.',
+                'lazy-chat-sync:server-save-folder-execute-gate:1.16':
+                    'Save-folder execute is a reset start: a competing reset gets the native 409.',
+                'lazy-chat-sync:server-save-folder-upload-gate:1.16':
+                    'Save-folder upload is a reset start: a competing reset gets the native 409.',
+                'lazy-chat-sync:server-save-folder-upload-begin:1.16':
+                    'Save-folder upload starts its reset before it reads the upload.',
+                'lazy-chat-sync:server-save-folder-upload-end:1.16':
+                    'Save-folder upload ends its reset when the route ends, including an aborted upload.',
+                'lazy-chat-sync:server-snapshot-restore-gate:1.16':
+                    'Snapshot restore is a reset start and takes the import exclusion (409 while another reset runs).',
+                'lazy-chat-sync:server-snapshot-restore-runner:1.16':
+                    'Snapshot restore runs in the reset runner instead of a plain storage queue slot; its native flush with restoringSnapshotKey stays.',
+                'lazy-chat-sync:server-snapshot-restore-end:1.16':
+                    'Snapshot restore releases the import exclusion.',
+                'lazy-chat-sync:server-backup-import-runner:1.16':
+                    'importBackupFromSource runs as one storage reset for every caller.',
+                'lazy-chat-sync:server-backup-import-single-transaction:1.16':
+                    'Backup import keeps all entries in one transaction (no commit every 5,000 entries) and has the entry failpoint.',
+                'lazy-chat-sync:server-backup-import-inlay-swap-after-commit:1.16':
+                    'The inlay swap after COMMIT is removed (it runs before COMMIT); the previous directory is removed and the marker written after COMMIT.',
+                'lazy-chat-sync:server-save-folder-dir-runner:1.16':
+                    'Save-folder execute runs as one storage reset.',
+                'lazy-chat-sync:server-save-folder-entries-runner:1.16':
+                    'Save-folder upload applies its entries in the reset its route began.',
+                'lazy-chat-sync:server-inlay-compress-generation:1.16':
+                    'Bulk inlay compression writes no image after a storage reset started, and a reset waits for a write already started.',
+                'lazy-chat-sync:server-patch-persist-timer:1.16':
+                    'The /api/patch debounce timer is tracked around a reset.',
+                'lazy-chat-sync:server-patch-persist-timer-end:1.16':
+                    'Closes the tracked /api/patch debounce timer.',
+                'lazy-chat-sync:server-chat-persist-timer:1.16':
+                    'The chat POST debounce timer is tracked around a reset.',
+                'lazy-chat-sync:server-chat-persist-timer-end:1.16':
+                    'Closes the tracked chat POST debounce timer.',
+                'lazy-chat-sync:server-error-refusal:1.16':
+                    'The error handler answers a storage reset refusal with its status and payload.',
+                'lazy-chat-sync:owned:server:node:storageBarrier-e2-3-test-ts:1.16':
+                    'Server tests for post-reset session invalidation, the epoch-aware commit owner and the reset hook surface.',
+                'lazy-chat-sync:owned:test:compat:storage-reset-e2-3-test-ts:1.16':
+                    'Compat tests for the storage reset barrier, competing resets, rollback and recovery-required mode, and the account import gate order.',
+                'lazy-chat-sync:owned:test:compat:storage-reset-b1a-lazy-chat-sync-test-ts:1.16':
+                    'Cases of the server-backup-snapshot-core storage-reset-b1a compat test that run with this pack alone, moved verbatim.',
+                'lazy-chat-sync:owned:test:compat:session-reset-b2-lazy-chat-sync-test-ts:1.16':
+                    'Cases of the server-backup-snapshot-core session-reset-b2 compat test that run with this pack alone, moved verbatim.',
             },
             retired: {
                 'lazy-chat-sync:replace:server:node:server-cjs:1.10':
-                    'Whole-file replacement. The durable chat writes return as the lazy-chat-sync:server-*:1.16 units; the storage reset barrier and storage epoch return with E2-3c, the chat revision protocol and the stripped database invariants with E2-3d.',
+                    'Whole-file replacement. The durable chat writes (E2-3b) and the storage reset barrier with the storage epoch (E2-3c) return as the lazy-chat-sync:server-*:1.16 units; the chat revision protocol and the stripped database invariants return with E2-3d.',
                 'lazy-chat-sync:replace:src:ts:bootstrap-ts:1.10':
                     'Whole-file replacement. The startup database cache and the plugin load order return with E2-3e.',
                 'lazy-chat-sync:replace:src:ts:globalApi-svelte-ts:1.10':
@@ -213,7 +284,7 @@ module.exports = {
                 'lazy-chat-sync:owned:src:ts:storage:startupDatabaseCache-ts':
                     'Startup database cache; returns with E2-3e.',
                 'lazy-chat-sync:owned:server:node:sessionLockReset-phaseB-test-ts:1.10':
-                    'Post-reset session invalidation; returns with E2-3c.',
+                    'Pins the 1.10.0 watermark meaning (an unknown boot is stale, the next write adopts the free lock without the passive state). E2-3c keeps the native fresh, passive and tookOver rules after invalidateBefore; storageBarrier.e2-3.test.ts (c5) covers it.',
                 'lazy-chat-sync:owned:src:ts:bootstrap-freshDatabase-test-ts:1.10':
                     'Fresh database first save; returns with E2-3d.',
                 'lazy-chat-sync:owned:src:ts:storage:globalApi-savePersistence-test-ts:1.10':
@@ -227,15 +298,13 @@ module.exports = {
                 'lazy-chat-sync:plugin-api-chat-metadata-types':
                     'Type of the getDatabaseMetadata plugin API of the plugin chat access rewrite; decided in E2-7.',
                 'lazy-chat-sync:session-lock:watermark:1.10':
-                    'Post-reset session invalidation; rewritten over the PocketRisu 1.16.1 session lock in E2-3c.',
+                    'Part of the 1.10.0 watermark invalidation. E2-3c rewrites invalidateBefore over the PocketRisu 1.16.1 revokeAll meaning (lazy-chat-sync:session-lock:invalidate-before:1.10), which needs no change to register, checkWrite or peek.',
                 'lazy-chat-sync:session-lock:register:1.10':
-                    'Post-reset session invalidation; rewritten over the PocketRisu 1.16.1 session lock in E2-3c.',
+                    'Part of the 1.10.0 watermark invalidation. E2-3c rewrites invalidateBefore over the PocketRisu 1.16.1 revokeAll meaning (lazy-chat-sync:session-lock:invalidate-before:1.10), which needs no change to register, checkWrite or peek.',
                 'lazy-chat-sync:session-lock:check-write:1.10':
-                    'Post-reset session invalidation; rewritten over the PocketRisu 1.16.1 session lock in E2-3c.',
+                    'Part of the 1.10.0 watermark invalidation. E2-3c rewrites invalidateBefore over the PocketRisu 1.16.1 revokeAll meaning (lazy-chat-sync:session-lock:invalidate-before:1.10), which needs no change to register, checkWrite or peek.',
                 'lazy-chat-sync:session-lock:peek:1.10':
-                    'Post-reset session invalidation; rewritten over the PocketRisu 1.16.1 session lock in E2-3c.',
-                'lazy-chat-sync:session-lock:invalidate-before:1.10':
-                    'Post-reset session invalidation; rewritten over the PocketRisu 1.16.1 session lock in E2-3c.',
+                    'Part of the 1.10.0 watermark invalidation. E2-3c rewrites invalidateBefore over the PocketRisu 1.16.1 revokeAll meaning (lazy-chat-sync:session-lock:invalidate-before:1.10), which needs no change to register, checkWrite or peek.',
             },
         },
     },
@@ -263,9 +332,9 @@ module.exports = {
                 'server-backup-snapshot-core:owned:test:compat:backup-point-in-time-test-ts:1.9':
                     'Integration test that needs packs outside the core closure (the lazy adapter pinned backup endpoints); returns with its owner pack rebase.',
                 'server-backup-snapshot-core:owned:test:compat:storage-reset-b1a-test-ts:1.9':
-                    'Integration test that needs packs outside the core closure (lazy-chat-sync storage reset, BG cleanup); returns with its owner pack rebase.',
+                    'Integration test that needs packs outside the core closure (lazy-chat-sync storage reset, BG cleanup); the cases that run with lazy-chat-sync alone are lazy-chat-sync test units since E2-3c, the rest returns with its owner pack rebase.',
                 'server-backup-snapshot-core:owned:test:compat:session-reset-b2-test-ts:1.9':
-                    'Integration test that needs packs outside the core closure (lazy-chat-sync storage reset, BG session cleanup); returns with its owner pack rebase.',
+                    'Integration test that needs packs outside the core closure (lazy-chat-sync storage reset, BG session cleanup); the cases that run with lazy-chat-sync alone are lazy-chat-sync test units since E2-3c, the rest returns with its owner pack rebase.',
                 'server-backup-snapshot-core:owned:test:compat:reset-orphans-b3-test-ts:1.9':
                     'Integration test that needs packs outside the core closure (lazy-chat-sync storage reset, BG result cleanup); returns with its owner pack rebase.',
             },
