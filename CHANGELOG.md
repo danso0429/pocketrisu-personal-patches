@@ -1,5 +1,15 @@
 # Changelog
 
+## 0.2.4-experimental.101 (lazy chat sync: chat save results refused once the slot holds another chat object)
+
+- A chat save now records the chat's slot object it finds in the current database when its context is captured (by character and chat id), and looks the slot up again by the same ids, never by index, when the save is accepted. Native paths that put another object into the slot without touching its save base (the trigger write-back, plugin character and database writes, the 409 database replacement) or remove the character no longer let a save that was running meanwhile publish its rebase into the object that left the slot or make that rebase the base of the new object. The slot keeps its base, or gets the base the save started from when it holds none, and its next save rebases the message another device saved back in. A result accepted without a rebase is what the server holds, so it still becomes the slot's base and the new object's next save causes no conflict.
+- A save handed another object than the chat's slot holds (job recovery saving a chat taken from a character a plugin replaced meanwhile) is treated as replaced from the start. A save of a chat the current database does not list behaves as before.
+- A plugin write to a chat that is not open records the slot object it wrote and decides by the same rule, so its base also advances after a character replacement when the result needed no rebase. Its read token still advances only after a write saved without a rebase.
+- The database state is loaded before any chat save that captures its own context, not only before the open chat's autosave.
+- `src/ts/storage/chatSlotIdentity.e2-3.test.ts` (client tests for this change) is an owned unit of the pack.
+- `patches/target-coverage.cjs` adds `lazy-chat-sync:owned:src:ts:storage:chatSlotIdentity-e2-3-test-ts:1.16` and updates the descriptions of the changed units.
+- Stable remains v0.2.3.
+
 ## 0.2.4-experimental.100 (lazy chat sync: chat recreation scoped to the invariant recovery retry)
 
 - The chat storage no longer keeps a storage-wide set of chats whose next save recreates a missing body (`recreateChatOnNextSave` is removed). A 422 invariant recovery that names a chat this client holds drops that chat's slot base (`forgetChatSaveBase`) and gives the permission to create the chat to the single retry it causes: that database save attempt takes the permission when it starts and, when it saves the named chat, passes `recreate` as a save option. The option is part of the chat's save context, so it holds through the delta-to-full fallback. The permission ends with that attempt, also when it skipped or failed the chat, so a later direct `saveChatToServer` or database save of that chat that is classified as an update ends in `ChatConflictError` when the server has no copy (d8), and a save of another chat never gets it. The one-recovery guard for the named chat stays separate and unchanged.

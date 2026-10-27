@@ -298,6 +298,13 @@ export interface ChatSaveContext {
     readonly entry: ChatSaveBase | undefined
     /** The database replacement generation at capture (NodeStorage.noteDatabaseReplaced), compared like \`entry\`. */
     readonly generation: number
+    /**
+     * The chat's slot object the caller found in the current database at
+     * capture (by chaId and chatId), with the lookup that finds the slot
+     * again; null when it found none. A slot save of another object is
+     * replaced from capture (chatSaveSlotReplaced).
+     */
+    readonly slot: { readonly chat: object, readonly locate: () => unknown, readonly replacedAtCapture: boolean } | null
     /** The caller publishes the result into the chat's slot and adopts its base itself. */
     readonly detached: boolean
     /** Set once the server accepted the content: its new base, and the content as rebased when a rebase happened. */
@@ -496,15 +503,29 @@ function readMissingFullChat(body: any): { chaId: string, chatId: string } | und
      * base, else none. A save without a base reads the server copy first.
      * \`options.recreate\` is set only by the retry of a 422 invariant recovery
      * for the chat it named (a server without the chat gets it created).
+     * \`options.slot\` is the chat's slot object the caller found in the
+     * current database and the lookup that finds it again (by chaId and
+     * chatId, never by index); a save that is not detached and was handed
+     * another object than that slot holds is replaced from capture.
      */
     beginChatSave(
         chaId: string,
         chatId: string,
         chat: any,
-        options: { intent?: ChatSaveIntent, baseOf?: any, detached?: boolean, base?: ChatSaveBase | null, recreate?: boolean } = {},
+        options: {
+            intent?: ChatSaveIntent,
+            baseOf?: any,
+            detached?: boolean,
+            base?: ChatSaveBase | null,
+            recreate?: boolean,
+            slot?: { chat: object, locate: () => unknown },
+        } = {},
     ): ChatSaveContext {
         const content = encodeRisuSaveLegacy(chat)
         const detached = options.detached === true
+        const slot = options.slot && options.slot.chat && typeof options.slot.chat === 'object'
+            ? { chat: options.slot.chat, locate: options.slot.locate, replacedAtCapture: !detached && options.slot.chat !== chat }
+            : null
         const source = options.baseOf ?? chat
         const viewBase = detached || !source || typeof source !== 'object' ? undefined : this.chatViewBases.get(source)
         const entry = detached || viewBase ? undefined : this.chatSyncStates.get(this.chatSyncKey(chaId, chatId))
@@ -521,8 +542,24 @@ function readMissingFullChat(body: any): { chaId: string, chatId: string } | und
             view: viewBase ? source : null,
             entry,
             generation: this.databaseGeneration,
+            slot,
             detached,
         }
+    }
+
+    /**
+     * Whether the chat's slot holds another object than the one this save
+     * recorded at capture: looked up again by chaId and chatId, a missing
+     * chat or another object is a replacement (the native trigger write-back,
+     * a plugin character or database write, the 409 database replacement,
+     * a removed character). A save that recorded no slot, and a save of a
+     * handed-out view, are never replaced.
+     */
+    chatSaveSlotReplaced(context: ChatSaveContext): boolean {
+        const slot = context.slot
+        if (!slot || (context.view && !context.detached)) return false
+        if (slot.replacedAtCapture) return true
+        return slot.locate() !== slot.chat
     }
 
     /**
@@ -738,26 +775,30 @@ function readMissingFullChat(body: any): { chaId: string, chatId: string } | und
      * Whether a rebase may be published into the chat being saved: a view or
      * a detached copy belongs to the caller; a chat saved on its slot base
      * only while that base was not replaced since capture (the slot was not
-     * reloaded with other content) and neither was the database.
+     * reloaded with other content), neither was the database, and the slot
+     * still holds the chat object this save recorded (chatSaveSlotReplaced).
      */
     private mayPublishChatSave(context: ChatSaveContext, chat: any): boolean {
         if (!chat || typeof chat !== 'object' || chat.id !== context.chatId) return false
         if (context.view || context.detached) return true
         if (context.generation !== this.databaseGeneration) return false
+        if (this.chatSaveSlotReplaced(context)) return false
         return this.chatSyncStates.get(this.chatSyncKey(context.chaId, context.chatId)) === context.entry
     }
 
     /**
-     * An accepted save captured before the database was replaced: when the
-     * chat's slot holds no base now, the base this save started from (never
-     * its result) becomes the slot base. The replaced slot's content is the
-     * local copy taken at the replacement, from the same starting point as
-     * what this save sent; an older base only makes its next save rebase
-     * changes made on the server in again. A slot base already held stays.
-     * A save of a handed-out view keeps its base on the view.
+     * An accepted save captured before the database was replaced, or a
+     * rebase result accepted while the chat's slot holds another object
+     * (\`replacedMerge\`): when the chat's slot holds no base now, the base
+     * this save started from (never its result) becomes the slot base. The
+     * new slot's content comes from the same starting point as what this save
+     * sent, without what the rebase merged in; an older base only makes its
+     * next save rebase changes made on the server in again. A slot base
+     * already held stays. A save of a handed-out view keeps its base on the
+     * view.
      */
-    private installStartAfterDatabaseReplaced(context: ChatSaveContext): void {
-        if (context.generation === this.databaseGeneration) return
+    private installStartAfterDatabaseReplaced(context: ChatSaveContext, replacedMerge: boolean): void {
+        if (context.generation === this.databaseGeneration && !replacedMerge) return
         if (context.view && !context.detached) return
         const start = context.start
         if (!start?.revision) return
@@ -766,12 +807,20 @@ function readMissingFullChat(body: any): { chaId: string, chatId: string } | und
         this.storeChatSyncState(key, start)
     }
 
-    /** Records an accepted save; its base is adopted unless the caller does that or a rebase could not be published. */
+    /**
+     * Records an accepted save; its base is adopted unless the caller does
+     * that, a rebase could not be published, or the result is a rebase while
+     * the chat's slot holds another object than this save recorded: that
+     * object lacks what was merged, so the slot keeps its base and its next
+     * save rebases the merge in. A result without a rebase is what the server
+     * holds now, so it is adopted even then.
+     */
     private settleChatSave(context: ChatSaveContext, base: ChatSaveBase | null, merged: any | null, published: boolean): void {
         context.result = { base, merged }
-        this.installStartAfterDatabaseReplaced(context)
+        const replacedMerge = merged !== null && this.chatSaveSlotReplaced(context)
+        this.installStartAfterDatabaseReplaced(context, replacedMerge)
         if (!context.detached && !context.view) this.settlePluginWrittenEntry(context)
-        if (context.detached || !published) return
+        if (context.detached || !published || replacedMerge) return
         this.adoptChatSaveResult(context)
     }
 
@@ -1352,31 +1401,50 @@ import type { ChatSaveContext } from "./nodeStorage"
 }, indexedDbChatCopies)
 `,
         content: `    saveChatContentDelta: (chaId, chatIndex, chatId, chat, base, options) => forageStorage.realStorage.saveChatContentDelta(chaId, chatIndex, chatId, chat, base, options),
-    beginChatSave: (chaId, chatId, chat, options) => forageStorage.realStorage?.beginChatSave?.(chaId, chatId, chat, options),
+    // A slot save records the chat's slot object it finds in the current
+    // database now, and how to find the slot again by chaId and chatId: its
+    // result is neither published nor, after a rebase, adopted as the slot's
+    // base once the slot holds another object (NodeStorage.chatSaveSlotReplaced).
+    // Not found (the database state is not loaded, or has no such character
+    // or chat): nothing is recorded.
+    beginChatSave: (chaId, chatId, chat, options) => {
+        const held = findChatSlot(chaId, chatId)?.chat
+        const slot = held && typeof held === 'object'
+            ? { chat: held, locate: () => findChatSlot(chaId, chatId)?.chat }
+            : undefined
+        return forageStorage.realStorage?.beginChatSave?.(chaId, chatId, chat, { ...options, slot })
+    },
     registerFetchedChat: (chaId, chatId, revision, chat) => forageStorage.realStorage?.registerFetchedChat?.(chaId, chatId, revision, chat),
     locateLiveChat: (chaId, chatId) => locateLiveChat(chaId, chatId),
 }, indexedDbChatCopies)
 
-// The current database state (DBState), loaded when the first open-chat
-// autosave is queued rather than with this module, so loading chatStorage
-// still starts no reactive store effects.
+// The current database state (DBState), loaded when the first chat save that
+// captures its own context is requested rather than with this module, so
+// loading chatStorage still starts no reactive store effects.
 let liveDatabaseState: typeof import("../stores.svelte").DBState | null = null
 async function loadLiveDatabaseState(): Promise<void> {
     liveDatabaseState ??= (await import("../stores.svelte")).DBState
+}
+
+// The chat's slot in the current database, found by chaId and chatId (never
+// by index), and its index; null when the character or the chat is not
+// there. A placeholder slot is returned as it is.
+function findChatSlot(chaId: string, chatId: string): { chatIndex: number, chat: Chat } | null {
+    const characters = liveDatabaseState?.db?.characters
+    const character = characters ? Object.values(characters).find(entry => entry?.chaId === chaId) : undefined
+    const chats = character?.chats
+    if (!Array.isArray(chats)) return null
+    const chatIndex = chats.findIndex(entry => entry?.id === chatId)
+    return chatIndex === -1 ? null : { chatIndex, chat: chats[chatIndex] }
 }
 
 // The chat in its slot in the current database and its index, for an open
 // chat's autosave when its turn in the save queue comes; null when the
 // character or the chat is gone or the slot holds a placeholder.
 function locateLiveChat(chaId: string, chatId: string): { chatIndex: number, chat: Chat } | null {
-    const characters = liveDatabaseState?.db?.characters
-    const character = characters ? Object.values(characters).find(entry => entry?.chaId === chaId) : undefined
-    const chats = character?.chats
-    if (!Array.isArray(chats)) return null
-    const chatIndex = chats.findIndex(entry => entry?.id === chatId)
-    const chat = chatIndex === -1 ? undefined : chats[chatIndex]
-    if (!chat || chat._placeholder) return null
-    return { chatIndex, chat }
+    const found = findChatSlot(chaId, chatId)
+    if (!found?.chat || found.chat._placeholder) return null
+    return found
 }
 `,
     },
@@ -1396,7 +1464,9 @@ function locateLiveChat(chaId: string, chatId: string): { chatIndex: number, cha
 // the chat is gone or its slot holds a placeholder by then. \`options.context\`
 // hands in a context the caller captured (NodeStorage.beginChatSave) and
 // reads its result afterwards. \`options.recreate\` is passed only by the
-// retry of a 422 invariant recovery for the chat it named.
+// retry of a 422 invariant recovery for the chat it named. A save that
+// captures its own context records the chat's slot object, so the database
+// state is loaded before it is captured.
 export async function saveChatToServer(
     chaId: string,
     chatIndex: number,
@@ -1405,7 +1475,7 @@ export async function saveChatToServer(
     intent?: ChatSaveIntent,
     options?: { live?: boolean, context?: ChatSaveContext, recreate?: boolean },
 ): Promise<void | 'skipped'> {
-    if (options?.live && !options.context && !liveDatabaseState) await loadLiveDatabaseState()
+    if (!options?.context && !liveDatabaseState) await loadLiveDatabaseState()
     return await chatDeltaSync.saveChat(chaId, chatIndex, chatId, chat, intent, options)
 }
 `,
@@ -1861,8 +1931,23 @@ const PLUGIN_READ_TOKEN_FIELD = '__pluginReadToken';
                         trackCharacterForSave(char.chaId)
                         const sent = $state.snapshot(saved) as any
                         // Save context, taken before the save is queued: the
-                        // plugin's content and its token's base.
-                        const context = storage.beginChatSave(char.chaId, saved.id, sent, { detached: true, base: tokenBase })
+                        // plugin's content and its token's base, and the slot
+                        // object holding that content now, found again by
+                        // chaId and chatId when the save is settled.
+                        const slotChaId = char.chaId
+                        const slotChatId = saved.id
+                        const context = storage.beginChatSave(char.chaId, saved.id, sent, {
+                            detached: true,
+                            base: tokenBase,
+                            slot: {
+                                chat: saved,
+                                locate: () => {
+                                    const characters = DBState.db?.characters
+                                    const chats = characters ? Object.values(characters).find((entry) => entry?.chaId === slotChaId)?.chats : undefined
+                                    return Array.isArray(chats) ? chats.find((entry) => entry?.id === slotChatId) : undefined
+                                },
+                            },
+                        })
                         // The slot holds that content now, so its base is the
                         // context's base.
                         const installed = storage.installChatSaveBase(char.chaId, saved.id, context.base)
@@ -1872,25 +1957,32 @@ const PLUGIN_READ_TOKEN_FIELD = '__pluginReadToken';
                         try { sentView = snapshotChatView(sent) } catch { sentView = null }
                         await saveChatToServer(char.chaId, chatIndex, saved.id, sent, undefined, { context })
                         storage.settlePluginReadToken(readToken, context)
-                        // The slot takes the saved result, and its base, only
-                        // while it still holds the chat put there above. A merge
-                        // with another device's change is published with the
-                        // edits made to the slot meanwhile; when that is not
-                        // possible the slot keeps the base of its content and
-                        // its next save rebases.
-                        const live = char.chats[chatIndex]
-                        if(context.result && live === saved && live.id === saved.id){
+                        // The chat's slot, found again in the current database,
+                        // may hold another object than the one put there above
+                        // (a character or database write replaced it, or the
+                        // character is gone). A result without a rebase is what
+                        // the server holds, so the slot takes its base either
+                        // way. A merge with another device's change is published
+                        // with the edits made to the slot meanwhile, only while
+                        // the slot still holds that object; otherwise, or when
+                        // publishing is not possible, the slot keeps the base of
+                        // its content (or gets this save's starting base when it
+                        // holds none) and its next save rebases.
+                        if(context.result){
+                            const replaced = storage.chatSaveSlotReplaced(context)
                             let published = true
                             if(context.result.merged){
                                 published = false
-                                try {
-                                    const merged = sentView ? rebaseChatSave(sentView, snapshotChatView(live), context.result.merged) : { ok: false as const }
-                                    if(merged.ok){
-                                        publishChatView(live, merged.chat)
-                                        published = true
+                                if(!replaced){
+                                    try {
+                                        const merged = sentView ? rebaseChatSave(sentView, snapshotChatView(saved), context.result.merged) : { ok: false as const }
+                                        if(merged.ok){
+                                            publishChatView(saved, merged.chat)
+                                            published = true
+                                        }
+                                    } catch {
+                                        published = false
                                     }
-                                } catch {
-                                    published = false
                                 }
                             }
                             if(published) storage.adoptChatSaveResult(context, installed)
