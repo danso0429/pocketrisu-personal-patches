@@ -106,8 +106,13 @@ module.exports = {
                 'lazy-chat-sync:owned:src:ts:storage:chatSaveIntent-ts',
                 'lazy-chat-sync:owned:src:ts:storage:nodeStorage-chatRebaseCodec-test-ts',
                 'lazy-chat-sync:chat-missing-payload-notice',
+                'lazy-chat-sync:owned:src:ts:storage:startupDatabaseCache-ts',
+                'lazy-chat-sync:owned:src:ts:storage:startupDatabaseCache-test-ts',
+                'lazy-chat-sync:owned:src:ts:storage:writerSession-ts:1.10',
             ],
             rewritten: {
+                'lazy-chat-sync:owned:src:ts:storage:writerSession-ts:1.10':
+                    'notifySessionDeactivated sends the PocketRisu 1.16.1 event shape (detail { code } from the JSON body of the 423, null without one) and returns a promise: the body is read from a copy taken before anything is awaited, so the caller can still read the response, and NodeStorage awaits it to keep the native event order. The session id, the sessionStorage key and the gesture window are unchanged; NodeStorage takes its session id and isUserActive from this module (E2-3e).',
                 'lazy-chat-sync:owned:server:node:chatWriteJournal-cjs':
                     'PocketRisu 1.16.1 writes the database outside the storage queue, so a chat POST can land between the read and the write of a persist. clearAfterDatabasePersist takes the payloads the persist read and keeps a record whose chat changed since; replayInto replays the loaded records synchronously for the native store rebuilds; markListedRecords ends the wait for an entry once the live database lists the chat.',
                 'lazy-chat-sync:owned:server:node:storageResetTestHooks-cjs:1.10':
@@ -377,22 +382,80 @@ module.exports = {
                     'Client tests for the chat save follow-ups: the open chat autosave captured from its slot at its turn and the database replacement generation (E2-3d2), the hash of plugin-written chat content (E2-3d3) and chat recreation scoped to the invariant recovery retry (E2-3d4).',
                 'lazy-chat-sync:owned:src:ts:storage:chatSlotIdentity-e2-3-test-ts:1.16':
                     'Client tests for chat save results refused once the chat\'s slot holds another chat object (E2-3d5): trigger write-back, plugin character and database writes, a removed character, job recovery and a plugin write to a chat that is not open, with the same object reassigned, reordered chats and results without a rebase kept conflict-free.',
+                'lazy-chat-sync:node-storage-startup-imports:1.16':
+                    'NodeStorage imports the startup database copy and the writer session helper; the copy\'s namespace takes the build version and a schema epoch; the startup load result type.',
+                'lazy-chat-sync:node-storage-startup-user-gesture:1.16':
+                    'The native user-gesture window and its listeners are removed; isUserActive comes from writerSession.ts, so the helper and NodeStorage read one gesture clock.',
+                'lazy-chat-sync:node-storage-startup-writer-session-id:1.16':
+                    'NodeStorage.sessionId is the writerSession.ts id (same sessionStorage key and fallback), so the writes, the XHR uploads, the session registration and the helper send one id even without sessionStorage.',
+                'lazy-chat-sync:node-storage-startup-constructor:1.16':
+                    'A third constructor argument injects the startup database copy; without it the browser stores (CacheStorage bytes, IndexedDB decoded baseline and journal) are used.',
+                'lazy-chat-sync:node-storage-startup-session-deactivated:1.16':
+                    'A 423 sends the native risu-session-deactivated event with detail { code } through the awaited writerSession.ts helper, before the auth retry as before.',
+                'lazy-chat-sync:node-storage-startup-startup-load:1.16':
+                    'loadDatabaseForStartup sends the stored copy\'s ETag as validator; a 304 starts from the decoded baseline with its journal replayed (only when the journal ends at that ETag) or the raw bytes stored under it, anything else clears the copy and reads again without a validator; a non-2xx answer throws the native getItem storage error. scheduleStartupDatabaseCache stores the received bytes decoded again at idle with their response ETag, cancelled by a database write or an invalidation before it runs; invalidateStartupDatabaseCache swallows failures. A database patch is journaled only when the journal ends at its previous ETag and the server returned the next one; otherwise the copy is dropped.',
+                'lazy-chat-sync:node-storage-startup-set-item-invalidate:1.16':
+                    'A successful full database write drops the startup copy.',
+                'lazy-chat-sync:node-storage-startup-remove-item-invalidate:1.16':
+                    'Removing the database drops the startup copy.',
+                'lazy-chat-sync:node-storage-startup-patch-item-previous-etag:1.16':
+                    'patchItem keeps the database ETag it was sent on, the journal entry\'s previous ETag.',
+                'lazy-chat-sync:node-storage-startup-patch-item-journal:1.16':
+                    'A successful database patch goes to the startup journal (or drops the copy) after the native ETag update.',
+                'lazy-chat-sync:node-storage-startup-asset-manifest-invalidate:1.16':
+                    'A successful asset manifest edit changes the server database without moving the client ETag, so it drops the startup copy.',
+                'lazy-chat-sync:node-storage-startup-replacement-import-backup:1.16':
+                    'importBackup replaces the whole database; it drops the startup copy before it returns or throws.',
+                'lazy-chat-sync:node-storage-startup-replacement-restore-server-backup:1.16':
+                    'restoreServerBackup replaces the whole database; it drops the startup copy before it returns or throws.',
+                'lazy-chat-sync:node-storage-startup-replacement-execute-save-folder-import:1.16':
+                    'executeSaveFolderImport replaces the whole database; it drops the startup copy before it returns or throws.',
+                'lazy-chat-sync:node-storage-startup-replacement-upload-save-folder-zip:1.16':
+                    'uploadSaveFolderZip replaces the whole database; it drops the startup copy before it returns or throws.',
+                'lazy-chat-sync:node-storage-startup-replacement-apply-risu-account-import:1.16':
+                    'applyRisuAccountImport starts the account import that replaces the whole database; it drops the startup copy before it returns or throws.',
+                'lazy-chat-sync:auto-storage-startup-startup:1.16':
+                    'AutoStorage delegates the startup load, the idle store and the invalidation to NodeStorage.',
+                'lazy-chat-sync:auto-storage-startup-imports:1.16':
+                    'AutoStorage imports the startup load result type.',
+                'lazy-chat-sync:bootstrap-startup-read:1.16':
+                    'The start reads the database through loadDatabaseForStartup; the native empty database is created only when neither bytes nor a decoded copy came back.',
+                'lazy-chat-sync:bootstrap-startup-decode:1.16':
+                    'A decoded copy confirmed by a 304 is used as it is; bytes are decoded as before, then the native baseline and setDatabase order.',
+                'lazy-chat-sync:bootstrap-startup-store:1.16':
+                    'With bytes (not a new empty database) the transfer size is recorded as before and the bytes are stored at idle with the ETag of their response.',
+                'lazy-chat-sync:bootstrap-startup-retry:1.16':
+                    'A start from the stored copy that fails to decode or apply reads the server body once more without a validator; when that fails too, or the start was not from the copy, the copy is dropped and the native backup order runs, storing no baseline.',
+                'lazy-chat-sync:bootstrap-plugins-early:1.16':
+                    'The native plugin load before the stub conversion is removed (moved below).',
+                'lazy-chat-sync:bootstrap-plugins-after-placeholders:1.16':
+                    'Plugins load, with their status text, after chat stubs became placeholders, so a plugin running at start gets the native placeholder protection of plugin API v3.',
+                'lazy-chat-sync:system-backup-snapshot-restore-invalidate:1.16':
+                    'The snapshot restore (a direct server call) drops the startup copy before the page reloads.',
+                'lazy-chat-sync:owned:src:ts:storage:startupSafety-e2-3-test-ts:1.16':
+                    'Client tests for the startup safety contract (E2-3e): the cache module answers a 304 from its copy, the writer session helper header names, plugins loaded after the stub conversion.',
+                'lazy-chat-sync:owned:src:ts:storage:startupCache-e2-3-helpers-ts:1.16':
+                    'Support for the E2-3e startup tests: memory cache stores, a fake server with ETag semantics, a fake XMLHttpRequest and a harness that runs the real start function.',
+                'lazy-chat-sync:owned:src:ts:storage:startupCache-e2-3-test-ts:1.16':
+                    'Client tests for the startup database copy over the real start function, NodeStorage and AutoStorage (E2-3e): 304 and 200 starts, bad copies, journal chain and limits, idle store cancellation, whole-database replacements, plugin load order and the writer session helper.',
+                'lazy-chat-sync:owned:src:ts:storage:startupCache-server-e2-3-test-ts:1.16':
+                    'Client tests for the startup database copy against the real server (E2-3e): journal replay, 409 rebase, asset manifest edit and snapshot restore.',
             },
             retired: {
                 'lazy-chat-sync:replace:server:node:server-cjs:1.10':
                     'Whole-file replacement. The durable chat writes (E2-3b), the storage reset barrier with the storage epoch (E2-3c), and the chat revision protocol with the stripped database invariants (E2-3d) return as the lazy-chat-sync:server-*:1.16 units.',
                 'lazy-chat-sync:replace:src:ts:bootstrap-ts:1.10':
-                    'Whole-file replacement. The startup database cache and the plugin load order return with E2-3e.',
+                    'Whole-file replacement. The startup database copy and the plugin load order after the stub conversion return as the lazy-chat-sync:bootstrap-*:1.16 units (E2-3e).',
                 'lazy-chat-sync:replace:src:ts:globalApi-svelte-ts:1.10':
                     'Whole-file replacement. Save intent classification, chat id repair, payload-first saves with the recovery slot and the save exports other packs use return as the lazy-chat-sync:global-api-*:1.16 units (E2-3d).',
                 'lazy-chat-sync:replace:src:ts:plugins:apiV3:v3-svelte-ts:1.10':
                     'Whole-file replacement. PocketRisu 1.16.1 plugin API v3 is used; the character tracking of unopened chat writes returns as the lazy-chat-sync:plugin-api-*:1.16 units (E2-3d), other plugin guarantees are decided in E2-7.',
                 'lazy-chat-sync:replace:src:ts:storage:autoStorage-ts:1.10':
-                    'Whole-file replacement. The writer session and startup cache paths return with E2-3e.',
+                    'Whole-file replacement. The startup database copy delegation returns as the lazy-chat-sync:auto-storage-startup-*:1.16 units (E2-3e); the writer session reaches AutoStorage through NodeStorage.',
                 'lazy-chat-sync:replace:src:ts:storage:chatStorage-ts:1.10':
                     'Whole-file replacement. PocketRisu 1.16.1 lazy hydration is used; the revision-aware chat save returns as the lazy-chat-sync:chat-storage-*:1.16 and chat-delta-sync-*:1.16 units (E2-3d).',
                 'lazy-chat-sync:replace:src:ts:storage:nodeStorage-ts:1.10':
-                    'Whole-file replacement. The revision headers on the native chat transports return as the lazy-chat-sync:node-storage-*:1.16 units (E2-3d), the startup database cache with E2-3e.',
+                    'Whole-file replacement. The revision headers on the native chat transports return as the lazy-chat-sync:node-storage-*:1.16 units (E2-3d), the startup database copy and the writer session helper as the lazy-chat-sync:node-storage-startup-*:1.16 units (E2-3e).',
                 'lazy-chat-sync:replace:src:ts:storage:risuSave-ts:1.10':
                     'Whole-file replacement. PocketRisu 1.16.1 patch baseline and hash mismatch handling are used (E2-3a decision).',
                 'lazy-chat-sync:replace:src:ts:storage:risuSavePatcher-test-ts:1.10':
@@ -409,10 +472,6 @@ module.exports = {
                     'Pins the 1.10.0 classification of a baseline without a characters key as update; E2-3d classifies that fresh-install baseline ({}) as create (d8, d11). chatRevision.e2-3.test.ts covers the classifier.',
                 'lazy-chat-sync:owned:src:ts:storage:nodeStorage-chatDelta-test-ts':
                     'Client delta save test of the 1.10.0 whole-file transport; the revision headers on the native delta are covered by chatRevision.e2-3.test.ts (d10, d13) and chat-contract.e2-3.test.ts (d10b).',
-                'lazy-chat-sync:owned:src:ts:storage:startupDatabaseCache-test-ts':
-                    'Startup database cache; returns with E2-3e.',
-                'lazy-chat-sync:owned:src:ts:storage:startupDatabaseCache-ts':
-                    'Startup database cache; returns with E2-3e.',
                 'lazy-chat-sync:owned:server:node:sessionLockReset-phaseB-test-ts:1.10':
                     'Pins the 1.10.0 watermark meaning (an unknown boot is stale, the next write adopts the free lock without the passive state). E2-3c keeps the native fresh, passive and tookOver rules after invalidateBefore; storageBarrier.e2-3.test.ts (c5) covers it.',
                 'lazy-chat-sync:owned:src:ts:bootstrap-freshDatabase-test-ts:1.10':
@@ -420,9 +479,7 @@ module.exports = {
                 'lazy-chat-sync:owned:src:ts:storage:globalApi-savePersistence-test-ts:1.10':
                     'Tests the 1.10.0 whole-file globalApi; the payload-first chat save and its recovery slot are covered by chatRevision.e2-3.test.ts (d9).',
                 'lazy-chat-sync:owned:src:ts:storage:nodeStorage-sessionHeaders-phaseB-test-ts:1.10':
-                    'Writer session header helper; returns with E2-3e.',
-                'lazy-chat-sync:owned:src:ts:storage:writerSession-ts:1.10':
-                    'Writer session header helper; returns with E2-3e.',
+                    'Pins the 1.10.0 NodeStorage constructor (startup cache as the only argument, client build transport) and a synchronous 423 event without detail; on PocketRisu 1.16.1 the event carries detail { code } and is awaited. startupCache.e2-3.test.ts (e3, e3a, e3b, e14) and startupSafety.e2-3.test.ts (e3) cover the writer session helper (E2-3e).',
                 'lazy-chat-sync:plugin-api-chat-metadata-types':
                     'Type of the getDatabaseMetadata plugin API of the plugin chat access rewrite; decided in E2-7.',
                 'lazy-chat-sync:session-lock:watermark:1.10':

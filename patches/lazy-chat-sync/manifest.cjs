@@ -90,7 +90,28 @@ const chatRevisionOwnedUnits = [
     })),
 ]
 
-// E2-3b, E2-3c and E2-3d tests over the native 1.16.1 sources.
+// E2-3e: the startup database copy with its 1.10.0 test, and the writer
+// session helper rewritten for 1.16.1 (files-1.16/). The ids keep their 1.10.0
+// form; other packs require the writer session id.
+const startupOwnedUnits = [
+    ...[
+        'src/ts/storage/startupDatabaseCache.ts',
+        'src/ts/storage/startupDatabaseCache.test.ts',
+    ].map((relative) => ({
+        id: `lazy-chat-sync:owned:${unitId(relative)}`,
+        file: relative,
+        type: 'owned',
+        content: read(filesRoot, relative),
+    })),
+    {
+        id: `lazy-chat-sync:owned:${unitId('src/ts/storage/writerSession.ts')}:1.10`,
+        file: 'src/ts/storage/writerSession.ts',
+        type: 'owned',
+        content: read(files1116Root, 'src/ts/storage/writerSession.ts'),
+    },
+]
+
+// E2-3b, E2-3c, E2-3d and E2-3e tests over the native 1.16.1 sources.
 const ownedTests1116 = [
     'server/node/chatDurability.e2-3.test.ts',
     'server/node/storageBarrier.e2-3.test.ts',
@@ -109,6 +130,11 @@ const ownedTests1116 = [
     'src/ts/storage/chatSaveFollowup.e2-3.test.ts',
     // Chat save results refused once the slot holds another chat object (E2-3d5).
     'src/ts/storage/chatSlotIdentity.e2-3.test.ts',
+    // Client startup safety (E2-3e).
+    'src/ts/storage/startupSafety.e2-3.test.ts',
+    'src/ts/storage/startupCache.e2-3.helpers.ts',
+    'src/ts/storage/startupCache.e2-3.test.ts',
+    'src/ts/storage/startupCache.server.e2-3.test.ts',
 ].map((relative) => ({
     id: `lazy-chat-sync:owned:${unitId(relative)}:1.16`,
     file: relative,
@@ -133,6 +159,8 @@ module.exports = {
         ...require('./server-reset-units.cjs'),
         ...chatRevisionOwnedUnits,
         ...require('./chat-revision-units.cjs'),
+        ...startupOwnedUnits,
+        ...require('./startup-units.cjs'),
         ...require('./native-test-units.cjs'),
         ...ownedTests1116,
     ],
