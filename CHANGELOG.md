@@ -1,5 +1,14 @@
 # Changelog
 
+## 0.2.4-experimental.98 (lazy chat sync: open chat autosave captured at its turn)
+
+- The open chat's autosave no longer holds the chat object it was queued with. When its turn in the save queue comes it looks the chat up again in the current database by character and chat id, and takes the content, the base, the delta fingerprints and the chat index from the object in the slot at that moment. An open-chat autosave queued before a plugin write replaced the chat now saves the plugin's content on the base that write installed, so a later save of the plugin's content no longer drops the user's earlier edit (the first known open issue of 0.2.4-experimental.96).
+- When the chat is gone or its slot holds a placeholder by the time the autosave's turn comes, nothing is sent and `saveChatToServer` resolves `'skipped'`. The database save does not count a skipped chat as posted, so a new chat whose body never reached the server is not confirmed with the metadata (the server refuses that metadata with 422 as before).
+- Right after the native 409 rebase replaces the whole database (`setDatabase(mergedDb)`), the chat storage counts a database replacement. A chat save captured before it, including a plugin write to a chat that is not open, no longer publishes its rebase into a chat or moves the chat's slot base after it. When such a save is accepted and the chat holds no slot base, the base that save started from (its captured base, or the server copy it read first when it had none; never its result) becomes the slot base; a slot base already held stays. The next save from the replaced database then names that older revision and rebases on the server copy, so a message another device saved meanwhile is kept.
+- Saves that are not the open chat's autosave still capture their content when they are called. The other known open issue of 0.2.4-experimental.96 remains: the written-content copy kept for an open-chat plugin write is not bounded by the save-base memory limits.
+- `patches/target-coverage.cjs` adds `lazy-chat-sync:global-api-database-replaced-generation:1.16` and updates the descriptions of the changed units.
+- Stable remains v0.2.3.
+
 ## 0.2.4-experimental.97 (lazy chat sync: storage reset fixes)
 
 - A storage reset now also waits for a database flush that started while it was waiting to begin, and while it replaces the storage a database read or export no longer writes the pending database save from before the reset, so a removed or restored database is not overwritten afterwards.
