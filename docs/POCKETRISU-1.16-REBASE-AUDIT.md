@@ -413,6 +413,32 @@ separate verbose run on the same composition showed the seven fence
 `*.e2-2a.test.ts` files (19 tests) and the core's `backupSnapshot.test.ts`
 and `backupSource.test.ts` (8 tests) passing.
 
+### E2-3 result (E2-3b to E2-3d; E2-3e open)
+
+Commits from 2026-10-27 (KST). Each one passed the repository suite with 0 failures. Each one also had two identical installer builds (mode 755, `node --check`). Blind tests and regression tests were written before each fix, on a tree without that fix.
+
+| Unit | Release | Change |
+| --- | --- | --- |
+| E2-3b | `0.2.4-experimental.94` (`7336c26`) | Server chat-write durability over native 1.16.1: the durable chat write journal as units. |
+| E2-3c | `0.2.4-experimental.95` (`921ce3a`), fixes `0.2.4-experimental.97` (`bce35e6`) | Storage reset barrier: the reset gate in `checkActiveSession`, run-time generation checks, timer cleanup, single-transaction replacement for every reset path, the storage epoch, and post-commit publication in `finally`. A later Codex batch review found two defects. A database read or export during a reset could write the pre-reset database back. Stream error lines lacked the recovery-required payload. Both were fixed in `.97`, with regression tests r4 and r5 and a seeded c4a. |
+| E2-3d | `0.2.4-experimental.96` (`bcfc0d6`) | Chat revision protocol: GET revision and 304, base revision on POST (428, 409, create-only 412), `CHAT_PAYLOAD_MISSING`, and the stripped-database invariant on `/api/write` and `/api/patch` (422). Client saves carry a save context, and plugin writes save on the base named by a per-read token. Six code-review rounds changed the structure twice. Both changes followed the bug-fix protocol: first the save-context rule, then plugin read tokens. |
+
+Open before any live apply of this line: two E2-3d round-6 findings.
+
+- First, an open-chat autosave queued before a plugin write can save the replaced chat's content on the base that the plugin write installed. The structural cause is that the content is taken from the object while the base is taken from the slot by chat id.
+- Second, the written-content copy of an open-chat plugin write sits outside the save-base memory bounds.
+
+They are recorded in the planning repository's E2-3 plan and in the `.96` CHANGELOG entry. The next unit is E2-3e (client startup safety).
+
+Subset harness for `.97`, on fresh copies of pristine `v1.16.1`. Every step passed, and every run reverted with no residue.
+
+| Subset | Units |
+| --- | --- |
+| `lazy-chat-sync` closure | 144 |
+| seven-pack bundle | 198 |
+
+In the applied tree, client tests gave 1,708 passed and 3 skipped. Server tests gave 275 passed. Compat tests gave 206 passed and 6 skipped.
+
 ### E2-0b evidence
 
 Four read-only explorers re-read the packs whose disposition removes or
