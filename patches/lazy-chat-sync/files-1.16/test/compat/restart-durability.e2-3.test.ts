@@ -25,19 +25,25 @@ async function readChat(client: Awaited<ReturnType<typeof createClient>>) {
   return { response, chat: response.ok ? await utils.decodeRisuSave(Buffer.from(await response.arrayBuffer())) : null }
 }
 
+function baseRevision(response: Response): Record<string, string> {
+  const revision = response.headers.get('x-chat-revision')
+  return revision ? { 'x-chat-base-revision': revision } : {}
+}
+
 describe('[E2-3b] Rebuild server chat-write durability over native 1.16.1', () => {
   test('[new] b1 a chat acknowledged before SIGKILL is recovered by a fresh process before the debounce', async () => {
     server = await spawnRestartableServer()
     let client = await createClient(server.port, server.password)
     expect((await client.importBackup(createSeedBackup({ messagesPerChat: 2 }))).ok).toBe(true)
-    const before = (await readChat(client)).chat
+    const beforeRead = await readChat(client)
+    const before = beforeRead.chat
     const changed = {
       ...before,
       message: [...before.message, { role: 'user', data: 'acknowledged immediately before kill', chatId: 'e2-b1' }],
     }
     const posted = await client.fetch('/api/chat-content/test-char-0/0', {
       method: 'POST',
-      headers: { 'content-type': 'application/octet-stream', 'x-chat-id': changed.id },
+      headers: { 'content-type': 'application/octet-stream', 'x-chat-id': changed.id, ...baseRevision(beforeRead.response) },
       body: encode(changed),
     })
     expect(posted.status).toBe(200)
@@ -112,10 +118,11 @@ describe('[E2-3b] Rebuild server chat-write durability over native 1.16.1', () =
         snapshotKey = snapshots.snapshots.at(-1).key
         await new Promise(resolve => setTimeout(resolve, 110))
       }
-      const before = (await readChat(client)).chat
+      const beforeRead = await readChat(client)
+      const before = beforeRead.chat
       const dirty = { ...before, message: [...before.message, { role: 'user', data: 'must be discarded by reset', chatId: 'e2-b5' }] }
       expect((await client.fetch('/api/chat-content/test-char-0/0', {
-        method: 'POST', headers: { 'content-type': 'application/octet-stream', 'x-chat-id': dirty.id }, body: encode(dirty),
+        method: 'POST', headers: { 'content-type': 'application/octet-stream', 'x-chat-id': dirty.id, ...baseRevision(beforeRead.response) }, body: encode(dirty),
       })).status).toBe(200)
       const db = new Database(path.join(server.cwd, 'save', 'risuai.db'), { readonly: true })
       const pending = (db.prepare("SELECT count(*) AS count FROM kv WHERE key LIKE 'internal/chat-write/v1/%'").get() as any).count
@@ -192,14 +199,15 @@ describe('[E2-3b] Rebuild server chat-write durability over native 1.16.1', () =
 
     const dbKey = Buffer.from('database/database.bin').toString('hex')
     expect((await client.fetch('/api/read', { headers: { 'file-path': dbKey } })).status).toBe(200)
-    const before = (await readChat(client)).chat
+    const beforeRead = await readChat(client)
+    const before = beforeRead.chat
     const dirty = {
       ...before,
       message: [...before.message, { role: 'user', data: 'must not survive database removal', chatId: 'e2-b5-warm-remove' }],
     }
     expect((await client.fetch('/api/chat-content/test-char-0/0', {
       method: 'POST',
-      headers: { 'content-type': 'application/octet-stream', 'x-chat-id': dirty.id },
+      headers: { 'content-type': 'application/octet-stream', 'x-chat-id': dirty.id, ...baseRevision(beforeRead.response) },
       body: encode(dirty),
     })).status).toBe(200)
 

@@ -183,7 +183,7 @@ describe('[E2-3d] Rebuild the chat revision protocol over native 1.16.1', () => 
         const legacy = {
             characters: [{
                 chaId: 'legacy-char', name: 'Legacy', type: 'character', chatPage: 0,
-                chats: [{ id: 'legacy-chat', name: 'Missing', _stub: true, message: [] }],
+                chats: [{ id: 'legacy-chat', name: 'Missing', _stub: true }],
             }],
         }
         expect((await client.importBackup(encodeBackup([
@@ -199,11 +199,26 @@ describe('[E2-3d] Rebuild the chat revision protocol over native 1.16.1', () => 
     test('[new] d15 rejects a newly introduced body-less stub and leaves the database unchanged', async () => {
         const before = await readDb()
         const changed = structuredClone(before.db)
-        changed.characters[0].chats.push({ id: 'body-less', name: 'Body-less', _stub: true, message: [] })
+        changed.characters[0].chats.push({ id: 'body-less', name: 'Body-less', _stub: true })
         const response = await writeDb(changed, before.response.headers.get('x-db-etag'))
         expect(response.status).toBe(422)
         expect((await response.json()).code).toBe('DB_INVARIANT_REJECTED')
         expect((await readDb()).db).toEqual(before.db)
+    })
+
+    test('[unchanged] d15c accepts a stub that carries a message array as a chat with a body', async () => {
+        const before = await readDb()
+        const changed = structuredClone(before.db)
+        const chaId = changed.characters[0].chaId
+        const index = changed.characters[0].chats.length
+        const carried = [{ role: 'user', data: 'carried by a hybrid stub' }]
+        changed.characters[0].chats.push({ id: 'hybrid-stub', name: 'Hybrid stub', _stub: true, message: carried })
+        const response = await writeDb(changed, before.response.headers.get('x-db-etag'))
+        expect(response.status).toBe(200)
+        const read = await client.fetch(`/api/chat-content/${chaId}/${index}`, { headers: { 'x-chat-id': 'hybrid-stub' } })
+        expect(read.status).toBe(200)
+        const chat = await utils.decodeRisuSave(Buffer.from(await read.arrayBuffer()))
+        expect(chat.message.map((entry: any) => entry.data)).toEqual(['carried by a hybrid stub'])
     })
 
     test('[new] d15b rejects a patch that introduces a body-less chat without advancing the baseline', async () => {

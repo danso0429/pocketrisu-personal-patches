@@ -94,12 +94,28 @@ module.exports = {
                 'lazy-chat-sync:owned:server:node:storageResetPrepare-phaseC-test-ts:1.10',
                 'lazy-chat-sync:owned:server:node:storageResetTestHooks-cjs:1.10',
                 'lazy-chat-sync:session-lock:invalidate-before:1.10',
+                'lazy-chat-sync:owned:server:node:chatDelta-cjs',
+                'lazy-chat-sync:owned:server:node:chatDelta-test-ts',
+                'lazy-chat-sync:owned:server:node:chatWriteJournal-test-ts',
+                'lazy-chat-sync:owned:src:ts:storage:conflictRebase-ts',
+                'lazy-chat-sync:owned:src:ts:storage:conflictRebase-test-ts',
+                'lazy-chat-sync:owned:src:ts:storage:chatSaveRebase-ts',
+                'lazy-chat-sync:owned:src:ts:storage:chatSaveRebase-test-ts',
+                'lazy-chat-sync:owned:src:ts:storage:chatIdentityRepair-ts',
+                'lazy-chat-sync:owned:src:ts:storage:chatIdentityRepair-test-ts',
+                'lazy-chat-sync:owned:src:ts:storage:chatSaveIntent-ts',
+                'lazy-chat-sync:owned:src:ts:storage:nodeStorage-chatRebaseCodec-test-ts',
+                'lazy-chat-sync:chat-missing-payload-notice',
             ],
             rewritten: {
                 'lazy-chat-sync:owned:server:node:chatWriteJournal-cjs':
                     'PocketRisu 1.16.1 writes the database outside the storage queue, so a chat POST can land between the read and the write of a persist. clearAfterDatabasePersist takes the payloads the persist read and keeps a record whose chat changed since; replayInto replays the loaded records synchronously for the native store rebuilds; markListedRecords ends the wait for an entry once the live database lists the chat.',
                 'lazy-chat-sync:owned:server:node:storageResetTestHooks-cjs:1.10':
                     'Holds the db-persist gate of the durable chat writes and the E2-3c storage reset hooks (admission and reset gates, failpoints, trace). An inert gate returns synchronously so it adds no step to the storage queue. The spool and metrics hooks are gone with the 1.10.0 spool (E2-3c decision: the native import reads its body inside its transaction).',
+                'lazy-chat-sync:owned:src:ts:storage:chatIdentityRepair-ts':
+                    'Also repairs a chat id repeated within a character the confirmed baseline proves new (the server stores bodies per character by chat id); a repeated id on a known character is left as it is (E2-3d, d7).',
+                'lazy-chat-sync:owned:src:ts:storage:chatSaveIntent-ts':
+                    'A confirmed baseline without a characters key is the empty database a fresh install starts from ({}), so its chats classify as create instead of update (E2-3d, d8 and d11).',
                 'lazy-chat-sync:session-lock:invalidate-before:1.10':
                     'invalidateBefore(t) is rewritten over the PocketRisu 1.16.1 revokeAll meaning: nobody holds the lock afterwards and a session that booted at or before t is stale, while a later one gets the native fresh, passive and tookOver states. The 1.10.0 watermark units are retired.',
             },
@@ -225,60 +241,160 @@ module.exports = {
                     'Cases of the server-backup-snapshot-core storage-reset-b1a compat test that run with this pack alone, moved verbatim.',
                 'lazy-chat-sync:owned:test:compat:session-reset-b2-lazy-chat-sync-test-ts:1.16':
                     'Cases of the server-backup-snapshot-core session-reset-b2 compat test that run with this pack alone, moved verbatim.',
+                'lazy-chat-sync:server-revision-helpers:1.16':
+                    'Chat revision helpers on the native server: revision match for If-None-Match, the chat POST precondition (428 without a base revision, 409 with currentRevision, 412 for If-None-Match: * on an existing chat; a delta without a base revision keeps the native prefix check alone), and the stripped database invariant check (a body counts in the chat store, inline in the write, or in an archive row of that character).',
+                'lazy-chat-sync:server-chat-get-revision:1.16':
+                    'A chat GET returns x-chat-revision for the whole chat (also with a delta) and answers 304 to a matching If-None-Match.',
+                'lazy-chat-sync:server-chat-get-payload-missing:1.16':
+                    'A chat GET for metadata without a body answers 404 CHAT_PAYLOAD_MISSING instead of an empty chat.',
+                'lazy-chat-sync:server-chat-post-precondition:1.16':
+                    'A chat POST checks the revision precondition before the native delta splice and the journal.',
+                'lazy-chat-sync:server-chat-post-revision:1.16':
+                    'A saved chat POST answers with its new x-chat-revision and x-chat-save-mode.',
+                'lazy-chat-sync:server-write-invariant:1.16':
+                    '/api/write refuses with 422 DB_INVARIANT_REJECTED a database that breaks the stripped database invariants (a new chat without a body, an empty or repeated id); the database stays as it was.',
+                'lazy-chat-sync:server-patch-invariant:1.16':
+                    '/api/patch refuses with 422 a patched database that breaks the stripped database invariants; the cache, the hash baseline and the etag stay as they were.',
+                'lazy-chat-sync:node-storage-imports:1.16':
+                    'nodeStorage imports the stale view rebase and the save intent type.',
+                'lazy-chat-sync:node-storage-errors:1.16':
+                    'ChatConflictError, DatabaseInvariantError, the server chat snapshot type and the chat save base and save context types.',
+                'lazy-chat-sync:node-storage-patch-result-fields:1.16':
+                    'The patch result reports a 422 invariant refusal and the chat it names.',
+                'lazy-chat-sync:node-storage-chat-sync-state:1.16':
+                    'Chat save contexts (the content a save sends and the base it was derived from, captured together and never replaced by a base found later by chat), the bases they come from (a handed-out view\'s own base; the chat\'s slot base, set when fetched content is installed or a plugin write puts content into the slot and moved by a save of that content only while nothing replaced it meanwhile; for a plugin write only the base of the read its read token names, never the slot base; bounded server copies), bounded plugin read tokens (a forgotten token refuses the write instead of becoming a write without a read; a token\'s base advances only after a write saved without a rebase), readServerChatSnapshot, confirmCurrentSnapshotOnServer and the full chat POST under the revision protocol (the context\'s base revision; without a known one the server copy and its revision are read and taken as the base; create-only; an update the server has no copy of is a conflict, never a create; confirmation after a refusal or a lost answer).',
+                'lazy-chat-sync:node-storage-fetch-chat-content:1.16':
+                    'A full chat fetch hands out its view with that read\'s base, so the view is saved on the revision it was read at; the read becomes the chat\'s slot base only when none is held (a copy of the view saved as the slot\'s content then has that base; plugin writes do not use it) and never replaces a held one.',
+                'lazy-chat-sync:node-storage-fetch-chat-delta-revision:1.16':
+                    'The native delta fetch returns the chat revision.',
+                'lazy-chat-sync:node-storage-fetch-chat-delta-revision-return:1.16':
+                    'The native delta fetch reads x-chat-revision.',
+                'lazy-chat-sync:node-storage-save-chat-content:1.16':
+                    'The native delta save sends the base revision of its save context (nothing is sent without one) and falls back to the full save with the same context on any 409; the full save sends the context\'s content, rebases it on the server copy from the context\'s own base (chatSaveRebase.ts), publishes the result into the chat being saved only while that may still show it, and saves again, or throws ChatConflictError.',
+                'lazy-chat-sync:node-storage-patch-item-invariant:1.16':
+                    'A 422 from /api/patch is returned as an invariant refusal, not retried as a full write.',
+                'lazy-chat-sync:node-storage-set-item-invariant:1.16':
+                    'A 422 from /api/write throws DatabaseInvariantError.',
+                'lazy-chat-sync:chat-delta-sync-imports:1.16':
+                    'chatDeltaSync imports the save intent and save context types.',
+                'lazy-chat-sync:chat-delta-sync-transport:1.16':
+                    'The delta transport takes the whole chat, the save intent and the save context, captures save contexts and records the revision of a delta load.',
+                'lazy-chat-sync:chat-delta-sync-fetch-adopt:1.16':
+                    'A chat assembled from a delta load records its revision as that object\'s own base; it becomes the chat\'s base only when installed.',
+                'lazy-chat-sync:chat-delta-sync-save-intent:1.16':
+                    'saveChat passes the save intent and captures the save context at the call (or takes the caller\'s); the open chat\'s autosave captures it when its turn in the queue comes.',
+                'lazy-chat-sync:chat-delta-sync-save-now-intent:1.16':
+                    'saveChatNow takes the save intent and the save context, capturing one when none was taken at the call.',
+                'lazy-chat-sync:chat-delta-sync-save-delta-full-chat:1.16':
+                    'A delta save passes the whole chat it was cut from, the save intent and the save context.',
+                'lazy-chat-sync:chat-delta-sync-save-full-intent:1.16':
+                    'A full save passes the whole chat, the save intent and the same save context as the delta before it.',
+                'lazy-chat-sync:chat-storage-imports:1.16':
+                    'chatStorage imports the save intent and save context types.',
+                'lazy-chat-sync:chat-storage-transport:1.16':
+                    'The chat storage transport forwards the save options, save context capture and the revision of a delta load.',
+                'lazy-chat-sync:chat-storage-save-intent:1.16':
+                    'saveChatToServer takes the save intent and the save options (live autosave, or a context the caller captured).',
+                'lazy-chat-sync:chat-storage-install-base:1.16':
+                    'When hydration installs fetched content into the chat\'s slot, its revision becomes the slot\'s base; a fetch that is not installed changes no base.',
+                'lazy-chat-sync:global-api-imports:1.16':
+                    'globalApi imports the save errors, the save intent and the chat id repair.',
+                'lazy-chat-sync:global-api-save-contract-state:1.16':
+                    'The import save hooks, the markChatDirtyImpl hook and ManualSaveConflictError.',
+                'lazy-chat-sync:global-api-save-contract-exports:1.16':
+                    'trackChatForSave goes through markChatDirtyImpl; requestImportedCharacterSave, requestImportedModuleSave, readServerChatSnapshot and confirmCurrentSnapshotOnServer are exported for dependent packs.',
+                'lazy-chat-sync:global-api-confirmed-chat-baseline:1.16':
+                    'The confirmed chat baseline of the save intent and the chat id repair, and the one-chat recovery slot.',
+                'lazy-chat-sync:global-api-collect-unconfirmed:1.16':
+                    'Chat bodies the server has not confirmed are saved with the database metadata even without a tracker entry.',
+                'lazy-chat-sync:global-api-invariant-retry:1.16':
+                    'A 422 invariant refusal that names a chat this client holds enlists it once and retries body first, its next save creating the body when the server has none even when classified as an update; otherwise the save stops with a visible error and keeps the edits queued.',
+                'lazy-chat-sync:global-api-chat-save-loop:1.16':
+                    'The chat save loop repairs chat ids of new characters, saves each chat with its save intent as the live chat of its slot and stops before the metadata after a failed body (ManualSaveConflictError for a revision conflict).',
+                'lazy-chat-sync:global-api-patch-invariant:1.16':
+                    'A patch invariant refusal goes to the invariant retry.',
+                'lazy-chat-sync:global-api-full-write-invariant:1.16':
+                    'A full write invariant refusal goes to the invariant retry.',
+                'lazy-chat-sync:global-api-confirmed-after-save:1.16':
+                    'The chats a save posted are confirmed with its metadata and leave the recovery slot.',
+                'lazy-chat-sync:global-api-imported-save:1.16':
+                    'Imported characters (with every chat body) and modules reach the server before the import reports success.',
+                'lazy-chat-sync:plugin-api-import:1.16':
+                    'Plugin API v3 imports trackCharacterForSave and the stale view rebase helpers and names the read token field.',
+                'lazy-chat-sync:plugin-api-chat-read-token:1.16':
+                    'getChatFromIndex hands out every chat with a read token for that single read (the full read\'s own base for an unopened chat, the slot base for a loaded one), carried as a field of the handed-out object, since the chat crosses to the plugin as a clone without a base of its own.',
+                'lazy-chat-sync:plugin-api-set-chat-take-token:1.16':
+                    'setChatToIndex removes the read token field before anything else, so it is never normalized, put into the slot or saved.',
+                'lazy-chat-sync:plugin-api-unopened-chat-character:1.16':
+                    'A plugin write saves on the base of the read its token names, never the slot\'s base; without a token, or with one for another chat, the server copy is read first (d13), and a token the host no longer knows refuses the write before the slot changes. On the open chat the plugin content is installed with that base as a new slot base entry, even at the same revision, so its autosave rebases from it and a save already running never moves it; when the autosave saves that content as written without a rebase, the token advances to its result (a token base without its server copy must be the slot\'s own base, otherwise the write is refused first). A write to a chat that is not open also saves its character entry, so its name, folder and modules survive the next database save (d14); its save context is captured before the save is queued and becomes the slot\'s base; the slot takes the saved result and its base only while it still holds that chat, publishing a merge with another device\'s change together with edits made meanwhile. A write saved without a rebase advances its token\'s base to its result.',
+                'lazy-chat-sync:native-test-duplicate-ids-seed-db:1.16':
+                    'Native duplicateIds test setup: the first seedDb writes the database already on disk to the store before the server starts (the invariant refuses repeated ids through /api/write); later calls stay /api/write. No assertion changes.',
+                'lazy-chat-sync:native-test-archive-batch-seed-db:1.16':
+                    'Native archiveBatch test setup: the first seedDb writes the database already on disk to the store before the server starts (the invariant refuses a new chat without a body through /api/write); later calls stay /api/write. No assertion changes.',
+                'lazy-chat-sync:native-test-archive-restore-seed-db:1.16':
+                    'Native archiveRestore test setup: the first seedDb writes the database already on disk to the store before the server starts and loads it into the server cache, as the native first write left it; later calls are the client writes under test and stay /api/write. No assertion changes.',
+                'lazy-chat-sync:native-test-archive-restore-revision-helper:1.16':
+                    'Native archiveRestore test helper that reads a chat revision right before an overwrite.',
+                'lazy-chat-sync:native-test-archive-restore-persist-post:1.16':
+                    'Native archiveRestore test setup: the chat POST sends the revision it read first. No assertion changes.',
+                'lazy-chat-sync:native-test-archive-restore-restart-post:1.16':
+                    'Native archiveRestore test setup: the chat POST sends the revision it read first. No assertion changes.',
+                'lazy-chat-sync:native-test-archive-restore-activate-edit-back:1.16':
+                    'Native archiveRestore test setup: the chat POST sends the revision it read first. No assertion changes.',
+                'lazy-chat-sync:native-test-archive-restore-activate-edit-other:1.16':
+                    'Native archiveRestore test setup: the chat POST sends the revision it read first. No assertion changes.',
+                'lazy-chat-sync:native-test-chat-delta-sync-get-revision:1.16':
+                    'Native chat-delta-sync test helper also returns the chat revision.',
+                'lazy-chat-sync:native-test-chat-delta-sync-full-post:1.16':
+                    'Native chat-delta-sync test setup: the full save sends the revision it read first. No assertion changes.',
+                'lazy-chat-sync:native-test-chat-store-cold-load-get-revision:1.16':
+                    'Native chat-store-cold-load test helper also returns the chat revision.',
+                'lazy-chat-sync:native-test-chat-store-cold-load-post-headers:1.16':
+                    'Native chat-store-cold-load test helper takes the revision headers of the POST.',
+                'lazy-chat-sync:native-test-chat-store-cold-load-save-revision:1.16':
+                    'Native chat-store-cold-load test setup: an overwrite sends the revision it read first. No assertion changes.',
+                'lazy-chat-sync:native-test-chat-store-cold-load-create-only:1.16':
+                    'Native chat-store-cold-load test setup: a new chat is created with If-None-Match: *. No assertion changes.',
+                'lazy-chat-sync:native-test-character-archive-chat-post:1.16':
+                    'Native character-archive test setup: the chat POST sends the revision its GET returned. No assertion changes.',
+                'lazy-chat-sync:owned:test:compat:chat-contract-e2-3-test-ts:1.16':
+                    'Compat tests for the chat revision protocol, the payload-missing answer and the stripped database invariants on the native server.',
+                'lazy-chat-sync:owned:src:ts:storage:chatRevision-e2-3-test-ts:1.16':
+                    'Client tests for the stale view rebase, chat id repair, save intent, recovery slot, revision headers on both native transports, plugin writes and the save exports other packs use.',
+                'lazy-chat-sync:owned:src:ts:storage:saveRecovery-e2-3-test-ts:1.16':
+                    'Client test for the 422 invariant recovery: a known chat whose body is missing on the server is stored again from the client copy and the database save succeeds.',
             },
             retired: {
                 'lazy-chat-sync:replace:server:node:server-cjs:1.10':
-                    'Whole-file replacement. The durable chat writes (E2-3b) and the storage reset barrier with the storage epoch (E2-3c) return as the lazy-chat-sync:server-*:1.16 units; the chat revision protocol and the stripped database invariants return with E2-3d.',
+                    'Whole-file replacement. The durable chat writes (E2-3b), the storage reset barrier with the storage epoch (E2-3c), and the chat revision protocol with the stripped database invariants (E2-3d) return as the lazy-chat-sync:server-*:1.16 units.',
                 'lazy-chat-sync:replace:src:ts:bootstrap-ts:1.10':
                     'Whole-file replacement. The startup database cache and the plugin load order return with E2-3e.',
                 'lazy-chat-sync:replace:src:ts:globalApi-svelte-ts:1.10':
-                    'Whole-file replacement. Save intent classification, chat id repair, stale view rebase and the save exports other packs use return with E2-3d.',
+                    'Whole-file replacement. Save intent classification, chat id repair, payload-first saves with the recovery slot and the save exports other packs use return as the lazy-chat-sync:global-api-*:1.16 units (E2-3d).',
                 'lazy-chat-sync:replace:src:ts:plugins:apiV3:v3-svelte-ts:1.10':
-                    'Whole-file replacement. PocketRisu 1.16.1 plugin API v3 is used; the character tracking of unopened chat writes returns with E2-3d, other plugin guarantees are decided in E2-7.',
+                    'Whole-file replacement. PocketRisu 1.16.1 plugin API v3 is used; the character tracking of unopened chat writes returns as the lazy-chat-sync:plugin-api-*:1.16 units (E2-3d), other plugin guarantees are decided in E2-7.',
                 'lazy-chat-sync:replace:src:ts:storage:autoStorage-ts:1.10':
                     'Whole-file replacement. The writer session and startup cache paths return with E2-3e.',
                 'lazy-chat-sync:replace:src:ts:storage:chatStorage-ts:1.10':
-                    'Whole-file replacement. PocketRisu 1.16.1 lazy hydration is used; the revision-aware chat save returns with E2-3d.',
+                    'Whole-file replacement. PocketRisu 1.16.1 lazy hydration is used; the revision-aware chat save returns as the lazy-chat-sync:chat-storage-*:1.16 and chat-delta-sync-*:1.16 units (E2-3d).',
                 'lazy-chat-sync:replace:src:ts:storage:nodeStorage-ts:1.10':
-                    'Whole-file replacement. The revision headers on the native chat transports return with E2-3d, the startup database cache with E2-3e.',
+                    'Whole-file replacement. The revision headers on the native chat transports return as the lazy-chat-sync:node-storage-*:1.16 units (E2-3d), the startup database cache with E2-3e.',
                 'lazy-chat-sync:replace:src:ts:storage:risuSave-ts:1.10':
                     'Whole-file replacement. PocketRisu 1.16.1 patch baseline and hash mismatch handling are used (E2-3a decision).',
                 'lazy-chat-sync:replace:src:ts:storage:risuSavePatcher-test-ts:1.10':
                     'Replaces the native test of the 1.10.0 patcher; PocketRisu 1.16.1 keeps its own risuSavePatcher test (E2-3a decision).',
                 'lazy-chat-sync:replace:src:ts:storage:chatStorage-test-ts':
-                    'Replaces the native chatStorage test; returns with the client chat save of E2-3d.',
-                'lazy-chat-sync:owned:server:node:chatDelta-cjs':
-                    'Chat revision and stripped database invariant module; returns with E2-3d.',
-                'lazy-chat-sync:owned:server:node:chatDelta-test-ts':
-                    'Test of chatDelta.cjs; returns with E2-3d.',
-                'lazy-chat-sync:owned:server:node:chatWriteJournal-test-ts':
-                    'Imports chatDelta.cjs; returns with E2-3d. chatDurability.e2-3.test.ts covers the journal meanwhile.',
+                    'Replaces the native chatStorage test, which PocketRisu 1.16.1 keeps; the client chat save is covered by chatRevision.e2-3.test.ts (E2-3d).',
                 'lazy-chat-sync:owned:src:ts:plugins:apiV3:pluginChatAccess-test-ts':
                     'Test of the plugin chat access rewrite; plugin guarantees are decided in E2-7.',
                 'lazy-chat-sync:owned:src:ts:plugins:apiV3:pluginChatAccess-ts':
                     'Plugin chat access rewrite; PocketRisu 1.16.1 plugin API v3 is used, missing guarantees are decided in E2-7.',
-                'lazy-chat-sync:owned:src:ts:storage:conflictRebase-test-ts':
-                    'Stale view rebase; returns with E2-3d.',
-                'lazy-chat-sync:owned:src:ts:storage:conflictRebase-ts':
-                    'Stale view rebase; returns with E2-3d.',
-                'lazy-chat-sync:owned:src:ts:storage:chatSaveRebase-ts':
-                    'Stale view rebase; returns with E2-3d.',
-                'lazy-chat-sync:owned:src:ts:storage:chatSaveRebase-test-ts':
-                    'Stale view rebase; returns with E2-3d.',
                 'lazy-chat-sync:owned:src:ts:storage:chatSaveView-svelte-test-ts':
-                    'Client chat save test; returns with E2-3d.',
-                'lazy-chat-sync:owned:src:ts:storage:nodeStorage-chatRebaseCodec-test-ts':
-                    'Client chat save test; returns with E2-3d.',
-                'lazy-chat-sync:owned:src:ts:storage:chatIdentityRepair-test-ts':
-                    'Chat id repair; returns with E2-3d.',
-                'lazy-chat-sync:owned:src:ts:storage:chatIdentityRepair-ts':
-                    'Chat id repair; returns with E2-3d.',
+                    'Pins the 1.10.0 chatStorage publication callback (saveChatContent with canPublish), which the 1.16.1 units do not have: the rebase is published inside nodeStorage.saveChatContent. chatRevision.e2-3.test.ts (d6, d10, d13) covers the stale view rebase.',
                 'lazy-chat-sync:owned:src:ts:storage:chatSaveIntent-test-ts':
-                    'Create and update save classification; returns with E2-3d.',
-                'lazy-chat-sync:owned:src:ts:storage:chatSaveIntent-ts':
-                    'Create and update save classification; returns with E2-3d.',
+                    'Pins the 1.10.0 classification of a baseline without a characters key as update; E2-3d classifies that fresh-install baseline ({}) as create (d8, d11). chatRevision.e2-3.test.ts covers the classifier.',
                 'lazy-chat-sync:owned:src:ts:storage:nodeStorage-chatDelta-test-ts':
-                    'Client delta save test of the 1.10.0 transport; the revision headers on the native delta return with E2-3d.',
+                    'Client delta save test of the 1.10.0 whole-file transport; the revision headers on the native delta are covered by chatRevision.e2-3.test.ts (d10, d13) and chat-contract.e2-3.test.ts (d10b).',
                 'lazy-chat-sync:owned:src:ts:storage:startupDatabaseCache-test-ts':
                     'Startup database cache; returns with E2-3e.',
                 'lazy-chat-sync:owned:src:ts:storage:startupDatabaseCache-ts':
@@ -286,15 +402,13 @@ module.exports = {
                 'lazy-chat-sync:owned:server:node:sessionLockReset-phaseB-test-ts:1.10':
                     'Pins the 1.10.0 watermark meaning (an unknown boot is stale, the next write adopts the free lock without the passive state). E2-3c keeps the native fresh, passive and tookOver rules after invalidateBefore; storageBarrier.e2-3.test.ts (c5) covers it.',
                 'lazy-chat-sync:owned:src:ts:bootstrap-freshDatabase-test-ts:1.10':
-                    'Fresh database first save; returns with E2-3d.',
+                    'Tests the 1.10.0 whole-file bootstrap; the fresh database first save is covered by chatRevision.e2-3.test.ts (d8 and d11).',
                 'lazy-chat-sync:owned:src:ts:storage:globalApi-savePersistence-test-ts:1.10':
-                    'Payload-first chat save persistence; returns with E2-3d.',
+                    'Tests the 1.10.0 whole-file globalApi; the payload-first chat save and its recovery slot are covered by chatRevision.e2-3.test.ts (d9).',
                 'lazy-chat-sync:owned:src:ts:storage:nodeStorage-sessionHeaders-phaseB-test-ts:1.10':
                     'Writer session header helper; returns with E2-3e.',
                 'lazy-chat-sync:owned:src:ts:storage:writerSession-ts:1.10':
                     'Writer session header helper; returns with E2-3e.',
-                'lazy-chat-sync:chat-missing-payload-notice':
-                    'Payload-missing notice; returns with the same id in E2-3d.',
                 'lazy-chat-sync:plugin-api-chat-metadata-types':
                     'Type of the getDatabaseMetadata plugin API of the plugin chat access rewrite; decided in E2-7.',
                 'lazy-chat-sync:session-lock:watermark:1.10':

@@ -58,7 +58,39 @@ const ownedUnits = [
     },
 ]
 
-// E2-3b and E2-3c tests over the native 1.16.1 server.
+// E2-3d: the chat revision and stripped database module, the stale view
+// rebase and the client save classification, with their 1.10.0 tests. The
+// save intent classifier and the chat id repair are rewritten for 1.16.1
+// (files-1.16/); their ids stay.
+const chatRevisionOwnedUnits = [
+    ...[
+        'server/node/chatDelta.cjs',
+        'server/node/chatDelta.test.ts',
+        'server/node/chatWriteJournal.test.ts',
+        'src/ts/storage/conflictRebase.ts',
+        'src/ts/storage/conflictRebase.test.ts',
+        'src/ts/storage/chatSaveRebase.ts',
+        'src/ts/storage/chatSaveRebase.test.ts',
+        'src/ts/storage/chatIdentityRepair.test.ts',
+        'src/ts/storage/nodeStorage.chatRebaseCodec.test.ts',
+    ].map((relative) => ({
+        id: `lazy-chat-sync:owned:${unitId(relative)}`,
+        file: relative,
+        type: 'owned',
+        content: read(filesRoot, relative),
+    })),
+    ...[
+        'src/ts/storage/chatIdentityRepair.ts',
+        'src/ts/storage/chatSaveIntent.ts',
+    ].map((relative) => ({
+        id: `lazy-chat-sync:owned:${unitId(relative)}`,
+        file: relative,
+        type: 'owned',
+        content: read(files1116Root, relative),
+    })),
+]
+
+// E2-3b, E2-3c and E2-3d tests over the native 1.16.1 sources.
 const ownedTests1116 = [
     'server/node/chatDurability.e2-3.test.ts',
     'server/node/storageBarrier.e2-3.test.ts',
@@ -69,6 +101,10 @@ const ownedTests1116 = [
     // pack alone (E2-3c).
     'test/compat/storage-reset-b1a.lazy-chat-sync.test.ts',
     'test/compat/session-reset-b2.lazy-chat-sync.test.ts',
+    // Chat revision protocol (E2-3d).
+    'test/compat/chat-contract.e2-3.test.ts',
+    'src/ts/storage/chatRevision.e2-3.test.ts',
+    'src/ts/storage/saveRecovery.e2-3.test.ts',
 ].map((relative) => ({
     id: `lazy-chat-sync:owned:${unitId(relative)}:1.16`,
     file: relative,
@@ -91,6 +127,9 @@ module.exports = {
         ...ownedUnits,
         ...require('./server-durability-units.cjs'),
         ...require('./server-reset-units.cjs'),
+        ...chatRevisionOwnedUnits,
+        ...require('./chat-revision-units.cjs'),
+        ...require('./native-test-units.cjs'),
         ...ownedTests1116,
     ],
 }
