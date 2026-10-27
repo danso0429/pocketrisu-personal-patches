@@ -25,11 +25,11 @@ function payload1100(relative) {
 
 test('lazy chat pack includes CAS, WAL, reconciliation, and safe hydration boundaries', () => {
     assert.equal(lazyManifest.id, 'lazy-chat-sync')
-    assert.equal(lazyManifest.version, '0.5.19')
+    assert.equal(lazyManifest.version, '0.5.20')
     assert.deepEqual(lazyManifest.targets, {
         pocketrisu: {
-            verified: ['1.10.0'],
-            reviewing: [],
+            verified: [],
+            reviewing: ['1.16.1'],
         },
     })
     assert.match(payload1100('server/node/server.cjs'), /chatWriteJournal/)
@@ -76,24 +76,9 @@ test('lazy chat pack includes CAS, WAL, reconciliation, and safe hydration bound
     )
     assert.match(failedColdStoragePromotion, /id: randomUUID\(\),[\s\S]*name: 'Chat 1'/)
     assert.match(payload1100('server/node/server.cjs'), /randomUUID: generateChatId,/)
-    const metadataTypes = lazyManifest.units.find((unit) =>
-        unit.id === 'lazy-chat-sync:plugin-api-chat-metadata-types'
-    )
-    assert.ok(metadataTypes)
-    assert.match(metadataTypes.content, /getDatabaseMetadata/)
-    const missingPayloadNotice = lazyManifest.units.find((unit) =>
-        unit.id === 'lazy-chat-sync:chat-missing-payload-notice'
-    )
-    assert.ok(missingPayloadNotice)
-    assert.match(missingPayloadNotice.content, /Your draft was kept/)
-
-    const composedSaveTest = lazyManifest.units.find((unit) =>
-        unit.file === 'src/ts/storage/globalApi.savePersistence.test.ts'
-    )
-    assert.ok(composedSaveTest)
-    assert.deepEqual(composedSaveTest.targetVersions, { pocketrisu: ['1.10.0'] })
-    assert.match(composedSaveTest.content, /runAutosaveScheduler/)
-    assert.match(composedSaveTest.content, /requestDurableSaveImpl = async/)
+    // The plugin-api-chat-metadata-types, chat-missing-payload-notice and
+    // globalApi.savePersistence.test.ts units are retired for 1.16.1 in
+    // patches/target-coverage.cjs and return in E2-3d or E2-7.
 })
 
 test('PocketRisu 1.10 replacements retain native runtime owners and lazy-chat contracts', () => {
@@ -149,8 +134,10 @@ test('PocketRisu 1.10 replacements retain native runtime owners and lazy-chat co
     assert.match(nodeStorage1100, /validMissingFullChat/)
     assert.match(save1100, /for \(const v of compare\(lastChar, normChar\)\)/)
 
+    // The nine 1.10 whole-file replacements are retired for 1.16.1 in
+    // patches/target-coverage.cjs; no unit on these files is target-scoped.
     const versioned = lazyManifest.units.filter((unit) =>
-        unit.targetVersions && [
+        (unit.targetVersions || unit.id.endsWith(':1.10')) && [
             'server/node/server.cjs',
             'src/ts/bootstrap.ts',
             'src/ts/globalApi.svelte.ts',
@@ -162,11 +149,7 @@ test('PocketRisu 1.10 replacements retain native runtime owners and lazy-chat co
             'src/ts/storage/risuSavePatcher.test.ts',
         ].includes(unit.file)
     )
-    assert.equal(versioned.length, 9)
-    for (const unit of versioned) {
-        assert.equal(unit.id.endsWith(':1.10'), true, unit.id)
-        assert.deepEqual(unit.targetVersions, { pocketrisu: ['1.10.0'] })
-    }
+    assert.deepEqual(versioned.map(({ id }) => id), [])
 })
 
 test('startup probe accepts either valid browser cache without joining stalled backends', () => {

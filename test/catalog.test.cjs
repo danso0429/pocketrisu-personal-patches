@@ -97,6 +97,13 @@ test.describe('[E2-1c] Make the six E2-1b packs 1.16.1-only', () => {
                 pack.id,
             )
             assert.equal(pack.version, baseline.packs[pack.id].version, pack.id)
+            // lazy-chat-bg-adapter computes unit `after` lists from the current
+            // lazy-chat-sync units, so retiring the 1.10 lazy-chat-sync
+            // replacements changes its hashes while its files stay the same. It
+            // declares only 1.10.0 and requires lazy-chat-sync (now 1.16.1-only),
+            // so it cannot be assembled on any target. Remove this exception when
+            // E2-7 rebases the pack.
+            if (pack.id === 'lazy-chat-bg-adapter') continue
             assert.equal(declarationHash(pack), baseline.packs[pack.id].declarationHash, pack.id)
             for (const unit of selected) {
                 assert.equal(unitHash(unit), unitBaseline.packs[pack.id]?.[unit.id], unit.id)

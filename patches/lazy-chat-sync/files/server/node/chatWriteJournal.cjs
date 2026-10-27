@@ -367,6 +367,14 @@ function createChatWriteJournal({
 
     async function restoreInto(chatStore) {
         await ensureLoaded();
+        replayInto(chatStore);
+    }
+
+    // Synchronous replay of the records already in memory, for store
+    // rebuilds that cannot await. The owner loads the journal once before it
+    // serves requests (ensureLoaded); after resetMemory the durable rows are
+    // gone too, so an empty memory replays nothing that disk still holds.
+    function replayInto(chatStore) {
         for (const record of records.values()) {
             if (record.commitOperationId) continue;
             if (!chatStore.has(record.chaId)) {
@@ -378,8 +386,30 @@ function createChatWriteJournal({
         }
     }
 
-    async function clearAfterDatabasePersist(strippedDatabase) {
+    function samePayload(left, right) {
+        if (left === right) return true;
+        if (!left || !right) return false;
+        try {
+            return Buffer.from(encode(left)).equals(Buffer.from(encode(right)));
+        } catch {
+            return false;
+        }
+    }
+
+    // `persisted` names the chat payloads the database persist wrote, read
+    // when the persist read its chat state: a function (chaId, chatId) =>
+    // chat, or one chat object, which answers for its own id only. Without
+    // it every record the metadata rule allows is retired (a persist that
+    // could not interleave with chat writes).
+    function persistedPayloadLookup(persisted) {
+        if (persisted === undefined || persisted === null) return null;
+        if (typeof persisted === 'function') return persisted;
+        return (_chaId, chatId) => (persisted.id === chatId ? persisted : undefined);
+    }
+
+    async function clearAfterDatabasePersist(strippedDatabase, persisted) {
         await ensureLoaded();
+        const persistedPayload = persistedPayloadLookup(persisted);
         for (const [key, record] of [...records.entries()]) {
             if (record.commitOperationId) continue;
             const metadataCommitted = hasChatMetadata(
@@ -388,6 +418,15 @@ function createChatWriteJournal({
                 record.chatId,
             );
             if (record.awaitingMetadata && !metadataCommitted) continue;
+            // A chat write acknowledged after the persist read its state is
+            // newer than what reached disk: keep it for the next persist and
+            // for replay. A listed chat retires only when the persisted body
+            // is the journaled one; an unlisted one was deleted by the persist.
+            if (
+                persistedPayload
+                && metadataCommitted
+                && !samePayload(persistedPayload(record.chaId, record.chatId), record.chat)
+            ) continue;
             try {
                 kvDel(record.storageKey);
                 records.delete(key);
@@ -396,6 +435,17 @@ function createChatWriteJournal({
                 // replayed on restart and cleanup can succeed on a later flush.
                 onInvalid(record.storageKey, error);
             }
+        }
+    }
+
+    // The live database now lists these chats: a later persist that no
+    // longer lists one deleted it, so the record stops waiting for its
+    // entry. Memory only; after a restart the durable row waits again, which
+    // keeps the body rather than dropping it.
+    function markListedRecords(database) {
+        for (const record of records.values()) {
+            if (record.commitOperationId || !record.awaitingMetadata) continue;
+            if (hasChatMetadata(database, record.chaId, record.chatId)) record.awaitingMetadata = false;
         }
     }
 
@@ -425,7 +475,9 @@ function createChatWriteJournal({
         publishRetirement,
         stage,
         restoreInto,
+        replayInto,
         clearAfterDatabasePersist,
+        markListedRecords,
         isAwaitingMetadata,
         resetMemory,
         size: () => records.size,
