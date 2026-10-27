@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.2.4-experimental.99 (lazy chat sync: hash of plugin-written chat content)
+
+- An open-chat plugin write no longer keeps a copy of the content it wrote. The host keeps only the write's token and the byte length and a 64-bit hash of the encoded content (the mixing of the native `hash64` over the bytes, all 64 bits kept), so what it holds per installed slot base is a fixed size whatever the chat's size. When the slot's next save is accepted without a rebase, the token advances only when the sent content has the same length and hash, under the same token rules as before. This fixes the remaining known open issue of 0.2.4-experimental.96.
+- `patches/target-coverage.cjs` updates the description of `lazy-chat-sync:node-storage-chat-sync-state:1.16`.
+- Stable remains v0.2.3.
+
 ## 0.2.4-experimental.98 (lazy chat sync: open chat autosave captured at its turn)
 
 - The open chat's autosave no longer holds the chat object it was queued with. When its turn in the save queue comes it looks the chat up again in the current database by character and chat id, and takes the content, the base, the delta fingerprints and the chat index from the object in the slot at that moment. An open-chat autosave queued before a plugin write replaced the chat now saves the plugin's content on the base that write installed, so a later save of the plugin's content no longer drops the user's earlier edit (the first known open issue of 0.2.4-experimental.96).

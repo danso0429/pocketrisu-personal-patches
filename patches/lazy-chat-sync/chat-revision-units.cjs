@@ -393,8 +393,9 @@ function readMissingFullChat(body: any): { chaId: string, chatId: string } | und
     private readonly chatViewBases = new WeakMap<object, ChatSaveBase>()
     private readonly pluginReadTokens = new Map<string, { chaId: string, chatId: string, base: ChatSaveBase }>()
     // A slot base an open-chat plugin write installed: the token of that
-    // write and the content it put into the slot.
-    private readonly pluginWrittenEntries = new WeakMap<ChatSaveBase, { token: string, content: Uint8Array }>()
+    // write and the length and 64-bit hash of the encoded content it put into
+    // the slot (never the bytes themselves).
+    private readonly pluginWrittenEntries = new WeakMap<ChatSaveBase, { token: string, length: number, hash: string }>()
     // Chats whose next save recreates a missing body (recreateChatOnNextSave).
     private readonly chatsToRecreate = new Set<string>()
     // Counts replacements of the whole database (the native 409 rebase's
@@ -675,23 +676,41 @@ function readMissingFullChat(body: any): { chaId: string, chatId: string } | und
     installPluginChatBase(chaId: string, chatId: string, base: ChatSaveBase | null, token: unknown, chat: any): void {
         const entry = this.installChatSaveBase(chaId, chatId, base)
         if (!entry || typeof token !== 'string' || !token) return
-        this.pluginWrittenEntries.set(entry, { token, content: encodeRisuSaveLegacy(chat) })
+        const content = encodeRisuSaveLegacy(chat)
+        this.pluginWrittenEntries.set(entry, { token, length: content.byteLength, hash: NodeStorage.contentHash64(content) })
+    }
+
+    /**
+     * A synchronous 64-bit hash of encoded chat content: the mixing of the
+     * native hash64 (chatFingerprint.ts) over the bytes, all 64 bits kept as
+     * 16 hex digits.
+     */
+    private static contentHash64(bytes: Uint8Array): string {
+        let h1 = 0xdeadbeef ^ bytes.length
+        let h2 = 0x41c6ce57 ^ bytes.length
+        for (let i = 0; i < bytes.length; i++) {
+            const b = bytes[i]
+            h1 = Math.imul(h1 ^ b, 2654435761)
+            h2 = Math.imul(h2 ^ b, 1597334677)
+        }
+        h1 = Math.imul(h1 ^ (h1 >>> 16), 2246822507) ^ Math.imul(h2 ^ (h2 >>> 13), 3266489909)
+        h2 = Math.imul(h2 ^ (h2 >>> 16), 2246822507) ^ Math.imul(h1 ^ (h1 >>> 13), 3266489909)
+        return (h2 >>> 0).toString(16).padStart(8, '0') + (h1 >>> 0).toString(16).padStart(8, '0')
     }
 
     /**
      * A save of a slot base an open-chat plugin write installed was accepted:
      * the write's token advances when the save sent the plugin's content as
-     * it was written (settlePluginReadToken decides on rebases).
+     * it was written, that is content of the same length and 64-bit hash
+     * (settlePluginReadToken decides on rebases).
      */
     private settlePluginWrittenEntry(context: ChatSaveContext): void {
         const written = context.entry ? this.pluginWrittenEntries.get(context.entry) : undefined
         if (!written || !context.entry) return
         this.pluginWrittenEntries.delete(context.entry)
         const sent = context.content
-        if (sent.byteLength !== written.content.byteLength) return
-        for (let i = 0; i < sent.byteLength; i++) {
-            if (sent[i] !== written.content[i]) return
-        }
+        if (sent.byteLength !== written.length) return
+        if (NodeStorage.contentHash64(sent) !== written.hash) return
         this.settlePluginReadToken(written.token, context)
     }
 
