@@ -243,6 +243,18 @@ the Korean matcher over name, creator and tags, so a search never returns
 fewer characters than the native one. Deactivated characters are found by
 name only.
 
+From `0.2.4-experimental.105`, the `persona-organizer` pack targets PocketRisu
+1.16.1 only and builds on its native persona folders, folder list, duplicate,
+picker grouping and export instead of replacing the settings page and picker.
+It keeps what the native screens lack: an optional image on persona folders,
+create and import into a folder from the folder menu, the per-persona image
+gallery, a picker scope (all, unfiled, one folder), deleting several personas
+and folders at once, and choosing the gallery image for an export. The 1.10.0
+data field names are unchanged. Gallery images and folder images stay protected from
+client and server asset cleanup and are carried by local backup (PNG files
+only, as the native partial backup copies), settings-only export and account
+import.
+
 See the [delivery design](docs/PATCHER-V2-DESIGN.md),
 [v0.2.2 stable receipt](docs/POCKETRISU-0.2.2-MAINTENANCE-STABLE-RELEASE.md),
 [v0.2.1 stable receipt](docs/POCKETRISU-0.2.1-PAGEFOLD-STABLE-RELEASE.md),
@@ -964,6 +976,22 @@ BG result delivery waits for both the chat journal ACK and `/api/db/flush`
 before acknowledging and deleting a parked orchestration result.
 
 ### Persona organizer
+
+On PocketRisu 1.16.1 (from `0.2.4-experimental.105`) Settings → Persona is the
+native folder list. The pack adds, per persona folder, a folder image shown in
+the folder header and folder menu entries to create a persona there, import a
+persona PNG there, choose the folder image, or return to the default folder
+icon. The persona editor panel shows the image gallery: add several images,
+tap one to make it the active image, or remove one from the persona without
+deleting the shared asset. The persona picker gains a scope select (all,
+unfiled, or one folder). A `Select` toggle above the list turns on checkboxes
+for personas and folders (a selected folder includes its personas); `Remove`
+deletes them after one confirmation and is unavailable when no persona would
+remain. Export asks which image to put in the PNG when the persona has two or
+more images; otherwise it exports the active image as before. Folder
+management, drag, duplicate and single delete are the native ones.
+
+The description below is the PocketRisu 1.10.0 behavior.
 
 The thumbnail strip at the top of Settings → Persona gains:
 

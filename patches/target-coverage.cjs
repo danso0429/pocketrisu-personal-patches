@@ -76,6 +76,100 @@ module.exports = {
             },
         },
     },
+    'persona-organizer': {
+        '1.16.1': {
+            from: '1.10.0',
+            retained: [
+                'persona-organizer:logic',
+                'persona-organizer:logic-tests',
+                'persona-organizer:image-gallery-logic',
+                'persona-organizer:image-gallery-tests',
+                'persona-organizer:persona-image-gallery-field',
+                'persona-organizer:persona-helper-import',
+                'persona-organizer:single-image-gallery-sync',
+                'persona-organizer:save-gallery-sync',
+                'persona-organizer:change-gallery-sync',
+                'persona-organizer:import-folder-preservation',
+                'persona-organizer:uncleanable-gallery-assets',
+                'persona-organizer:uncleanable-folder-assets',
+                'persona-organizer:replace-gallery-assets',
+                'persona-organizer:backup-gallery-assets',
+                'persona-organizer:plugin-gallery-type',
+            ],
+            rewritten: {
+                'persona-organizer:logic':
+                    'personaOrganizer.ts adds selectedPersonaAfterDeletion(before, selectedIndex, after) for the multiple delete in the native Persona settings (native single-delete selection rule); the 1.10.0 exports are unchanged.',
+                'persona-organizer:persona-image-gallery-field':
+                    'PocketRisu 1.16.1 declares RisuPersona.folderId itself, so the gallery field no longer requires the retired persona-folder-field unit.',
+            },
+            replaced: {
+                'persona-organizer:image-gallery-normalization:1.10': [
+                    'persona-organizer:image-gallery-normalization:1.16',
+                ],
+                'persona-organizer:folder-interface': [
+                    'persona-organizer:folder-model:1.16',
+                ],
+                'persona-organizer:server-gallery-assets-1.10': [
+                    'persona-organizer:server-gallery-assets:1.16',
+                ],
+                'persona-organizer:server-gallery-assets-test-1.10': [
+                    'persona-organizer:server-asset-tests:1.16',
+                ],
+                'persona-organizer:picker-page': [
+                    'persona-organizer:picker-scope-import:1.16',
+                    'persona-organizer:picker-scope-state:1.16',
+                    'persona-organizer:picker-scope-filter:1.16',
+                    'persona-organizer:picker-scope-control:1.16',
+                ],
+                'persona-organizer:settings-page:1.10': [
+                    'persona-organizer:foldered-list-props:1.16',
+                    'persona-organizer:foldered-list-prop-values:1.16',
+                    'persona-organizer:foldered-list-folder-icon:1.16',
+                    'persona-organizer:foldered-list-folder-menu:1.16',
+                    'persona-organizer:settings-imports:1.16',
+                    'persona-organizer:settings-actions:1.16',
+                    'persona-organizer:settings-folder-snippets:1.16',
+                    'persona-organizer:settings-gallery:1.16',
+                    'persona-organizer:settings-bulk-export-imports:1.16',
+                    'persona-organizer:settings-bulk-delete-actions:1.16',
+                    'persona-organizer:settings-export-choice:1.16',
+                    'persona-organizer:settings-bulk-delete-toolbar:1.16',
+                    'persona-organizer:settings-bulk-delete-row-select:1.16',
+                    'persona-organizer:settings-bulk-delete-row-check:1.16',
+                    'persona-organizer:settings-export-dialog:1.16',
+                ],
+                'persona-organizer:export-image-parameter': [
+                    'persona-organizer:export-image-parameter:1.16',
+                ],
+                'persona-organizer:export-image-fallback': [
+                    'persona-organizer:export-image-choice:1.16',
+                ],
+                'persona-organizer:export-selected-image': [
+                    'persona-organizer:export-selected-image:1.16',
+                ],
+            },
+            added: {
+                'persona-organizer:account-import-gallery-assets:1.16':
+                    'PocketRisu 1.16.1 account import selects assets with its own walker (listAccountAssetKeys), which reads persona icon and embedded module only; persona gallery images are added so an imported account keeps them.',
+                'persona-organizer:account-import-folder-assets:1.16':
+                    'The same account import walker also takes persona folder images.',
+                'persona-organizer:client-tests:1.16':
+                    'Client tests for the retained personaOrganizer and personaImages exports over the native folder model (1.10 data, create or import folder, picker scope).',
+                'persona-organizer:bulk-export-tests:1.16':
+                    'Client tests for the multiple delete (buildPersonaDeletionPlan, applyPersonaDeletion, selectedPersonaAfterDeletion) and the exportUserPersona image choice.',
+                'persona-organizer:client-asset-tests:1.16':
+                    'Client tests that getUncleanables and replaceDbResources cover gallery and folder images.',
+            },
+            retired: {
+                'persona-organizer:model-normalization:1.10':
+                    'PocketRisu 1.16.1 initializes personaFolders itself (data.personaFolders ??= []) and its folder list and picker group personas whose folderId names no folder as uncategorized.',
+                'persona-organizer:persona-folder-field':
+                    'PocketRisu 1.16.1 declares RisuPersona.folderId.',
+                'persona-organizer:database-folder-field':
+                    'PocketRisu 1.16.1 declares Database.personaFolders as PromptPresetFolder[].',
+            },
+        },
+    },
     'client-build-fence': {
         '1.16.1': {
             from: '1.10.0',

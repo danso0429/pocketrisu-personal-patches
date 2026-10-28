@@ -219,3 +219,18 @@ export function applyPersonaDeletion(
         folders: folders.filter((folder) => !folderIds.has(folder.id)),
     }
 }
+
+/**
+ * Selected persona index after a deletion, with the native single-delete rule:
+ * the previously selected persona keeps the selection at its new index, and
+ * index 0 is selected when it was deleted or the old index was out of range.
+ */
+export function selectedPersonaAfterDeletion(
+    before: RisuPersona[],
+    selectedIndex: number,
+    after: RisuPersona[],
+): number {
+    if (!Number.isInteger(selectedIndex) || selectedIndex < 0 || selectedIndex >= before.length) return 0
+    const index = after.indexOf(before[selectedIndex])
+    return index >= 0 ? index : 0
+}

@@ -5,253 +5,99 @@ const assert = require('node:assert/strict')
 const fs = require('node:fs')
 const path = require('node:path')
 
-const source = fs.readFileSync(path.join(
-    __dirname,
-    '../patches/persona-organizer/files-1.10/src/lib/Setting/Pages/PersonaSettings.svelte',
-), 'utf8')
-const pickerSource = fs.readFileSync(path.join(
-    __dirname,
-    '../patches/persona-organizer/files/src/lib/Setting/listedPersona.svelte',
-), 'utf8')
 const logicSource = fs.readFileSync(path.join(
     __dirname,
     '../patches/persona-organizer/files/src/ts/personaOrganizer.ts',
 ), 'utf8')
+const galleryLogic = fs.readFileSync(path.join(
+    __dirname,
+    '../patches/persona-organizer/files/src/ts/personaImages.ts',
+), 'utf8')
 const manifest = require('../patches/persona-organizer/manifest.cjs')
 
-test('persona arrange uses explicit one-slot controls and contains no drag surface', () => {
-    assert.match(source, /movePersonaWithinGroup/)
-    assert.match(source, /function movePersona\(persona: RisuPersona, offset: -1 \| 1\)/)
-    assert.match(source, /function moveFolder\(folder: RisuPersonaFolder, offset: -1 \| 1\)/)
-    assert.match(source, /class="item-shift item-shift-left"/)
-    assert.match(source, /class="item-shift item-shift-right"/)
-    assert.match(source, /canMovePersona\(item\.persona, -1\)/)
-    assert.match(source, /canMoveFolder\(item\.folder, 1\)/)
-    assert.match(source, />\s*\{arrangeMode \? "Done" : "Arrange"\}\s*</)
-    assert.doesNotMatch(source, /\bdraggable\b|\bondrag\w*\b|\bontouch\w*\b/)
-    assert.doesNotMatch(source, /longPress|Sortable|preventDefault|touch-action/)
+function unit(id) {
+    const found = manifest.units.find((candidate) => candidate.id === id)
+    assert.ok(found, id)
+    return found
+}
+
+function text(id) {
+    const found = unit(id)
+    return found.managed ?? found.content
+}
+
+test('persona organizer is declared only for PocketRisu 1.16.1', () => {
+    assert.equal(manifest.version, '0.11.4')
+    assert.deepEqual(manifest.targets, {
+        pocketrisu: {
+            verified: [],
+            reviewing: ['1.16.1'],
+        },
+    })
+    assert.ok(manifest.units.every((entry) => !Object.hasOwn(entry, 'targetVersions')))
 })
 
-test('persona folders are explicit same-size cards that open normally', () => {
-    assert.match(source, />New folder</)
-    assert.match(source, /class="folder-image"/)
-    assert.match(source, /\.persona-image,\s*\.folder-image[\s\S]*width: 5rem;[\s\S]*height: 5rem;/)
-    assert.match(source, /function enterFolder\(folder: RisuPersonaFolder\)/)
-    assert.match(source, /class="folder-toolbar"/)
-    assert.match(source, /onclick=\{\(\) => enterFolder\(folder\)\}/)
-    assert.doesNotMatch(source, /data-folder-drop|dropAt|dropOnPersona|createFolderWith/)
+test('persona folders are the native folders with an optional icon', () => {
+    const folderModel = text('persona-organizer:folder-model:1.16')
+    assert.match(folderModel, /export interface PromptPresetFolder \{[\s\S]*icon\?: string/)
+    assert.match(folderModel, /export type RisuPersonaFolder = PromptPresetFolder/)
+    // PocketRisu 1.16.1 declares folderId and personaFolders itself.
+    const declared = manifest.units
+        .filter((entry) => entry.file === 'src/ts/storage/database.svelte.ts')
+        .map((entry) => entry.content ?? '')
+        .join('\n')
+    assert.doesNotMatch(declared, /folderId\?:string|personaFolders:/)
+})
+
+test('the native folder list gains only optional folder icon and folder menu snippets', () => {
+    assert.match(text('persona-organizer:foldered-list-props:1.16'), /folderIcon\?: Snippet<\[PromptPresetFolder\]>/)
+    assert.match(text('persona-organizer:foldered-list-props:1.16'), /folderMenuItems\?: Snippet<\[PromptPresetFolder\]>/)
+    assert.match(
+        text('persona-organizer:foldered-list-folder-icon:1.16'),
+        /\{#if folderIcon\}\{@render folderIcon\(folder\)\}\{:else\}<FolderIcon size=\{16\} class="shrink-0 text-textcolor2"\/>\{\/if\}/,
+    )
+    assert.equal(
+        text('persona-organizer:foldered-list-folder-menu:1.16'),
+        '            {@render folderMenuItems?.(folder)}\n',
+    )
 })
 
 test('folder images use shared asset storage and can return to the default icon', () => {
-    const normalization = manifest.units.find(
-        (unit) => unit.id === 'persona-organizer:model-normalization:1.10',
-    )
-    const folderInterface = manifest.units.find(
-        (unit) => unit.id === 'persona-organizer:folder-interface',
-    )
-
-    assert.equal(manifest.version, '0.11.3')
-    assert.deepEqual(manifest.targets, {
-        pocketrisu: {
-            verified: ['1.10.0'],
-            reviewing: [],
-        },
-    })
-    assert.match(normalization.content, /typeof folder\.icon !== 'string'\) folder\.icon = ''/)
-    assert.match(folderInterface.content, /icon\?:string/)
-    assert.match(source, /import \{ saveImage \} from "src\/ts\/storage\/database\.svelte"/)
-    assert.match(source, /selectSingleFile\(\["png", "webp", "gif", "jpg", "jpeg"\]\)/)
-    assert.match(source, /folder\.icon = await saveImage\(selected\.data, "", selected\.name\)/)
-    assert.match(source, /function resetFolderImage\(folder: RisuPersonaFolder\): void \{[\s\S]*folder\.icon = ""/)
-    assert.match(source, /class="toolbar-text-button folder-image-button"[\s\S]*<span>Image<\/span>/)
-    assert.match(source, /<ShDialog[\s\S]*bind:open=\{folderImageDialogOpen\}[\s\S]*Folder image[\s\S]*Replace image[\s\S]*Use default folder image/)
-    assert.match(source, /\{#if folder\.icon\}[\s\S]*getCharImage\(folder\.icon, "css"\)[\s\S]*folder-image-fill/)
-    assert.match(source, /\{#if entry\.folder\.icon\}[\s\S]*getCharImage\(entry\.folder\.icon, "css"\)[\s\S]*delete-folder-image-fill/)
-    assert.doesNotMatch(source, /deleteAsset|removeAsset|forageStorage\.removeItem/)
+    const actions = text('persona-organizer:settings-actions:1.16')
+    const snippets = text('persona-organizer:settings-folder-snippets:1.16')
+    assert.match(actions, /const personaImageExtensions = \["png", "webp", "gif", "jpg", "jpeg"\]/)
+    assert.match(actions, /const icon = await saveImage\(selected\.data, '', selected\.name\)/)
+    assert.match(actions, /function resetFolderImage\(folderId: string\) \{[\s\S]*icon: ''/)
+    assert.match(snippets, /\{#snippet folderIcon\(folder: PromptPresetFolder\)\}[\s\S]*getCharImage\(folder\.icon, 'css'\)/)
+    assert.match(snippets, /chooseFolderImage\(folder\.id\)/)
+    assert.match(snippets, /\{#if folder\.icon\}[\s\S]*resetFolderImage\(folder\.id\)/)
+    assert.doesNotMatch(`${actions}\n${snippets}`, /deleteAsset|removeAsset|forageStorage\.removeItem/)
 })
 
-test('folder membership uses a stable sixteen-card selection grid', () => {
-    assert.match(source, /function openMembershipEditor\(\)/)
-    assert.match(source, /membershipPersonaIds = DBState\.db\.personas/)
-    assert.match(source, /function toggleFolderMembership\(persona: RisuPersona\)/)
-    assert.match(source, /persona\.folderId === openFolderId \? null : openFolderId/)
-    assert.match(source, /class="folder-members-button"/)
-    assert.match(source, /class="membership-mark"/)
-    assert.match(source, /class:persona-member-selected=\{membership && persona\.folderId === openFolderId\}/)
-    assert.match(source, /membershipMode \? `Select for \$\{openGroup\.name\}` : openGroup\.name/)
-})
+test('create and import from a folder menu file the persona in that still-valid folder', () => {
+    const actions = text('persona-organizer:settings-actions:1.16')
+    const snippets = text('persona-organizer:settings-folder-snippets:1.16')
+    assert.match(actions, /function createPersonaInFolder\(folderId: string\) \{[\s\S]*folderId: resolvePersonaFolderId\(DBState\.db\.personaFolders \?\? \[\], folderId\)/)
+    assert.match(actions, /async function importPersonaIntoFolder\(folderId: string\) \{[\s\S]*await importUserPersona\(folderId\)/)
+    assert.match(snippets, /onSelect=\{\(\) => createPersonaInFolder\(folder\.id\)\}/)
+    assert.match(snippets, /onSelect=\{\(\) => importPersonaIntoFolder\(folder\.id\)\}/)
 
-test('persona and folder contents use sixteen-card animated pages', () => {
-    assert.match(source, /const PAGE_SIZE = 16/)
-    assert.match(source, /Math\.ceil\(displayItems\.length \/ PAGE_SIZE\)/)
-    assert.match(source, /displayItems\.slice\(pageIndex \* PAGE_SIZE, \(pageIndex \+ 1\) \* PAGE_SIZE\)/)
-    assert.match(source, /grid-template-columns: repeat\(4,/)
-    assert.match(source, /class="page-track"/)
-    assert.match(source, /translate3d\(-\$\{currentPage \* 100\}%/)
-    assert.match(source, /transition: transform 220ms/)
-    assert.match(source, /pageByContext/)
-})
-
-test('folder and persona controls keep their movement domains separate', () => {
-    assert.match(source, /movePersonaWithinGroup\([\s\S]*persona\.folderId \?\? null,[\s\S]*offset/)
-    assert.match(source, /const folders = \[\.\.\.DBState\.db\.personaFolders\]/)
-    assert.match(source, /folders\.splice\(to, 0, \.\.\.folders\.splice\(from, 1\)\)/)
-    assert.match(source, /if \(item\.kind === "persona"\) movePersona\(item\.persona, -1\)[\s\S]*else moveFolder\(item\.folder, -1\)/)
-    assert.match(source, /if \(item\.kind === "persona"\) movePersona\(item\.persona, 1\)[\s\S]*else moveFolder\(item\.folder, 1\)/)
-})
-
-test('arrange remains active when a folder is opened so its contents can be shifted', () => {
-    assert.match(source, /function enterFolder\(folder: RisuPersonaFolder\): void \{[\s\S]*openFolderId = folder\.id[\s\S]*membershipMode = false/)
-    assert.doesNotMatch(
-        source.match(/function enterFolder\(folder: RisuPersonaFolder\): void \{[\s\S]*?\n    \}/)?.[0] ?? '',
-        /arrangeMode = false/,
-    )
-    assert.match(source, /\{#if arrangeMode && !membershipMode\}/)
-    assert.match(source, /activeItems = \$derived\(openGroup \? folderItems : rootItems\)/)
-})
-
-test('bulk delete stays selection-only until a grouped confirmation is accepted', () => {
-    assert.match(source, /let deleteMode = \$state\(false\)/)
-    assert.match(source, /function startDeleteMode\(\): void \{[\s\S]*deleteMode = true/)
-    assert.match(source, /function cancelDeleteMode\(\): void \{[\s\S]*deletePersonaIds = \[\][\s\S]*deleteFolderIds = \[\][\s\S]*deleteMode = false/)
-    assert.match(source, /function requestDeleteConfirmation\(\): void \{[\s\S]*deleteConfirmOpen = true/)
-    assert.match(source, /function confirmDeleteSelection\(\): void \{[\s\S]*applyPersonaDeletion\([\s\S]*commitPersonas\(next\.personas, keepSelectedId\)/)
-    assert.match(source, /deletionPlan\.remainingCount >= 1/)
-    assert.match(source, /<ShAlertDialog[\s\S]*Delete selected personas\?[\s\S]*deletionPlan\.loosePersonas[\s\S]*deletionPlan\.folders/)
-    assert.match(source, /Alias: \{persona\.note\?\.trim\(\) \|\| "—"\}/)
-    assert.match(source, /Folder and \{entry\.personas\.length\} persona/)
-})
-
-test('folder delete mode cannot navigate out before done or cancel', () => {
-    assert.match(source, /function leaveFolder\(\): void \{\s*if \(deleteMode\) return/)
-    assert.match(source, /title=\{deleteMode \? "Finish or cancel deletion first" : "Back to personas"\}/)
-    assert.match(source, /disabled=\{deleteMode\}[\s\S]*onclick=\{leaveFolder\}/)
-    assert.match(source, /function toggleDeleteFolder\(folder: RisuPersonaFolder\): void \{\s*if \(!deleteMode \|\| openFolderId\) return/)
-    assert.match(source, /\{:else if deleteMode\}[\s\S]*Cancel[\s\S]*Done \(\{deletionSelectionCount\}\)/)
-})
-
-test('the persona plus menu is local, closable, and preserves create and import actions', () => {
-    assert.match(source, /let addPersonaDialogOpen = \$state\(false\)/)
-    assert.match(source, /<BaseRoundedButton onClick=\{\(\) => addPersonaDialogOpen = true\}>/)
-    assert.match(source, /bind:open=\{addPersonaDialogOpen\}[^]*?closable=\{true\}[^]*?\{#snippet title\(\)\}페르소나 추가\{\/snippet\}[^]*?addPersonaDialogOpen = false\}>\s*닫기\s*<\/ShButton>[^]*?<\/ShDialog>/)
-    assert.match(source, /function createPersona\(\): void \{[\s\S]*name: "New Persona"[\s\S]*folderId: activeFolderId \?\? undefined/)
-    assert.match(source, /async function importPersonaFromDialog\(\): Promise<void> \{[\s\S]*await importUserPersona\(activeFolderId \?\? undefined\)/)
-    assert.doesNotMatch(source, /alertSelect/)
-    assert.match(source, /function duplicatePersona\(\): void/)
-    assert.match(source, /name: `\$\{clone\.name\} \(Copy\)`/)
-    assert.match(source, /\{language\.personaDuplicate\}/)
-    assert.match(source, /DBState\.db\.selectedPersona = 0/)
-})
-
-test('the persona plus menu is available inside a folder and files new personas there', () => {
-    const folderToolbar = source.slice(
-        source.indexOf('<div class="folder-toolbar">'),
-        source.indexOf('<div class="organizer-toolbar">'),
-    )
-    const rootToolbar = source.slice(
-        source.indexOf('<div class="organizer-toolbar">'),
-        source.indexOf('<div class="page-shell">'),
-    )
-
-    assert.match(source, /\{#snippet addPersonaButton\(\)\}[\s\S]*<BaseRoundedButton onClick=\{\(\) => addPersonaDialogOpen = true\}>/)
-    assert.match(folderToolbar, /\{:else\}[\s\S]*\{@render addPersonaButton\(\)\}/)
-    assert.match(rootToolbar, /\{:else\}[\s\S]*\{@render addPersonaButton\(\)\}/)
-    assert.match(folderToolbar, /class="folder-members-button"[^>]*>\s*<UsersIcon /)
-    assert.match(source, /function duplicatePersona\(\): void \{[\s\S]*folderId: activeFolderId \?\? clone\.folderId/)
-})
-
-test('persona organizer owns exactly the settings editor and native selection popup', () => {
-    const replacementUnits = manifest.units.filter(
-        (unit) => unit.type === 'replace' && unit.file.endsWith('.svelte'),
-    )
-    assert.deepEqual(
-        [...new Set(replacementUnits.map((unit) => unit.file))],
-        [
-            'src/lib/Setting/listedPersona.svelte',
-            'src/lib/Setting/Pages/PersonaSettings.svelte',
-        ],
-    )
-})
-
-test('persona picker searches and filters canonical entries without renumbering selection', () => {
-    assert.match(pickerSource, /filterPersonaPicker\(/)
-    assert.match(pickerSource, /bind:value=\{query\}/)
-    assert.match(pickerSource, /bind:value=\{pickerScope\}/)
-    assert.match(pickerSource, /PERSONA_PICKER_SCOPE_UNFILED/)
-    assert.match(pickerSource, /personaPickerFolderScope\(folder\.id\)/)
-    assert.match(pickerSource, /onclick=\{\(\) => selectPersona\(entry\.index\)\}/)
-    assert.match(pickerSource, /if \(onSelect\) onSelect\(index\)[\s\S]*else changeUserPersona\(index\)[\s\S]*close\(\)/)
-    assert.match(logicSource, /return \[\{ persona, index \}\]/)
-})
-
-test('picker and settings create or import only into a still-valid selected folder', () => {
-    const importUnit = manifest.units.find(
-        (unit) => unit.id === 'persona-organizer:import-folder-preservation',
-    )
-    assert.ok(importUnit)
-    assert.match(pickerSource, /folderId: selectedFolderId/)
-    assert.match(pickerSource, /importUserPersona\(selectedFolderId\)/)
-    assert.match(pickerSource, /saveUserPersona\(\)[\s\S]*selectPersona\(index\)/)
-    assert.match(importUnit.content, /resolvePersonaFolderId\(db\.personaFolders \?\? \[\], folderId\)/)
-    assert.match(importUnit.content, /const icon = await saveImage\(await reencodeImage\(v\.data\)\)[\s\S]*const db = getDatabase\(\)/)
-    assert.match(importUnit.content, /const importedIndex = db\.personas\.push\([\s\S]*\) - 1/)
-    assert.match(importUnit.content, /return importedIndex/)
-    assert.match(importUnit.content, /if \(!v\) return null/)
-    assert.match(importUnit.content, /catch \(error\)[\s\S]*return null/)
-    assert.match(logicSource, /scope === PERSONA_PICKER_SCOPE_UNFILED/)
-    assert.match(logicSource, /!persona\.folderId \|\| !validFolderIds\.has\(persona\.folderId\)/)
-})
-
-test('K22 picker scope does not add persona duplication or a parallel identity schema', () => {
-    const organizerOwned = `${pickerSource}\n${logicSource}`
-    assert.doesNotMatch(organizerOwned, /duplicatePersona|clonePersona|copyPersona/)
-    assert.doesNotMatch(`${organizerOwned}\n${source}`, /personaPickerId|pickerPersonaId/)
-    // PocketRisu 1.10 ships persona duplication natively; the replaced
-    // settings page keeps that action instead of adding a new one.
-    const nativeSource = fs.readFileSync(path.join(
-        __dirname,
-        '../patches/persona-organizer/anchors-1.10/PersonaSettings.svelte',
-    ), 'utf8')
-    assert.match(nativeSource, /language\.personaDuplicate/)
-})
-
-test('existing persona editor behavior remains available', () => {
-    assert.match(source, /<SettingPage title=\{language\.persona\}>/)
-    assert.match(source, /<Help key="personaName" \/>/)
-    assert.match(source, /<Help key="personaNote" \/>/)
-    assert.match(source, /<Help key="personaDescription" \/>/)
-    assert.match(source, /bind:value=\{DBState\.db\.username\}/)
-    assert.match(source, /bind:value=\{DBState\.db\.userNote\}/)
-    assert.match(source, /bind:value=\{DBState\.db\.personaPrompt\}/)
-    assert.match(source, /language\.createfromScratch/)
-    assert.match(source, /language\.importCharacter/)
-    assert.match(source, /exportUserPersona/)
-    assert.match(source, /importUserPersona/)
+    const importUnit = text('persona-organizer:import-folder-preservation')
+    assert.match(importUnit, /resolvePersonaFolderId\(db\.personaFolders \?\? \[\], folderId\)/)
+    assert.match(importUnit, /const icon = await saveImage\(await reencodeImage\(v\.data\)\)[\s\S]*const db = getDatabase\(\)/)
+    assert.match(importUnit, /const importedIndex = db\.personas\.push\([\s\S]*\) - 1/)
+    assert.match(importUnit, /return importedIndex/)
+    assert.match(importUnit, /if \(!v\) return null/)
+    assert.match(importUnit, /catch \(error\)[\s\S]*return null/)
 })
 
 test('persona image gallery keeps icon as the selected compatibility image', () => {
-    const galleryLogic = fs.readFileSync(path.join(
-        __dirname,
-        '../patches/persona-organizer/files/src/ts/personaImages.ts',
-    ), 'utf8')
-    const normalization = manifest.units.find(
-        (unit) => unit.id === 'persona-organizer:image-gallery-normalization:1.10',
-    )
-    const modelField = manifest.units.find(
-        (unit) => unit.id === 'persona-organizer:persona-image-gallery-field',
-    )
-    const pluginField = manifest.units.find(
-        (unit) => unit.id === 'persona-organizer:plugin-gallery-type',
-    )
-    const singleImageSync = manifest.units.find(
-        (unit) => unit.id === 'persona-organizer:single-image-gallery-sync',
-    )
-
-    assert.match(normalization.content, /persona\.imageGallery = gallery/)
-    assert.match(normalization.content, /if \(persona\.icon && !gallery\.includes\(persona\.icon\)\) gallery\.unshift\(persona\.icon\)/)
-    assert.match(modelField.content, /imageGallery\?:string\[\]/)
-    assert.match(pluginField.content, /imageGallery\?: string\[\]/)
-    assert.match(singleImageSync.content, /normalizePersonaImageGallery/)
+    const normalization = text('persona-organizer:image-gallery-normalization:1.16')
+    assert.match(normalization, /persona\.imageGallery = gallery/)
+    assert.match(normalization, /if \(persona\.icon && !gallery\.includes\(persona\.icon\)\) gallery\.unshift\(persona\.icon\)/)
+    assert.match(text('persona-organizer:persona-image-gallery-field'), /imageGallery\?:string\[\]/)
+    assert.match(text('persona-organizer:plugin-gallery-type'), /imageGallery\?: string\[\]/)
+    assert.match(text('persona-organizer:single-image-gallery-sync'), /normalizePersonaImageGallery/)
     assert.match(galleryLogic, /export function addPersonaImages/)
     assert.match(galleryLogic, /export function selectPersonaImage/)
     assert.match(galleryLogic, /persona\.icon = path/)
@@ -260,126 +106,128 @@ test('persona image gallery keeps icon as the selected compatibility image', () 
 })
 
 test('persona image gallery supports multi-add, explicit selection, and non-destructive removal', () => {
-    assert.match(source, /selectMultipleFile\(\["png", "webp", "gif", "jpg", "jpeg"\]\)/)
-    assert.match(source, /paths\.push\(await saveImage\(file\.data, "", file\.name\)\)/)
-    assert.match(source, /addPersonaImagePaths\(persona, paths\)/)
-    assert.match(source, /selectPersonaImage\(persona, path\)/)
-    assert.match(source, /removePersonaImagePath\(persona, path\)/)
-    assert.match(source, />페르소나 이미지</)
-    assert.match(source, /\{addingPersonaImages \? "추가 중\.\.\." : "이미지 추가"\}/)
-    assert.match(source, /class:persona-gallery-active=\{editorPersona\?\.icon === image\}/)
-    assert.match(source, /aria-pressed=\{editorPersona\?\.icon === image\}/)
-    assert.match(source, />사용 중</)
-    assert.doesNotMatch(source, /deleteAsset|removeAsset|forageStorage\.removeItem/)
+    const actions = text('persona-organizer:settings-actions:1.16')
+    const gallery = text('persona-organizer:settings-gallery:1.16')
+    assert.match(actions, /selectMultipleFile\(personaImageExtensions\)/)
+    assert.match(actions, /paths\.push\(await saveImage\(file\.data, '', file\.name\)\)/)
+    assert.match(actions, /addPersonaImages\(target, paths\)/)
+    assert.match(actions, /selectPersonaImage\(target, image\)/)
+    assert.match(actions, /removePersonaImage\(target, image\)/)
+    // The editor mirrors the selected persona in db.userIcon.
+    assert.match(actions, /saveUserPersona\(\)[\s\S]*if \(index === DBState\.db\.selectedPersona\) DBState\.db\.userIcon = persona\.icon/)
+    assert.match(gallery, />페르소나 이미지</)
+    assert.match(gallery, /\{#each getPersonaImageGallery\(persona\) as image \(image\)\}/)
+    assert.match(gallery, /aria-pressed=\{persona\.icon === image\}/)
+    assert.match(gallery, /addingPersonaImages \? "추가 중\.\.\." : "이미지 추가"/)
+    assert.doesNotMatch(`${actions}\n${gallery}`, /deleteAsset|removeAsset|forageStorage\.removeItem/)
 })
 
-test('persona image gallery and export image dialog use Korean labels', () => {
-    for (const english of [
-        'Persona images',
-        'Select the image used for user messages',
-        '"Adding..."',
-        '"Add images"',
-        'Add the first persona image',
-        '>Active<',
-        'Use persona image',
-        'Remove persona image',
-        'Remove from this persona',
-        'Select export image',
-        'Choose the image embedded',
-        'This persona has no image',
-        'Export with persona image',
-        '>Selected<',
-        '"Exporting..."',
-        '"Export with default image"',
-        '"Export selected image"',
-    ]) {
-        assert.ok(!source.includes(english), `untranslated label: ${english}`)
-    }
+test('persona picker filters by folder scope without renumbering selection', () => {
+    assert.match(text('persona-organizer:picker-scope-import:1.16'), /PERSONA_PICKER_SCOPE_UNFILED/)
+    const state = text('persona-organizer:picker-scope-state:1.16')
+    assert.match(state, /let pickerScope = \$state<string>\(PERSONA_PICKER_SCOPE_ALL\)/)
+    assert.match(state, /filterPersonaPicker\(DBState\.db\.personas, DBState\.db\.personaFolders \?\? \[\], '', pickerScope\)/)
+    assert.match(state, /\.map\(\(entry\) => entry\.index\)/)
+    assert.equal(
+        text('persona-organizer:picker-scope-filter:1.16'),
+        '            {@const visible = group.indexes.filter((index) => scopedIndexes.has(index) && matches(index))}\n',
+    )
+    const control = text('persona-organizer:picker-scope-control:1.16')
+    assert.match(control, /bind:value=\{pickerScope\}/)
+    assert.match(control, /PERSONA_PICKER_SCOPE_UNFILED/)
+    assert.match(control, /personaPickerFolderScope\(folder\.id\)/)
+    assert.match(logicSource, /return \[\{ persona, index \}\]/)
+    assert.match(logicSource, /scope === PERSONA_PICKER_SCOPE_UNFILED/)
+    assert.match(logicSource, /!persona\.folderId \|\| !validFolderIds\.has\(persona\.folderId\)/)
 })
 
-test('persona editor stacks the image gallery above full-width fields at every width', () => {
-    const panelRule = source.match(/\.persona-editor-panel \{[^}]*\}/)
-    assert.ok(panelRule)
-    assert.match(panelRule[0], /grid-template-columns: minmax\(0, 1fr\);/)
-    assert.doesNotMatch(source, /minmax\(13rem, 18rem\)/)
-    assert.doesNotMatch(source, /@media \(max-width: 720px\)/)
-    const gridRule = source.match(/\.persona-image-grid \{[^}]*\}/)
-    assert.ok(gridRule)
-    assert.match(gridRule[0], /grid-template-columns: repeat\(auto-fill, 5rem\);/)
+test('native folder management, duplicate and export stay native', () => {
+    const owned = manifest.units
+        .filter((entry) => entry.type !== 'owned' || entry.file.endsWith('.ts') && !entry.file.endsWith('.test.ts'))
+        .map((entry) => entry.managed ?? entry.content ?? '')
+        .join('\n')
+    assert.doesNotMatch(owned, /duplicatePersona|clonePersona|copyPersona/)
+    assert.doesNotMatch(owned, /personaPickerId|pickerPersonaId/)
+    // No unit replaces a whole native page.
+    assert.ok(manifest.units.every((entry) => entry.markerNeedle === undefined))
+    // Export keeps the native signature and adds only an optional image path.
+    assert.equal(
+        text('persona-organizer:export-image-parameter:1.16'),
+        'export async function exportUserPersona(personaIndex?: number, imagePath?: string) {\n',
+    )
+    const exportUnits = manifest.units.filter((entry) =>
+        entry.file === 'src/ts/persona.ts' && /exportUserPersona|readImage|persona\.icon/.test(entry.anchor ?? ''))
+    assert.deepEqual(exportUnits.map((entry) => entry.id), [
+        'persona-organizer:export-image-parameter:1.16',
+        'persona-organizer:export-image-choice:1.16',
+        'persona-organizer:export-selected-image:1.16',
+    ])
+    // Native single delete stays; the settings page keeps its deletePersona.
+    assert.ok(manifest.units.every((entry) => !/async function deletePersona\(/.test(entry.anchor ?? '')))
 })
 
-test('persona image gallery replaces the duplicate large active-image preview', () => {
-    const galleryIndex = source.indexOf('<div class="persona-image-gallery">')
-    const fieldsIndex = source.indexOf('<div class="persona-editor-fields">')
-
-    assert.match(source, /class="persona-editor-panel"/)
-    assert.ok(galleryIndex >= 0)
-    assert.ok(fieldsIndex > galleryIndex)
-    assert.doesNotMatch(source, /Active image/)
-    assert.doesNotMatch(source, /selectUserImg/)
-    assert.match(source, /class:persona-gallery-active=\{editorPersona\?\.icon === image\}/)
-    assert.match(source, />사용 중</)
+test('export image choice uses only the persona\'s own icon or gallery image', () => {
+    const choice = text('persona-organizer:export-image-choice:1.16')
+    assert.match(choice, /imagePath === persona\.icon/)
+    assert.match(choice, /ownGallery\.includes\(imagePath\)/)
+    assert.match(choice, /\) \? imagePath : persona\.icon/)
+    assert.match(choice, /if \(!exportImage\) \{/)
+    assert.equal(text('persona-organizer:export-selected-image:1.16'), '        img = await readImage(exportImage)\n')
+    const settings = text('persona-organizer:settings-export-choice:1.16')
+    assert.match(settings, /if \(persona && images\.length >= 2\)/)
+    assert.match(settings, /await exportUserPersona\(index\)\n/)
+    assert.match(text('persona-organizer:settings-bulk-delete-actions:1.16'), /await exportUserPersona\(index, exportImageChoice\)/)
 })
 
-test('persona PNG export chooses a gallery image without changing the active image', () => {
-    const unit = (id) => manifest.units.find((candidate) => candidate.id === id)
-
+test('multiple delete removes selected personas and folders after one confirmation', () => {
+    const actions = text('persona-organizer:settings-bulk-delete-actions:1.16')
+    assert.match(actions, /buildPersonaDeletionPlan\(/)
+    assert.match(actions, /applyPersonaDeletion\(before, folders, plan\)/)
+    assert.match(actions, /selectedPersonaAfterDeletion\(before, DBState\.db\.selectedPersona, result\.personas\)/)
+    assert.match(actions, /plan\.remainingCount < 1\) return/)
+    assert.equal((actions.match(/alertConfirm\(/g) ?? []).length, 1)
+    assert.match(actions, /saveUserPersona\(\)[\s\S]*changeUserPersona\(nextSelected, 'noSave'\)[\s\S]*requestImmediateSave\(\)/)
+    assert.match(logicSource, /export function selectedPersonaAfterDeletion\(/)
     assert.match(
-        unit('persona-organizer:export-image-parameter').content,
-        /exportUserPersona\(imagePath\?: string\)/,
+        text('persona-organizer:settings-bulk-delete-row-select:1.16'),
+        /personaSelectMode \? togglePersonaForDeletion\(index\) : toggleRow\(index\)/,
     )
-    assert.match(
-        unit('persona-organizer:export-image-parameter').content,
-        /const exportImage = imagePath \?\? db\.userIcon/,
-    )
-    assert.match(unit('persona-organizer:export-image-fallback').content, /if \(!exportImage\)/)
-    assert.match(
-        unit('persona-organizer:export-selected-image').content,
-        /readImage\(exportImage\)/,
-    )
-    assert.match(source, /<Button onclick=\{openPersonaExportDialog\}>\{language\.export\}<\/Button>/)
-    assert.match(source, /\{#snippet title\(\)\}엑스포트 이미지 선택\{\/snippet\}/)
-    assert.match(source, /사용 중인 이미지는 바뀌지 않습니다/)
-    assert.match(source, /aria-pressed=\{exportPersonaImage === image\}/)
-    assert.match(source, /await exportUserPersona\(exportPersonaImage \?\? ""\)/)
-    assert.match(source, /"선택한 이미지로 엑스포트"/)
-    assert.doesNotMatch(
-        source,
-        /function exportSelectedPersona[\s\S]*selectPersonaImage\(/,
-    )
+    assert.match(text('persona-organizer:settings-folder-snippets:1.16'), /toggleFolderForDeletion\(folder\.id\)/)
 })
 
 test('persona and folder image references survive cleanup, replacement, and partial backup', () => {
-    const unit = (id) => manifest.units.find((candidate) => candidate.id === id)
-    assert.match(unit('persona-organizer:uncleanable-gallery-assets').content, /v\.imageGallery/)
-    assert.match(unit('persona-organizer:uncleanable-folder-assets').content, /db\.personaFolders/)
-    assert.match(unit('persona-organizer:replace-gallery-assets').content, /persona\.icon = replaceData\(persona\.icon\)/)
-    assert.match(unit('persona-organizer:replace-gallery-assets').content, /persona\.imageGallery = persona\.imageGallery\.map/)
-    assert.match(unit('persona-organizer:replace-gallery-assets').content, /folder\.icon = replaceData/)
-    assert.match(unit('persona-organizer:backup-gallery-assets').content, /persona\.imageGallery/)
-    assert.match(unit('persona-organizer:backup-gallery-assets').content, /folder\.icon/)
+    assert.match(text('persona-organizer:uncleanable-gallery-assets'), /v\.imageGallery/)
+    assert.match(text('persona-organizer:uncleanable-folder-assets'), /db\.personaFolders/)
+    assert.match(text('persona-organizer:replace-gallery-assets'), /persona\.icon = replaceData\(persona\.icon\)/)
+    assert.match(text('persona-organizer:replace-gallery-assets'), /persona\.imageGallery = persona\.imageGallery\.map/)
+    assert.match(text('persona-organizer:replace-gallery-assets'), /folder\.icon = replaceData/)
+    assert.match(text('persona-organizer:backup-gallery-assets'), /persona\.imageGallery/)
+    assert.match(text('persona-organizer:backup-gallery-assets'), /folder\.icon/)
 })
 
-test('exact 1.10 server orphan walker unions native and organizer persona references', () => {
-    const unit = manifest.units.find((candidate) =>
-        candidate.id === 'persona-organizer:server-gallery-assets-1.10'
+test('server orphan walker unions native and organizer persona references', () => {
+    const server = text('persona-organizer:server-gallery-assets:1.16')
+    assert.match(server, /add\(p\?\.image\)/)
+    assert.match(server, /p\?\.imageGallery/)
+    assert.match(server, /dbObj\.personaFolders/)
+    assert.match(server, /embedded\?\.assets/)
+})
+
+test('account import requests persona gallery and folder images', () => {
+    assert.match(
+        text('persona-organizer:account-import-gallery-assets:1.16'),
+        /if \(Array\.isArray\(persona\?\.imageGallery\)\) for \(const image of persona\.imageGallery\) add\(image\)/,
     )
-    assert.ok(unit)
-    assert.match(unit.content, /add\(p\?\.image\)/)
-    assert.match(unit.content, /p\?\.imageGallery/)
-    assert.match(unit.content, /dbObj\.personaFolders/)
-    assert.match(unit.content, /embedded\?\.assets/)
+    assert.match(
+        text('persona-organizer:account-import-folder-assets:1.16'),
+        /for \(const folder of Array\.isArray\(db\?\.personaFolders\) \? db\.personaFolders : \[\]\) add\(folder\?\.icon\)/,
+    )
 })
 
 test('persona organizer does not replace the database or plugin array', () => {
-    const owned = [
-        source,
-        pickerSource,
-        ...manifest.units.flatMap((candidate) => [
-            candidate.content ?? '',
-            candidate.managed ?? '',
-        ]),
-    ].join('\n')
+    const owned = manifest.units
+        .flatMap((candidate) => [candidate.content ?? '', candidate.managed ?? ''])
+        .join('\n')
 
     assert.doesNotMatch(owned, /setDatabase(?:Lite)?\(/)
     assert.doesNotMatch(owned, /Database\.plugins|DBState\.db\.plugins/)
