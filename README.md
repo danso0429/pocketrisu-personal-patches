@@ -227,6 +227,22 @@ reintroduced only if a final candidate gate needs it. The separate FastImport
 maintenance migration tool (`scripts/fastimport-ios-migration.cjs`) remains
 available.
 
+The `character-organizer` pack is retired in `0.2.4-experimental.104` and
+absent from the catalog and installer; PocketRisu 1.16.1 ships its own
+character manager with folders and ordering. The resolver recognizes the
+retired id so an older state that owned it can move to the complete set. Its
+manifest and the files it reads stay in the tree only because the not yet
+rebased BG adapter manifest reads them at load time.
+
+From `0.2.4-experimental.104`, the `haejeok-korean-search-adapter` pack is a
+standalone user pack for PocketRisu 1.16.1 with no organizer dependency. It
+adds optional creator and tags fields to the native character manager entries
+of live characters and routes both manager lists (list or grid, and trash,
+shared by desktop and mobile) through one matcher: the native name search OR
+the Korean matcher over name, creator and tags, so a search never returns
+fewer characters than the native one. Deactivated characters are found by
+name only.
+
 See the [delivery design](docs/PATCHER-V2-DESIGN.md),
 [v0.2.2 stable receipt](docs/POCKETRISU-0.2.2-MAINTENANCE-STABLE-RELEASE.md),
 [v0.2.1 stable receipt](docs/POCKETRISU-0.2.1-PAGEFOLD-STABLE-RELEASE.md),
@@ -995,7 +1011,9 @@ from a persona or resetting a folder image never deletes the shared asset.
 
 ### Character organizer
 
-The independent `character-organizer` pack adds a built-in entry alongside
+Retired in `0.2.4-experimental.104` (see
+[Complete installer](#complete-installer)); the description below is the
+PocketRisu 1.10.0 behavior. The independent `character-organizer` pack added a built-in entry alongside
 plugin-provided icons in PocketRisu's hamburger menu. It does not install a
 plugin, replace `Database.plugins`, or depend on Persona organization.
 

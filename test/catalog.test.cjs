@@ -85,9 +85,9 @@ test.describe('[E2-1c] Make the six E2-1b packs 1.16.1-only', () => {
 
     test('[unchanged] packs without coverage entries match every frozen 1.10.0 declaration and unit hash', () => {
         const catalog = loadCatalog()
-        assert.equal(catalog.length, 43)
-        // E2-4a retired these packs; the frozen baseline still lists them.
-        const retiredPackIds = ['toolchain-hardening', 'fastimport-ios-picker']
+        assert.equal(catalog.length, 42)
+        // E2-4a and E2-4b retired these packs; the frozen baseline still lists them.
+        const retiredPackIds = ['toolchain-hardening', 'fastimport-ios-picker', 'character-organizer']
         assert.deepEqual(
             Object.keys(baseline.packs).filter((id) => !retiredPackIds.includes(id)).sort(),
             catalog.map(({ id }) => id).sort(),
@@ -143,7 +143,6 @@ test('one delivery profile contains every admitted root pack', () => {
         'lazy-chat-bg-adapter',
         'haejeok-persistence-safety-adapter',
         'persona-organizer',
-        'character-organizer',
         'haejeok-korean-search-adapter',
         'character-import-ux',
         'personal-settings',
@@ -182,7 +181,7 @@ test('one delivery profile contains every admitted root pack', () => {
             'client-build-fence',
             'lazy-chat-sync',
             'persona-organizer',
-            'character-organizer',
+            'haejeok-korean-search-adapter',
             'character-import-ux',
             'personal-settings',
             'preset-integrity',

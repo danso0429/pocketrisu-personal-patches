@@ -268,9 +268,11 @@ The HJ03 Korean-search adapter uses the behavior and focused structure of:
   `package.json`, and `pnpm-lock.yaml`.
 
 The local implementation is contained in
-`patches/haejeok-korean-search-adapter/`. It applies the matcher to
-PocketRisu's `src/lib/Others/GridCatalog.svelte` and
-`src/lib/Mobile/MobileCharacters.svelte`, retains their existing order, limits
+`patches/haejeok-korean-search-adapter/`. On PocketRisu 1.16.1 it applies the
+matcher through `matchesCharacterSearch` in `src/ts/characterManager.ts`, used
+by both search lists of `src/lib/CharacterManager/CharacterManager.svelte`
+(the PocketRisu 1.10 form patched `src/lib/Others/GridCatalog.svelte` and
+`src/lib/Mobile/MobileCharacters.svelte`), retains the existing order, limits
 in-progress batchim expansion to the final syllable, and adds bounded reverse
 keyboard conversion. It does not copy Haejeok's `MainMenu` sort, recent,
 favorite, hidden-character, or character-order model.

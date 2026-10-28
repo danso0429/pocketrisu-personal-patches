@@ -32,6 +32,50 @@ module.exports = {
     'kei-prompt-role-compat-core': { '1.16.1': unchangedFrom1100() },
     'kei-text-theme-normalization-core': { '1.16.1': unchangedFrom1100() },
     'kei-fullscreen-image-viewer-core': { '1.16.1': unchangedFrom1100() },
+    'haejeok-korean-search-adapter': {
+        '1.16.1': {
+            from: '1.10.0',
+            retained: [
+                'haejeok-korean-search-adapter:package-dependency:1.10',
+                'haejeok-korean-search-adapter:lock-importer:1.10',
+                'haejeok-korean-search-adapter:lock-package:1.10',
+                'haejeok-korean-search-adapter:lock-snapshot:1.10',
+                'haejeok-korean-search-adapter:matcher:1.10',
+                'haejeok-korean-search-adapter:matcher-tests:1.10',
+            ],
+            replaced: {},
+            added: {
+                'haejeok-korean-search-adapter:manager-import:1.16':
+                    'The native character manager module imports the Korean matcher.',
+                'haejeok-korean-search-adapter:manager-entry-fields:1.16':
+                    'PocketRisu 1.16.1 ManagerEntry has no creator or tags; optional creator and tags fields are added so search keeps the 1.10.0 scope (name, creator, tags).',
+                'haejeok-korean-search-adapter:manager-entry-values:1.16':
+                    'buildManagerEntries fills creator and tags from the live character; deactivated stubs carry neither and are found by name only.',
+                'haejeok-korean-search-adapter:manager-search:1.16':
+                    'matchesCharacterSearch(entry, search) is the native matchesSearch(entry.name, search) OR the Korean matcher over name, creator and tags, so it never returns fewer entries than the native search.',
+                'haejeok-korean-search-adapter:manager-search-tests:1.16':
+                    'Client tests for matchesCharacterSearch and the creator and tags entry fields.',
+                'haejeok-korean-search-adapter:component-import:1.16':
+                    'CharacterManager.svelte imports matchesCharacterSearch instead of matchesSearch.',
+                'haejeok-korean-search-adapter:component-trash-search:1.16':
+                    'The trash list filters with matchesCharacterSearch.',
+                'haejeok-korean-search-adapter:component-visible-search:1.16':
+                    'The list and grid visibility filter uses matchesCharacterSearch; desktop and mobile share this component.',
+            },
+            retired: {
+                'haejeok-korean-search-adapter:grid-import:1.10':
+                    'src/lib/Others/GridCatalog.svelte does not exist in PocketRisu 1.16.1; its character list is the native CharacterManager, searched through manager-search.',
+                'haejeok-korean-search-adapter:grid-filter:1.10':
+                    'src/lib/Others/GridCatalog.svelte does not exist in PocketRisu 1.16.1; replaced in function by component-visible-search.',
+                'haejeok-korean-search-adapter:mobile-import:1.10':
+                    'src/lib/Mobile/MobileCharacters.svelte does not exist in PocketRisu 1.16.1; mobile uses the native CharacterManager component.',
+                'haejeok-korean-search-adapter:mobile-search-fields:1.10':
+                    'src/lib/Mobile/MobileCharacters.svelte does not exist in PocketRisu 1.16.1; creator and tags now come from manager-entry-values.',
+                'haejeok-korean-search-adapter:mobile-filter:1.10':
+                    'src/lib/Mobile/MobileCharacters.svelte does not exist in PocketRisu 1.16.1; replaced in function by component-visible-search.',
+            },
+        },
+    },
     'client-build-fence': {
         '1.16.1': {
             from: '1.10.0',

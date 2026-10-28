@@ -19,7 +19,8 @@ test.describe('[E2-4a] Retire toolchain-hardening and fastimport-ios-picker', ()
         const catalog = loadCatalog()
         const all = resolveProfile('all', catalog)
 
-        assert.equal(catalog.length, 43, 'catalog should contain two fewer packs')
+        // E2-4b retires character-organizer as well (43 -> 42).
+        assert.equal(catalog.length, 42, 'catalog should contain two fewer packs')
         assert.equal(all.defaults.length, 14, 'all should contain two fewer packs')
         for (const id of retiredIds) {
             assert.equal(catalog.some((pack) => pack.id === id), false, `${id} catalog entry`)

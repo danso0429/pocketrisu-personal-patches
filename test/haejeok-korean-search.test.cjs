@@ -10,15 +10,13 @@ function unit(id) {
     return found
 }
 
-test('Korean search is an internal character-owner adapter with exact 1.10 units', () => {
+test('Korean search is a standalone user pack declared only for PocketRisu 1.16.1', () => {
     assert.equal(manifest.id, 'haejeok-korean-search-adapter')
-    assert.equal(manifest.userSelectable, false)
-    assert.deepEqual(manifest.requires, ['character-organizer'])
-    assert.deepEqual(manifest.autoWhen, { all: ['character-organizer'] })
-    assert.ok(manifest.units.every((entry) =>
-        entry.targetVersions?.pocketrisu?.length === 1
-        && entry.targetVersions.pocketrisu[0] === '1.10.0'
-    ))
+    assert.equal(manifest.userSelectable, true)
+    assert.equal(manifest.requires, undefined)
+    assert.equal(manifest.autoWhen, undefined)
+    assert.deepEqual(manifest.targets.pocketrisu, { verified: [], reviewing: ['1.16.1'] })
+    assert.ok(manifest.units.every((entry) => !Object.hasOwn(entry, 'targetVersions')))
 })
 
 test('es-hangul is exact, integrity-pinned, and owned by the patch transaction', () => {
@@ -36,13 +34,16 @@ test('es-hangul is exact, integrity-pinned, and owned by the patch transaction',
     )
 })
 
-test('both catalog surfaces reuse one matcher without adding a score sort', () => {
-    const grid = unit('haejeok-korean-search-adapter:grid-filter:1.10').content
-    const mobile = unit('haejeok-korean-search-adapter:mobile-filter:1.10').managed
-    assert.match(grid, /matchCharacterKorean\(c, search\)\.matched/)
-    assert.match(mobile, /matchCharacterKorean\(char, search\)\.matched/)
-    assert.doesNotMatch(grid, /sort|score/)
-    assert.doesNotMatch(mobile, /sort|score/)
+test('both native manager lists reuse one entry matcher without adding a score sort', () => {
+    const trash = unit('haejeok-korean-search-adapter:component-trash-search:1.16').content
+    const visible = unit('haejeok-korean-search-adapter:component-visible-search:1.16').content
+    assert.match(trash, /matchesCharacterSearch\(e, search\)/)
+    assert.match(visible, /matchesCharacterSearch\(e, search\)/)
+    assert.doesNotMatch(trash, /sort|score/)
+    assert.doesNotMatch(visible, /sort|score/)
+    const search = unit('haejeok-korean-search-adapter:manager-search:1.16').content
+    assert.match(search, /matchesSearch\(entry\.name, search\)/)
+    assert.match(search, /matchCharacterKorean\(entry, search\)\.matched/)
 })
 
 test('matcher covers reverse keyboard conversion and bounded IME expansion', () => {

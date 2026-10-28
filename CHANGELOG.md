@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.2.4-experimental.104 (Korean search on the native character manager; character-organizer retired)
+
+- `haejeok-korean-search-adapter` 0.1.1 is a standalone user pack declared only for PocketRisu 1.16.1 (`reviewing`), with no `requires` or `autoWhen`. The matcher module, its tests and the exact `es-hangul` 2.4.0 package and lockfile units are kept unchanged; the five 1.10.0 units for `GridCatalog.svelte` and `MobileCharacters.svelte`, which PocketRisu 1.16.1 no longer has, are retired.
+- The native character manager entry gains optional `creator` and `tags`, filled for live characters only; deactivated stubs are found by name. `matchesCharacterSearch(entry, search)` returns the native `matchesSearch(entry.name, search)` OR the Korean matcher (choseong, jamo, romanization, keyboard conversion) over name, creator and tags. The native `matchesSearch` stays exported and unchanged. Both `CharacterManager.svelte` filters (list/grid visibility and trash) use it; desktop and mobile share the component. Client tests `src/ts/characterManager.e2-4.test.ts` are an owned unit of the pack.
+- `character-organizer` is removed from the catalog and the complete `all` set (42 packs, 14 user packs with the search pack now user-selectable) and joins the retired owners, so an older custom state that owned it moves to the complete set. Its manifest and the four files it reads stay because the not yet rebased `lazy-chat-bg-adapter` manifest requires it at load time; no other pack declaration changes.
+- Stable remains v0.2.3.
+
 ## 0.2.4-experimental.103 (retire toolchain-hardening and fastimport-ios-picker)
 
 - The `toolchain-hardening` and `fastimport-ios-picker` packs are removed from the catalog and the complete `all` set (43 packs, 14 user packs). Their pack directories and their dedicated tests (`test/toolchain-hardening.test.cjs`, `test/fastimport-ios-picker.test.cjs`) are removed. A lockfile pin is reintroduced only if a final candidate gate needs it.

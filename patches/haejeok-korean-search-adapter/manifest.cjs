@@ -5,7 +5,8 @@ const path = require('node:path')
 
 const filesRoot = path.join(__dirname, 'files')
 const owned = (relative) => fs.readFileSync(path.join(filesRoot, relative), 'utf8')
-const pocketRisu1100 = { pocketrisu: ['1.10.0'] }
+const files116Root = path.join(__dirname, 'files-1.16')
+const owned116 = (relative) => fs.readFileSync(path.join(files116Root, relative), 'utf8')
 const dependencyOwners = [
     'charx-archive-integrity:package-dependency:1.10',
     'charx-archive-integrity:lock-importer:1.10',
@@ -22,20 +23,15 @@ const dependencyOwners = [
 module.exports = {
     id: 'haejeok-korean-search-adapter',
     title: 'Haejeok Korean character search adapter',
-    version: '0.1.0',
+    version: '0.1.1',
     source: 'Haejeok RisuAI e9d03568 Korean search adaptation',
     targets: {
         pocketrisu: {
-            // No units apply to these historical targets.
-            verified: ['1.10.0'],
-            reviewing: [],
+            verified: [],
+            reviewing: ['1.16.1'],
         },
     },
-    userSelectable: false,
-    requires: ['character-organizer'],
-    autoWhen: {
-        all: ['character-organizer'],
-    },
+    userSelectable: true,
     units: [
         {
             id: 'haejeok-korean-search-adapter:package-dependency:1.10',
@@ -45,7 +41,6 @@ module.exports = {
             anchor: `    "dompurify": "^3.3.3",\n`,
             managed: `    "es-hangul": "2.4.0",\n`,
             after: dependencyOwners,
-            targetVersions: pocketRisu1100,
         },
         {
             id: 'haejeok-korean-search-adapter:lock-importer:1.10',
@@ -62,7 +57,6 @@ module.exports = {
 `,
             requires: ['haejeok-korean-search-adapter:package-dependency:1.10'],
             after: dependencyOwners,
-            targetVersions: pocketRisu1100,
         },
         {
             id: 'haejeok-korean-search-adapter:lock-package:1.10',
@@ -77,7 +71,6 @@ module.exports = {
 `,
             requires: ['haejeok-korean-search-adapter:lock-importer:1.10'],
             after: dependencyOwners,
-            targetVersions: pocketRisu1100,
         },
         {
             id: 'haejeok-korean-search-adapter:lock-snapshot:1.10',
@@ -91,7 +84,6 @@ module.exports = {
 `,
             requires: ['haejeok-korean-search-adapter:lock-package:1.10'],
             after: dependencyOwners,
-            targetVersions: pocketRisu1100,
         },
         {
             id: 'haejeok-korean-search-adapter:matcher:1.10',
@@ -99,7 +91,6 @@ module.exports = {
             type: 'owned',
             content: owned('src/ts/haejeokKoreanSearch.ts'),
             requires: ['haejeok-korean-search-adapter:lock-snapshot:1.10'],
-            targetVersions: pocketRisu1100,
         },
         {
             id: 'haejeok-korean-search-adapter:matcher-tests:1.10',
@@ -107,62 +98,99 @@ module.exports = {
             type: 'owned',
             content: owned('src/ts/haejeokKoreanSearch.test.ts'),
             requires: ['haejeok-korean-search-adapter:matcher:1.10'],
-            targetVersions: pocketRisu1100,
         },
         {
-            id: 'haejeok-korean-search-adapter:grid-import:1.10',
-            file: 'src/lib/Others/GridCatalog.svelte',
+            id: 'haejeok-korean-search-adapter:manager-import:1.16',
+            file: 'src/ts/characterManager.ts',
             type: 'insert',
             where: 'after',
-            anchor: `    import { checkCharOrder } from "src/ts/globalApi.svelte";\n`,
-            content: `    import { matchCharacterKorean } from "src/ts/haejeokKoreanSearch";\n`,
+            anchor: `import { isFolderEntry, type OrderEntry } from './characterOrder'\n`,
+            content: `import { matchCharacterKorean } from './haejeokKoreanSearch'\n`,
             requires: ['haejeok-korean-search-adapter:matcher:1.10'],
-            targetVersions: pocketRisu1100,
         },
         {
-            id: 'haejeok-korean-search-adapter:grid-filter:1.10',
-            file: 'src/lib/Others/GridCatalog.svelte',
-            type: 'replace',
-            anchor: `            if(c.name.replace(/ /g,"").toLocaleLowerCase().includes(search.toLocaleLowerCase().replace(/ /g,""))){
-`,
-            content: `            if(matchCharacterKorean(c, search).matched){
-`,
-            requires: ['haejeok-korean-search-adapter:grid-import:1.10'],
-            targetVersions: pocketRisu1100,
-        },
-        {
-            id: 'haejeok-korean-search-adapter:mobile-import:1.10',
-            file: 'src/lib/Mobile/MobileCharacters.svelte',
+            id: 'haejeok-korean-search-adapter:manager-entry-fields:1.16',
+            file: 'src/ts/characterManager.ts',
             type: 'insert',
             where: 'after',
-            anchor: `    import { makeAgoText } from "src/ts/util";\n`,
-            content: `    import { matchCharacterKorean } from "src/ts/haejeokKoreanSearch";\n`,
-            requires: ['haejeok-korean-search-adapter:matcher:1.10'],
-            targetVersions: pocketRisu1100,
+            anchor: `    trashed: boolean\n`,
+            content: `    /** Creator of a live character; deactivated stubs have none. */
+    creator?: string
+    /** Tags of a live character; deactivated stubs have none. */
+    tags?: string[]
+`,
         },
         {
-            id: 'haejeok-korean-search-adapter:mobile-search-fields:1.10',
-            file: 'src/lib/Mobile/MobileCharacters.svelte',
+            id: 'haejeok-korean-search-adapter:manager-entry-values:1.16',
+            file: 'src/ts/characterManager.ts',
             type: 'insert',
             where: 'after',
-            anchor: `                type: c.type,
+            anchor: `            trashed: !!c.trashTime,\n`,
+            content: `            creator: c.creator,
+            tags: c.tags,
 `,
-            content: `                creator: c.creator,
-                tags: c.tags,
-`,
-            requires: ['haejeok-korean-search-adapter:mobile-import:1.10'],
-            targetVersions: pocketRisu1100,
+            requires: ['haejeok-korean-search-adapter:manager-entry-fields:1.16'],
         },
         {
-            id: 'haejeok-korean-search-adapter:mobile-filter:1.10',
-            file: 'src/lib/Mobile/MobileCharacters.svelte',
+            id: 'haejeok-korean-search-adapter:manager-search:1.16',
+            file: 'src/ts/characterManager.ts',
+            type: 'insert',
+            where: 'before',
+            anchor: `export function matchesFilter(entry: ManagerEntry, filter: ManagerFilter): boolean {\n`,
+            content: `/**
+ * Manager search over name, creator and tags. Every entry the native name
+ * search keeps stays in the result; the Korean matcher (choseong, jamo,
+ * romanization, keyboard conversion) can only add entries.
+ */
+export function matchesCharacterSearch(entry: ManagerEntry, search: string): boolean {
+    if (matchesSearch(entry.name, search)) return true
+    return matchCharacterKorean(entry, search).matched
+}
+`,
+            requires: [
+                'haejeok-korean-search-adapter:manager-import:1.16',
+                'haejeok-korean-search-adapter:manager-entry-fields:1.16',
+            ],
+        },
+        {
+            id: 'haejeok-korean-search-adapter:manager-search-tests:1.16',
+            file: 'src/ts/characterManager.e2-4.test.ts',
+            type: 'owned',
+            content: owned116('src/ts/characterManager.e2-4.test.ts'),
+            requires: [
+                'haejeok-korean-search-adapter:manager-entry-values:1.16',
+                'haejeok-korean-search-adapter:manager-search:1.16',
+            ],
+        },
+        {
+            id: 'haejeok-korean-search-adapter:component-import:1.16',
+            file: 'src/lib/CharacterManager/CharacterManager.svelte',
             type: 'replace',
-            anchor: `        {#if char.name.replace(/ /g,"").toLocaleLowerCase().includes(search.replace(/ /g,"").toLocaleLowerCase())}
-`,
-            managed: `        {#if matchCharacterKorean(char, search).matched}
-`,
-            requires: ['haejeok-korean-search-adapter:mobile-search-fields:1.10'],
-            targetVersions: pocketRisu1100,
+            anchor: `    import {
+        buildGridSections, buildManagerEntries, matchesFilter, matchesSearch, sortEntries,
+        type ManagerEntry, type ManagerFilter, type ManagerSort,
+    } from "src/ts/characterManager";`,
+            content: `    import {
+        buildGridSections, buildManagerEntries, matchesCharacterSearch, matchesFilter, sortEntries,
+        type ManagerEntry, type ManagerFilter, type ManagerSort,
+    } from "src/ts/characterManager";`,
+            requires: ['haejeok-korean-search-adapter:manager-search:1.16'],
+        },
+        {
+            id: 'haejeok-korean-search-adapter:component-trash-search:1.16',
+            file: 'src/lib/CharacterManager/CharacterManager.svelte',
+            type: 'replace',
+            anchor: `    let trashEntries = $derived([...entries.values()].filter((e) => e.trashed).filter((e) => matchesSearch(e.name, search)));`,
+            content: `    let trashEntries = $derived([...entries.values()].filter((e) => e.trashed).filter((e) => matchesCharacterSearch(e, search)));`,
+            requires: ['haejeok-korean-search-adapter:component-import:1.16'],
+        },
+        {
+            id: 'haejeok-korean-search-adapter:component-visible-search:1.16',
+            file: 'src/lib/CharacterManager/CharacterManager.svelte',
+            type: 'replace',
+            anchor: `    let visible = $derived((e: ManagerEntry) => matchesSearch(e.name, search) && matchesFilter(e, filter));`,
+            content: `    let visible = $derived((e: ManagerEntry) => matchesCharacterSearch(e, search) && matchesFilter(e, filter));`,
+            requires: ['haejeok-korean-search-adapter:component-import:1.16'],
         },
     ],
 }

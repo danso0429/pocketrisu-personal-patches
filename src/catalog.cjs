@@ -13,6 +13,7 @@ const RETIRED_OWNER_IDS = Object.freeze([
     'background-import',
     'toolchain-hardening',
     'fastimport-ios-picker',
+    'character-organizer',
 ])
 
 function validateProfileMetadata(catalog) {
@@ -44,7 +45,6 @@ function loadCatalog(repositoryRoot = path.resolve(__dirname, '..')) {
         require(path.join(repositoryRoot, 'patches/lazy-chat-bg-adapter/manifest.cjs')),
         require(path.join(repositoryRoot, 'patches/haejeok-persistence-safety-adapter/manifest.cjs')),
         require(path.join(repositoryRoot, 'patches/persona-organizer/manifest.cjs')),
-        require(path.join(repositoryRoot, 'patches/character-organizer/manifest.cjs')),
         require(path.join(repositoryRoot, 'patches/haejeok-korean-search-adapter/manifest.cjs')),
         require(path.join(repositoryRoot, 'patches/character-import-ux/manifest.cjs')),
         require(path.join(repositoryRoot, 'patches/personal-settings/manifest.cjs')),
