@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.2.4-experimental.109 (persona import keeps edits made while it ran)
+
+- `persona-organizer`: importing a persona into a folder saves the selected persona, imports, then selects the imported persona. That selection used the native `'noSave'` mode, so edits made to the previously selected persona while the import ran were dropped; it now selects with `'save'`, which stores those edits first.
+- Stable remains v0.2.3.
+
 ## 0.2.4-experimental.108 (Korean search skips non-string card fields)
 
 - `haejeok-korean-search-adapter`: an imported character card can carry a non-string `creator` or tag, or a `tags` value that is not an array. The Korean matcher threw on such a value outside its error handling; it now skips the value as a non-match. String fields match as before. A client test covers both cases.

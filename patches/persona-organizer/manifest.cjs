@@ -614,7 +614,8 @@ import { resolvePersonaFolderId } from "./personaOrganizer"
     async function importPersonaIntoFolder(folderId: string) {
         saveUserPersona()
         const importedIndex = await importUserPersona(folderId)
-        if (typeof importedIndex === 'number') changeUserPersona(importedIndex, 'noSave')
+        // Keeps edits made to the selected persona while the import ran.
+        if (typeof importedIndex === 'number') changeUserPersona(importedIndex, 'save')
         void requestImmediateSave()
     }
 
