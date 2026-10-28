@@ -1,11 +1,16 @@
 import fs from 'node:fs'
+import path from 'node:path'
+import { mkdir, writeFile } from 'node:fs/promises'
 import { afterEach, beforeEach, describe, expect, test, vi } from 'vitest'
+import ts from 'typescript'
+import { zipSync } from 'fflate'
 import utilsPackage from '../../../server/node/utils.cjs'
 import { spawnServer, type ServerHandle } from '../../../test/compat/helpers/spawnServer'
 import { createClient, type RisuClient } from '../../../test/compat/helpers/client'
 import { encodeBackup } from '../../../test/compat/helpers/encode'
+import { createFakeAccount, startFakeAccountServer, type FakeAccount, type FakeAccountServer } from '../../../test/compat/helpers/fakeRisuAccount'
 import {
-    DB_KEY, Harness, createMemoryStores, createNodeFetch, decodeDb, fromHexKey, hexKey, optionalImport, sleep,
+    DB_KEY, Harness, createMemoryStores, createNodeFetch, createNodeXhrClass, decodeDb, fromHexKey, hexKey, optionalImport, sleep,
     type MemoryStores, type RecordedRequest,
 } from './startupCache.e2-3.helpers'
 
@@ -134,6 +139,8 @@ function seedDatabase(over: Record<string, unknown> = {}) {
 
 let srv: ServerHandle
 let client: RisuClient
+let fakeAccount: FakeAccount
+let fakeAccountServer: FakeAccountServer
 const requests: RecordedRequest[] = []
 const recordingFetch = async (input: RequestInfo | URL, init: RequestInit = {}): Promise<Response> => {
     const url = new URL(String(input), `http://127.0.0.1:${srv.port}`)
@@ -161,7 +168,13 @@ let cacheModule: any = null
 // One server per test: a second import over a first one is not what these
 // rows exercise, and a fresh server keeps every ETag history independent.
 beforeEach(async () => {
-    srv = await spawnServer({ env: { POCKETRISU_BACKUP_INTERVAL_MS: '0' } })
+    fakeAccount = createFakeAccount()
+    fakeAccountServer = await startFakeAccountServer(fakeAccount)
+    srv = await spawnServer({ env: {
+        POCKETRISU_BACKUP_INTERVAL_MS: '0',
+        POCKETRISU_RISU_ACCOUNT_URL: fakeAccountServer.url,
+        POCKETRISU_RISU_ACCOUNT_GAP_MS: '0',
+    } })
     vi.stubGlobal('fetch', createNodeFetch(`http://127.0.0.1:${srv.port}`))
     client = await createClient(srv.port, srv.password)
     cacheModule = await optionalImport<any>('./startupDatabaseCache')
@@ -172,12 +185,14 @@ beforeEach(async () => {
     harness = new Harness({ state: h as any, loadData, forageStorage, loadedStore, accountImportBlocking, NodeStorage, cacheModule })
     harness.authToken = client.token
     harness.install()
+    vi.stubGlobal('XMLHttpRequest', createNodeXhrClass(`http://127.0.0.1:${srv.port}`))
 }, 30_000)
 
 afterEach(async () => {
     harness.uninstall()
     vi.unstubAllGlobals()
     await srv?.cleanup()
+    await fakeAccountServer?.close()
 })
 
 async function seed(over: Record<string, unknown> = {}) {
@@ -196,6 +211,13 @@ async function readServer() {
         database,
         hash: utils.calculateHash(utils.normalizeJSON(structuredClone(database))).toString(16) as string,
     }
+}
+
+function ensureStoredCopy(database: any, etag: string) {
+    if (stores.holdsEtag(etag)) return
+    stores.raw = { etag, bytes: new Uint8Array(utils.encodeRisuSaveLegacy(database)) }
+    stores.record = { namespace: stores.namespace.value, baseEtag: etag, database: structuredClone(database) }
+    stores.meta = { namespace: stores.namespace.value, baseEtag: etag, currentEtag: etag, patches: [] }
 }
 
 async function otherDevicePatch(patch: unknown[]) {
@@ -222,9 +244,118 @@ async function registerSession(storage: any) {
     const response = await client.fetch('/api/session', { method: 'POST', headers: { 'x-session-id': storage.getSessionId() } })
     expect(response.ok).toBe(true)
 }
+
+async function waitForAccountState(states: string[]) {
+    for (let attempt = 0; attempt < 400; attempt++) {
+        const status = await (await client.fetch('/api/risu-account/status')).json() as any
+        if (!states.includes(status.state)) return status
+        await sleep(25)
+    }
+    throw new Error(`Timed out waiting for account state after ${states.join(', ')}`)
+}
 const boot = () => harness.boot({ server, stores, beforeLoad: registerSession })
 
 describe('[E2-3e] Rebuild client startup safety over native 1.16.1', () => {
+    test('[new] e1b a database written by another device is served as a 200 and replaces the stored copy', async () => {
+        await seed({ theme: 'old-copy' })
+        const first = await boot()
+        await harness.flushIdle()
+        const old = await readServer()
+        const oldEtag = old.etag
+        ensureStoredCopy(old.database, oldEtag)
+
+        await otherDevicePatch([{ op: 'replace', path: '/theme', value: 'other-device' }])
+        const serverNow = await readServer()
+        const second = await boot()
+
+        expect(second.reads[0].headers['if-none-match']).toBe(oldEtag)
+        expect(second.reads[0].status).toBe(200)
+        expect(second.started).toEqual(serverNow.database)
+        await harness.flushIdle()
+        expect(stores.meta).toMatchObject({ baseEtag: serverNow.etag, currentEtag: serverNow.etag, patches: [] })
+        expect(stores.record?.database).toEqual(serverNow.database)
+        expect(first.started.theme).toBe('old-copy')
+    })
+
+    const targetDatabase = () => seedDatabase({ theme: 'replacement-target', characters: [] })
+    const targetBytes = () => Buffer.from(utils.encodeRisuSaveLegacy(targetDatabase()))
+    const targetBackup = () => encodeBackup([{ name: 'database.risudat', data: targetBytes() }])
+    const blobOf = (bytes: Uint8Array) => {
+        const copy = new Uint8Array(bytes.byteLength)
+        copy.set(bytes)
+        return new Blob([copy.buffer])
+    }
+    const replacementCases: Array<{
+        name: string
+        prepare: () => Promise<(storage: any) => Promise<unknown>>
+    }> = [
+        {
+            name: 'importBackup',
+            prepare: async () => async storage => storage.importBackup(blobOf(targetBackup())),
+        },
+        {
+            name: 'restoreServerBackup',
+            prepare: async () => {
+                expect((await client.importBackup(targetBackup())).ok).toBe(true)
+                const saved = await client.fetch('/api/backup/server/save', { method: 'POST' })
+                expect(saved.status).toBe(200)
+                await saved.text()
+                const listed = await (await client.fetch('/api/backup/server/list')).json() as any
+                const filename = listed.backups[0].filename as string
+                return async storage => storage.restoreServerBackup(filename)
+            },
+        },
+        {
+            name: 'uploadSaveFolderZip',
+            prepare: async () => {
+                const zip = Buffer.from(zipSync({ [hexKey(DB_KEY)]: new Uint8Array(targetBytes()) }))
+                return async storage => storage.uploadSaveFolderZip(blobOf(zip))
+            },
+        },
+        {
+            name: 'executeSaveFolderImport',
+            prepare: async () => {
+                const folder = path.join(srv.cwd, 'startup-cache-e1d-folder')
+                await mkdir(folder, { recursive: true })
+                await writeFile(path.join(folder, hexKey(DB_KEY)), targetBytes())
+                return async storage => storage.executeSaveFolderImport(folder)
+            },
+        },
+        {
+            name: 'applyRisuAccountImport',
+            prepare: async () => async storage => {
+                await storage.prepareRisuAccountImport(fakeAccount.token, fakeAccount.id)
+                await waitForAccountState(['preparing'])
+                await storage.startRisuAccountDownload()
+                await waitForAccountState(['downloading'])
+                await storage.applyRisuAccountImport()
+                await waitForAccountState(['applying'])
+            },
+        },
+    ]
+
+    test.each(replacementCases)('[new] e1d $name empties the stored copy before it resolves and the next start does not use the old copy', async ({ prepare }) => {
+        const replace = await prepare()
+        await seed({ theme: 'old-copy' })
+        const first = await boot()
+        await harness.flushIdle()
+        const old = await readServer()
+        const oldEtag = old.etag
+        ensureStoredCopy(old.database, oldEtag)
+        stores.clearDelayMs = 40
+
+        await replace(first.storage)
+
+        expect(stores.isEmpty(), 'replacement waits for startup-cache invalidation').toBe(true)
+        stores.clearDelayMs = 0
+        const serverNow = await readServer()
+        expect(serverNow.etag).not.toBe(oldEtag)
+        const second = await boot()
+        expect(second.reads[0].headers['if-none-match']).toBeUndefined()
+        expect(second.started).toEqual(serverNow.database)
+        expect(second.started.theme).not.toBe('old-copy')
+    }, 60_000)
+
     test('[new] e1a several patch writes after a start are replayed from the stored copy: the next start gets 304 and the server database', async () => {
         expect(cacheModule, 'startupDatabaseCache module exists').not.toBeNull()
         await seed()
@@ -353,16 +484,61 @@ describe('[E2-3e] Rebuild client startup safety over native 1.16.1', () => {
         expect(stores.holdsEtag(serverNow.etag)).toBe(true)
     })
 
-    test('[new] e10 the snapshot restore call site drops the stored startup copy', () => {
+    test('[new] e10 the snapshot restore call site awaits invalidation before reload', async () => {
+        await seed({ theme: 'before-restore' })
+        const first = await boot()
+        await harness.flushIdle()
+        if (stores.isEmpty()) {
+            stores.raw = { etag: 'pre-restore-copy', bytes: new Uint8Array([1]) }
+            stores.record = { database: { theme: 'before-restore' }, baseEtag: 'pre-restore-copy' }
+            stores.meta = { baseEtag: 'pre-restore-copy', currentEtag: 'pre-restore-copy', patches: [] }
+        }
+        await otherDevicePatch([{ op: 'replace', path: '/theme', value: 'after-snapshot' }])
+        await otherDevicePatch([{ op: 'replace', path: '/theme', value: 'restore-source' }])
+        await sleep(100)
+        const listed = await (await client.fetch('/api/db/snapshots')).json() as { snapshots: Array<{ key: string, size: number, timestamp: number | null }> }
+        expect(listed.snapshots.length).toBeGreaterThan(0)
+
         const source = fs.readFileSync('src/lib/Setting/Pages/SystemBackup.svelte', 'utf8')
-        const start = source.indexOf('async function restoreSnapshot')
-        expect(start).toBeGreaterThanOrEqual(0)
-        const end = source.indexOf('// ── Snapshot limits', start)
-        const restoreFunction = source.slice(start, end > start ? end : undefined)
-        const restoreCall = restoreFunction.indexOf('/api/db/snapshots/restore')
-        const invalidation = restoreFunction.indexOf('invalidateStartupDatabaseCache')
-        expect(restoreCall).toBeGreaterThanOrEqual(0)
-        expect(invalidation).toBeGreaterThan(restoreCall)
-        expect(invalidation).toBeLessThan(restoreFunction.indexOf('location.reload'))
-    })
+        const script = source.slice(source.indexOf('<script lang="ts">') + '<script lang="ts">'.length, source.indexOf('</script>'))
+        const parsed = ts.createSourceFile('SystemBackup.ts', script, ts.ScriptTarget.Latest, true, ts.ScriptKind.TS)
+        let declaration: ts.FunctionDeclaration | undefined
+        const visit = (node: ts.Node) => {
+            if (ts.isFunctionDeclaration(node) && node.name?.text === 'restoreSnapshot') declaration = node
+            if (!declaration) ts.forEachChild(node, visit)
+        }
+        visit(parsed)
+        expect(declaration, 'restoreSnapshot function exists').toBeDefined()
+        const executable = ts.transpileModule(`return (${declaration!.getText(parsed)});`, {
+            compilerOptions: { module: ts.ModuleKind.None, target: ts.ScriptTarget.ES2022 },
+        }).outputText
+        let emptyAtReload: boolean | undefined
+        const restoreSnapshot = new Function(
+            'alertConfirm', 'alertWait', 'alertError', 'notifySuccess', 'forageStorage', 'fetch', 'language', 'location',
+            'invalidateStartupDatabaseCache',
+            executable,
+        )(
+            async () => true,
+            () => {},
+            (error: unknown) => { throw error },
+            () => {},
+            forageStorage,
+            globalThis.fetch,
+            {
+                backupLoadConfirm: 'confirm',
+                backupLoadConfirm2: 'confirm again',
+                serverBackupRestoring: 'restoring',
+            },
+            { search: '', reload: () => { emptyAtReload = stores.isEmpty() } },
+            async () => { await Promise.all([stores.rawStore.clear(), stores.decodedStore.clear()]) },
+        ) as (snapshot: { key: string, size: number, timestamp: number | null }) => Promise<void>
+        stores.clearDelayMs = 40
+
+        await restoreSnapshot(listed.snapshots[0])
+
+        expect(emptyAtReload, 'the startup cache is empty when restore reaches reload').toBe(true)
+        expect(stores.isEmpty(), 'the restore function returns only after invalidation').toBe(true)
+        stores.clearDelayMs = 0
+        expect(first.started.theme).toBe('before-restore')
+    }, 60_000)
 })

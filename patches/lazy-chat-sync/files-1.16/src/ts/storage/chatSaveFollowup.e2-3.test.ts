@@ -187,8 +187,13 @@ async function publicEnv(
             }
             if (headers['if-none-match'] === '*') {
                 if (current) return respond(412)
-            } else if (current) {
+            } else {
                 const base = headers['x-chat-base-revision']
+                if (!current && base !== undefined) return respond(409)
+                if (!current) {
+                    bodies.set(key, structuredClone(sent))
+                    return respond(200, {}, { 'x-chat-revision': revisionOf(sent) })
+                }
                 if (base === undefined) return respond(428)
                 if (base !== revisionOf(current)) return respond(409, { currentRevision: revisionOf(current) })
             }
@@ -405,11 +410,13 @@ describe('[E2-3d2] Capture the open chat autosave from its slot when the save ru
         getGate.resolve()
         await blocker
         const flushResult = await flushed
+        const { get } = await import('svelte/store')
 
         expect(env.requests.filter(r => r.method === 'POST' && r.chatId === 'new-chat'), 'no stale first body is sent').toHaveLength(0)
         expect(env.chat(chaId, 'new-chat'), 'server still has no chat body').toBeUndefined()
         expect(flushResult, 'the rejected save is not confirmed').toBe(false)
         expect(env.patchCallCount(), 'at least one metadata patch was sent and rejected').toBeGreaterThanOrEqual(1)
+        expect(get(env.stores.alertStore), '422 recovery failure is shown to the user').toMatchObject({ type: 'error' })
     }, 60000)
 
     test('[unchanged] d2-4 back-to-back open-chat autosaves do not create a false conflict', async () => {
@@ -445,11 +452,14 @@ describe('[E2-3d2] Capture the open chat autosave from its slot when the save ru
         env.stores.DBState.db.characters[0].chats[0] = placeholder('chat-1')
         const hydrated = await hydrate(env, chaId, 0)
         expect(hydrated).not.toBe(old)
+        hydrated!.message.push(message('h1', 'content from the hydrated slot') as any)
         gate.resolve()
         await blocker
         await expect(Promise.resolve(queued).then(() => 'resolved'), 'queued save resolves without a conflict error').resolves.toBe('resolved')
         const posts = env.requests.filter(r => r.method === 'POST')
-        expect(posts.at(-1)?.sent?.name, 'queued request uses hydrated slot content').toBe('hydrated')
+        const queuedPosts = posts.slice(1)
+        expect(queuedPosts.some(request => ids(request.sent).includes('h1')), 'queued request uses hydrated slot content').toBe(true)
+        expect(queuedPosts.some(request => request.sent?.name === 'old queued object'), 'queued request does not use the object supplied before hydration').toBe(false)
     })
 
     test('[new] d2-5b queued autosave addresses the chat at its current index', async () => {
@@ -499,7 +509,10 @@ describe('[E2-3d2] Capture the open chat autosave from its slot when the save ru
 
         const current = env.stores.DBState.db.characters.find((char: any) => char.chaId === chaId).chats[0]
         current.message.push(message('u2', 'edit after replacement'))
-        await env.chatStorage.saveChatToServer(chaId, 0, 'chat-1', current, 'update', { live: true }).catch(() => undefined)
+        await expect(
+            env.chatStorage.saveChatToServer(chaId, 0, 'chat-1', current, 'update', { live: true }),
+            'the final save succeeds',
+        ).resolves.not.toBe('skipped')
 
         expect(env.requests.some(r => r.method === 'POST' && r.status === 409), 'the pre-replacement save rebased').toBe(true)
         expect(ids(env.chat(chaId, 'chat-1')), 'the next save from the replacement database preserves the other device message').toContain('o1')
@@ -539,7 +552,10 @@ describe('[E2-3d2] Capture the open chat autosave from its slot when the save ru
         char.chatPage = 1
         env.stores.selectedCharID.set(0)
         char.chats[1].message.push(message('u2', 'opened after replacement'))
-        await env.chatStorage.saveChatToServer(chaId, 1, 'target', char.chats[1], 'update', { live: true }).catch(() => undefined)
+        await expect(
+            env.chatStorage.saveChatToServer(chaId, 1, 'target', char.chats[1], 'update', { live: true }),
+            'the final save succeeds',
+        ).resolves.not.toBe('skipped')
 
         expect(env.requests.some(r => r.method === 'POST' && r.chatId === 'target' && r.status === 409), 'plugin save rebased').toBe(true)
         expect(ids(env.chat(chaId, 'target')), 'opening and saving from the replacement database preserves the other device message').toContain('o1')

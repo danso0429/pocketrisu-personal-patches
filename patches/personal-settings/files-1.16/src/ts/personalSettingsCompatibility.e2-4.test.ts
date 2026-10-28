@@ -9,6 +9,12 @@ describe('[E2-4d] Rebase personal-settings onto PocketRisu 1.16.1', () => {
         expect(appearance.readPersonalAppearance).toEqual(expect.any(Function))
         expect(appearance.resolvePersonalAppearanceTokens).toEqual(expect.any(Function))
 
+        const cssModulePath = './personalSettings/cssToggles'
+        const cssToggles = await import(/* @vite-ignore */ cssModulePath).catch(() => null)
+        expect(cssToggles, 'the rebased cssToggles module exists').not.toBeNull()
+        if (!cssToggles) return
+        expect(cssToggles.cssSnapshot).toEqual(expect.any(Function))
+
         const db = {
             theme: '',
             pocketRisuPersonalSettings: {
@@ -16,7 +22,16 @@ describe('[E2-4d] Rebase personal-settings onto PocketRisu 1.16.1', () => {
                     version: 1,
                     enabled: true,
                     chat: { font: 'paperlogy', fontEnabled: true },
-                    customCss: 'body { color: red; }',
+                    cssToggles: {
+                        version: 1,
+                        custom: [{
+                            id: 'legacy-css',
+                            name: 'legacy',
+                            description: '',
+                            css: 'body { color: red; }',
+                            enabled: true,
+                        }],
+                    },
                 },
             },
         }
@@ -27,7 +42,9 @@ describe('[E2-4d] Rebase personal-settings onto PocketRisu 1.16.1', () => {
             chat: { font: 'paperlogy', fontEnabled: true },
         })
         expect(appearance.resolvePersonalAppearanceTokens(db, false)).toContain('chat-font-paperlogy')
-        expect(JSON.stringify(db)).toContain('body { color: red; }')
+        expect(cssToggles.cssSnapshot(db, false).nodes).toEqual(
+            expect.arrayContaining([{ key: 'custom:legacy-css', css: 'body { color: red; }' }]),
+        )
     })
 
     it('[new] preserves old-release external-header settings while updating another Personal key', async () => {

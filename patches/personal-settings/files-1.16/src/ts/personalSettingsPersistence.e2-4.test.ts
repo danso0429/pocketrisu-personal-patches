@@ -57,7 +57,7 @@ function nativeHarness(options: {
         }),
         changedCharacterIdsOfLastSet: () => [],
         estimatePayloadBytes: () => 1,
-        init: vi.fn(async () => { events.push('baseline-restored') }),
+        init: vi.fn(async (_baseline?: unknown) => { events.push('baseline-restored') }),
         describeHashMismatch: () => ({}),
     }
     const storage = {
@@ -151,13 +151,31 @@ function nativeHarness(options: {
     }
 }
 
+// Finds whatever registers the strict writer: any call to the public
+// `registerAppearanceWriter` export, wherever it sits in the native file.
 function registrationText(): string | null {
-    const registration = saveDb.body?.statements.find(
-        node => ts.isExpressionStatement(node) && node.getText(source).startsWith('registerAppearanceWriter('),
-    )
-    return registration ? ts.transpileModule(registration.getText(source), {
+    const visit = (node: ts.Node): ts.CallExpression | null => {
+        if (ts.isCallExpression(node) && ts.isIdentifier(node.expression)
+            && node.expression.text === 'registerAppearanceWriter') return node
+        return ts.forEachChild(node, visit) ?? null
+    }
+    const call = visit(source)
+    if (!call) return null
+    const writerArg = call.arguments[0]
+    let prelude = ''
+    if (writerArg && ts.isIdentifier(writerArg)) {
+        const name = writerArg.text
+        const declaration = (function find(node: ts.Node): ts.Node | null {
+            if (ts.isFunctionDeclaration(node) && node.name?.text === name) return node
+            if (ts.isVariableStatement(node)
+                && node.declarationList.declarations.some(item => ts.isIdentifier(item.name) && item.name.text === name)) return node
+            return ts.forEachChild(node, find) ?? null
+        })(source)
+        if (declaration) prelude = `${declaration.getText(source)}\n`
+    }
+    return ts.transpileModule(`${prelude}${call.getText(source)}`, {
         compilerOptions: { target: ts.ScriptTarget.ES2022 },
-    }).outputText : null
+    }).outputText
 }
 
 function registeredWriterHarness(options: Parameters<typeof nativeHarness>[0] & {
@@ -165,7 +183,7 @@ function registeredWriterHarness(options: Parameters<typeof nativeHarness>[0] & 
     flushReject?: Error
 } = {}) {
     const registration = registrationText()
-    expect(registration, 'the native saveDb function registers the Personal strict writer').not.toBeNull()
+    expect(registration, 'the native save path registers the Personal strict writer through registerAppearanceWriter').not.toBeNull()
     if (!registration) throw new Error('Personal strict writer registration missing')
 
     const native = nativeHarness(options)
@@ -268,6 +286,7 @@ describe('[E2-4d] Rebase personal-settings onto PocketRisu 1.16.1', () => {
         expect(h.state.value).toBe('before')
         expect(h.wrapperEvents).toContain('undo')
         expect(h.events).toContain('baseline-restored')
+        expect(h.patcher.init.mock.calls.at(-1)?.[0]).toMatchObject({ value: 'baseline' })
     })
 
     it.each([
@@ -280,6 +299,7 @@ describe('[E2-4d] Rebase personal-settings onto PocketRisu 1.16.1', () => {
         expect(h.wrapperEvents).not.toContain('undo')
         expect(h.wrapperEvents).toContain('requeue')
         expect(h.events).toContain('baseline-restored')
+        expect(h.patcher.init.mock.calls.at(-1)?.[0]).toMatchObject({ value: 'baseline' })
     })
 
     it('[new] allows a guarded full write without patch sync and flushes it', async () => {
@@ -301,9 +321,12 @@ describe('[E2-4d] Rebase personal-settings onto PocketRisu 1.16.1', () => {
         const h = registeredWriterHarness({ prior: new Promise<void>(resolve => { release = resolve }) })
         const save = h.save()
         await Promise.resolve()
-        expect(h.wrapperEvents).toEqual(['verify'])
+        expect(h.wrapperEvents, 'mutation waits for the ordinary save').not.toContain('mutate')
+        expect(h.wrapperEvents, 'persistence waits for the ordinary save').not.toContain('persist')
         release()
         await save
+        expect(h.wrapperEvents).toContain('mutate')
+        expect(h.wrapperEvents).toContain('persist')
         expect(h.wrapperEvents.indexOf('mutate')).toBeLessThan(h.wrapperEvents.indexOf('persist'))
     })
 

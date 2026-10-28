@@ -57,6 +57,41 @@ export function createNodeFetch(base: string) {
     })
 }
 
+/** Minimal XMLHttpRequest facade for NodeStorage's two upload paths. */
+export function createNodeXhrClass(base: string) {
+    const nodeFetch = createNodeFetch(base)
+    return class NodeXhr {
+        method = 'GET'
+        url = ''
+        headers: Record<string, string> = {}
+        status = 0
+        responseText = ''
+        upload: any = { onprogress: null, onload: null }
+        onprogress: any = null
+        onerror: any = null
+        onload: any = null
+        open(method: string, url: string) { this.method = method; this.url = url }
+        setRequestHeader(name: string, value: string) { this.headers[name.toLowerCase()] = value }
+        send(body?: Blob | Uint8Array) {
+            void (async () => {
+                const bytes = body instanceof Blob
+                    ? new Uint8Array(await body.arrayBuffer())
+                    : body ?? new Uint8Array()
+                const response = await nodeFetch(this.url, {
+                    method: this.method,
+                    headers: this.headers,
+                    body: bytes as BodyInit,
+                })
+                this.status = response.status
+                this.responseText = await response.text()
+                this.upload.onload?.({})
+                this.onprogress?.({})
+                this.onload?.({})
+            })().catch(error => this.onerror?.(error))
+        }
+    }
+}
+
 // ── In-memory cache stores ───────────────────────────────────────────────────
 
 export interface MemoryStores {
@@ -147,6 +182,8 @@ export class FakeServer {
     nextPatchDatabase: any = null
     /** Status for the next /api/write (default 200). */
     writeStatus: Array<{ status: number, body: any }> = []
+    /** Runs after a matching validator was observed and before its 304 resolves. */
+    beforeNotModifiedResponse: (() => Promise<void> | void) | null = null
     private counter = 0
 
     get etag(): string {
@@ -200,6 +237,8 @@ export class FakeServer {
                 if (!this.db) return new Response(new Uint8Array(0), { status: 200 })
                 const etag = this.etag
                 if (request.headers['if-none-match'] && request.headers['if-none-match'] === etag) {
+                    await this.beforeNotModifiedResponse?.()
+                    this.beforeNotModifiedResponse = null
                     return new Response(null, { status: 304, headers: { 'x-db-etag': etag } })
                 }
                 return new Response(this.db.slice(), { status: 200, headers: { 'x-db-etag': etag } })

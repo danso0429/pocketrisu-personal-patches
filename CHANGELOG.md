@@ -1,5 +1,14 @@
 # Changelog
 
+## 0.2.4-experimental.107 (test corrections for the 1.16.1 rebase)
+
+- Test-only release; no unit changes product code.
+- `lazy-chat-sync` `chatSaveFollowup.e2-3.test.ts`: the final saves of d2-6 and d2-7 must succeed instead of being ignored on failure; d2-5a identifies the queued autosave request by content unique to the hydrated slot; d2-3b checks that the 422 recovery failure is shown to the user; the test server answers 409 to a base revision for a chat it has no body for, as the real server does.
+- `lazy-chat-sync` startup cache tests: the plugin rows call the real plugin API v3 `getChatFromIndex`/`setChatToIndex` and check that plugin loading finishes before the app marks itself loaded; e1b and e1d run against the real `server.cjs`; the snapshot restore test runs the restore function and checks that the startup cache is empty when it reaches reload; a new e7 test checks that decoded metadata changed after the probe is not used when the 304 resolves.
+- `personal-settings`: the in-flight save test of `personalSettingsPersistence.e2-4.test.ts` requires only that mutation and persistence wait for the earlier save, without fixing when verification runs; `personalSettingsCompatibility.e2-4.test.ts` checks stored custom CSS through the `cssToggles` snapshot.
+- `persona-organizer` `personaAssets.e2-4.test.ts` checks each asset by name; the earlier negated `arrayContaining` passed when only one of the two assets was released.
+- Stable remains v0.2.3.
+
 ## 0.2.4-experimental.106 (personal settings on PocketRisu 1.16.1)
 
 - `personal-settings` 0.5.16 is declared only for PocketRisu 1.16.1 (`reviewing`); no unit carries a target scope. The module names and exports (`personalSettings`, `personalSettings/appearance`, `personalSettings/appearancePersistence`, server `externalRequestHeaders.cjs`) and the stored `pocketRisuPersonalSettings` and external-header data are unchanged, so 1.10.0 values load as is.

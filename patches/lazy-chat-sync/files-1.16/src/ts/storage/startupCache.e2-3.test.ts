@@ -19,6 +19,9 @@ const h = vi.hoisted(() => ({
     backups: [] as string[],
     alerts: [] as any[],
     pluginHook: null as null | (() => Promise<void> | void),
+    pluginApi: null as any,
+    pluginErrors: [] as unknown[],
+    pluginProbeRuns: 0,
 }))
 
 vi.mock('../characterArchive', () => ({ migrateLegacyTrash: vi.fn() }))
@@ -54,15 +57,37 @@ vi.mock('../stores.svelte', async () => {
         loadedStore: writable(false),
         bootBackupPromptStore: writable(null),
         accountImportBlocking: writable(false),
+        selIdState: { selId: undefined },
         DBState: h.dbState,
         LoadingStatusState: { text: '' },
     }
 })
 vi.mock('../transferSize', () => ({ recordDbTransferSize: vi.fn() }))
 vi.mock('../plugins/plugins.svelte', () => ({
+    allowedDbKeys: [],
+    customProviderStore: { update: vi.fn() },
+    getV2PluginAPIs: () => ({
+        safeLocalStorage: {
+            getItem: vi.fn(), setItem: vi.fn(), removeItem: vi.fn(), clear: vi.fn(), key: vi.fn(), keys: vi.fn(), length: 0,
+        },
+    }),
+    handlePluginInstallViaPlugin: vi.fn(),
+    pluginV2: [],
     loadPlugins: async () => {
         h.events.push('loadPlugins')
-        await h.pluginHook?.()
+        try {
+            await h.pluginHook?.()
+        } catch (error) {
+            h.pluginErrors.push(error)
+            throw error
+        }
+    },
+}))
+vi.mock('../plugins/apiV3/factory', () => ({
+    SandboxHost: class {
+        constructor(api: any) { h.pluginApi = api }
+        run() {}
+        terminate() {}
     },
 }))
 vi.mock('../alert', () => ({
@@ -106,7 +131,6 @@ const { loadData } = await import('../bootstrap')
 const { forageStorage } = await import('../globalApi.svelte')
 const { loadedStore, accountImportBlocking } = await import('../stores.svelte')
 const { NodeStorage } = await import('./nodeStorage')
-const { fetchChatFromServer } = await import('./chatStorage')
 
 function database(over: Record<string, unknown> = {}) {
     return {
@@ -131,6 +155,8 @@ beforeEach(async () => {
     stores = createMemoryStores()
     h.backups = []
     h.pluginHook = null
+    h.pluginApi = null
+    h.pluginErrors.length = 0
     harness = new Harness({ state: h as any, loadData, forageStorage, loadedStore, accountImportBlocking, NodeStorage, cacheModule })
     harness.install()
     // Nothing in these tests may reach a real network address.
@@ -183,23 +209,6 @@ describe('[E2-3e] Rebuild client startup safety over native 1.16.1', () => {
         await harness.flushIdle()
         expect(stores.raw?.etag).toBe(etag2)
         expect(stores.meta?.currentEtag).toBe(etag2)
-    })
-
-    test('[new] e1b a database written by another device is served as a 200 and replaces the stored copy', async () => {
-        expect(cacheModule, 'startupDatabaseCache module exists').not.toBeNull()
-        const etag1 = await cachedCopyOf(database())
-        expect(stores.holdsEtag(etag1)).toBe(true)
-
-        await server.setDatabase(database({ theme: 'light', characters: [] }))
-        const etag2 = server.etag
-        const result = await boot()
-        expect(result.reads[0].headers['if-none-match']).toBe(etag1)
-        expect(result.reads[0].status).toBe(200)
-        expect(result.started).toEqual(await decodeDb(server.db!))
-        await harness.flushIdle()
-        expect(stores.raw?.etag).toBe(etag2)
-        expect(stores.meta).toMatchObject({ baseEtag: etag2, currentEtag: etag2, patches: [] })
-        expect(stores.record?.database).toEqual(await decodeDb(server.db!))
     })
 
     test('[new] e1 the stored raw bytes start the app when only the decoded copy is missing', async () => {
@@ -354,6 +363,29 @@ describe('[E2-3e] Rebuild client startup safety over native 1.16.1', () => {
         expect(result.started).toEqual(await decodeDb(server.db!))
         await harness.flushIdle()
         expect(stores.raw?.bytes).not.toBeNull()
+    })
+
+    test('[new] e7 decoded metadata changed after the probe is not used when the 304 resolves', async () => {
+        const current = database({ theme: 'server-current' })
+        const bytes = encodeDb(current)
+        const etag = md5(bytes)
+        await server.setDatabase(current)
+        harness.createCache(stores)
+        stores.raw = { etag, bytes }
+        stores.record = { namespace: stores.namespace.value, baseEtag: etag, database: database({ theme: 'older-decoded' }) }
+        stores.meta = { namespace: stores.namespace.value, baseEtag: etag, currentEtag: etag, patches: [] }
+        server.beforeNotModifiedResponse = () => {
+            if (stores.meta) {
+                stores.meta.currentEtag = 'changed-after-probe'
+            }
+        }
+
+        const result = await boot()
+
+        expect(result.reads[0].headers['if-none-match']).toBe(etag)
+        expect(result.reads[0].status).toBe(304)
+        expect(result.started.theme, 'the decoded value invalidated during the request is not returned').toBe('server-current')
+        expect(result.started).toEqual(await decodeDb(server.db!))
     })
 
     // ── e13 / e1e / e12: unchanged startup behaviour ──────────────────────────
@@ -561,48 +593,26 @@ describe('[E2-3e] Rebuild client startup safety over native 1.16.1', () => {
         expect(stores.holdsEtag(server.etag)).toBe(true)
     })
 
-    // ── e1d: whole-database replacements ──────────────────────────────────────
-    const replacements: Array<[string, (storage: any) => Promise<unknown>]> = [
-        ['importBackup', storage => storage.importBackup(new Blob(['backup']))],
-        ['restoreServerBackup', storage => storage.restoreServerBackup('backup.bin')],
-        ['uploadSaveFolderZip', storage => storage.uploadSaveFolderZip(new Blob(['zip']))],
-        ['executeSaveFolderImport', storage => storage.executeSaveFolderImport('/import/folder')],
-        ['applyRisuAccountImport', storage => storage.applyRisuAccountImport()],
-    ]
-    test.each(replacements)('[new] e1d %s empties the stored copy before it resolves and the next start does not use the old copy', async (_name, replace) => {
-        expect(cacheModule, 'startupDatabaseCache module exists').not.toBeNull()
-        vi.stubGlobal('XMLHttpRequest', createFakeXhrClass(server))
-        const etag1 = await cachedCopyOf(database())
-        expect(stores.holdsEtag(etag1)).toBe(true)
-        const replaced = database({ theme: 'replaced', characters: [] })
-        server.onReplace = () => { void server.setDatabase(replaced) }
-        stores.clearDelayMs = 40
-
-        const first = await boot()
-        await replace(first.storage)
-        expect(server.etag).not.toBe(etag1)
-        // Nothing may be left to remove after the call resolved.
-        expect(stores.isEmpty()).toBe(true)
-
-        stores.clearDelayMs = 0
-        const second = await boot()
-        expect(second.reads[0].headers['if-none-match']).toBeUndefined()
-        expect(second.started).toEqual(await decodeDb(server.db!))
-        expect(second.started.theme).toBe('replaced')
-    })
-
     // ── e2 / e2a: plugins load after stubs became placeholders ─────────────────
     function installPluginProbe() {
-        const seen: Array<{ slot: any, read: any, writeRefused: boolean }> = []
+        const seen: Array<{ slot: any, read: any, writeRefused: boolean, loadedWhenPluginRan: boolean }> = []
         h.pluginHook = async () => {
+            const v3 = await import('../plugins/apiV3/v3.svelte')
+            await v3.executePluginV3({ name: `startup-cache-probe-${++h.pluginProbeRuns}`, script: '' } as any)
             const slot = h.db.characters[0].chats[0]
-            // What the v3 plugin API does for this slot: an unopened chat
-            // (placeholder) is answered with the server copy and its write-back
-            // is refused; any other slot is handed out as it is.
-            const read = slot._placeholder
-                ? await fetchChatFromServer('cha-1', 0, slot.id)
-                : structuredClone(slot)
-            seen.push({ slot: structuredClone(slot), read, writeRefused: slot._placeholder === true })
+            const read = await h.pluginApi.getChatFromIndex(0, 0)
+            let writeRefused = false
+            try {
+                await h.pluginApi.setChatToIndex(0, 0, structuredClone(slot))
+            } catch {
+                writeRefused = true
+            }
+            seen.push({
+                slot: structuredClone(slot),
+                read,
+                writeRefused,
+                loadedWhenPluginRan: get(loadedStore),
+            })
         }
         server.chats.set('cha-1/0', encodeDb({
             id: 'chat-1', name: 'First', fmIndex: -1, note: '', localLore: [],
@@ -611,11 +621,12 @@ describe('[E2-3e] Rebuild client startup safety over native 1.16.1', () => {
         return seen
     }
 
-    function expectProtectedPlaceholder(entry: { slot: any, writeRefused: boolean }) {
+    function expectProtectedPlaceholder(entry: { slot: any, writeRefused: boolean, loadedWhenPluginRan: boolean }) {
         expect(entry.slot._placeholder).toBe(true)
         expect(entry.slot._stub).toBeUndefined()
         expect(entry.slot.message).toEqual([])
         expect(entry.writeRefused).toBe(true)
+        expect(entry.loadedWhenPluginRan, 'plugin loading finishes before the app is marked loaded').toBe(false)
     }
     const messagesOf = (entry: { read: any }) => entry.read?.message?.map((message: any) => message.data)
 
@@ -623,9 +634,11 @@ describe('[E2-3e] Rebuild client startup safety over native 1.16.1', () => {
         const seen = installPluginProbe()
         await server.setDatabase(database())
         await boot()
+        expect(h.pluginErrors, 'plugin probe errors').toEqual([])
         expect(h.events.indexOf('loadPlugins')).toBeGreaterThan(h.events.indexOf('setDatabase'))
         expect(seen).toHaveLength(1)
         expectProtectedPlaceholder(seen[0])
+        expect(get(loadedStore)).toBe(true)
     })
 
     test('[new] e2a a plugin reading a chat while plugins load receives the server copy with its messages', async () => {
@@ -634,6 +647,8 @@ describe('[E2-3e] Rebuild client startup safety over native 1.16.1', () => {
         await boot()
         expect(seen).toHaveLength(1)
         expect(messagesOf(seen[0])).toEqual(['Hello', 'World'])
+        expect(seen[0].loadedWhenPluginRan).toBe(false)
+        expect(get(loadedStore)).toBe(true)
     })
 
     test('[new] e2 e2a the same holds when the start is served from the stored copy', async () => {
@@ -647,6 +662,7 @@ describe('[E2-3e] Rebuild client startup safety over native 1.16.1', () => {
         expect(seen).toHaveLength(2)
         expectProtectedPlaceholder(seen[1])
         expect(messagesOf(seen[1])).toEqual(['Hello', 'World'])
+        expect(get(loadedStore)).toBe(true)
     })
 
     // ── writer session helper and the 423 event (e3, e3a, e3b, e14) ────────────

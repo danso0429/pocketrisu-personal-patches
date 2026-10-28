@@ -41,11 +41,15 @@ describe('[E2-4c] Rebase persona-organizer onto native persona folders', () => {
             personaFolders: [{ id: 'folder-1', name: 'Folder', icon: 'assets/folder-only.png' }],
         } as any
 
-        expect(getUncleanables(db)).toEqual(expect.arrayContaining(['gallery-only.png', 'folder-only.png']))
+        const protectedAssets = getUncleanables(db)
+        expect(protectedAssets).toContain('gallery-only.png')
+        expect(protectedAssets).toContain('folder-only.png')
 
         db.personas[0].imageGallery = []
         db.personaFolders[0].icon = ''
-        expect(getUncleanables(db)).not.toEqual(expect.arrayContaining(['gallery-only.png', 'folder-only.png']))
+        const released = getUncleanables(db)
+        expect(released).not.toContain('gallery-only.png')
+        expect(released).not.toContain('folder-only.png')
     })
 
     test('[new] c2 resource replacement rewrites gallery and folder-icon references', () => {
