@@ -9,7 +9,11 @@ const PROFILES = Object.freeze({
     }),
 })
 
-const RETIRED_OWNER_IDS = Object.freeze(['background-import'])
+const RETIRED_OWNER_IDS = Object.freeze([
+    'background-import',
+    'toolchain-hardening',
+    'fastimport-ios-picker',
+])
 
 function validateProfileMetadata(catalog) {
     for (const pack of catalog) {
@@ -48,11 +52,9 @@ function loadCatalog(repositoryRoot = path.resolve(__dirname, '..')) {
         require(path.join(repositoryRoot, 'patches/haejeok-chat-width-adapter/manifest.cjs')),
         require(path.join(repositoryRoot, 'patches/preset-integrity/manifest.cjs')),
         require(path.join(repositoryRoot, 'patches/parser-hardening/manifest.cjs')),
-        require(path.join(repositoryRoot, 'patches/toolchain-hardening/manifest.cjs')),
         require(path.join(repositoryRoot, 'patches/charx-archive-integrity/manifest.cjs')),
         require(path.join(repositoryRoot, 'patches/log-load-performance/manifest.cjs')),
         require(path.join(repositoryRoot, 'patches/usage-cost-estimate/manifest.cjs')),
-        require(path.join(repositoryRoot, 'patches/fastimport-ios-picker/manifest.cjs')),
         require(path.join(repositoryRoot, 'patches/kei-stream-parser-core/manifest.cjs')),
         require(path.join(repositoryRoot, 'patches/kei-stream-parser-bg-adapter/manifest.cjs')),
         require(path.join(repositoryRoot, 'patches/kei-chat-render-core/manifest.cjs')),

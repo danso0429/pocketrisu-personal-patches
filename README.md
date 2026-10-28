@@ -194,9 +194,8 @@ keeps the measured next save-speed candidate.
 
 `pocketrisu-patcher.cjs` applies one complete admitted set or reverts it in
 full. `plan`, `apply`, and `stage` always resolve bg-preserve, lazy storage,
-organizers, import UX, Personal settings, parser/toolchain hardening, CharX
-integrity, the FastImport iOS picker compatibility owner, the admitted Kei
-capabilities, PageFold ModelPreset transform, and
+organizers, import UX, Personal settings, parser hardening, CharX
+integrity, the admitted Kei capabilities, PageFold ModelPreset transform, and
 all matching integration adapters. The complete graph also includes the admitted Haejeok persistence,
 Korean-search, and Small-width adapters. `configure`, `--packs`, `--preset`,
 `--all`, and the features/hardening/all installer filenames are retired.
@@ -219,6 +218,15 @@ from the tree after `v0.2.3`; that tag keeps the last copy. The resolver still
 recognizes the retired id so an older state that owned it can move to the
 complete set. Character and module imports use the existing foreground flow.
 
+The `toolchain-hardening` and `fastimport-ios-picker` packs are retired in
+`0.2.4-experimental.103` and absent from the catalog and installer; their
+source and dedicated tests were removed from the tree, and commit `7f90429`
+keeps the last copy. The resolver recognizes both retired ids so
+an older state that owned them can move to the complete set. A lockfile pin is
+reintroduced only if a final candidate gate needs it. The separate FastImport
+maintenance migration tool (`scripts/fastimport-ios-migration.cjs`) remains
+available.
+
 See the [delivery design](docs/PATCHER-V2-DESIGN.md),
 [v0.2.2 stable receipt](docs/POCKETRISU-0.2.2-MAINTENANCE-STABLE-RELEASE.md),
 [v0.2.1 stable receipt](docs/POCKETRISU-0.2.1-PAGEFOLD-STABLE-RELEASE.md),
@@ -234,11 +242,11 @@ chat payloads before publishing metadata. Its final-composition save tests
 cover the dedicated missing-payload recovery branch and the independent
 autosave retry policy. System Logs received no server query change.
 
-The FastImport iOS owner transforms the execution copy of the exact installed
-API 2.1 plugin when its name, display name, and full-script SHA-256 match the
-admitted original. It leaves the plugin database unchanged. Already corrected
-scripts are used as-is; unknown plugin revisions retain their original script
-and produce a warning. Desktop Realm clipboard handling remains in the
+Until its retirement in `0.2.4-experimental.103`, the FastImport iOS owner
+transformed the execution copy of the exact installed API 2.1 plugin when its
+name, display name, and full-script SHA-256 matched the admitted original. It
+left the plugin database unchanged. Already corrected scripts were used as-is;
+unknown plugin revisions kept their original script and produced a warning. Desktop Realm clipboard handling remains in the
 recognized script. The separate maintenance migration tool remains available
 for a guarded persistent correction of a particular installation.
 
@@ -1180,21 +1188,11 @@ behavior becomes observable from the next production build onward.
 
 ### Toolchain hardening
 
-The independent `toolchain-hardening` pack keeps test and build tooling
-deterministic without changing PocketRisu runtime source:
-
-- Vitest conditionally replaces an incomplete Node.js experimental
-  `globalThis.localStorage` with `happy-dom`'s `Storage`. Browser-like
-  environments that already expose a complete Storage API are left unchanged.
-- `package.json` and the matching lockfile sections override Lightning CSS to
-  1.33.0, so both Tailwind and Vite understand the standard `::highlight`
-  selectors already used by PocketRisu.
-- the override and every lockfile resolution are one reversible patch graph;
-  frozen installs remain valid and revert restores the original bytes and
-  modes.
-
-After applying this pack, run `pnpm install --frozen-lockfile` before tests or
-builds so an existing `node_modules` tree also adopts the locked version.
+The `toolchain-hardening` pack is retired in `0.2.4-experimental.103` (see
+[Complete installer](#complete-installer)). It replaced an incomplete Node.js
+experimental `globalThis.localStorage` in Vitest and pinned Lightning CSS
+1.33.0 in `package.json` and the lockfile. The complete set no longer changes
+PocketRisu's Vitest setup or its Lightning CSS resolution.
 
 ## Build and use
 

@@ -85,8 +85,13 @@ test.describe('[E2-1c] Make the six E2-1b packs 1.16.1-only', () => {
 
     test('[unchanged] packs without coverage entries match every frozen 1.10.0 declaration and unit hash', () => {
         const catalog = loadCatalog()
-        assert.equal(catalog.length, 45)
-        assert.deepEqual(Object.keys(baseline.packs).sort(), catalog.map(({ id }) => id).sort())
+        assert.equal(catalog.length, 43)
+        // E2-4a retired these packs; the frozen baseline still lists them.
+        const retiredPackIds = ['toolchain-hardening', 'fastimport-ios-picker']
+        assert.deepEqual(
+            Object.keys(baseline.packs).filter((id) => !retiredPackIds.includes(id)).sort(),
+            catalog.map(({ id }) => id).sort(),
+        )
         const target = { packageName: 'pocketrisu', packageVersion: '1.10.0' }
         for (const pack of catalog) {
             if (rebasedPackIds().includes(pack.id)) continue
@@ -146,11 +151,9 @@ test('one delivery profile contains every admitted root pack', () => {
         'haejeok-chat-width-adapter',
         'preset-integrity',
         'parser-hardening',
-        'toolchain-hardening',
         'charx-archive-integrity',
         'log-load-performance',
         'usage-cost-estimate',
-        'fastimport-ios-picker',
         'kei-stream-parser-core',
         'kei-stream-parser-bg-adapter',
         'kei-chat-render-core',
@@ -184,11 +187,9 @@ test('one delivery profile contains every admitted root pack', () => {
             'personal-settings',
             'preset-integrity',
             'parser-hardening',
-            'toolchain-hardening',
             'charx-archive-integrity',
             'log-load-performance',
             'usage-cost-estimate',
-            'fastimport-ios-picker',
             'pocketrisu-kei',
             'pagefold-model-preset',
         ],
@@ -198,7 +199,6 @@ test('one delivery profile contains every admitted root pack', () => {
             'bg-preserve',
             'lazy-chat-sync',
             'parser-hardening',
-            'toolchain-hardening',
         ]),
     )
     assert.throws(

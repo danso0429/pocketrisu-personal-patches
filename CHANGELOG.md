@@ -1,5 +1,13 @@
 # Changelog
 
+## 0.2.4-experimental.103 (retire toolchain-hardening and fastimport-ios-picker)
+
+- The `toolchain-hardening` and `fastimport-ios-picker` packs are removed from the catalog and the complete `all` set (43 packs, 14 user packs). Their pack directories and their dedicated tests (`test/toolchain-hardening.test.cjs`, `test/fastimport-ios-picker.test.cjs`) are removed. A lockfile pin is reintroduced only if a final candidate gate needs it.
+- Both ids join `background-import` as retired owners, so an older custom state that owned them moves to the complete set; an unknown owner still blocks the move.
+- The `after` lists of `haejeok-korean-search-adapter` and `pagefold-model-preset` still name `toolchain-hardening` units; the composer ignores `after` ids that are not in the graph, and the two packs keep their 1.10.0 definitions unchanged.
+- `scripts/fastimport-ios-migration.cjs` and its test remain.
+- Stable remains v0.2.3.
+
 ## 0.2.4-experimental.102 (lazy chat sync: client startup safety over PocketRisu 1.16.1)
 
 - The start reads the database with the ETag of a stored copy as validator. On a 304 it starts from the decoded copy with its patch journal replayed, only when the journal ends at that ETag, or from the raw bytes stored under that ETag. When neither fits, or the replay fails, the copy is cleared and the database is read again without a validator. A 200 starts from the new bytes. A start from the copy that cannot be decoded or applied clears the copy and reads the server body once more before the native backup order; a start that ends on a backup clears the copy and stores none. The native empty database is created only when neither bytes nor a decoded copy came back, and its write still carries no `x-if-match`.
