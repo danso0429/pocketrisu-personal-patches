@@ -120,7 +120,8 @@ function matchKoreanTextInternal(
     query: string,
     allowKeyboardConversion: boolean,
 ): KoreanMatchResult {
-    if (!target) return { matched: false, score: 0 }
+    // Imported cards can carry non-string creator or tag values.
+    if (typeof target !== 'string' || !target) return { matched: false, score: 0 }
 
     const targetNormalized = target.normalize('NFC').trim()
     const queryNormalized = query.normalize('NFC').trim()
@@ -253,7 +254,7 @@ export function matchCharacterKorean(
 
     let tagScore = 0
     let tagMatched = false
-    for (const tag of character.tags ?? []) {
+    for (const tag of Array.isArray(character.tags) ? character.tags : []) {
         const result = matchKoreanText(tag, normalizedQuery)
         if (result.matched && result.score * 0.7 > tagScore) {
             tagScore = result.score * 0.7

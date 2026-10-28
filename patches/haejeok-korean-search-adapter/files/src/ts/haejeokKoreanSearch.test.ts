@@ -75,6 +75,13 @@ describe('Haejeok Korean character search adaptation', () => {
         expect(name.score).toBeGreaterThan(tag.score)
     })
 
+    test('skips non-string creator and tag values from imported cards', () => {
+        const character = { name: '홍길동', creator: 42, tags: ['의적', 7, null] } as any
+        expect(matchCharacterKorean(character, '의적').matched).toBe(true)
+        expect(matchCharacterKorean(character, '42').matched).toBe(false)
+        expect(matchCharacterKorean({ name: '이순신', tags: { 0: '의적' } } as any, '의적').matched).toBe(false)
+    })
+
     test('filters without replacing the catalog order', () => {
         const characters = [
             { name: '홍길동', id: 'first' },

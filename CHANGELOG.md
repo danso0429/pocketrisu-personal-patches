@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.2.4-experimental.108 (Korean search skips non-string card fields)
+
+- `haejeok-korean-search-adapter`: an imported character card can carry a non-string `creator` or tag, or a `tags` value that is not an array. The Korean matcher threw on such a value outside its error handling; it now skips the value as a non-match. String fields match as before. A client test covers both cases.
+- Stable remains v0.2.3.
+
 ## 0.2.4-experimental.107 (test corrections for the 1.16.1 rebase)
 
 - Test-only release; no unit changes product code.

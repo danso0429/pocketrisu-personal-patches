@@ -74,6 +74,12 @@ module.exports = {
                 'haejeok-korean-search-adapter:mobile-filter:1.10':
                     'src/lib/Mobile/MobileCharacters.svelte does not exist in PocketRisu 1.16.1; replaced in function by component-visible-search.',
             },
+            rewritten: {
+                'haejeok-korean-search-adapter:matcher:1.10':
+                    'The matcher skips non-string fields and a non-array tags value, which imported cards can carry, instead of throwing.',
+                'haejeok-korean-search-adapter:matcher-tests:1.10':
+                    'Adds a client test for non-string creator and tag values.',
+            },
         },
     },
     'persona-organizer': {
