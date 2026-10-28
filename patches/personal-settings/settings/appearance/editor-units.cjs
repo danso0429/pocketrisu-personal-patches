@@ -3,7 +3,6 @@
 const fs = require('node:fs')
 const path = require('node:path')
 const { owned } = require('../../manifest-helpers.cjs')
-const targetVersions = { pocketrisu: ['1.10.0'] }
 // Narrow additions run after optional full replacements and their adapters.
 const globalOwners = [
     "bg-preserve:hook:globalapi-durable-save-api",
@@ -169,7 +168,7 @@ for (const [file, owner] of [
 ]) {
     units.push({ id: `personal-settings:editor-replace-${owner}`, file, type: 'replace',
         anchor: owned(__dirname, file), managed: fs.readFileSync(path.join(__dirname, 'editor-files', file), 'utf8'),
-        requires: [`personal-settings:${owner}`], targetVersions })
+        requires: [`personal-settings:${owner}`] })
 }
 // The editor settings data replaces the chat font select with per-target toggles.
 const legacyFontSearchHit = `            .find((result) => result.itemId === 'personal.appearance.chatFont')
@@ -181,13 +180,13 @@ const legacyFontSearchHit = `            .find((result) => result.itemId === 'pe
 `
 units.push({ id: 'personal-settings:editor-replace-appearance-search-font-hit', file: 'src/ts/setting/searchIndex.test.ts', type: 'replace',
     anchor: legacyFontSearchHit, managed: legacyFontSearchHit.replaceAll("'personal.appearance.chatFont'", "'personal.appearance.chatFontEnabled'"),
-    requires: ['personal-settings:appearance-search-tests-1.9'], targetVersions })
+    requires: ['personal-settings:appearance-search-tests-1.9'] })
 function insert(id, file, anchor, content, after = [], where = 'before') {
     const fullId = `personal-settings:editor-${id}`
     const payload = file.endsWith('.svelte')
         ? { managed: `<!-- POCKETRISU-PATCH:${fullId}:START -->\n${content}<!-- POCKETRISU-PATCH:${fullId}:END -->\n`, markerNeedle: `POCKETRISU-PATCH:${fullId}:START` }
         : { content }
-    units.push({ id: fullId, file, type: 'insert', anchor, ...payload, where, after, targetVersions })
+    units.push({ id: fullId, file, type: 'insert', anchor, ...payload, where, after })
 }
 for (const file of [
     'appearanceValues.ts', 'cssToggleDefinitions.ts', 'cssToggles.ts', 'cssToggleRuntime.ts', 'cssEditorText.ts', 'cssEditorText.test.ts', 'displaySize.ts', 'appearanceNotices.ts', 'appearanceNotices.test.ts',
@@ -196,58 +195,40 @@ for (const file of [
     'cssToggles.test.ts', 'cssToggleRuntime.test.ts', 'customFonts.test.ts', 'customFontRuntime.test.ts',
 ]) {
     const relative = `src/ts/personalSettings/${file}`
-    units.push({ id: `personal-settings:editor-owned-${file.replaceAll('.', '-')}`, file: relative, type: 'owned', content: owned(__dirname, relative), targetVersions })
+    units.push({ id: `personal-settings:editor-owned-${file.replaceAll('.', '-')}`, file: relative, type: 'owned', content: owned(__dirname, relative) })
 }
 for (const file of ['CssToggleManager.svelte', 'CustomFontManager.svelte', 'FontNamePreview.svelte', 'CssRecoveryNotice.svelte', 'AppearanceNotifications.svelte', 'AppearanceToast.svelte']) {
     const relative = `src/lib/Setting/Pages/PersonalSettings/${file}`
-    units.push({ id: `personal-settings:editor-owned-${file}`, file: relative, type: 'owned', content: owned(__dirname, relative), targetVersions })
+    units.push({ id: `personal-settings:editor-owned-${file}`, file: relative, type: 'owned', content: owned(__dirname, relative) })
 }
 insert('save-import', 'src/ts/globalApi.svelte.ts', 'export const forageStorage = new AutoStorage()',
     'import { registerAppearanceWriter, appearanceSaveFailure } from "./personalSettings/appearancePersistence";\n\n', globalOwners)
-units.push({
-    id: 'personal-settings:editor-defer-full-buffer', file: 'src/ts/globalApi.svelte.ts', type: 'replace', targetVersions,
-    after: globalOwners,
-    anchor: `        await encoder.set(db, safeStructuredClone(toSave))
-        const encoded = encoder.encode()
-        if (!encoded) {
-            await sleep(1000)
-            return 'noop'
-        }
-        const dbData = new Uint8Array(encoded)
-`,
-    managed: `        const personalPatchOnly = supportsPatchSync && (options as any)?.personalStrict && !options?.forceFullWrite
-        // Root blocks are rebuilt on every ordinary/full save. Preserve updates
-        // to independently tracked blocks before consuming their dirty flags.
-        if (!personalPatchOnly || toSave.botPreset || toSave.modules || toSave.plugins || toSave.pluginCustomStorage || toSave.character.length || toSave.chat.length) {
-            await encoder.set(db, safeStructuredClone(toSave))
-        }
-        let dbData: Uint8Array | undefined
-        if (!personalPatchOnly) {
-            const encoded = encoder.encode()
-            if (!encoded) {
-                await sleep(1000)
-                return 'noop'
-            }
-            dbData = new Uint8Array(encoded)
-        }
-`,
-})
+// PocketRisu 1.16.1 encodes the whole database only on the full-write path,
+// from a fresh encoder, so a patch save never assembles a full buffer.
 insert('save-registration', 'src/ts/globalApi.svelte.ts', '    requestImmediateSaveImpl = async (options) => {\n',
     fs.readFileSync(path.join(__dirname, 'strict-save.txt'), 'utf8'), ['personal-settings:editor-save-import'])
+// Runs right after the patch response, before the conflict rebases. A 409
+// answer (foreign ETag, hash mismatch, chat guard, other guard code) or a 422
+// validation answer is a definite refusal; a bare failure or a persist warning
+// leaves the outcome open.
 insert('patch-refusal', 'src/ts/globalApi.svelte.ts', '                saved = patchResult.success\n',
     `                if ((options as any)?.personalStrict && (!patchResult.success || patchResult.persistWarning)) {
-                    throw appearanceSaveFailure(!(patchResult as any).conflict && !(patchResult as any).validationRejected && !(patchResult as any).chatGuardRejected)
+                    const personalDefiniteRefusal = !patchResult.success && (
+                        patchResult.chatGuardRejected !== undefined
+                        || patchResult.etag !== undefined
+                        || patchResult.conflictCode !== undefined
+                        || (patchResult as any).validationRejected === true
+                    )
+                    throw appearanceSaveFailure(!personalDefiniteRefusal)
                 }
 `, ['personal-settings:editor-save-registration'])
 insert('no-full-fallback', 'src/ts/globalApi.svelte.ts', '        if (!saved) {\n',
     '        if ((options as any)?.personalStrict && !saved && supportsPatchSync) throw appearanceSaveFailure(false)\n', ['personal-settings:editor-patch-refusal'])
-insert('full-buffer-required', 'src/ts/globalApi.svelte.ts', '        if (!saved) {\n',
-    '            if (!dbData) throw appearanceSaveFailure(false)\n',
-    ['personal-settings:editor-defer-full-buffer', 'personal-settings:editor-no-full-fallback'], 'after')
 insert('no-conflict-rebase', 'src/ts/globalApi.svelte.ts', '                if (conflictErr instanceof ConflictError) {\n',
     '                if ((options as any)?.personalStrict && conflictErr instanceof ConflictError) throw appearanceSaveFailure(false)\n', ['personal-settings:editor-no-full-fallback'])
-insert('full-write-etag', 'src/ts/globalApi.svelte.ts', '                const currentEtag = forageStorage.getDbEtag()\n',
-    '                if ((options as any)?.personalStrict && !currentEtag) throw appearanceSaveFailure(false)\n',
+// Without patch sync a strict save is a full write guarded by the current ETag.
+insert('full-write-etag', 'src/ts/globalApi.svelte.ts', '            const currentEtag = forageStorage.getDbEtag()\n',
+    '            if ((options as any)?.personalStrict && !currentEtag) throw appearanceSaveFailure(false)\n',
     ['personal-settings:editor-no-conflict-rebase'], 'after')
 insert('font-stream-import', 'src/ts/storage/nodeStorage.ts', 'export class NodeStorage',
     'import { readFontStream } from "../personalSettings/fontBytes";\n\n', storageOwners)
@@ -323,7 +304,7 @@ for (const [suffix, content] of [
     const old = appearanceUnits.find(u => u.id === `personal-settings:appearance-${suffix}-1.9`)
     units.push({ id: `personal-settings:editor-hook-${suffix}`, file: old.file, type: 'replace',
         anchor: old.managed, managed: `<!-- POCKETRISU-PATCH:personal-settings:editor-hook-${suffix}:START -->\n${content}<!-- POCKETRISU-PATCH:personal-settings:editor-hook-${suffix}:END -->\n`,
-        markerNeedle: `POCKETRISU-PATCH:personal-settings:editor-hook-${suffix}:START`, requires: [old.id], after: suffix === 'send-icon-render' ? chatOwners : appearanceUnits.filter(u => u.file === old.file).map(u => u.id), targetVersions })
+        markerNeedle: `POCKETRISU-PATCH:personal-settings:editor-hook-${suffix}:START`, requires: [old.id], after: suffix === 'send-icon-render' ? chatOwners : appearanceUnits.filter(u => u.file === old.file).map(u => u.id) })
 }
 insert('jailbreak-first-close', 'src/lib/SideBars/Toggles.svelte', '        {/if}\n        {@render toggles(groupedToggles, true)}',
     '        </div>\n', ['personal-settings:editor-hook-jailbreak-render-first'])
@@ -336,4 +317,15 @@ for (const unit of units) {
     if (previous) unit.after = [...(unit.after ?? []), previous]
     previousByHost.set(unit.file, unit.id)
 }
+// The strict writer passes its option as the third argument of the native
+// persistTrackedChanges(toSave, timing, options).
+units.push({
+    id: 'personal-settings:editor-strict-option:1.16',
+    file: 'src/ts/globalApi.svelte.ts',
+    type: 'insert',
+    where: 'before',
+    anchor: "        }\n    ): Promise<'saved' | 'retry' | 'noop'> {\n",
+    content: '            personalStrict?: boolean\n',
+    leading: '',
+})
 module.exports = units

@@ -68,10 +68,10 @@ module.exports = [
         anchor: '                    {#if devPanelEnabled}\n',
         managed: `                    <!-- POCKETRISU-PATCH:personal-settings:settings-menu:START -->
                     <button class="flex gap-2 items-center hover:text-textcolor"
-                        class:text-textcolor={$SettingsMenuIndex === 24}
-                        class:text-textcolor2={$SettingsMenuIndex !== 24}
+                        class:text-textcolor={$SettingsMenuIndex === 90}
+                        class:text-textcolor2={$SettingsMenuIndex !== 90}
                         onclick={() => {
-                        $SettingsMenuIndex = 24
+                        $SettingsMenuIndex = 90
                     }}>
                         <UserIcon />
                         <span>개인 설정</span>
@@ -88,7 +88,7 @@ module.exports = [
         where: 'before',
         anchor: '                        {:else if $SettingsMenuIndex === 99 && devPanelEnabled}\n',
         managed: `                        <!-- POCKETRISU-PATCH:personal-settings:settings-render:START -->
-                        {:else if $SettingsMenuIndex === 24}
+                        {:else if $SettingsMenuIndex === 90}
                             <PersonalSettings/>
                         <!-- POCKETRISU-PATCH:personal-settings:settings-render:END -->
 `,
@@ -101,6 +101,6 @@ module.exports = [
         type: 'insert',
         where: 'after',
         anchor: '    System: 22 as const,\n',
-        content: '    Personal: 24 as const,\n',
+        content: '    Personal: 90 as const,\n',
     },
 ]

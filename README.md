@@ -255,6 +255,14 @@ client and server asset cleanup and are carried by local backup (PNG files
 only, as the native partial backup copies), settings-only export and account
 import.
 
+From `0.2.4-experimental.106`, the `personal-settings` pack targets PocketRisu
+1.16.1 only. The Personal page moves to Settings route 90, because 1.16.1 uses
+route 24 for Long Term Memory. The strict Personal save keeps its guarantees on
+the native 1.16.1 save path (wait for an in-flight save, patch only while patch
+sync is available, ETag-guarded full write otherwise, server flush before
+success, value rollback only on a definite refusal). Stored Personal and
+external-header settings load unchanged.
+
 See the [delivery design](docs/PATCHER-V2-DESIGN.md),
 [v0.2.2 stable receipt](docs/POCKETRISU-0.2.2-MAINTENANCE-STABLE-RELEASE.md),
 [v0.2.1 stable receipt](docs/POCKETRISU-0.2.1-PAGEFOLD-STABLE-RELEASE.md),

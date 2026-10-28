@@ -1,10 +1,9 @@
 'use strict'
 const { owned } = require('../../manifest-helpers.cjs')
-const targetVersions = { pocketrisu: ['1.10.0'] }
 const prefix = 'personal-settings:external-headers:'
 const units = []
 function unit(id, file, type, rest) {
-    const result = { id: prefix + id, file, type, targetVersions, ...rest }
+    const result = { id: prefix + id, file, type, ...rest }
     units.push(result)
     return result.id
 }

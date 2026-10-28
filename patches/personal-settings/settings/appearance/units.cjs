@@ -5,10 +5,6 @@ const {
     owned,
 } = require('../../manifest-helpers.cjs')
 
-const targetVersions = {
-    pocketrisu: ['1.10.0'],
-}
-
 function svelteBlock(id, content) {
     const body = content.endsWith('\n') ? content : `${content}\n`
     return `<!-- POCKETRISU-PATCH:${id}:START -->\n${body}<!-- POCKETRISU-PATCH:${id}:END -->\n`
@@ -461,14 +457,44 @@ describe('searchSettings — Personal appearance tab', () => {
             'personal-settings:appearance-search-submenu-1.9',
         ],
     },
+    // PocketRisu 1.16.1 renders the row label and help lead inside the shared
+    // SettingFieldLabel. The row keeps hidden copies with stable ids, which the
+    // row switch and select reference through aria-labelledby/aria-describedby.
+    {
+        id: 'personal-settings:appearance-a11y-row-help-import:1.16',
+        file: 'src/lib/Setting/Wrappers/SettingRowLayout.svelte',
+        type: 'insert',
+        where: 'after',
+        anchor: "    import SettingFieldLabel from './SettingFieldLabel.svelte';\n",
+        content: "    import { language } from 'src/lang';\n",
+    },
+    {
+        id: 'personal-settings:appearance-a11y-row-help-text:1.16',
+        file: 'src/lib/Setting/Wrappers/SettingRowLayout.svelte',
+        type: 'insert',
+        where: 'after',
+        anchor: '    let { item, control, wideControl = false }: Props = $props();\n',
+        content: [
+            '',
+            '    // The same lead paragraph SettingFieldLabel shows under the label.',
+            '    const rowHelpLead = $derived(',
+            '        item.helpKey',
+            "            ? ((language.help as any)[item.helpKey] as string | undefined)?.split('\\n\\n')[0].replace(/\\*\\*|`/g, '')",
+            '            : undefined',
+            '    );',
+            '',
+        ].join('\n'),
+        requires: ['personal-settings:appearance-a11y-row-help-import:1.16'],
+    },
     {
         id: 'personal-settings:appearance-a11y-row-label-1.9',
         file: 'src/lib/Setting/Wrappers/SettingRowLayout.svelte',
-        type: 'replace',
-        anchor: '        <span class="text-sm text-textcolor">{getLabel(item)}</span>\n',
+        type: 'insert',
+        where: 'after',
+        anchor: '            showExperimental={item.showExperimental}\n        />\n',
         managed: svelteBlock(
             'personal-settings:appearance-a11y-row-label-1.9',
-            '        <span id={`setting-${item.id}-label`} class="text-sm text-textcolor">{getLabel(item)}</span>',
+            '        <span id={`setting-${item.id}-label`} hidden>{getLabel(item)}</span>',
         ),
         markerNeedle: 'POCKETRISU-PATCH:personal-settings:appearance-a11y-row-label-1.9:START',
         requires: ['personal-settings:appearance-settings-data-1.9'],
@@ -476,14 +502,18 @@ describe('searchSettings — Personal appearance tab', () => {
     {
         id: 'personal-settings:appearance-a11y-row-description-1.9',
         file: 'src/lib/Setting/Wrappers/SettingRowLayout.svelte',
-        type: 'replace',
-        anchor: '        {#if helpText}<p class="text-xs text-textcolor2 mt-0.5 whitespace-pre-line">{helpText}</p>{/if}\n',
+        type: 'insert',
+        where: 'after',
+        anchor: '<!-- POCKETRISU-PATCH:personal-settings:appearance-a11y-row-label-1.9:END -->\n',
         managed: svelteBlock(
             'personal-settings:appearance-a11y-row-description-1.9',
-            '        {#if helpText}<p id={`setting-${item.id}-description`} class="text-xs text-textcolor2 mt-0.5 whitespace-pre-line">{helpText}</p>{/if}',
+            '        {#if rowHelpLead}<span id={`setting-${item.id}-description`} hidden>{rowHelpLead}</span>{/if}',
         ),
         markerNeedle: 'POCKETRISU-PATCH:personal-settings:appearance-a11y-row-description-1.9:START',
-        requires: ['personal-settings:appearance-a11y-row-label-1.9'],
+        requires: [
+            'personal-settings:appearance-a11y-row-label-1.9',
+            'personal-settings:appearance-a11y-row-help-text:1.16',
+        ],
     },
     {
         id: 'personal-settings:appearance-a11y-switch-props-1.9',
@@ -734,7 +764,4 @@ describe('searchSettings — Personal appearance tab', () => {
     },
 ]
 
-module.exports = units.map((unit) => ({
-    ...unit,
-    targetVersions,
-}))
+module.exports = units

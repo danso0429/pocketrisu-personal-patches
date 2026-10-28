@@ -18,7 +18,7 @@ function harness(options: { outcome?: 'saved' | 'noop' | 'retry'; reject?: Error
         patcher: { lastSyncedDb: { original: true }, init: async () => { events.push('baseline-restored') } },
         registerAppearanceWriter: (fn: AppearanceWriter) => writer = fn,
         tick: async () => {}, changeTracker: { root: false }, takeTrackedChanges: () => ({ root: true }), saving: { state: false },
-        persistTrackedChanges: async (_scope: unknown, strict: unknown) => {
+        persistTrackedChanges: async (_scope: unknown, _timing: unknown, strict: unknown) => {
             events.push('persist')
             expect(strict).toEqual({ personalStrict: true })
             if (options.reject) throw options.reject
@@ -77,31 +77,45 @@ function bufferHarness(patchSync = true, rejectPatch = false) {
     const persist = saveDb.body!.statements.find(n => ts.isFunctionDeclaration(n) && n.name?.text === 'persistTrackedChanges') as ts.FunctionDeclaration
     const code = ts.transpileModule(persist.getText(source), { compilerOptions: { target: ts.ScriptTarget.ES2022 } }).outputText
     const db = { characters: [], modules: [{ id: 'm', value: 'old' }], value: 'root' }
-    const blocks = { modules: structuredClone(db.modules), value: db.value }
+    // PocketRisu 1.16.1 builds a fresh encoder for every full write only.
     const encoder = {
-        set: vi.fn(async (data: typeof db, scope: { modules?: boolean }) => { blocks.value = data.value; if (scope.modules) blocks.modules = structuredClone(data.modules) }),
-        encode: vi.fn(() => new TextEncoder().encode(JSON.stringify({ ...blocks, characters: [] })).buffer),
+        init: vi.fn(async () => {}),
+        set: vi.fn(async () => {}),
+        encode: vi.fn(() => new TextEncoder().encode(JSON.stringify(db)).buffer),
     }
-    const storage = { patchItem: vi.fn(async () => rejectPatch ? { success: false, conflict: true } : { success: true, etag: 'next' }), setItem: vi.fn(async () => {}), setDbEtag: vi.fn(), getDbEtag: () => 'current' }
-    const patcher = { set: vi.fn(async () => ({ patch: [], expectedHash: 'fixture', rollback: () => {} })), baselineSnapshot: () => structuredClone(db), init: async () => {} }
+    class RisuSaveEncoder {
+        init = encoder.init
+        set = encoder.set
+        encode = encoder.encode
+    }
+    // A 409 for the client's own revision: the ordinary path falls through to a full write.
+    const storage = { patchItem: vi.fn(async () => rejectPatch ? { success: false, etag: 'current', chatGuardRejected: false } : { success: true, etag: 'next' }), setItem: vi.fn(async () => {}), setDbEtag: vi.fn(), getDbEtag: () => 'current' }
+    const patcher = {
+        set: vi.fn(async () => ({ patch: [], expectedHash: 'fixture' })),
+        baselineArchivedCharacterIds: () => new Set<string>(), baselineDb: () => structuredClone(db),
+        changedCharacterIdsOfLastSet: () => [], estimatePayloadBytes: () => 1, init: async () => {}, describeHashMismatch: () => ({}),
+    }
     const context = {
         gotChannel: false, channel: null, sessionID: 'fixture', getDatabase: () => db,
-        assignMissingChatIdsToNewCharacters: () => [], collectChatsToPersist: () => [], v4: () => 'fixture',
-        lastConfirmedServerDb: structuredClone(db), encoder, safeStructuredClone: structuredClone,
-        sleep: async () => {}, supportsPatchSync: patchSync, appearanceSaveFailure,
-        patcher,
-        findDangerousChatOps: () => [], forageStorage: storage, updateKnownChatsAfterSuccessfulSave: () => {},
-        normalizeJSON: structuredClone, decodeRisuSave: async (bytes: Uint8Array) => JSON.parse(new TextDecoder().decode(bytes)),
+        collectChatsToPersist: () => [], saveChatToServer: async () => 'saved', errorMessage: String,
+        safeStructuredClone: structuredClone, sleep: async () => {}, supportsPatchSync: patchSync, appearanceSaveFailure,
+        patcher, hasAmbiguousCharacterIds: () => false, findDangerousChatOps: () => [], forageStorage: storage,
+        recordDbTransferSize: () => {}, showPersistWarningOnce: () => {}, showChatGuardToastThrottled: () => {},
+        summarizeHashMismatch: () => '', addLog: () => {}, SaveRejectedError: class extends Error {},
+        rebaseTrackedLocalChangesOnLatestServerDb: vi.fn(async () => {}), withTrackedCharacters: (value: unknown) => value,
+        savetrys: 0, RisuSaveEncoder, ConflictError: class extends Error {}, updateKnownChatsAfterSuccessfulSave: () => {},
+        decodeRisuSave: async (bytes: Uint8Array) => JSON.parse(new TextDecoder().decode(bytes)),
+        resyncBaselineAfterFullWrite: async () => {},
     }
     const run = new Function(...Object.keys(context), `${code}; return persistTrackedChanges`)(...Object.values(context))
     const changes = { root: true, character: [], chat: [], botPreset: false, modules: true, plugins: false, pluginCustomStorage: false }
-    return { db, encoder, storage, patcher, run: (options: Record<string, boolean>, modules = true) => run({ ...changes, modules }, options) }
+    return { db, encoder, storage, patcher, run: (options: Record<string, boolean>, modules = true) => run({ ...changes, modules }, {}, options) }
 }
-test('strict patches skip full buffer assembly but keep encoder blocks ready for a later full write', async () => {
+test('strict patches never assemble or write a full buffer; a later full write encodes the current state', async () => {
     const h = bufferHarness()
     h.db.modules[0].value = 'changed'
     expect(await h.run({ personalStrict: true })).toBe('saved')
-    expect(h.encoder.set).toHaveBeenCalledTimes(1)
+    expect(h.storage.patchItem).toHaveBeenCalledTimes(1)
     expect(h.encoder.encode).not.toHaveBeenCalled()
     expect(h.storage.setItem).not.toHaveBeenCalled()
     expect(await h.run({ forceFullWrite: true }, false)).toBe('saved')
@@ -114,17 +128,7 @@ test('strict saves without patch sync still assemble the qualified full write', 
     expect(await h.run({ personalStrict: true })).toBe('saved')
     expect(h.encoder.encode).toHaveBeenCalledTimes(1)
     expect(h.storage.setItem).toHaveBeenCalledTimes(1)
-})
-test('root-only strict patches defer root encoding until the next ordinary/full save', async () => {
-    const h = bufferHarness()
-    h.db.value = 'new root'
-    expect(await h.run({ personalStrict: true }, false)).toBe('saved')
-    expect(h.encoder.set).not.toHaveBeenCalled()
-    expect(h.encoder.encode).not.toHaveBeenCalled()
-    expect(await h.run({ forceFullWrite: true }, false)).toBe('saved')
-    expect(h.encoder.set).toHaveBeenCalledTimes(1)
-    const bytes = (h.storage.setItem.mock.calls as unknown[][])[0][1] as Uint8Array
-    expect(JSON.parse(new TextDecoder().decode(bytes)).value).toBe('new root')
+    expect((h.storage.setItem.mock.calls as unknown[][])[0][2]).toBe('current')
 })
 test('strict root-only saves still submit an operation-keyed browser effect to patch sync', async () => {
     const h = bufferHarness()
@@ -140,10 +144,11 @@ test('strict root-only saves still submit an operation-keyed browser effect to p
     expect(h.storage.patchItem).toHaveBeenCalledTimes(1)
     expect(h.encoder.encode).not.toHaveBeenCalled()
 })
-test('ordinary patch saves retain encoding and rejected strict patches cannot use a missing buffer', async () => {
-    const ordinary = bufferHarness()
+test('ordinary rejected patches keep the native full write and rejected strict patches never fall back to one', async () => {
+    const ordinary = bufferHarness(true, true)
     expect(await ordinary.run({})).toBe('saved')
     expect(ordinary.encoder.encode).toHaveBeenCalledTimes(1)
+    expect(ordinary.storage.setItem).toHaveBeenCalledTimes(1)
     const rejected = bufferHarness(true, true)
     await expect(rejected.run({ personalStrict: true })).rejects.toMatchObject({ ambiguous: false })
     expect(rejected.encoder.encode).not.toHaveBeenCalled()

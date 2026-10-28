@@ -31,5 +31,6 @@ test('two former render effects use stable CSS hooks without replacing send/stop
     assert.match(send.managed, /data-personal-send-text/)
     assert.doesNotMatch(send.managed, /onclick|sendChat|abort|stop/)
     assert.equal(units.filter(u => u.id.startsWith('personal-settings:editor-hook-jailbreak')).length, fixture.jailbreakBranches)
-    for (const unit of units) assert.deepEqual(unit.targetVersions, { pocketrisu: ['1.10.0'] })
+    // The pack declares only PocketRisu 1.16.1, so no unit carries a target scope.
+    for (const unit of units) assert.equal(Object.hasOwn(unit, 'targetVersions'), false, unit.id)
 })

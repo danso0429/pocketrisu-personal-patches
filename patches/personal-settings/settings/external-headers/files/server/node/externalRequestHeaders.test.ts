@@ -1,7 +1,5 @@
 import { describe, expect, it, vi } from 'vitest'
 import ownerPackage from './externalRequestHeaders.cjs'
-import { readFileSync } from 'node:fs'
-import vm from 'node:vm'
 const { KEY, createExternalRequestHeaders, withExternalHeaderConversation, registerExternalHeaderRoutes } = ownerPackage
 const rule = { id: 'rule-one', name: 'Test', enabled: true, destination: 'https://api.example.test/v1', header: 'x-session', valueKind: 'conversation-session' }
 function harness() {
@@ -11,31 +9,7 @@ function harness() {
     return { values, log, dependencies, owner: createExternalRequestHeaders(dependencies) }
 }
 describe('external request header rules', () => {
-    it('applies the shared owner through the composed BG proxy shim with isolated conversation context', async () => {
-        const h = harness()
-        const owner = ownerPackage.configureExternalRequestHeaders(h.dependencies)
-        owner.save({ revision: 0, rules: [rule] })
-        const source = readFileSync(new URL('./bgOrchestrator.cjs', import.meta.url), 'utf8')
-        const start = source.indexOf('function patchFetch(requestLogs) {')
-        const end = source.indexOf('// DBState / selectedCharID', start)
-        expect(start).toBeGreaterThan(0); expect(end).toBeGreaterThan(start)
-        const fetcher = vi.fn(async (_url, init) => new Response(JSON.stringify(init.headers)))
-        const sandbox: any = vm.createContext({ fetch: fetcher,
-            fetchWithExternalHeaders: ownerPackage.fetchWithExternalHeaders,
-            orchestrationAbortContext: { withSignal: (init: unknown) => init },
-            llmMark: (_target: unknown, response: unknown) => response,
-        })
-        vm.runInContext(source.slice(start, end) + '\npatchFetch(null)', sandbox)
-        const send = (key: string) => withExternalHeaderConversation(key, () => sandbox.fetch('/proxy2', {
-            method: 'POST', body: 'unchanged', headers: { 'risu-url': encodeURIComponent(rule.destination), 'risu-header': encodeURIComponent('{"x-original":"kept"}') },
-        }))
-        const responses = await Promise.all([send('chat-a'), send('chat-b')])
-        const headers = await Promise.all(responses.map(response => response.json()))
-        expect(headers[0]['x-session']).not.toBe(headers[1]['x-session'])
-        expect(headers[0]['x-original']).toBe('kept')
-        expect(fetcher.mock.calls.every(([, init]) => init.body === 'unchanged')).toBe(true)
-        ownerPackage.configureExternalRequestHeaders({ kvGet: () => null, kvSet: () => {} })
-    })
+    // The BG proxy shim case reads bg-preserve's bgOrchestrator.cjs; it moves to lazy-chat-bg-adapter (E2-7b).
     it('leaves absent and disabled rules byte/reference equivalent and makes no writes', async () => {
         const h = harness()
         const init = { method: 'POST', headers: { 'X-Original': 'value' }, body: 'exact body' }

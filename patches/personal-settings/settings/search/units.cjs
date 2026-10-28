@@ -2,10 +2,6 @@
 
 const { managedTypeScript } = require('../../manifest-helpers.cjs')
 
-const targetVersions = {
-    pocketrisu: ['1.10.0'],
-}
-
 module.exports = [
     {
         id: 'personal-settings:search-manifest-1.9',
@@ -28,7 +24,6 @@ module.exports = [
     },`),
         markerNeedle: 'POCKETRISU-PATCH:personal-settings:search-manifest-1.9:START',
         requires: ['personal-settings:routing'],
-        targetVersions,
     },
     {
         id: 'personal-settings:search-index-test-1.9',
@@ -56,6 +51,5 @@ describe('searchSettings — Personal settings page', () => {
 })`),
         markerNeedle: 'POCKETRISU-PATCH:personal-settings:search-index-test-1.9:START',
         requires: ['personal-settings:search-manifest-1.9'],
-        targetVersions,
     },
 ]

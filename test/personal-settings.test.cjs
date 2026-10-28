@@ -59,11 +59,11 @@ function replacementText(candidate) {
 
 test('personal settings is an independent rolling feature pack', () => {
     assert.equal(manifest.id, 'personal-settings')
-    assert.equal(manifest.version, '0.5.15')
+    assert.equal(manifest.version, '0.5.16')
     assert.deepEqual(manifest.targets, {
         pocketrisu: {
-            verified: ['1.10.0'],
-            reviewing: [],
+            verified: [],
+            reviewing: ['1.16.1'],
         },
     })
     assert.equal(manifest.userSelectable, true)
@@ -79,6 +79,12 @@ test('the root manifest only aggregates core and setting-owned units', () => {
         ...searchUnits,
         ...editorUnits,
         ...require('../patches/personal-settings/settings/external-headers/units.cjs'),
+        ...[
+            'src/ts/personalSettingsPersistence.e2-4.test.ts',
+            'src/ts/personalSettingsRoute.e2-4.test.ts',
+            'src/ts/personalSettingsCompatibility.e2-4.test.ts',
+            'test/compat/personal-settings-server.e2-4.test.ts',
+        ].map((file) => manifest.units.find((candidate) => candidate.file === file)),
     ])
     assert.equal(
         new Set(manifest.units.map((candidate) => candidate.id)).size,
@@ -93,13 +99,9 @@ test('the root manifest only aggregates core and setting-owned units', () => {
         false,
     )
     assert.equal(searchUnits.length, 2)
-    assert.ok(searchUnits.every((candidate) =>
-        candidate.targetVersions?.pocketrisu?.join(',') === '1.10.0'
-    ))
     assert.ok(appearanceUnits.length > 0)
-    assert.ok(appearanceUnits.every((candidate) =>
-        candidate.targetVersions?.pocketrisu?.join(',') === '1.10.0'
-    ))
+    // The pack declares only PocketRisu 1.16.1, so no unit carries a target scope.
+    assert.ok(manifest.units.every((candidate) => !Object.hasOwn(candidate, 'targetVersions')))
 })
 
 test('PocketRisu 1.9 appearance storage is normalized, leaf-written, and future-safe', () => {
@@ -284,13 +286,14 @@ test('settings UI adds Personal directly after System with a persisted toggle', 
 
     assert.equal(menu.where, 'before')
     assert.equal(menu.anchor, '                    {#if devPanelEnabled}\n')
-    assert.match(menu.managed, /\$SettingsMenuIndex === 24/)
+    // PocketRisu 1.16.1 uses route 24 for LongTermMemory, so Personal is route 90.
+    assert.match(menu.managed, /\$SettingsMenuIndex === 90/)
     assert.match(menu.managed, /<UserIcon \/>/)
     assert.match(menu.managed, /<span>개인 설정<\/span>/)
-    assert.match(render.managed, /\$SettingsMenuIndex === 24/)
+    assert.match(render.managed, /\$SettingsMenuIndex === 90/)
     assert.match(render.managed, /<PersonalSettings\/>/)
     assert.equal(route.anchor, '    System: 22 as const,\n')
-    assert.equal(route.content, '    Personal: 24 as const,\n')
+    assert.equal(route.content, '    Personal: 90 as const,\n')
 
     assert.match(page, /<SettingPage title="개인 설정">/)
     assert.match(page, /<ImportNavigationSetting \/>/)
