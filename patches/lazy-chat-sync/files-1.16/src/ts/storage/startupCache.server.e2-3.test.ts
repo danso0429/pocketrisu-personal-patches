@@ -515,7 +515,7 @@ describe('[E2-3e] Rebuild client startup safety over native 1.16.1', () => {
         let emptyAtReload: boolean | undefined
         const restoreSnapshot = new Function(
             'alertConfirm', 'alertWait', 'alertError', 'notifySuccess', 'forageStorage', 'fetch', 'language', 'location',
-            'invalidateStartupDatabaseCache',
+            'invalidateStartupDatabaseCache', 'allowDuringCharacterImport',
             executable,
         )(
             async () => true,
@@ -531,6 +531,7 @@ describe('[E2-3e] Rebuild client startup safety over native 1.16.1', () => {
             },
             { search: '', reload: () => { emptyAtReload = stores.isEmpty() } },
             async () => { await Promise.all([stores.rawStore.clear(), stores.decodedStore.clear()]) },
+            () => true,
         ) as (snapshot: { key: string, size: number, timestamp: number | null }) => Promise<void>
         stores.clearDelayMs = 40
 

@@ -263,6 +263,18 @@ sync is available, ETag-guarded full write otherwise, server flush before
 success, value rollback only on a definite refusal). Stored Personal and
 external-header settings load unchanged.
 
+From `0.2.4-experimental.112`, the `character-import-ux` pack targets
+PocketRisu 1.16.1 only and keeps the native `characterCards.ts` (realm creator
+blocking, onboarding, lazy asset hydration, first-chat ids). It adds the import
+job on top: one progress toast, success only after the imported character is
+saved, failure when native import ended with an error dialog and no character,
+and a quiet close when it ended with nothing shown. Native error messages and
+early stops are kept (Risu Hub "Error while importing", Chub noData, the file
+picker stopping at the first failing file). PNG imports keep the native asset
+count pass and report `n/total`. Module import goes through the native lazy
+asset manifest restore, and the native file picker is opened before the import
+lock is taken.
+
 See the [delivery design](docs/PATCHER-V2-DESIGN.md),
 [v0.2.2 stable receipt](docs/POCKETRISU-0.2.2-MAINTENANCE-STABLE-RELEASE.md),
 [v0.2.1 stable receipt](docs/POCKETRISU-0.2.1-PAGEFOLD-STABLE-RELEASE.md),

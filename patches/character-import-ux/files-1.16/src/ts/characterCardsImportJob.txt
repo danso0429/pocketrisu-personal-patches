@@ -1,0 +1,90 @@
+type CharacterImportProcessOptions<T extends boolean> = {
+    name: string;
+    data: Uint8Array|File|ReadableStream<Uint8Array>
+    lightningRealmImport?:boolean
+    returnCharacter?:T //note That this option only works with v3 charx
+    /** Parent package import owns its own blocking progress and final save. */
+    suppressImportJob?:boolean
+}
+
+async function runCharacterImportJob<T>(
+    work: (job: CharacterImportJob) => Promise<T>,
+    showError: (error: unknown) => void = (error) => alertError(error),
+): Promise<T | null> {
+    const job = beginCharacterImport()
+    if (!job) return null
+
+    const before = new Set(
+        (getDatabase().characters ?? [])
+            .map(character => character?.chaId)
+            .filter((id): id is string => typeof id === 'string' && id.length > 0),
+    )
+
+    const outcome = { errorShown: false, error: undefined as unknown }
+    characterImportOutcome = outcome
+    let result: T
+    try {
+        result = await work(job)
+    } catch (error) {
+        // The job absorbs the error, so it shows the native error here, where
+        // the caller's catch used to.
+        characterImportOutcome = null
+        console.error('[Character Import]', error)
+        showError(error)
+        job.fail(error)
+        return null
+    } finally {
+        if (characterImportOutcome === outcome) characterImportOutcome = null
+    }
+
+    const imported = (getDatabase().characters ?? []).filter(character =>
+        typeof character?.chaId === 'string'
+        && character.chaId.length > 0
+        && !before.has(character.chaId)
+    )
+    if (imported.length === 0) {
+        if (outcome.errorShown) job.fail(outcome.error)
+        else job.dismiss()
+        return null
+    }
+
+    try {
+        job.update('Saving imported character...', 'Confirming the database update')
+        for (const character of imported) {
+            await requestImportedCharacterSave(character.chaId)
+        }
+    } catch (error) {
+        console.error('[Character Import]', error)
+        job.fail(error)
+        return null
+    }
+    job.succeed(language.importedCharacter)
+    return result
+}
+
+// For callers in this file whose native catch showed its own message.
+async function importCharacterProcessWithError(
+    f: CharacterImportProcessOptions<false>,
+    showError: (error: unknown) => void,
+): Promise<number | null> {
+    return await runCharacterImportJob(
+        (job) => importCharacterProcessInternal(f, job),
+        showError,
+    )
+}
+
+export async function importCharacterProcess<T extends boolean = false>(
+    f: CharacterImportProcessOptions<T>,
+):Promise<T extends true ? character | number | null : number | null>{
+    if (f.returnCharacter || f.suppressImportJob) {
+        return await importCharacterProcessInternal(f, null)
+    }
+    return await runCharacterImportJob(
+        (job) => importCharacterProcessInternal(f, job),
+    ) as T extends true ? character | number | null : number | null
+}
+
+async function importCharacterProcessInternal<T extends boolean = false>(
+    f: CharacterImportProcessOptions<T>,
+    importJob: CharacterImportJob | null,
+):Promise<T extends true ? character | number | null : number | null>{

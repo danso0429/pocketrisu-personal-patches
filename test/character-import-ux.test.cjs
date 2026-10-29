@@ -5,31 +5,37 @@ const assert = require('node:assert/strict')
 const fs = require('node:fs')
 const path = require('node:path')
 const { applyUnit, revertUnit } = require('../src/compose.cjs')
+const { loadCatalog } = require('../src/catalog.cjs')
+const { unitMatchesTarget } = require('../src/manager.cjs')
 
 const patchRoot = path.join(__dirname, '../patches/character-import-ux')
 const read = (relative) => fs.readFileSync(path.join(patchRoot, relative), 'utf8')
-const source = read('files/src/ts/characterCards.ts')
-const anchor = read('anchors/src/ts/characterCards.ts')
 const state = read('files/src/ts/characterImportState.ts')
 const toastComponent = read('files/src/lib/Others/CharacterImportToast.svelte')
-const moduleImport = read('files-1.10/src/ts/process/moduleImport.ts')
+const moduleImport = read('files-1.16/src/ts/process/moduleImport.ts')
 const risumImport = read('files-1.10/src/ts/process/risumImport.ts')
 const manifest = require('../patches/character-import-ux/manifest.cjs')
+// PocketRisu 1.16.1 keeps the native characterCards.ts; the pack adds units on
+// it. `source` is the text those units insert.
+const characterCardsUnits = manifest.units.filter((unit) => unit.file === 'src/ts/characterCards.ts')
+const unitText = (unit) => unit.content ?? unit.managed
+const source = characterCardsUnits.map(unitText).join('\n')
 
 test('character and module import share one lazy-chat-dependent feature pack', () => {
     assert.equal(manifest.id, 'character-import-ux')
-    assert.equal(manifest.version, '0.2.1')
+    assert.equal(manifest.version, '0.2.2')
     assert.equal(manifest.title, 'Non-blocking character and module import')
     assert.deepEqual(manifest.targets, {
         pocketrisu: {
-            verified: ['1.10.0'],
-            reviewing: [],
+            verified: [],
+            reviewing: ['1.16.1'],
         },
     })
     assert.equal(manifest.userSelectable, true)
     assert.equal(Object.hasOwn(manifest, 'presetDefaults'), false)
     assert.deepEqual(manifest.requires, ['lazy-chat-sync'])
-    assert.notEqual(source, anchor)
+    // The pack declares only PocketRisu 1.16.1, so no unit carries a target scope.
+    assert.ok(manifest.units.every((unit) => !Object.hasOwn(unit, 'targetVersions')))
     assert.doesNotMatch(source, /setDatabaseLite\(\{ ?plugins|setDatabase\(\{ ?plugins/)
 })
 
@@ -75,8 +81,14 @@ test('ordinary imports use one reactive toast body and server-confirmed success'
     assert.match(source, /runCharacterImportJob/)
     assert.match(source, /requestImportedCharacterSave\(character\.chaId\)/)
     assert.match(source, /job\.succeed\(language\.importedCharacter\)/)
-    assert.match(source, /if \(imported\.length === 0\) \{\s*job\.dismiss\(\)\s*return null/)
-    assert.doesNotMatch(source, /notifySuccess\(language\.importedCharacter\)/)
+    assert.match(
+        source,
+        /if \(imported\.length === 0\) \{\s*if \(outcome\.errorShown\) job\.fail\(outcome\.error\)\s*else job\.dismiss\(\)\s*return null/,
+    )
+    // Job-less calls keep the native per-step success notification.
+    const notifications = source.match(/[^\n]*notifySuccess\(language\.importedCharacter\)/g) ?? []
+    assert.equal(notifications.length, 3)
+    for (const line of notifications) assert.match(line, /if\(!importJob\) notifySuccess/)
     assert.match(state, /toast\.custom\(CharacterImportToast/)
     assert.match(state, /reserveImport/)
     assert.match(state, /beginModuleImport/)
@@ -103,11 +115,13 @@ test('module imports have one staged parser, central commit, and confirmed persi
     assert.match(moduleImport, /await deps\.persistModule\(imported\.id\)/)
     assert.match(moduleImport, /job\.succeed\(deps\.successMessage\)/)
     assert.match(moduleImport, /committed: boolean/)
+    assert.match(moduleImport, /hydrateModule\?\(module: RisuModule\): Promise<RisuModule>/)
     assert.doesNotMatch(moduleImport, /input\.accept\s*=/)
-    assert.ok(manifest.units.some((unit) =>
-        unit.id === 'character-import-ux:modules-terminal-import'
-        && unit.targetVersions.pocketrisu.includes('1.10.0')
-    ))
+    const terminal = manifest.units.find((unit) => unit.id === 'character-import-ux:modules-terminal-import')
+    assert.ok(terminal)
+    assert.match(terminal.anchor, /Object\.assign\(importData, await hydrateModuleAssets\(importData\)\)/)
+    assert.match(terminal.managed, /hydrateModule: hydrateModuleAssets/)
+    assert.match(terminal.managed, /await selectSingleFile\(\['json', 'lorebook', 'risum', 'charx'\]\)/)
 })
 
 test('share transport serves the cached module on GET and resolves relative cache URLs', () => {
@@ -128,11 +142,13 @@ test('asset progress stays in the same title with stable-width counters', () => 
     assert.ok(state.includes("'?'.repeat(width)"))
 })
 
-test('PNG import reads one stream and assigns stable IDs at construction', () => {
-    assert.equal((source.match(/PngChunk\.readGenerator\(f\.data/g) ?? []).length, 1)
-    assert.doesNotMatch(source, /const prereader|pngChunks/)
-    assert.match(source, /function convertOffSpecCards[\s\S]*chats: \[\{\s*id: uuidv4\(\),/)
-    assert.match(source, /let char:character = \{[\s\S]*chats: \[\{\s*id: uuidv4\(\),/)
+test('PNG import keeps the native pre-read and native first-chat ids', () => {
+    // PocketRisu 1.16.1 counts asset chunks before reading and gives new
+    // characters a first-chat id; no pack unit replaces either.
+    for (const unit of characterCardsUnits) {
+        assert.doesNotMatch(unit.anchor, /const prereader|pngChunks\+\+|id: v4\(\)/, unit.id)
+        assert.doesNotMatch(unitText(unit), /id: uuidv4\(\)/, unit.id)
+    }
 })
 
 test('package import retains its parent progress contract', () => {
@@ -147,7 +163,7 @@ test('package import retains its parent progress contract', () => {
 test('hub imports clear legacy modals and do not navigate after a refused import', () => {
     assert.match(
         source,
-        /alertStore\.set\(\{ type: 'none', msg: '' \}\)\s*const imported = await importCharacterProcess\(\{\s*name: 'charahub\.png'/,
+        /alertStore\.set\(\{ type: 'none', msg: '' \}\)\s*let failed = false\s*await importCharacterProcessWithError\(\{\s*name: 'charahub\.png'[\s\S]*?if \(failed\) return null/,
     )
     assert.match(
         source,
@@ -166,4 +182,68 @@ test('only replacement, restart, and destructive storage actions are gated', () 
     assert.match(guarded, /Server backup restore/)
     assert.match(guarded, /Application update/)
     assert.doesNotMatch(guarded, /sendChat|settings|character edit/i)
+})
+
+test.describe('[E2-4e] Rebase character-import-ux onto PocketRisu 1.16.1', () => {
+    const target = { packageName: 'pocketrisu', packageVersion: '1.16.1' }
+
+    test('[new] e6 every unit id that other packs reference exists for 1.16.1', () => {
+        // compose.cjs ignores before/after ids that are not in the plan, so a
+        // successful assembly does not prove these references still resolve.
+        const selected = new Set(
+            manifest.units.filter((unit) => unitMatchesTarget(unit, target)).map((unit) => unit.id),
+        )
+        for (const id of [
+            'character-import-ux:character-cards',
+            'character-import-ux:charx-progress-callback',
+            'character-import-ux:backup-guard-import',
+            'character-import-ux:snapshot-guard-import',
+            'character-import-ux:snapshot-restore-guard',
+            'character-import-ux:server-backup-guard-import',
+            'character-import-ux:server-backup-restore-guard',
+        ]) {
+            assert.ok(selected.has(id), id)
+        }
+
+        const references = []
+        for (const pack of loadCatalog()) {
+            if (pack.id === 'character-import-ux') continue
+            for (const unit of pack.units) {
+                for (const key of ['requires', 'before', 'after']) {
+                    for (const id of unit[key] ?? []) {
+                        if (id.startsWith('character-import-ux:')) references.push([pack.id, key, id])
+                    }
+                }
+            }
+        }
+        assert.ok(references.length > 0)
+        for (const [packId, key, id] of references) {
+            assert.ok(selected.has(id), `${packId} ${key} ${id}`)
+        }
+    })
+
+    test('[new] e6 character-cards follows the units it was split into', () => {
+        const cardsUnit = manifest.units.find((unit) => unit.id === 'character-import-ux:character-cards')
+        const split = characterCardsUnits
+            .map((unit) => unit.id)
+            .filter((id) => id.endsWith(':1.16'))
+        assert.ok(split.length > 0)
+        for (const id of split) assert.ok(cardsUnit.requires.includes(id), id)
+        assert.deepEqual(cardsUnit.after, ['lazy-chat-sync:global-api-imported-save:1.16'])
+    })
+
+    test('[new] e1c the job outcome seam leaves the CharX receipt block and importer.assets untouched', () => {
+        const charx = loadCatalog().find((pack) => pack.id === 'charx-archive-integrity')
+        const receipt = charx.units.find((unit) => unit.id === 'charx-archive-integrity:character-terminal-receipt:1.10')
+        assert.ok(receipt)
+        for (const unit of characterCardsUnits.filter((candidate) => candidate.id.endsWith(':1.16'))) {
+            assert.equal(receipt.anchor.includes(unit.anchor), false, unit.id)
+            assert.equal(unit.anchor.includes('importer.assets'), false, unit.id)
+            assert.equal(unitText(unit).includes('importer.assets'), false, unit.id)
+        }
+        // The seam is module-local: characterCards.ts renames the native import
+        // and only its own alertError calls record the modal.
+        assert.match(source, /alertError as showNativeAlertError/)
+        assert.match(source, /function alertError\(msg: unknown\) \{[\s\S]*showNativeAlertError\(msg\)/)
+    })
 })

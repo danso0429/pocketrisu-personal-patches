@@ -358,6 +358,143 @@ module.exports = {
             },
         },
     },
+    'character-import-ux': {
+        '1.16.1': {
+            from: '1.10.0',
+            retained: [
+                'character-import-ux:toast',
+                'character-import-ux:state',
+                'character-import-ux:state-tests',
+                'character-import-ux:charx-progress-callback',
+                'character-import-ux:character-cards',
+                'character-import-ux:module-import-core',
+                'character-import-ux:risum-reader',
+                'character-import-ux:module-import-tests',
+                'character-import-ux:risum-reader-tests',
+                'character-import-ux:modules-alert-imports',
+                'character-import-ux:modules-database-imports',
+                'character-import-ux:modules-global-api-imports',
+                'character-import-ux:modules-util-imports',
+                'character-import-ux:modules-rpack-imports',
+                'character-import-ux:modules-orchestrator-imports',
+                'character-import-ux:modules-terminal-import',
+                'character-import-ux:character-reporter-type',
+                'character-import-ux:character-reporter-option',
+                'character-import-ux:character-reporter-dispatch',
+                'character-import-ux:character-reporter-internal-type',
+                'character-import-ux:character-reporter-spec-type',
+                'character-import-ux:embedded-module-low-level',
+                'character-import-ux:character-module-source-import',
+                'character-import-ux:character-hash-module-route',
+                'character-import-ux:character-share-module-route',
+                'character-import-ux:character-file-module-route',
+                'character-import-ux:app-module-import',
+                'character-import-ux:app-module-drop',
+                'character-import-ux:share-get-route',
+                'character-import-ux:share-cache-url-base',
+                'character-import-ux:share-cache-miss',
+                'character-import-ux:share-transport-tests',
+                'character-import-ux:package-keeps-parent-progress',
+                'character-import-ux:backup-guard-import',
+                'character-import-ux:local-backup-restore-guard',
+                'character-import-ux:save-folder-import-guard',
+                'character-import-ux:migrated-files-cleanup-guard',
+                'character-import-ux:snapshot-guard-import',
+                'character-import-ux:snapshot-restore-guard',
+                'character-import-ux:server-backup-guard-import',
+                'character-import-ux:server-backup-restore-guard',
+                'character-import-ux:update-guard-import',
+                'character-import-ux:self-update-guard',
+            ],
+            rewritten: {
+                'character-import-ux:character-cards':
+                    'The 1.10.0 unit replaced the whole characterCards.ts with a pack copy, which would drop PocketRisu 1.16.1 code (realm creator blocking, onboarding, lazy asset hydration, first-chat ids). It now replaces only the native importCharacterProcess header with the import job wrapper and the option type, and requires the 1.16 characterCards units that thread the job through the native import paths. Its after names the 1.16.1 lazy-chat-sync unit that adds requestImportedCharacterSave.',
+                'character-import-ux:module-import-core':
+                    'The orchestrator takes an optional hydrateModule dependency: a module JSON with a lazy asset manifest gets its assets restored (an empty list on failure) and the manifest removed, as PocketRisu 1.16.1 importModule does. A .charx module keeps the id its character conversion already gave it.',
+                'character-import-ux:module-import-tests':
+                    'The compound .charx case expects the module to keep the id from the character conversion.',
+                'character-import-ux:modules-global-api-imports':
+                    'The PocketRisu 1.16.1 globalApi import line also names loadAssetManifestItems, which the native hydrateModuleAssets uses.',
+                'character-import-ux:modules-util-imports':
+                    'importModule keeps the native selectSingleFile picker, so only sleep is dropped from the import.',
+                'character-import-ux:modules-orchestrator-imports':
+                    'importModule no longer reserves before picking a file, so reserveImport and selectModuleImportFile are not imported.',
+                'character-import-ux:modules-terminal-import':
+                    'Anchored on the PocketRisu 1.16.1 readModule and importModule, which add the lazy asset manifest restore. importModule picks the file with the native selectSingleFile before taking the import lock (the native picker does not settle on cancel) and passes the native hydrateModuleAssets to the orchestrator.',
+                'character-import-ux:app-module-import':
+                    'Requires character-file-module-route because module-settings-await is retired.',
+                'character-import-ux:server-backup-guard-import':
+                    'The PocketRisu 1.16.1 ServerBackupList.svelte imports only forageStorage from globalApi.svelte.',
+            },
+            replaced: {},
+            added: {
+                'character-import-ux:character-alert-import:1.16':
+                    'characterCards.ts imports the native alertError under another name, so the module-local alertError can record error modals on the running import job.',
+                'character-import-ux:character-save-import:1.16':
+                    'characterCards.ts imports requestImportedCharacterSave from the lazy-chat-sync globalApi.',
+                'character-import-ux:character-state-import:1.16':
+                    'characterCards.ts imports the import job state; character-reporter-type extends this line.',
+                'character-import-ux:character-import-outcome:1.16':
+                    'Module-local alertError that calls the native one and records the modal on the running job, so a job that ends with an error modal and no new character fails, and one that ends with nothing shown closes. Job-less calls record nothing.',
+                'character-import-ux:character-json-job:1.16':
+                    'The JSON card path passes the job to importCharacterCardSpec.',
+                'character-import-ux:character-json-offspec-notify:1.16':
+                    'The off-spec JSON path shows the native success notification only without a job.',
+                'character-import-ux:character-charx-progress:1.16':
+                    'The CharX path reports reading and asset progress through the job instead of the blocking modal; job-less calls keep the modal.',
+                'character-import-ux:character-charx-job:1.16':
+                    'The CharX path passes the job to importCharacterCardSpec; importer.assets and the CharX receipt block stay native text.',
+                'character-import-ux:character-png-reading:1.16':
+                    'The PNG path reports reading through the job instead of the blocking modal.',
+                'character-import-ux:character-png-asset-progress:1.16':
+                    'PNG asset chunks report n/total through the job, using the native pre-read count.',
+                'character-import-ux:character-rcc-password-job:1.16':
+                    'The password RCC path passes the job to importCharacterCardSpec.',
+                'character-import-ux:character-rcc-plain-job:1.16':
+                    'The password-less RCC path passes the job to importCharacterCardSpec.',
+                'character-import-ux:character-png-offspec-notify:1.16':
+                    'The off-spec PNG path shows the native success notification only without a job.',
+                'character-import-ux:character-png-job:1.16':
+                    'The PNG card path passes the job to importCharacterCardSpec.',
+                'character-import-ux:character-picker-job:1.16':
+                    'The file picker runs each file in a job and, as native, stops at the first file whose import throws, showing the native error.',
+                'character-import-ux:character-charahub-job:1.16':
+                    'The Chub import clears the native wait modal before the job and, as native, shows noData and stops only when the import throws.',
+                'character-import-ux:character-spec-signature:1.16':
+                    'importCharacterCardSpec takes an optional import job parameter.',
+                'character-import-ux:character-spec-image-progress:1.16':
+                    'importCharacterCardSpec reports the image save through the job.',
+                'character-import-ux:character-spec-progress-emotions:1.16':
+                    'Emotion asset progress goes to the job instead of the blocking modal when a job runs.',
+                'character-import-ux:character-spec-progress-additional-assets:1.16':
+                    'Additional asset progress goes to the job when a job runs.',
+                'character-import-ux:character-spec-progress-voice-assets:1.16':
+                    'VITS asset progress goes to the job when a job runs.',
+                'character-import-ux:character-spec-progress-card-assets:1.16':
+                    'V3 card asset progress goes to the job when a job runs.',
+                'character-import-ux:character-spec-notify:1.16':
+                    'importCharacterCardSpec shows the native success notification only without a job; the job reports success after the save.',
+                'character-import-ux:character-hub-archive-job:1.16':
+                    'Risu Hub PNG and CharX downloads clear the native wait modal, import under one job, show the native "Error while importing" when the import throws, and do not navigate when the import did not complete.',
+                'character-import-ux:character-hub-card-job:1.16':
+                    'Risu Hub card downloads wrap importCharacterCardSpec and the resource fetch in one job, show the native Hub error on failure and do not navigate when nothing was imported.',
+                'character-import-ux:character-import-test-helpers:1.16':
+                    'Card fixtures (JSON, PNG, CharX) for the E2-4e client tests.',
+                'character-import-ux:character-import-tests:1.16':
+                    'Blind client tests for the character import job on PocketRisu 1.16.1 (save before success, quiet close, failure on native error modals, job-less calls, second import, PNG n/total, Risu Hub, native onboarding, creator blocking and lazy assets).',
+                'character-import-ux:state-api-tests:1.16':
+                    'Blind client tests for the import state API, the guarded operations and the single import lock.',
+                'character-import-ux:module-import-flow-tests:1.16':
+                    'Blind client tests for module import (save before success, lazy asset manifest restore, CharX conversion and progress).',
+                'character-import-ux:share-route-tests:1.16':
+                    'Blind client tests for the native share-target POST and the cached share GET with a 404 miss.',
+            },
+            retired: {
+                'character-import-ux:module-settings-await':
+                    'PocketRisu 1.16.1 ModuleSettings.svelte calls importModule from onclick={() => importModule()}; nothing runs after the call, and importModule settles every outcome itself, so awaiting it adds nothing.',
+            },
+        },
+    },
     'client-build-fence': {
         '1.16.1': {
             from: '1.10.0',

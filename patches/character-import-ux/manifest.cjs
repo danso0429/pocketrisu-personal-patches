@@ -3,21 +3,30 @@
 const fs = require('node:fs')
 const path = require('node:path')
 
-const anchorsRoot = path.join(__dirname, 'anchors')
+const characterCardsUnits = require('./character-cards-units.cjs')
+
 const filesRoot = path.join(__dirname, 'files')
-const anchors110Root = path.join(__dirname, 'anchors-1.10')
+const anchors116Root = path.join(__dirname, 'anchors-1.16')
 const files110Root = path.join(__dirname, 'files-1.10')
+const files116Root = path.join(__dirname, 'files-1.16')
 const read = (root, relative) => fs.readFileSync(path.join(root, relative), 'utf8')
-const target1100 = { pocketrisu: ['1.10.0'] }
+
+const testUnits = [
+    ['character-import-ux:character-import-test-helpers:1.16', 'src/ts/characterImport.e2-4.helpers.ts'],
+    ['character-import-ux:character-import-tests:1.16', 'src/ts/characterImport.e2-4.test.ts'],
+    ['character-import-ux:state-api-tests:1.16', 'src/ts/characterImportState.e2-4.test.ts'],
+    ['character-import-ux:module-import-flow-tests:1.16', 'src/ts/process/moduleImport.e2-4.test.ts'],
+    ['character-import-ux:share-route-tests:1.16', 'src/ts/serviceWorkerShare.e2-4.test.ts'],
+].map(([id, file]) => ({ id, file, type: 'owned', content: read(files116Root, file) }))
 
 module.exports = {
     id: 'character-import-ux',
     title: 'Non-blocking character and module import',
-    version: '0.2.1',
+    version: '0.2.2',
     targets: {
         pocketrisu: {
-            verified: ['1.10.0'],
-            reviewing: [],
+            verified: [],
+            reviewing: ['1.16.1'],
         },
     },
     userSelectable: true,
@@ -57,27 +66,28 @@ module.exports = {
 
 `,
         },
+        ...characterCardsUnits,
         {
             id: 'character-import-ux:character-cards',
             file: 'src/ts/characterCards.ts',
             type: 'replace',
-            anchor: read(anchorsRoot, 'src/ts/characterCards.ts'),
-            managed: read(filesRoot, 'src/ts/characterCards.ts'),
+            anchor: read(anchors116Root, 'src/ts/characterCardsImportHeader.txt'),
+            content: read(files116Root, 'src/ts/characterCardsImportJob.txt'),
             requires: [
                 'character-import-ux:state',
                 'character-import-ux:charx-progress-callback',
+                ...characterCardsUnits.map((candidate) => candidate.id),
             ],
             after: [
-                'lazy-chat-sync:replace:src:ts:globalApi-svelte-ts:1.10',
+                'lazy-chat-sync:global-api-imported-save:1.16',
             ],
         },
         {
             id: 'character-import-ux:module-import-core',
             file: 'src/ts/process/moduleImport.ts',
             type: 'owned',
-            content: read(files110Root, 'src/ts/process/moduleImport.ts'),
+            content: read(files116Root, 'src/ts/process/moduleImport.ts'),
             requires: ['character-import-ux:state'],
-            targetVersions: target1100,
         },
         {
             id: 'character-import-ux:risum-reader',
@@ -85,15 +95,13 @@ module.exports = {
             type: 'owned',
             content: read(files110Root, 'src/ts/process/risumImport.ts'),
             requires: ['character-import-ux:module-import-core'],
-            targetVersions: target1100,
         },
         {
             id: 'character-import-ux:module-import-tests',
             file: 'src/ts/process/moduleImport.test.ts',
             type: 'owned',
-            content: read(files110Root, 'src/ts/process/moduleImport.test.ts'),
+            content: read(files116Root, 'src/ts/process/moduleImport.test.ts'),
             requires: ['character-import-ux:risum-reader'],
-            targetVersions: target1100,
         },
         {
             id: 'character-import-ux:risum-reader-tests',
@@ -101,7 +109,6 @@ module.exports = {
             type: 'owned',
             content: read(files110Root, 'src/ts/process/risumImport.test.ts'),
             requires: ['character-import-ux:module-import-tests'],
-            targetVersions: target1100,
         },
         {
             id: 'character-import-ux:modules-alert-imports',
@@ -110,7 +117,6 @@ module.exports = {
             anchor: `import { alertClear, alertConfirm, alertError, alertModuleSelect, alertNormal, alertStore, alertWait, notifySuccess } from "../alert"`,
             content: `import { alertConfirm, alertModuleSelect, alertNormal, alertStore, notifySuccess } from "../alert"`,
             requires: ['character-import-ux:risum-reader-tests'],
-            targetVersions: target1100,
         },
         {
             id: 'character-import-ux:modules-database-imports',
@@ -119,25 +125,22 @@ module.exports = {
             anchor: `import { getCurrentCharacter, getCurrentChat, getDatabase, setCurrentCharacter, setDatabase, type customscript, type loreBook, type triggerscript } from "../storage/database.svelte"`,
             content: `import { getCurrentCharacter, getCurrentChat, getDatabase, setCurrentCharacter, type customscript, type loreBook, type triggerscript } from "../storage/database.svelte"`,
             requires: ['character-import-ux:modules-alert-imports'],
-            targetVersions: target1100,
         },
         {
             id: 'character-import-ux:modules-global-api-imports',
             file: 'src/ts/process/modules.ts',
             type: 'replace',
-            anchor: `import { AppendableBuffer, downloadFile, forageStorage, LocalWriter, readImage, saveAsset, VirtualWriter } from "../globalApi.svelte"`,
-            content: `import { AppendableBuffer, downloadFile, forageStorage, LocalWriter, readImage, requestImportedModuleSave, saveAsset, VirtualWriter } from "../globalApi.svelte"`,
+            anchor: `import { AppendableBuffer, downloadFile, forageStorage, loadAssetManifestItems, LocalWriter, readImage, saveAsset, VirtualWriter } from "../globalApi.svelte"`,
+            content: `import { AppendableBuffer, downloadFile, forageStorage, loadAssetManifestItems, LocalWriter, readImage, requestImportedModuleSave, saveAsset, VirtualWriter } from "../globalApi.svelte"`,
             requires: ['character-import-ux:modules-database-imports'],
-            targetVersions: target1100,
         },
         {
             id: 'character-import-ux:modules-util-imports',
             file: 'src/ts/process/modules.ts',
             type: 'replace',
             anchor: `import { checkPersonaBinded, selectSingleFile, sleep } from "../util"`,
-            content: `import { checkPersonaBinded } from "../util"`,
+            content: `import { checkPersonaBinded, selectSingleFile } from "../util"`,
             requires: ['character-import-ux:modules-global-api-imports'],
-            targetVersions: target1100,
         },
         {
             id: 'character-import-ux:modules-rpack-imports',
@@ -146,7 +149,6 @@ module.exports = {
             anchor: `import { decodeRPack, encodeRPack } from "../rpack/rpack_js"`,
             content: `import { encodeRPack } from "../rpack/rpack_js"`,
             requires: ['character-import-ux:modules-util-imports'],
-            targetVersions: target1100,
         },
         {
             id: 'character-import-ux:modules-orchestrator-imports',
@@ -154,19 +156,17 @@ module.exports = {
             type: 'insert',
             where: 'after',
             anchor: `import { exportCharacterCard, importCharacterProcess } from "../characterCards"\n`,
-            content: `import { beginModuleImport, formatImportProgress, reserveImport } from "../characterImportState"\nimport { createModuleImportOrchestrator, selectModuleImportFile, type ModuleImportResult, type ModuleImportSource } from "./moduleImport"\nimport { materializeRisuModule, prepareRisuModule } from "./risumImport"\n`,
+            content: `import { beginModuleImport, formatImportProgress } from "../characterImportState"\nimport { createModuleImportOrchestrator, type ModuleImportResult, type ModuleImportSource } from "./moduleImport"\nimport { materializeRisuModule, prepareRisuModule } from "./risumImport"\n`,
             requires: ['character-import-ux:modules-rpack-imports'],
             after: ['bg-preserve:hook:modules-source-aware-cache-import'],
-            targetVersions: target1100,
         },
         {
             id: 'character-import-ux:modules-terminal-import',
             file: 'src/ts/process/modules.ts',
             type: 'replace',
-            anchor: read(anchors110Root, 'src/ts/process/moduleImportLegacy.txt'),
-            managed: read(files110Root, 'src/ts/process/moduleImportManaged.txt'),
+            anchor: read(anchors116Root, 'src/ts/process/moduleImportLegacy.txt'),
+            managed: read(files116Root, 'src/ts/process/moduleImportManaged.txt'),
             requires: ['character-import-ux:modules-orchestrator-imports'],
-            targetVersions: target1100,
         },
         {
             id: 'character-import-ux:character-reporter-type',
@@ -184,7 +184,6 @@ module.exports = {
                 'personal-settings:realm-import-navigation',
             ],
             requires: ['character-import-ux:modules-terminal-import'],
-            targetVersions: target1100,
         },
         {
             id: 'character-import-ux:character-reporter-option',
@@ -194,7 +193,6 @@ module.exports = {
             anchor: `    suppressImportJob?:boolean\n`,
             content: `    /** Update-only reporter owned by a parent module import. */\n    progressReporter?:ImportProgressReporter\n`,
             requires: ['character-import-ux:character-reporter-type'],
-            targetVersions: target1100,
         },
         {
             id: 'character-import-ux:character-reporter-dispatch',
@@ -203,7 +201,6 @@ module.exports = {
             anchor: `):Promise<T extends true ? character | number | null : number | null>{\n    if (f.returnCharacter || f.suppressImportJob) {\n`,
             content: `):Promise<T extends true ? character | number | null : number | null>{\n    if (f.progressReporter) {\n        return await importCharacterProcessInternal(f, f.progressReporter)\n    }\n    if (f.returnCharacter || f.suppressImportJob) {\n`,
             requires: ['character-import-ux:character-reporter-option'],
-            targetVersions: target1100,
         },
         {
             id: 'character-import-ux:character-reporter-internal-type',
@@ -212,7 +209,6 @@ module.exports = {
             anchor: `    importJob: CharacterImportJob | null,\n`,
             content: `    importJob: ImportProgressReporter | null,\n`,
             requires: ['character-import-ux:character-reporter-dispatch'],
-            targetVersions: target1100,
         },
         {
             id: 'character-import-ux:character-reporter-spec-type',
@@ -221,7 +217,6 @@ module.exports = {
             anchor: `    importJob: CharacterImportJob | null = null,\n`,
             content: `    importJob: ImportProgressReporter | null = null,\n`,
             requires: ['character-import-ux:character-reporter-internal-type'],
-            targetVersions: target1100,
         },
         {
             id: 'character-import-ux:embedded-module-low-level',
@@ -231,7 +226,6 @@ module.exports = {
             anchor: `            if(md.lorebook){\n                lorebook = md.lorebook\n            }\n`,
             content: `            if(md.lowLevelAccess){\n                card.data.extensions.risuai.lowLevelAccess = true\n            }\n`,
             requires: ['character-import-ux:character-reporter-spec-type'],
-            targetVersions: target1100,
         },
         {
             id: 'character-import-ux:character-module-source-import',
@@ -240,7 +234,6 @@ module.exports = {
             anchor: `import { exportModuleLegacy, readModule, type RisuModule } from "./process/modules"`,
             content: `import { exportModuleLegacy, importModuleSource, readModule, type RisuModule } from "./process/modules"`,
             requires: ['character-import-ux:embedded-module-low-level'],
-            targetVersions: target1100,
         },
         {
             id: 'character-import-ux:character-hash-module-route',
@@ -249,7 +242,6 @@ module.exports = {
             anchor: `    if(hash.startsWith('#import_module=')){\n        const data = hash.replace('#import_module=', '')\n        const importData = JSON.parse(Buffer.from(decodeURIComponent(data), 'base64').toString('utf-8'))\n        importData.id = v4()\n\n        const db = getDatabase()\n        if(importData.lowLevelAccess){\n            const conf = await alertConfirm(language.lowLevelAccessConfirm)\n            if(!conf){\n                return false\n            }\n        }\n        db.modules.push(importData)\n        notifySuccess(language.successImport)\n        openSettings(SettingsRoute.Module)\n        return\n    }\n`,
             content: `    if(hash.startsWith('#import_module=')){\n        let data: Uint8Array\n        try {\n            data = new Uint8Array(Buffer.from(\n                decodeURIComponent(hash.replace('#import_module=', '')),\n                'base64',\n            ))\n        } catch {\n            data = new Uint8Array()\n        }\n        const result = await importModuleSource({\n            name: 'imported-module.json',\n            data,\n            origin: 'hash',\n        })\n        if(result.status === 'imported') openSettings(SettingsRoute.Module)\n        return\n    }\n`,
             requires: ['character-import-ux:character-module-source-import'],
-            targetVersions: target1100,
         },
         {
             id: 'character-import-ux:character-share-module-route',
@@ -258,7 +250,6 @@ module.exports = {
             anchor: `    if(hash.startsWith('#share_module')){\n        const data = await fetch("/sw/share/module")\n        if(data.status !== 200){\n            return\n        }\n        const module = new Uint8Array(await data.arrayBuffer())\n        const md = await readModule(Buffer.from(module))\n        md.id = v4()\n        const db = getDatabase()\n        db.modules.push(md)\n        notifySuccess(language.successImport)\n        openSettings(SettingsRoute.Module)\n    }\n`,
             content: `    if(hash.startsWith('#share_module')){\n        const data = await fetch("/sw/share/module")\n        if(data.status !== 200) return\n        const result = await importModuleSource({\n            name: 'shared.risum',\n            data: new Uint8Array(await data.arrayBuffer()),\n            origin: 'share',\n        })\n        if(result.status === 'imported') openSettings(SettingsRoute.Module)\n    }\n`,
             requires: ['character-import-ux:character-hash-module-route'],
-            targetVersions: target1100,
         },
         {
             id: 'character-import-ux:character-file-module-route',
@@ -267,16 +258,6 @@ module.exports = {
             anchor: `        if(name.endsWith('risum')){\n            const md = await readModule(Buffer.from(data))\n            md.id = v4()\n            const db = getDatabase()\n            db.modules.push(md)\n            notifySuccess(language.successImport)\n            openSettings(SettingsRoute.Module)\n            return\n        }\n`,
             content: `        if(name.toLowerCase().endsWith('.risum')){\n            const result = await importModuleSource({ name, data, origin: 'launch' })\n            if(result.status === 'imported') openSettings(SettingsRoute.Module)\n            return\n        }\n`,
             requires: ['character-import-ux:character-share-module-route'],
-            targetVersions: target1100,
-        },
-        {
-            id: 'character-import-ux:module-settings-await',
-            file: 'src/lib/Setting/Pages/Module/ModuleSettings.svelte',
-            type: 'replace',
-            anchor: `            importModule()\n`,
-            content: `            await importModule()\n`,
-            requires: ['character-import-ux:character-file-module-route'],
-            targetVersions: target1100,
         },
         {
             id: 'character-import-ux:app-module-import',
@@ -284,8 +265,7 @@ module.exports = {
             type: 'replace',
             anchor: `    import { readModule } from './ts/process/modules';`,
             content: `    import { importModuleSource } from './ts/process/modules';\n    import { openSettings, SettingsRoute } from './ts/routing';`,
-            requires: ['character-import-ux:module-settings-await'],
-            targetVersions: target1100,
+            requires: ['character-import-ux:character-file-module-route'],
         },
         {
             id: 'character-import-ux:app-module-drop',
@@ -294,7 +274,6 @@ module.exports = {
             anchor: `    } else if (name.endsWith('.risum')) {\n        const data = new Uint8Array(await file.arrayBuffer())\n        const module = await readModule(Buffer.from(data))\n        const db = getDatabase()\n        db.modules.push(module)\n        notifySuccess(language.successImport)\n`,
             content: `    } else if (name.endsWith('.risum')) {\n        const result = await importModuleSource({ name: file.name, data: file, origin: 'drop' })\n        if(result.status === 'imported') openSettings(SettingsRoute.Module)\n`,
             requires: ['character-import-ux:app-module-import'],
-            targetVersions: target1100,
         },
         {
             id: 'character-import-ux:share-get-route',
@@ -304,7 +283,6 @@ module.exports = {
             anchor: `                case 'share':{\n`,
             content: `                    if(event.request.method === 'GET' && path[3]){\n                        event.respondWith(getSource(url))\n                        break\n                    }\n                    if(event.request.method !== 'POST'){\n                        event.respondWith(new Response('Method not allowed', { status: 405 }))\n                        break\n                    }\n`,
             requires: ['character-import-ux:app-module-import'],
-            targetVersions: target1100,
         },
         {
             id: 'character-import-ux:share-cache-url-base',
@@ -313,7 +291,6 @@ module.exports = {
             anchor: `    const url = new URL(urlr)\n`,
             content: `    const url = new URL(urlr, self.location.origin)\n`,
             requires: ['character-import-ux:share-get-route'],
-            targetVersions: target1100,
         },
         {
             id: 'character-import-ux:share-cache-miss',
@@ -322,7 +299,6 @@ module.exports = {
             anchor: `async function getSource(url){\n    const cache = await caches.open('risuCache')\n    return await cache.match(url)\n}\n`,
             content: `async function getSource(url){\n    const cache = await caches.open('risuCache')\n    return await cache.match(url) ?? new Response('Cached share not found', { status: 404 })\n}\n`,
             requires: ['character-import-ux:share-cache-url-base'],
-            targetVersions: target1100,
         },
         {
             id: 'character-import-ux:share-transport-tests',
@@ -330,7 +306,6 @@ module.exports = {
             type: 'owned',
             content: read(files110Root, 'server/node/moduleShareServiceWorker.test.ts'),
             requires: ['character-import-ux:share-cache-miss'],
-            targetVersions: target1100,
         },
         {
             id: 'character-import-ux:package-keeps-parent-progress',
@@ -420,7 +395,7 @@ module.exports = {
             file: 'src/lib/Setting/ServerBackupList.svelte',
             type: 'insert',
             where: 'after',
-            anchor: `    import { forageStorage, downloadFile } from "src/ts/globalApi.svelte";
+            anchor: `    import { forageStorage } from "src/ts/globalApi.svelte";
 `,
             content: `    import { allowDuringCharacterImport } from "src/ts/characterImportState";
 `,
@@ -459,5 +434,6 @@ module.exports = {
 `,
             requires: ['character-import-ux:update-guard-import'],
         },
+        ...testUnits,
     ],
 }
