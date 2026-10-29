@@ -1,0 +1,128 @@
+app.post('/api/backup/server/save', async (req, res, next) => {
+    if (!await checkAuth(req, res)) { return; }
+    if (!checkActiveSession(req, res)) return;
+    try {
+        await flushPendingDb();
+
+        // Pre-flight disk check — bail before streaming if the target dir
+        // can't fit the backup. Avoids wasted minutes + half-written tmp files.
+        try {
+            const estimate = await estimateServerBackupSize();
+            const required = Math.ceil(estimate * 1.05); // 5% safety margin
+            const sf = await fs.statfs(backupsDir);
+            const free = sf.bsize * sf.bavail;
+            if (estimate > 0 && free < required) {
+                return res.status(400).json({
+                    error: `Insufficient disk space (need ~${(required / 1024 / 1024).toFixed(0)} MB, free ${(free / 1024 / 1024).toFixed(0)} MB)`,
+                    code: 'insufficient_space',
+                    required,
+                    free,
+                });
+            }
+        } catch (e) {
+            // Non-fatal: log and proceed. statfs may be unavailable, in which
+            // case the streaming fallback path below still fails gracefully.
+            console.warn('[Backup] pre-flight disk check failed:', e?.message || e);
+        }
+
+        const inlayFiles = await listInlayFiles();
+        const inlayEntries = await Promise.all(inlayFiles.map(async (entry) => {
+            const stat = await fs.stat(entry.filePath);
+            return { kind: 'file', sourcePath: entry.filePath, backupName: `inlay/${entry.id}.${entry.ext}`, size: stat.size };
+        }));
+        const sidecarEntries = (await Promise.all(inlayFiles.map(async (entry) => {
+            const sidecarPath = getInlaySidecarPath(entry.id);
+            try {
+                const stat = await fs.stat(sidecarPath);
+                return { kind: 'sidecar', sourcePath: sidecarPath, backupName: `inlay_sidecar/${entry.id}`, size: stat.size };
+            } catch { return null; }
+        }))).filter(Boolean);
+
+        const namespacedEntries = [
+            ...kvListWithSizes('assets/').map((e) => ({ kind: 'kv', key: e.key, backupName: path.basename(e.key), size: e.size })),
+            ...listColdStorageBackupEntries(),
+            ...kvListWithSizes('inlay_meta/').map((e) => ({ kind: 'kv', key: e.key, backupName: e.key, size: e.size })),
+            ...inlayEntries,
+            ...sidecarEntries,
+        ];
+
+        const totalEntries = namespacedEntries.length + 1; // +1 for database
+        const totalBytes = namespacedEntries.reduce((sum, e) => sum + e.size, 0);
+
+        // Stream progress as NDJSON
+        res.setHeader('content-type', 'application/x-ndjson');
+        res.flushHeaders();
+
+        const filename = `risu-backup-${Date.now()}.bin`;
+        const finalPath = path.join(backupsDir, filename);
+        const tmpPath = finalPath + '.tmp';
+        const { createWriteStream: createFsWriteStream } = require('fs');
+        const writeStream = createFsWriteStream(tmpPath);
+
+        let closed = false;
+        let writeComplete = false;
+        res.once('close', () => { closed = true; });
+
+        try {
+            await new Promise((resolve, reject) => {
+                writeStream.on('error', reject);
+
+                (async () => {
+                    let written = 0;
+                    let bytesWritten = 0;
+                    for (const entry of namespacedEntries) {
+                        if (closed) break;
+                        const value = entry.kind === 'kv'
+                            ? kvGet(entry.key)
+                            : entry.kind === 'buffer'
+                                ? entry.buffer
+                                : await fs.readFile(entry.sourcePath);
+                        if (value) {
+                            const ok = writeStream.write(encodeBackupEntry(entry.backupName, value));
+                            if (!ok) await new Promise(r => writeStream.once('drain', r));
+                            bytesWritten += value.length;
+                        }
+                        written++;
+                        if (written % 50 === 0 || written === namespacedEntries.length) {
+                            res.write(JSON.stringify({ type: 'progress', current: written, total: totalEntries, bytes: bytesWritten, totalBytes }) + '\n');
+                        }
+                    }
+                    if (closed) throw new Error('Client disconnected during backup save');
+                    // Same reassembly as /api/backup/export — plugin storage
+                    // rides inside database.risudat, not as kv entries.
+                    const dbValue = await buildFullExportDbValue();
+                    if (dbValue) {
+                        const ok = writeStream.write(encodeBackupEntry('database.risudat', dbValue));
+                        if (!ok) await new Promise(r => writeStream.once('drain', r));
+                        bytesWritten += dbValue.length;
+                    }
+                    res.write(JSON.stringify({ type: 'progress', current: totalEntries, total: totalEntries, bytes: bytesWritten, totalBytes }) + '\n');
+                    writeStream.end(resolve);
+                })().catch(reject);
+            });
+
+            // Atomic rename: only expose the file after successful write
+            await fs.rename(tmpPath, finalPath);
+            writeComplete = true;
+
+            const stat = await fs.stat(finalPath);
+            console.log(`[Server Backup] Saved: ${filename} (${(stat.size / 1024 / 1024).toFixed(1)} MB)`);
+            res.write(JSON.stringify({ type: 'done', ok: true, filename, size: stat.size, dir: backupsDir }) + '\n');
+            res.end();
+        } catch (innerError) {
+            // Clean up incomplete temp file
+            if (!writeComplete) {
+                await fs.unlink(tmpPath).catch(() => {});
+            }
+            throw innerError;
+        }
+    } catch (error) {
+        if (!res.headersSent) {
+            next(error);
+        } else {
+            res.write(JSON.stringify({ type: 'error', message: error.message }) + '\n');
+            res.end();
+        }
+    }
+});
+

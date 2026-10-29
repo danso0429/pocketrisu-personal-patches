@@ -2,13 +2,12 @@
 
 const test = require('node:test')
 const assert = require('node:assert/strict')
-const crypto = require('node:crypto')
 
 const baseline = require('./fixtures/target-baseline-1.10.0.json')
 const unitBaseline = require('./fixtures/target-baseline-1.10.0-units.json')
 const coverage = require('../patches/target-coverage.cjs')
 const { loadCatalog } = require('../src/catalog.cjs')
-const { stableStringify, unitMatchesTarget } = require('../src/manager.cjs')
+const { unitMatchesTarget } = require('../src/manager.cjs')
 const { validateTargetCoverage } = require('../scripts/lib/target-coverage.cjs')
 
 const PACK_ID = 'server-backup-snapshot-core'
@@ -23,12 +22,6 @@ const REWRITTEN_IDS = [
     'server-backup-snapshot-core:owned:server:node:backupSnapshot-cjs:1.9',
     'server-backup-snapshot-core:owned:server:node:backupSnapshot-test-ts:1.9',
 ]
-
-function declarationHash(pack) {
-    return crypto.createHash('sha256')
-        .update(stableStringify({ targets: pack.targets, units: pack.units }))
-        .digest('hex')
-}
 
 test.describe('[E2-2b] Rebase the server backup snapshot core onto PocketRisu 1.16.1', () => {
     test('[new] the core selects seven unscoped units and its coverage retires only four compat tests', () => {
@@ -68,15 +61,13 @@ test.describe('[E2-2b] Rebase the server backup snapshot core onto PocketRisu 1.
         }), { ok: true, violations: [] })
     })
 
-    test('[unchanged] the lazy adapter remains byte-for-byte on its frozen 1.10.0 declaration', () => {
+    test('[unchanged] the lazy adapter keeps its 1.10.0 unit ids', () => {
         const pack = loadCatalog().find(({ id }) => id === LAZY_ID)
-        const target = { packageName: 'pocketrisu', packageVersion: '1.10.0' }
         assert.ok(pack)
-        assert.equal(pack.version, baseline.packs[LAZY_ID].version)
-        assert.equal(declarationHash(pack), baseline.packs[LAZY_ID].declarationHash)
+        const units110 = baseline.packs[LAZY_ID].units110
         assert.deepEqual(
-            pack.units.filter((unit) => unitMatchesTarget(unit, target)).map(({ id }) => id),
-            baseline.packs[LAZY_ID].units110,
+            pack.units.map(({ id }) => id).filter((unitId) => units110.includes(unitId)),
+            units110,
         )
     })
 })

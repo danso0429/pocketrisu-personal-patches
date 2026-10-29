@@ -9,12 +9,10 @@ const assert = require('node:assert/strict')
 const core = require('../patches/server-backup-snapshot-core/manifest.cjs')
 const lazy = require('../patches/server-backup-snapshot-lazy-adapter/manifest.cjs')
 const { loadCatalog } = require('../src/catalog.cjs')
-const { packEtag, unitMatchesTarget } = require('../src/manager.cjs')
+const { packEtag } = require('../src/manager.cjs')
 const { resolveSelection } = require('../src/resolver.cjs')
 const { evaluateTargetCompatibility } = require('../src/compatibility.cjs')
 
-const target181 = { packageName: 'pocketrisu', packageVersion: '1.8.1' }
-const target1100 = { packageName: 'pocketrisu', packageVersion: '1.10.0' }
 const unitText = (manifest) => manifest.units
     .map((unit) => unit.managed ?? unit.content ?? '')
     .join('\n')
@@ -54,7 +52,7 @@ test('every visible selection resolves the P2 adapter only with P1 and lazy stor
 })
 
 test.describe('[E2-2b] Rebase the server backup snapshot core onto PocketRisu 1.16.1', () => {
-    test('[unchanged] the core rejects 1.8.1 at pack level while the lazy adapter keeps exact unit scopes', () => {
+    test('[unchanged] the core rejects 1.8.1 at pack level and the lazy adapter declares only 1.16.1', () => {
         const root = fs.mkdtempSync(path.join(os.tmpdir(), 'snapshot-core-target-'))
         try {
             fs.writeFileSync(path.join(root, 'package.json'), JSON.stringify({
@@ -67,11 +65,8 @@ test.describe('[E2-2b] Rebase the server backup snapshot core onto PocketRisu 1.
         } finally {
             fs.rmSync(root, { recursive: true, force: true })
         }
-        assert.deepEqual(
-            lazy.units.filter((unit) => unitMatchesTarget(unit, target181)),
-            [],
-        )
-        assert.ok(lazy.units.some((unit) => unitMatchesTarget(unit, target1100)))
+        assert.deepEqual(lazy.targets.pocketrisu, { verified: [], reviewing: ['1.16.1'] })
+        assert.equal(lazy.units.some((unit) => Object.hasOwn(unit, 'targetVersions')), false)
         assert.deepEqual(core.requires, ['client-build-fence'])
         assert.deepEqual(core.autoWhen, { all: ['client-build-fence'] })
         assert.deepEqual(lazy.requires, [core.id, 'lazy-chat-sync'])
@@ -119,11 +114,8 @@ test('exact 1.10 maintenance guard preserves purge, disk-spill, and both checkpo
     assert.equal((fragment.match(/BACKUP_SOURCE_MAINTENANCE_BUSY/g) ?? []).length, 2)
     assert.match(fragment, /post-VACUUM checkpoint failed/)
 
-    const lazy1100 = lazy.units.filter((unit) =>
-        unit.targetVersions?.pocketrisu?.includes('1.10.0')
-    )
-    assert.ok(lazy1100.some((unit) => unit.id.endsWith('maintenance-gate:1.10')))
-    assert.ok(lazy1100.some((unit) => unit.id.endsWith('startup-pin-sweep:1.10')))
+    assert.ok(lazy.units.some((unit) => unit.id.endsWith('maintenance-gate:1.10')))
+    assert.ok(lazy.units.some((unit) => unit.id.endsWith('startup-pin-sweep:1.10')))
 })
 
 test('every P2 core and adapter payload contributes to its pack ETag', () => {

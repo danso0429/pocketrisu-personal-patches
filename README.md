@@ -300,6 +300,15 @@ goes through the same reload or recovery handling; other native outcomes
 (prepare before upload, 507/409/413 errors, upload progress, the restore
 error text and reload) are unchanged.
 
+From `0.2.4-experimental.116`, the `server-backup-snapshot-lazy-adapter` pack
+targets PocketRisu 1.16.1 only. Backup downloads, settings-only exports and
+server saves still come from one point-in-time source, and now carry the same
+content as native 1.16.1 backups: plugin storage and deactivated characters
+travel inside `database.risudat`. Deactivated characters are looked up in the
+backed-up database itself, so one whose stored data is missing always fails
+the backup instead of depending on what the server holds in memory. Native auth,
+download headers and server-save progress are kept.
+
 See the [delivery design](docs/PATCHER-V2-DESIGN.md),
 [v0.2.2 stable receipt](docs/POCKETRISU-0.2.2-MAINTENANCE-STABLE-RELEASE.md),
 [v0.2.1 stable receipt](docs/POCKETRISU-0.2.1-PAGEFOLD-STABLE-RELEASE.md),

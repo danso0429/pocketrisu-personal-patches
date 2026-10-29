@@ -8,9 +8,6 @@ app.post('/api/backup/server/save', async (req, res, next) => {
     let writeStream = null;
     let writeFailure = null;
     let tmpPath = null;
-    let finalPath = null;
-    let finalPublished = false;
-    let writeComplete = false;
 
     try {
         backupSource = await capturePointInTimeBackupSource({
@@ -18,13 +15,14 @@ app.post('/api/backup/server/save', async (req, res, next) => {
             signal: abortTracker.signal,
         });
         await waitAtBackupSourceTestGate('server-save', abortTracker.signal);
+        const pinned = backupSource.snapshot;
 
         const pinnedInlays = backupSource.filesystemEntries
             .filter((entry) => entry.backupName.startsWith('inlay/'));
         const pinnedSidecars = backupSource.filesystemEntries
             .filter((entry) => entry.backupName.startsWith('inlay_sidecar/'));
         const namespacedEntries = [
-            ...backupSource.snapshot.kvListWithSizes('assets/').map((entry) => ({
+            ...pinned.kvListWithSizes('assets/').map((entry) => ({
                 kind: 'kv',
                 key: entry.key,
                 backupName: path.basename(entry.key),
@@ -32,10 +30,10 @@ app.post('/api/backup/server/save', async (req, res, next) => {
                 size: entry.size,
             })),
             ...listColdStorageBackupEntries({
-                reader: backupSource.snapshot,
+                reader: pinned,
                 migrateLegacy: false,
             }),
-            ...backupSource.snapshot.kvListWithSizes('inlay_meta/').map((entry) => ({
+            ...pinned.kvListWithSizes('inlay_meta/').map((entry) => ({
                 kind: 'kv',
                 key: entry.key,
                 backupName: entry.key,
@@ -45,36 +43,71 @@ app.post('/api/backup/server/save', async (req, res, next) => {
             ...pinnedInlays,
             ...pinnedSidecars,
         ];
-        const dbSize = backupSource.snapshot.kvSize('database/database.bin');
-        if (dbSize === null) {
+        const pinnedDbSize = pinned.kvSize('database/database.bin');
+        if (pinnedDbSize === null) {
             throw new BackupSourceError(
                 'BACKUP_DATABASE_MISSING',
                 'database.bin is missing from the pinned backup source',
                 500,
             );
         }
-        const archiveEntries = [
-            ...namespacedEntries,
-            {
-                kind: 'kv',
-                key: 'database/database.bin',
-                backupName: 'database.risudat',
-                sortKey: 'database.risudat',
-                size: dbSize,
-            },
-        ];
-        const archiveBytes = totalBackupFramedSize(archiveEntries);
-        const totalEntries = archiveEntries.length;
-        const totalBytes = archiveEntries.reduce((sum, entry) => sum + entry.size, 0);
+        const namespacedArchiveBytes = totalBackupFramedSize(namespacedEntries);
+        const totalEntries = namespacedEntries.length + 1; // +1 for database
+        // Like the native counter, totalBytes leaves out database.risudat.
+        const totalBytes = namespacedEntries.reduce((sum, entry) => sum + entry.size, 0);
 
-        // Check the actual framed archive size against the destination volume.
-        // A missing statfs implementation remains non-fatal, matching the
-        // native fallback to the write-stream error path.
+        // Same reassembly as /api/backup/export: plugin storage and
+        // deactivated characters ride inside database.risudat. The value is
+        // built before the disk check so the check covers the bytes that are
+        // actually written; the re-encoded database can be much larger than
+        // a compressed pinned blob. A build failure (for example a missing
+        // archive payload) is reported after the namespaced entries, at the
+        // point where the database entry is written.
+        let dbValue = null;
+        let dbBuildError = null;
         try {
-            const required = Math.ceil(archiveBytes * 1.05);
+            dbValue = await buildPinnedFullExportDbValue(pinned);
+        } catch (error) {
+            dbBuildError = error;
+        }
+        if (!dbBuildError && !dbValue) {
+            throw new BackupSourceError(
+                'BACKUP_DATABASE_MISSING',
+                'database.bin is missing from the pinned backup source',
+                500,
+            );
+        }
+        const databaseEntry = dbValue ? {
+            kind: 'buffer',
+            buffer: dbValue,
+            backupName: 'database.risudat',
+            sortKey: 'database.risudat',
+            size: dbValue.length,
+        } : null;
+        const archiveBytes = databaseEntry
+            ? namespacedArchiveBytes + backupEntryFramedSize(databaseEntry)
+            : null;
+
+        // Pre-flight disk check against the framed archive size. When the
+        // database value could not be built, the native estimate terms are
+        // used instead: the entries above, the database blob, and the plugin
+        // and archive rows that database.risudat re-embeds. A missing statfs
+        // implementation remains non-fatal.
+        try {
+            let estimate;
+            if (archiveBytes !== null) {
+                estimate = archiveBytes;
+            } else {
+                estimate = namespacedArchiveBytes + pinnedDbSize;
+                for (const entry of pinned.kvListWithSizes(pluginStorage.PREFIX)) {
+                    if (entry.key !== pluginStorage.MIGRATED_MARKER_KEY) estimate += entry.size;
+                }
+                for (const entry of pinned.kvListWithSizes(ARCHIVE_PREFIX)) estimate += entry.size;
+            }
+            const required = Math.ceil(estimate * 1.05);
             const statfs = await fs.statfs(backupsDir);
             const free = statfs.bsize * statfs.bavail;
-            if (archiveBytes > 0 && free < required) {
+            if (estimate > 0 && free < required) {
                 res.status(400).json({
                     error: 'Insufficient disk space (need ~'
                         + (required / 1024 / 1024).toFixed(0)
@@ -95,29 +128,33 @@ app.post('/api/backup/server/save', async (req, res, next) => {
         res.flushHeaders();
 
         const paths = allocatePointInTimeServerBackupPaths();
-        ({ tmpPath, finalPath } = paths);
-        const filename = paths.filename;
+        tmpPath = paths.tmpPath;
+        const { finalPath, filename } = paths;
         const { createWriteStream: createFsWriteStream } = require('fs');
         writeStream = createFsWriteStream(tmpPath, { flags: 'wx' });
         const recordWriteFailure = (error) => { writeFailure = error; };
         writeStream.on('error', recordWriteFailure);
 
+        const writeArchiveEntry = async (entry, value) => {
+            const ok = writeStream.write(encodeBackupEntry(entry.backupName, value));
+            if (!ok) await waitForBackupDrain(writeStream, abortTracker.signal);
+            if (writeFailure) throw writeFailure;
+        };
+
         let bytesWritten = 0;
-        for (let index = 0; index < archiveEntries.length; index++) {
+        for (let index = 0; index < namespacedEntries.length; index++) {
             throwIfBackupSourceAborted(abortTracker.signal);
             if (writeFailure) throw writeFailure;
-            const entry = archiveEntries[index];
+            const entry = namespacedEntries[index];
             const value = await readPointInTimeBackupEntry(
                 backupSource,
                 entry,
                 abortTracker.signal,
             );
-            const ok = writeStream.write(encodeBackupEntry(entry.backupName, value));
-            if (!ok) await waitForBackupDrain(writeStream, abortTracker.signal);
-            if (writeFailure) throw writeFailure;
+            await writeArchiveEntry(entry, value);
             bytesWritten += value.length;
             const written = index + 1;
-            if (written % 50 === 0 || written === totalEntries) {
+            if (written % 50 === 0 || written === namespacedEntries.length) {
                 res.write(JSON.stringify({
                     type: 'progress',
                     current: written,
@@ -127,6 +164,25 @@ app.post('/api/backup/server/save', async (req, res, next) => {
                 }) + '\n');
             }
         }
+
+        throwIfBackupSourceAborted(abortTracker.signal);
+        if (dbBuildError) throw dbBuildError;
+        if (!Number.isSafeInteger(archiveBytes)) {
+            throw new BackupSourceError(
+                'BACKUP_SOURCE_TOO_LARGE',
+                'Backup archive exceeds the safe byte range',
+                413,
+            );
+        }
+        await writeArchiveEntry(databaseEntry, dbValue);
+        bytesWritten += dbValue.length;
+        res.write(JSON.stringify({
+            type: 'progress',
+            current: totalEntries,
+            total: totalEntries,
+            bytes: bytesWritten,
+            totalBytes,
+        }) + '\n');
 
         await finishBackupWritable(writeStream, abortTracker.signal);
         writeStream.removeListener('error', recordWriteFailure);
@@ -140,19 +196,12 @@ app.post('/api/backup/server/save', async (req, res, next) => {
         }
         throwIfBackupSourceAborted(abortTracker.signal);
 
+        // Atomic rename: the file is published once the rename completes and
+        // stays published even if the client disconnects afterwards.
         await fs.rename(tmpPath, finalPath);
         tmpPath = null;
-        finalPublished = true;
-        const stat = await fs.stat(finalPath);
-        if (stat.size !== archiveBytes) {
-            throw new BackupSourceError(
-                'BACKUP_ARCHIVE_SIZE_MISMATCH',
-                'Published server backup size does not match its pinned plan',
-                500,
-            );
-        }
-        throwIfBackupSourceAborted(abortTracker.signal);
 
+        const stat = await fs.stat(finalPath);
         console.log(
             '[Server Backup] Saved: '
                 + filename
@@ -165,9 +214,9 @@ app.post('/api/backup/server/save', async (req, res, next) => {
             ok: true,
             filename,
             size: stat.size,
+            dir: backupsDir,
         }) + '\n');
         res.end();
-        writeComplete = true;
     } catch (error) {
         // Wait for the file descriptor to close before the finally block
         // unlinks a partial archive; Windows cannot unlink an open file.
@@ -183,15 +232,12 @@ app.post('/api/backup/server/save', async (req, res, next) => {
             res.write(JSON.stringify({
                 type: 'error',
                 message: error?.message || 'server backup failed',
-                code: error?.code,
+                ...(error instanceof BackupSourceError ? { code: error.code } : {}),
             }) + '\n');
             res.end();
         }
     } finally {
-        if (!writeComplete) {
-            if (tmpPath) await fs.unlink(tmpPath).catch(() => {});
-            if (finalPublished && finalPath) await fs.unlink(finalPath).catch(() => {});
-        }
+        if (tmpPath) await fs.unlink(tmpPath).catch(() => {});
         await backupSource?.close();
         abortTracker.cleanup();
     }

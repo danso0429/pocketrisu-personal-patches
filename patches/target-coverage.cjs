@@ -1006,6 +1006,50 @@ module.exports = {
             },
         },
     },
+    'server-backup-snapshot-lazy-adapter': {
+        '1.16.1': {
+            from: '1.10.0',
+            retained: [
+                'server-backup-snapshot-lazy-adapter:server-db-reader:1.9',
+                'server-backup-snapshot-lazy-adapter:server-helper-import:1.9',
+                'server-backup-snapshot-lazy-adapter:server-source-lifecycle:1.9',
+                'server-backup-snapshot-lazy-adapter:cold-storage-reader:1.9',
+                'server-backup-snapshot-lazy-adapter:settings-and-download-export:1.9',
+                'server-backup-snapshot-lazy-adapter:server-save-export:1.9',
+                'server-backup-snapshot-lazy-adapter:compression-storage-queue:1.9',
+                'server-backup-snapshot-lazy-adapter:maintenance-gate:1.10',
+                'server-backup-snapshot-lazy-adapter:startup-pin-sweep:1.10',
+            ],
+            rewritten: {
+                'server-backup-snapshot-lazy-adapter:server-db-reader:1.9':
+                    'Unchanged content; computed `after`: the server.cjs units of client-build-fence, lazy-chat-sync, persona-organizer and personal-settings that do not already follow this adapter, instead of the retired 1.10 lazy-chat-sync whole-file replacement.',
+                'server-backup-snapshot-lazy-adapter:server-helper-import:1.9':
+                    'Unchanged content; computed `after` (same list as server-db-reader) instead of the retired 1.10 lazy-chat-sync whole-file replacement.',
+                'server-backup-snapshot-lazy-adapter:server-source-lifecycle:1.9':
+                    'Unchanged content; computed `after` (same list as server-db-reader) instead of the retired 1.10 lazy-chat-sync whole-file replacement. The capture uses the lazy-chat-sync 1.16 storage reset state and queue.',
+                'server-backup-snapshot-lazy-adapter:cold-storage-reader:1.9':
+                    'Unchanged content; the anchor is the PocketRisu 1.16.1 text (identical to the 1.10 section) and `after` is computed (same list as server-db-reader).',
+                'server-backup-snapshot-lazy-adapter:settings-and-download-export:1.9':
+                    'Rewritten over the PocketRisu 1.16.1 export: the full export rebuilds database.risudat from the pinned source like buildFullExportDbValue (plugin rows merged, deactivated characters inlined, archive stubs judged from the pinned database), downloads keep the native cookie-or-header auth, and a missing pinned database still answers 500 BACKUP_DATABASE_MISSING.',
+                'server-backup-snapshot-lazy-adapter:server-save-export:1.9':
+                    'Rewritten over the PocketRisu 1.16.1 server save: database.risudat is rebuilt from the pinned source like the export, progress lines, totalBytes and the done line (with dir) follow the native route, a failure after the headers is an NDJSON error line, and a published file is kept after a disconnect.',
+                'server-backup-snapshot-lazy-adapter:compression-storage-queue:1.9':
+                    'Rewritten over the lazy-chat-sync 1.16 compress generation unit: the inlay write and thumbnail invalidation run in the storage queue, the admission is checked again inside the queue, and only the write itself is tracked as an in-flight inlay mutation.',
+                'server-backup-snapshot-lazy-adapter:maintenance-gate:1.10':
+                    'Unchanged content; the anchor is the PocketRisu 1.16.1 text (identical to the 1.10 section) and `after` is computed (same list as server-db-reader).',
+                'server-backup-snapshot-lazy-adapter:startup-pin-sweep:1.10':
+                    'The sweep is anchored on the first native startup migration, so it runs after the lazy-chat-sync 1.16 journal load (inserted right after `try {`) and before both native migrations; `after` is computed (same list as server-db-reader).',
+            },
+            replaced: {},
+            added: {
+                'server-backup-snapshot-lazy-adapter:owned:test:compat:backup-point-in-time-test-ts:1.16':
+                    'The point-in-time backup integration test retired from the core pack, returned unchanged under its owner pack.',
+                'server-backup-snapshot-lazy-adapter:owned:test:compat:server-backup-snapshot-lazy-adapter-e2-6b-test-ts:1.16':
+                    'Integration tests for pinned plugin rows, native export and server-save content and format, archive stubs judged from the pinned database, the missing-database refusal and the startup pin sweep.',
+            },
+            retired: {},
+        },
+    },
     'usage-cost-estimate': {
         '1.16.1': {
             from: '1.10.0',

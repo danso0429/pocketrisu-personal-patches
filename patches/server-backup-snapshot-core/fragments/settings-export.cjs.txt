@@ -47,6 +47,117 @@ async function buildSettingsOnlyPlan({
     };
 }
 
+// Plugin storage rows of the pinned source, read the way pluginStorage.list()
+// and readAll() read the live rows: the migration marker is skipped, keys are
+// decoded from base64url, and every key (including "__proto__") becomes an
+// own property.
+function readPinnedPluginStorage(reader) {
+    const values = {};
+    let rowCount = 0;
+    for (const entry of reader.kvListWithSizes(pluginStorage.PREFIX)) {
+        if (entry.key === pluginStorage.MIGRATED_MARKER_KEY) continue;
+        rowCount++;
+        const raw = reader.kvGet(entry.key);
+        if (raw === null || raw === undefined) continue;
+        Object.defineProperty(values, pluginStorage.decodeKey(entry.key), {
+            value: JSON.parse(Buffer.from(raw).toString('utf-8')),
+            enumerable: true, writable: true, configurable: true,
+        });
+    }
+    return { rowCount, values };
+}
+
+// decodeArchivePayload over the pinned source.
+async function decodePinnedArchivePayload(reader, chaId, archivedAt) {
+    const raw = reader.kvGet(archiveKey(chaId, archivedAt));
+    if (!raw) return null;
+    const payload = normalizeJSON(await decodeRisuSave(raw));
+    const character = payload?.character;
+    if (!character || typeof character !== 'object' || character.chaId !== chaId
+        || payload.archivedAt !== archivedAt || !Array.isArray(character.chats)) {
+        throw new Error(`archive payload malformed: ${archiveRowId(chaId, archivedAt)}`);
+    }
+    return { payload, bytes: raw.length };
+}
+
+// inlineArchivedCharacters over the pinned source: the same skip, trash
+// marker, missing-payload error and stub-list removal, with payloads read
+// from the pinned rows.
+async function inlinePinnedArchivedCharacters(dbObj, reader) {
+    const stubs = archivedStubsOf(dbObj);
+    if (stubs.length > 0) {
+        if (!Array.isArray(dbObj.characters)) dbObj.characters = [];
+        const present = new Set(dbObj.characters.map((c) => c?.chaId).filter(Boolean));
+        const missing = [];
+        for (const stub of stubs) {
+            if (present.has(stub.chaId)) continue;
+            let decoded = null;
+            try {
+                decoded = await decodePinnedArchivePayload(reader, stub.chaId, stub.archivedAt);
+            } catch {
+                decoded = null;
+            }
+            if (!decoded) {
+                missing.push(stub.name || stub.chaId);
+                continue;
+            }
+            const inlined = decoded.payload.character;
+            if (isValidArchivedAt(stub.trashedAt)) inlined.trashTime = stub.trashedAt;
+            else delete inlined.trashTime;
+            dbObj.characters.push(inlined);
+            present.add(stub.chaId);
+        }
+        if (missing.length > 0) {
+            const err = new Error(`Deactivated character data missing: ${missing.join(', ')}`);
+            err.code = 'ARCHIVE_PAYLOAD_MISSING';
+            throw err;
+        }
+    }
+    if ('nodeOnlyArchivedCharacters' in dbObj) delete dbObj.nodeOnlyArchivedCharacters;
+    return dbObj;
+}
+
+// database.risudat bytes for a full export, built from the pinned source the
+// way buildFullExportDbValue builds them from live storage: plugin rows are
+// merged into pluginCustomStorage (blob values win on overlap) and
+// deactivated characters are inlined. Archive stubs are read from the pinned
+// database, not from the in-memory cache, so a stub without its payload
+// always fails the export. Without plugin rows, archive rows or stubs the
+// pinned blob is returned unchanged.
+async function buildPinnedFullExportDbValue(reader) {
+    const raw = reader.kvGet('database/database.bin');
+    if (!raw) return null;
+    const pluginRows = readPinnedPluginStorage(reader);
+    const hasPluginRows = pluginRows.rowCount > 0;
+    const hasArchiveRows = reader.kvList(ARCHIVE_META_PREFIX).length > 0
+        || reader.kvList(ARCHIVE_PREFIX).length > 0;
+    const dbObj = await decodeRisuSave(raw);
+    if (!hasPluginRows && !hasArchiveRows && archivedStubsOf(dbObj).length === 0) return raw;
+    if (hasPluginRows) {
+        const fromDb = dbObj.pluginCustomStorage;
+        const merged = pluginRows.values;
+        if (fromDb && typeof fromDb === 'object') {
+            for (const key of Object.keys(fromDb)) {
+                Object.defineProperty(merged, key, {
+                    value: Object.getOwnPropertyDescriptor(fromDb, key).value,
+                    enumerable: true, writable: true, configurable: true,
+                });
+            }
+        }
+        dbObj.pluginCustomStorage = merged;
+    }
+    await inlinePinnedArchivedCharacters(dbObj, reader);
+    return Buffer.from(encodeRisuSaveLegacy(dbObj));
+}
+
+function pinnedDatabaseMissingError() {
+    return new BackupSourceError(
+        'BACKUP_DATABASE_MISSING',
+        'database.bin is missing from the pinned backup source',
+        500,
+    );
+}
+
 // Size breakdown for the settings-only confirm dialog. Each request gets its
 // own coherent source. The later export request intentionally gets a newer,
 // independently coherent source rather than retaining a snapshot across UI
@@ -65,13 +176,7 @@ app.get('/api/backup/export/settings-estimate', async (req, res, next) => {
             includeModuleAssets: true,
             reader: backupSource.snapshot,
         });
-        if (!plan) {
-            throw new BackupSourceError(
-                'BACKUP_DATABASE_MISSING',
-                'database.bin is missing from the pinned backup source',
-                500,
-            );
-        }
+        if (!plan) throw pinnedDatabaseMissingError();
         res.json(plan.breakdown);
     } catch (error) {
         if (abortTracker.signal.aborted || error?.name === 'AbortError') return;
@@ -87,7 +192,7 @@ app.get('/api/backup/export/settings-estimate', async (req, res, next) => {
 });
 
 app.get('/api/backup/export', async (req, res, next) => {
-    if (!await checkAuth(req, res)) { return; }
+    if (!await checkBackupDownloadAuth(req, res)) { return; }
     const abortTracker = createBackupSourceAbortTracker(req, res);
     let backupSource = null;
     try {
@@ -106,23 +211,23 @@ app.get('/api/backup/export', async (req, res, next) => {
         });
         await waitAtBackupSourceTestGate('export', abortTracker.signal);
 
-        let settingsDbValue = null;
+        let exportDbValue = null;
         let settingsAssetNames = null;
         if (settingsOnly) {
             const plan = await buildSettingsOnlyPlan({
                 includeModuleAssets,
                 reader: backupSource.snapshot,
             });
-            if (!plan) {
-                throw new BackupSourceError(
-                    'BACKUP_DATABASE_MISSING',
-                    'database.bin is missing from the pinned backup source',
-                    500,
-                );
-            }
-            settingsDbValue = plan.dbValue;
+            if (!plan) throw pinnedDatabaseMissingError();
+            exportDbValue = plan.dbValue;
             settingsAssetNames = plan.keepNames;
+        } else {
+            // Plugin storage rides inside database.risudat, never as
+            // plugin-storage/ entries; deactivated characters are inlined.
+            exportDbValue = await buildPinnedFullExportDbValue(backupSource.snapshot);
+            if (!exportDbValue) throw pinnedDatabaseMissingError();
         }
+        throwIfBackupSourceAborted(abortTracker.signal);
 
         const inlayMetaEntries = skipInlay
             ? []
@@ -154,24 +259,12 @@ app.get('/api/backup/export', async (req, res, next) => {
             ...backupSource.filesystemEntries,
         ].sort((a, b) => a.sortKey.localeCompare(b.sortKey));
 
-        const dbSize = settingsOnly
-            ? settingsDbValue.length
-            : backupSource.snapshot.kvSize('database/database.bin');
-        if (dbSize === null) {
-            throw new BackupSourceError(
-                'BACKUP_DATABASE_MISSING',
-                'database.bin is missing from the pinned backup source',
-                500,
-            );
-        }
         const databaseEntry = {
-            kind: settingsOnly ? 'buffer' : 'kv',
-            ...(settingsOnly
-                ? { buffer: settingsDbValue }
-                : { key: 'database/database.bin' }),
+            kind: 'buffer',
+            buffer: exportDbValue,
             backupName: 'database.risudat',
             sortKey: 'database.risudat',
-            size: dbSize,
+            size: exportDbValue.length,
         };
         const archiveEntries = [...namespacedEntries, databaseEntry];
         const totalBytes = totalBackupFramedSize(archiveEntries);
@@ -203,6 +296,8 @@ app.get('/api/backup/export', async (req, res, next) => {
         if (!res.headersSent) {
             if (error instanceof BackupSourceError) {
                 res.status(error.statusCode || 500).json(backupSourceErrorPayload(error));
+            } else if (error?.code === 'ARCHIVE_PAYLOAD_MISSING') {
+                res.status(500).json({ error: error.message, code: error.code });
             } else {
                 next(error);
             }

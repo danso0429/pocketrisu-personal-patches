@@ -1,0 +1,262 @@
+async function buildSettingsOnlyPlan({ includeModuleAssets = true } = {}) {
+    const raw = kvGet('database/database.bin');
+    if (!raw) return null;
+
+    // Plain decodeRisuSave, not decodeDatabaseWithPersistentChatIds: that
+    // variant runs chat-id and cold-storage migrations and can persist. Both
+    // concern data we are about to drop anyway.
+    const trimmed = stripToSettingsOnly(await decodeRisuSave(raw));
+    const dbValue = Buffer.from(encodeRisuSaveLegacy(trimmed, 'compression'));
+
+    const withModules = buildUncleanableSet(trimmed);
+    const withoutModules = buildUncleanableSet(trimmed, { includeModuleAssets: false });
+    const keepNames = includeModuleAssets ? withModules : withoutModules;
+
+    let baseCount = 0, baseBytes = 0, moduleCount = 0, moduleBytes = 0;
+    for (const entry of kvListWithSizes('assets/')) {
+        const name = path.basename(entry.key);
+        if (withoutModules.has(name)) {
+            baseCount++;
+            baseBytes += entry.size;
+        } else if (withModules.has(name)) {
+            moduleCount++;
+            moduleBytes += entry.size;
+        }
+    }
+
+    const modulesWithAssets = (trimmed.modules ?? [])
+        .filter((m) => Array.isArray(m?.assets) && m.assets.length > 0).length;
+
+    return {
+        trimmed,
+        dbValue,
+        keepNames,
+        breakdown: {
+            dbBytes: dbValue.length,
+            baseAssets: { count: baseCount, bytes: baseBytes },
+            moduleAssets: { count: moduleCount, bytes: moduleBytes, moduleCount: modulesWithAssets },
+        },
+    };
+}
+
+/**
+ * database.risudat bytes for a full export: the live blob with
+ * pluginCustomStorage re-embedded from plugin-storage/ kv so the .bin decodes
+ * to a complete DB in upstream RisuAI and in older NodeOnly builds.
+ *
+ * The blob is one msgpack document (encodeRisuSaveLegacy), not block-based,
+ * so there is no "replace one block" path: this decodes and re-encodes the
+ * whole DB and materializes every plugin value. Memory cost is roughly the
+ * decoded DB plus plugin storage twice (object + encoded buffer). Skipped
+ * entirely when kv holds no plugin keys, which keeps the raw-blob fast path
+ * for everyone else. Blob values win over kv on overlap — same rule as the
+ * migration, since a still-populated blob means a newer write.
+ */
+async function buildFullExportDbValue() {
+    const raw = kvGet('database/database.bin');
+    if (!raw) return null;
+    const hasPluginRows = pluginStorage.list().length > 0;
+    // Stubs count too: a database that still points at rows which are gone
+    // must fail the export below instead of shipping the raw stub list
+    // (which importers would silently drop).
+    const hasArchive = kvList(ARCHIVE_META_PREFIX).length > 0 || kvList(ARCHIVE_PREFIX).length > 0
+        || (dbCache[DB_HEX_KEY] ? archivedStubsOf(dbCache[DB_HEX_KEY]).length > 0 : false);
+    if (!hasPluginRows && !hasArchive) return raw;
+    const dbObj = await decodeRisuSave(raw);
+    if (hasPluginRows) {
+        const fromDb = dbObj.pluginCustomStorage;
+        const merged = pluginStorage.readAll();
+        if (fromDb && typeof fromDb === 'object') {
+            for (const key of Object.keys(fromDb)) {
+                Object.defineProperty(merged, key, {
+                    value: Object.getOwnPropertyDescriptor(fromDb, key).value,
+                    enumerable: true, writable: true, configurable: true,
+                });
+            }
+        }
+        dbObj.pluginCustomStorage = merged;
+    }
+    // Deactivated characters travel inline: a .bin must be a complete legacy
+    // database for upstream RisuAI and older PocketRisu builds, which know
+    // nothing about the archive. Throws when a payload is missing rather than
+    // shipping a backup that would import as a lost character.
+    await inlineArchivedCharacters(dbObj);
+    return Buffer.from(encodeRisuSaveLegacy(dbObj));
+}
+
+// Size breakdown for the settings-only confirm dialog. Kept separate from
+// /api/db/stats because it has to decode and re-encode the DB, which that
+// dashboard poll should not pay for on every load.
+app.get('/api/backup/export/settings-estimate', async (req, res, next) => {
+    if (!await checkAuth(req, res)) { return; }
+    try {
+        await flushPendingDb();
+        const plan = await buildSettingsOnlyPlan({ includeModuleAssets: true });
+        if (!plan) {
+            res.status(500).json({ error: 'database.bin missing' });
+            return;
+        }
+        res.json(plan.breakdown);
+    } catch (error) {
+        next(error);
+    }
+});
+
+app.get('/api/backup/export', async (req, res, next) => {
+    if(!await checkBackupDownloadAuth(req, res)){ return; }
+    try {
+        // ?target=upstream excludes NodeOnly-only inlay namespaces (inlay/,
+        // inlay_sidecar/, inlay_meta/). Their entry names contain a slash,
+        // which upstream RisuAI's import treats as a path under assets/ and
+        // fails with ENOENT. The export becomes lossy on inlay images but
+        // imports cleanly into upstream.
+        const target = req.query.target === 'upstream' ? 'upstream' : 'nodeonly';
+        // ?mode=settings drops characters, chats and inlay images — see
+        // buildSettingsOnlyPlan above. &moduleAssets=0 additionally leaves out
+        // asset-pack module images, which is where the bulk usually lives.
+        const settingsOnly = req.query.mode === 'settings';
+        const includeModuleAssets = req.query.moduleAssets !== '0';
+        // Flush any pending patches to ensure export includes latest data
+        await flushPendingDb();
+
+        // Settings-only re-encodes a trimmed DB up front: its byte length is
+        // needed for content-length, and the trimmed object drives the asset
+        // filter below. Safe to hold in memory — with characters gone this is
+        // orders of magnitude smaller than the live blob.
+        let settingsDbValue = null;
+        let settingsAssetNames = null;
+        if (settingsOnly) {
+            const plan = await buildSettingsOnlyPlan({ includeModuleAssets });
+            if (!plan) {
+                res.status(500).json({ error: 'database.bin missing' });
+                return;
+            }
+            settingsDbValue = plan.dbValue;
+            settingsAssetNames = plan.keepNames;
+        }
+        // Full export ships plugin storage inside database.risudat (see
+        // buildFullExportDbValue) — never as plugin-storage/ kv entries, which
+        // would duplicate it. Settings-only keeps the trimmed blob's empty
+        // field: plugin data is chat-scoped and does not travel with settings.
+        const exportDbValue = settingsOnly ? settingsDbValue : await buildFullExportDbValue();
+
+        // Inlay images only ever attach to chat messages, so a settings-only
+        // export skips those namespaces for the same reason upstream does.
+        const skipInlay = settingsOnly || target === 'upstream';
+        const inlayFiles = skipInlay ? [] : await listInlayFiles();
+        const inlayEntries = await Promise.all(inlayFiles.map(async (entry) => {
+            const stat = await fs.stat(entry.filePath);
+            return {
+                kind: 'file',
+                sourcePath: entry.filePath,
+                backupName: `inlay/${entry.id}.${entry.ext}`,
+                sortKey: `inlay/${entry.id}`,
+                size: stat.size,
+            };
+        }));
+        const sidecarEntries = await Promise.all(inlayFiles.map(async (entry) => {
+            const sidecarPath = getInlaySidecarPath(entry.id);
+            try {
+                const stat = await fs.stat(sidecarPath);
+                return {
+                    kind: 'sidecar',
+                    sourcePath: sidecarPath,
+                    backupName: `inlay_sidecar/${entry.id}`,
+                    sortKey: `inlay_sidecar/${entry.id}`,
+                    size: stat.size,
+                };
+            } catch {
+                return null;
+            }
+        }));
+        const inlayMetaEntries = skipInlay ? [] : kvListWithSizes('inlay_meta/').map((entry) => ({
+            kind: 'kv',
+            key: entry.key,
+            backupName: entry.key,
+            sortKey: entry.key,
+            size: entry.size,
+        }));
+        const namespacedEntries = [
+            ...kvListWithSizes('assets/')
+                // Settings-only keeps just the assets the trimmed DB still
+                // points at — persona icons, theme background, notification
+                // sounds, module assets. Character art falls out here, which is
+                // what actually shrinks the file.
+                .filter((entry) => !settingsAssetNames || settingsAssetNames.has(path.basename(entry.key)))
+                .map((entry) => ({
+                    kind: 'kv',
+                    key: entry.key,
+                    backupName: path.basename(entry.key),
+                    sortKey: entry.key,
+                    size: entry.size,
+                })),
+            // Cold storage holds character payloads only — nothing left to carry
+            // once characters are stripped.
+            ...(settingsOnly ? [] : listColdStorageBackupEntries()),
+            ...inlayMetaEntries,
+            ...inlayEntries,
+            ...sidecarEntries.filter(Boolean),
+        ].sort((a, b) => a.sortKey.localeCompare(b.sortKey));
+        const dbSize = exportDbValue ? exportDbValue.length : 0;
+        const totalBytes = namespacedEntries.reduce((sum, entry) => {
+            return sum + 8 + Buffer.byteLength(entry.backupName, 'utf-8') + entry.size;
+        }, 0) + (dbSize ? 8 + Buffer.byteLength('database.risudat', 'utf-8') + dbSize : 0);
+
+        // Settings-only files get their own name — they are kept around and
+        // reused across instances, so they have to be tellable apart from a full
+        // backup months later.
+        const filenameBase = settingsOnly ? 'risu-settings' : 'risu-backup';
+        const filenameSuffix = settingsOnly ? '' : target === 'upstream' ? '-upstream' : '';
+        res.setHeader('content-type', 'application/octet-stream');
+        res.setHeader('content-disposition', `attachment; filename="${filenameBase}-${Date.now()}${filenameSuffix}.bin"`);
+        res.setHeader('content-length', totalBytes);
+        res.setHeader('x-risu-backup-assets', namespacedEntries.length);
+
+        let closed = false;
+        res.once('close', () => { closed = true; });
+
+        function waitForDrain() {
+            if (closed) return Promise.resolve();
+            return new Promise(resolve => {
+                function done() {
+                    res.removeListener('drain', done);
+                    res.removeListener('close', done);
+                    resolve();
+                }
+                res.once('drain', done);
+                res.once('close', done);
+            });
+        }
+
+        for (const entry of namespacedEntries) {
+            if (closed) break;
+            const value = entry.kind === 'kv'
+                ? kvGet(entry.key)
+                : entry.kind === 'buffer'
+                    ? entry.buffer
+                    : await fs.readFile(entry.sourcePath);
+            if (closed) break;
+            if (value) {
+                const ok = res.write(encodeBackupEntry(entry.backupName, value));
+                if (!ok) {
+                    await waitForDrain();
+                    if (closed) break;
+                }
+            }
+        }
+
+        if (!closed && dbSize) {
+            const dbValue = exportDbValue;
+            if (dbValue) {
+                const ok = res.write(encodeBackupEntry('database.risudat', dbValue));
+                if (!ok) {
+                    await waitForDrain();
+                }
+            }
+        }
+        if (!closed) res.end();
+    } catch (error) {
+        next(error);
+    }
+});
+

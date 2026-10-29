@@ -1,0 +1,58 @@
+function readColdStorageJsonEntry(nameOrKey, options = {}) {
+    const { migrateLegacy = false, allowPlainJsonFallback = false } = options;
+    const canonicalKey = normalizeColdStorageStorageKey(nameOrKey);
+    const legacyBackupKey = `${canonicalKey}.json`;
+
+    let storageKey = canonicalKey;
+    let value = kvGet(canonicalKey);
+    if (!value) {
+        storageKey = legacyBackupKey;
+        value = kvGet(legacyBackupKey);
+    }
+    if (!value) {
+        return null;
+    }
+
+    const parsed = parseColdStorageJsonBuffer(value, storageKey, {
+        allowPlainJson: allowPlainJsonFallback || storageKey !== canonicalKey,
+    });
+
+    if (migrateLegacy && (storageKey !== canonicalKey || parsed.format !== 'gzip')) {
+        kvSet(canonicalKey, encodeColdStorageCanonicalBuffer(parsed.coldData));
+        if (storageKey !== canonicalKey) {
+            kvDel(storageKey);
+        }
+    }
+
+    return {
+        coldData: parsed.coldData,
+        storageKey,
+        canonicalKey,
+        format: parsed.format,
+    };
+}
+
+function listColdStorageBackupEntries() {
+    const canonicalKeys = Array.from(new Set(
+        kvList('coldstorage/').map((key) => normalizeColdStorageStorageKey(key))
+    )).sort((a, b) => a.localeCompare(b));
+
+    return canonicalKeys.map((storageKey) => {
+        const entry = readColdStorageJsonEntry(storageKey, {
+            migrateLegacy: true,
+            allowPlainJsonFallback: true,
+        });
+        if (!entry) {
+            throw new Error(`[ColdStorage] missing cold storage entry while exporting: ${storageKey}`);
+        }
+        const plainJson = Buffer.from(JSON.stringify(entry.coldData), 'utf-8');
+        return {
+            kind: 'buffer',
+            buffer: plainJson,
+            backupName: toColdStorageBackupName(storageKey),
+            sortKey: toColdStorageBackupName(storageKey),
+            size: plainJson.length,
+        };
+    });
+}
+
