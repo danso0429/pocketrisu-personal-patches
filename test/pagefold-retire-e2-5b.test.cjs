@@ -51,8 +51,7 @@ test.describe('[E2-5b] Retire the PageFold packs', () => {
         }, catalog), /cannot take ownership/)
     })
 
-    test('[new] b3/B4 the E2-5b-only catalog loads usage-cost-estimate while its PageFold source stays on disk', () => {
-        assert.equal(fs.existsSync(path.join(ROOT, 'patches/pagefold-model-preset/manifest.cjs')), true)
+    test('[new] b3/B4 the catalog loads usage-cost-estimate without retired PageFold packs', () => {
         const catalog = loadCatalog()
         assert.ok(catalog.find((pack) => pack.id === 'usage-cost-estimate'))
         assert.equal(catalog.some((pack) => RETIRED.includes(pack.id)), false,

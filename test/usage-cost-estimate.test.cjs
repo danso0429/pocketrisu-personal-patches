@@ -5,9 +5,9 @@ const { compose, revertUnit } = require('../src/compose.cjs');
 const { loadCatalog } = require('../src/catalog.cjs');
 const pack = loadCatalog().find(entry => entry.id === 'usage-cost-estimate');
 
-test('usage cost is a complete-delivery exact target with a reversible migration boundary', () => {
+test('usage cost is a complete-delivery 1.16.1 review target with a reversible migration boundary', () => {
     assert.equal(pack.userSelectable, true);
-    assert.deepEqual(pack.targets.pocketrisu, { verified: ['1.10.0'], reviewing: [] });
+    assert.deepEqual(pack.targets.pocketrisu, { verified: [], reviewing: ['1.16.1'] });
     // The migration unit changes source only; revert never drops a user-data column.
     const unit = pack.units.find(unit => unit.id.includes('migration-before-statements'));
     const files = new Map([[unit.file, unit.anchor]]);

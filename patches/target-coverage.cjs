@@ -996,4 +996,115 @@ module.exports = {
             },
         },
     },
+    'usage-cost-estimate': {
+        '1.16.1': {
+            from: '1.10.0',
+            retained: [
+                'usage-cost-estimate:gemini-usage:1.10',
+                'usage-cost-estimate:adapter-usage-fields:1.10',
+                'usage-cost-estimate:log-usage-fields:1.10',
+                'usage-cost-estimate:log-entry-fields:1.10',
+                'usage-cost-estimate:log-scope-usage:1.10',
+                'usage-cost-estimate:request-usage:1.10',
+                'usage-cost-estimate:recovery-usage:1.10',
+                'usage-cost-estimate:native-usage-assert-0:1.10',
+                'usage-cost-estimate:native-usage-assert-1:1.10',
+                'usage-cost-estimate:native-usage-assert-2:1.10',
+                'usage-cost-estimate:store-import:1.10',
+                'usage-cost-estimate:context-before-coercion:1.10',
+                'usage-cost-estimate:migration-before-statements:1.10',
+                'usage-cost-estimate:usage-insert-statement:1.10',
+                'usage-cost-estimate:usage-insert-context:1.10',
+                'usage-cost-estimate:cost-buckets:1.10',
+                'usage-cost-estimate:entries-route:1.10',
+                'usage-cost-estimate:usage-no-store:1.10',
+                'usage-cost-estimate:entries-export:1.10',
+                'usage-cost-estimate:cost-client-types-import:1.10',
+                'usage-cost-estimate:cost-report-fields:1.10',
+                'usage-cost-estimate:entries-client:1.10',
+                'usage-cost-estimate:panel-import:1.10',
+                'usage-cost-estimate:query-type:1.10',
+                'usage-cost-estimate:query-snapshot:1.10',
+                'usage-cost-estimate:model-filter-count:1.10',
+                'usage-cost-estimate:model-query:1.10',
+                'usage-cost-estimate:adopt-query-snapshot:1.10',
+                'usage-cost-estimate:model-filter:1.10',
+                'usage-cost-estimate:cost-model-panel:1.10',
+                'usage-cost-estimate:cost-empty-period:1.10',
+                'usage-cost-estimate:strings-ko:1.10',
+                'usage-cost-estimate:strings-en:1.10',
+                'usage-cost-estimate:owned:server/node/usageCostStore.cjs:1.10',
+                'usage-cost-estimate:owned:server/node/usageCostStore.test.ts:1.10',
+                'usage-cost-estimate:owned:src/ts/usage/usagePricing.ts:1.10',
+                'usage-cost-estimate:owned:src/ts/usage/usagePricing.test.ts:1.10',
+                'usage-cost-estimate:owned:src/ts/usage/usageCostClient.test.ts:1.10',
+                'usage-cost-estimate:owned:src/lib/Setting/Pages/UsageCostPanel.svelte:1.10',
+                'usage-cost-estimate:owned:src/lib/Setting/Pages/UsageCostPanel.test.ts:1.10',
+                'usage-cost-estimate:owned:src/lib/Setting/Pages/UsageCostPanelHarness.test.svelte:1.10',
+            ],
+            rewritten: {
+                'usage-cost-estimate:gemini-usage:1.10':
+                    'Computed after: pagefold-model-preset is retired, so its unit ids on the same file leave the computed after list; the remaining ids keep their order.',
+                'usage-cost-estimate:adapter-usage-fields:1.10':
+                    'Computed after: pagefold-model-preset is retired, so its unit ids on the same file leave the computed after list; the remaining ids keep their order.',
+                'usage-cost-estimate:log-usage-fields:1.10':
+                    'Computed after: pagefold-model-preset is retired, so its unit ids on the same file leave the computed after list; the remaining ids keep their order.',
+                'usage-cost-estimate:log-entry-fields:1.10':
+                    'Computed after: pagefold-model-preset is retired, so its unit ids on the same file leave the computed after list; the remaining ids keep their order.',
+                'usage-cost-estimate:log-scope-usage:1.10':
+                    'Computed after: pagefold-model-preset is retired, so its unit ids on the same file leave the computed after list; the remaining ids keep their order.',
+                'usage-cost-estimate:request-usage:1.10':
+                    'Computed after: pagefold-model-preset is retired, so its unit ids on the same file leave the computed after list; the remaining ids keep their order.',
+                'usage-cost-estimate:store-import:1.10':
+                    'Computed after: pagefold-model-preset is retired, so its unit ids on the same file leave the computed after list; the remaining ids keep their order.',
+                'usage-cost-estimate:context-before-coercion:1.10':
+                    'Computed after: pagefold-model-preset is retired, so its unit ids on the same file leave the computed after list; the remaining ids keep their order.',
+                'usage-cost-estimate:migration-before-statements:1.10':
+                    'Computed after: pagefold-model-preset is retired, so its unit ids on the same file leave the computed after list; the remaining ids keep their order.',
+                'usage-cost-estimate:usage-insert-statement:1.10':
+                    'Computed after: pagefold-model-preset is retired, so its unit ids on the same file leave the computed after list; the remaining ids keep their order.',
+                'usage-cost-estimate:usage-insert-context:1.10':
+                    'Computed after: pagefold-model-preset is retired, so its unit ids on the same file leave the computed after list; the remaining ids keep their order.',
+                'usage-cost-estimate:cost-buckets:1.10':
+                    'Computed after: pagefold-model-preset is retired, so its unit ids on the same file leave the computed after list; the remaining ids keep their order.',
+                'usage-cost-estimate:entries-route:1.10':
+                    'Computed after: pagefold-model-preset is retired, so its unit ids on the same file leave the computed after list; the remaining ids keep their order.',
+                'usage-cost-estimate:usage-no-store:1.10':
+                    'Computed after: pagefold-model-preset is retired, so its unit ids on the same file leave the computed after list; the remaining ids keep their order.',
+                'usage-cost-estimate:entries-export:1.10':
+                    'Computed after: pagefold-model-preset is retired, so its unit ids on the same file leave the computed after list; the remaining ids keep their order.',
+                'usage-cost-estimate:cost-client-types-import:1.10':
+                    'Computed after: pagefold-model-preset is retired, so its unit ids on the same file leave the computed after list; the remaining ids keep their order.',
+                'usage-cost-estimate:cost-report-fields:1.10':
+                    'Computed after: pagefold-model-preset is retired, so its unit ids on the same file leave the computed after list; the remaining ids keep their order.',
+                'usage-cost-estimate:entries-client:1.10':
+                    'Computed after: pagefold-model-preset is retired, so its unit ids on the same file leave the computed after list; the remaining ids keep their order.',
+                'usage-cost-estimate:strings-ko:1.10':
+                    'Computed after: pagefold-model-preset is retired, so its unit ids on the same file leave the computed after list; the remaining ids keep their order.',
+                'usage-cost-estimate:strings-en:1.10':
+                    'Computed after: pagefold-model-preset is retired, so its unit ids on the same file leave the computed after list; the remaining ids keep their order.',
+            },
+            replaced: {},
+            added: {
+                'usage-cost-estimate:usage-cost-server-tests:1.16':
+                    'Blind server tests for windowed and cumulative cost, empty usage and entry routes, native request and usage rows, and the persisted 1.10.0 cost context on PocketRisu 1.16.1.',
+                'usage-cost-estimate:model-job-tests:1.16':
+                    'Blind server test that native model-job creation stores the request model without a pack unit.',
+                'usage-cost-estimate:usage-cost-request-tests:1.16':
+                    'Blind client tests for native preset labels, static fallback model selection and recovered-job usage rows on PocketRisu 1.16.1.',
+                'usage-cost-estimate:pagefold-binding-tests:1.16':
+                    'Blind client test that stored pageFold fields do not change the native preset, block or classic binding (E2-5b).',
+                'usage-cost-estimate:pagefold-storage-tests:1.16':
+                    'Blind client test that stored pageFold preset and binding fields survive the native load and save (E2-5b).',
+            },
+            retired: {
+                'usage-cost-estimate:job-model-route:1.10':
+                    'PocketRisu 1.16.1 server/node/model-jobs.cjs stores model: req.body?.model when it creates a job (line 682).',
+                'usage-cost-estimate:job-model-test-input:1.10':
+                    'Test input for job-model-route, which is retired; the native model-jobs.test.ts is left unchanged and model-jobs.e2-5.test.ts covers the native model record.',
+                'usage-cost-estimate:job-model-test-readback:1.10':
+                    'Test assertion for job-model-route, which is retired; the native model-jobs.test.ts is left unchanged and model-jobs.e2-5.test.ts covers the native model record.',
+            },
+        },
+    },
 }

@@ -280,10 +280,17 @@ The `pagefold-model-preset` and `pagefold-bg-adapter` packs are retired in
 1.16.1 keeps its native model selection and PDF text extraction. The resolver
 recognizes both retired ids so an older state that owned them can move to the
 complete set. The `pagefold-bg-adapter` directory and its dedicated test were
-removed from the tree. The `pagefold-model-preset` manifest and the files it
-reads stay in the tree only because the `usage-cost-estimate` manifest reads
-them at load time. PageFold settings already stored in presets and model
+removed from the tree; the `pagefold-model-preset` directory and its dedicated
+test followed in `0.2.4-experimental.114`, once `usage-cost-estimate` no longer
+read that manifest. PageFold settings already stored in presets and model
 bindings are left unchanged.
+
+From `0.2.4-experimental.114`, the `usage-cost-estimate` pack targets
+PocketRisu 1.16.1 only. Cost estimates, the attempt list, the stored cost
+context and the 1.10.0 price data are unchanged. The pack no longer edits
+`server/node/model-jobs.cjs`: native 1.16.1 already records the submitted model
+when a job is created. Model selection, request and usage rows, and PDF
+handling stay native.
 
 See the [delivery design](docs/PATCHER-V2-DESIGN.md),
 [v0.2.2 stable receipt](docs/POCKETRISU-0.2.2-MAINTENANCE-STABLE-RELEASE.md),

@@ -1,5 +1,14 @@
 # Changelog
 
+## 0.2.4-experimental.114 (usage-cost-estimate on PocketRisu 1.16.1)
+
+- `usage-cost-estimate` E2-5a: the pack targets PocketRisu 1.16.1 (`reviewing`; pack version 0.1.4) and no unit carries a target range. The cost store, pricing, panel and their tests, the request-log, request-log client, Gemini usage and settings-page units are kept with their ids and contents; their anchors occur once in native 1.16.1.
+- `job-model-route` and its two `model-jobs.test.ts` units are retired: native 1.16.1 `model-jobs.cjs` stores `model: req.body?.model` when it creates a job. No unit edits `server/node/model-jobs.cjs` or `model-jobs.test.ts`.
+- The computed `after` lists no longer read the `pagefold-model-preset` manifest; only PageFold ids leave them, and the remaining ids keep their order. The 20 units whose list changed are recorded as `rewritten` (computed after) in the coverage. `usage-no-store` and `entries-route` keep no declared order; the composer infers the same order as on 1.10.0.
+- The `pagefold-model-preset` directory and its dedicated test (`test/pagefold-model-preset.test.cjs`) are removed; no pack reads that manifest any more. Other packs' `after` lists that name PageFold units stay as they are.
+- Tests: the E2-5 blind tree tests (`usage-cost-estimate.e2-5`, `model-jobs.e2-5`, `usage-cost-request.e2-5`, and the two `pagefold-retire.e2-5` tests that pin native handling of stored PageFold fields) are owned units of the pack; `test/usage-cost-estimate-e2-5a.test.cjs` is added and `test/usage-cost-estimate.test.cjs` expects the 1.16.1 declaration.
+- Stable remains v0.2.3.
+
 ## 0.2.4-experimental.113 (retire the PageFold packs)
 
 - The `pagefold-model-preset` and `pagefold-bg-adapter` packs are removed from the catalog and the complete `all` set (40 packs, 13 user packs). Both ids join the retired owners, so an older custom state that owned them moves to the complete set; an unknown owner still blocks the move.
