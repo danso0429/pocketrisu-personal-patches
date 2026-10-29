@@ -28,7 +28,7 @@ test.describe('[E2-2a] Rebase the client build fence onto PocketRisu 1.16.1', ()
     test('[new] 1.16.1 selects a complete dependency graph and composes its fence helper', () => {
         const pack = loadCatalog().find(({ id }) => id === PACK_ID)
         assert.ok(pack, 'client-build-fence pack is present')
-        assert.equal(pack.version, '0.1.4')
+        assert.equal(pack.version, '0.1.5')
         assert.deepEqual(pack.targets.pocketrisu, { verified: [], reviewing: ['1.16.1'] })
         assert.equal(pack.units.every((unit) => !Object.hasOwn(unit, 'targetVersions')), true)
 
@@ -87,7 +87,7 @@ test.describe('[E2-2a] Rebase the client build fence onto PocketRisu 1.16.1', ()
     test('[new] the fence declaration is 1.16.1-only and all units are unscoped', () => {
         const pack = loadCatalog().find(({ id }) => id === PACK_ID)
         assert.ok(pack)
-        assert.equal(pack.version, '0.1.4')
+        assert.equal(pack.version, '0.1.5')
         assert.deepEqual(pack.targets.pocketrisu, { verified: [], reviewing: ['1.16.1'] })
         assert.equal(pack.units.every((unit) => !Object.hasOwn(unit, 'targetVersions')), true)
     })

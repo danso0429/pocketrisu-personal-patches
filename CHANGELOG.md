@@ -1,5 +1,13 @@
 # Changelog
 
+## 0.2.4-experimental.115 (fence the native backup import and snapshot restore calls)
+
+- `client-build-fence` E2-6a (pack version 0.1.5, still `reviewing` on PocketRisu 1.16.1): the server fence blocks `POST /api/backup/import` and `POST /api/db/snapshots/restore`, but native 1.16.1 sent neither with `x-client-build`; only the Kei fence adapters added it, and they come in only with Kei backup restore safety. With the fence alone and a build stamp present, importing a backup or restoring a snapshot was refused with 426.
+- The native backup upload XHR now sends `x-client-build`, and its `onload` passes the response to `handleClientBuildXhr` before the native status check, so an upload-time 426 reloads or shows the recovery banner and the import promise still rejects. The prepare request was already fenced and still completes before the XHR is created; 507/409/413 handling, upload progress and the NDJSON result are unchanged.
+- The backup page's snapshot restore request goes through `clientBuildFetch`. Its non-426 error text and success path (notice, `location.search` reset, reload) are unchanged; the snapshot list and limits reads stay bare `fetch` calls.
+- Two behavior units and three owned 1.16.1 test units are added and recorded as `added` in `patches/target-coverage.cjs`; the 70 existing units are unchanged. The Kei packs still declare only 1.10.0 and are not changed.
+- Stable remains v0.2.3.
+
 ## 0.2.4-experimental.114 (usage-cost-estimate on PocketRisu 1.16.1)
 
 - `usage-cost-estimate` E2-5a: the pack targets PocketRisu 1.16.1 (`reviewing`; pack version 0.1.4) and no unit carries a target range. The cost store, pricing, panel and their tests, the request-log, request-log client, Gemini usage and settings-page units are kept with their ids and contents; their anchors occur once in native 1.16.1.

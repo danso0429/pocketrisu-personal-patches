@@ -292,6 +292,14 @@ context and the 1.10.0 price data are unchanged. The pack no longer edits
 when a job is created. Model selection, request and usage rows, and PDF
 handling stay native.
 
+From `0.2.4-experimental.115`, the `client-build-fence` pack on PocketRisu
+1.16.1 stamps the native backup import upload and snapshot restore requests
+itself, so installing the fence without Kei backup restore safety no longer
+leaves these two fenced writes without a build header. A 426 on either request
+goes through the same reload or recovery handling; other native outcomes
+(prepare before upload, 507/409/413 errors, upload progress, the restore
+error text and reload) are unchanged.
+
 See the [delivery design](docs/PATCHER-V2-DESIGN.md),
 [v0.2.2 stable receipt](docs/POCKETRISU-0.2.2-MAINTENANCE-STABLE-RELEASE.md),
 [v0.2.1 stable receipt](docs/POCKETRISU-0.2.1-PAGEFOLD-STABLE-RELEASE.md),

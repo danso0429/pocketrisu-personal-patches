@@ -32,7 +32,7 @@ const globalApiOwnerUnits = [
 module.exports = {
     id: 'client-build-fence',
     title: 'Client build write fence',
-    version: '0.1.4',
+    version: '0.1.5',
     targets: {
         pocketrisu: {
             verified: [],
@@ -100,6 +100,13 @@ module.exports = {
             file: 'server/node/clientBuildFence.e2-2a.test.ts',
             type: 'owned',
             content: owned116('server/node/clientBuildFence.e2-2a.test.ts'),
+            requires: ['client-build-fence:server-helper:1.9'],
+        },
+        {
+            id: 'client-build-fence:server-helper-e2-6a-tests:1.16',
+            file: 'server/node/clientBuildFence.e2-6a.test.ts',
+            type: 'owned',
+            content: owned116('server/node/clientBuildFence.e2-6a.test.ts'),
             requires: ['client-build-fence:server-helper:1.9'],
         },
         {
@@ -279,6 +286,33 @@ module.exports = {
             type: 'owned',
             content: owned116('src/ts/storage/nodeStorage.e2-2a.test.ts'),
             requires: ['client-build-fence:node-auth-fetch:1.9'],
+        },
+        {
+            id: 'client-build-fence:node-backup-import-xhr:1.16',
+            file: 'src/ts/storage/nodeStorage.ts',
+            type: 'replace',
+            // The native backup upload XHR (POST /api/backup/import) is a fenced
+            // write route: it carries the build header and its 426 goes through
+            // the upgrade handling before the native status check rejects.
+            anchor: `            xhr.onprogress = drainNdjson
+            xhr.onerror = () => reject(new Error('backup import request failed'))
+            xhr.onload = () => {
+`,
+            content: `            xhr.setRequestHeader('x-client-build', clientBuildStamp)
+            xhr.onprogress = drainNdjson
+            xhr.onerror = () => reject(new Error('backup import request failed'))
+            xhr.onload = () => {
+                handleClientBuildXhr(xhr)
+`,
+            after: nodeStorageOwnerUnits,
+            requires: ['client-build-fence:node-storage-import:1.9'],
+        },
+        {
+            id: 'client-build-fence:node-backup-import-tests:1.16',
+            file: 'src/ts/storage/nodeStorage.e2-6a.test.ts',
+            type: 'owned',
+            content: owned116('src/ts/storage/nodeStorage.e2-6a.test.ts'),
+            requires: ['client-build-fence:node-backup-import-xhr:1.16'],
         },
         {
             id: 'client-build-fence:plugin-storage-pending:1.16',
@@ -758,6 +792,21 @@ function cancelPending() {
                 ? 'client-build-fence:system-backup-import:1.9'
                 : `client-build-fence:system-backup-${['snapshot-delete', 'snapshot-limits', 'backup-path'][index - 1]}:1.9`],
         })),
+        {
+            id: 'client-build-fence:system-backup-snapshot-restore:1.16',
+            file: 'src/lib/Setting/Pages/SystemBackup.svelte',
+            type: 'replace',
+            anchor: "            const res = await fetch('/api/db/snapshots/restore', {\n",
+            content: "            const res = await clientBuildFetch('/api/db/snapshots/restore', {\n",
+            requires: ['client-build-fence:system-backup-import:1.9'],
+        },
+        {
+            id: 'client-build-fence:system-backup-snapshot-restore-tests:1.16',
+            file: 'src/lib/Setting/Pages/SystemBackup.e2-6a.test.ts',
+            type: 'owned',
+            content: owned116('src/lib/Setting/Pages/SystemBackup.e2-6a.test.ts'),
+            requires: ['client-build-fence:system-backup-snapshot-restore:1.16'],
+        },
         {
             id: 'client-build-fence:system-dashboard-import:1.9',
             file: 'src/lib/Setting/Pages/SystemDashboard.svelte',

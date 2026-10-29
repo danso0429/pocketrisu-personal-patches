@@ -541,6 +541,16 @@ module.exports = {
                     'PocketRisu 1.16.1 dashboard calls POST /api/db/archive/purge-orphans with a bare fetch; it now carries the build header.',
                 'client-build-fence:system-dashboard-archive-purge-tests:1.16':
                     'Client test for the archive orphan purge request.',
+                'client-build-fence:server-helper-e2-6a-tests:1.16':
+                    'Server test that the backup import and snapshot restore routes stay open when no build stamp is present.',
+                'client-build-fence:node-backup-import-xhr:1.16':
+                    'The fence blocks POST /api/backup/import, but the native backup upload XHR sends no build header; it now carries the header and its 426 goes through the upgrade handling before the native status check rejects.',
+                'client-build-fence:node-backup-import-tests:1.16':
+                    'Client tests for the backup upload XHR header and its 426 handling, and the unchanged prepare order, 507 rejection, progress and result.',
+                'client-build-fence:system-backup-snapshot-restore:1.16':
+                    'The fence blocks POST /api/db/snapshots/restore, but the native backup page restores a snapshot with a bare fetch; it now goes through clientBuildFetch.',
+                'client-build-fence:system-backup-snapshot-restore-tests:1.16':
+                    'Client tests for the snapshot restore request and the unchanged restore outcomes and snapshot reads.',
             },
             retired: {},
         },
