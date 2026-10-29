@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.2.4-experimental.117 (startup-cache test runs on a fenced snapshot restore)
+
+- `lazy-chat-sync` test fix (E2-6a1): the E2-3 test that runs the extracted SystemBackup `restoreSnapshot` call site now also provides `clientBuildFetch`. Since 0.2.4-experimental.115 `client-build-fence` sends the snapshot restore through `clientBuildFetch`, and with both packs installed the test failed with `clientBuildFetch is not defined`. The harness passes the real wrapper when `clientBuildHandshake` exists and `fetch` otherwise, so it runs with and without the fence. No product code changes.
+- Stable remains v0.2.3.
+
 ## 0.2.4-experimental.116 (point-in-time backups on PocketRisu 1.16.1)
 
 - `server-backup-snapshot-lazy-adapter` E2-6b: the pack targets PocketRisu 1.16.1 (`reviewing`; pack version 0.2.3) and no unit carries a target range. Its nine unit ids are kept. Anchors are the 1.16.1 server text (stored under `patches/server-backup-snapshot-core/anchors-1.16/`), and `after` names the lazy-chat-sync 1.16 units instead of the retired 1.10 whole-file replacement, together with the other 1.16.1 server units that can be installed alongside.

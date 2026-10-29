@@ -513,9 +513,10 @@ describe('[E2-3e] Rebuild client startup safety over native 1.16.1', () => {
             compilerOptions: { module: ts.ModuleKind.None, target: ts.ScriptTarget.ES2022 },
         }).outputText
         let emptyAtReload: boolean | undefined
+        const clientBuildHandshake = await optionalImport<{ clientBuildFetch: typeof globalThis.fetch }>('./clientBuildHandshake')
         const restoreSnapshot = new Function(
             'alertConfirm', 'alertWait', 'alertError', 'notifySuccess', 'forageStorage', 'fetch', 'language', 'location',
-            'invalidateStartupDatabaseCache', 'allowDuringCharacterImport',
+            'invalidateStartupDatabaseCache', 'allowDuringCharacterImport', 'clientBuildFetch',
             executable,
         )(
             async () => true,
@@ -532,6 +533,7 @@ describe('[E2-3e] Rebuild client startup safety over native 1.16.1', () => {
             { search: '', reload: () => { emptyAtReload = stores.isEmpty() } },
             async () => { await Promise.all([stores.rawStore.clear(), stores.decodedStore.clear()]) },
             () => true,
+            clientBuildHandshake?.clientBuildFetch ?? globalThis.fetch,
         ) as (snapshot: { key: string, size: number, timestamp: number | null }) => Promise<void>
         stores.clearDelayMs = 40
 
