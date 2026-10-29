@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.2.4-experimental.111 (startup cache dropped after an asset manifest conflict)
+
+- `lazy-chat-sync` E2-3d7: when an asset manifest edit is refused with 409, native `editAssetManifest` (globalApi) refreshes the manifest and the patch baseline from the server copy. The next database patch then chains onto a database the startup copy never saw, so the next start could restore that stale copy through a 304. The startup copy was dropped only after a successful edit; it is now also dropped on the 409 path (best effort; a storage error is swallowed as before). Client test d7-1 in `startupCache.server.e2-3.test.ts`: a refused edit, an unrelated successful patch, then a start that must equal the server database.
+- Stable remains v0.2.3.
+
 ## 0.2.4-experimental.110 (chat saves without a base no longer delete other devices' messages)
 
 - `lazy-chat-sync` E2-3d6a: every `saveChatToServer` call takes its place in that chat's save queue at the call. Loading the database state now happens inside that place, and a failure there fails only that save. Before, a save that captured its own context first awaited the database state load and only then captured content and base; another path could install a newer base meanwhile, and the save then posted older content over it. A non-live save now captures content, base, start, entry, view and generation at the call. A save captured before the state loaded gets its slot once the state is loaded; if the slot then holds another object than the one handed in, or none, the save is treated as replaced. Live autosaves still capture from the slot at their turn.

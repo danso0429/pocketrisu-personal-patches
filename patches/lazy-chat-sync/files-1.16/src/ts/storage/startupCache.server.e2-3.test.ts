@@ -542,3 +542,36 @@ describe('[E2-3e] Rebuild client startup safety over native 1.16.1', () => {
         expect(first.started.theme).toBe('before-restore')
     }, 60_000)
 })
+
+describe('[E2-3d7] Invalidate the startup cache after an asset manifest conflict', () => {
+    test('[new] d7-1 an unrelated patch after a refused asset manifest edit leaves the next start on the server database', async () => {
+        expect(cacheModule, 'startupDatabaseCache module exists').not.toBeNull()
+        await seed()
+        const first = await boot()
+        await harness.flushIdle()
+        const staleId = (await readServer()).database.modules[0].assetManifest.id
+        expect(staleId).toBeTruthy()
+
+        // Another device edits the manifest, so the id this device holds is stale.
+        const other = await client.fetch('/api/asset-manifests/owner/module/m1', {
+            method: 'PATCH',
+            headers: { 'content-type': 'application/json' },
+            body: JSON.stringify({ expectedManifestId: staleId, operations: [{ type: 'append', item: ['c.png', 'assets/c', 'png'] }] }),
+        })
+        expect(other.status).toBe(200)
+
+        const conflict = await first.storage.editAssetManifest('module', 'm1', staleId, [{ type: 'append', item: ['b.png', 'assets/b', 'png'] }]).catch((error: unknown) => error)
+        expect((conflict as any)?.current?.id).toBeTruthy()
+        await appPatch(first.storage, [{ op: 'replace', path: '/theme', value: 'after-conflict' }])
+        await sleep(80)
+
+        const serverNow = await readServer()
+        expect(serverNow.database.modules[0].assetManifest.count).toBe(2)
+        const second = await boot()
+        expect(second.started).toEqual(serverNow.database)
+        expect(second.started.modules[0].assetManifest.count).toBe(2)
+        expect(second.started.theme).toBe('after-conflict')
+        await harness.flushIdle()
+        expect(stores.holdsEtag(serverNow.etag)).toBe(true)
+    })
+})

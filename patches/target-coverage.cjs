@@ -736,6 +736,8 @@ module.exports = {
                     'A successful database patch goes to the startup journal (or drops the copy) after the native ETag update.',
                 'lazy-chat-sync:node-storage-startup-asset-manifest-invalidate:1.16':
                     'A successful asset manifest edit changes the server database without moving the client ETag, so it drops the startup copy.',
+                'lazy-chat-sync:node-storage-startup-asset-manifest-conflict-invalidate:1.16':
+                    'An asset manifest edit refused with 409 refreshes the patch baseline from the server, so it drops the startup copy.',
                 'lazy-chat-sync:node-storage-startup-replacement-import-backup:1.16':
                     'importBackup replaces the whole database; it drops the startup copy before it returns or throws.',
                 'lazy-chat-sync:node-storage-startup-replacement-restore-server-backup:1.16':

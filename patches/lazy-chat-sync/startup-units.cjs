@@ -289,6 +289,21 @@ function isUserActive(): boolean {
         content: `        void this.invalidateStartupDatabaseCache()
 `,
     },
+    {
+        // On a 409 the caller (native globalApi editAssetManifest) refreshes
+        // the manifest and the patch baseline from the server copy, so the
+        // next patch would chain onto a database the startup copy never saw.
+        name: 'asset-manifest-conflict-invalidate',
+        type: 'insert',
+        where: 'after',
+        anchor: `                body: JSON.stringify({ expectedManifestId, operations }),
+            },
+        )
+        if (da.status === 409) {
+`,
+        content: `            void this.invalidateStartupDatabaseCache()
+`,
+    },
     ...[
         ['importBackup', `    async importBackup(
         file: Blob,
