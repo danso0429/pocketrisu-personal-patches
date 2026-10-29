@@ -1,5 +1,14 @@
 # Changelog
 
+## 0.2.4-experimental.113 (retire the PageFold packs)
+
+- The `pagefold-model-preset` and `pagefold-bg-adapter` packs are removed from the catalog and the complete `all` set (40 packs, 13 user packs). Both ids join the retired owners, so an older custom state that owned them moves to the complete set; an unknown owner still blocks the move.
+- The `pagefold-bg-adapter` directory and its dedicated test (`test/pagefold-bg-adapter.test.cjs`) are removed. The `pagefold-model-preset` manifest, the files it reads and its test stay because the `usage-cost-estimate` manifest reads that manifest at load time.
+- The `after` lists of other packs that name PageFold units (`lazy-chat-bg-adapter`, `personal-settings`, `haejeok-persistence-safety-adapter`) stay as they are; the composer ignores `after` ids that are not in the graph, and no other pack declaration or unit hash changes.
+- PageFold settings stored in presets and model bindings are left unchanged in user data.
+- The blind test `test/pagefold-retire-e2-5b.test.cjs` is added.
+- Stable remains v0.2.3.
+
 ## 0.2.4-experimental.112 (character-import-ux on PocketRisu 1.16.1)
 
 - `character-import-ux` E2-4e: the pack targets PocketRisu 1.16.1 (`reviewing`; pack version 0.2.2). The 1.10 whole-file replacement of `characterCards.ts` becomes 25 units over the native file (`character-cards-units.cjs`); `character-cards` now replaces only the `importCharacterProcess` header and requires every split unit, so packs ordered after it still see all of them. Native-only behavior stays: realm TOS order and creator blocking, onboarding normalization, lazy asset hydration, the PNG asset pre-read and native first-chat ids.

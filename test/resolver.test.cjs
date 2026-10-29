@@ -23,7 +23,6 @@ test('catalog exposes the expected user packs and keeps integration packs intern
             'log-load-performance',
             'usage-cost-estimate',
             'pocketrisu-kei',
-            'pagefold-model-preset',
         ],
     )
     assert.deepEqual(
@@ -56,7 +55,6 @@ test('catalog exposes the expected user packs and keeps integration packs intern
             'kei-text-theme-normalization-core',
             'kei-backup-restore-safety-core',
             'kei-backup-restore-safety-lazy-adapter',
-            'pagefold-bg-adapter',
         ],
     )
 })

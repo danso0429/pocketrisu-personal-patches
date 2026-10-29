@@ -195,7 +195,7 @@ keeps the measured next save-speed candidate.
 `pocketrisu-patcher.cjs` applies one complete admitted set or reverts it in
 full. `plan`, `apply`, and `stage` always resolve bg-preserve, lazy storage,
 organizers, import UX, Personal settings, parser hardening, CharX
-integrity, the admitted Kei capabilities, PageFold ModelPreset transform, and
+integrity, the admitted Kei capabilities, and
 all matching integration adapters. The complete graph also includes the admitted Haejeok persistence,
 Korean-search, and Small-width adapters. `configure`, `--packs`, `--preset`,
 `--all`, and the features/hardening/all installer filenames are retired.
@@ -275,6 +275,16 @@ count pass and report `n/total`. Module import goes through the native lazy
 asset manifest restore, and the native file picker is opened before the import
 lock is taken.
 
+The `pagefold-model-preset` and `pagefold-bg-adapter` packs are retired in
+`0.2.4-experimental.113` and absent from the catalog and installer; PocketRisu
+1.16.1 keeps its native model selection and PDF text extraction. The resolver
+recognizes both retired ids so an older state that owned them can move to the
+complete set. The `pagefold-bg-adapter` directory and its dedicated test were
+removed from the tree. The `pagefold-model-preset` manifest and the files it
+reads stay in the tree only because the `usage-cost-estimate` manifest reads
+them at load time. PageFold settings already stored in presets and model
+bindings are left unchanged.
+
 See the [delivery design](docs/PATCHER-V2-DESIGN.md),
 [v0.2.2 stable receipt](docs/POCKETRISU-0.2.2-MAINTENANCE-STABLE-RELEASE.md),
 [v0.2.1 stable receipt](docs/POCKETRISU-0.2.1-PAGEFOLD-STABLE-RELEASE.md),
@@ -306,6 +316,10 @@ FastImport script bytes and final caller tests. The
 records the automatic evidence and physical observation boundary.
 
 ## PageFold stable status
+
+Retired in `0.2.4-experimental.113` (see
+[Complete installer](#complete-installer)); this section describes the `0.2.1`
+behavior.
 
 `0.2.1` delivers PageFold as an opt-in ModelPreset transform. It is
 not a standalone provider and does not alter old presets until the user

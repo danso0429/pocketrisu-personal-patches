@@ -14,6 +14,8 @@ const RETIRED_OWNER_IDS = Object.freeze([
     'toolchain-hardening',
     'fastimport-ios-picker',
     'character-organizer',
+    'pagefold-model-preset',
+    'pagefold-bg-adapter',
 ])
 
 function validateProfileMetadata(catalog) {
@@ -73,8 +75,6 @@ function loadCatalog(repositoryRoot = path.resolve(__dirname, '..')) {
         require(path.join(repositoryRoot, 'patches/kei-backup-restore-safety-core/manifest.cjs')),
         require(path.join(repositoryRoot, 'patches/kei-backup-restore-safety-lazy-adapter/manifest.cjs')),
         require(path.join(repositoryRoot, 'patches/pocketrisu-kei/manifest.cjs')),
-        require(path.join(repositoryRoot, 'patches/pagefold-model-preset/manifest.cjs')),
-        require(path.join(repositoryRoot, 'patches/pagefold-bg-adapter/manifest.cjs')),
     ].map((pack) => ({ ...pack }))
     for (const pack of catalog) assertDeclaredTargets(pack)
     validateProfileMetadata(catalog)

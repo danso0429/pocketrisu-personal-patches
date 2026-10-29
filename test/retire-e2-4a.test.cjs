@@ -19,9 +19,11 @@ test.describe('[E2-4a] Retire toolchain-hardening and fastimport-ios-picker', ()
         const catalog = loadCatalog()
         const all = resolveProfile('all', catalog)
 
-        // E2-4b retires character-organizer as well (43 -> 42).
-        assert.equal(catalog.length, 42, 'catalog should contain two fewer packs')
-        assert.equal(all.defaults.length, 14, 'all should contain two fewer packs')
+        // E2-4b retires character-organizer as well (43 -> 42), and E2-5b
+        // retires pagefold-model-preset and pagefold-bg-adapter (42 -> 40; the
+        // user-selectable pagefold-model-preset leaves `all`, 14 -> 13).
+        assert.equal(catalog.length, 40, 'catalog should contain two fewer packs')
+        assert.equal(all.defaults.length, 13, 'all should contain two fewer packs')
         for (const id of retiredIds) {
             assert.equal(catalog.some((pack) => pack.id === id), false, `${id} catalog entry`)
             assert.equal(all.defaults.includes(id), false, `${id} all-profile entry`)

@@ -85,9 +85,15 @@ test.describe('[E2-1c] Make the six E2-1b packs 1.16.1-only', () => {
 
     test('[unchanged] packs without coverage entries match every frozen 1.10.0 declaration and unit hash', () => {
         const catalog = loadCatalog()
-        assert.equal(catalog.length, 42)
-        // E2-4a and E2-4b retired these packs; the frozen baseline still lists them.
-        const retiredPackIds = ['toolchain-hardening', 'fastimport-ios-picker', 'character-organizer']
+        assert.equal(catalog.length, 40)
+        // E2-4a, E2-4b and E2-5b retired these packs; the frozen baseline still lists them.
+        const retiredPackIds = [
+            'toolchain-hardening',
+            'fastimport-ios-picker',
+            'character-organizer',
+            'pagefold-model-preset',
+            'pagefold-bg-adapter',
+        ]
         assert.deepEqual(
             Object.keys(baseline.packs).filter((id) => !retiredPackIds.includes(id)).sort(),
             catalog.map(({ id }) => id).sort(),
@@ -171,8 +177,6 @@ test('one delivery profile contains every admitted root pack', () => {
         'kei-backup-restore-safety-core',
         'kei-backup-restore-safety-lazy-adapter',
         'pocketrisu-kei',
-        'pagefold-model-preset',
-        'pagefold-bg-adapter',
     ])
     assert.deepEqual(
         resolveProfile('all', catalog).defaults,
@@ -190,7 +194,6 @@ test('one delivery profile contains every admitted root pack', () => {
             'log-load-performance',
             'usage-cost-estimate',
             'pocketrisu-kei',
-            'pagefold-model-preset',
         ],
     )
     assert.doesNotThrow(

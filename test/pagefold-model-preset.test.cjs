@@ -6,13 +6,15 @@ const { compose, revertUnit } = require('../src/compose.cjs')
 const { loadCatalog } = require('../src/catalog.cjs')
 const manifest = require('../patches/pagefold-model-preset/manifest.cjs')
 
-test('PageFold is exact-1.10 verified and admitted to the complete catalog', () => {
+test('PageFold is exact-1.10 verified and retired from the complete catalog', () => {
     assert.equal(manifest.id, 'pagefold-model-preset')
     assert.equal(manifest.userSelectable, true)
     assert.equal(manifest.allDefault, true)
     assert.deepEqual(manifest.targets.pocketrisu, { verified: ['1.10.0'], reviewing: [] })
     assert.match(manifest.source, /Independent implementation/)
-    assert.equal(loadCatalog().some((pack) => pack.id === manifest.id), true)
+    // E2-5b retires the pack; the manifest stays only because
+    // usage-cost-estimate reads it at load time.
+    assert.equal(loadCatalog().some((pack) => pack.id === manifest.id), false)
     assert.ok(manifest.units.every((unit) =>
         unit.targetVersions?.pocketrisu?.length === 1
         && unit.targetVersions.pocketrisu[0] === '1.10.0'
