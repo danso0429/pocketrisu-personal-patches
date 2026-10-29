@@ -342,11 +342,15 @@ describe('[E2-3d] Rebuild the chat revision protocol over native 1.16.1', () => 
             }
             return new Response('{}', { status: 200, headers: { 'x-chat-revision': 'saved-revision' } })
         })
-        if (pathName === 'full-fetch') await storage.fetchChatContent('cha-1', 0, 'chat-1')
+        let savedView = local
+        if (pathName === 'full-fetch') {
+            savedView = await storage.fetchChatContent('cha-1', 0, 'chat-1')
+            savedView.name = local.name
+        }
         if (pathName === 'delta-hydration' || pathName === 'memory-resident') {
             ;((storage as any).rememberChatSyncState?.bind(storage) ?? (() => {}))('cha-1|chat-1', 'acquired-revision', base, bytes.byteLength)
         }
-        await storage.saveChatContent('cha-1', 0, 'chat-1', local)
+        await storage.saveChatContent('cha-1', 0, 'chat-1', savedView)
         const post = calls.find(([, init]) => init?.method === 'POST')
         expect(post, 'save POST reached the server boundary').toBeTruthy()
         expect((post[1].headers as any)['x-chat-base-revision']).toBe('acquired-revision')

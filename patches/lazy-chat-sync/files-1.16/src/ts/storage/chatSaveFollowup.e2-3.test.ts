@@ -490,10 +490,14 @@ describe('[E2-3d2] Capture the open chat autosave from its slot when the save ru
     ])('[new] d2-6 an in-flight open save with %s cannot advance the replacement database base', async (_variant, knownBase) => {
         const chaId = `d2-6-${knownBase ? 'known' : 'unknown'}`
         const base = { id: 'chat-1', fmIndex: -1, message: [message('m0', 'base')] }
-        const local = { ...structuredClone(base), message: [...base.message, message('u1', 'local before replacement')] }
-        const env = await publicEnv({ [`${chaId}|chat-1`]: base }, [basicCharacter(chaId, [local])])
+        let local: any = { ...structuredClone(base), message: [...base.message, message('u1', 'local before replacement')] }
+        const initialSlot = knownBase ? placeholder('chat-1') : local
+        const env = await publicEnv({ [`${chaId}|chat-1`]: base }, [basicCharacter(chaId, [initialSlot])])
         await startSaveLoop(env)
-        if (knownBase) await env.chatStorage.fetchChatFromServer(chaId, 0, 'chat-1')
+        if (knownBase) {
+            local = (await hydrate(env, chaId, 0))!
+            local.message.push(message('u1', 'local before replacement'))
+        }
         const latestDb = {
             characters: [basicCharacter(chaId, [structuredClone(base)])],
             botPresets: [], modules: [], plugins: [], pluginCustomStorage: {},

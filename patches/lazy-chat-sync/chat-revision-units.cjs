@@ -260,6 +260,11 @@ export interface ServerChatSnapshot {
     revision: string
     chat: any
     encodedBytes: number
+    /**
+     * Whether every message of the copy carried a chatId (a non-empty string,
+     * not repeated) as read, before normalization gave missing ones new ids.
+     */
+    messageIdsValid?: boolean
 }
 
 /**
@@ -298,13 +303,17 @@ export interface ChatSaveContext {
     readonly entry: ChatSaveBase | undefined
     /** The database replacement generation at capture (NodeStorage.noteDatabaseReplaced), compared like \`entry\`. */
     readonly generation: number
+    /** The chat's open-chat plugin write generation at capture (installPluginChatBase), compared like \`generation\`. */
+    readonly pluginWrite: number
     /**
      * The chat's slot object the caller found in the current database at
      * capture (by chaId and chatId), with the lookup that finds the slot
      * again; null when it found none. A slot save of another object is
-     * replaced from capture (chatSaveSlotReplaced).
+     * replaced from capture (chatSaveSlotReplaced). A save captured before
+     * the database state was loaded gets it once loaded, before it is sent
+     * (attachChatSaveSlot).
      */
-    readonly slot: { readonly chat: object, readonly locate: () => unknown, readonly replacedAtCapture: boolean } | null
+    slot: { readonly chat: object, readonly locate: () => unknown, readonly replacedAtCapture: boolean } | null
     /** The caller publishes the result into the chat's slot and adopts its base itself. */
     readonly detached: boolean
     /** Set once the server accepted the content: its new base, and the content as rebased when a rebase happened. */
@@ -403,6 +412,15 @@ function readMissingFullChat(body: any): { chaId: string, chatId: string } | und
     // write and the length and 64-bit hash of the encoded content it put into
     // the slot (never the bytes themselves).
     private readonly pluginWrittenEntries = new WeakMap<ChatSaveBase, { token: string, length: number, hash: string }>()
+    // Open-chat plugin writes, per chat: the generation of the latest one
+    // (a save captured before it neither publishes into the chat nor moves
+    // or installs its base afterwards) and, when that write carried no read
+    // token, its overwrite right: the slot object it wrote and the length and
+    // 64-bit hash of the encoded content (never the bytes themselves). Only a
+    // save of that object with that content overwrites the server copy
+    // instead of merging with it (pluginOverwriteAllowed).
+    private readonly pluginWrites = new Map<string, { generation: number, right: { chat: object, length: number, hash: string } | null }>()
+    private pluginWriteCount = 0
     // Counts replacements of the whole database (the native 409 rebase's
     // setDatabase): a save captured before one never publishes into the
     // chat or moves the slot base afterwards.
@@ -457,9 +475,10 @@ function readMissingFullChat(body: any): { chaId: string, chatId: string } | und
         this.forgetChatSyncState(this.chatSyncKey(chaId, chatId))
     }
 
-    /** Sets a chat's slot base (a decoded copy is cloned); returns the stored entry. */
+    /** Sets a chat's slot base (a decoded copy is cloned); returns the stored entry. An installed base ends the chat's plugin overwrite right. */
     private storeChatSyncState(key: string, base: ChatSaveBase): ChatSaveBase {
         this.forgetChatSyncState(key)
+        this.revokePluginOverwrite(key)
         let snapshot: any | null = null
         if (base.snapshot !== null && isChatMergeValue(base.snapshot)) {
             try {
@@ -542,9 +561,55 @@ function readMissingFullChat(body: any): { chaId: string, chatId: string } | und
             view: viewBase ? source : null,
             entry,
             generation: this.databaseGeneration,
+            pluginWrite: this.pluginWriteGeneration(this.chatSyncKey(chaId, chatId)),
             slot,
             detached,
         }
+    }
+
+    private pluginWriteGeneration(key: string): number {
+        return this.pluginWrites.get(key)?.generation ?? 0
+    }
+
+    private revokePluginOverwrite(key: string): void {
+        const state = this.pluginWrites.get(key)
+        if (state) state.right = null
+    }
+
+    /**
+     * Whether a save that started without a base overwrites the server copy
+     * (the open-chat plugin write's own content, d13) instead of merging
+     * with it: only while the chat's latest open-chat plugin write carried no
+     * read token, this save was captured after that write, the slot still
+     * holds the object the plugin wrote and this save is that object's, and
+     * both the content this save sends and that object's content now have
+     * the written length and hash. Called right before the save is sent; a
+     * slot holding another object, or different content, ends the right.
+     */
+    private pluginOverwriteAllowed(context: ChatSaveContext, chat: any): boolean {
+        const key = this.chatSyncKey(context.chaId, context.chatId)
+        const state = this.pluginWrites.get(key)
+        const right = state?.right
+        if (!state || !right || !context.slot || context.detached || context.view) return false
+        if (context.slot.locate() !== right.chat) {
+            state.right = null
+            return false
+        }
+        if (context.pluginWrite !== state.generation || context.slot.replacedAtCapture
+            || context.slot.chat !== right.chat || chat !== right.chat) return false
+        const written = (bytes: Uint8Array) => bytes.byteLength === right.length && NodeStorage.contentHash64(bytes) === right.hash
+        let current: Uint8Array
+        try {
+            current = encodeRisuSaveLegacy(right.chat)
+        } catch {
+            state.right = null
+            return false
+        }
+        if (!written(context.content) || !written(current)) {
+            state.right = null
+            return false
+        }
+        return true
     }
 
     /**
@@ -560,6 +625,25 @@ function readMissingFullChat(body: any): { chaId: string, chatId: string } | und
         if (!slot || (context.view && !context.detached)) return false
         if (slot.replacedAtCapture) return true
         return slot.locate() !== slot.chat
+    }
+
+    /**
+     * A save captured its content and base at the call, before the database
+     * state was loaded, so it recorded no slot. Once loaded, before the save
+     * is sent: the object the chat's slot holds now (\`held\`, found by chaId
+     * and chatId) with the lookup \`locate\` that finds it again. When the slot
+     * holds another object than \`chat\` (the one the caller handed in), or the
+     * chat is not there, the save stays replaced from capture: the slot may
+     * have been replaced while the state loaded, so the save's result never
+     * goes into the slot. A save that recorded a slot, and a detached one,
+     * are left as they are; a save of a handed-out view is never replaced
+     * (chatSaveSlotReplaced).
+     */
+    attachChatSaveSlot(context: ChatSaveContext, chat: object, held: unknown, locate: () => unknown): void {
+        if (context.slot || context.detached) return
+        context.slot = held && typeof held === 'object'
+            ? { chat: held, locate, replacedAtCapture: held !== chat }
+            : { chat, locate, replacedAtCapture: true }
     }
 
     /**
@@ -705,10 +789,26 @@ function readMissingFullChat(body: any): { chaId: string, chatId: string } | und
      * base as a new entry, even at the same revision, so a save that captured
      * the earlier entry never moves the base of the plugin's content. When
      * the slot's next save sends exactly this content and is accepted without
-     * a rebase, \`token\` advances to its result (settleChatSave).
+     * a rebase, \`token\` advances to its result (settleChatSave). Each such
+     * write starts a new plugin write generation for the chat; one without a
+     * base leaves the overwrite right of pluginOverwriteAllowed, bound to
+     * \`chat\` and the length and hash of its encoded content.
      */
     installPluginChatBase(chaId: string, chatId: string, base: ChatSaveBase | null, token: unknown, chat: any): void {
         const entry = this.installChatSaveBase(chaId, chatId, base)
+        // A new write generation; a write without a read (no base) leaves an
+        // overwrite right bound to the object and the content it wrote.
+        const key = this.chatSyncKey(chaId, chatId)
+        let right: { chat: object, length: number, hash: string } | null = null
+        if (!entry && chat && typeof chat === 'object') {
+            try {
+                const written = encodeRisuSaveLegacy(chat)
+                right = { chat, length: written.byteLength, hash: NodeStorage.contentHash64(written) }
+            } catch {
+                right = null
+            }
+        }
+        this.pluginWrites.set(key, { generation: (this.pluginWriteCount += 1), right })
         if (!entry || typeof token !== 'string' || !token) return
         const content = encodeRisuSaveLegacy(chat)
         this.pluginWrittenEntries.set(entry, { token, length: content.byteLength, hash: NodeStorage.contentHash64(content) })
@@ -751,9 +851,9 @@ function readMissingFullChat(body: any): { chaId: string, chatId: string } | und
     /**
      * Makes the base of an accepted save the base of what it saved: the view
      * it came from, or the chat's slot when the slot base is still
-     * \`expected\` (nothing was installed or adopted meanwhile) and the
-     * database was not replaced since capture. Returns whether it was
-     * adopted.
+     * \`expected\` (nothing was installed or adopted meanwhile) and neither
+     * the database was replaced nor an open-chat plugin write went into the
+     * chat since capture. Returns whether it was adopted.
      */
     adoptChatSaveResult(context: ChatSaveContext, expected: ChatSaveBase | undefined = context.entry): boolean {
         const result = context.result
@@ -765,6 +865,7 @@ function readMissingFullChat(body: any): { chaId: string, chatId: string } | und
         }
         const key = this.chatSyncKey(context.chaId, context.chatId)
         if (context.generation !== this.databaseGeneration) return false
+        if (context.pluginWrite !== this.pluginWriteGeneration(key)) return false
         if (this.chatSyncStates.get(key) !== expected) return false
         if (result.base?.revision) this.storeChatSyncState(key, result.base)
         else this.forgetChatSyncState(key)
@@ -775,15 +876,18 @@ function readMissingFullChat(body: any): { chaId: string, chatId: string } | und
      * Whether a rebase may be published into the chat being saved: a view or
      * a detached copy belongs to the caller; a chat saved on its slot base
      * only while that base was not replaced since capture (the slot was not
-     * reloaded with other content), neither was the database, and the slot
-     * still holds the chat object this save recorded (chatSaveSlotReplaced).
+     * reloaded with other content), neither was the database, no open-chat
+     * plugin write went into the chat since capture, and the slot still
+     * holds the chat object this save recorded (chatSaveSlotReplaced).
      */
     private mayPublishChatSave(context: ChatSaveContext, chat: any): boolean {
         if (!chat || typeof chat !== 'object' || chat.id !== context.chatId) return false
         if (context.view || context.detached) return true
         if (context.generation !== this.databaseGeneration) return false
+        const key = this.chatSyncKey(context.chaId, context.chatId)
+        if (context.pluginWrite !== this.pluginWriteGeneration(key)) return false
         if (this.chatSaveSlotReplaced(context)) return false
-        return this.chatSyncStates.get(this.chatSyncKey(context.chaId, context.chatId)) === context.entry
+        return this.chatSyncStates.get(key) === context.entry
     }
 
     /**
@@ -794,8 +898,9 @@ function readMissingFullChat(body: any): { chaId: string, chatId: string } | und
      * new slot's content comes from the same starting point as what this save
      * sent, without what the rebase merged in; an older base only makes its
      * next save rebase changes made on the server in again. A slot base
-     * already held stays. A save of a handed-out view keeps its base on the
-     * view.
+     * already held stays, and none is installed over an open-chat plugin
+     * write made since capture. A save of a handed-out view keeps its base
+     * on the view.
      */
     private installStartAfterDatabaseReplaced(context: ChatSaveContext, replacedMerge: boolean): void {
         if (context.generation === this.databaseGeneration && !replacedMerge) return
@@ -803,6 +908,7 @@ function readMissingFullChat(body: any): { chaId: string, chatId: string } | und
         const start = context.start
         if (!start?.revision) return
         const key = this.chatSyncKey(context.chaId, context.chatId)
+        if (context.pluginWrite !== this.pluginWriteGeneration(key)) return
         if (this.chatSyncStates.has(key)) return
         this.storeChatSyncState(key, start)
     }
@@ -813,12 +919,19 @@ function readMissingFullChat(body: any): { chaId: string, chatId: string } | und
      * the chat's slot holds another object than this save recorded: that
      * object lacks what was merged, so the slot keeps its base and its next
      * save rebases the merge in. A result without a rebase is what the server
-     * holds now, so it is adopted even then.
+     * holds now, so it is adopted even then. An accepted save of the object
+     * an open-chat plugin write without a read token wrote, captured after
+     * that write, ends its overwrite right (an earlier write's save never
+     * ends a later write's right).
      */
     private settleChatSave(context: ChatSaveContext, base: ChatSaveBase | null, merged: any | null, published: boolean): void {
         context.result = { base, merged }
         const replacedMerge = merged !== null && this.chatSaveSlotReplaced(context)
         this.installStartAfterDatabaseReplaced(context, replacedMerge)
+        if (!context.detached && !context.view) {
+            const state = this.pluginWrites.get(this.chatSyncKey(context.chaId, context.chatId))
+            if (state?.right && state.generation === context.pluginWrite && context.slot?.chat === state.right.chat) state.right = null
+        }
         if (!context.detached && !context.view) this.settlePluginWrittenEntry(context)
         if (context.detached || !published || replacedMerge) return
         this.adoptChatSaveResult(context)
@@ -843,8 +956,34 @@ function readMissingFullChat(body: any): { chaId: string, chatId: string } | und
         }
         if (response.status < 200 || response.status >= 300) throw new Error(\`fetchChatContent error: \${response.status}\`)
         const bytes = new Uint8Array(await response.arrayBuffer())
-        const chat = normalizeChat(await decodeRisuSave(bytes))
-        return { revision: this.chatRevisionFromResponse(response), chat, encodedBytes: bytes.byteLength, bytes }
+        // The message ids as read are checked before normalization gives
+        // missing ones new ids.
+        const decoded = await decodeRisuSave(bytes)
+        const messageIdsValid = NodeStorage.messageIdsValid(decoded?.message)
+        const chat = normalizeChat(decoded)
+        return { revision: this.chatRevisionFromResponse(response), chat, encodedBytes: bytes.byteLength, bytes, messageIdsValid }
+    }
+
+    /** Whether every message carries a chatId that is a non-empty string, none repeated (an absent list has none). */
+    private static messageIdsValid(messages: unknown): boolean {
+        if (messages === undefined || messages === null) return true
+        if (!Array.isArray(messages)) return false
+        const seen = new Set<string>()
+        for (const message of messages) {
+            const id = message && typeof message === 'object' ? (message as any).chatId : undefined
+            if (typeof id !== 'string' || !id || seen.has(id)) return false
+            seen.add(id)
+        }
+        return true
+    }
+
+    /** Whether the messages both lists hold (by chatId) are in the same relative order in each. */
+    private static sharedMessageOrderMatches(local: any[], remote: any[]): boolean {
+        const localIds = new Set(local.map((message) => message.chatId))
+        const remoteIds = new Set(remote.map((message) => message.chatId))
+        const fromLocal = local.map((message) => message.chatId).filter((id) => remoteIds.has(id))
+        const fromRemote = remote.map((message) => message.chatId).filter((id) => localIds.has(id))
+        return fromLocal.length === fromRemote.length && fromLocal.every((id, index) => id === fromRemote[index])
     }
 
     /**
@@ -853,7 +992,7 @@ function readMissingFullChat(body: any): { chaId: string, chatId: string } | und
      */
     async readServerChatSnapshot(chaId: string, chatIndex: number, chatId: string): Promise<ServerChatSnapshot | null> {
         const copy = await this.readServerChatCopy(chaId, chatIndex, chatId)
-        return copy ? { revision: copy.revision, chat: copy.chat, encodedBytes: copy.encodedBytes } : null
+        return copy ? { revision: copy.revision, chat: copy.chat, encodedBytes: copy.encodedBytes, messageIdsValid: copy.messageIdsValid } : null
     }
 
     /**
@@ -905,6 +1044,16 @@ function readMissingFullChat(body: any): { chaId: string, chatId: string } | und
         return { confirmed: true, currentRevision: confirmation.currentRevision }
     }
 
+    /** The server copy a save without a base starts from; a refused read is a ChatConflictError. */
+    private async readSaveBaseline(chaId: string, chatIndex: number, chatId: string): Promise<(ServerChatSnapshot & { bytes: Uint8Array }) | null> {
+        try {
+            return await this.readServerChatCopy(chaId, chatIndex, chatId)
+        } catch (error) {
+            if (!(error instanceof ChatConflictError)) throw error
+            throw new ChatConflictError(\`Could not establish a safe chat save baseline: \${error.message}\`, error.currentRevision)
+        }
+    }
+
     /**
      * One full chat POST of a save context's content under the revision
      * protocol. Names the context's base revision; without one it reads the
@@ -913,6 +1062,7 @@ function readMissingFullChat(body: any): { chaId: string, chatId: string } | und
      * new); an update the server has no copy of is a conflict. A refusal or a lost answer is settled by reading the server copy:
      * equal means saved, different is a ChatConflictError that carries the
      * server copy. Returns the base of the saved content (null: unknown).
+     * \`serverAbsent\`: the caller just read that the server has no copy.
      */
     private async postFullChat(
         chaId: string,
@@ -921,19 +1071,14 @@ function readMissingFullChat(body: any): { chaId: string, chatId: string } | und
         snapshot: any,
         encoded: Uint8Array,
         context: ChatSaveContext,
+        serverAbsent = false,
     ): Promise<ChatSaveBase | null> {
         let createOnly = false
         if (!context.base?.revision) {
             if (context.intent === 'create') {
                 createOnly = true
             } else {
-                let server: ServerChatSnapshot | null
-                try {
-                    server = await this.readServerChatSnapshot(chaId, chatIndex, chatId)
-                } catch (error) {
-                    if (!(error instanceof ChatConflictError)) throw error
-                    throw new ChatConflictError(\`Could not establish a safe chat save baseline: \${error.message}\`, error.currentRevision)
-                }
+                const server = serverAbsent ? null : await this.readSaveBaseline(chaId, chatIndex, chatId)
                 if (server?.revision) {
                     context.base = this.chatSaveBase(server.revision, server.chat, null, server.encodedBytes)
                     // Started without a base: the server copy is where it starts.
@@ -1012,18 +1157,16 @@ function readMissingFullChat(body: any): { chaId: string, chatId: string } | und
         content: `    async fetchChatContent(chaId: string, chatIndex: number, chatId: string): Promise<any | null> {
         // The view is handed out detached (exports, plugins) with its own
         // base: saving it names the revision it was read at, whatever was
-        // read, installed or saved since. A read changes no base held for the
-        // chat's slot; only when none is held does it become one, so a copy
-        // of this view saved as the chat's slot content is saved on this
-        // read's base. Plugin writes never take the slot base: they use the
-        // base of their read token (issuePluginReadToken).
+        // read, installed or saved since. A read never installs or changes
+        // the base of the chat's slot, held or not: the slot does not hold
+        // what was read, so only a path that puts its result into the slot
+        // (hydration) installs a slot base. Plugin writes never take the slot
+        // base: they use the base of their read token (issuePluginReadToken).
         const copy = await this.readServerChatCopy(chaId, chatIndex, chatId)
         if (!copy) return null
         if (copy.revision) {
             const base = this.chatSaveBase(copy.revision, null, copy.bytes, copy.encodedBytes)
             if (copy.chat && typeof copy.chat === 'object') this.chatViewBases.set(copy.chat, base)
-            const key = this.chatSyncKey(chaId, chatId)
-            if (!this.chatSyncStates.has(key)) this.storeChatSyncState(key, base)
         }
         return copy.chat
     }
@@ -1136,6 +1279,48 @@ function readMissingFullChat(body: any): { chaId: string, chatId: string } | und
     }
 
     /**
+     * Publishes \`rebased\` (this save's content \`proposed\` merged with a
+     * server copy) into \`chat\` together with the edits made to it since the
+     * content was captured, and returns what to send now. undefined: \`chat\`
+     * may no longer show this save's content (mayPublishChatSave), nothing
+     * was published. null: it cannot be published (the caller's conflict);
+     * with \`checkAgainst\` (the messages of the server copy merged with),
+     * also when a message of \`chat\` has no valid chatId or repeats one, as
+     * read before normalization, or when the messages \`chat\` and that copy
+     * both hold are in another relative order.
+     */
+    private publishChatRebase(save: ChatSaveContext, chat: any, proposed: any, rebased: any, checkAgainst: any[] | null): any | null | undefined {
+        if (!this.mayPublishChatSave(save, chat)) return undefined
+        // Keep edits made to the chat while the request ran.
+        let live: any
+        try {
+            const raw = snapshotChatView(chat)
+            if (checkAgainst) {
+                if (!NodeStorage.messageIdsValid(raw?.message)) return null
+                const rawMessages: any[] = Array.isArray(raw?.message) ? raw.message : []
+                if (!NodeStorage.sharedMessageOrderMatches(rawMessages, checkAgainst)) return null
+            }
+            live = normalizeChat(raw)
+        } catch {
+            return null
+        }
+        const publication = rebaseChatSave(proposed, live, rebased)
+        if (!publication.ok) return null
+        // A stored streaming flag describes an earlier run; never let
+        // a merged server copy start a spinner here.
+        for (const field of ['isStreaming', 'activeStreamingDisplayOptimizationMode']) {
+            if (Object.hasOwn(live, field)) publication.chat[field] = live[field]
+            else delete publication.chat[field]
+        }
+        try {
+            publishChatView(chat, publication.chat)
+        } catch {
+            return null
+        }
+        return publication.chat
+    }
+
+    /**
      * Saves a whole chat under the revision protocol, as the save context
      * \`context\` (captured now when none is given) holds it: its content on
      * its base. When the chat changed on the server since that base, the
@@ -1143,6 +1328,26 @@ function readMissingFullChat(body: any): { chaId: string, chatId: string } | und
      * into \`chat\` when that may still show it, and saved again, so a reply
      * another device saved is kept. A conflict that cannot be merged throws
      * ChatConflictError and leaves \`chat\` as it is.
+     *
+     * A save that starts without a base (not a create, not detached, not a
+     * view) reads the server copy first. When there is none, the save goes
+     * on as before (create, or the d8 conflict). Otherwise it overwrites that
+     * copy only with the content of an open-chat plugin write without a read
+     * token (pluginOverwriteAllowed); any other such save merges with it
+     * once, without deleting: the messages of both are kept (a server message
+     * the content lacks counts as added there, never as deleted here), the
+     * fields outside the message list take the content's values, and an
+     * edited shared message takes the content's version. The merge is a
+     * visible conflict (ChatConflictError, nothing sent) when a message of
+     * the content or of the server copy has no valid chatId (a non-empty
+     * string) or repeats one, as read before normalization, when the
+     * messages both hold are in another relative order (also between \`chat\`
+     * as published into and the server copy), while \`chat\` is streaming, or
+     * when it cannot be merged. The merge is published like a
+     * rebase and sent on the copy's revision, while the base the save started
+     * from stays empty; a later 409 rebases as usual, checking the message
+     * ids of every new server copy and of the chat it publishes into the
+     * same way.
      */
     async saveChatContent(
         chaId: string,
@@ -1154,12 +1359,52 @@ function readMissingFullChat(body: any): { chaId: string, chatId: string } | und
     ): Promise<void> {
         const save = context ?? this.beginChatSave(chaId, chatId, chat, { intent })
         let proposedBytes: Uint8Array = save.content
-        let proposed = normalizeChat(await decodeRisuSave(proposedBytes))
+        const decoded = await decodeRisuSave(proposedBytes)
+        const contentIdsValid = NodeStorage.messageIdsValid(decoded?.message)
+        let proposed = normalizeChat(decoded)
         let merged: any | null = null
         let published = true
+        let baseless = false
+        let serverAbsent = false
+        if (!save.base?.revision && save.intent !== 'create' && !save.detached && !save.view) {
+            const server = await this.readSaveBaseline(chaId, chatIndex, chatId)
+            if (!server) {
+                serverAbsent = true
+            } else if (server.revision && this.pluginOverwriteAllowed(save, chat)) {
+                // The plugin's content overwrites the server copy (d13).
+                save.base = this.chatSaveBase(server.revision, server.chat, null, server.encodedBytes)
+                if (!save.start?.revision) save.start = save.base
+            } else if (server.revision) {
+                baseless = true
+                const refuse = (reason: string) => new ChatConflictError(\`Chat changed on the server and could not be merged without a base: \${reason}\`, server.revision)
+                const serverMessages: any[] = Array.isArray(server.chat?.message) ? server.chat.message : []
+                const localMessages: any[] = Array.isArray(proposed?.message) ? proposed.message : []
+                if (!contentIdsValid || server.messageIdsValid === false) throw refuse('a message has no valid chat id')
+                if (!NodeStorage.sharedMessageOrderMatches(localMessages, serverMessages)) throw refuse('shared messages are in another order')
+                if (chat?.isStreaming) throw refuse('the chat is streaming')
+                // The comparison base: the server copy holding only the
+                // messages the content holds too, so nothing reads as deleted.
+                const held = new Set(localMessages.map((message) => message.chatId))
+                const comparison = { ...server.chat, message: serverMessages.filter((message) => held.has(message.chatId)) }
+                const rebased = rebaseChatSave(comparison, proposed, server.chat)
+                if (!rebased.ok) throw refuse('the edits overlap')
+                let next = this.publishChatRebase(save, chat, proposed, rebased.chat, serverMessages)
+                if (next === null) throw refuse('the chat cannot show the merge')
+                if (next === undefined) {
+                    published = false
+                    next = rebased.chat
+                }
+                if (jsonValuesEqual(next, proposed)) published = true
+                else merged = next
+                // Sent on the server copy's revision; the start stays empty.
+                save.base = this.chatSaveBase(server.revision, server.chat, null, server.encodedBytes)
+                proposed = next
+                proposedBytes = encodeRisuSaveLegacy(proposed)
+            }
+        }
         for (let attempt = 0; ; attempt++) {
             try {
-                const saved = await this.postFullChat(chaId, chatIndex, chatId, proposed, proposedBytes, save)
+                const saved = await this.postFullChat(chaId, chatIndex, chatId, proposed, proposedBytes, save, serverAbsent)
                 this.settleChatSave(save, saved, merged, published)
                 return
             } catch (error) {
@@ -1168,37 +1413,19 @@ function readMissingFullChat(body: any): { chaId: string, chatId: string } | und
                 // The save's own base, never a newer one found by chat.
                 const base = save.base
                 if (!fresh || !base || attempt >= 2 || fresh.revision === base.revision || chat?.isStreaming) throw error
+                if (baseless && fresh.messageIdsValid === false) throw error
                 const baseCopy = await this.chatSaveBaseCopy(base)
                 if (!baseCopy) throw error
                 const rebased = rebaseChatSave(baseCopy, proposed, fresh.chat)
                 if (!rebased.ok) throw error
-                let next = rebased.chat
-                if (this.mayPublishChatSave(save, chat)) {
-                    // Keep edits made to the chat while the request ran.
-                    let live: any
-                    try {
-                        live = normalizeChat(snapshotChatView(chat))
-                    } catch {
-                        throw error
-                    }
-                    const publication = rebaseChatSave(proposed, live, rebased.chat)
-                    if (!publication.ok) throw error
-                    // A stored streaming flag describes an earlier run; never let
-                    // a merged server copy start a spinner here.
-                    for (const field of ['isStreaming', 'activeStreamingDisplayOptimizationMode']) {
-                        if (Object.hasOwn(live, field)) publication.chat[field] = live[field]
-                        else delete publication.chat[field]
-                    }
-                    try {
-                        publishChatView(chat, publication.chat)
-                    } catch {
-                        throw error
-                    }
-                    next = publication.chat
-                } else {
+                const freshMessages: any[] = Array.isArray(fresh.chat?.message) ? fresh.chat.message : []
+                let next = this.publishChatRebase(save, chat, proposed, rebased.chat, baseless ? freshMessages : null)
+                if (next === null) throw error
+                if (next === undefined) {
                     // The chat no longer shows this save's content: it keeps
                     // its own base, and the merge is saved without it.
                     published = false
+                    next = rebased.chat
                 }
                 // Verified rebase: the content moves onto the server copy.
                 save.base = this.chatSaveBase(fresh.revision, fresh.chat, null, fresh.encodedBytes)
@@ -1276,6 +1503,11 @@ import type { ChatSaveContext } from './nodeStorage'
     // \`options.recreate\`: the retry of a 422 invariant recovery saves the
     // chat it named.
     beginChatSave?(chaId: string, chatId: string, chat: Chat, options: { intent?: ChatSaveIntent, recreate?: boolean }): ChatSaveContext | undefined
+    // Run in a save's turn before anything else, for a save that did not get
+    // its context from the caller: waits until the save can be captured or
+    // sent (null when nothing has to be waited for) and completes a context
+    // captured at the call meanwhile. A rejection fails this save only.
+    prepareChatSave?(context: ChatSaveContext | undefined): Promise<void> | null
     // Records the revision of a chat a load assembled, as that object's own
     // base until it is installed.
     registerFetchedChat?(chaId: string, chatId: string, revision: string, chat: Chat): void
@@ -1318,6 +1550,11 @@ import type { ChatSaveContext } from './nodeStorage'
     // A caller may hand in a context it captured itself (\`options.context\`).
     // \`options.recreate\` (the retry of a 422 invariant recovery saving the
     // chat it named) goes into the context captured for this save.
+    // Every save takes its place in the queue at the call; a save that did
+    // not get its context from the caller first waits in that place for what
+    // its capture or sending needs (transport.prepareChatSave), so a save
+    // called later never goes first, and a failure there fails that save
+    // alone.
     function saveChat(
         chaId: string,
         chatIndex: number,
@@ -1332,9 +1569,10 @@ import type { ChatSaveContext } from './nodeStorage'
         const recreate = options.recreate === true
         const context = options.context ?? (live ? undefined : transport.beginChatSave?.(chaId, chatId, chat, { intent, recreate }))
         const queued = live ? null : chat
+        const prepare = !options.context
         const run = previous
-            ? previous.then(() => saveChatNow(chaId, chatIndex, chatId, queued, intent, context, recreate))
-            : saveChatNow(chaId, chatIndex, chatId, queued, intent, context, recreate)
+            ? previous.then(() => saveChatNow(chaId, chatIndex, chatId, queued, intent, context, recreate, prepare))
+            : saveChatNow(chaId, chatIndex, chatId, queued, intent, context, recreate, prepare)
 `,
     },
     {
@@ -1342,7 +1580,13 @@ import type { ChatSaveContext } from './nodeStorage'
         type: 'replace',
         anchor: `    async function saveChatNow(chaId: string, chatIndex: number, chatId: string, chat: Chat): Promise<void> {
 `,
-        content: `    async function saveChatNow(chaId: string, chatIndex: number, chatId: string, queued: Chat | null, intent?: ChatSaveIntent, context?: ChatSaveContext, recreate = false): Promise<void | 'skipped'> {
+        content: `    async function saveChatNow(chaId: string, chatIndex: number, chatId: string, queued: Chat | null, intent?: ChatSaveIntent, context?: ChatSaveContext, recreate = false, prepare = false): Promise<void | 'skipped'> {
+        // In this save's turn: wait for what its capture or sending needs
+        // (nothing to wait for keeps the turn synchronous).
+        if (prepare) {
+            const preparing = transport.prepareChatSave?.(context)
+            if (preparing) await preparing
+        }
         // An open chat's autosave (no queued chat) saves the chat in its slot
         // now, at its index now; nothing when it is gone or a placeholder.
         let chat: Chat
@@ -1405,25 +1649,57 @@ import type { ChatSaveContext } from "./nodeStorage"
     // database now, and how to find the slot again by chaId and chatId: its
     // result is neither published nor, after a rebase, adopted as the slot's
     // base once the slot holds another object (NodeStorage.chatSaveSlotReplaced).
-    // Not found (the database state is not loaded, or has no such character
-    // or chat): nothing is recorded.
+    // Not found (the database has no such character or chat): nothing is
+    // recorded. Captured before the database state is loaded: the slot is
+    // recorded once loaded, in the save's turn (prepareChatSave).
     beginChatSave: (chaId, chatId, chat, options) => {
         const held = findChatSlot(chaId, chatId)?.chat
         const slot = held && typeof held === 'object'
             ? { chat: held, locate: () => findChatSlot(chaId, chatId)?.chat }
             : undefined
-        return forageStorage.realStorage?.beginChatSave?.(chaId, chatId, chat, { ...options, slot })
+        const loaded = liveDatabaseState !== null
+        const context = forageStorage.realStorage?.beginChatSave?.(chaId, chatId, chat, { ...options, slot })
+        if (context && !loaded && chat && typeof chat === 'object') capturedBeforeLoad.set(context, chat)
+        return context
+    },
+    // A save's turn: the database state is loaded first (a live autosave
+    // looks its chat up in it, a captured save records its slot from it).
+    prepareChatSave: (context) => {
+        if (liveDatabaseState) {
+            attachSlotAfterLoad(context)
+            return null
+        }
+        return loadLiveDatabaseState().then(() => attachSlotAfterLoad(context))
     },
     registerFetchedChat: (chaId, chatId, revision, chat) => forageStorage.realStorage?.registerFetchedChat?.(chaId, chatId, revision, chat),
     locateLiveChat: (chaId, chatId) => locateLiveChat(chaId, chatId),
 }, indexedDbChatCopies)
 
-// The current database state (DBState), loaded when the first chat save that
-// captures its own context is requested rather than with this module, so
+// The current database state (DBState), loaded in the turn of the first chat
+// save that captures its own context rather than with this module, so
 // loading chatStorage still starts no reactive store effects.
 let liveDatabaseState: typeof import("../stores.svelte").DBState | null = null
 async function loadLiveDatabaseState(): Promise<void> {
     liveDatabaseState ??= (await import("../stores.svelte")).DBState
+}
+
+// Save contexts captured at the call before the database state was loaded,
+// with the chat object the caller handed in: they record no slot until their
+// turn (NodeStorage.attachChatSaveSlot).
+const capturedBeforeLoad = new WeakMap<ChatSaveContext, object>()
+
+function attachSlotAfterLoad(context: ChatSaveContext | undefined): void {
+    if (!context) return
+    const chat = capturedBeforeLoad.get(context)
+    if (chat === undefined) return
+    capturedBeforeLoad.delete(context)
+    const { chaId, chatId } = context
+    forageStorage.realStorage?.attachChatSaveSlot?.(
+        context,
+        chat,
+        findChatSlot(chaId, chatId)?.chat,
+        () => findChatSlot(chaId, chatId)?.chat,
+    )
 }
 
 // The chat's slot in the current database, found by chaId and chatId (never
@@ -1464,9 +1740,12 @@ function locateLiveChat(chaId: string, chatId: string): { chatIndex: number, cha
 // the chat is gone or its slot holds a placeholder by then. \`options.context\`
 // hands in a context the caller captured (NodeStorage.beginChatSave) and
 // reads its result afterwards. \`options.recreate\` is passed only by the
-// retry of a 422 invariant recovery for the chat it named. A save that
-// captures its own context records the chat's slot object, so the database
-// state is loaded before it is captured.
+// retry of a 422 invariant recovery for the chat it named. Every save takes
+// its place in the chat's save queue at the call. A save that captures its
+// own context records the chat's slot object; when the database state is not
+// loaded yet, it is loaded in the save's turn and the slot recorded then
+// (a slot holding another object than \`chat\` by then keeps the save's result
+// out of it).
 export async function saveChatToServer(
     chaId: string,
     chatIndex: number,
@@ -1475,7 +1754,6 @@ export async function saveChatToServer(
     intent?: ChatSaveIntent,
     options?: { live?: boolean, context?: ChatSaveContext, recreate?: boolean },
 ): Promise<void | 'skipped'> {
-    if (!options?.context && !liveDatabaseState) await loadLiveDatabaseState()
     return await chatDeltaSync.saveChat(chaId, chatIndex, chatId, chat, intent, options)
 }
 `,
@@ -1902,10 +2180,14 @@ const PLUGIN_READ_TOKEN_FIELD = '__pluginReadToken';
                     const tokenBase = storage.pluginReadTokenBase(readToken, owner.chaId, writtenId)
                     // The open chat is saved by its autosave on the slot's
                     // base. A token base without its server copy cannot be
-                    // rebased there, so it must be the slot's own base.
+                    // rebased there, so it must be the slot's own base. With
+                    // no slot base held there is nothing to compare: the
+                    // token's base is installed as it is (a save on a
+                    // revision the server has passed then conflicts).
                     const opening = Number(charId) === get(selectedCharID) && owner.chatPage === chatIndex
+                    const slotRevision = opening ? storage.chatSlotBaseRevision(owner.chaId, writtenId) : null
                     if(opening && tokenBase && tokenBase.snapshot === null && tokenBase.bytes === null
-                        && tokenBase.revision !== storage.chatSlotBaseRevision(owner.chaId, writtenId)){
+                        && slotRevision !== null && tokenBase.revision !== slotRevision){
                         throw new Error('setChatToIndex: this chat changed since it was read; read it again with getChatFromIndex');
                     }
                     DBState.db.characters[charId].chats[chatIndex] = normalizeChat(chat)

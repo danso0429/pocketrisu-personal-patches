@@ -130,6 +130,12 @@ const ownedTests1116 = [
     'src/ts/storage/chatSaveFollowup.e2-3.test.ts',
     // Chat save results refused once the slot holds another chat object (E2-3d5).
     'src/ts/storage/chatSlotIdentity.e2-3.test.ts',
+    // Chat saves while the database state loads (E2-3d6a) and slot saves
+    // without a base (E2-3d6b).
+    'src/ts/storage/chatBaseless.e2-3.test.ts',
+    'src/ts/storage/chatBaseless.e2-3.helpers.ts',
+    // Chat reads that install no slot base (E2-3d6c).
+    'src/ts/storage/chatReadBase.e2-3.test.ts',
     // Client startup safety (E2-3e).
     'src/ts/storage/startupSafety.e2-3.test.ts',
     'src/ts/storage/startupCache.e2-3.helpers.ts',
